@@ -1,5 +1,6 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
+import { ItemBidSection } from "@/components/ItemBidSection"
 
 const MEDUSA_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
 const PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
@@ -37,6 +38,7 @@ type BlockItem = {
   current_price: number | null
   bid_count: number
   lot_number: number | null
+  lot_end_time: string | null
   status: string
   release: Release | null
 }
@@ -174,39 +176,28 @@ export default async function ItemDetailPage({
             )}
           </div>
 
-          {/* Price Section */}
-          <div className="mt-6 p-4 rounded-lg border border-zinc-800 bg-zinc-900">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm text-zinc-400">Startpreis</span>
-              <span className="text-2xl font-bold">
-                &euro;{item.start_price.toFixed(2)}
+          {/* Bid Section */}
+          <div className="mt-6">
+            <ItemBidSection
+              slug={slug}
+              itemId={item.id}
+              initialPrice={item.current_price}
+              startPrice={item.start_price}
+              initialBidCount={item.bid_count}
+              lotEndTime={item.lot_end_time}
+              blockStatus={block.status}
+              itemStatus={item.status}
+            />
+          </div>
+
+          {item.estimated_value && (
+            <div className="mt-3 flex items-center justify-between text-sm px-1">
+              <span className="text-zinc-500">Schätzwert</span>
+              <span className="text-zinc-400">
+                &euro;{item.estimated_value.toFixed(2)}
               </span>
             </div>
-            {item.estimated_value && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-zinc-500">Schätzwert</span>
-                <span className="text-zinc-400">
-                  &euro;{item.estimated_value.toFixed(2)}
-                </span>
-              </div>
-            )}
-            {item.bid_count > 0 && (
-              <div className="flex items-center justify-between text-sm mt-1">
-                <span className="text-zinc-500">Gebote</span>
-                <span className="text-zinc-400">{item.bid_count}</span>
-              </div>
-            )}
-
-            <button
-              disabled
-              className="w-full mt-4 py-3 rounded-lg bg-zinc-700 text-zinc-400 text-sm font-medium cursor-not-allowed"
-            >
-              Bieten (demnächst verfügbar)
-            </button>
-            <p className="text-xs text-zinc-600 text-center mt-2">
-              Die Bieten-Funktion wird in Kürze freigeschaltet.
-            </p>
-          </div>
+          )}
 
           {/* Release Details */}
           <div className="mt-6 space-y-3">

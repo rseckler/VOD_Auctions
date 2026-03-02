@@ -8,7 +8,7 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 
 **Goal:** Eigene Plattform mit voller Kontrolle über Marke, Kundendaten, Preisgestaltung — statt 8-13% Gebühren an eBay/Discogs
 
-**Status:** Phase 1 — RSE-72 + RSE-73 + RSE-74 erledigt, RSE-75 (Bidding-Engine) als nächstes
+**Status:** Phase 1 — RSE-72 bis RSE-75 erledigt, RSE-76 (Payment & Stripe) als nächstes
 
 **Created:** 2026-02-10
 **Last Updated:** 2026-03-02
@@ -72,8 +72,8 @@ Shared DB für tape-mag-mvp + VOD_Auctions. Schema enthält 20 Tabellen (14 Basi
 - ~~RSE-72: Datenbank vorbereiten (Legacy-Migration + Auktions-Schema)~~ ✅
 - ~~RSE-73: Admin-Panel: Block-Erstellung, Produktauswahl, Startpreis-Review~~ ✅
 - ~~RSE-74: Public Frontend: Auktionskalender, Block-Detailseite~~ ✅
-- **RSE-75: Bidding-Engine: Gebote, Real-time, Auto-Extension** ← NÄCHSTER SCHRITT
-- RSE-76: Payment & Stripe Integration
+- ~~RSE-75: Bidding-Engine: Gebote, Real-time, Auto-Extension~~ ✅
+- **RSE-76: Payment & Stripe Integration** ← NÄCHSTER SCHRITT
 - RSE-77: Testlauf: 1 Block mit 10-20 Produkten
 
 ### Phase 2: Launch (Monate 3-4)
@@ -142,7 +142,8 @@ VOD_Auctions/
 │   │   ├── modules/auction/     # Custom Auction Module
 │   │   │   ├── models/
 │   │   │   │   ├── auction-block.ts  # AuctionBlock Entity (DML)
-│   │   │   │   └── block-item.ts     # BlockItem Entity (DML)
+│   │   │   │   ├── block-item.ts     # BlockItem Entity (DML)
+│   │   │   │   └── bid.ts            # Bid Entity (DML, RSE-75)
 │   │   │   ├── service.ts       # AuctionModuleService (auto-CRUD)
 │   │   │   └── index.ts         # Module Registration
 │   │   ├── api/
@@ -155,7 +156,12 @@ VOD_Auctions/
 │   │   │           ├── route.ts      # List blocks (items_count, status filter)
 │   │   │           └── [slug]/
 │   │   │               ├── route.ts       # Block detail + items + Release data
-│   │   │               └── items/[itemId]/route.ts  # Item detail + Release + Images
+│   │   │               └── items/[itemId]/
+│   │   │                   ├── route.ts   # Item detail + Release + Images
+│   │   │                   └── bids/route.ts  # GET bids + POST bid (auth required)
+│   │   │   ├── middlewares.ts   # Auth middleware (customer JWT on POST /bids)
+│   │   │   └── jobs/
+│   │   │       └── auction-lifecycle.ts  # Cron: Block activation/ending (every min)
 │   │   └── admin/routes/        # Admin Dashboard UI Extensions
 │   │       └── auction-blocks/
 │   │           ├── page.tsx     # Block-Übersicht (Tabelle)
@@ -163,14 +169,23 @@ VOD_Auctions/
 │   └── node_modules/
 ├── storefront/                  # Next.js 16 Storefront (Port 3000)
 │   ├── .env.local               # MEDUSA_URL + Publishable API Key
-│   ├── src/app/
-│   │   ├── layout.tsx           # Layout: Header, Footer, Dark Theme
-│   │   ├── page.tsx             # Homepage: Hero, aktive/demnächst Blöcke
-│   │   └── auctions/
-│   │       ├── page.tsx         # Auktionskalender (Status-Gruppierung)
-│   │       └── [slug]/
-│   │           ├── page.tsx     # Block-Detail: Hero, Items-Grid
-│   │           └── [itemId]/page.tsx  # Item-Detail: Bilder, Release, Preis
+│   ├── src/
+│   │   ├── app/
+│   │   │   ├── layout.tsx       # Layout: Header, Footer, Dark Theme, AuthProvider
+│   │   │   ├── page.tsx         # Homepage: Hero, aktive/demnächst Blöcke
+│   │   │   └── auctions/
+│   │   │       ├── page.tsx     # Auktionskalender (Status-Gruppierung)
+│   │   │       └── [slug]/
+│   │   │           ├── page.tsx # Block-Detail: Hero, Items-Grid
+│   │   │           └── [itemId]/page.tsx  # Item-Detail + ItemBidSection
+│   │   ├── components/
+│   │   │   ├── AuthProvider.tsx  # Auth Context (JWT, Customer)
+│   │   │   ├── AuthModal.tsx     # Login/Register Modal
+│   │   │   ├── HeaderAuth.tsx    # Anmelden/Abmelden im Header
+│   │   │   └── ItemBidSection.tsx # BidForm + BidHistory + Countdown + Realtime
+│   │   └── lib/
+│   │       ├── auth.ts          # Medusa Auth Helpers
+│   │       └── supabase.ts      # Supabase Client (Realtime)
 │   └── node_modules/
 ├── scripts/                     # Migration-Scripts (Python)
 │   ├── extract_legacy_data.py   # MySQL → JSON
