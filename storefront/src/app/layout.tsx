@@ -39,7 +39,7 @@ function Header() {
             href="/auctions?status=all"
             className="text-zinc-400 hover:text-white transition-colors"
           >
-            Kalender
+            Alle Auktionen
           </Link>
           <HeaderAuth />
         </nav>
@@ -69,14 +69,8 @@ function Footer() {
                 Aktuelle Auktionen
               </Link>
               <Link href="/auctions?status=all" className="text-zinc-500 hover:text-zinc-300">
-                Kalender
+                Alle Auktionen
               </Link>
-            </div>
-            <div className="flex flex-col gap-2">
-              <p className="text-zinc-400 font-medium">Rechtliches</p>
-              <span className="text-zinc-600">Impressum (folgt)</span>
-              <span className="text-zinc-600">Datenschutz (folgt)</span>
-              <span className="text-zinc-600">AGB (folgt)</span>
             </div>
           </div>
         </div>

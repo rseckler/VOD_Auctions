@@ -8,7 +8,7 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 
 **Goal:** Eigene Plattform mit voller Kontrolle über Marke, Kundendaten, Preisgestaltung — statt 8-13% Gebühren an eBay/Discogs
 
-**Status:** Phase 1 — RSE-72 bis RSE-75 erledigt, RSE-76 (Payment & Stripe) als nächstes
+**Status:** Phase 1 — RSE-72 bis RSE-75b erledigt, RSE-76 (Payment & Stripe) als nächstes
 
 **Created:** 2026-02-10
 **Last Updated:** 2026-03-02
@@ -73,6 +73,7 @@ Shared DB für tape-mag-mvp + VOD_Auctions. Schema enthält 20 Tabellen (14 Basi
 - ~~RSE-73: Admin-Panel: Block-Erstellung, Produktauswahl, Startpreis-Review~~ ✅
 - ~~RSE-74: Public Frontend: Auktionskalender, Block-Detailseite~~ ✅
 - ~~RSE-75: Bidding-Engine: Gebote, Real-time, Auto-Extension~~ ✅
+- ~~RSE-75b: UX Polish & Kompletter Auktions-Workflow~~ ✅
 - **RSE-76: Payment & Stripe Integration** ← NÄCHSTER SCHRITT
 - RSE-77: Testlauf: 1 Block mit 10-20 Produkten
 
@@ -149,17 +150,22 @@ VOD_Auctions/
 │   │   ├── api/
 │   │   │   ├── admin/           # Admin API (Auth required)
 │   │   │   │   ├── auction-blocks/   # CRUD: list, create, update, delete
-│   │   │   │   │   └── [id]/items/   # Block Items: add, update price, remove
-│   │   │   │   └── releases/    # Search 30k Releases (Knex raw SQL)
+│   │   │   │   │   └── [id]/
+│   │   │   │   │       ├── route.ts  # GET/POST with status-transition validation (RSE-75b)
+│   │   │   │   │       └── items/    # Block Items: add, update price, remove
+│   │   │   │   └── releases/    # Search 30k Releases (Knex raw SQL, auction_status filter)
 │   │   │   └── store/           # Store API (Publishable Key required)
-│   │   │       └── auction-blocks/   # Public: list, detail, item detail
-│   │   │           ├── route.ts      # List blocks (items_count, status filter)
-│   │   │           └── [slug]/
-│   │   │               ├── route.ts       # Block detail + items + Release data
-│   │   │               └── items/[itemId]/
-│   │   │                   ├── route.ts   # Item detail + Release + Images
-│   │   │                   └── bids/route.ts  # GET bids + POST bid (auth required)
-│   │   │   ├── middlewares.ts   # Auth middleware (customer JWT on POST /bids)
+│   │   │       ├── auction-blocks/   # Public: list, detail, item detail
+│   │   │       │   ├── route.ts      # List blocks (items_count, status filter)
+│   │   │       │   └── [slug]/
+│   │   │       │       ├── route.ts       # Block detail + items + Release data
+│   │   │       │       └── items/[itemId]/
+│   │   │       │           ├── route.ts   # Item detail + Release + Images
+│   │   │       │           └── bids/route.ts  # GET bids + POST bid (auth required)
+│   │   │       └── account/          # Account APIs (RSE-75b, customer auth)
+│   │   │           ├── bids/route.ts  # GET: Meine Gebote (JOIN bid+item+block+release)
+│   │   │           └── wins/route.ts  # GET: Gewonnene Items
+│   │   │   ├── middlewares.ts   # Auth middleware (bids + /store/account/*)
 │   │   │   └── jobs/
 │   │   │       └── auction-lifecycle.ts  # Cron: Block activation/ending (every min)
 │   │   └── admin/routes/        # Admin Dashboard UI Extensions
@@ -173,16 +179,25 @@ VOD_Auctions/
 │   │   ├── app/
 │   │   │   ├── layout.tsx       # Layout: Header, Footer, Dark Theme, AuthProvider
 │   │   │   ├── page.tsx         # Homepage: Hero, aktive/demnächst Blöcke
-│   │   │   └── auctions/
-│   │   │       ├── page.tsx     # Auktionskalender (Status-Gruppierung)
-│   │   │       └── [slug]/
-│   │   │           ├── page.tsx # Block-Detail: Hero, Items-Grid
-│   │   │           └── [itemId]/page.tsx  # Item-Detail + ItemBidSection
+│   │   │   ├── auctions/
+│   │   │   │   ├── page.tsx     # Auktionsübersicht + AuctionListFilter
+│   │   │   │   └── [slug]/
+│   │   │   │       ├── page.tsx # Block-Detail: Hero, BlockItemsGrid
+│   │   │   │       └── [itemId]/page.tsx  # Item-Detail + ItemBidSection
+│   │   │   └── account/         # Account-Bereich (RSE-75b)
+│   │   │       ├── layout.tsx   # Auth-Guard, Sidebar-Nav, Responsive
+│   │   │       ├── page.tsx     # Übersicht: Willkommen + Summary-Karten
+│   │   │       ├── bids/page.tsx    # Meine Gebote (gruppiert, Status-Badges)
+│   │   │       ├── wins/page.tsx    # Gewonnene Items + Bezahl-Platzhalter
+│   │   │       └── settings/page.tsx # Profil-Informationen (readonly)
 │   │   ├── components/
-│   │   │   ├── AuthProvider.tsx  # Auth Context (JWT, Customer)
-│   │   │   ├── AuthModal.tsx     # Login/Register Modal
-│   │   │   ├── HeaderAuth.tsx    # Anmelden/Abmelden im Header
-│   │   │   └── ItemBidSection.tsx # BidForm + BidHistory + Countdown + Realtime
+│   │   │   ├── AuthProvider.tsx      # Auth Context (JWT, Customer)
+│   │   │   ├── AuthModal.tsx         # Login/Register Modal
+│   │   │   ├── HeaderAuth.tsx        # Anmelden/Abmelden/Mein Konto im Header
+│   │   │   ├── ItemBidSection.tsx    # BidForm + BidHistory + Countdown + Realtime
+│   │   │   ├── AuctionListFilter.tsx # Tab-Filter (Alle/Laufend/Demnächst/Beendet)
+│   │   │   ├── BlockItemsGrid.tsx    # Sort + Suche + Item-Grid
+│   │   │   └── Skeleton.tsx          # Loading-Skeleton-Komponente
 │   │   └── lib/
 │   │       ├── auth.ts          # Medusa Auth Helpers
 │   │       └── supabase.ts      # Supabase Client (Realtime)
@@ -237,6 +252,7 @@ npm run dev
 - **RSE-73:** P1.2 Admin-Panel (Block-Erstellung, Produktauswahl)
 - **RSE-74:** P1.3 Public Frontend (Auktionskalender, Block-Detailseite)
 - **RSE-75:** P1.4 Bidding-Engine (Gebote, Real-time, Auto-Extension)
+- **RSE-75b:** P1.4b UX Polish & Kompletter Auktions-Workflow
 - **RSE-76:** P1.5 Payment & Stripe Integration
 - **RSE-77:** P1.6 Testlauf (1 Block, 10-20 Produkte)
 

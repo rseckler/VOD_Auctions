@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { useAuth } from "./AuthProvider"
 import { AuthModal } from "./AuthModal"
 
@@ -16,6 +17,12 @@ export function HeaderAuth() {
         <span className="text-xs text-zinc-400">
           {customer.first_name || customer.email}
         </span>
+        <Link
+          href="/account"
+          className="text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
+        >
+          Mein Konto
+        </Link>
         <button
           onClick={logout}
           className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"

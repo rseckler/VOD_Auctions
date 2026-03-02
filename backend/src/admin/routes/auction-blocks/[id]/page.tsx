@@ -21,14 +21,16 @@ type BlockItem = {
   release_id: string
   start_price: number
   estimated_value: number | null
+  reserve_price: number | null
+  buy_now_price: number | null
   current_price: number | null
   bid_count: number
   lot_number: number | null
   status: string
-  // Joined release data
-  release_title?: string
-  release_artist?: string
-  release_format?: string
+  release_title?: string | null
+  release_artist?: string | null
+  release_format?: string | null
+  release_cover?: string | null
 }
 
 type AuctionBlock = {
@@ -51,6 +53,9 @@ type AuctionBlock = {
   default_start_price_percent: number
   auto_extend: boolean
   extension_minutes: number
+  total_revenue: number | null
+  sold_items: number | null
+  total_bids: number | null
   items: BlockItem[]
 }
 
@@ -66,12 +71,22 @@ type Release = {
   estimated_value: number | null
 }
 
-const STATUS_COLORS: Record<string, "green" | "orange" | "blue" | "grey" | "red"> = {
+const STATUS_COLORS: Record<string, "green" | "orange" | "blue" | "grey" | "red" | "purple"> = {
   draft: "grey",
   scheduled: "blue",
   preview: "orange",
   active: "green",
   ended: "red",
+  archived: "purple",
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  draft: "Entwurf",
+  scheduled: "Geplant",
+  preview: "Vorschau",
+  active: "Aktiv",
+  ended: "Beendet",
+  archived: "Archiviert",
 }
 
 const BLOCK_TYPES = [
@@ -79,6 +94,19 @@ const BLOCK_TYPES = [
   { value: "highlight", label: "Highlight-Block" },
   { value: "clearance", label: "Clearance-Block" },
   { value: "flash", label: "Flash-Block" },
+]
+
+const FORMAT_OPTIONS = [
+  { value: "", label: "Alle Formate" },
+  { value: "LP", label: "LP / Vinyl" },
+  { value: "CD", label: "CD" },
+  { value: "CASSETTE", label: "Kassette" },
+  { value: "7\"", label: "7\"" },
+  { value: "10\"", label: "10\"" },
+  { value: "12\"", label: "12\"" },
+  { value: "BOXSET", label: "Box Set" },
+  { value: "DVD", label: "DVD" },
+  { value: "BOOK", label: "Buch" },
 ]
 
 const BlockDetailPage = () => {
@@ -105,11 +133,16 @@ const BlockDetailPage = () => {
   })
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState("")
+  const [messageType, setMessageType] = useState<"success" | "error">("success")
 
   // Release search
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<Release[]>([])
+  const [searchCount, setSearchCount] = useState(0)
+  const [searchOffset, setSearchOffset] = useState(0)
   const [searching, setSearching] = useState(false)
+  const [formatFilter, setFormatFilter] = useState("")
+  const [onlyAvailable, setOnlyAvailable] = useState(true)
 
   // Fetch block data
   useEffect(() => {
@@ -120,6 +153,12 @@ const BlockDetailPage = () => {
         .catch(console.error)
     }
   }, [id, isNew])
+
+  const showMessage = (text: string, type: "success" | "error" = "success") => {
+    setMessage(text)
+    setMessageType(type)
+    if (type === "success") setTimeout(() => setMessage(""), 3000)
+  }
 
   // Auto-generate slug from title
   const handleTitleChange = (title: string) => {
@@ -133,6 +172,15 @@ const BlockDetailPage = () => {
 
   // Save block
   const handleSave = async () => {
+    if (!block.title?.trim()) {
+      showMessage("Titel ist erforderlich", "error")
+      return
+    }
+    if (block.start_time && block.end_time && new Date(block.start_time) >= new Date(block.end_time)) {
+      showMessage("Startzeit muss vor Endzeit liegen", "error")
+      return
+    }
+
     setSaving(true)
     setMessage("")
     try {
@@ -147,31 +195,69 @@ const BlockDetailPage = () => {
       })
       const data = await res.json()
       if (res.ok) {
-        setMessage("Gespeichert!")
+        showMessage("Gespeichert!")
         if (isNew && data.auction_block?.id) {
           window.location.href = `/app/auction-blocks/${data.auction_block.id}`
         }
       } else {
-        setMessage(`Fehler: ${data.message || "Unbekannter Fehler"}`)
+        showMessage(data.message || "Unbekannter Fehler", "error")
       }
     } catch (err) {
-      setMessage(`Fehler: ${err}`)
+      showMessage(`Fehler: ${err}`, "error")
     } finally {
       setSaving(false)
     }
   }
 
-  // Search releases
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) return
-    setSearching(true)
+  // Status change
+  const handleStatusChange = async (newStatus: string) => {
+    const labels: Record<string, string> = {
+      scheduled: "Block planen? Er wird zur Startzeit automatisch aktiviert.",
+      active: "Block jetzt aktivieren? Gebote werden sofort möglich.",
+      preview: "Block in Vorschau setzen? Kunden können Items sehen aber noch nicht bieten.",
+      archived: "Block archivieren?",
+    }
+    if (!window.confirm(labels[newStatus] || `Status auf "${newStatus}" ändern?`)) return
+
     try {
-      const res = await fetch(
-        `/admin/releases?q=${encodeURIComponent(searchQuery)}&limit=20`,
-        { credentials: "include" }
-      )
+      const res = await fetch(`/admin/auction-blocks/${id}`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      })
       const data = await res.json()
-      setSearchResults(data.releases || [])
+      if (res.ok) {
+        setBlock(data.auction_block)
+        showMessage(`Status geändert: ${STATUS_LABELS[newStatus] || newStatus}`)
+      } else {
+        showMessage(data.message || "Statuswechsel fehlgeschlagen", "error")
+      }
+    } catch (err) {
+      showMessage(`Fehler: ${err}`, "error")
+    }
+  }
+
+  // Search releases
+  const handleSearch = async (append = false) => {
+    setSearching(true)
+    const offset = append ? searchOffset : 0
+    try {
+      let url = `/admin/releases?limit=20&offset=${offset}`
+      if (searchQuery.trim()) url += `&q=${encodeURIComponent(searchQuery)}`
+      if (formatFilter) url += `&format=${encodeURIComponent(formatFilter)}`
+      if (onlyAvailable) url += `&auction_status=available`
+
+      const res = await fetch(url, { credentials: "include" })
+      const data = await res.json()
+
+      if (append) {
+        setSearchResults((prev) => [...prev, ...(data.releases || [])])
+      } else {
+        setSearchResults(data.releases || [])
+      }
+      setSearchCount(data.count || 0)
+      setSearchOffset(offset + 20)
     } catch (err) {
       console.error(err)
     } finally {
@@ -182,7 +268,7 @@ const BlockDetailPage = () => {
   // Add release to block
   const handleAddItem = async (release: Release) => {
     if (isNew) {
-      setMessage("Block zuerst speichern bevor Items hinzugefügt werden können.")
+      showMessage("Block zuerst speichern bevor Items hinzugefügt werden können.", "error")
       return
     }
     try {
@@ -200,19 +286,23 @@ const BlockDetailPage = () => {
         }),
       })
       if (res.ok) {
-        // Refresh block data
         const blockRes = await fetch(`/admin/auction-blocks/${id}`, { credentials: "include" })
         const data = await blockRes.json()
         setBlock(data.auction_block)
         setSearchResults((prev) => prev.filter((r) => r.id !== release.id))
+        showMessage("Produkt hinzugefügt!")
+      } else {
+        const data = await res.json()
+        showMessage(data.message || "Fehler beim Hinzufügen", "error")
       }
     } catch (err) {
-      console.error(err)
+      showMessage(`Fehler: ${err}`, "error")
     }
   }
 
   // Remove item from block
   const handleRemoveItem = async (itemId: string) => {
+    if (!window.confirm("Produkt aus Block entfernen?")) return
     try {
       await fetch(`/admin/auction-blocks/${id}/items/${itemId}`, {
         method: "DELETE",
@@ -222,24 +312,29 @@ const BlockDetailPage = () => {
         ...b,
         items: b.items?.filter((i) => i.id !== itemId),
       }))
+      showMessage("Produkt entfernt")
     } catch (err) {
       console.error(err)
     }
   }
 
-  // Update item price
-  const handlePriceChange = async (itemId: string, startPrice: number) => {
+  // Update item field (generic)
+  const handleItemFieldChange = async (
+    itemId: string,
+    field: string,
+    value: number | null
+  ) => {
     try {
       await fetch(`/admin/auction-blocks/${id}/items/${itemId}`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ start_price: startPrice }),
+        body: JSON.stringify({ [field]: value }),
       })
       setBlock((b) => ({
         ...b,
         items: b.items?.map((i) =>
-          i.id === itemId ? { ...i, start_price: startPrice } : i
+          i.id === itemId ? { ...i, [field]: value } : i
         ),
       }))
     } catch (err) {
@@ -247,20 +342,74 @@ const BlockDetailPage = () => {
     }
   }
 
+  // Check if release is already in this block
+  const isInBlock = (releaseId: string) =>
+    block.items?.some((i) => i.release_id === releaseId) || false
+
   return (
     <Container>
+      {/* Header with title, status badge, and action buttons */}
       <div className="flex items-center justify-between mb-6">
-        <div>
-          <Heading level="h1">
-            {isNew ? "Neuen Block erstellen" : block.title}
-          </Heading>
-          {!isNew && (
-            <Badge color={STATUS_COLORS[block.status || "draft"]}>
-              {block.status}
-            </Badge>
-          )}
+        <div className="flex items-center gap-3">
+          <div>
+            <Heading level="h1">
+              {isNew ? "Neuen Block erstellen" : block.title}
+            </Heading>
+            {!isNew && block.status && (
+              <Badge color={STATUS_COLORS[block.status] || "grey"}>
+                {STATUS_LABELS[block.status] || block.status}
+              </Badge>
+            )}
+          </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          {/* Status action buttons */}
+          {!isNew && block.status === "draft" && (
+            <Button
+              variant="primary"
+              onClick={() => handleStatusChange("scheduled")}
+            >
+              Planen
+            </Button>
+          )}
+          {!isNew && block.status === "scheduled" && (
+            <>
+              <Button onClick={() => handleStatusChange("active")}>
+                Jetzt aktivieren
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => handleStatusChange("preview")}
+              >
+                Vorschau
+              </Button>
+            </>
+          )}
+          {!isNew && block.status === "preview" && (
+            <Button onClick={() => handleStatusChange("active")}>
+              Jetzt aktivieren
+            </Button>
+          )}
+          {!isNew && block.status === "ended" && (
+            <Button
+              variant="secondary"
+              onClick={() => handleStatusChange("archived")}
+            >
+              Archivieren
+            </Button>
+          )}
+
+          {/* Preview on storefront */}
+          {!isNew && block.slug && (
+            <a
+              href={`http://localhost:3000/auctions/${block.slug}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Button variant="secondary">Storefront</Button>
+            </a>
+          )}
+
           <a href="/app/auction-blocks">
             <Button variant="secondary">Zurück</Button>
           </a>
@@ -270,10 +419,38 @@ const BlockDetailPage = () => {
         </div>
       </div>
 
+      {/* Message banner */}
       {message && (
-        <div className="mb-4 p-3 bg-ui-bg-subtle rounded">
+        <div
+          className={`mb-4 p-3 rounded ${
+            messageType === "error"
+              ? "bg-red-950 border border-red-800 text-red-300"
+              : "bg-green-950 border border-green-800 text-green-300"
+          }`}
+        >
           <Text>{message}</Text>
         </div>
+      )}
+
+      {/* Ended block summary */}
+      {!isNew && block.status === "ended" && (
+        <Container className="mb-6">
+          <Heading level="h2" className="mb-4">Ergebnis</Heading>
+          <div className="grid grid-cols-4 gap-4">
+            <div className="p-4 bg-ui-bg-subtle rounded">
+              <Text className="text-ui-fg-subtle">Umsatz</Text>
+              <p className="text-xl font-bold">€{(block.total_revenue || 0).toFixed(2)}</p>
+            </div>
+            <div className="p-4 bg-ui-bg-subtle rounded">
+              <Text className="text-ui-fg-subtle">Verkauft</Text>
+              <p className="text-xl font-bold">{block.sold_items || 0} / {block.items?.length || 0}</p>
+            </div>
+            <div className="p-4 bg-ui-bg-subtle rounded">
+              <Text className="text-ui-fg-subtle">Gebote</Text>
+              <p className="text-xl font-bold">{block.total_bids || 0}</p>
+            </div>
+          </div>
+        </Container>
       )}
 
       {/* Block Details Form */}
@@ -459,7 +636,9 @@ const BlockDetailPage = () => {
             <Heading level="h2" className="mb-4">
               Produkte hinzufügen
             </Heading>
-            <div className="flex gap-2 mb-4">
+
+            {/* Search bar + filters */}
+            <div className="flex gap-2 mb-3">
               <Input
                 className="flex-1"
                 value={searchQuery}
@@ -467,56 +646,115 @@ const BlockDetailPage = () => {
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                 placeholder="Release suchen (Titel, Artist, Katalognummer)..."
               />
-              <Button onClick={handleSearch} isLoading={searching}>
+              <Button onClick={() => handleSearch()} isLoading={searching}>
                 Suchen
               </Button>
             </div>
 
-            {searchResults.length > 0 && (
-              <Table>
-                <Table.Header>
-                  <Table.Row>
-                    <Table.HeaderCell>Cover</Table.HeaderCell>
-                    <Table.HeaderCell>Artist</Table.HeaderCell>
-                    <Table.HeaderCell>Titel</Table.HeaderCell>
-                    <Table.HeaderCell>Format</Table.HeaderCell>
-                    <Table.HeaderCell>Jahr</Table.HeaderCell>
-                    <Table.HeaderCell>Schätzwert</Table.HeaderCell>
-                    <Table.HeaderCell></Table.HeaderCell>
-                  </Table.Row>
-                </Table.Header>
-                <Table.Body>
-                  {searchResults.map((r) => (
-                    <Table.Row key={r.id}>
-                      <Table.Cell>
-                        {r.coverImage && (
-                          <img
-                            src={r.coverImage}
-                            alt={r.title}
-                            className="w-10 h-10 object-cover rounded"
-                          />
-                        )}
-                      </Table.Cell>
-                      <Table.Cell>{r.artist_name || "—"}</Table.Cell>
-                      <Table.Cell>{r.title}</Table.Cell>
-                      <Table.Cell>
-                        <Badge>{r.format}</Badge>
-                      </Table.Cell>
-                      <Table.Cell>{r.year || "—"}</Table.Cell>
-                      <Table.Cell>
-                        {r.estimated_value
-                          ? `€${r.estimated_value.toFixed(2)}`
-                          : "—"}
-                      </Table.Cell>
-                      <Table.Cell>
-                        <IconButton onClick={() => handleAddItem(r)}>
-                          <Plus />
-                        </IconButton>
-                      </Table.Cell>
-                    </Table.Row>
+            {/* Filters row */}
+            <div className="flex gap-4 mb-4 items-center">
+              <Select
+                value={formatFilter}
+                onValueChange={(val) => setFormatFilter(val)}
+              >
+                <Select.Trigger className="w-40">
+                  <Select.Value placeholder="Alle Formate" />
+                </Select.Trigger>
+                <Select.Content>
+                  {FORMAT_OPTIONS.map((f) => (
+                    <Select.Item key={f.value} value={f.value}>
+                      {f.label}
+                    </Select.Item>
                   ))}
-                </Table.Body>
-              </Table>
+                </Select.Content>
+              </Select>
+
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={onlyAvailable}
+                  onChange={(e) => setOnlyAvailable(e.target.checked)}
+                  className="rounded"
+                />
+                Nur verfügbare
+              </label>
+
+              {searchCount > 0 && (
+                <Text className="text-ui-fg-subtle text-sm">
+                  {searchCount} Ergebnisse
+                </Text>
+              )}
+            </div>
+
+            {searchResults.length > 0 && (
+              <>
+                <Table>
+                  <Table.Header>
+                    <Table.Row>
+                      <Table.HeaderCell>Cover</Table.HeaderCell>
+                      <Table.HeaderCell>Artist</Table.HeaderCell>
+                      <Table.HeaderCell>Titel</Table.HeaderCell>
+                      <Table.HeaderCell>Format</Table.HeaderCell>
+                      <Table.HeaderCell>Jahr</Table.HeaderCell>
+                      <Table.HeaderCell>Schätzwert</Table.HeaderCell>
+                      <Table.HeaderCell></Table.HeaderCell>
+                    </Table.Row>
+                  </Table.Header>
+                  <Table.Body>
+                    {searchResults.map((r) => {
+                      const alreadyInBlock = isInBlock(r.id)
+                      return (
+                        <Table.Row key={r.id}>
+                          <Table.Cell>
+                            {r.coverImage ? (
+                              <img
+                                src={r.coverImage}
+                                alt={r.title}
+                                className="w-10 h-10 object-cover rounded"
+                              />
+                            ) : (
+                              <div className="w-10 h-10 bg-ui-bg-subtle rounded" />
+                            )}
+                          </Table.Cell>
+                          <Table.Cell>{r.artist_name || "—"}</Table.Cell>
+                          <Table.Cell>{r.title}</Table.Cell>
+                          <Table.Cell>
+                            <Badge>{r.format}</Badge>
+                          </Table.Cell>
+                          <Table.Cell>{r.year || "—"}</Table.Cell>
+                          <Table.Cell>
+                            {r.estimated_value
+                              ? `€${r.estimated_value.toFixed(2)}`
+                              : "—"}
+                          </Table.Cell>
+                          <Table.Cell>
+                            {alreadyInBlock ? (
+                              <Badge color="green">Im Block</Badge>
+                            ) : (
+                              <IconButton onClick={() => handleAddItem(r)}>
+                                <Plus />
+                              </IconButton>
+                            )}
+                          </Table.Cell>
+                        </Table.Row>
+                      )
+                    })}
+                  </Table.Body>
+                </Table>
+
+                {/* Load more */}
+                {searchResults.length < searchCount && (
+                  <div className="mt-3 text-center">
+                    <Button
+                      variant="secondary"
+                      onClick={() => handleSearch(true)}
+                      isLoading={searching}
+                    >
+                      Mehr laden ({searchResults.length} / {searchCount})
+                    </Button>
+                  </div>
+                )}
+              </>
             )}
           </Container>
 
@@ -530,9 +768,13 @@ const BlockDetailPage = () => {
                 <Table.Header>
                   <Table.Row>
                     <Table.HeaderCell>Lot</Table.HeaderCell>
-                    <Table.HeaderCell>Release ID</Table.HeaderCell>
+                    <Table.HeaderCell>Cover</Table.HeaderCell>
+                    <Table.HeaderCell>Artist / Titel</Table.HeaderCell>
+                    <Table.HeaderCell>Format</Table.HeaderCell>
                     <Table.HeaderCell>Schätzwert</Table.HeaderCell>
                     <Table.HeaderCell>Startpreis</Table.HeaderCell>
+                    <Table.HeaderCell>Mindestpreis</Table.HeaderCell>
+                    <Table.HeaderCell>Sofortkauf</Table.HeaderCell>
                     <Table.HeaderCell>Status</Table.HeaderCell>
                     <Table.HeaderCell></Table.HeaderCell>
                   </Table.Row>
@@ -541,8 +783,31 @@ const BlockDetailPage = () => {
                   {block.items.map((item) => (
                     <Table.Row key={item.id}>
                       <Table.Cell>{item.lot_number || "—"}</Table.Cell>
-                      <Table.Cell className="font-mono text-sm">
-                        {item.release_id}
+                      <Table.Cell>
+                        {item.release_cover ? (
+                          <img
+                            src={item.release_cover}
+                            alt=""
+                            className="w-8 h-8 object-cover rounded"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 bg-ui-bg-subtle rounded" />
+                        )}
+                      </Table.Cell>
+                      <Table.Cell>
+                        <div className="max-w-48">
+                          <p className="text-sm font-medium truncate">
+                            {item.release_artist || "—"}
+                          </p>
+                          <p className="text-xs text-ui-fg-subtle truncate">
+                            {item.release_title || item.release_id}
+                          </p>
+                        </div>
+                      </Table.Cell>
+                      <Table.Cell>
+                        {item.release_format && (
+                          <Badge>{item.release_format}</Badge>
+                        )}
                       </Table.Cell>
                       <Table.Cell>
                         {item.estimated_value
@@ -556,20 +821,60 @@ const BlockDetailPage = () => {
                           className="w-24"
                           value={item.start_price}
                           onChange={(e) =>
-                            handlePriceChange(item.id, parseFloat(e.target.value))
+                            handleItemFieldChange(
+                              item.id,
+                              "start_price",
+                              parseFloat(e.target.value) || 0
+                            )
                           }
                         />
                       </Table.Cell>
                       <Table.Cell>
-                        <Badge>{item.status}</Badge>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          className="w-24"
+                          value={item.reserve_price ?? ""}
+                          placeholder="—"
+                          onChange={(e) =>
+                            handleItemFieldChange(
+                              item.id,
+                              "reserve_price",
+                              e.target.value ? parseFloat(e.target.value) : null
+                            )
+                          }
+                        />
                       </Table.Cell>
                       <Table.Cell>
-                        <IconButton
-                          variant="transparent"
-                          onClick={() => handleRemoveItem(item.id)}
-                        >
-                          <Trash />
-                        </IconButton>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          className="w-24"
+                          value={item.buy_now_price ?? ""}
+                          placeholder="—"
+                          onChange={(e) =>
+                            handleItemFieldChange(
+                              item.id,
+                              "buy_now_price",
+                              e.target.value ? parseFloat(e.target.value) : null
+                            )
+                          }
+                        />
+                      </Table.Cell>
+                      <Table.Cell>
+                        <Badge color={STATUS_COLORS[item.status] || "grey"}>
+                          {item.status}
+                        </Badge>
+                      </Table.Cell>
+                      <Table.Cell>
+                        {item.status === "reserved" && (
+                          <IconButton
+                            variant="transparent"
+                            onClick={() => handleRemoveItem(item.id)}
+                          >
+                            <Trash />
+                          </IconButton>
+                        )}
                       </Table.Cell>
                     </Table.Row>
                   ))}

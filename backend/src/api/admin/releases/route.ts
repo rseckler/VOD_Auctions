@@ -11,7 +11,7 @@ export async function GET(
     ContainerRegistrationKeys.PG_CONNECTION
   )
 
-  const { q, format, year, limit = "20", offset = "0" } = req.query
+  const { q, format, year, auction_status, limit = "20", offset = "0" } = req.query
 
   let query = pgConnection("Release")
     .select(
@@ -47,6 +47,10 @@ export async function GET(
 
   if (year && typeof year === "string") {
     query = query.where("Release.year", parseInt(year))
+  }
+
+  if (auction_status && typeof auction_status === "string") {
+    query = query.where("Release.auction_status", auction_status)
   }
 
   const countQuery = query.clone().clearSelect().count("Release.id as count").first()
