@@ -8,7 +8,7 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 
 **Goal:** Eigene Plattform mit voller Kontrolle über Marke, Kundendaten, Preisgestaltung — statt 8-13% Gebühren an eBay/Discogs
 
-**Status:** Phase 1 — RSE-72 bis RSE-75b erledigt, RSE-76 (Payment & Stripe) als nächstes
+**Status:** Phase 1 — RSE-72 bis RSE-85 erledigt, RSE-76 (Payment & Stripe) als nächstes
 
 **Created:** 2026-02-10
 **Last Updated:** 2026-03-02
@@ -41,8 +41,9 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 | Komponente | Technologie |
 |------------|-------------|
 | **Commerce-Engine** | Medusa.js 2.x |
-| **Frontend** | Next.js 15+, React 19, TypeScript 5 |
-| **Styling** | Tailwind CSS, shadcn/ui |
+| **Frontend** | Next.js 16, React 19, TypeScript 5 |
+| **Styling** | Tailwind CSS 4, shadcn/ui, Framer Motion |
+| **Design** | "Vinyl Culture" Theme (DM Serif Display + DM Sans, Gold #d4a54a, warm dark #1c1915) |
 | **Database** | Supabase PostgreSQL (Shared mit tape-mag-mvp) |
 | **Real-time** | Supabase Realtime (Live-Bidding) |
 | **Cache** | Upstash Redis (Bid-Cache) |
@@ -74,6 +75,7 @@ Shared DB für tape-mag-mvp + VOD_Auctions. Schema enthält 20 Tabellen (14 Basi
 - ~~RSE-74: Public Frontend: Auktionskalender, Block-Detailseite~~ ✅
 - ~~RSE-75: Bidding-Engine: Gebote, Real-time, Auto-Extension~~ ✅
 - ~~RSE-75b: UX Polish & Kompletter Auktions-Workflow~~ ✅
+- ~~RSE-85: Storefront UX Redesign — Vinyl Culture Theme~~ ✅
 - **RSE-76: Payment & Stripe Integration** ← NÄCHSTER SCHRITT
 - RSE-77: Testlauf: 1 Block mit 10-20 Produkten
 
@@ -191,15 +193,26 @@ VOD_Auctions/
 │   │   │       ├── wins/page.tsx    # Gewonnene Items + Bezahl-Platzhalter
 │   │   │       └── settings/page.tsx # Profil-Informationen (readonly)
 │   │   ├── components/
+│   │   │   ├── layout/
+│   │   │   │   ├── Header.tsx        # Disc3 Logo + Gold Gradient, sticky header
+│   │   │   │   ├── Footer.tsx        # Warm footer mit Disc3 icon
+│   │   │   │   └── MobileNav.tsx     # Sheet-based mobile nav
+│   │   │   ├── ui/                   # shadcn/ui Komponenten (17 installiert)
 │   │   │   ├── AuthProvider.tsx      # Auth Context (JWT, Customer)
 │   │   │   ├── AuthModal.tsx         # Login/Register Modal
 │   │   │   ├── HeaderAuth.tsx        # Anmelden/Abmelden/Mein Konto im Header
+│   │   │   ├── HomeContent.tsx       # Homepage Sections (Laufend/Demnächst)
+│   │   │   ├── BlockCard.tsx         # BlockCardVertical + BlockCardHorizontal
 │   │   │   ├── ItemBidSection.tsx    # BidForm + BidHistory + Countdown + Realtime
-│   │   │   ├── AuctionListFilter.tsx # Tab-Filter (Alle/Laufend/Demnächst/Beendet)
-│   │   │   ├── BlockItemsGrid.tsx    # Sort + Suche + Item-Grid
-│   │   │   └── Skeleton.tsx          # Loading-Skeleton-Komponente
+│   │   │   ├── AuctionListFilter.tsx # Pill-Filter (Alle/Laufend/Demnächst/Beendet)
+│   │   │   ├── BlockItemsGrid.tsx    # Sort-Pills + Suche + Item-Grid
+│   │   │   ├── ImageGallery.tsx      # Lightbox + Thumbnails mit Gold-Ring
+│   │   │   └── EmptyState.tsx        # Reusable Empty State
 │   │   └── lib/
+│   │       ├── api.ts           # medusaFetch Helper
 │   │       ├── auth.ts          # Medusa Auth Helpers
+│   │       ├── motion.ts        # Framer Motion Variants
+│   │       ├── utils.ts         # cn() Helper
 │   │       └── supabase.ts      # Supabase Client (Realtime)
 │   └── node_modules/
 ├── scripts/                     # Migration-Scripts (Python)
@@ -253,6 +266,7 @@ npm run dev
 - **RSE-74:** P1.3 Public Frontend (Auktionskalender, Block-Detailseite)
 - **RSE-75:** P1.4 Bidding-Engine (Gebote, Real-time, Auto-Extension)
 - **RSE-75b:** P1.4b UX Polish & Kompletter Auktions-Workflow
+- **RSE-85:** P1.x Storefront UX Redesign — Vinyl Culture Theme
 - **RSE-76:** P1.5 Payment & Stripe Integration
 - **RSE-77:** P1.6 Testlauf (1 Block, 10-20 Produkte)
 
@@ -295,7 +309,7 @@ npx medusa user -e X -p Y    # Create admin user
 npx medusa db:generate auction  # Generate migration for auction module
 npx medusa db:migrate          # Run migrations
 
-# Storefront (Next.js 15)
+# Storefront (Next.js 16)
 cd VOD_Auctions/storefront
 npm run dev                  # Start storefront (port 3000)
 npm run build                # Build for production

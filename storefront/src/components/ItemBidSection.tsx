@@ -1,15 +1,28 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { motion, AnimatePresence } from "framer-motion"
+import { Clock, Gavel, AlertTriangle } from "lucide-react"
+import { toast } from "sonner"
 import { useAuth } from "./AuthProvider"
 import { AuthModal } from "./AuthModal"
 import { getToken } from "@/lib/auth"
 import { supabase } from "@/lib/supabase"
-
-const MEDUSA_URL =
-  process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
-const PUBLISHABLE_KEY =
-  process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
+import { Card } from "@/components/ui/card"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
 
 type BidRecord = {
   id: string
@@ -48,10 +61,10 @@ export function ItemBidSection({
   const [lotEndTime, setLotEndTime] = useState(initialLotEndTime)
   const [bids, setBids] = useState<BidRecord[]>([])
   const [bidsLoaded, setBidsLoaded] = useState(false)
+  const [newBidPulse, setNewBidPulse] = useState(false)
 
   const isActive = blockStatus === "active" && itemStatus === "active"
 
-  // Fetch bid history
   const loadBids = useCallback(async () => {
     try {
       const res = await fetch(
@@ -105,6 +118,8 @@ export function ItemBidSection({
             setCurrentPrice(newBid.amount)
           }
           setBidCount((c) => c + 1)
+          setNewBidPulse(true)
+          setTimeout(() => setNewBidPulse(false), 1000)
         }
       )
       .subscribe()
@@ -136,21 +151,26 @@ export function ItemBidSection({
 
   return (
     <>
-      <div className="p-4 rounded-lg border border-zinc-800 bg-zinc-900">
+      <Card className="p-5">
         {/* Current Price */}
         <div className="flex items-center justify-between mb-3">
-          <span className="text-sm text-zinc-400">
+          <span className="text-sm text-muted-foreground">
             {bidCount > 0 ? "Aktuelles Gebot" : "Startpreis"}
           </span>
-          <span className="text-2xl font-bold">
+          <motion.span
+            key={currentPrice}
+            initial={newBidPulse ? { scale: 1.1 } : false}
+            animate={{ scale: 1 }}
+            className="text-3xl font-mono font-bold text-primary"
+          >
             &euro;{currentPrice.toFixed(2)}
-          </span>
+          </motion.span>
         </div>
 
         {bidCount > 0 && (
           <div className="flex items-center justify-between text-sm mb-1">
-            <span className="text-zinc-500">Gebote</span>
-            <span className="text-zinc-400">{bidCount}</span>
+            <span className="text-muted-foreground">Gebote</span>
+            <Badge variant="secondary">{bidCount}</Badge>
           </div>
         )}
 
@@ -174,67 +194,71 @@ export function ItemBidSection({
             onBidPlaced={loadBids}
           />
         ) : blockStatus === "ended" ? (
-          <div className="mt-3 py-3 px-4 rounded-lg bg-zinc-800 text-center">
-            <p className="text-sm text-zinc-400">Auktion beendet</p>
+          <div className="mt-3 py-4 px-4 rounded-lg bg-secondary text-center border border-primary/20">
+            <p className="text-sm text-muted-foreground">Auktion beendet</p>
             {bidCount > 0 && (
-              <p className="text-lg font-bold mt-1">
+              <p className="text-xl font-mono font-bold mt-1 text-primary">
                 Zuschlag: &euro;{currentPrice.toFixed(2)}
               </p>
             )}
           </div>
         ) : (
           <div className="mt-3">
-            <button
-              disabled
-              className="w-full py-3 rounded-lg bg-zinc-700 text-zinc-400 text-sm font-medium cursor-not-allowed"
-            >
+            <Button disabled className="w-full" variant="secondary">
               Auktion noch nicht gestartet
-            </button>
+            </Button>
           </div>
         )}
-      </div>
+      </Card>
 
       {/* Bid History */}
       {bidsLoaded && bids.length > 0 && (
         <div className="mt-4">
-          <h3 className="text-sm font-semibold mb-2 text-zinc-400">
+          <h3 className="text-sm font-semibold mb-2 text-muted-foreground flex items-center gap-1.5">
+            <Gavel className="h-3.5 w-3.5" />
             Gebotsverlauf
           </h3>
-          <div className="space-y-1 max-h-48 overflow-y-auto">
-            {bids.slice(0, 15).map((bid) => (
-              <div
-                key={bid.id}
-                className="flex items-center justify-between text-sm py-1.5 px-3 rounded bg-zinc-800/50"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-zinc-500 font-mono text-xs">
-                    {bid.user_hint || bid.user_id?.substring(0, 8) + "…"}
-                  </span>
-                  {bid.user_id === customer?.id && (
-                    <span className="text-xs px-1.5 py-0.5 rounded bg-blue-900 text-blue-300">
-                      Sie
+          <ScrollArea className="h-48">
+            <div className="space-y-1">
+              {bids.slice(0, 15).map((bid) => (
+                <div
+                  key={bid.id}
+                  className={`flex items-center justify-between text-sm py-1.5 px-3 rounded ${
+                    bid.user_id === customer?.id
+                      ? "bg-primary/5 border-l-2 border-primary"
+                      : "bg-secondary/50"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground font-mono text-xs">
+                      {bid.user_hint || bid.user_id?.substring(0, 8) + "…"}
                     </span>
-                  )}
-                  {bid.is_winning && (
-                    <span className="text-xs px-1.5 py-0.5 rounded bg-green-900 text-green-300">
-                      Höchstgebot
+                    {bid.user_id === customer?.id && (
+                      <Badge variant="outline" className="text-[10px] h-4 bg-primary/10 text-primary border-primary/30">
+                        Sie
+                      </Badge>
+                    )}
+                    {bid.is_winning && (
+                      <Badge variant="outline" className="text-[10px] h-4 bg-bid-winning/10 text-bid-winning border-bid-winning/30">
+                        Höchstgebot
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono font-medium">
+                      &euro;{bid.amount.toFixed(2)}
                     </span>
-                  )}
+                    <span className="text-xs text-muted-foreground/60">
+                      {new Date(bid.created_at).toLocaleTimeString("de-DE", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="font-medium">
-                    &euro;{bid.amount.toFixed(2)}
-                  </span>
-                  <span className="text-xs text-zinc-600">
-                    {new Date(bid.created_at).toLocaleTimeString("de-DE", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </ScrollArea>
         </div>
       )}
 
@@ -272,15 +296,13 @@ function BidForm({
   const [showProxy, setShowProxy] = useState(false)
   const [maxAmount, setMaxAmount] = useState("")
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
-  const [success, setSuccess] = useState("")
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
-  // Update minimum when price changes
   useEffect(() => {
     setAmount(minimumBid.toFixed(2))
   }, [minimumBid])
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmitClick(e: React.FormEvent) {
     e.preventDefault()
 
     if (!isAuthenticated) {
@@ -294,9 +316,15 @@ function BidForm({
       return
     }
 
+    setConfirmOpen(true)
+  }
+
+  async function confirmBid() {
+    setConfirmOpen(false)
     setLoading(true)
-    setError("")
-    setSuccess("")
+
+    const token = getToken()
+    if (!token) return
 
     try {
       const body: Record<string, number> = { amount: parseFloat(amount) }
@@ -317,75 +345,121 @@ function BidForm({
 
       const data = await res.json()
       if (!res.ok) {
-        setError(data.message || "Gebot fehlgeschlagen")
+        toast.error(data.message || "Gebot fehlgeschlagen")
       } else if (data.outbid) {
-        setError(data.message || "Überboten")
+        toast.warning(data.message || "Überboten")
       } else {
-        setSuccess(`Gebot von €${data.amount.toFixed(2)} erfolgreich!`)
+        toast.success(`Gebot von €${data.amount.toFixed(2)} erfolgreich!`)
         onBidPlaced()
       }
     } catch {
-      setError("Netzwerkfehler")
+      toast.error("Netzwerkfehler")
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mt-3 space-y-3">
-      <div>
-        <label className="text-xs text-zinc-500">
-          Ihr Gebot (min. &euro;{minimumBid.toFixed(2)})
-        </label>
-        <input
-          type="number"
-          step="0.01"
-          min={minimumBid}
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          className="w-full mt-1 px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-sm focus:border-zinc-500 focus:outline-none"
-        />
-      </div>
-
-      <button
-        type="button"
-        onClick={() => setShowProxy(!showProxy)}
-        className="text-xs text-zinc-400 hover:text-zinc-200"
-      >
-        {showProxy
-          ? "Maximalgebot ausblenden"
-          : "Maximalgebot setzen (Proxy-Bieten)"}
-      </button>
-
-      {showProxy && (
-        <div>
-          <label className="text-xs text-zinc-500">Maximalgebot</label>
-          <input
-            type="number"
-            step="0.01"
-            value={maxAmount}
-            onChange={(e) => setMaxAmount(e.target.value)}
-            placeholder="System bietet automatisch bis zu diesem Betrag"
-            className="w-full mt-1 px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-sm focus:border-zinc-500 focus:outline-none placeholder:text-zinc-600"
-          />
+    <>
+      <form onSubmit={handleSubmitClick} className="mt-4 space-y-3">
+        <div className="space-y-1.5">
+          <Label className="text-xs">
+            Ihr Gebot (min. &euro;{minimumBid.toFixed(2)})
+          </Label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+              &euro;
+            </span>
+            <Input
+              type="number"
+              step="0.01"
+              min={minimumBid}
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className="pl-7 font-mono"
+            />
+          </div>
         </div>
-      )}
 
-      {error && <p className="text-red-400 text-sm">{error}</p>}
-      {success && <p className="text-green-400 text-sm">{success}</p>}
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="text-xs text-muted-foreground"
+          onClick={() => setShowProxy(!showProxy)}
+        >
+          {showProxy
+            ? "Maximalgebot ausblenden"
+            : "Maximalgebot setzen (Proxy-Bieten)"}
+        </Button>
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full py-3 rounded-lg bg-white text-black text-sm font-semibold hover:bg-zinc-200 disabled:opacity-50 transition-colors"
-      >
-        {loading
-          ? "Wird gesendet…"
-          : isAuthenticated
-            ? `Bieten: €${parseFloat(amount || "0").toFixed(2)}`
-            : "Anmelden zum Bieten"}
-      </button>
-    </form>
+        <AnimatePresence>
+          {showProxy && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="space-y-1.5">
+                <Label className="text-xs">Maximalgebot</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                    &euro;
+                  </span>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={maxAmount}
+                    onChange={(e) => setMaxAmount(e.target.value)}
+                    placeholder="System bietet automatisch"
+                    className="pl-7 font-mono"
+                  />
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <Button
+          type="submit"
+          disabled={loading}
+          className="w-full"
+          size="lg"
+        >
+          {loading
+            ? "Wird gesendet…"
+            : isAuthenticated
+              ? `Bieten: €${parseFloat(amount || "0").toFixed(2)}`
+              : "Anmelden zum Bieten"}
+        </Button>
+      </form>
+
+      {/* Confirmation Dialog */}
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Gebot bestätigen</DialogTitle>
+            <DialogDescription>
+              Möchten Sie wirklich &euro;{parseFloat(amount || "0").toFixed(2)}{" "}
+              bieten?
+              {showProxy &&
+                maxAmount &&
+                ` (Maximalgebot: €${parseFloat(maxAmount).toFixed(2)})`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setConfirmOpen(false)}
+            >
+              Abbrechen
+            </Button>
+            <Button onClick={confirmBid}>Gebot abgeben</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 
@@ -396,7 +470,6 @@ function CountdownTimer({ endTime }: { endTime: string }) {
   const [extended, setExtended] = useState(false)
   const [prevEndTime, setPrevEndTime] = useState(endTime)
 
-  // Detect extension
   useEffect(() => {
     if (endTime !== prevEndTime) {
       setExtended(true)
@@ -442,17 +515,32 @@ function CountdownTimer({ endTime }: { endTime: string }) {
 
   return (
     <div className="flex items-center justify-between">
-      <span className="text-xs text-zinc-500">Endet in</span>
+      <span className="text-sm text-muted-foreground flex items-center gap-1.5">
+        <Clock className="h-3.5 w-3.5" />
+        Endet in
+      </span>
       <div className="text-right">
         <span
           className={`text-sm font-mono font-bold ${
-            isUrgent ? "text-red-400" : "text-zinc-300"
+            isUrgent ? "text-destructive animate-pulse" : "text-foreground"
           }`}
         >
           {remaining}
         </span>
         {extended && (
-          <p className="text-xs text-orange-400 mt-0.5">Verlängert!</p>
+          <motion.p
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-xs mt-0.5 flex items-center justify-end gap-1"
+          >
+            <Badge
+              variant="outline"
+              className="text-[10px] h-4 border-primary text-primary"
+            >
+              <AlertTriangle className="h-2.5 w-2.5 mr-0.5" />
+              Verlängert!
+            </Badge>
+          </motion.p>
         )}
       </div>
     </div>

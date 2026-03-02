@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1440,initial-scale=1">
+<title>Konzept 3: Vinyl Culture — Home</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700&family=DM+Serif+Display:ital@0;1&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'DM Sans', sans-serif; background: #1c1915; color: #e8e0d4; }
+
+  /* Header */
+  header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 20px 60px;
+    background: rgba(28,25,21,0.95);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(232,224,212,0.1);
+  }
+  .logo {
+    display: flex; align-items: center; gap: 12px;
+  }
+  .logo-icon {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: linear-gradient(135deg, #d4a54a, #b8860b);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .logo-icon::before {
+    content: ''; width: 10px; height: 10px; border-radius: 50%;
+    background: #1c1915;
+  }
+  .logo-text {
+    font-family: 'DM Serif Display', serif;
+    font-size: 26px;
+    color: #e8e0d4;
+  }
+  nav { display: flex; gap: 32px; font-size: 14px; font-weight: 400; }
+  nav a { color: #a09888; text-decoration: none; transition: color 0.2s; }
+  nav a:hover { color: #e8e0d4; }
+  .auth-btn {
+    padding: 10px 28px;
+    background: linear-gradient(135deg, #d4a54a, #b8860b);
+    color: #1c1915;
+    border: none;
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  /* Hero */
+  .hero {
+    padding: 80px 60px 100px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 80px;
+    align-items: center;
+  }
+  .hero-left {}
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 16px;
+    background: rgba(212,165,74,0.15);
+    border: 1px solid rgba(212,165,74,0.3);
+    border-radius: 20px;
+    font-size: 12px;
+    color: #d4a54a;
+    font-weight: 500;
+    margin-bottom: 24px;
+  }
+  .hero-badge::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%;
+    background: #d4a54a;
+  }
+  .hero h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 60px;
+    line-height: 1.1;
+    margin-bottom: 20px;
+    color: #f5efe6;
+  }
+  .hero h1 span { color: #d4a54a; }
+  .hero p {
+    font-size: 17px;
+    line-height: 1.7;
+    color: #a09888;
+    max-width: 460px;
+    margin-bottom: 36px;
+  }
+  .hero-actions { display: flex; gap: 16px; }
+  .btn-primary {
+    padding: 14px 36px;
+    background: linear-gradient(135deg, #d4a54a, #b8860b);
+    color: #1c1915;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .btn-secondary {
+    padding: 14px 36px;
+    background: rgba(232,224,212,0.08);
+    color: #e8e0d4;
+    border: 1px solid rgba(232,224,212,0.15);
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  .hero-right {
+    display: flex;
+    justify-content: center;
+    position: relative;
+  }
+  .vinyl-stack {
+    position: relative;
+    width: 400px;
+    height: 400px;
+  }
+  .vinyl-record {
+    position: absolute;
+    width: 340px;
+    height: 340px;
+    border-radius: 50%;
+    border: 1px solid rgba(232,224,212,0.1);
+    background: radial-gradient(circle, #2a2520 30%, #1c1915 31%, #1c1915 48%, #2a2520 49%, #2a2520 50%, #1c1915 51%);
+    top: 30px;
+    left: 60px;
+  }
+  .vinyl-record::before {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 120px; height: 120px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #d4a54a, #8b6914);
+  }
+  .vinyl-record::after {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: #1c1915;
+  }
+  .album-cover {
+    position: absolute;
+    width: 320px; height: 320px;
+    background: linear-gradient(135deg, #3a3028, #2a221a);
+    border-radius: 4px;
+    top: 40px; left: 0;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: #666;
+    border: 1px solid rgba(232,224,212,0.08);
+  }
+
+  /* Live Ticker */
+  .live-ticker {
+    padding: 16px 60px;
+    background: rgba(212,165,74,0.08);
+    border-top: 1px solid rgba(212,165,74,0.15);
+    border-bottom: 1px solid rgba(212,165,74,0.15);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .live-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #e44;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .live-text { font-size: 13px; color: #d4a54a; font-weight: 500; }
+
+  /* Sections */
+  .section { padding: 60px; }
+  .section-header {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 32px;
+  }
+  .section-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 32px;
+    color: #f5efe6;
+  }
+  .section-link { font-size: 14px; color: #d4a54a; text-decoration: none; }
+
+  /* Block Cards */
+  .blocks-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+  .block-card {
+    background: rgba(232,224,212,0.04);
+    border: 1px solid rgba(232,224,212,0.08);
+    border-radius: 16px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.3s, transform 0.3s;
+  }
+  .block-card:hover {
+    border-color: rgba(212,165,74,0.4);
+    transform: translateY(-4px);
+  }
+  .block-card-img {
+    width: 100%;
+    aspect-ratio: 16/10;
+    background: linear-gradient(135deg, #2a2520, #3a3028);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: #555;
+    position: relative;
+  }
+  .block-card-status {
+    position: absolute;
+    top: 14px; left: 14px;
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 12px;
+    background: rgba(28,25,21,0.85);
+    backdrop-filter: blur(4px);
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #4ade80;
+    letter-spacing: 0.5px;
+  }
+  .block-card-status::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: #4ade80; }
+  .block-card-status.scheduled { color: #a09888; }
+  .block-card-status.scheduled::before { background: #a09888; }
+  .block-card-lots {
+    position: absolute;
+    top: 14px; right: 14px;
+    padding: 5px 12px;
+    background: rgba(28,25,21,0.85);
+    border-radius: 6px;
+    font-size: 11px;
+    color: #a09888;
+  }
+  .block-card-info { padding: 20px 24px 28px; }
+  .block-card-type { font-size: 11px; color: #d4a54a; text-transform: uppercase; letter-spacing: 2px; font-weight: 600; margin-bottom: 8px; }
+  .block-card-title { font-family: 'DM Serif Display', serif; font-size: 22px; color: #f5efe6; margin-bottom: 4px; }
+  .block-card-sub { font-size: 14px; color: #a09888; margin-bottom: 16px; }
+  .block-card-meta {
+    display: flex; justify-content: space-between;
+    padding-top: 14px;
+    border-top: 1px solid rgba(232,224,212,0.08);
+    font-size: 12px;
+    color: #777;
+  }
+  .block-card-meta .price { color: #d4a54a; font-weight: 600; }
+
+  /* Stats */
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 24px;
+    padding: 0 60px 60px;
+  }
+  .stat-card {
+    padding: 28px;
+    background: rgba(232,224,212,0.04);
+    border: 1px solid rgba(232,224,212,0.08);
+    border-radius: 12px;
+    text-align: center;
+  }
+  .stat-num {
+    font-family: 'DM Serif Display', serif;
+    font-size: 40px;
+    color: #d4a54a;
+    margin-bottom: 4px;
+  }
+  .stat-lbl { font-size: 13px; color: #777; }
+
+  /* Footer */
+  footer {
+    padding: 40px 60px;
+    border-top: 1px solid rgba(232,224,212,0.08);
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    color: #555;
+  }
+  footer a { color: #777; text-decoration: none; }
+</style>
+</head>
+<body>
+  <header>
+    <div class="logo">
+      <div class="logo-icon"></div>
+      <span class="logo-text">VOD Auctions</span>
+    </div>
+    <nav>
+      <a href="#">Auktionen</a>
+      <a href="#">Sammlungen</a>
+      <a href="#">Über uns</a>
+    </nav>
+    <button class="auth-btn">Anmelden</button>
+  </header>
+
+  <section class="hero">
+    <div class="hero-left">
+      <div class="hero-badge">3 Live-Auktionen</div>
+      <h1>Seltene Platten.<br><span>Echte Sammler.</span></h1>
+      <p>Kuratierte Vinyl-Auktionen für Kenner. Industrial, EBM, Dark Ambient und mehr — entdecke Raritäten und Erstpressungen.</p>
+      <div class="hero-actions">
+        <button class="btn-primary">Jetzt entdecken</button>
+        <button class="btn-secondary">Wie es funktioniert</button>
+      </div>
+    </div>
+    <div class="hero-right">
+      <div class="vinyl-stack">
+        <div class="album-cover">Album Art</div>
+        <div class="vinyl-record"></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="live-ticker">
+    <div class="live-dot"></div>
+    <span class="live-text">Industrial Classics — 42 Lots — Endet in 4d 12h · Neues Gebot: €45.00 auf Lot #01</span>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <h2 class="section-title">Laufende Auktionen</h2>
+      <a href="#" class="section-link">Alle ansehen →</a>
+    </div>
+    <div class="blocks-grid">
+      <div class="block-card">
+        <div class="block-card-img">
+          Header Image
+          <span class="block-card-status">Live</span>
+          <span class="block-card-lots">42 Lots</span>
+        </div>
+        <div class="block-card-info">
+          <div class="block-card-type">Themen-Block</div>
+          <div class="block-card-title">Industrial Classics</div>
+          <div class="block-card-sub">Seltene Pressungen 1980–1995</div>
+          <div class="block-card-meta">
+            <span>Endet 18. Mär</span>
+            <span class="price">Ab €5.00</span>
+          </div>
+        </div>
+      </div>
+      <div class="block-card">
+        <div class="block-card-img">
+          Header Image
+          <span class="block-card-status">Live</span>
+          <span class="block-card-lots">28 Lots</span>
+        </div>
+        <div class="block-card-info">
+          <div class="block-card-type">Highlight</div>
+          <div class="block-card-title">EBM & Synth</div>
+          <div class="block-card-sub">Elektronische Körpermusik</div>
+          <div class="block-card-meta">
+            <span>Endet 20. Mär</span>
+            <span class="price">Ab €3.00</span>
+          </div>
+        </div>
+      </div>
+      <div class="block-card">
+        <div class="block-card-img">
+          Header Image
+          <span class="block-card-status scheduled">Geplant</span>
+          <span class="block-card-lots">35 Lots</span>
+        </div>
+        <div class="block-card-info">
+          <div class="block-card-type">Themen-Block</div>
+          <div class="block-card-title">Dark Ambient Essentials</div>
+          <div class="block-card-sub">Atmosphärische Klanglandschaften</div>
+          <div class="block-card-meta">
+            <span>Start 15. Mär</span>
+            <span class="price">Ab €2.00</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stats-bar">
+    <div class="stat-card"><div class="stat-num">1.200+</div><div class="stat-lbl">Platten versteigert</div></div>
+    <div class="stat-card"><div class="stat-num">340</div><div class="stat-lbl">Aktive Sammler</div></div>
+    <div class="stat-card"><div class="stat-num">15</div><div class="stat-lbl">Auktionen</div></div>
+    <div class="stat-card"><div class="stat-num">98%</div><div class="stat-lbl">Zufriedenheit</div></div>
+  </div>
+
+  <footer>
+    <span>© 2026 VOD Auctions</span>
+    <div><a href="#">Impressum</a> · <a href="#">Datenschutz</a> · <a href="#">AGB</a></div>
+  </footer>
+</body>
+</html>

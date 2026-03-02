@@ -4,9 +4,10 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useAuth } from "@/components/AuthProvider"
 import { getToken } from "@/lib/auth"
-
-const MEDUSA_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
-const PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
+import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
+import { Gavel, Trophy } from "lucide-react"
+import { Card } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
 
 export default function AccountOverview() {
   const { customer } = useAuth()
@@ -45,23 +46,31 @@ export default function AccountOverview() {
       </h2>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-        <Link
-          href="/account/bids"
-          className="p-6 rounded-lg border border-zinc-800 bg-zinc-900 hover:border-zinc-600 transition-colors"
-        >
-          <p className="text-sm text-zinc-400">Aktive Gebote</p>
-          <p className="text-3xl font-bold mt-1">
-            {loaded ? activeBids : "—"}
-          </p>
+        <Link href="/account/bids">
+          <Card className="p-6 hover:border-primary/30 transition-colors group">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Gavel className="h-5 w-5 text-primary" />
+              </div>
+              <p className="text-sm text-muted-foreground">Aktive Gebote</p>
+            </div>
+            <p className="text-3xl font-bold font-mono">
+              {loaded ? activeBids : <Skeleton className="h-9 w-12 inline-block" />}
+            </p>
+          </Card>
         </Link>
-        <Link
-          href="/account/wins"
-          className="p-6 rounded-lg border border-zinc-800 bg-zinc-900 hover:border-zinc-600 transition-colors"
-        >
-          <p className="text-sm text-zinc-400">Gewonnene Auktionen</p>
-          <p className="text-3xl font-bold mt-1">
-            {loaded ? wins : "—"}
-          </p>
+        <Link href="/account/wins">
+          <Card className="p-6 hover:border-primary/30 transition-colors group">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2 rounded-lg bg-green-500/10">
+                <Trophy className="h-5 w-5 text-green-500" />
+              </div>
+              <p className="text-sm text-muted-foreground">Gewonnene Auktionen</p>
+            </div>
+            <p className="text-3xl font-bold font-mono">
+              {loaded ? wins : <Skeleton className="h-9 w-12 inline-block" />}
+            </p>
+          </Card>
         </Link>
       </div>
     </div>

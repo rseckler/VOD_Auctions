@@ -2,8 +2,18 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { User, Gavel, Trophy, Settings, LogOut } from "lucide-react"
 import { useAuth } from "./AuthProvider"
 import { AuthModal } from "./AuthModal"
+import { Button } from "@/components/ui/button"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 export function HeaderAuth() {
   const { isAuthenticated, customer, logout, loading } = useAuth()
@@ -12,36 +22,75 @@ export function HeaderAuth() {
   if (loading) return null
 
   if (isAuthenticated && customer) {
+    const initials =
+      (customer.first_name?.[0] || "") + (customer.last_name?.[0] || "")
+    const displayName = customer.first_name || customer.email
+
     return (
-      <div className="flex items-center gap-3">
-        <span className="text-xs text-zinc-400">
-          {customer.first_name || customer.email}
-        </span>
-        <Link
-          href="/account"
-          className="text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
-        >
-          Mein Konto
-        </Link>
-        <button
-          onClick={logout}
-          className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
-        >
-          Abmelden
-        </button>
-      </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button className="flex items-center gap-2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <Avatar className="h-8 w-8">
+              <AvatarFallback className="bg-gradient-to-br from-primary/30 to-primary/10 text-primary text-xs font-medium">
+                {initials || "U"}
+              </AvatarFallback>
+            </Avatar>
+            <span className="text-sm text-muted-foreground hidden sm:inline">
+              {displayName}
+            </span>
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuItem asChild>
+            <Link href="/account" className="flex items-center gap-2">
+              <User className="h-4 w-4" />
+              Mein Konto
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/account/bids" className="flex items-center gap-2">
+              <Gavel className="h-4 w-4" />
+              Meine Gebote
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/account/wins" className="flex items-center gap-2">
+              <Trophy className="h-4 w-4" />
+              Gewonnen
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/account/settings" className="flex items-center gap-2">
+              <Settings className="h-4 w-4" />
+              Einstellungen
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={logout}
+            className="flex items-center gap-2 text-muted-foreground"
+          >
+            <LogOut className="h-4 w-4" />
+            Abmelden
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     )
   }
 
   return (
     <>
-      <button
+      <Button
+        size="sm"
         onClick={() => setAuthModalOpen(true)}
-        className="px-3 py-1.5 rounded-lg border border-zinc-700 text-xs text-zinc-300 hover:bg-zinc-800 transition-colors"
+        className="bg-gradient-to-r from-primary to-[#b8860b]"
       >
         Anmelden
-      </button>
-      <AuthModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} />
+      </Button>
+      <AuthModal
+        open={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+      />
     </>
   )
 }

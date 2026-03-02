@@ -1,47 +1,13 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
+import { ChevronRight, ArrowLeft } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Separator } from "@/components/ui/separator"
+import { ImageGallery } from "@/components/ImageGallery"
 import { ItemBidSection } from "@/components/ItemBidSection"
-
-const MEDUSA_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
-const PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
-
-type ReleaseImage = {
-  id: string
-  url: string
-  type: string | null
-  sortOrder: number | null
-}
-
-type Release = {
-  id: string
-  title: string
-  slug: string
-  format: string
-  year: number | null
-  country: string | null
-  coverImage: string | null
-  catalogNumber: string | null
-  estimated_value: number | null
-  description: string | null
-  media_condition: string | null
-  sleeve_condition: string | null
-  artist_name: string | null
-  label_name: string | null
-  images: ReleaseImage[]
-}
-
-type BlockItem = {
-  id: string
-  release_id: string
-  start_price: number
-  estimated_value: number | null
-  current_price: number | null
-  bid_count: number
-  lot_number: number | null
-  lot_end_time: string | null
-  status: string
-  release: Release | null
-}
+import { medusaFetch } from "@/lib/api"
+import type { BlockItem, ReleaseImage } from "@/types"
 
 type BlockInfo = {
   id: string
@@ -50,23 +16,29 @@ type BlockInfo = {
   status: string
 }
 
+type ItemWithImages = BlockItem & {
+  release: (NonNullable<BlockItem["release"]> & {
+    images?: ReleaseImage[]
+    description?: string | null
+    media_condition?: string | null
+    sleeve_condition?: string | null
+  }) | null
+}
+
 async function getItem(
   slug: string,
   itemId: string
-): Promise<{ block_item: BlockItem; auction_block: BlockInfo } | null> {
-  try {
-    const res = await fetch(
-      `${MEDUSA_URL}/store/auction-blocks/${slug}/items/${itemId}`,
-      {
-        next: { revalidate: 30 },
-        headers: { "x-publishable-api-key": PUBLISHABLE_KEY },
-      }
-    )
-    if (!res.ok) return null
-    return await res.json()
-  } catch {
-    return null
-  }
+): Promise<{ block_item: ItemWithImages; auction_block: BlockInfo } | null> {
+  return medusaFetch<{ block_item: ItemWithImages; auction_block: BlockInfo }>(
+    `/store/auction-blocks/${slug}/items/${itemId}`,
+    { revalidate: 30 }
+  )
+}
+
+const FORMAT_COLORS: Record<string, string> = {
+  LP: "bg-format-vinyl/15 text-format-vinyl border-format-vinyl/30",
+  CD: "bg-format-cd/15 text-format-cd border-format-cd/30",
+  CASSETTE: "bg-format-cassette/15 text-format-cassette border-format-cassette/30",
 }
 
 export default async function ItemDetailPage({
@@ -82,7 +54,6 @@ export default async function ItemDetailPage({
   const { block_item: item, auction_block: block } = data
   const release = item.release
 
-  // Collect all images
   const images: string[] = []
   if (release?.coverImage) images.push(release.coverImage)
   if (release?.images) {
@@ -96,83 +67,55 @@ export default async function ItemDetailPage({
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
       {/* Breadcrumb */}
-      <nav className="text-sm text-zinc-500 mb-8">
-        <Link href="/auctions" className="hover:text-zinc-300">
+      <nav className="text-sm text-muted-foreground mb-8 flex items-center gap-1 flex-wrap">
+        <Link href="/auctions" className="hover:text-foreground transition-colors">
           Auktionen
         </Link>
-        <span className="mx-2">/</span>
-        <Link href={`/auctions/${block.slug}`} className="hover:text-zinc-300">
+        <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" />
+        <Link href={`/auctions/${block.slug}`} className="hover:text-foreground transition-colors">
           {block.title}
         </Link>
-        <span className="mx-2">/</span>
-        <span className="text-zinc-300">
-          {release?.artist_name ? `${release.artist_name} — ${release.title}` : release?.title || `Lot ${item.lot_number}`}
+        <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" />
+        <span className="text-foreground truncate">
+          {release?.artist_name
+            ? `${release.artist_name} — ${release.title}`
+            : release?.title || `Lot ${item.lot_number}`}
         </span>
       </nav>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12">
         {/* Images */}
-        <div>
-          {images.length > 0 ? (
-            <div className="space-y-3">
-              <div className="aspect-square rounded-lg overflow-hidden bg-zinc-900 border border-zinc-800">
-                <img
-                  src={images[0]}
-                  alt={release?.title || ""}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              {images.length > 1 && (
-                <div className="grid grid-cols-4 gap-2">
-                  {images.slice(1, 5).map((url, i) => (
-                    <div
-                      key={i}
-                      className="aspect-square rounded overflow-hidden bg-zinc-900 border border-zinc-800"
-                    >
-                      <img
-                        src={url}
-                        alt=""
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="aspect-square rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center">
-              <span className="text-zinc-600">Kein Bild vorhanden</span>
-            </div>
-          )}
-        </div>
+        <ImageGallery images={images} title={release?.title || ""} />
 
         {/* Details */}
         <div>
           {item.lot_number && (
-            <p className="text-xs text-zinc-500 font-mono mb-1">
+            <p className="text-xs text-primary font-mono mb-2">
               Lot #{item.lot_number}
             </p>
           )}
 
-          <p className="text-zinc-400 text-lg">
+          <p className="text-muted-foreground text-lg">
             {release?.artist_name || "Unknown Artist"}
           </p>
-          <h1 className="text-2xl md:text-3xl font-bold mt-1">
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tight mt-1">
             {release?.title || item.release_id}
           </h1>
 
-          {/* Format & Year */}
-          <div className="flex flex-wrap items-center gap-3 mt-4">
+          <div className="flex flex-wrap items-center gap-2 mt-4">
             {release?.format && (
-              <span className="text-xs px-2 py-1 rounded bg-zinc-800 text-zinc-300">
+              <Badge
+                variant="outline"
+                className={FORMAT_COLORS[release.format] || "bg-secondary text-muted-foreground"}
+              >
                 {release.format}
-              </span>
+              </Badge>
             )}
             {release?.year && (
-              <span className="text-sm text-zinc-400">{release.year}</span>
+              <Badge variant="secondary">{release.year}</Badge>
             )}
             {release?.country && (
-              <span className="text-sm text-zinc-500">{release.country}</span>
+              <Badge variant="secondary">{release.country}</Badge>
             )}
           </div>
 
@@ -184,7 +127,7 @@ export default async function ItemDetailPage({
               initialPrice={item.current_price}
               startPrice={item.start_price}
               initialBidCount={item.bid_count}
-              lotEndTime={item.lot_end_time}
+              lotEndTime={item.lot_end_time || null}
               blockStatus={block.status}
               itemStatus={item.status}
             />
@@ -192,67 +135,65 @@ export default async function ItemDetailPage({
 
           {item.estimated_value && (
             <div className="mt-3 flex items-center justify-between text-sm px-1">
-              <span className="text-zinc-500">Schätzwert</span>
-              <span className="text-zinc-400">
+              <span className="text-muted-foreground">Schätzwert</span>
+              <span className="text-muted-foreground">
                 &euro;{item.estimated_value.toFixed(2)}
               </span>
             </div>
           )}
 
-          {/* Release Details */}
-          <div className="mt-6 space-y-3">
+          <Separator className="my-6" />
+          <div className="space-y-3">
             <h2 className="text-lg font-semibold">Details</h2>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+            <dl className="space-y-2 text-sm">
               {release?.label_name && (
-                <>
-                  <dt className="text-zinc-500">Label</dt>
+                <div className="flex justify-between">
+                  <dt className="text-muted-foreground">Label</dt>
                   <dd>{release.label_name}</dd>
-                </>
+                </div>
               )}
               {release?.catalogNumber && (
-                <>
-                  <dt className="text-zinc-500">Katalognummer</dt>
-                  <dd className="font-mono text-xs">
-                    {release.catalogNumber}
-                  </dd>
-                </>
+                <div className="flex justify-between">
+                  <dt className="text-muted-foreground">Katalognummer</dt>
+                  <dd className="font-mono text-xs">{release.catalogNumber}</dd>
+                </div>
               )}
               {release?.media_condition && (
-                <>
-                  <dt className="text-zinc-500">Medium</dt>
+                <div className="flex justify-between">
+                  <dt className="text-muted-foreground">Medium</dt>
                   <dd>{release.media_condition}</dd>
-                </>
+                </div>
               )}
               {release?.sleeve_condition && (
-                <>
-                  <dt className="text-zinc-500">Hülle</dt>
+                <div className="flex justify-between">
+                  <dt className="text-muted-foreground">Hülle</dt>
                   <dd>{release.sleeve_condition}</dd>
-                </>
+                </div>
               )}
             </dl>
           </div>
 
-          {/* Description */}
           {release?.description && (
-            <div className="mt-6">
-              <h2 className="text-lg font-semibold mb-2">Beschreibung</h2>
-              <p className="text-sm text-zinc-400 whitespace-pre-line">
-                {release.description}
-              </p>
-            </div>
+            <>
+              <Separator className="my-6" />
+              <div>
+                <h2 className="text-lg font-semibold mb-2">Beschreibung</h2>
+                <p className="text-sm text-muted-foreground whitespace-pre-line">
+                  {release.description}
+                </p>
+              </div>
+            </>
           )}
         </div>
       </div>
 
-      {/* Back Link */}
-      <div className="mt-12 pt-8 border-t border-zinc-800">
-        <Link
-          href={`/auctions/${block.slug}`}
-          className="text-sm text-zinc-400 hover:text-white transition-colors"
-        >
-          &larr; Zurück zu &quot;{block.title}&quot;
+      <Separator className="my-8" />
+      <Button variant="ghost" asChild>
+        <Link href={`/auctions/${block.slug}`}>
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Zurück zu &quot;{block.title}&quot;
         </Link>
-      </div>
+      </Button>
     </main>
   )
 }

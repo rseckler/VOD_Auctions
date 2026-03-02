@@ -1,72 +1,39 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
+import { ChevronRight, Calendar, Package, Clock, Disc3 } from "lucide-react"
 import { BlockItemsGrid } from "@/components/BlockItemsGrid"
+import { medusaFetch } from "@/lib/api"
+import type { AuctionBlock } from "@/types"
 
-const MEDUSA_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
-const PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
-
-type Release = {
-  id: string
-  title: string
-  slug: string
-  format: string
-  year: number | null
-  country: string | null
-  coverImage: string | null
-  catalogNumber: string | null
-  estimated_value: number | null
-  artist_name: string | null
-  label_name: string | null
+const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
+  active: { label: "Live", className: "text-status-active" },
+  scheduled: { label: "Geplant", className: "text-muted-foreground" },
+  preview: { label: "Vorschau", className: "text-status-preview" },
+  ended: { label: "Beendet", className: "text-muted-foreground/60" },
 }
 
-type BlockItem = {
-  id: string
-  release_id: string
-  start_price: number
-  estimated_value: number | null
-  current_price: number | null
-  bid_count: number
-  lot_number: number | null
-  status: string
-  release: Release | null
+const TYPE_LABELS: Record<string, string> = {
+  theme: "Themen-Block",
+  highlight: "Highlight",
+  clearance: "Clearance",
+  flash: "Flash",
 }
 
-type AuctionBlock = {
-  id: string
-  title: string
-  subtitle: string | null
-  slug: string
-  status: string
-  block_type: string
-  start_time: string
-  end_time: string
-  short_description: string | null
-  long_description: string | null
-  header_image: string | null
-  video_url: string | null
-  audio_url: string | null
-  items: BlockItem[]
+function timeRemaining(endStr: string): string {
+  const diff = new Date(endStr).getTime() - Date.now()
+  if (diff <= 0) return "Beendet"
+  const days = Math.floor(diff / 86400000)
+  const hours = Math.floor((diff % 86400000) / 3600000)
+  if (days > 0) return `${days}d ${hours}h`
+  return `${hours}h`
 }
 
 async function getBlock(slug: string): Promise<AuctionBlock | null> {
-  try {
-    const res = await fetch(`${MEDUSA_URL}/store/auction-blocks/${slug}`, {
-      next: { revalidate: 30 },
-      headers: { "x-publishable-api-key": PUBLISHABLE_KEY },
-    })
-    if (!res.ok) return null
-    const data = await res.json()
-    return data.auction_block || null
-  } catch {
-    return null
-  }
-}
-
-const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  active: { label: "Laufend", color: "bg-green-900 text-green-300" },
-  scheduled: { label: "Geplant", color: "bg-blue-900 text-blue-300" },
-  preview: { label: "Vorschau", color: "bg-orange-900 text-orange-300" },
-  ended: { label: "Beendet", color: "bg-zinc-800 text-zinc-400" },
+  const data = await medusaFetch<{ auction_block: AuctionBlock }>(
+    `/store/auction-blocks/${slug}`,
+    { revalidate: 30 }
+  )
+  return data?.auction_block || null
 }
 
 export default async function BlockDetailPage({
@@ -80,13 +47,14 @@ export default async function BlockDetailPage({
   if (!block) notFound()
 
   const statusConfig = STATUS_CONFIG[block.status] || STATUS_CONFIG.ended
+  const items = block.items || []
   const startDate = new Date(block.start_time)
   const endDate = new Date(block.end_time)
 
-  const priceRange = block.items.length > 0
+  const priceRange = items.length > 0
     ? {
-        min: Math.min(...block.items.map((i) => i.start_price)),
-        max: Math.max(...block.items.map((i) => i.start_price)),
+        min: Math.min(...items.map((i) => i.start_price)),
+        max: Math.max(...items.map((i) => i.start_price)),
       }
     : null
 
@@ -95,42 +63,67 @@ export default async function BlockDetailPage({
       {/* Hero */}
       <section className="relative">
         {block.header_image ? (
-          <div className="relative h-64 md:h-80">
+          <div className="relative h-72 md:h-[28rem]">
             <img
               src={block.header_image}
               alt={block.title}
               className="w-full h-full object-cover"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/60 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#1c1915] via-[rgba(28,25,21,0.6)] to-transparent" />
           </div>
         ) : (
-          <div className="h-32 bg-gradient-to-b from-zinc-900 to-zinc-950" />
+          <div className="h-32 bg-gradient-to-b from-[rgba(212,165,74,0.06)] to-transparent" />
         )}
-        <div className="relative mx-auto max-w-6xl px-6 -mt-20">
-          <div className="flex items-center gap-2 mb-2">
-            <span className={`text-xs px-2 py-0.5 rounded-full ${statusConfig.color}`}>
+        <div className="relative mx-auto max-w-6xl px-6 -mt-24">
+          <div className="flex items-center gap-3 mb-3">
+            <div className={`flex items-center gap-1.5 px-3 py-1 rounded-md bg-[rgba(28,25,21,0.85)] backdrop-blur-sm text-xs font-semibold ${statusConfig.className}`}>
+              {block.status === "active" && (
+                <span className="w-1.5 h-1.5 rounded-full bg-status-active animate-pulse" />
+              )}
               {statusConfig.label}
-            </span>
-            <span className="text-xs text-zinc-500 uppercase tracking-wider">
-              {block.block_type}
+            </div>
+            <span className="text-[11px] text-primary uppercase tracking-[2px] font-semibold">
+              {TYPE_LABELS[block.block_type] || block.block_type}
             </span>
           </div>
-          <h1 className="text-3xl md:text-4xl font-bold">{block.title}</h1>
+          <h1 className="font-serif text-3xl md:text-5xl leading-[1.1]">
+            {block.title}
+          </h1>
           {block.subtitle && (
-            <p className="text-xl text-zinc-400 mt-1">{block.subtitle}</p>
+            <p className="text-xl text-muted-foreground mt-2">{block.subtitle}</p>
           )}
-          <div className="flex flex-wrap items-center gap-4 mt-4 text-sm text-zinc-400">
-            <span>
-              {startDate.toLocaleDateString("de-DE", { day: "numeric", month: "long" })}
-              {" – "}
-              {endDate.toLocaleDateString("de-DE", { day: "numeric", month: "long", year: "numeric" })}
-            </span>
-            <span>{block.items.length} Lots</span>
+
+          {/* Stats Row */}
+          <div className="flex flex-wrap items-center gap-6 mt-6 pt-5 border-t border-[rgba(232,224,212,0.08)]">
+            <div>
+              <div className="text-[11px] uppercase tracking-[1px] text-muted-foreground/60 font-medium mb-1">Lots</div>
+              <div className="font-serif text-2xl">{items.length}</div>
+            </div>
+            <div>
+              <div className="text-[11px] uppercase tracking-[1px] text-muted-foreground/60 font-medium mb-1">Zeitraum</div>
+              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <Calendar className="h-3.5 w-3.5" />
+                {startDate.toLocaleDateString("de-DE", { day: "numeric", month: "short" })}
+                {" – "}
+                {endDate.toLocaleDateString("de-DE", { day: "numeric", month: "short", year: "numeric" })}
+              </div>
+            </div>
             {priceRange && (
-              <span>
-                ab &euro;{priceRange.min.toFixed(0)}
-                {priceRange.min !== priceRange.max && ` – &euro;${priceRange.max.toFixed(0)}`}
-              </span>
+              <div>
+                <div className="text-[11px] uppercase tracking-[1px] text-muted-foreground/60 font-medium mb-1">Ab</div>
+                <div className="font-serif text-2xl text-primary">
+                  &euro;{priceRange.min.toFixed(0)}
+                </div>
+              </div>
+            )}
+            {block.status === "active" && (
+              <div>
+                <div className="text-[11px] uppercase tracking-[1px] text-muted-foreground/60 font-medium mb-1">Restzeit</div>
+                <div className="flex items-center gap-1.5 text-status-active font-semibold">
+                  <Clock className="h-3.5 w-3.5" />
+                  {timeRemaining(block.end_time)}
+                </div>
+              </div>
             )}
           </div>
         </div>
@@ -138,26 +131,26 @@ export default async function BlockDetailPage({
 
       <div className="mx-auto max-w-6xl px-6 py-8">
         {/* Breadcrumb */}
-        <nav className="text-sm text-zinc-500 mb-8">
-          <Link href="/auctions" className="hover:text-zinc-300">
+        <nav className="text-sm text-muted-foreground mb-8 flex items-center gap-1">
+          <Link href="/auctions" className="hover:text-primary transition-colors">
             Auktionen
           </Link>
-          <span className="mx-2">/</span>
-          <span className="text-zinc-300">{block.title}</span>
+          <ChevronRight className="h-3.5 w-3.5" />
+          <span className="text-foreground">{block.title}</span>
         </nav>
 
         {/* Editorial Content */}
-        {(block.long_description || block.video_url || block.audio_url) && (
-          <section className="mb-10 max-w-3xl">
+        {(block.long_description || block.video_url) && (
+          <section className="mb-12 max-w-3xl">
             {block.long_description && (
-              <div className="prose prose-invert prose-zinc max-w-none">
+              <div className="prose prose-invert max-w-none prose-p:text-muted-foreground prose-p:leading-relaxed">
                 {block.long_description.split("\n").map((p, i) =>
                   p.trim() ? <p key={i}>{p}</p> : null
                 )}
               </div>
             )}
             {block.video_url && (
-              <div className="mt-6 aspect-video rounded-lg overflow-hidden bg-zinc-900">
+              <div className="mt-6 aspect-video rounded-lg overflow-hidden border border-[rgba(232,224,212,0.08)]">
                 <iframe
                   src={block.video_url.replace("watch?v=", "embed/")}
                   className="w-full h-full"
@@ -170,10 +163,11 @@ export default async function BlockDetailPage({
 
         {/* Items Grid */}
         <section>
-          <h2 className="text-xl font-semibold mb-6">
-            Lots ({block.items.length})
+          <h2 className="font-serif text-2xl mb-6 flex items-center gap-3">
+            Lots
+            <span className="text-sm font-sans text-muted-foreground font-normal">{items.length} Stück</span>
           </h2>
-          <BlockItemsGrid items={block.items} blockSlug={block.slug} />
+          <BlockItemsGrid items={items} blockSlug={block.slug} />
         </section>
       </div>
     </main>

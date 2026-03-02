@@ -4,12 +4,15 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useAuth } from "@/components/AuthProvider"
 import { useEffect } from "react"
+import { LayoutDashboard, Gavel, Trophy, Settings } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 
 const NAV_ITEMS = [
-  { href: "/account", label: "Übersicht" },
-  { href: "/account/bids", label: "Meine Gebote" },
-  { href: "/account/wins", label: "Gewonnen" },
-  { href: "/account/settings", label: "Einstellungen" },
+  { href: "/account", label: "Übersicht", icon: LayoutDashboard },
+  { href: "/account/bids", label: "Meine Gebote", icon: Gavel },
+  { href: "/account/wins", label: "Gewonnen", icon: Trophy },
+  { href: "/account/settings", label: "Einstellungen", icon: Settings },
 ]
 
 export default function AccountLayout({
@@ -30,9 +33,17 @@ export default function AccountLayout({
   if (loading) {
     return (
       <main className="mx-auto max-w-6xl px-6 py-12">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-zinc-800 rounded w-48" />
-          <div className="h-64 bg-zinc-800 rounded" />
+        <Skeleton className="h-9 w-48 mb-8" />
+        <div className="flex flex-col md:flex-row gap-8">
+          <div className="md:w-48 space-y-2">
+            {[1, 2, 3, 4].map((i) => (
+              <Skeleton key={i} className="h-10 w-full" />
+            ))}
+          </div>
+          <div className="flex-1 space-y-4">
+            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-32 w-full" />
+          </div>
         </div>
       </main>
     )
@@ -45,29 +56,31 @@ export default function AccountLayout({
       <h1 className="text-3xl font-bold mb-8">Mein Konto</h1>
 
       <div className="flex flex-col md:flex-row gap-8">
-        {/* Sidebar on desktop, tabs on mobile */}
         <nav className="md:w-48 flex-shrink-0">
           <div className="flex md:flex-col gap-1 overflow-x-auto md:overflow-visible">
             {NAV_ITEMS.map((item) => {
               const isActive = pathname === item.href
+              const Icon = item.icon
               return (
-                <Link
+                <Button
                   key={item.href}
-                  href={item.href}
-                  className={`px-3 py-2 rounded-lg text-sm whitespace-nowrap transition-colors ${
-                    isActive
-                      ? "bg-zinc-800 text-white font-medium"
-                      : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50"
+                  variant={isActive ? "secondary" : "ghost"}
+                  size="sm"
+                  className={`justify-start gap-2 whitespace-nowrap ${
+                    isActive ? "font-medium" : "text-muted-foreground"
                   }`}
+                  asChild
                 >
-                  {item.label}
-                </Link>
+                  <Link href={item.href}>
+                    <Icon className="h-4 w-4" />
+                    {item.label}
+                  </Link>
+                </Button>
               )
             })}
           </div>
         </nav>
 
-        {/* Content */}
         <div className="flex-1 min-w-0">{children}</div>
       </div>
     </main>

@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1440,initial-scale=1">
+<title>Konzept 2: Luxury Auction House — Home</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', sans-serif; background: #faf9f7; color: #1a1a1a; font-weight: 300; }
+
+  /* Header */
+  header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 24px 80px;
+    background: #faf9f7;
+  }
+  .logo {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 32px;
+    font-weight: 300;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+  }
+  nav { display: flex; gap: 40px; font-size: 13px; font-weight: 400; letter-spacing: 1px; }
+  nav a { color: #1a1a1a; text-decoration: none; }
+  nav a:hover { color: #8b7355; }
+  .auth-area { display: flex; gap: 20px; align-items: center; }
+  .auth-link { font-size: 13px; color: #8b7355; text-decoration: none; letter-spacing: 0.5px; }
+  .divider-line { width: 100%; height: 1px; background: #e5e0d8; }
+
+  /* Hero */
+  .hero {
+    padding: 100px 80px 120px;
+    text-align: center;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  .hero-eyebrow {
+    font-size: 12px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: #8b7355;
+    margin-bottom: 24px;
+    font-weight: 500;
+  }
+  .hero h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 68px;
+    font-weight: 300;
+    line-height: 1.1;
+    letter-spacing: -1px;
+    margin-bottom: 24px;
+  }
+  .hero h1 em {
+    font-style: italic;
+    font-weight: 300;
+  }
+  .hero p {
+    font-size: 17px;
+    line-height: 1.8;
+    color: #777;
+    max-width: 560px;
+    margin: 0 auto 40px;
+  }
+  .hero-cta {
+    display: inline-block;
+    padding: 16px 48px;
+    background: #1a1a1a;
+    color: #faf9f7;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    text-decoration: none;
+    font-weight: 500;
+    transition: background 0.3s;
+  }
+  .hero-cta:hover { background: #8b7355; }
+
+  /* Featured Auction */
+  .featured {
+    padding: 0 80px 80px;
+  }
+  .section-label {
+    font-size: 11px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: #8b7355;
+    margin-bottom: 40px;
+    font-weight: 500;
+  }
+  .featured-card {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 0;
+    background: #fff;
+    border: 1px solid #e5e0d8;
+  }
+  .featured-img {
+    height: 480px;
+    background: linear-gradient(135deg, #e8e2d8, #d4cdc4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    color: #aaa;
+    letter-spacing: 2px;
+  }
+  .featured-info {
+    padding: 60px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .featured-status {
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #c41e1e;
+    margin-bottom: 16px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .featured-status::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #c41e1e;
+    display: inline-block;
+  }
+  .featured-info h2 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 42px;
+    font-weight: 400;
+    line-height: 1.15;
+    margin-bottom: 8px;
+  }
+  .featured-subtitle {
+    font-size: 16px;
+    color: #999;
+    margin-bottom: 24px;
+    font-style: italic;
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 20px;
+  }
+  .featured-desc {
+    font-size: 15px;
+    line-height: 1.7;
+    color: #777;
+    margin-bottom: 32px;
+  }
+  .featured-meta {
+    display: flex;
+    gap: 40px;
+    padding-top: 24px;
+    border-top: 1px solid #e5e0d8;
+  }
+  .meta-item { }
+  .meta-label { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: #aaa; margin-bottom: 4px; }
+  .meta-value { font-family: 'Cormorant Garamond', serif; font-size: 24px; font-weight: 500; }
+
+  /* Upcoming Grid */
+  .upcoming { padding: 80px; }
+  .upcoming-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 40px;
+  }
+  .upcoming-header h2 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 36px;
+    font-weight: 400;
+  }
+  .view-all {
+    font-size: 13px;
+    color: #8b7355;
+    text-decoration: none;
+    letter-spacing: 1px;
+  }
+  .upcoming-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 32px;
+  }
+  .upcoming-card {
+    background: #fff;
+    border: 1px solid #e5e0d8;
+    transition: border-color 0.3s, box-shadow 0.3s;
+    cursor: pointer;
+  }
+  .upcoming-card:hover {
+    border-color: #8b7355;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.06);
+  }
+  .upcoming-img {
+    width: 100%;
+    aspect-ratio: 16/10;
+    background: linear-gradient(135deg, #e8e2d8, #d4cdc4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: #bbb;
+    letter-spacing: 2px;
+  }
+  .upcoming-info { padding: 28px; }
+  .upcoming-type {
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #8b7355;
+    margin-bottom: 10px;
+    font-weight: 500;
+  }
+  .upcoming-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 26px;
+    font-weight: 400;
+    margin-bottom: 6px;
+    line-height: 1.2;
+  }
+  .upcoming-sub {
+    font-size: 14px;
+    color: #999;
+    margin-bottom: 20px;
+  }
+  .upcoming-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 16px;
+    border-top: 1px solid #f0ebe4;
+    font-size: 12px;
+    color: #aaa;
+    letter-spacing: 0.5px;
+  }
+
+  /* Footer */
+  footer {
+    padding: 60px 80px;
+    border-top: 1px solid #e5e0d8;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .footer-logo {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 24px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: #ccc;
+  }
+  .footer-links {
+    display: flex;
+    gap: 32px;
+    font-size: 12px;
+    color: #aaa;
+    letter-spacing: 1px;
+  }
+  .footer-links a { color: #aaa; text-decoration: none; }
+</style>
+</head>
+<body>
+  <header>
+    <div class="logo">VOD Auctions</div>
+    <nav>
+      <a href="#">Auktionen</a>
+      <a href="#">Katalog</a>
+      <a href="#">Über Uns</a>
+    </nav>
+    <div class="auth-area">
+      <a href="#" class="auth-link">Anmelden</a>
+      <a href="#" class="auth-link">Registrieren</a>
+    </div>
+  </header>
+  <div class="divider-line"></div>
+
+  <section class="hero">
+    <div class="hero-eyebrow">Kuratierte Vinyl-Auktionen</div>
+    <h1>Entdecken Sie <em>seltene</em> Schallplatten</h1>
+    <p>Handverlesene Sammlungen von Industrial, EBM, Dark Ambient und elektronischer Musik. Jede Auktion erzählt eine Geschichte.</p>
+    <a href="#" class="hero-cta">Aktuelle Auktionen</a>
+  </section>
+
+  <div class="divider-line"></div>
+
+  <section class="featured">
+    <div class="section-label">Im Fokus</div>
+    <div class="featured-card">
+      <div class="featured-img">Header Image</div>
+      <div class="featured-info">
+        <div class="featured-status">Live Auktion</div>
+        <h2>Industrial Classics</h2>
+        <div class="featured-subtitle">Seltene Pressungen 1980–1995</div>
+        <div class="featured-desc">
+          Eine kuratierte Sammlung der wichtigsten Industrial-Veröffentlichungen. Erstpressungen, limitierte Editionen und vergessene Perlen aus drei Jahrzehnten.
+        </div>
+        <div class="featured-meta">
+          <div class="meta-item">
+            <div class="meta-label">Lots</div>
+            <div class="meta-value">42</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">Preise ab</div>
+            <div class="meta-value">€5</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">Endet</div>
+            <div class="meta-value">18. März</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="upcoming">
+    <div class="upcoming-header">
+      <h2>Kommende Auktionen</h2>
+      <a href="#" class="view-all">Alle ansehen →</a>
+    </div>
+    <div class="upcoming-grid">
+      <div class="upcoming-card">
+        <div class="upcoming-img">Header Image</div>
+        <div class="upcoming-info">
+          <div class="upcoming-type">Themen-Block</div>
+          <div class="upcoming-title">Dark Ambient Essentials</div>
+          <div class="upcoming-sub">Atmosphärische Klanglandschaften</div>
+          <div class="upcoming-bottom">
+            <span>35 Lots</span>
+            <span>Start 15. März</span>
+          </div>
+        </div>
+      </div>
+      <div class="upcoming-card">
+        <div class="upcoming-img">Header Image</div>
+        <div class="upcoming-info">
+          <div class="upcoming-type">Highlight</div>
+          <div class="upcoming-title">EBM & Synth</div>
+          <div class="upcoming-sub">Elektronische Körpermusik</div>
+          <div class="upcoming-bottom">
+            <span>28 Lots</span>
+            <span>Start 22. März</span>
+          </div>
+        </div>
+      </div>
+      <div class="upcoming-card">
+        <div class="upcoming-img">Header Image</div>
+        <div class="upcoming-info">
+          <div class="upcoming-type">Themen-Block</div>
+          <div class="upcoming-title">Krautrock Raritäten</div>
+          <div class="upcoming-sub">Deutsche Experimentalmusik</div>
+          <div class="upcoming-bottom">
+            <span>20 Lots</span>
+            <span>Start 1. April</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="footer-logo">VOD Auctions</div>
+    <div class="footer-links">
+      <a href="#">Impressum</a>
+      <a href="#">Datenschutz</a>
+      <a href="#">AGB</a>
+      <span>© 2026</span>
+    </div>
+  </footer>
+</body>
+</html>

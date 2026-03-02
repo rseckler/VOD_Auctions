@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1440,initial-scale=1">
+<title>Konzept 2: Luxury Auction House — Themen-Block</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', sans-serif; background: #faf9f7; color: #1a1a1a; font-weight: 300; }
+
+  header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 24px 80px; background: #faf9f7;
+  }
+  .logo { font-family: 'Cormorant Garamond', serif; font-size: 32px; font-weight: 300; letter-spacing: 6px; text-transform: uppercase; }
+  nav { display: flex; gap: 40px; font-size: 13px; font-weight: 400; letter-spacing: 1px; }
+  nav a { color: #1a1a1a; text-decoration: none; }
+  .divider-line { width: 100%; height: 1px; background: #e5e0d8; }
+
+  .breadcrumb {
+    padding: 20px 80px;
+    font-size: 12px;
+    color: #aaa;
+    letter-spacing: 1px;
+  }
+  .breadcrumb a { color: #8b7355; text-decoration: none; }
+
+  /* Block Header */
+  .block-header {
+    padding: 0 80px 60px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 60px;
+    align-items: center;
+  }
+  .block-header-img {
+    height: 420px;
+    background: linear-gradient(135deg, #e8e2d8, #d4cdc4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    color: #bbb;
+    letter-spacing: 2px;
+  }
+  .block-header-info {}
+  .block-status {
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #c41e1e;
+    margin-bottom: 16px;
+    font-weight: 500;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .block-status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #c41e1e; }
+  .block-header-info h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 52px;
+    font-weight: 400;
+    line-height: 1.1;
+    margin-bottom: 8px;
+  }
+  .block-subtitle {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px;
+    font-style: italic;
+    color: #999;
+    margin-bottom: 24px;
+  }
+  .block-desc {
+    font-size: 15px;
+    line-height: 1.7;
+    color: #777;
+    margin-bottom: 32px;
+    max-width: 440px;
+  }
+  .block-stats {
+    display: flex;
+    gap: 40px;
+    padding-top: 24px;
+    border-top: 1px solid #e5e0d8;
+  }
+  .stat-label { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: #aaa; margin-bottom: 4px; }
+  .stat-value { font-family: 'Cormorant Garamond', serif; font-size: 28px; font-weight: 500; }
+  .stat-value.countdown { color: #c41e1e; }
+
+  /* Filter */
+  .filter-section {
+    padding: 20px 80px;
+    border-top: 1px solid #e5e0d8;
+    border-bottom: 1px solid #e5e0d8;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #fff;
+  }
+  .filter-search {
+    padding: 10px 20px;
+    border: 1px solid #e5e0d8;
+    font-size: 14px;
+    width: 280px;
+    font-family: 'Inter', sans-serif;
+    background: #faf9f7;
+    outline: none;
+  }
+  .filter-sort {
+    display: flex; gap: 24px; font-size: 12px; color: #aaa; letter-spacing: 1px;
+  }
+  .filter-sort span { cursor: pointer; }
+  .filter-sort span.active { color: #8b7355; border-bottom: 1px solid #8b7355; padding-bottom: 2px; }
+  .filter-count { font-size: 12px; color: #aaa; letter-spacing: 1px; }
+
+  /* Lot Grid */
+  .lot-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 24px;
+    padding: 40px 80px 80px;
+  }
+  .lot-card {
+    background: #fff;
+    border: 1px solid #e5e0d8;
+    cursor: pointer;
+    transition: border-color 0.3s, box-shadow 0.3s;
+  }
+  .lot-card:hover {
+    border-color: #8b7355;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+  }
+  .lot-img {
+    width: 100%;
+    aspect-ratio: 1;
+    background: linear-gradient(135deg, #ece7df, #d4cdc4);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: #bbb;
+  }
+  .lot-number {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    font-size: 11px;
+    font-weight: 500;
+    color: #8b7355;
+    letter-spacing: 1px;
+  }
+  .lot-format {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #aaa;
+    background: rgba(250,249,247,0.9);
+    padding: 4px 10px;
+    border: 1px solid #e5e0d8;
+  }
+  .lot-info { padding: 20px; }
+  .lot-artist {
+    font-size: 11px;
+    color: #aaa;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .lot-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 20px;
+    font-weight: 500;
+    margin-bottom: 16px;
+    line-height: 1.3;
+  }
+  .lot-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding-top: 12px;
+    border-top: 1px solid #f0ebe4;
+  }
+  .lot-price {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 24px;
+    font-weight: 600;
+  }
+  .lot-bids {
+    font-size: 11px;
+    color: #aaa;
+    letter-spacing: 0.5px;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <div class="logo">VOD Auctions</div>
+    <nav>
+      <a href="#">Auktionen</a>
+      <a href="#">Katalog</a>
+      <a href="#">Über Uns</a>
+    </nav>
+  </header>
+  <div class="divider-line"></div>
+
+  <div class="breadcrumb">
+    <a href="#">Auktionen</a> / Industrial Classics
+  </div>
+
+  <section class="block-header">
+    <div class="block-header-img">Header Image</div>
+    <div class="block-header-info">
+      <div class="block-status">Live Auktion</div>
+      <h1>Industrial Classics</h1>
+      <div class="block-subtitle">Seltene Pressungen 1980–1995</div>
+      <div class="block-desc">
+        Eine kuratierte Sammlung der wichtigsten Industrial-Veröffentlichungen. Erstpressungen, limitierte Editionen und vergessene Perlen aus drei Jahrzehnten experimenteller Musik.
+      </div>
+      <div class="block-stats">
+        <div><div class="stat-label">Lots</div><div class="stat-value">42</div></div>
+        <div><div class="stat-label">Preise ab</div><div class="stat-value">€5</div></div>
+        <div><div class="stat-label">Restzeit</div><div class="stat-value countdown">4d 12h</div></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="filter-section">
+    <input class="filter-search" placeholder="Suche in dieser Auktion..." />
+    <div class="filter-sort">
+      <span class="active">Lot-Nr.</span>
+      <span>Preis ↑</span>
+      <span>Preis ↓</span>
+      <span>Meiste Gebote</span>
+    </div>
+    <span class="filter-count">42 Lots</span>
+  </div>
+
+  <div class="lot-grid">
+    <div class="lot-card">
+      <div class="lot-img">Cover<span class="lot-number">Lot 1</span><span class="lot-format">LP</span></div>
+      <div class="lot-info">
+        <div class="lot-artist">Throbbing Gristle</div>
+        <div class="lot-title">20 Jazz Funk Greats</div>
+        <div class="lot-bottom"><span class="lot-price">€45</span><span class="lot-bids">12 Gebote</span></div>
+      </div>
+    </div>
+    <div class="lot-card">
+      <div class="lot-img">Cover<span class="lot-number">Lot 2</span><span class="lot-format">LP</span></div>
+      <div class="lot-info">
+        <div class="lot-artist">SPK</div>
+        <div class="lot-title">Information Overload Unit</div>
+        <div class="lot-bottom"><span class="lot-price">€32</span><span class="lot-bids">8 Gebote</span></div>
+      </div>
+    </div>
+    <div class="lot-card">
+      <div class="lot-img">Cover<span class="lot-number">Lot 3</span><span class="lot-format">12"</span></div>
+      <div class="lot-info">
+        <div class="lot-artist">Einstürzende Neubauten</div>
+        <div class="lot-title">Kollaps</div>
+        <div class="lot-bottom"><span class="lot-price">€28</span><span class="lot-bids">6 Gebote</span></div>
+      </div>
+    </div>
+    <div class="lot-card">
+      <div class="lot-img">Cover<span class="lot-number">Lot 4</span><span class="lot-format">LP</span></div>
+      <div class="lot-info">
+        <div class="lot-artist">Cabaret Voltaire</div>
+        <div class="lot-title">Red Mecca</div>
+        <div class="lot-bottom"><span class="lot-price">€18</span><span class="lot-bids">3 Gebote</span></div>
+      </div>
+    </div>
+    <div class="lot-card">
+      <div class="lot-img">Cover<span class="lot-number">Lot 5</span><span class="lot-format">7"</span></div>
+      <div class="lot-info">
+        <div class="lot-artist">Coil</div>
+        <div class="lot-title">How to Destroy Angels</div>
+        <div class="lot-bottom"><span class="lot-price">€55</span><span class="lot-bids">15 Gebote</span></div>
+      </div>
+    </div>
+    <div class="lot-card">
+      <div class="lot-img">Cover<span class="lot-number">Lot 6</span><span class="lot-format">LP</span></div>
+      <div class="lot-info">
+        <div class="lot-artist">Skinny Puppy</div>
+        <div class="lot-title">Bites</div>
+        <div class="lot-bottom"><span class="lot-price">€12</span><span class="lot-bids">2 Gebote</span></div>
+      </div>
+    </div>
+    <div class="lot-card">
+      <div class="lot-img">Cover<span class="lot-number">Lot 7</span><span class="lot-format">CD</span></div>
+      <div class="lot-info">
+        <div class="lot-artist">Ministry</div>
+        <div class="lot-title">The Land of Rape and Honey</div>
+        <div class="lot-bottom"><span class="lot-price">€8</span><span class="lot-bids">1 Gebot</span></div>
+      </div>
+    </div>
+    <div class="lot-card">
+      <div class="lot-img">Cover<span class="lot-number">Lot 8</span><span class="lot-format">LP</span></div>
+      <div class="lot-info">
+        <div class="lot-artist">Test Dept</div>
+        <div class="lot-title">The Unacceptable Face of Freedom</div>
+        <div class="lot-bottom"><span class="lot-price">€22</span><span class="lot-bids">5 Gebote</span></div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

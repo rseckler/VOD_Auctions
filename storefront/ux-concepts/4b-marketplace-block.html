@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1440,initial-scale=1">
+<title>Konzept 4: Clean Marketplace — Themen-Block</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Plus Jakarta Sans', sans-serif; background: #ffffff; color: #111827; }
+
+  header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 16px 48px; background: #fff; border-bottom: 1px solid #e5e7eb;
+  }
+  .logo { font-size: 22px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+  .logo-mark { width: 32px; height: 32px; background: #4f46e5; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-size: 14px; font-weight: 800; }
+  nav { display: flex; gap: 24px; font-size: 14px; font-weight: 500; }
+  nav a { color: #6b7280; text-decoration: none; }
+
+  .breadcrumb { padding: 14px 48px; font-size: 13px; color: #9ca3af; border-bottom: 1px solid #f3f4f6; }
+  .breadcrumb a { color: #4f46e5; text-decoration: none; }
+
+  /* Block Header */
+  .block-header {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .block-header-img {
+    height: 360px;
+    background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; color: #bbb;
+    border-right: 1px solid #e5e7eb;
+  }
+  .block-header-info { padding: 40px 48px; display: flex; flex-direction: column; justify-content: center; }
+  .status-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 14px;
+    background: #dcfce7;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #15803d;
+    width: fit-content;
+    margin-bottom: 16px;
+  }
+  .status-badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #15803d; }
+  .block-header-info h1 { font-size: 36px; font-weight: 800; margin-bottom: 8px; letter-spacing: -0.5px; }
+  .block-subtitle { font-size: 16px; color: #9ca3af; margin-bottom: 16px; }
+  .block-desc { font-size: 14px; line-height: 1.7; color: #6b7280; margin-bottom: 28px; }
+  .block-stats {
+    display: flex; gap: 32px;
+    padding-top: 20px;
+    border-top: 1px solid #f3f4f6;
+  }
+  .bs-item {}
+  .bs-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; font-weight: 600; margin-bottom: 2px; }
+  .bs-value { font-size: 24px; font-weight: 800; }
+  .bs-value.countdown { color: #dc2626; }
+
+  /* Toolbar */
+  .toolbar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 48px;
+    background: #f9fafb;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .toolbar-search {
+    display: flex; align-items: center; gap: 8px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 8px 16px;
+    width: 280px;
+  }
+  .toolbar-search input {
+    border: none; background: none; font-size: 13px;
+    font-family: 'Plus Jakarta Sans', sans-serif; outline: none; width: 100%;
+  }
+  .toolbar-sort {
+    display: flex; gap: 8px;
+  }
+  .sort-btn {
+    padding: 7px 14px;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    background: #fff;
+    font-size: 12px;
+    font-weight: 500;
+    color: #6b7280;
+    cursor: pointer;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+  }
+  .sort-btn.active { background: #4f46e5; color: white; border-color: #4f46e5; }
+  .toolbar-count { font-size: 13px; color: #9ca3af; }
+
+  /* Items Grid */
+  .items-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    padding: 28px 48px 60px;
+  }
+  .item-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: box-shadow 0.2s, transform 0.2s;
+  }
+  .item-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.06); transform: translateY(-1px); }
+  .item-img {
+    width: 100%; aspect-ratio: 1;
+    background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; color: #ccc;
+  }
+  .item-lot {
+    position: absolute; top: 10px; left: 10px;
+    background: #111827; color: white;
+    border-radius: 6px; padding: 4px 10px;
+    font-size: 11px; font-weight: 700;
+  }
+  .item-format {
+    position: absolute; top: 10px; right: 10px;
+    background: rgba(255,255,255,0.9);
+    border-radius: 6px; padding: 4px 10px;
+    font-size: 10px; font-weight: 600;
+    color: #4f46e5;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border: 1px solid #e5e7eb;
+  }
+  .item-info { padding: 16px; }
+  .item-artist { font-size: 12px; color: #9ca3af; margin-bottom: 2px; }
+  .item-title { font-size: 14px; font-weight: 600; margin-bottom: 12px; line-height: 1.3; }
+  .item-bottom { display: flex; justify-content: space-between; align-items: baseline; }
+  .item-price { font-size: 18px; font-weight: 800; color: #111827; }
+  .item-bids { font-size: 11px; color: #9ca3af; font-weight: 500; }
+  .item-time {
+    font-size: 11px;
+    color: #dc2626;
+    margin-top: 6px;
+    font-weight: 500;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <div class="logo"><div class="logo-mark">V</div>VOD Auctions</div>
+    <nav><a href="#">Auktionen</a><a href="#">Wie es funktioniert</a></nav>
+  </header>
+
+  <div class="breadcrumb"><a href="#">Auktionen</a> › Industrial Classics</div>
+
+  <section class="block-header">
+    <div class="block-header-img">Header Image</div>
+    <div class="block-header-info">
+      <div class="status-badge">Live Auktion</div>
+      <h1>Industrial Classics</h1>
+      <div class="block-subtitle">Seltene Pressungen 1980–1995</div>
+      <div class="block-desc">
+        Eine kuratierte Sammlung der wichtigsten Industrial-Veröffentlichungen. Erstpressungen, limitierte Editionen und vergessene Perlen aus drei Jahrzehnten experimenteller Musik.
+      </div>
+      <div class="block-stats">
+        <div class="bs-item"><div class="bs-label">Lots</div><div class="bs-value">42</div></div>
+        <div class="bs-item"><div class="bs-label">Preise ab</div><div class="bs-value">€5</div></div>
+        <div class="bs-item"><div class="bs-label">Restzeit</div><div class="bs-value countdown">4d 12h</div></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="toolbar">
+    <div class="toolbar-search">
+      <span>🔍</span>
+      <input placeholder="Suche in dieser Auktion..." />
+    </div>
+    <div class="toolbar-sort">
+      <button class="sort-btn active">Lot-Nr.</button>
+      <button class="sort-btn">Preis ↑</button>
+      <button class="sort-btn">Preis ↓</button>
+      <button class="sort-btn">Gebote</button>
+    </div>
+    <span class="toolbar-count">42 Lots</span>
+  </div>
+
+  <div class="items-grid">
+    <div class="item-card">
+      <div class="item-img">Cover<span class="item-lot">#01</span><span class="item-format">LP</span></div>
+      <div class="item-info">
+        <div class="item-artist">Throbbing Gristle</div>
+        <div class="item-title">20 Jazz Funk Greats</div>
+        <div class="item-bottom"><span class="item-price">€45</span><span class="item-bids">12 Gebote</span></div>
+        <div class="item-time">Noch 4d 12h</div>
+      </div>
+    </div>
+    <div class="item-card">
+      <div class="item-img">Cover<span class="item-lot">#02</span><span class="item-format">LP</span></div>
+      <div class="item-info">
+        <div class="item-artist">SPK</div>
+        <div class="item-title">Information Overload Unit</div>
+        <div class="item-bottom"><span class="item-price">€32</span><span class="item-bids">8 Gebote</span></div>
+        <div class="item-time">Noch 4d 12h</div>
+      </div>
+    </div>
+    <div class="item-card">
+      <div class="item-img">Cover<span class="item-lot">#03</span><span class="item-format">12"</span></div>
+      <div class="item-info">
+        <div class="item-artist">Einstürzende Neubauten</div>
+        <div class="item-title">Kollaps</div>
+        <div class="item-bottom"><span class="item-price">€28</span><span class="item-bids">6 Gebote</span></div>
+        <div class="item-time">Noch 4d 11h</div>
+      </div>
+    </div>
+    <div class="item-card">
+      <div class="item-img">Cover<span class="item-lot">#04</span><span class="item-format">LP</span></div>
+      <div class="item-info">
+        <div class="item-artist">Cabaret Voltaire</div>
+        <div class="item-title">Red Mecca</div>
+        <div class="item-bottom"><span class="item-price">€18</span><span class="item-bids">3 Gebote</span></div>
+        <div class="item-time">Noch 4d 10h</div>
+      </div>
+    </div>
+    <div class="item-card">
+      <div class="item-img">Cover<span class="item-lot">#05</span><span class="item-format">7"</span></div>
+      <div class="item-info">
+        <div class="item-artist">Coil</div>
+        <div class="item-title">How to Destroy Angels</div>
+        <div class="item-bottom"><span class="item-price">€55</span><span class="item-bids">15 Gebote</span></div>
+        <div class="item-time">Noch 4d 9h</div>
+      </div>
+    </div>
+    <div class="item-card">
+      <div class="item-img">Cover<span class="item-lot">#06</span><span class="item-format">LP</span></div>
+      <div class="item-info">
+        <div class="item-artist">Skinny Puppy</div>
+        <div class="item-title">Bites</div>
+        <div class="item-bottom"><span class="item-price">€12</span><span class="item-bids">2 Gebote</span></div>
+        <div class="item-time">Noch 4d 8h</div>
+      </div>
+    </div>
+    <div class="item-card">
+      <div class="item-img">Cover<span class="item-lot">#07</span><span class="item-format">CD</span></div>
+      <div class="item-info">
+        <div class="item-artist">Ministry</div>
+        <div class="item-title">The Land of Rape and Honey</div>
+        <div class="item-bottom"><span class="item-price">€8</span><span class="item-bids">1 Gebot</span></div>
+        <div class="item-time">Noch 4d 7h</div>
+      </div>
+    </div>
+    <div class="item-card">
+      <div class="item-img">Cover<span class="item-lot">#08</span><span class="item-format">LP</span></div>
+      <div class="item-info">
+        <div class="item-artist">Test Dept</div>
+        <div class="item-title">The Unacceptable Face of Freedom</div>
+        <div class="item-bottom"><span class="item-price">€22</span><span class="item-bids">5 Gebote</span></div>
+        <div class="item-time">Noch 4d 6h</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
