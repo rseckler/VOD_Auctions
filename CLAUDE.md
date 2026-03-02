@@ -8,10 +8,10 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 
 **Goal:** Eigene Plattform mit voller Kontrolle über Marke, Kundendaten, Preisgestaltung — statt 8-13% Gebühren an eBay/Discogs
 
-**Status:** Konzeptphase — Prototyp-Entwicklung steht bevor
+**Status:** Phase 1 — RSE-72 + RSE-73 + RSE-74 erledigt, RSE-75 (Bidding-Engine) als nächstes
 
 **Created:** 2026-02-10
-**Last Updated:** 2026-03-01
+**Last Updated:** 2026-03-02
 
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Linear:** VOD Auctions Projekt (rseckler Workspace)
@@ -53,20 +53,28 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 
 ### Supabase-Projekt (Shared)
 
-**Projekt-ID:** `ouunftsxmuqgfqsoqnxq` (West EU)
+**Projekt-ID:** `bofblwqieuvmqybzxapx` (eu-central-1, Frankfurt)
+**URL:** https://bofblwqieuvmqybzxapx.supabase.co
+**Dashboard:** https://supabase.com/dashboard/project/bofblwqieuvmqybzxapx
 
-Die Auktionsplattform teilt sich die Supabase-Instanz mit tape-mag-mvp. Die `Release`-Tabelle (= Produkt) existiert bereits — Auktions-Tabellen werden als Erweiterung hinzugefügt.
+Shared DB für tape-mag-mvp + VOD_Auctions. Schema enthält 20 Tabellen (14 Basis + 6 Auktions-Erweiterung).
+
+**Migrierte Daten (RSE-72, 2026-03-01):**
+- 12.451 Artists, 3.077 Labels, 30.158 Releases, 22.302 Images
+- Quelle: Legacy MySQL (213.133.106.99/vodtapes)
+- IDs: `legacy-artist-{id}`, `legacy-label-{id}`, `legacy-release-{id}`, `legacy-image-{id}`
+- Auktions-Tabellen angelegt (leer): auction_blocks, block_items, bids, transactions, auction_users, related_blocks
+- 75 Indexes, RLS auf allen 20 Tabellen aktiv
 
 ## Implementation Plan
 
-### Phase 1: Prototyp (Monate 1-2) ← NÄCHSTER SCHRITT
-- Data Migration (~30.000 Releases → Supabase)
-- Auktions-Tabellen anlegen (auction_blocks, block_items, bids, transactions)
-- Release-Tabelle um Auktionsfelder erweitern
-- Admin-Panel: Block-Erstellung, Produktauswahl, Startpreis-Review
-- Public Frontend: Auktionskalender, Block-Detailseite
-- Bidding-Engine: Gebote, Real-time, Auto-Extension
-- Testlauf: 1 Block mit 10-20 Produkten
+### Phase 1: Prototyp (Monate 1-2)
+- ~~RSE-72: Datenbank vorbereiten (Legacy-Migration + Auktions-Schema)~~ ✅
+- ~~RSE-73: Admin-Panel: Block-Erstellung, Produktauswahl, Startpreis-Review~~ ✅
+- ~~RSE-74: Public Frontend: Auktionskalender, Block-Detailseite~~ ✅
+- **RSE-75: Bidding-Engine: Gebote, Real-time, Auto-Extension** ← NÄCHSTER SCHRITT
+- RSE-76: Payment & Stripe Integration
+- RSE-77: Testlauf: 1 Block mit 10-20 Produkten
 
 ### Phase 2: Launch (Monate 3-4)
 - Erste öffentliche Themen-Auktionen
@@ -124,40 +132,82 @@ ALTER TABLE "Release" ADD COLUMN current_block_id TEXT;
 
 ```
 VOD_Auctions/
-├── CLAUDE.md              # Claude Code Guidance
-├── KONZEPT.md             # Vollständiges Konzeptdokument
-├── README.md              # Kurzübersicht
-├── .env.example           # Environment Variables Template
-├── .gitignore
-├── docs/
-│   ├── architecture/      # Architektur-Diagramme, ADRs
-│   ├── legal/             # AGB, Impressum, Datenschutz
-│   └── marketing/         # Marketing-Materialien
-├── src/
-│   ├── app/               # Next.js App Router (Pages, Layouts, API Routes)
-│   ├── components/
-│   │   ├── ui/            # shadcn/ui Basis-Komponenten
-│   │   ├── auction/       # Auktions-Komponenten (Bidding, Timer, Block-Cards)
-│   │   ├── admin/         # Admin-Panel Komponenten
-│   │   └── shared/        # Shared Komponenten (Header, Footer, Navigation)
-│   ├── lib/
-│   │   ├── supabase/      # Supabase Client, Queries, Realtime
-│   │   ├── redis/         # Upstash Redis Client, Bid-Cache
-│   │   ├── stripe/        # Stripe Integration, Webhooks
-│   │   ├── medusa/        # Medusa.js Client, Commerce Logic
-│   │   └── utils/         # Helper Functions
-│   ├── hooks/             # Custom React Hooks
-│   ├── store/             # Zustand Stores
-│   └── types/             # TypeScript Type Definitions
-├── supabase/
-│   ├── migrations/        # SQL Migrations
-│   └── seed/              # Seed Data
-├── scripts/               # Build-, Migration-, Maintenance-Scripts
-├── public/
-│   ├── images/            # Statische Bilder
-│   └── audio/             # Audio-Previews
-└── data/                  # Lokale Daten (git-ignored)
-    └── migration/         # Migration-Dateien
+├── CLAUDE.md                    # Claude Code Guidance
+├── KONZEPT.md                   # Vollständiges Konzeptdokument
+├── README.md                    # Kurzübersicht
+├── backend/                     # Medusa.js 2.x Backend (Port 9000)
+│   ├── medusa-config.ts         # Medusa Config (DB, CORS, Modules)
+│   ├── .env                     # Backend Env (DATABASE_URL, JWT, CORS)
+│   ├── src/
+│   │   ├── modules/auction/     # Custom Auction Module
+│   │   │   ├── models/
+│   │   │   │   ├── auction-block.ts  # AuctionBlock Entity (DML)
+│   │   │   │   └── block-item.ts     # BlockItem Entity (DML)
+│   │   │   ├── service.ts       # AuctionModuleService (auto-CRUD)
+│   │   │   └── index.ts         # Module Registration
+│   │   ├── api/
+│   │   │   ├── admin/           # Admin API (Auth required)
+│   │   │   │   ├── auction-blocks/   # CRUD: list, create, update, delete
+│   │   │   │   │   └── [id]/items/   # Block Items: add, update price, remove
+│   │   │   │   └── releases/    # Search 30k Releases (Knex raw SQL)
+│   │   │   └── store/           # Store API (Publishable Key required)
+│   │   │       └── auction-blocks/   # Public: list, detail, item detail
+│   │   │           ├── route.ts      # List blocks (items_count, status filter)
+│   │   │           └── [slug]/
+│   │   │               ├── route.ts       # Block detail + items + Release data
+│   │   │               └── items/[itemId]/route.ts  # Item detail + Release + Images
+│   │   └── admin/routes/        # Admin Dashboard UI Extensions
+│   │       └── auction-blocks/
+│   │           ├── page.tsx     # Block-Übersicht (Tabelle)
+│   │           └── [id]/page.tsx # Block-Detail (Edit + Items + Produktsuche)
+│   └── node_modules/
+├── storefront/                  # Next.js 16 Storefront (Port 3000)
+│   ├── .env.local               # MEDUSA_URL + Publishable API Key
+│   ├── src/app/
+│   │   ├── layout.tsx           # Layout: Header, Footer, Dark Theme
+│   │   ├── page.tsx             # Homepage: Hero, aktive/demnächst Blöcke
+│   │   └── auctions/
+│   │       ├── page.tsx         # Auktionskalender (Status-Gruppierung)
+│   │       └── [slug]/
+│   │           ├── page.tsx     # Block-Detail: Hero, Items-Grid
+│   │           └── [itemId]/page.tsx  # Item-Detail: Bilder, Release, Preis
+│   └── node_modules/
+├── scripts/                     # Migration-Scripts (Python)
+│   ├── extract_legacy_data.py   # MySQL → JSON
+│   ├── load_json_to_supabase.py # JSON → Supabase (psycopg2, Batch 500)
+│   ├── requirements.txt         # Python deps
+│   └── data/                    # Extrahierte JSON-Daten (git-ignored)
+├── supabase/migrations/         # SQL Migrations (RSE-72)
+├── data/                        # Lokale Daten (git-ignored)
+└── docs/                        # Architektur, Legal, Marketing
+```
+
+### Medusa.js Backend
+
+**Port:** 9000
+**Admin Dashboard:** http://localhost:9000/app
+**Admin User:** admin@vod.de / admin123
+**Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
+
+**Starten:**
+```bash
+cd VOD_Auctions/backend
+npx medusa develop    # Backend + Admin UI (hot reload)
+```
+
+**Wichtig:**
+- SSL-Config in `medusa-config.ts` nötig für Supabase-Verbindung (`rejectUnauthorized: false`)
+- Medusa erstellt eigene Tabellen (`auction_block`, `block_item` — Singular) neben den RSE-72 Tabellen (`auction_blocks`, `block_items` — Plural)
+- Legacy-Daten (Release, Artist, Label) werden via Knex raw SQL abgefragt, nicht über Medusa ORM
+- Store-API braucht `x-publishable-api-key` Header
+
+### Storefront
+
+**Port:** 3000
+**Starten:**
+```bash
+cd VOD_Auctions/storefront
+npm run dev
 ```
 
 ## Linear Tracking
@@ -194,24 +244,35 @@ VOD_Auctions/
 ## Credentials (Required)
 
 Store in `.env` (git-ignored), manage via `Passwords/` directory:
-- `DATABASE_URL` — Supabase PostgreSQL Connection String
 - `NEXT_PUBLIC_SUPABASE_URL` — Supabase Project URL
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase Anon Key
-- `SUPABASE_SERVICE_ROLE_KEY` — Supabase Service Key
+- `SUPABASE_PROJECT_ID` — Supabase Project ID (bofblwqieuvmqybzxapx)
+- `SUPABASE_DB_URL` — Direct PostgreSQL Connection (für Migration-Scripts)
+- `LEGACY_DB_*` — Legacy MySQL Credentials (nur für Migration)
 - `STRIPE_SECRET_KEY` — Stripe API Key
 - `STRIPE_WEBHOOK_SECRET` — Stripe Webhook Secret
 - `UPSTASH_REDIS_REST_URL` — Redis URL
 - `UPSTASH_REDIS_REST_TOKEN` — Redis Token
 
-## Development (once started)
+## Development
 
 ```bash
-cd VOD_Auctions
-pnpm install
-pnpm dev              # Start dev server
-pnpm build            # Build for production
-pnpm lint             # Run ESLint
-pnpm type-check       # TypeScript checking
+# Backend (Medusa.js 2.x)
+cd VOD_Auctions/backend
+npx medusa develop           # Start backend + admin dashboard (port 9000)
+npx medusa user -e X -p Y    # Create admin user
+npx medusa db:generate auction  # Generate migration for auction module
+npx medusa db:migrate          # Run migrations
+
+# Storefront (Next.js 15)
+cd VOD_Auctions/storefront
+npm run dev                  # Start storefront (port 3000)
+npm run build                # Build for production
+
+# API testen
+curl http://localhost:9000/health
+curl http://localhost:9000/store/auction-blocks -H "x-publishable-api-key: pk_..."
+curl http://localhost:9000/admin/auction-blocks -H "Authorization: Bearer $TOKEN"
 ```
 
 ---
