@@ -106,9 +106,12 @@ export async function POST(
     }
   }
 
+  // Strip relations from body — items are managed via /items endpoint
+  const { items, ...updateData } = req.body
+
   const block = await auctionService.updateAuctionBlocks({
     id: req.params.id,
-    ...req.body,
+    ...updateData,
   })
 
   res.json({ auction_block: block })

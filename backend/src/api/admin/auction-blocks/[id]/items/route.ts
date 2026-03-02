@@ -33,24 +33,35 @@ export async function POST(
   const releaseId = req.body.release_id
 
   // Duplicate detection: check if release already in this block
-  const [existing] = await auctionService.listAndCountBlockItems(
-    { auction_block_id: blockId, release_id: releaseId },
-    { limit: 1 }
-  )
+  const existing = await auctionService.listBlockItems({
+    auction_block_id: blockId,
+    release_id: releaseId,
+  })
   if (existing.length > 0) {
     res.status(409).json({ message: "Release ist bereits in diesem Block" })
     return
   }
 
+  const { release_id, start_price, estimated_value, reserve_price, buy_now_price, lot_number } = req.body
   const item = await auctionService.createBlockItems({
-    auction_block_id: blockId,
-    ...req.body,
+    auction_block: blockId,
+    release_id,
+    start_price,
+    estimated_value: estimated_value ?? null,
+    reserve_price: reserve_price ?? null,
+    buy_now_price: buy_now_price ?? null,
+    lot_number: lot_number ?? null,
   })
 
   // Update Release auction_status to 'reserved'
-  await pgConnection("Release")
-    .where("id", releaseId)
-    .update({ auction_status: "reserved", current_block_id: blockId })
+  try {
+    await pgConnection("Release")
+      .where("id", releaseId)
+      .update({ auction_status: "reserved" })
+  } catch (err) {
+    // Non-critical: release status update failed, item was still added
+    console.warn("Could not update Release auction_status:", err)
+  }
 
   res.status(201).json({ block_item: item })
 }

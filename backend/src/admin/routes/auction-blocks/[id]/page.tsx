@@ -1,4 +1,3 @@
-import { defineRouteConfig } from "@medusajs/admin-sdk"
 import {
   Container,
   Heading,
@@ -13,8 +12,9 @@ import {
   IconButton,
 } from "@medusajs/ui"
 import { Trash, Plus } from "@medusajs/icons"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef, useCallback } from "react"
 import { useParams } from "react-router-dom"
+import RichTextEditor from "../../../components/rich-text-editor"
 
 type BlockItem = {
   id: string
@@ -71,6 +71,15 @@ type Release = {
   estimated_value: number | null
 }
 
+type FilterOption = { value: string | number; count: number }
+
+type FiltersData = {
+  formats: FilterOption[]
+  countries: FilterOption[]
+  years: FilterOption[]
+  total: number
+}
+
 const STATUS_COLORS: Record<string, "green" | "orange" | "blue" | "grey" | "red" | "purple"> = {
   draft: "grey",
   scheduled: "blue",
@@ -96,17 +105,13 @@ const BLOCK_TYPES = [
   { value: "flash", label: "Flash-Block" },
 ]
 
-const FORMAT_OPTIONS = [
-  { value: "", label: "Alle Formate" },
-  { value: "LP", label: "LP / Vinyl" },
-  { value: "CD", label: "CD" },
-  { value: "CASSETTE", label: "Kassette" },
-  { value: "7\"", label: "7\"" },
-  { value: "10\"", label: "10\"" },
-  { value: "12\"", label: "12\"" },
-  { value: "BOXSET", label: "Box Set" },
-  { value: "DVD", label: "DVD" },
-  { value: "BOOK", label: "Buch" },
+const SORT_OPTIONS = [
+  { value: "title_asc", label: "Titel A→Z" },
+  { value: "title_desc", label: "Titel Z→A" },
+  { value: "artist_asc", label: "Artist A→Z" },
+  { value: "artist_desc", label: "Artist Z→A" },
+  { value: "year_desc", label: "Jahr ↓" },
+  { value: "year_asc", label: "Jahr ↑" },
 ]
 
 const BlockDetailPage = () => {
@@ -135,14 +140,26 @@ const BlockDetailPage = () => {
   const [message, setMessage] = useState("")
   const [messageType, setMessageType] = useState<"success" | "error">("success")
 
-  // Release search
+  // Release search & browser
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<Release[]>([])
   const [searchCount, setSearchCount] = useState(0)
   const [searchOffset, setSearchOffset] = useState(0)
   const [searching, setSearching] = useState(false)
-  const [formatFilter, setFormatFilter] = useState("")
   const [onlyAvailable, setOnlyAvailable] = useState(true)
+  const [viewMode, setViewMode] = useState<"grid" | "table">("grid")
+
+  // Browser filters
+  const [filtersData, setFiltersData] = useState<FiltersData | null>(null)
+  const [selectedFormats, setSelectedFormats] = useState<string[]>([])
+  const [selectedCountry, setSelectedCountry] = useState("")
+  const [yearFrom, setYearFrom] = useState("")
+  const [yearTo, setYearTo] = useState("")
+  const [labelSearch, setLabelSearch] = useState("")
+  const [sortBy, setSortBy] = useState("title_asc")
+  const [browseMode, setBrowseMode] = useState(false)
+
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Fetch block data
   useEffect(() => {
@@ -153,6 +170,16 @@ const BlockDetailPage = () => {
         .catch(console.error)
     }
   }, [id, isNew])
+
+  // Fetch filter options
+  useEffect(() => {
+    if (!isNew) {
+      fetch(`/admin/releases/filters`, { credentials: "include" })
+        .then((r) => r.json())
+        .then((data) => setFiltersData(data))
+        .catch(console.error)
+    }
+  }, [isNew])
 
   const showMessage = (text: string, type: "success" | "error" = "success") => {
     setMessage(text)
@@ -238,16 +265,31 @@ const BlockDetailPage = () => {
     }
   }
 
+  // Build search URL from all filters
+  const buildSearchUrl = useCallback((offset: number) => {
+    let url = `/admin/releases?limit=20&offset=${offset}`
+    if (searchQuery.trim()) url += `&q=${encodeURIComponent(searchQuery)}`
+    if (selectedFormats.length === 1) {
+      url += `&format=${encodeURIComponent(selectedFormats[0])}`
+    } else if (selectedFormats.length > 1) {
+      // API supports single format — use first selected for now
+      url += `&format=${encodeURIComponent(selectedFormats[0])}`
+    }
+    if (selectedCountry) url += `&country=${encodeURIComponent(selectedCountry)}`
+    if (yearFrom) url += `&year_from=${yearFrom}`
+    if (yearTo) url += `&year_to=${yearTo}`
+    if (labelSearch.trim()) url += `&label=${encodeURIComponent(labelSearch)}`
+    if (onlyAvailable) url += `&auction_status=available`
+    if (sortBy) url += `&sort=${sortBy}`
+    return url
+  }, [searchQuery, selectedFormats, selectedCountry, yearFrom, yearTo, labelSearch, onlyAvailable, sortBy])
+
   // Search releases
-  const handleSearch = async (append = false) => {
+  const handleSearch = useCallback(async (append = false) => {
     setSearching(true)
     const offset = append ? searchOffset : 0
     try {
-      let url = `/admin/releases?limit=20&offset=${offset}`
-      if (searchQuery.trim()) url += `&q=${encodeURIComponent(searchQuery)}`
-      if (formatFilter) url += `&format=${encodeURIComponent(formatFilter)}`
-      if (onlyAvailable) url += `&auction_status=available`
-
+      const url = buildSearchUrl(offset)
       const res = await fetch(url, { credentials: "include" })
       const data = await res.json()
 
@@ -258,11 +300,37 @@ const BlockDetailPage = () => {
       }
       setSearchCount(data.count || 0)
       setSearchOffset(offset + 20)
+      setBrowseMode(true)
     } catch (err) {
       console.error(err)
     } finally {
       setSearching(false)
     }
+  }, [buildSearchUrl, searchOffset])
+
+  // Auto-search when filters change (debounced)
+  const triggerFilterSearch = useCallback(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      handleSearch(false)
+    }, 300)
+  }, [handleSearch])
+
+  // Watch filter changes for auto-search (only when browse mode is active)
+  useEffect(() => {
+    if (browseMode) {
+      triggerFilterSearch()
+    }
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [selectedFormats, selectedCountry, yearFrom, yearTo, onlyAvailable, sortBy])
+
+  // Toggle format in multi-select
+  const toggleFormat = (fmt: string) => {
+    setSelectedFormats((prev) =>
+      prev.includes(fmt) ? prev.filter((f) => f !== fmt) : [...prev, fmt]
+    )
   }
 
   // Add release to block
@@ -318,7 +386,7 @@ const BlockDetailPage = () => {
     }
   }
 
-  // Update item field (generic)
+  // Update item field
   const handleItemFieldChange = async (
     itemId: string,
     field: string,
@@ -346,6 +414,9 @@ const BlockDetailPage = () => {
   const isInBlock = (releaseId: string) =>
     block.items?.some((i) => i.release_id === releaseId) || false
 
+  // Unique years from filtersData for dropdowns
+  const yearOptions = filtersData?.years?.map((y) => Number(y.value)) || []
+
   return (
     <Container>
       {/* Header with title, status badge, and action buttons */}
@@ -363,7 +434,6 @@ const BlockDetailPage = () => {
           </div>
         </div>
         <div className="flex gap-2 items-center">
-          {/* Status action buttons */}
           {!isNew && block.status === "draft" && (
             <Button
               variant="primary"
@@ -399,7 +469,6 @@ const BlockDetailPage = () => {
             </Button>
           )}
 
-          {/* Preview on storefront */}
           {!isNew && block.slug && (
             <a
               href={`http://localhost:3000/auctions/${block.slug}`}
@@ -538,14 +607,13 @@ const BlockDetailPage = () => {
           />
         </div>
         <div className="mt-4">
-          <Label>Langbeschreibung (Markdown)</Label>
-          <Textarea
-            value={block.long_description || ""}
-            onChange={(e) =>
-              setBlock((b) => ({ ...b, long_description: e.target.value }))
+          <Label>Langbeschreibung</Label>
+          <RichTextEditor
+            content={block.long_description || ""}
+            onChange={(html) =>
+              setBlock((b) => ({ ...b, long_description: html }))
             }
             placeholder="Redaktioneller Content zum Block..."
-            rows={6}
           />
         </div>
         <div className="grid grid-cols-3 gap-4 mt-4">
@@ -629,15 +697,22 @@ const BlockDetailPage = () => {
         </div>
       </Container>
 
-      {/* Product Selection — only for existing blocks */}
+      {/* Product Browser — only for existing blocks */}
       {!isNew && (
         <>
           <Container className="mb-6">
-            <Heading level="h2" className="mb-4">
-              Produkte hinzufügen
-            </Heading>
+            <div className="flex items-center justify-between mb-4">
+              <Heading level="h2">
+                Produkt-Browser
+              </Heading>
+              {filtersData && (
+                <Text className="text-ui-fg-subtle text-sm">
+                  {filtersData.total.toLocaleString("de-DE")} Releases im Katalog
+                </Text>
+              )}
+            </div>
 
-            {/* Search bar + filters */}
+            {/* Search bar */}
             <div className="flex gap-2 mb-3">
               <Input
                 className="flex-1"
@@ -649,44 +724,292 @@ const BlockDetailPage = () => {
               <Button onClick={() => handleSearch()} isLoading={searching}>
                 Suchen
               </Button>
-            </div>
-
-            {/* Filters row */}
-            <div className="flex gap-4 mb-4 items-center">
-              <Select
-                value={formatFilter}
-                onValueChange={(val) => setFormatFilter(val)}
-              >
-                <Select.Trigger className="w-40">
-                  <Select.Value placeholder="Alle Formate" />
-                </Select.Trigger>
-                <Select.Content>
-                  {FORMAT_OPTIONS.map((f) => (
-                    <Select.Item key={f.value} value={f.value}>
-                      {f.label}
-                    </Select.Item>
-                  ))}
-                </Select.Content>
-              </Select>
-
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={onlyAvailable}
-                  onChange={(e) => setOnlyAvailable(e.target.checked)}
-                  className="rounded"
-                />
-                Nur verfügbare
-              </label>
-
-              {searchCount > 0 && (
-                <Text className="text-ui-fg-subtle text-sm">
-                  {searchCount} Ergebnisse
-                </Text>
+              {!browseMode && (
+                <Button
+                  variant="secondary"
+                  onClick={() => handleSearch()}
+                >
+                  Alle durchstöbern
+                </Button>
               )}
             </div>
 
-            {searchResults.length > 0 && (
+            {/* Filter bar */}
+            <div className="border border-ui-border-base rounded-lg p-3 mb-4 bg-ui-bg-subtle">
+              {/* Row 1: Format pills */}
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                <span className="text-xs text-ui-fg-subtle self-center mr-1 font-medium">Format:</span>
+                {filtersData?.formats?.map((f) => {
+                  const isActive = selectedFormats.includes(String(f.value))
+                  return (
+                    <button
+                      key={String(f.value)}
+                      onClick={() => toggleFormat(String(f.value))}
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                        isActive
+                          ? "bg-ui-fg-base text-ui-bg-base"
+                          : "bg-ui-bg-base text-ui-fg-subtle border border-ui-border-base hover:border-ui-fg-muted"
+                      }`}
+                    >
+                      {String(f.value)} ({Number(f.count).toLocaleString("de-DE")})
+                    </button>
+                  )
+                })}
+                {selectedFormats.length > 0 && (
+                  <button
+                    onClick={() => setSelectedFormats([])}
+                    className="px-2 py-1 text-xs text-ui-fg-subtle hover:text-ui-fg-base"
+                  >
+                    ✕ Reset
+                  </button>
+                )}
+              </div>
+
+              {/* Row 2: Country, Year, Label, Sort, Available */}
+              <div className="flex flex-wrap gap-3 items-end">
+                {/* Country */}
+                <div className="w-44">
+                  <label className="text-xs text-ui-fg-subtle font-medium mb-1 block">Land</label>
+                  <select
+                    value={selectedCountry}
+                    onChange={(e) => setSelectedCountry(e.target.value)}
+                    className="w-full h-8 px-2 text-sm rounded-md border border-ui-border-base bg-ui-bg-base text-ui-fg-base"
+                  >
+                    <option value="">Alle Länder</option>
+                    {filtersData?.countries?.map((c) => (
+                      <option key={String(c.value)} value={String(c.value)}>
+                        {String(c.value)} ({Number(c.count).toLocaleString("de-DE")})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Year from */}
+                <div className="w-28">
+                  <label className="text-xs text-ui-fg-subtle font-medium mb-1 block">Jahr von</label>
+                  <select
+                    value={yearFrom}
+                    onChange={(e) => setYearFrom(e.target.value)}
+                    className="w-full h-8 px-2 text-sm rounded-md border border-ui-border-base bg-ui-bg-base text-ui-fg-base"
+                  >
+                    <option value="">—</option>
+                    {yearOptions.map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Year to */}
+                <div className="w-28">
+                  <label className="text-xs text-ui-fg-subtle font-medium mb-1 block">Jahr bis</label>
+                  <select
+                    value={yearTo}
+                    onChange={(e) => setYearTo(e.target.value)}
+                    className="w-full h-8 px-2 text-sm rounded-md border border-ui-border-base bg-ui-bg-base text-ui-fg-base"
+                  >
+                    <option value="">—</option>
+                    {yearOptions.map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Label search */}
+                <div className="w-44">
+                  <label className="text-xs text-ui-fg-subtle font-medium mb-1 block">Label</label>
+                  <input
+                    type="text"
+                    value={labelSearch}
+                    onChange={(e) => setLabelSearch(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                    placeholder="Label suchen..."
+                    className="w-full h-8 px-2 text-sm rounded-md border border-ui-border-base bg-ui-bg-base text-ui-fg-base placeholder:text-ui-fg-muted"
+                  />
+                </div>
+
+                {/* Sort */}
+                <div className="w-36">
+                  <label className="text-xs text-ui-fg-subtle font-medium mb-1 block">Sortierung</label>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="w-full h-8 px-2 text-sm rounded-md border border-ui-border-base bg-ui-bg-base text-ui-fg-base"
+                  >
+                    {SORT_OPTIONS.map((s) => (
+                      <option key={s.value} value={s.value}>{s.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Only available */}
+                <label className="flex items-center gap-1.5 text-xs cursor-pointer self-end pb-1">
+                  <input
+                    type="checkbox"
+                    checked={onlyAvailable}
+                    onChange={(e) => setOnlyAvailable(e.target.checked)}
+                    className="rounded"
+                  />
+                  Nur verfügbare
+                </label>
+
+                {/* Reset all filters */}
+                {(selectedFormats.length > 0 || selectedCountry || yearFrom || yearTo || labelSearch) && (
+                  <button
+                    onClick={() => {
+                      setSelectedFormats([])
+                      setSelectedCountry("")
+                      setYearFrom("")
+                      setYearTo("")
+                      setLabelSearch("")
+                    }}
+                    className="text-xs text-ui-fg-subtle hover:text-ui-fg-base self-end pb-1 underline"
+                  >
+                    Alle Filter zurücksetzen
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Results header */}
+            {browseMode && (
+              <div className="flex items-center justify-between mb-3">
+                <Text className="text-sm font-medium">
+                  {searchCount.toLocaleString("de-DE")} Releases gefunden
+                </Text>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setViewMode("grid")}
+                    className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                      viewMode === "grid"
+                        ? "bg-ui-fg-base text-ui-bg-base"
+                        : "bg-ui-bg-base text-ui-fg-subtle border border-ui-border-base"
+                    }`}
+                  >
+                    ▦ Grid
+                  </button>
+                  <button
+                    onClick={() => setViewMode("table")}
+                    className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                      viewMode === "table"
+                        ? "bg-ui-fg-base text-ui-bg-base"
+                        : "bg-ui-bg-base text-ui-fg-subtle border border-ui-border-base"
+                    }`}
+                  >
+                    ☰ Tabelle
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Grid View */}
+            {searchResults.length > 0 && viewMode === "grid" && (
+              <>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                  {searchResults.map((r) => {
+                    const alreadyInBlock = isInBlock(r.id)
+                    return (
+                      <div
+                        key={r.id}
+                        className={`group relative rounded-lg border overflow-hidden transition-all ${
+                          alreadyInBlock
+                            ? "border-green-600 bg-green-950/20"
+                            : "border-ui-border-base bg-ui-bg-base hover:border-ui-fg-muted hover:shadow-md"
+                        }`}
+                      >
+                        {/* Cover image */}
+                        <div className="aspect-square bg-ui-bg-subtle relative overflow-hidden">
+                          {r.coverImage ? (
+                            <img
+                              src={r.coverImage}
+                              alt={r.title}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-ui-fg-muted">
+                              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                <rect x="3" y="3" width="18" height="18" rx="2" />
+                                <circle cx="8.5" cy="8.5" r="1.5" />
+                                <path d="M21 15l-5-5L5 21" />
+                              </svg>
+                            </div>
+                          )}
+
+                          {/* Format badge overlay */}
+                          <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-black/70 text-white text-[10px] font-medium rounded">
+                            {r.format}
+                          </span>
+
+                          {/* Year badge */}
+                          {r.year && (
+                            <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 bg-black/70 text-white text-[10px] font-medium rounded">
+                              {r.year}
+                            </span>
+                          )}
+
+                          {/* Add button overlay */}
+                          {!alreadyInBlock && (
+                            <button
+                              onClick={() => handleAddItem(r)}
+                              className="absolute inset-0 bg-black/0 group-hover:bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
+                            >
+                              <span className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center text-xl font-bold shadow-lg">
+                                +
+                              </span>
+                            </button>
+                          )}
+
+                          {/* Already in block indicator */}
+                          {alreadyInBlock && (
+                            <div className="absolute inset-0 bg-green-900/30 flex items-center justify-center">
+                              <span className="px-2 py-1 bg-green-700 text-white text-xs font-medium rounded">
+                                Im Block
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Info */}
+                        <div className="p-2">
+                          <p className="text-xs font-medium truncate" title={r.artist_name || undefined}>
+                            {r.artist_name || "Unbekannt"}
+                          </p>
+                          <p className="text-xs text-ui-fg-subtle truncate" title={r.title}>
+                            {r.title}
+                          </p>
+                          {r.label_name && (
+                            <p className="text-[10px] text-ui-fg-muted truncate mt-0.5">
+                              {r.label_name}
+                            </p>
+                          )}
+                          {r.estimated_value && (
+                            <p className="text-xs font-medium mt-1">
+                              ~€{r.estimated_value.toFixed(2)}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Load more */}
+                {searchResults.length < searchCount && (
+                  <div className="mt-4 text-center">
+                    <Button
+                      variant="secondary"
+                      onClick={() => handleSearch(true)}
+                      isLoading={searching}
+                    >
+                      Mehr laden ({searchResults.length} / {searchCount.toLocaleString("de-DE")})
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Table View */}
+            {searchResults.length > 0 && viewMode === "table" && (
               <>
                 <Table>
                   <Table.Header>
@@ -694,6 +1017,7 @@ const BlockDetailPage = () => {
                       <Table.HeaderCell>Cover</Table.HeaderCell>
                       <Table.HeaderCell>Artist</Table.HeaderCell>
                       <Table.HeaderCell>Titel</Table.HeaderCell>
+                      <Table.HeaderCell>Label</Table.HeaderCell>
                       <Table.HeaderCell>Format</Table.HeaderCell>
                       <Table.HeaderCell>Jahr</Table.HeaderCell>
                       <Table.HeaderCell>Schätzwert</Table.HeaderCell>
@@ -718,6 +1042,9 @@ const BlockDetailPage = () => {
                           </Table.Cell>
                           <Table.Cell>{r.artist_name || "—"}</Table.Cell>
                           <Table.Cell>{r.title}</Table.Cell>
+                          <Table.Cell>
+                            <span className="text-xs text-ui-fg-subtle">{r.label_name || "—"}</span>
+                          </Table.Cell>
                           <Table.Cell>
                             <Badge>{r.format}</Badge>
                           </Table.Cell>
@@ -750,11 +1077,20 @@ const BlockDetailPage = () => {
                       onClick={() => handleSearch(true)}
                       isLoading={searching}
                     >
-                      Mehr laden ({searchResults.length} / {searchCount})
+                      Mehr laden ({searchResults.length} / {searchCount.toLocaleString("de-DE")})
                     </Button>
                   </div>
                 )}
               </>
+            )}
+
+            {/* Empty state */}
+            {browseMode && searchResults.length === 0 && !searching && (
+              <div className="text-center py-8">
+                <Text className="text-ui-fg-subtle">
+                  Keine Releases gefunden. Versuche andere Filter.
+                </Text>
+              </div>
             )}
           </Container>
 
@@ -882,7 +1218,7 @@ const BlockDetailPage = () => {
               </Table>
             ) : (
               <Text className="text-ui-fg-subtle">
-                Noch keine Produkte zugeordnet. Nutze die Suche oben.
+                Noch keine Produkte zugeordnet. Nutze den Browser oben.
               </Text>
             )}
           </Container>

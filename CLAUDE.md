@@ -8,7 +8,7 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 
 **Goal:** Eigene Plattform mit voller Kontrolle über Marke, Kundendaten, Preisgestaltung — statt 8-13% Gebühren an eBay/Discogs
 
-**Status:** Phase 1 — RSE-72 bis RSE-85 erledigt, RSE-76 (Payment & Stripe) als nächstes
+**Status:** Phase 1 — RSE-72 bis RSE-85 erledigt, Produkt-Browser + TipTap Editor implementiert, RSE-76 (Payment & Stripe) als nächstes
 
 **Created:** 2026-02-10
 **Last Updated:** 2026-03-02
@@ -51,6 +51,7 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 | **Storage** | Supabase Storage (Bilder, Content) |
 | **Hosting** | Vercel (Auto-Deploy) |
 | **State** | Zustand (global) + React Query (server) |
+| **Rich-Text Editor** | TipTap (Prosemirror) — Admin Langbeschreibung |
 
 ### Supabase-Projekt (Shared)
 
@@ -156,6 +157,7 @@ VOD_Auctions/
 │   │   │   │   │       ├── route.ts  # GET/POST with status-transition validation (RSE-75b)
 │   │   │   │   │       └── items/    # Block Items: add, update price, remove
 │   │   │   │   └── releases/    # Search 30k Releases (Knex raw SQL, auction_status filter)
+│   │   │   │       └── filters/route.ts  # GET filter options with counts (format/country/year)
 │   │   │   └── store/           # Store API (Publishable Key required)
 │   │   │       ├── auction-blocks/   # Public: list, detail, item detail
 │   │   │       │   ├── route.ts      # List blocks (items_count, status filter)
@@ -173,7 +175,9 @@ VOD_Auctions/
 │   │   └── admin/routes/        # Admin Dashboard UI Extensions
 │   │       └── auction-blocks/
 │   │           ├── page.tsx     # Block-Übersicht (Tabelle)
-│   │           └── [id]/page.tsx # Block-Detail (Edit + Items + Produktsuche)
+│   │           └── [id]/page.tsx # Block-Detail (Edit + Items + Produkt-Browser)
+│   │       └── components/
+│   │           └── rich-text-editor.tsx  # TipTap WYSIWYG Editor
 │   └── node_modules/
 ├── storefront/                  # Next.js 16 Storefront (Port 3000)
 │   ├── .env.local               # MEDUSA_URL + Publishable API Key
@@ -243,6 +247,11 @@ npx medusa develop    # Backend + Admin UI (hot reload)
 - Medusa erstellt eigene Tabellen (`auction_block`, `block_item` — Singular) neben den RSE-72 Tabellen (`auction_blocks`, `block_items` — Plural)
 - Legacy-Daten (Release, Artist, Label) werden via Knex raw SQL abgefragt, nicht über Medusa ORM
 - Store-API braucht `x-publishable-api-key` Header
+- Admin Produkt-Browser: Filter (Format-Pills, Land, Jahr-Range, Label, Sortierung) + Grid/Tabellen-Ansicht
+- `/admin/releases` unterstützt: q, format, country, label, year_from, year_to, sort, auction_status
+- `/admin/releases/filters` liefert verfügbare Filter-Optionen mit Counts
+- Block-Update Route strippt `items` aus Body (Items nur über `/items` Endpoint verwaltet)
+- `current_block_id` in Release-Tabelle ist UUID-Typ → Medusa ULIDs nicht kompatibel (nur auction_status wird aktualisiert)
 
 ### Storefront
 
