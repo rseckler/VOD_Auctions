@@ -105,9 +105,9 @@ const formatDate = (d: string | null) => {
   })
 }
 
-const formatPrice = (p: number | null) => {
+const formatPrice = (p: number | string | null) => {
   if (p === null || p === undefined) return "\u2014"
-  return `\u20AC${p.toFixed(2)}`
+  return `\u20AC${Number(p).toFixed(2)}`
 }
 
 const MediaDetailPage = () => {
