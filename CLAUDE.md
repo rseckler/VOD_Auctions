@@ -8,7 +8,7 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 
 **Goal:** Eigene Plattform mit voller Kontrolle über Marke, Kundendaten, Preisgestaltung — statt 8-13% Gebühren an eBay/Discogs
 
-**Status:** Phase 1 — RSE-72 bis RSE-85 erledigt, Produkt-Browser + TipTap Editor implementiert, Clickdummy live, Storefront + Admin live auf VPS, RSE-76 (Payment & Stripe) als nächstes
+**Status:** Phase 1 — RSE-72 bis RSE-85 erledigt, Produkt-Browser + TipTap Editor implementiert, Clickdummy live, Storefront + Admin live auf VPS, Discogs-Preise backfill läuft, RSE-76 (Payment & Stripe) als nächstes
 
 **Sprache:** Storefront und Admin-UI komplett auf Englisch (seit 2026-03-03)
 
@@ -22,6 +22,9 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 - **Credits-Fix:** Robustere Bereinigung (literal Escape-Sequenzen, CRLF, HTML-Tags)
 - **Related Sections:** Tabellenformat für verwandte Releases (by Artist/Label)
 - **Admin Media:** Country-Spalte + Filter hinzugefügt
+- **Admin Detail Fix:** Feldnamen in Admin Media Detail korrigiert (DB-Spaltennamen statt Aliasnamen), `formatPrice` toleriert Strings von Knex
+- **Related Releases Fix:** Knex-Subquery durch direkte Wertvergleiche ersetzt (Subquery wurde nicht evaluiert)
+- **Backfill-Script:** `scripts/backfill_discogs_prices.py` — Füllt Discogs-Preise für Releases mit discogs_id aber ohne Preise nach (1.5s Delay, 429-Retry)
 
 **Clickdummy:** https://vodauction.thehotshit.de (VPS, PM2, Port 3005)
 
@@ -297,6 +300,8 @@ npx medusa develop    # Backend + Admin UI (hot reload)
 - Block-Update Route strippt `items` aus Body (Items nur über `/items` Endpoint verwaltet)
 - `current_block_id` in Release-Tabelle ist UUID-Typ → Medusa ULIDs nicht kompatibel (nur auction_status wird aktualisiert)
 - **Admin Custom Routes:** `defineRouteConfig({ label })` NUR auf Top-Level-Seiten (`page.tsx`), NICHT auf `[id]/page.tsx` Detail-Seiten (verursacht Routing-Konflikte)
+- **Knex Gotcha — Decimal-Spalten:** Knex gibt DECIMAL-Spalten als Strings zurück, nicht als Numbers. In Admin-UI immer `Number(value)` vor `.toFixed()` verwenden.
+- **Knex Gotcha — Subqueries:** `.where("col", pgConnection.raw('(SELECT ...)'))` funktioniert NICHT korrekt. Stattdessen: Wert zuerst abfragen, dann direkt verwenden: `.where("col", fetchedValue)`
 - **Admin Build:** `medusa build` legt Admin-Assets in `.medusa/server/public/admin/`, muss nach `public/admin/` kopiert werden (siehe VPS Deploy)
 - `/admin/media` unterstützt: q, format, country, label, year_from, year_to, sort (field:dir Format), has_discogs, auction_status
 - Admin-UI komplett auf Englisch (Media Management, Release Detail, Sync Dashboard)
@@ -394,6 +399,7 @@ python3 legacy_sync.py           # Incremental sync of new/changed entries
 # Discogs Price Enrichment
 python3 discogs_batch.py          # Initial batch: match all 30k releases (8-12h, resumable)
 python3 discogs_weekly_sync.py    # Weekly price update (lowest + median + highest, 4-5h, resumable)
+python3 backfill_discogs_prices.py # Backfill price suggestions for releases with discogs_id but no prices
 python3 discogs_price_test.py     # Feasibility test (100 random releases)
 
 # Article Numbers
@@ -464,7 +470,8 @@ ssh root@72.62.148.205
 cd /root/VOD_Auctions && git pull
 cd backend
 npx medusa build                              # Backend + Admin UI kompilieren
-cp -r .medusa/server/public/admin public/admin  # Admin-Assets kopieren (WICHTIG!)
+rm -rf public/admin                           # Alten Cache löschen (WICHTIG! Sonst alte JS-Bundles)
+cp -r .medusa/server/public/admin public/admin  # Admin-Assets kopieren
 pm2 restart vodauction-backend
 ```
 
