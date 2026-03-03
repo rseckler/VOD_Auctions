@@ -75,10 +75,10 @@ export async function GET(
 
   // Sort
   const sortField =
-    sort === "price" ? "Release.legacy_price"
-    : sort === "year" ? "Release.year"
-    : sort === "artist" ? "Artist.name"
-    : "Release.title"
+    sort === "price" ? `"Release"."legacy_price"`
+    : sort === "year" ? `"Release"."year"`
+    : sort === "artist" ? `"Artist"."name"`
+    : `"Release"."title"`
   const sortOrder = order === "desc" ? "desc" : "asc"
 
   query = query
