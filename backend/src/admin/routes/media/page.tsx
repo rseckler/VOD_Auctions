@@ -1,5 +1,34 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { useEffect, useState } from "react"
+import { Component, useEffect, useState } from "react"
+import type { ErrorInfo, ReactNode } from "react"
+
+class ErrorBoundary extends Component<
+  { children: ReactNode },
+  { error: Error | null }
+> {
+  state = { error: null as Error | null }
+  static getDerivedStateFromError(error: Error) {
+    return { error }
+  }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("MediaPage error:", error, info)
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding: 24, color: "#ef4444" }}>
+          <h2>Fehler in Medien-Verwaltung:</h2>
+          <pre style={{ whiteSpace: "pre-wrap", fontSize: 13 }}>
+            {this.state.error.message}
+            {"\n\n"}
+            {this.state.error.stack}
+          </pre>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 
 type Release = {
   id: string
@@ -230,6 +259,7 @@ const MediaPage = () => {
   })
 
   return (
+    <ErrorBoundary>
     <div style={{ padding: "24px", background: COLORS.bg, minHeight: "100vh", color: COLORS.text }}>
       {/* Page Title */}
       <h1 style={{ fontSize: "24px", fontWeight: 700, marginBottom: "20px" }}>
@@ -571,6 +601,7 @@ const MediaPage = () => {
         </div>
       )}
     </div>
+    </ErrorBoundary>
   )
 }
 

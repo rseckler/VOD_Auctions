@@ -1,6 +1,34 @@
-import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { useEffect, useState } from "react"
+import { Component, useEffect, useState } from "react"
+import type { ErrorInfo, ReactNode } from "react"
 import { useParams } from "react-router-dom"
+
+class ErrorBoundary extends Component<
+  { children: ReactNode },
+  { error: Error | null }
+> {
+  state = { error: null as Error | null }
+  static getDerivedStateFromError(error: Error) {
+    return { error }
+  }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("MediaDetailPage error:", error, info)
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding: 24, color: "#ef4444" }}>
+          <h2>Fehler in Medien-Detail:</h2>
+          <pre style={{ whiteSpace: "pre-wrap", fontSize: 13 }}>
+            {this.state.error.message}
+            {"\n\n"}
+            {this.state.error.stack}
+          </pre>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 
 type Release = {
   id: string
@@ -582,8 +610,10 @@ const MediaDetailPage = () => {
   )
 }
 
-export const config = defineRouteConfig({
-  label: "Medien-Detail",
-})
+const MediaDetailPageWithBoundary = () => (
+  <ErrorBoundary>
+    <MediaDetailPage />
+  </ErrorBoundary>
+)
 
-export default MediaDetailPage
+export default MediaDetailPageWithBoundary
