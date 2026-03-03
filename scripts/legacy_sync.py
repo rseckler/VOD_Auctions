@@ -227,6 +227,10 @@ def sync_releases(mysql_conn, pg_conn):
                     filename = str(row["image_filename"])
                     cover_image = IMAGE_BASE_URL + filename
 
+                price = parse_price(row.get("preis"))
+                condition = decode_entities(row.get("spezifikation")) if row.get("spezifikation") else None
+                format_detail = decode_entities(row.get("format_name")) if row.get("format_name") else None
+
                 release_values.append((
                     release_id,
                     slug,
@@ -239,6 +243,9 @@ def sync_releases(mysql_conn, pg_conn):
                     artist_id,
                     label_id,
                     cover_image,
+                    price,
+                    condition,
+                    format_detail,
                 ))
 
                 # Image record
@@ -257,6 +264,7 @@ def sync_releases(mysql_conn, pg_conn):
                 """INSERT INTO "Release" (
                     id, slug, title, description, year, format,
                     "catalogNumber", country, "artistId", "labelId", "coverImage",
+                    legacy_price, legacy_condition, legacy_format_detail,
                     "createdAt", "updatedAt", legacy_last_synced
                 ) VALUES %s
                 ON CONFLICT (id) DO UPDATE SET
@@ -269,10 +277,13 @@ def sync_releases(mysql_conn, pg_conn):
                     "artistId" = EXCLUDED."artistId",
                     "labelId" = EXCLUDED."labelId",
                     "coverImage" = EXCLUDED."coverImage",
+                    legacy_price = EXCLUDED.legacy_price,
+                    legacy_condition = EXCLUDED.legacy_condition,
+                    legacy_format_detail = EXCLUDED.legacy_format_detail,
                     "updatedAt" = NOW(),
                     legacy_last_synced = NOW()""",
                 release_values,
-                template="(%s, %s, %s, %s, %s, %s::\"ReleaseFormat\", %s, %s, %s, %s, %s, NOW(), NOW(), NOW())",
+                template="(%s, %s, %s, %s, %s, %s::\"ReleaseFormat\", %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW())",
             )
 
         # Insert new images (skip existing)

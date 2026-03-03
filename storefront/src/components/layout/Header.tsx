@@ -8,6 +8,7 @@ import { MobileNav } from "./MobileNav"
 
 const NAV_LINKS = [
   { href: "/auctions", label: "Auktionen" },
+  { href: "/catalog", label: "Katalog" },
 ]
 
 export function Header() {

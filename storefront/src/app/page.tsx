@@ -45,7 +45,7 @@ export default async function Home() {
                   <Link href="/auctions">Jetzt entdecken</Link>
                 </Button>
                 <Button size="lg" variant="ghost" asChild className="text-muted-foreground border border-[rgba(232,224,212,0.12)]">
-                  <Link href="/auctions">Wie es funktioniert</Link>
+                  <Link href="/catalog">Katalog durchstöbern</Link>
                 </Button>
               </div>
             </div>
@@ -84,6 +84,23 @@ export default async function Home() {
       )}
 
       <HomeContent blocks={blocks} />
+
+      {/* Katalog Teaser */}
+      <section className="mx-auto max-w-6xl px-6 py-16">
+        <div className="rounded-2xl border border-[rgba(232,224,212,0.08)] bg-[rgba(232,224,212,0.02)] p-12 text-center">
+          <Disc3 className="h-12 w-12 mx-auto text-primary/40 mb-4" />
+          <h2 className="font-serif text-2xl md:text-3xl mb-3">
+            30.000+ Releases im Katalog
+          </h2>
+          <p className="text-muted-foreground max-w-lg mx-auto mb-6">
+            Durchstöbere unser vollständiges Archiv — Industrial, EBM, Dark Ambient,
+            Noise, Experimental und mehr.
+          </p>
+          <Button size="lg" variant="outline" asChild className="border-primary/30 text-primary hover:bg-primary/10">
+            <Link href="/catalog">Katalog durchstöbern</Link>
+          </Button>
+        </div>
+      </section>
 
       {/* Empty State */}
       {blocks.length === 0 && (

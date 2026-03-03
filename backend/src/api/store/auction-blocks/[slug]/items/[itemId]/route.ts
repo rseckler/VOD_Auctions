@@ -42,7 +42,7 @@ export async function GET(
 
   const item = items[0]
 
-  // Get release data with images
+  // Get release data with images + extended fields
   const release = await pgConnection("Release")
     .select(
       "Release.id",
@@ -57,6 +57,11 @@ export async function GET(
       "Release.description",
       "Release.media_condition",
       "Release.sleeve_condition",
+      "Release.legacy_price",
+      "Release.legacy_condition",
+      "Release.legacy_format_detail",
+      "Release.tracklist",
+      "Release.credits",
       "Artist.name as artist_name",
       "Label.name as label_name"
     )
@@ -67,9 +72,23 @@ export async function GET(
 
   // Get images for this release
   const images = await pgConnection("Image")
-    .select("id", "url", "alt", "position as sortOrder")
+    .select("id", "url", "alt")
     .where("releaseId", item.release_id)
-    .orderBy("position", "asc")
+    .limit(20)
+
+  // Get various artists (for compilations)
+  const variousArtists = await pgConnection("ReleaseArtist")
+    .select("Artist.name as artist_name", "ReleaseArtist.role")
+    .leftJoin("Artist", "ReleaseArtist.artistId", "Artist.id")
+    .where("ReleaseArtist.releaseId", item.release_id)
+
+  // Get comments
+  const comments = await pgConnection("Comment")
+    .select("id", "content", "rating", "legacy_date", "createdAt")
+    .where("releaseId", item.release_id)
+    .andWhere("approved", true)
+    .orderBy("legacy_date", "desc")
+    .limit(50)
 
   res.json({
     block_item: {
@@ -83,7 +102,7 @@ export async function GET(
       lot_end_time: item.lot_end_time,
       status: item.status,
       release: release
-        ? { ...release, images }
+        ? { ...release, images, various_artists: variousArtists, comments }
         : null,
     },
     auction_block: {

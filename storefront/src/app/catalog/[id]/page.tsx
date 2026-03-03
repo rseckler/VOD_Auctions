@@ -5,40 +5,21 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { ImageGallery } from "@/components/ImageGallery"
-import { ItemBidSection } from "@/components/ItemBidSection"
 import { medusaFetch } from "@/lib/api"
-import type { BlockItem, ReleaseImage, TracklistEntry, VariousArtist, ReleaseComment } from "@/types"
+import type { Release } from "@/types"
 
-type BlockInfo = {
-  id: string
-  title: string
-  slug: string
-  status: string
+type CatalogRelease = Release & {
+  images?: { id: string; url: string; alt: string }[]
+  various_artists?: { artist_name: string | null; role: string }[]
+  comments?: { id: string; content: string; rating: number | null; legacy_date: string | null }[]
+  discogs_lowest_price?: number | null
+  discogs_num_for_sale?: number | null
 }
 
-type ItemWithImages = BlockItem & {
-  release: (NonNullable<BlockItem["release"]> & {
-    images?: ReleaseImage[]
-    description?: string | null
-    media_condition?: string | null
-    sleeve_condition?: string | null
-    legacy_price?: number | null
-    legacy_condition?: string | null
-    legacy_format_detail?: string | null
-    tracklist?: TracklistEntry[] | null
-    credits?: string | null
-    various_artists?: VariousArtist[]
-    comments?: ReleaseComment[]
-  }) | null
-}
-
-async function getItem(
-  slug: string,
-  itemId: string
-): Promise<{ block_item: ItemWithImages; auction_block: BlockInfo } | null> {
-  return medusaFetch<{ block_item: ItemWithImages; auction_block: BlockInfo }>(
-    `/store/auction-blocks/${slug}/items/${itemId}`,
-    { revalidate: 30 }
+async function getRelease(id: string): Promise<{ release: CatalogRelease } | null> {
+  return medusaFetch<{ release: CatalogRelease }>(
+    `/store/catalog/${id}`,
+    { revalidate: 60 }
   )
 }
 
@@ -48,22 +29,20 @@ const FORMAT_COLORS: Record<string, string> = {
   CASSETTE: "bg-format-cassette/15 text-format-cassette border-format-cassette/30",
 }
 
-export default async function ItemDetailPage({
+export default async function CatalogDetailPage({
   params,
 }: {
-  params: Promise<{ slug: string; itemId: string }>
+  params: Promise<{ id: string }>
 }) {
-  const { slug, itemId } = await params
-  const data = await getItem(slug, itemId)
-
+  const { id } = await params
+  const data = await getRelease(id)
   if (!data) notFound()
 
-  const { block_item: item, auction_block: block } = data
-  const release = item.release
+  const release = data.release
 
   const images: string[] = []
-  if (release?.coverImage) images.push(release.coverImage)
-  if (release?.images) {
+  if (release.coverImage) images.push(release.coverImage)
+  if (release.images) {
     for (const img of release.images) {
       if (img.url && img.url !== release.coverImage) {
         images.push(img.url)
@@ -75,42 +54,32 @@ export default async function ItemDetailPage({
     <main className="mx-auto max-w-6xl px-6 py-8">
       {/* Breadcrumb */}
       <nav className="text-sm text-muted-foreground mb-8 flex items-center gap-1 flex-wrap">
-        <Link href="/auctions" className="hover:text-foreground transition-colors">
-          Auktionen
-        </Link>
-        <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" />
-        <Link href={`/auctions/${block.slug}`} className="hover:text-foreground transition-colors">
-          {block.title}
+        <Link href="/catalog" className="hover:text-foreground transition-colors">
+          Katalog
         </Link>
         <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" />
         <span className="text-foreground truncate">
-          {release?.artist_name
+          {release.artist_name
             ? `${release.artist_name} — ${release.title}`
-            : release?.title || `Lot ${item.lot_number}`}
+            : release.title}
         </span>
       </nav>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12">
         {/* Images */}
-        <ImageGallery images={images} title={release?.title || ""} />
+        <ImageGallery images={images} title={release.title} />
 
         {/* Details */}
         <div>
-          {item.lot_number && (
-            <p className="text-xs text-primary font-mono mb-2">
-              Lot #{item.lot_number}
-            </p>
-          )}
-
           <p className="text-muted-foreground text-lg">
-            {release?.artist_name || "Unknown Artist"}
+            {release.artist_name || "Unknown Artist"}
           </p>
           <h1 className="text-3xl md:text-4xl font-bold tracking-tight mt-1">
-            {release?.title || item.release_id}
+            {release.title}
           </h1>
 
           <div className="flex flex-wrap items-center gap-2 mt-4">
-            {release?.format && (
+            {release.format && (
               <Badge
                 variant="outline"
                 className={FORMAT_COLORS[release.format] || "bg-secondary text-muted-foreground"}
@@ -118,88 +87,92 @@ export default async function ItemDetailPage({
                 {release.format}
               </Badge>
             )}
-            {release?.year && (
+            {release.year && (
               <Badge variant="secondary">{release.year}</Badge>
             )}
-            {release?.country && (
+            {release.country && (
               <Badge variant="secondary">{release.country}</Badge>
             )}
           </div>
 
-          {/* Bid Section */}
-          <div className="mt-6">
-            <ItemBidSection
-              slug={slug}
-              itemId={item.id}
-              initialPrice={item.current_price}
-              startPrice={item.start_price}
-              initialBidCount={item.bid_count}
-              lotEndTime={item.lot_end_time || null}
-              blockStatus={block.status}
-              itemStatus={item.status}
-            />
+          {/* Price info */}
+          <div className="mt-6 bg-card border border-border/50 rounded-lg p-4 space-y-2">
+            {release.legacy_price && (
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground text-sm">Katalogpreis</span>
+                <span className="text-xl font-mono font-bold text-primary">
+                  &euro;{release.legacy_price.toFixed(2)}
+                </span>
+              </div>
+            )}
+            {release.discogs_lowest_price && (
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground text-sm">Discogs ab</span>
+                <span className="text-sm font-mono">
+                  &euro;{release.discogs_lowest_price.toFixed(2)}
+                  {release.discogs_num_for_sale ? (
+                    <span className="text-muted-foreground ml-1">
+                      ({release.discogs_num_for_sale} Angebote)
+                    </span>
+                  ) : null}
+                </span>
+              </div>
+            )}
+            {release.estimated_value && (
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground text-sm">Schätzwert</span>
+                <span className="text-sm font-mono">
+                  &euro;{release.estimated_value.toFixed(2)}
+                </span>
+              </div>
+            )}
           </div>
-
-          {item.estimated_value && (
-            <div className="mt-3 flex items-center justify-between text-sm px-1">
-              <span className="text-muted-foreground">Schätzwert</span>
-              <span className="text-muted-foreground">
-                &euro;{item.estimated_value.toFixed(2)}
-              </span>
-            </div>
-          )}
 
           <Separator className="my-6" />
           <div className="space-y-3">
             <h2 className="text-lg font-semibold">Details</h2>
             <dl className="space-y-2 text-sm">
-              {release?.label_name && (
+              {release.label_name && (
                 <div className="flex justify-between">
                   <dt className="text-muted-foreground">Label</dt>
                   <dd>{release.label_name}</dd>
                 </div>
               )}
-              {release?.catalogNumber && (
+              {release.catalogNumber && (
                 <div className="flex justify-between">
                   <dt className="text-muted-foreground">Katalognummer</dt>
                   <dd className="font-mono text-xs">{release.catalogNumber}</dd>
                 </div>
               )}
-              {release?.legacy_condition && (
+              {release.legacy_condition && (
                 <div className="flex justify-between">
                   <dt className="text-muted-foreground">Zustand</dt>
                   <dd className="font-mono text-xs uppercase">{release.legacy_condition}</dd>
                 </div>
               )}
-              {release?.media_condition && (
-                <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Medium</dt>
-                  <dd>{release.media_condition}</dd>
-                </div>
-              )}
-              {release?.sleeve_condition && (
-                <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Hülle</dt>
-                  <dd>{release.sleeve_condition}</dd>
-                </div>
-              )}
-              {release?.legacy_format_detail && (
+              {release.legacy_format_detail && (
                 <div className="flex justify-between">
                   <dt className="text-muted-foreground">Format (Detail)</dt>
                   <dd>{release.legacy_format_detail}</dd>
                 </div>
               )}
-              {release?.legacy_price && (
+              {release.media_condition && (
                 <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Katalogpreis</dt>
-                  <dd className="font-mono">&euro;{release.legacy_price.toFixed(2)}</dd>
+                  <dt className="text-muted-foreground">Medium</dt>
+                  <dd>{release.media_condition}</dd>
+                </div>
+              )}
+              {release.sleeve_condition && (
+                <div className="flex justify-between">
+                  <dt className="text-muted-foreground">Hülle</dt>
+                  <dd>{release.sleeve_condition}</dd>
                 </div>
               )}
             </dl>
           </div>
 
-          {/* Various Artists (Compilations) */}
-          {release?.various_artists && release.various_artists.length > 0 && (
+          {/* Various Artists */}
+          {release.various_artists && release.various_artists.length > 0 && (
             <>
               <Separator className="my-6" />
               <div>
@@ -216,7 +189,7 @@ export default async function ItemDetailPage({
           )}
 
           {/* Tracklist */}
-          {release?.tracklist && release.tracklist.length > 0 && (
+          {release.tracklist && release.tracklist.length > 0 && (
             <>
               <Separator className="my-6" />
               <div>
@@ -241,7 +214,7 @@ export default async function ItemDetailPage({
           )}
 
           {/* Credits */}
-          {release?.credits && (
+          {release.credits && (
             <>
               <Separator className="my-6" />
               <div>
@@ -253,21 +226,8 @@ export default async function ItemDetailPage({
             </>
           )}
 
-          {/* Description */}
-          {release?.description && !release?.tracklist?.length && !release?.credits && (
-            <>
-              <Separator className="my-6" />
-              <div>
-                <h2 className="text-lg font-semibold mb-2">Beschreibung</h2>
-                <p className="text-sm text-muted-foreground whitespace-pre-line">
-                  {release.description}
-                </p>
-              </div>
-            </>
-          )}
-
           {/* Comments */}
-          {release?.comments && release.comments.length > 0 && (
+          {release.comments && release.comments.length > 0 && (
             <>
               <Separator className="my-6" />
               <div>
@@ -301,9 +261,9 @@ export default async function ItemDetailPage({
 
       <Separator className="my-8" />
       <Button variant="ghost" asChild>
-        <Link href={`/auctions/${block.slug}`}>
+        <Link href="/catalog">
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Zurück zu &quot;{block.title}&quot;
+          Zurück zum Katalog
         </Link>
       </Button>
     </main>

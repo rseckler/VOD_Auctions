@@ -1,0 +1,277 @@
+"use client"
+
+import { useState, useEffect, useCallback } from "react"
+import Link from "next/link"
+import Image from "next/image"
+import { motion, AnimatePresence } from "framer-motion"
+import { Search, Disc3, ChevronLeft, ChevronRight } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { medusaFetch } from "@/lib/api"
+import { staggerContainer, staggerItem } from "@/lib/motion"
+
+type CatalogRelease = {
+  id: string
+  title: string
+  slug: string
+  format: string
+  year: number | null
+  country: string | null
+  coverImage: string | null
+  catalogNumber: string | null
+  legacy_condition: string | null
+  legacy_price: number | null
+  legacy_format_detail: string | null
+  artist_name: string | null
+  label_name: string | null
+}
+
+type CatalogResponse = {
+  releases: CatalogRelease[]
+  total: number
+  page: number
+  limit: number
+  pages: number
+}
+
+const FORMAT_COLORS: Record<string, string> = {
+  LP: "bg-format-vinyl/15 text-format-vinyl border-format-vinyl/30",
+  CD: "bg-format-cd/15 text-format-cd border-format-cd/30",
+  CASSETTE: "bg-format-cassette/15 text-format-cassette border-format-cassette/30",
+}
+
+const FORMATS = ["LP", "CD", "CASSETTE", "DVD", "BOXSET", "BOOK", "ZINE", "POSTER", "OTHER"]
+
+export default function CatalogPage() {
+  const [releases, setReleases] = useState<CatalogRelease[]>([])
+  const [total, setTotal] = useState(0)
+  const [pages, setPages] = useState(0)
+  const [page, setPage] = useState(1)
+  const [search, setSearch] = useState("")
+  const [searchInput, setSearchInput] = useState("")
+  const [format, setFormat] = useState("")
+  const [sort, setSort] = useState("title")
+  const [loading, setLoading] = useState(true)
+
+  const fetchReleases = useCallback(async () => {
+    setLoading(true)
+    const params = new URLSearchParams()
+    params.set("page", String(page))
+    params.set("limit", "24")
+    if (search) params.set("search", search)
+    if (format) params.set("format", format)
+    params.set("sort", sort)
+
+    const data = await medusaFetch<CatalogResponse>(
+      `/store/catalog?${params.toString()}`
+    )
+    if (data) {
+      setReleases(data.releases)
+      setTotal(data.total)
+      setPages(data.pages)
+    }
+    setLoading(false)
+  }, [page, search, format, sort])
+
+  useEffect(() => {
+    fetchReleases()
+  }, [fetchReleases])
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    setSearch(searchInput)
+    setPage(1)
+  }
+
+  return (
+    <main className="mx-auto max-w-7xl px-6 py-8">
+      <div className="mb-8">
+        <h1 className="text-3xl md:text-4xl font-bold font-[family-name:var(--font-dm-serif)]">
+          Katalog
+        </h1>
+        <p className="text-muted-foreground mt-2">
+          {total.toLocaleString("de-DE")} Releases aus dem Archiv
+        </p>
+      </div>
+
+      {/* Search & Filters */}
+      <div className="flex flex-col sm:flex-row gap-4 mb-6">
+        <form onSubmit={handleSearch} className="flex-1 flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Suche nach Titel, Artist, Label, Katalognummer..."
+              className="pl-10"
+            />
+          </div>
+          <Button type="submit" variant="secondary">Suchen</Button>
+        </form>
+
+        {/* Sort */}
+        <div className="flex gap-1.5 flex-wrap">
+          {[
+            { key: "title", label: "A-Z" },
+            { key: "artist", label: "Artist" },
+            { key: "year", label: "Jahr" },
+            { key: "price", label: "Preis" },
+          ].map(({ key, label }) => (
+            <Button
+              key={key}
+              size="sm"
+              variant={sort === key ? "default" : "outline"}
+              onClick={() => { setSort(key); setPage(1) }}
+              className="text-xs"
+            >
+              {label}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      {/* Format filter pills */}
+      <div className="flex gap-1.5 flex-wrap mb-6">
+        <Button
+          size="sm"
+          variant={format === "" ? "default" : "outline"}
+          onClick={() => { setFormat(""); setPage(1) }}
+          className="text-xs"
+        >
+          Alle
+        </Button>
+        {FORMATS.map((f) => (
+          <Button
+            key={f}
+            size="sm"
+            variant={format === f ? "default" : "outline"}
+            onClick={() => { setFormat(f); setPage(1) }}
+            className="text-xs"
+          >
+            {f}
+          </Button>
+        ))}
+      </div>
+
+      {/* Results */}
+      {loading ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          {Array.from({ length: 24 }).map((_, i) => (
+            <div key={i} className="animate-pulse">
+              <div className="aspect-square bg-secondary rounded-lg mb-2" />
+              <div className="h-3 bg-secondary rounded w-3/4 mb-1" />
+              <div className="h-4 bg-secondary rounded w-full" />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={`${page}-${search}-${format}-${sort}`}
+            variants={staggerContainer}
+            initial="hidden"
+            animate="visible"
+            className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4"
+          >
+            {releases.map((release) => (
+              <motion.div key={release.id} variants={staggerItem}>
+                <Link
+                  href={`/catalog/${release.id}`}
+                  className="group block"
+                >
+                  <div className="relative aspect-square overflow-hidden rounded-lg bg-secondary mb-2 border border-border/50 group-hover:border-primary/40 transition-colors">
+                    {release.coverImage ? (
+                      <Image
+                        src={release.coverImage}
+                        alt={release.title}
+                        fill
+                        className="object-cover group-hover:scale-105 transition-transform duration-300"
+                        sizes="(max-width:640px) 50vw, (max-width:768px) 33vw, (max-width:1024px) 25vw, 16vw"
+                      />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Disc3 className="h-12 w-12 text-muted-foreground/30" />
+                      </div>
+                    )}
+                    {release.format && (
+                      <Badge
+                        variant="outline"
+                        className={`absolute top-1.5 right-1.5 text-[10px] px-1.5 py-0 backdrop-blur-sm ${FORMAT_COLORS[release.format] || "bg-secondary/80 text-muted-foreground"}`}
+                      >
+                        {release.format}
+                      </Badge>
+                    )}
+                    {release.legacy_condition && (
+                      <span className="absolute bottom-1.5 left-1.5 text-[10px] font-mono bg-black/60 text-foreground/80 px-1.5 py-0.5 rounded backdrop-blur-sm uppercase">
+                        {release.legacy_condition}
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-xs text-muted-foreground truncate">
+                    {release.artist_name || "Unknown"}
+                  </p>
+                  <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">
+                    {release.title}
+                  </p>
+                  <div className="flex items-center justify-between mt-0.5">
+                    {release.legacy_price ? (
+                      <span className="text-xs font-mono text-primary">
+                        &euro;{release.legacy_price.toFixed(2)}
+                      </span>
+                    ) : (
+                      <span />
+                    )}
+                    {release.year && (
+                      <span className="text-[10px] text-muted-foreground">
+                        {release.year}
+                      </span>
+                    )}
+                  </div>
+                </Link>
+              </motion.div>
+            ))}
+          </motion.div>
+        </AnimatePresence>
+      )}
+
+      {/* Empty state */}
+      {!loading && releases.length === 0 && (
+        <div className="text-center py-16">
+          <Disc3 className="h-16 w-16 text-muted-foreground/30 mx-auto mb-4" />
+          <p className="text-lg text-muted-foreground">
+            Keine Releases gefunden.
+          </p>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {pages > 1 && (
+        <div className="flex items-center justify-center gap-4 mt-8">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage(Math.max(1, page - 1))}
+            disabled={page <= 1}
+          >
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Zurück
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            Seite {page} von {pages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage(Math.min(pages, page + 1))}
+            disabled={page >= pages}
+          >
+            Weiter
+            <ChevronRight className="h-4 w-4 ml-1" />
+          </Button>
+        </div>
+      )}
+    </main>
+  )
+}

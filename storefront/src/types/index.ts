@@ -17,6 +17,25 @@ export type AuctionBlock = {
   max_price?: number
 }
 
+export type TracklistEntry = {
+  position?: string
+  title: string
+  duration?: string
+}
+
+export type VariousArtist = {
+  artist_name: string | null
+  role: string
+}
+
+export type ReleaseComment = {
+  id: string
+  content: string
+  rating: number | null
+  legacy_date: string | null
+  createdAt: string
+}
+
 export type Release = {
   id: string
   title: string
@@ -32,6 +51,13 @@ export type Release = {
   description?: string | null
   media_condition?: string | null
   sleeve_condition?: string | null
+  legacy_price?: number | null
+  legacy_condition?: string | null
+  legacy_format_detail?: string | null
+  tracklist?: TracklistEntry[] | null
+  credits?: string | null
+  various_artists?: VariousArtist[]
+  comments?: ReleaseComment[]
 }
 
 export type ReleaseImage = {
