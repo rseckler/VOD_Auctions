@@ -15,7 +15,7 @@ from shared import (
     get_pg_connection,
 )
 
-rate_limiter = RateLimiter(calls_per_minute=58)
+rate_limiter = RateLimiter(max_calls=58)
 
 
 def get_price_suggestions(discogs_id, session):
