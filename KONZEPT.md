@@ -1628,6 +1628,148 @@ cd /Users/robin/Documents/4_AI/VOD/tape-mag-migration
 
 ---
 
+## 8. Datenpflege & Preisanreicherung
+
+### 8.1 Architektur-Übersicht
+
+```
+┌─────────────┐      täglich 04:00 UTC       ┌──────────────┐
+│ Legacy MySQL │ ──────────────────────────→  │   Supabase   │
+│  (vodtapes)  │  legacy_sync.py              │  PostgreSQL  │
+│  ~30.000     │  neue/geänderte Einträge     │  ~30.000     │
+└─────────────┘                                │  Releases    │
+                                               │              │
+┌─────────────┐      initial + wöchentlich    │  + discogs_* │
+│  Discogs    │ ──────────────────────────→   │  + sync_log  │
+│  API        │  discogs_batch.py (einmalig)  │              │
+│  Marketplace│  discogs_weekly_sync.py (So)  └──────┬───────┘
+└─────────────┘                                       │
+                                                      ▼
+                                               ┌──────────────┐
+                                               │  Admin Panel  │
+                                               │  /admin/media │
+                                               │  /admin/sync  │
+                                               │  Medusa.js    │
+                                               └──────────────┘
+```
+
+### 8.2 Permanente Legacy-Synchronisation
+
+**Zweck:** Neue Tonträger, die in der Legacy-Datenbank (MySQL/vodtapes) eingetragen werden, sollen automatisch in die neue Supabase-Datenbank übernommen werden.
+
+**Technik:**
+- Python-Script `scripts/legacy_sync.py`
+- Täglicher Cronjob auf VPS (04:00 UTC)
+- Vergleicht Legacy-IDs mit vorhandenen `legacy-*` IDs in Supabase
+- INSERT neue Einträge (Artists, Labels, Releases, Images)
+- UPSERT geänderte Einträge (title, catalogNumber, year, format, country)
+- **Geschützte Felder:** discogs_*, estimated_value, media_condition, sleeve_condition, auction_status werden NIE überschrieben
+
+**Logging:**
+- Ergebnisse in `sync_log` Tabelle (sync_type='legacy')
+- Console-Log + Logdatei auf VPS
+
+### 8.3 Discogs-Preisanreicherung
+
+#### Machbarkeitsprüfung (2026-03-03)
+
+Test mit 100 zufälligen Tonträgern aus der Datenbank:
+
+| Metrik | Ergebnis |
+|--------|----------|
+| **Match-Rate gesamt** | 69% |
+| **Mit Preis (lowest_price)** | 34% |
+| **LP Match-Rate** | 86% (82% mit Preis) |
+| **Kassette Match-Rate** | 64% (20% mit Preis) |
+| **Preis-Median** | 19,99€ |
+
+**API-Limitation:** Discogs API liefert nur `lowest_price` (nicht Median/Durchschnitt). Community-Daten (`have`/`want`) sind verfügbar.
+
+**Matching-Strategien (4-Tier, absteigend nach Präzision):**
+1. Katalognummer + Artist (14,5% der Matches)
+2. Barcode (wenn vorhanden)
+3. Artist + Title + Format (78,3% der Matches)
+4. Artist + Title ohne Format (7,2% der Matches)
+
+#### 8.3.1 Initialer Batch (einmalig)
+
+**Script:** `scripts/discogs_batch.py`
+- Verarbeitet alle ~30.000 Releases (ohne BOOK/POSTER/ZINE)
+- 4-Tier Matching-Strategie
+- Speichert: `discogs_id`, `discogs_lowest_price`, `discogs_num_for_sale`, `discogs_have`, `discogs_want`
+- **Resumierbar:** Bei Unterbrechung fortsetzbar (Progress-Datei)
+- **Rate Limit:** 55 req/min (konservativ unter 60 API-Limit)
+- **Geschätzte Laufzeit:** 8-12 Stunden
+
+#### 8.3.2 Wöchentlicher Preis-Sync
+
+**Script:** `scripts/discogs_weekly_sync.py`
+- Sonntags 02:00 UTC via Cronjob
+- Nur Releases mit `discogs_id` (~15.000-20.000)
+- 1 API-Call pro Release (`/marketplace/stats/{discogs_id}`)
+- Loggt Preisänderungen in `sync_log` mit JSONB-Diff
+- **Geschätzte Laufzeit:** 4-5 Stunden
+
+#### Datenbank-Erweiterung
+
+Neue Spalten auf Release-Tabelle:
+```sql
+discogs_id INTEGER                  -- Discogs Release ID
+discogs_lowest_price DECIMAL(10,2)  -- Aktueller niedrigster Preis
+discogs_num_for_sale INTEGER        -- Anzahl aktiver Listings
+discogs_have INTEGER                -- Community: Besitzer
+discogs_want INTEGER                -- Community: Wunschliste
+discogs_last_synced TIMESTAMP       -- Letzter Discogs-Abgleich
+legacy_last_synced TIMESTAMP        -- Letzter Legacy-Abgleich
+```
+
+Neue Tabelle `sync_log`:
+```sql
+id SERIAL PRIMARY KEY
+release_id TEXT FK → Release.id
+sync_type TEXT ('discogs' | 'legacy')
+sync_date TIMESTAMP
+changes JSONB                        -- z.B. {"lowest_price": {"old": 12.50, "new": 15.00}}
+status TEXT ('success' | 'error')
+error_message TEXT
+```
+
+#### Startpreis-Kalkulation
+
+```
+estimated_value = discogs_lowest_price (oder manuell gesetzt)
+start_price = estimated_value × default_start_price_percent (Standard: 50%)
+→ Admin kann Startpreis individuell anpassen
+```
+
+Für Items ohne Discogs-Preis: pauschale Startpreise (1€-5€ je nach Format).
+
+### 8.4 Medienverwaltung (Admin Panel)
+
+Neuer Admin-Bereich unter `/admin/media` für die Verwaltung aller ~30.000 Tonträger.
+
+**Features:**
+- **Dashboard-Header:** Gesamt-Releases, mit Discogs-Match, mit Preis, letzter Sync
+- **Tabelle:** Cover, Artist, Title, Format, Jahr, Label, CatNo, Discogs-Preis, Discogs-ID (Link), Status
+- **Suche:** Volltextsuche über Artist, Title, Katalognummer
+- **Filter:** Format (Pill-Buttons), Jahr-Range, Land, Label, Hat Discogs (Ja/Nein), Hat Preis (Ja/Nein), Auktions-Status
+- **Sortierung:** Alle Spalten sortierbar
+- **Pagination:** 25/50/100 pro Seite
+- **Detail-Ansicht:** Alle Felder, editierbare Felder (estimated_value, media_condition, sleeve_condition), Discogs-Daten, Sync-Historie
+
+### 8.5 Sync-Dashboard (Admin Panel)
+
+Neuer Admin-Bereich unter `/admin/sync` für den Überblick über alle Sync-Prozesse.
+
+**Features:**
+- **Legacy Sync Status:** Letzter Sync, neue/geänderte/fehlerhafte Einträge, Differenz Legacy vs. Supabase
+- **Discogs Sync Status:** Coverage (% mit Match, % mit Preis), letzter Batch/Weekly-Lauf
+- **Sync-Log:** Letzte 50 Einträge (Datum, Typ, Release, Status, Änderungen)
+- **Legacy Details:** Tabellen-Counts, zuletzt hinzugefügte Releases
+- **Discogs Details:** Coverage nach Format, Preis-Statistiken, Top 20 wertvollste Releases, letzte Preisänderungen
+
+---
+
 ## 11. Glossar
 
 - **Reserve Price:** Mindestpreis, unter dem Item nicht verkauft wird (geheim)

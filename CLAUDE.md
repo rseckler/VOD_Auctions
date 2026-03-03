@@ -8,10 +8,12 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 
 **Goal:** Eigene Plattform mit voller Kontrolle über Marke, Kundendaten, Preisgestaltung — statt 8-13% Gebühren an eBay/Discogs
 
-**Status:** Phase 1 — RSE-72 bis RSE-85 erledigt, Produkt-Browser + TipTap Editor implementiert, RSE-76 (Payment & Stripe) als nächstes
+**Status:** Phase 1 — RSE-72 bis RSE-85 erledigt, Produkt-Browser + TipTap Editor implementiert, Clickdummy live, RSE-76 (Payment & Stripe) als nächstes
 
 **Created:** 2026-02-10
 **Last Updated:** 2026-03-02
+
+**Clickdummy:** https://vodauction.thehotshit.de (VPS, PM2, Port 3005)
 
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Linear:** VOD Auctions Projekt (rseckler Workspace)
@@ -219,6 +221,15 @@ VOD_Auctions/
 │   │       ├── utils.ts         # cn() Helper
 │   │       └── supabase.ts      # Supabase Client (Realtime)
 │   └── node_modules/
+├── clickdummy/                  # Interaktiver Clickdummy (Port 3005)
+│   ├── ecosystem.config.js      # PM2 Config
+│   ├── nginx-vodauction.conf    # Nginx Template
+│   ├── src/
+│   │   ├── app/                 # 18 Screens (Homepage, Auctions, Account, Emails)
+│   │   ├── components/          # Header, Footer, FlowGuide, BidSection, etc.
+│   │   ├── context/FlowContext.tsx  # 10-Step Flow State (localStorage)
+│   │   └── data/                # Static JSON (50 Items, 3 Blocks, Bids)
+│   └── node_modules/
 ├── scripts/                     # Migration-Scripts (Python)
 │   ├── extract_legacy_data.py   # MySQL → JSON
 │   ├── load_json_to_supabase.py # JSON → Supabase (psycopg2, Batch 500)
@@ -262,6 +273,35 @@ cd VOD_Auctions/storefront
 npm run dev
 ```
 
+### Clickdummy
+
+**Purpose:** Interaktiver Prototyp der kompletten Customer Journey (18 Screens, 10-Step FlowGuide)
+**Port:** 3005
+**URL:** https://vodauction.thehotshit.de
+**Deployment:** PM2 (`vodauction-clickdummy`) on VPS (72.62.148.205), nginx reverse proxy + Certbot SSL
+
+**Tech Stack:** Next.js 16, React 19, TypeScript, Tailwind CSS 4, Framer Motion, localStorage-State
+
+**Starten:**
+```bash
+cd VOD_Auctions/clickdummy
+npm run dev -- -p 3005    # Local development
+npm run build             # Production build
+```
+
+**Screens:** Homepage, Auktionsübersicht, Block-Detail (50 Items), Item-Detail (Bidding-Flow mit 10 States), Account (Dashboard, Gebote, Gewonnen, Checkout, Erfolg, Einstellungen), 6 E-Mail-Vorschauen (Phone-Frame Mockup)
+
+**FlowGuide:** Floating bottom bar navigiert durch: Besucher → Registriert → Gebot → Überboten → Erneut geboten → Auktion endet → Gewonnen → Bezahlt → Versendet → Zugestellt
+
+**Key Files:**
+- `src/context/FlowContext.tsx` — State-Management (localStorage-backed, 10 steps)
+- `src/data/items.ts` — 50 Dark Ambient/Drone Auction Items
+- `src/data/blocks.ts` — 3 Auction Blocks
+- `src/components/FlowGuide.tsx` — Demo-Navigation
+- `src/components/BidSection.tsx` — Bidding mit allen States
+- `ecosystem.config.js` — PM2 Config
+- `nginx-vodauction.conf` — Nginx Template
+
 ## Linear Tracking
 
 **Project:** [VOD Auctions](https://linear.app/rseckler/project/vod-auctions-37f35d4e90be)
@@ -287,6 +327,42 @@ npm run dev
 ### Phase 3-4
 - **RSE-81:** P3 Skalierung (5.000+ Items)
 - **RSE-82:** P4 Evaluierung & Datenanalyse
+
+## Data Sync & Enrichment Scripts
+
+**Location:** `scripts/`
+
+```bash
+cd VOD_Auctions/scripts
+
+# Shared utilities (imported by all scripts)
+# scripts/shared.py — DB connections, format mapping, Discogs config, RateLimiter
+
+# Legacy MySQL → Supabase Sync (daily)
+python3 legacy_sync.py           # Incremental sync of new/changed entries
+
+# Discogs Price Enrichment
+python3 discogs_batch.py          # Initial batch: match all 30k releases (8-12h, resumable)
+python3 discogs_weekly_sync.py    # Weekly price update for matched releases (4-5h, resumable)
+python3 discogs_price_test.py     # Feasibility test (100 random releases)
+```
+
+**Cronjobs (VPS):**
+```bash
+0 4 * * * cd ~/VOD_Auctions/scripts && python3 legacy_sync.py >> legacy_sync.log 2>&1
+0 2 * * 0 cd ~/VOD_Auctions/scripts && python3 discogs_weekly_sync.py >> discogs_weekly.log 2>&1
+```
+
+**New DB columns:** discogs_id, discogs_lowest_price, discogs_num_for_sale, discogs_have, discogs_want, discogs_last_synced, legacy_last_synced
+**New DB table:** sync_log (id, release_id, sync_type, sync_date, changes JSONB, status, error_message)
+
+## Admin Panel Extensions
+
+**Medien-Verwaltung:** `/admin/media` — Browse/search/filter all 30k releases with Discogs data
+- API: GET /admin/media, GET /admin/media/:id, POST /admin/media/:id, GET /admin/media/stats
+
+**Sync-Dashboard:** `/admin/sync` — Legacy + Discogs sync status and reports
+- API: GET /admin/sync, GET /admin/sync/legacy, GET /admin/sync/discogs
 
 ## Related Projects
 
@@ -321,6 +397,11 @@ npx medusa db:migrate          # Run migrations
 # Storefront (Next.js 16)
 cd VOD_Auctions/storefront
 npm run dev                  # Start storefront (port 3000)
+npm run build                # Build for production
+
+# Clickdummy (Next.js 16, standalone)
+cd VOD_Auctions/clickdummy
+npm run dev -- -p 3005       # Start clickdummy (port 3005)
 npm run build                # Build for production
 
 # API testen
