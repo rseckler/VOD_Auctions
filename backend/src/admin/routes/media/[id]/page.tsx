@@ -14,7 +14,7 @@ type Release = {
   barcode: string | null
   genre: string | null
   styles: string | null
-  tracklist: string | null
+  tracklist: { position?: string; title?: string; duration?: string }[] | string | null
   notes: string | null
   discogs_id: number | null
   lowest_price: number | null
@@ -486,8 +486,20 @@ const MediaDetailPage = () => {
               <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "12px", color: COLORS.gold }}>
                 Tracklist
               </h2>
-              <div style={{ fontSize: "13px", color: COLORS.text, whiteSpace: "pre-wrap", lineHeight: "1.5" }}>
-                {release.tracklist}
+              <div style={{ fontSize: "13px", color: COLORS.text, lineHeight: "1.5" }}>
+                {Array.isArray(release.tracklist)
+                  ? release.tracklist.map((t: { position?: string; title?: string; duration?: string }, i: number) => (
+                      <div key={i} style={{ display: "flex", gap: "8px", marginBottom: "4px" }}>
+                        <span style={{ color: COLORS.muted, minWidth: "30px", textAlign: "right" }}>
+                          {t.position || `${i + 1}.`}
+                        </span>
+                        <span style={{ flex: 1 }}>{t.title}</span>
+                        {t.duration && <span style={{ color: COLORS.muted }}>{t.duration}</span>}
+                      </div>
+                    ))
+                  : typeof release.tracklist === "string"
+                    ? release.tracklist
+                    : JSON.stringify(release.tracklist, null, 2)}
               </div>
             </div>
           )}
