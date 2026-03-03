@@ -15,6 +15,14 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Created:** 2026-02-10
 **Last Updated:** 2026-03-03
 
+### Letzte Änderungen (2026-03-03)
+- **Englische Übersetzung:** Alle UI-Texte (Storefront + Admin + API-Fehlermeldungen) auf Englisch
+- **Artikelnummern:** Neues DB-Feld `article_number` (Format: VOD-XXXXX), angezeigt in Storefront + Admin, durchsuchbar
+- **Discogs-Preise:** Low/Median/High statt nur Lowest, Discogs-Link auf Detailseiten, Sync-Script aktualisiert
+- **Credits-Fix:** Robustere Bereinigung (literal Escape-Sequenzen, CRLF, HTML-Tags)
+- **Related Sections:** Tabellenformat für verwandte Releases (by Artist/Label)
+- **Admin Media:** Country-Spalte + Filter hinzugefügt
+
 **Clickdummy:** https://vodauction.thehotshit.de (VPS, PM2, Port 3005)
 
 **GitHub:** https://github.com/rseckler/VOD_Auctions
@@ -119,6 +127,15 @@ ALTER TABLE "Release" ADD COLUMN media_condition TEXT;
 ALTER TABLE "Release" ADD COLUMN sleeve_condition TEXT;
 ALTER TABLE "Release" ADD COLUMN auction_status TEXT DEFAULT 'available';
 ALTER TABLE "Release" ADD COLUMN current_block_id TEXT;
+ALTER TABLE "Release" ADD COLUMN article_number TEXT;  -- VOD-XXXXX, unique
+ALTER TABLE "Release" ADD COLUMN discogs_median_price DECIMAL(10,2);
+ALTER TABLE "Release" ADD COLUMN discogs_highest_price DECIMAL(10,2);
+```
+
+**Artikelnummern generieren:**
+```bash
+# SQL-Script ausführen (einmalig, generiert VOD-00001 bis VOD-XXXXX)
+psql $SUPABASE_DB_URL -f scripts/generate_article_numbers.sql
 ```
 
 ## Core Concepts
@@ -301,7 +318,9 @@ npm run dev                  # Local development (port 3000)
 - Storefront Katalog (`/catalog`): Zeigt alle 30k Releases mit Suche, Format-Filter, Sortierung
 - Katalog-Detail (`/catalog/[id]`): Release-Info + Images + Related Releases by Artist/Label
 - Auktions-Detail (`/auctions/[slug]/[itemId]`): Item-Info + Bidding + Related Section mit Block Items
-- Credits-Text: Wird beim Rendern bereinigt (literal `\r\n` → echte Newlines) via `.replace()` in Catalog + Auction Pages
+- Credits-Text: Wird beim Rendern bereinigt (literal Escape-Sequenzen, CRLF, HTML-Tags → echte Newlines) via `.replace()` in Catalog + Auction Pages
+- Artikelnummer: Wird als erstes Feld in Details-Sektion angezeigt (Catalog + Auction)
+- Discogs-Preise: Low/Median/High + "View on Discogs" Link auf Detailseiten
 - **Related Sections:** `RelatedSection.tsx` (Auktionen, Tabs: by Artist/Label/Block Artists/Labels/All Lots) und `CatalogRelatedSection.tsx` (Katalog, Tabs: by Artist/Label) — beide als kompakte Tabellen
 
 ### Clickdummy
@@ -374,8 +393,11 @@ python3 legacy_sync.py           # Incremental sync of new/changed entries
 
 # Discogs Price Enrichment
 python3 discogs_batch.py          # Initial batch: match all 30k releases (8-12h, resumable)
-python3 discogs_weekly_sync.py    # Weekly price update for matched releases (4-5h, resumable)
+python3 discogs_weekly_sync.py    # Weekly price update (lowest + median + highest, 4-5h, resumable)
 python3 discogs_price_test.py     # Feasibility test (100 random releases)
+
+# Article Numbers
+psql $SUPABASE_DB_URL -f generate_article_numbers.sql  # Generate VOD-XXXXX numbers
 ```
 
 **Cronjobs (VPS):**
@@ -384,13 +406,13 @@ python3 discogs_price_test.py     # Feasibility test (100 random releases)
 0 2 * * 0 cd ~/VOD_Auctions/scripts && python3 discogs_weekly_sync.py >> discogs_weekly.log 2>&1
 ```
 
-**New DB columns:** discogs_id, discogs_lowest_price, discogs_num_for_sale, discogs_have, discogs_want, discogs_last_synced, legacy_last_synced
+**New DB columns:** discogs_id, discogs_lowest_price, discogs_median_price, discogs_highest_price, discogs_num_for_sale, discogs_have, discogs_want, discogs_last_synced, legacy_last_synced, article_number
 **New DB table:** sync_log (id, release_id, sync_type, sync_date, changes JSONB, status, error_message)
 
 ## Admin Panel Extensions
 
 **Media Management:** `/admin/media` — Browse/search/filter alle 30k Releases mit Discogs-Daten
-- Spalten: Cover, Artist, Title, Year, Country, Label, Format, Discogs, Condition, Price, Status, Actions
+- Spalten: Cover, Artist, Title, Format, Year, Country, Label, Art. No., CatNo, Discogs Price, Discogs ID, Status, Last Sync
 - Filter: Search (debounced), Format-Pills, Country, Year (von-bis Range), Label (debounced), Has Discogs, Auction Status
 - Sortierung: Alle Spalten sortierbar (field:dir Format)
 - API: GET /admin/media, GET /admin/media/:id, POST /admin/media/:id, GET /admin/media/stats
