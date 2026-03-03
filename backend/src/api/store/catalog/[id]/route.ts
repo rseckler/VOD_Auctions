@@ -38,6 +38,8 @@ export async function GET(
       "Release.discogs_median_price",
       "Release.discogs_highest_price",
       "Release.discogs_num_for_sale",
+      "Release.artistId",
+      "Release.labelId",
       "Artist.name as artist_name",
       "Label.name as label_name"
     )
@@ -72,7 +74,7 @@ export async function GET(
     .limit(50)
 
   // Related releases by same artist
-  const related_by_artist = release.artist_name
+  const related_by_artist = release.artistId
     ? await pgConnection("Release")
         .select(
           "Release.id",
@@ -89,16 +91,14 @@ export async function GET(
         )
         .leftJoin("Artist", "Release.artistId", "Artist.id")
         .leftJoin("Label", "Release.labelId", "Label.id")
-        .where("Release.artistId", pgConnection.raw(
-          '(SELECT "artistId" FROM "Release" WHERE id = ?)', [id]
-        ))
+        .where("Release.artistId", release.artistId)
         .andWhereNot("Release.id", id)
         .orderBy("Release.year", "desc")
         .limit(50)
     : []
 
   // Related releases by same label
-  const related_by_label = release.label_name
+  const related_by_label = release.labelId
     ? await pgConnection("Release")
         .select(
           "Release.id",
@@ -115,9 +115,7 @@ export async function GET(
         )
         .leftJoin("Artist", "Release.artistId", "Artist.id")
         .leftJoin("Label", "Release.labelId", "Label.id")
-        .where("Release.labelId", pgConnection.raw(
-          '(SELECT "labelId" FROM "Release" WHERE id = ?)', [id]
-        ))
+        .where("Release.labelId", release.labelId)
         .andWhereNot("Release.id", id)
         .orderBy("Release.year", "desc")
         .limit(50)
