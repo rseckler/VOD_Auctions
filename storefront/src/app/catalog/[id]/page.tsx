@@ -101,7 +101,7 @@ export default async function CatalogDetailPage({
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground text-sm">Katalogpreis</span>
                 <span className="text-xl font-mono font-bold text-primary">
-                  &euro;{release.legacy_price.toFixed(2)}
+                  &euro;{Number(release.legacy_price).toFixed(2)}
                 </span>
               </div>
             )}
@@ -109,7 +109,7 @@ export default async function CatalogDetailPage({
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground text-sm">Discogs ab</span>
                 <span className="text-sm font-mono">
-                  &euro;{release.discogs_lowest_price.toFixed(2)}
+                  &euro;{Number(release.discogs_lowest_price).toFixed(2)}
                   {release.discogs_num_for_sale ? (
                     <span className="text-muted-foreground ml-1">
                       ({release.discogs_num_for_sale} Angebote)
@@ -122,7 +122,7 @@ export default async function CatalogDetailPage({
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground text-sm">Schätzwert</span>
                 <span className="text-sm font-mono">
-                  &euro;{release.estimated_value.toFixed(2)}
+                  &euro;{Number(release.estimated_value).toFixed(2)}
                 </span>
               </div>
             )}

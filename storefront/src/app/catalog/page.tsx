@@ -218,7 +218,7 @@ export default function CatalogPage() {
                   <div className="flex items-center justify-between mt-0.5">
                     {release.legacy_price ? (
                       <span className="text-xs font-mono text-primary">
-                        &euro;{release.legacy_price.toFixed(2)}
+                        &euro;{Number(release.legacy_price).toFixed(2)}
                       </span>
                     ) : (
                       <span />

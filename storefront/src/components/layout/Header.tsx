@@ -17,9 +17,9 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 bg-[rgba(28,25,21,0.95)] backdrop-blur-xl border-b border-[rgba(232,224,212,0.1)]">
       <div className="mx-auto max-w-6xl px-6 h-16 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-3">
+        <Link href="/" className="group flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-[#b8860b] flex items-center justify-center">
-            <Disc3 className="h-5 w-5 text-[#1c1915]" />
+            <Disc3 className="h-5 w-5 text-[#1c1915] transition-transform group-hover:rotate-180 duration-700" />
           </div>
           <span className="text-xl font-serif text-foreground">VOD Auctions</span>
         </Link>

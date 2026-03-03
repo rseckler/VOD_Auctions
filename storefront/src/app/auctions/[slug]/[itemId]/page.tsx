@@ -144,7 +144,7 @@ export default async function ItemDetailPage({
             <div className="mt-3 flex items-center justify-between text-sm px-1">
               <span className="text-muted-foreground">Schätzwert</span>
               <span className="text-muted-foreground">
-                &euro;{item.estimated_value.toFixed(2)}
+                &euro;{Number(item.estimated_value).toFixed(2)}
               </span>
             </div>
           )}
@@ -192,7 +192,7 @@ export default async function ItemDetailPage({
               {release?.legacy_price && (
                 <div className="flex justify-between">
                   <dt className="text-muted-foreground">Katalogpreis</dt>
-                  <dd className="font-mono">&euro;{release.legacy_price.toFixed(2)}</dd>
+                  <dd className="font-mono">&euro;{Number(release.legacy_price).toFixed(2)}</dd>
                 </div>
               )}
             </dl>

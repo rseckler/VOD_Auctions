@@ -90,7 +90,7 @@ def parse_moreinfo(raw_html: str | None) -> tuple[list | None, str | None]:
     # Strategy 2: Simple list patterns (A1, A2, B1 or 1., 2., etc.)
     if not tracklist:
         line_pattern = re.compile(
-            r'(?:^|<br\s*/?>|<p>|<li>)\s*'
+            r'(?:^|<br\s*/?>|<p>|<li>|<div[^>]*>)\s*'
             r'([A-Z]?\d+\.?\s*[-–.]?\s*)'
             r'(.+?)(?=<br|<p>|<li>|</|$)',
             re.IGNORECASE | re.MULTILINE,
@@ -98,6 +98,8 @@ def parse_moreinfo(raw_html: str | None) -> tuple[list | None, str | None]:
         for pos_match, title_match in line_pattern.findall(text):
             title = re.sub(r'<[^>]+>', '', title_match).strip()
             title = html_lib.unescape(title)
+            # Remove trailing nbsp and whitespace
+            title = title.replace('\xa0', '').strip()
             pos = pos_match.strip().rstrip('.-– ')
             if title and len(title) > 1 and len(title) < 200:
                 entry = {"title": title}
