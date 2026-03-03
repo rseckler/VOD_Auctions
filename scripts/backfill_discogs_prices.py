@@ -2,6 +2,8 @@
 """
 Backfill Discogs price suggestions for releases that have discogs_id but no prices.
 Uses the /marketplace/price_suggestions endpoint.
+
+Handles persistent 429 rate limits with exponential backoff (up to 5 min).
 """
 import time
 import requests
@@ -14,14 +16,21 @@ from shared import (
     get_pg_connection,
 )
 
-# Discogs allows 60 req/min for authenticated users.
-# price_suggestions seems stricter, so use 1.5s between requests (~40/min).
-REQUEST_DELAY = 1.5
+# Conservative: 2s between requests (~30/min) to avoid triggering rate limits.
+REQUEST_DELAY = 2.0
+# Max retries per request before giving up on that release.
+MAX_RETRIES = 5
+# Max wait time for exponential backoff (5 minutes).
+MAX_BACKOFF = 300
 
 
-def get_price_suggestions(discogs_id, session):
-    """Fetch price suggestions and derive low/median/high. Retries on 429."""
-    for attempt in range(3):
+def get_price_suggestions(discogs_id, session, backoff_state):
+    """Fetch price suggestions and derive low/median/high.
+
+    Uses exponential backoff for 429s. backoff_state is a dict with
+    'consecutive_429s' to track global rate limit pressure.
+    """
+    for attempt in range(MAX_RETRIES):
         try:
             resp = session.get(
                 f"{DISCOGS_BASE}/marketplace/price_suggestions/{discogs_id}",
@@ -29,10 +38,18 @@ def get_price_suggestions(discogs_id, session):
                 timeout=15,
             )
             if resp.status_code == 429:
-                wait = int(resp.headers.get("Retry-After", 30))
-                print(f"  Rate limited, waiting {wait}s...")
+                backoff_state["consecutive_429s"] += 1
+                # Exponential backoff: 30s, 60s, 120s, 240s, 300s (max)
+                base_wait = int(resp.headers.get("Retry-After", 30))
+                wait = min(base_wait * (2 ** (backoff_state["consecutive_429s"] - 1)), MAX_BACKOFF)
+                print(f"  Rate limited (attempt {attempt + 1}/{MAX_RETRIES}), "
+                      f"consecutive 429s: {backoff_state['consecutive_429s']}, "
+                      f"waiting {wait}s...")
                 time.sleep(wait)
                 continue
+
+            # Success — reset backoff counter
+            backoff_state["consecutive_429s"] = 0
             resp.raise_for_status()
             data = resp.json()
 
@@ -59,6 +76,7 @@ def get_price_suggestions(discogs_id, session):
         except requests.exceptions.RequestException as e:
             print(f"  API error for {discogs_id}: {e}")
             return None, None, None
+    print(f"  Giving up on {discogs_id} after {MAX_RETRIES} retries")
     return None, None, None
 
 
@@ -79,15 +97,22 @@ def main():
     total = len(releases)
     print(f"Found {total} releases to backfill")
 
+    if total == 0:
+        print("Nothing to do.")
+        cur.close()
+        pg_conn.close()
+        return
+
     session = requests.Session()
     updated = 0
     errors = 0
+    backoff_state = {"consecutive_429s": 0}
 
     for idx, rel in enumerate(releases):
         release_id = rel["id"]
         discogs_id = rel["discogs_id"]
 
-        low, med, high = get_price_suggestions(discogs_id, session)
+        low, med, high = get_price_suggestions(discogs_id, session, backoff_state)
 
         if low is not None:
             cur.execute("""
@@ -106,7 +131,11 @@ def main():
         if (idx + 1) % 25 == 0 or idx + 1 == total:
             print(f"  [{idx + 1}/{total}] Updated: {updated}, No data: {errors}")
 
-        time.sleep(REQUEST_DELAY)
+        # If we've been hitting rate limits, slow down more
+        delay = REQUEST_DELAY
+        if backoff_state["consecutive_429s"] > 0:
+            delay = min(REQUEST_DELAY * (2 ** backoff_state["consecutive_429s"]), 60)
+        time.sleep(delay)
 
     cur.close()
     pg_conn.close()
