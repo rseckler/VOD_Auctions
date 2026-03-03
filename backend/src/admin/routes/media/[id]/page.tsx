@@ -38,30 +38,30 @@ type Release = {
   format: string
   year: number | null
   country: string | null
-  cat_no: string | null
+  catalogNumber: string | null
   article_number: string | null
   barcode: string | null
   genre: string | null
   styles: string | null
   tracklist: { position?: string; title?: string; duration?: string }[] | string | null
-  notes: string | null
+  description: string | null
   discogs_id: number | null
-  lowest_price: number | null
-  median_price: number | null
-  highest_price: number | null
-  num_for_sale: number | null
-  have: number | null
-  want: number | null
+  discogs_lowest_price: number | null
+  discogs_median_price: number | null
+  discogs_highest_price: number | null
+  discogs_num_for_sale: number | null
+  discogs_have: number | null
+  discogs_want: number | null
   estimated_value: number | null
   media_condition: string | null
   sleeve_condition: string | null
   auction_status: string | null
   current_block_id: string | null
   coverImage: string | null
-  last_discogs_sync: string | null
-  last_legacy_sync: string | null
-  created_at: string | null
-  updated_at: string | null
+  discogs_last_synced: string | null
+  legacy_last_synced: string | null
+  createdAt: string | null
+  updatedAt: string | null
 }
 
 type SyncEntry = {
@@ -208,14 +208,14 @@ const MediaDetailPage = () => {
     ["Year", release.year != null ? String(release.year) : null],
     ["Country", release.country],
     ["Label", release.label_name],
-    ["CatNo", release.cat_no],
+    ["CatNo", release.catalogNumber],
     ["Barcode", release.barcode],
     ["Genre", release.genre],
     ["Styles", release.styles],
     ["Auction Status", release.auction_status],
     ["Block ID", release.current_block_id],
-    ["Created", formatDate(release.created_at)],
-    ["Updated", formatDate(release.updated_at)],
+    ["Created", formatDate(release.createdAt)],
+    ["Updated", formatDate(release.updatedAt)],
   ]
 
   return (
@@ -286,24 +286,24 @@ const MediaDetailPage = () => {
             <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: COLORS.gold }}>Discogs Data</h2>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr 1fr 1fr", gap: "16px" }}>
               <div><div style={labelStyle}>Discogs ID</div><div style={valueStyle}>{release.discogs_id ? (<a href={`https://www.discogs.com/release/${release.discogs_id}`} target="_blank" rel="noopener noreferrer" style={{ color: COLORS.gold, textDecoration: "none" }}>{release.discogs_id} &#8599;</a>) : "\u2014"}</div></div>
-              <div><div style={labelStyle}>Low</div><div style={{ ...valueStyle, color: release.lowest_price ? COLORS.gold : COLORS.muted }}>{formatPrice(release.lowest_price)}</div></div>
-              <div><div style={labelStyle}>Median</div><div style={{ ...valueStyle, color: release.median_price ? COLORS.gold : COLORS.muted }}>{formatPrice(release.median_price)}</div></div>
-              <div><div style={labelStyle}>High</div><div style={{ ...valueStyle, color: release.highest_price ? COLORS.gold : COLORS.muted }}>{formatPrice(release.highest_price)}</div></div>
-              <div><div style={labelStyle}>For Sale</div><div style={valueStyle}>{release.num_for_sale ?? "\u2014"}</div></div>
-              <div><div style={labelStyle}>Have</div><div style={valueStyle}>{release.have ?? "\u2014"}</div></div>
-              <div><div style={labelStyle}>Want</div><div style={valueStyle}>{release.want ?? "\u2014"}</div></div>
+              <div><div style={labelStyle}>Low</div><div style={{ ...valueStyle, color: release.discogs_lowest_price ? COLORS.gold : COLORS.muted }}>{formatPrice(release.discogs_lowest_price)}</div></div>
+              <div><div style={labelStyle}>Median</div><div style={{ ...valueStyle, color: release.discogs_median_price ? COLORS.gold : COLORS.muted }}>{formatPrice(release.discogs_median_price)}</div></div>
+              <div><div style={labelStyle}>High</div><div style={{ ...valueStyle, color: release.discogs_highest_price ? COLORS.gold : COLORS.muted }}>{formatPrice(release.discogs_highest_price)}</div></div>
+              <div><div style={labelStyle}>For Sale</div><div style={valueStyle}>{release.discogs_num_for_sale ?? "\u2014"}</div></div>
+              <div><div style={labelStyle}>Have</div><div style={valueStyle}>{release.discogs_have ?? "\u2014"}</div></div>
+              <div><div style={labelStyle}>Want</div><div style={valueStyle}>{release.discogs_want ?? "\u2014"}</div></div>
             </div>
-            <div style={{ marginTop: "12px" }}><div style={labelStyle}>Last Discogs Sync</div><div style={{ ...valueStyle, fontSize: "13px" }}>{formatDate(release.last_discogs_sync)}</div></div>
+            <div style={{ marginTop: "12px" }}><div style={labelStyle}>Last Discogs Sync</div><div style={{ ...valueStyle, fontSize: "13px" }}>{formatDate(release.discogs_last_synced)}</div></div>
           </div>
         </div>
       </div>
 
-      {(release.notes || release.tracklist) && (
+      {(release.description || release.tracklist) && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", marginBottom: "32px" }}>
-          {release.notes && (
+          {release.description && (
             <div style={cardStyle}>
               <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "12px", color: COLORS.gold }}>Notes</h2>
-              <div style={{ fontSize: "13px", color: COLORS.text, whiteSpace: "pre-wrap", lineHeight: "1.5" }}>{release.notes}</div>
+              <div style={{ fontSize: "13px", color: COLORS.text, whiteSpace: "pre-wrap", lineHeight: "1.5" }}>{release.description}</div>
             </div>
           )}
           {release.tracklist && (
