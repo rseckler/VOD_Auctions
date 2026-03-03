@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator"
 import { ImageGallery } from "@/components/ImageGallery"
 import { CatalogRelatedSection } from "@/components/CatalogRelatedSection"
 import { medusaFetch } from "@/lib/api"
+import { cleanCredits } from "@/lib/utils"
 import type { Release } from "@/types"
 
 type RelatedRelease = {
@@ -272,15 +273,7 @@ export default async function CatalogDetailPage({
               <div>
                 <h2 className="text-lg font-semibold mb-2">Credits</h2>
                 <p className="text-sm text-muted-foreground whitespace-pre-line">
-                  {release.credits
-                    .replace(/\\r\\n/g, '\n')
-                    .replace(/\\r/g, '\n')
-                    .replace(/\\n/g, '\n')
-                    .replace(/\r\n/g, '\n')
-                    .replace(/\r/g, '\n')
-                    .replace(/<br\s*\/?>/gi, '\n')
-                    .replace(/<[^>]+>/g, '')
-                    .trim()}
+                  {cleanCredits(release.credits)}
                 </p>
               </div>
             </>

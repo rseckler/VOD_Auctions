@@ -8,6 +8,7 @@ import { ImageGallery } from "@/components/ImageGallery"
 import { ItemBidSection } from "@/components/ItemBidSection"
 import { RelatedSection } from "@/components/RelatedSection"
 import { medusaFetch } from "@/lib/api"
+import { cleanCredits } from "@/lib/utils"
 import type { AuctionBlock, BlockItem, ReleaseImage, TracklistEntry, VariousArtist, ReleaseComment } from "@/types"
 
 type BlockInfo = {
@@ -305,15 +306,7 @@ export default async function ItemDetailPage({
               <div>
                 <h2 className="text-lg font-semibold mb-2">Credits</h2>
                 <p className="text-sm text-muted-foreground whitespace-pre-line">
-                  {release.credits
-                    .replace(/\\r\\n/g, '\n')
-                    .replace(/\\r/g, '\n')
-                    .replace(/\\n/g, '\n')
-                    .replace(/\r\n/g, '\n')
-                    .replace(/\r/g, '\n')
-                    .replace(/<br\s*\/?>/gi, '\n')
-                    .replace(/<[^>]+>/g, '')
-                    .trim()}
+                  {cleanCredits(release.credits)}
                 </p>
               </div>
             </>
