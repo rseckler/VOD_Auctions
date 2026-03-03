@@ -11,48 +11,55 @@ import psycopg2.extras
 from shared import (
     DISCOGS_BASE,
     DISCOGS_HEADERS,
-    RateLimiter,
     get_pg_connection,
 )
 
-rate_limiter = RateLimiter(max_calls=58)
+# Discogs allows 60 req/min for authenticated users.
+# price_suggestions seems stricter, so use 1.5s between requests (~40/min).
+REQUEST_DELAY = 1.5
 
 
 def get_price_suggestions(discogs_id, session):
-    """Fetch price suggestions and derive low/median/high."""
-    rate_limiter.wait()
-    try:
-        resp = session.get(
-            f"{DISCOGS_BASE}/marketplace/price_suggestions/{discogs_id}",
-            headers=DISCOGS_HEADERS,
-            timeout=15,
-        )
-        resp.raise_for_status()
-        data = resp.json()
+    """Fetch price suggestions and derive low/median/high. Retries on 429."""
+    for attempt in range(3):
+        try:
+            resp = session.get(
+                f"{DISCOGS_BASE}/marketplace/price_suggestions/{discogs_id}",
+                headers=DISCOGS_HEADERS,
+                timeout=15,
+            )
+            if resp.status_code == 429:
+                wait = int(resp.headers.get("Retry-After", 30))
+                print(f"  Rate limited, waiting {wait}s...")
+                time.sleep(wait)
+                continue
+            resp.raise_for_status()
+            data = resp.json()
 
-        prices = []
-        for condition, info in data.items():
-            if isinstance(info, dict) and "value" in info:
-                val = info["value"]
-                if val is not None:
-                    try:
-                        prices.append(float(val))
-                    except (ValueError, TypeError):
-                        pass
+            prices = []
+            for condition, info in data.items():
+                if isinstance(info, dict) and "value" in info:
+                    val = info["value"]
+                    if val is not None:
+                        try:
+                            prices.append(float(val))
+                        except (ValueError, TypeError):
+                            pass
 
-        if not prices:
+            if not prices:
+                return None, None, None
+
+            prices.sort()
+            lowest = min(prices)
+            highest = max(prices)
+            n = len(prices)
+            median = prices[n // 2] if n % 2 == 1 else (prices[n // 2 - 1] + prices[n // 2]) / 2
+
+            return round(lowest, 2), round(median, 2), round(highest, 2)
+        except requests.exceptions.RequestException as e:
+            print(f"  API error for {discogs_id}: {e}")
             return None, None, None
-
-        prices.sort()
-        lowest = min(prices)
-        highest = max(prices)
-        n = len(prices)
-        median = prices[n // 2] if n % 2 == 1 else (prices[n // 2 - 1] + prices[n // 2]) / 2
-
-        return round(lowest, 2), round(median, 2), round(highest, 2)
-    except requests.exceptions.RequestException as e:
-        print(f"  API error for {discogs_id}: {e}")
-        return None, None, None
+    return None, None, None
 
 
 def main():
@@ -98,6 +105,8 @@ def main():
 
         if (idx + 1) % 25 == 0 or idx + 1 == total:
             print(f"  [{idx + 1}/{total}] Updated: {updated}, No data: {errors}")
+
+        time.sleep(REQUEST_DELAY)
 
     cur.close()
     pg_conn.close()
