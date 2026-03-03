@@ -8,7 +8,7 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 
 **Goal:** Eigene Plattform mit voller Kontrolle über Marke, Kundendaten, Preisgestaltung — statt 8-13% Gebühren an eBay/Discogs
 
-**Status:** Phase 1 — RSE-72 bis RSE-85 erledigt, Produkt-Browser + TipTap Editor implementiert, Clickdummy live, Storefront + Admin live auf VPS, Discogs-Preise backfill läuft, RSE-76 (Payment & Stripe) als nächstes
+**Status:** Phase 1 — RSE-72 bis RSE-85 + RSE-87 bis RSE-96 erledigt, Clickdummy live, Storefront + Admin live auf VPS, Discogs-Preise backfill abgeschlossen (585 Releases), VPS Cronjobs aktiv, RSE-76 (Payment & Stripe) als nächstes
 
 **Sprache:** Storefront und Admin-UI komplett auf Englisch (seit 2026-03-03)
 
@@ -16,15 +16,18 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-03
 
 ### Letzte Änderungen (2026-03-03)
-- **Englische Übersetzung:** Alle UI-Texte (Storefront + Admin + API-Fehlermeldungen) auf Englisch
-- **Artikelnummern:** Neues DB-Feld `article_number` (Format: VOD-XXXXX), angezeigt in Storefront + Admin, durchsuchbar
-- **Discogs-Preise:** Low/Median/High statt nur Lowest, Discogs-Link auf Detailseiten, Sync-Script aktualisiert
-- **Credits-Fix:** Robustere Bereinigung (literal Escape-Sequenzen, CRLF, HTML-Tags)
-- **Related Sections:** Tabellenformat für verwandte Releases (by Artist/Label)
-- **Admin Media:** Country-Spalte + Filter hinzugefügt
-- **Admin Detail Fix:** Feldnamen in Admin Media Detail korrigiert (DB-Spaltennamen statt Aliasnamen), `formatPrice` toleriert Strings von Knex
-- **Related Releases Fix:** Knex-Subquery durch direkte Wertvergleiche ersetzt (Subquery wurde nicht evaluiert)
-- **Backfill-Script:** `scripts/backfill_discogs_prices.py` — Füllt Discogs-Preise für Releases mit discogs_id aber ohne Preise nach (1.5s Delay, 429-Retry)
+- **RSE-87: Englische Übersetzung** — Alle UI-Texte (Storefront + Admin + API-Fehlermeldungen) auf Englisch
+- **RSE-88: Artikelnummern** — Neues DB-Feld `article_number` (Format: VOD-XXXXX), angezeigt in Storefront + Admin, durchsuchbar
+- **RSE-89: Discogs-Preise** — Low/Median/High statt nur Lowest, Discogs-Link auf Detailseiten, Sync-Script aktualisiert
+- **RSE-90: Credits-Fix** — `cleanCredits()` Utility in `storefront/src/lib/utils.ts` (literal Escape-Sequenzen, CRLF, HTML-Tags, fragmentierte Role–Name Patterns)
+- **RSE-91: Admin Detail Fix** — Feldnamen in Admin Media Detail korrigiert (DB-Spaltennamen statt Aliasnamen), `formatPrice` toleriert Strings von Knex
+- **RSE-92: Related Releases Fix** — Knex-Subquery durch direkte Wertvergleiche ersetzt (Subquery wurde nicht evaluiert)
+- **RSE-93: Backfill-Script** — `scripts/backfill_discogs_prices.py` — Two-Pass: 1) `/releases/{id}` für lowest_price + community data, 2) `/price_suggestions/{id}` für median/highest (graceful stop bei Rate-Limit)
+- **RSE-94: VPS Deployment** — Backend + Admin + Storefront deployed, `rm -rf public/admin` Gotcha dokumentiert
+- **RSE-95: Discogs Backfill ausgeführt** — 585 Releases mit Median/Highest-Preisen befüllt
+- **RSE-96: VPS Cronjobs verifiziert** — Legacy Sync (täglich 04:00 UTC) + Discogs Weekly (Sonntag 02:00 UTC) aktiv, alle Dependencies installiert
+- Related Sections: Tabellenformat für verwandte Releases (by Artist/Label)
+- Admin Media: Country-Spalte + Filter hinzugefügt
 
 **Clickdummy:** https://vodauction.thehotshit.de (VPS, PM2, Port 3005)
 
@@ -86,14 +89,22 @@ Shared DB für tape-mag-mvp + VOD_Auctions. Schema enthält 20 Tabellen (14 Basi
 ## Implementation Plan
 
 ### Phase 1: Prototyp (Monate 1-2)
-- ~~RSE-72: Datenbank vorbereiten (Legacy-Migration + Auktions-Schema)~~ ✅
-- ~~RSE-73: Admin-Panel: Block-Erstellung, Produktauswahl, Startpreis-Review~~ ✅
-- ~~RSE-74: Public Frontend: Auktionskalender, Block-Detailseite~~ ✅
-- ~~RSE-75: Bidding-Engine: Gebote, Real-time, Auto-Extension~~ ✅
-- ~~RSE-75b: UX Polish & Kompletter Auktions-Workflow~~ ✅
-- ~~RSE-85: Storefront UX Redesign — Vinyl Culture Theme~~ ✅
+- ~~RSE-72: Datenbank vorbereiten~~ ✅
+- ~~RSE-73: Admin-Panel~~ ✅
+- ~~RSE-74: Public Frontend~~ ✅
+- ~~RSE-75: Bidding-Engine~~ ✅
+- ~~RSE-84: UX Polish & Auktions-Workflow~~ ✅
+- ~~RSE-85: Storefront UX Redesign~~ ✅
+- ~~RSE-87–94: Translation, Article Numbers, Discogs Prices, Credits, Bugfixes, Backfill, Deploy~~ ✅
+- ~~RSE-95–96: Discogs Backfill Completed, VPS Cronjobs Active~~ ✅
 - **RSE-76: Payment & Stripe Integration** ← NÄCHSTER SCHRITT
+- **RSE-100: Checkout Flow** (blocked by RSE-76)
+- **RSE-101: Order Progress Tracking** (blocked by RSE-76)
+- **RSE-103: Shipping Config** (blocked by RSE-76)
 - RSE-77: Testlauf: 1 Block mit 10-20 Produkten
+- RSE-102: Transactional Emails (6 Templates)
+- RSE-104: Bid Confirmation Modal
+- RSE-105: Legal Pages (Impressum, AGB, Datenschutz)
 
 ### Phase 2: Launch (Monate 3-4)
 - Erste öffentliche Themen-Auktionen
@@ -254,7 +265,7 @@ VOD_Auctions/
 │   │       ├── api.ts           # medusaFetch Helper
 │   │       ├── auth.ts          # Medusa Auth Helpers
 │   │       ├── motion.ts        # Framer Motion Variants
-│   │       ├── utils.ts         # cn() Helper
+│   │       ├── utils.ts         # cn() Helper + cleanCredits() for legacy data cleanup
 │   │       └── supabase.ts      # Supabase Client (Realtime)
 │   └── node_modules/
 ├── clickdummy/                  # Interaktiver Clickdummy (Port 3005)
@@ -361,27 +372,58 @@ npm run build             # Production build
 
 **Project:** [VOD Auctions](https://linear.app/rseckler/project/vod-auctions-37f35d4e90be)
 
-### Phase 0 (Setup)
-- **RSE-83:** Medusa.js Projekt-Setup & Konfiguration
+### Phase 0 (Setup) — Done
+- ~~**RSE-83:** Medusa.js Projekt-Setup & Konfiguration~~ ✅
 
 ### Phase 1 (Prototyp)
-- **RSE-72:** P1.1 Datenbank vorbereiten (Auktions-Tabellen, Release-Erweiterung)
-- **RSE-73:** P1.2 Admin-Panel (Block-Erstellung, Produktauswahl)
-- **RSE-74:** P1.3 Public Frontend (Auktionskalender, Block-Detailseite)
-- **RSE-75:** P1.4 Bidding-Engine (Gebote, Real-time, Auto-Extension)
-- **RSE-75b:** P1.4b UX Polish & Kompletter Auktions-Workflow
-- **RSE-85:** P1.x Storefront UX Redesign — Vinyl Culture Theme
-- **RSE-76:** P1.5 Payment & Stripe Integration
-- **RSE-77:** P1.6 Testlauf (1 Block, 10-20 Produkte)
 
-### Phase 2 (Launch)
+**Done:**
+- ~~**RSE-72:** P1.1 Datenbank vorbereiten~~ ✅
+- ~~**RSE-73:** P1.2 Admin-Panel~~ ✅
+- ~~**RSE-74:** P1.3 Public Frontend~~ ✅
+- ~~**RSE-75:** P1.4 Bidding-Engine~~ ✅
+- ~~**RSE-84:** P1.4b UX Polish & Auktions-Workflow~~ ✅
+- ~~**RSE-85:** P1.x Storefront UX Redesign~~ ✅
+- ~~**RSE-87:** English Translation~~ ✅
+- ~~**RSE-88:** Article Numbers (VOD-XXXXX)~~ ✅
+- ~~**RSE-89:** Discogs Prices (Low/Median/High)~~ ✅
+- ~~**RSE-90:** Credits Cleanup (cleanCredits utility)~~ ✅
+- ~~**RSE-91:** Admin Detail Fix (field names + formatPrice)~~ ✅
+- ~~**RSE-92:** Related Releases Fix (Knex subquery bug)~~ ✅
+- ~~**RSE-93:** Backfill Script (Discogs price suggestions)~~ ✅
+- ~~**RSE-94:** VPS Deployment (Backend + Storefront)~~ ✅
+- ~~**RSE-95:** Re-run Discogs price backfill~~ ✅
+- ~~**RSE-96:** VPS Cronjobs (Legacy + Discogs Sync)~~ ✅
+
+**Next (Backlog/Todo):**
+- **RSE-76:** Payment & Stripe Integration ← NÄCHSTER SCHRITT
+- **RSE-77:** Testlauf (1 Block, 10-20 Produkte)
+- **RSE-100:** Checkout Flow (Order Summary + Stripe Payment) — blocked by RSE-76
+- **RSE-101:** Order Progress Tracking (Paid/Shipped/Delivered) — blocked by RSE-76
+- **RSE-102:** Transactional Email Templates (6 Emails)
+- **RSE-103:** Shipping Configuration (Carrier + Flat Rate) — blocked by RSE-76
+- **RSE-104:** Bid Confirmation Modal
+- **RSE-105:** Legal Pages (Impressum, AGB, Datenschutz)
+
+**Independent (can start now):**
+- **RSE-97:** SEO & Meta Tags
+- **RSE-98:** Storefront Performance (Image optimization)
+- **RSE-99:** Admin Media Bulk Actions
+- **RSE-102:** Transactional Email Templates
+- **RSE-104:** Bid Confirmation Modal
+- **RSE-105:** Legal Pages
+
+### Phase 2 (Launch) — Backlog
 - **RSE-78:** P2.1 Launch-Vorbereitung (Domain, SEO, Legal)
 - **RSE-79:** P2.2 Erste öffentliche Themen-Auktionen
 - **RSE-80:** P2.3 Marketing (tape-mag.com Kundenbasis)
 
-### Phase 3-4
+### Phase 3-4 — Backlog
 - **RSE-81:** P3 Skalierung (5.000+ Items)
 - **RSE-82:** P4 Evaluierung & Datenanalyse
+
+### Duplicate/Obsolete
+- RSE-31, RSE-32, RSE-33 — Duplicate (alte eBay-Test Phase, ersetzt durch eigene Plattform)
 
 ## Data Sync & Enrichment Scripts
 
@@ -399,18 +441,23 @@ python3 legacy_sync.py           # Incremental sync of new/changed entries
 # Discogs Price Enrichment
 python3 discogs_batch.py          # Initial batch: match all 30k releases (8-12h, resumable)
 python3 discogs_weekly_sync.py    # Weekly price update (lowest + median + highest, 4-5h, resumable)
-python3 backfill_discogs_prices.py # Backfill price suggestions for releases with discogs_id but no prices
+python3 backfill_discogs_prices.py # Two-pass backfill: 1) /releases for basic data, 2) /price_suggestions for median/highest
 python3 discogs_price_test.py     # Feasibility test (100 random releases)
 
 # Article Numbers
 psql $SUPABASE_DB_URL -f generate_article_numbers.sql  # Generate VOD-XXXXX numbers
 ```
 
-**Cronjobs (VPS):**
+**Cronjobs (VPS — verifiziert 2026-03-03, alle Dependencies installiert):**
 ```bash
-0 4 * * * cd ~/VOD_Auctions/scripts && python3 legacy_sync.py >> legacy_sync.log 2>&1
-0 2 * * 0 cd ~/VOD_Auctions/scripts && python3 discogs_weekly_sync.py >> discogs_weekly.log 2>&1
+# Legacy MySQL → Supabase (daily 04:00 UTC)
+0 4 * * * cd ~/VOD_Auctions/scripts && ~/VOD_Auctions/scripts/venv/bin/python3 legacy_sync.py >> legacy_sync.log 2>&1
+# Discogs Weekly Price Update (Sunday 02:00 UTC)
+0 2 * * 0 cd ~/VOD_Auctions/scripts && ~/VOD_Auctions/scripts/venv/bin/python3 discogs_weekly_sync.py >> discogs_weekly.log 2>&1
 ```
+
+**VPS Python Dependencies (venv at `scripts/venv/`):**
+psycopg2-binary, python-dotenv, requests, mysql-connector-python
 
 **New DB columns:** discogs_id, discogs_lowest_price, discogs_median_price, discogs_highest_price, discogs_num_for_sale, discogs_have, discogs_want, discogs_last_synced, legacy_last_synced, article_number
 **New DB table:** sync_log (id, release_id, sync_type, sync_date, changes JSONB, status, error_message)
