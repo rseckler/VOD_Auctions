@@ -15,31 +15,31 @@ function BidStatusBadge({ bid }: { bid: BidEntry }) {
   if (bid.item.status === "sold" && bid.is_winning) {
     return (
       <Badge variant="outline" className="bg-green-500/15 text-green-500 border-green-500/30">
-        Gewonnen
+        Won
       </Badge>
     )
   }
   if (bid.item.status === "sold" && !bid.is_winning) {
     return (
-      <Badge variant="secondary">Verloren</Badge>
+      <Badge variant="secondary">Lost</Badge>
     )
   }
   if (bid.item.status === "unsold") {
     return (
-      <Badge variant="secondary">Nicht verkauft</Badge>
+      <Badge variant="secondary">Unsold</Badge>
     )
   }
   if (bid.is_winning) {
     return (
       <Badge variant="outline" className="bg-primary/15 text-primary border-primary/30">
-        Höchstgebot
+        Highest Bid
       </Badge>
     )
   }
   if (bid.is_outbid) {
     return (
       <Badge variant="outline" className="bg-orange-500/15 text-orange-500 border-orange-500/30">
-        Überboten
+        Outbid
       </Badge>
     )
   }
@@ -75,7 +75,7 @@ function BidCard({ bid }: { bid: BidEntry }) {
             {bid.item.release_artist && (
               <span className="text-muted-foreground">{bid.item.release_artist} — </span>
             )}
-            {bid.item.release_title || "Unbekannt"}
+            {bid.item.release_title || "Unknown"}
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">
             {bid.block.title} · Lot {bid.item.lot_number || "—"}
@@ -85,10 +85,10 @@ function BidCard({ bid }: { bid: BidEntry }) {
         <div className="text-right flex-shrink-0">
           <p className="text-sm font-bold font-mono">&euro;{bid.amount.toFixed(2)}</p>
           <p className="text-xs text-muted-foreground">
-            Aktuell: &euro;{bid.item.current_price.toFixed(2)}
+            Current: &euro;{bid.item.current_price.toFixed(2)}
           </p>
           <p className="text-xs text-muted-foreground/60 mt-0.5">
-            {new Date(bid.created_at).toLocaleDateString("de-DE")}
+            {new Date(bid.created_at).toLocaleDateString("en-US")}
           </p>
         </div>
       </Card>
@@ -152,9 +152,9 @@ export default function MyBidsPage() {
     return (
       <div className="text-center py-16">
         <Gavel className="h-12 w-12 text-muted-foreground/20 mx-auto mb-4" />
-        <p className="text-muted-foreground mb-2">Sie haben noch keine Gebote abgegeben.</p>
+        <p className="text-muted-foreground mb-2">You have not placed any bids yet.</p>
         <Button variant="outline" size="sm" asChild>
-          <Link href="/auctions">Zu den Auktionen</Link>
+          <Link href="/auctions">Go to Auctions</Link>
         </Button>
       </div>
     )
@@ -162,12 +162,12 @@ export default function MyBidsPage() {
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-6">Meine Gebote</h2>
+      <h2 className="text-xl font-semibold mb-6">My Bids</h2>
 
       {activeBids.length > 0 && (
         <section className="mb-8">
           <h3 className="text-sm font-medium text-muted-foreground mb-3">
-            Aktive Auktionen
+            Active Auctions
             <Badge variant="secondary" className="ml-2">{activeBids.length}</Badge>
           </h3>
           <div className="space-y-3">
@@ -181,7 +181,7 @@ export default function MyBidsPage() {
       {endedBids.length > 0 && (
         <section>
           <h3 className="text-sm font-medium text-muted-foreground mb-3">
-            Beendete Auktionen
+            Ended Auctions
             <Badge variant="secondary" className="ml-2">{endedBids.length}</Badge>
           </h3>
           <div className="space-y-3">

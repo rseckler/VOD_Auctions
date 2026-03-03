@@ -5,8 +5,23 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { ImageGallery } from "@/components/ImageGallery"
+import { CatalogRelatedSection } from "@/components/CatalogRelatedSection"
 import { medusaFetch } from "@/lib/api"
 import type { Release } from "@/types"
+
+type RelatedRelease = {
+  id: string
+  title: string
+  slug: string
+  format: string | null
+  year: number | null
+  country: string | null
+  coverImage: string | null
+  legacy_price: number | null
+  legacy_condition: string | null
+  artist_name: string | null
+  label_name: string | null
+}
 
 type CatalogRelease = Release & {
   images?: { id: string; url: string; alt: string }[]
@@ -14,6 +29,8 @@ type CatalogRelease = Release & {
   comments?: { id: string; content: string; rating: number | null; legacy_date: string | null }[]
   discogs_lowest_price?: number | null
   discogs_num_for_sale?: number | null
+  related_by_artist?: RelatedRelease[]
+  related_by_label?: RelatedRelease[]
 }
 
 async function getRelease(id: string): Promise<{ release: CatalogRelease } | null> {
@@ -55,7 +72,7 @@ export default async function CatalogDetailPage({
       {/* Breadcrumb */}
       <nav className="text-sm text-muted-foreground mb-8 flex items-center gap-1 flex-wrap">
         <Link href="/catalog" className="hover:text-foreground transition-colors">
-          Katalog
+          Catalog
         </Link>
         <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" />
         <span className="text-foreground truncate">
@@ -99,7 +116,7 @@ export default async function CatalogDetailPage({
           <div className="mt-6 bg-card border border-border/50 rounded-lg p-4 space-y-2">
             {release.legacy_price && (
               <div className="flex justify-between items-center">
-                <span className="text-muted-foreground text-sm">Katalogpreis</span>
+                <span className="text-muted-foreground text-sm">Catalog Price</span>
                 <span className="text-xl font-mono font-bold text-primary">
                   &euro;{Number(release.legacy_price).toFixed(2)}
                 </span>
@@ -107,12 +124,12 @@ export default async function CatalogDetailPage({
             )}
             {release.discogs_lowest_price && (
               <div className="flex justify-between items-center">
-                <span className="text-muted-foreground text-sm">Discogs ab</span>
+                <span className="text-muted-foreground text-sm">Discogs from</span>
                 <span className="text-sm font-mono">
                   &euro;{Number(release.discogs_lowest_price).toFixed(2)}
                   {release.discogs_num_for_sale ? (
                     <span className="text-muted-foreground ml-1">
-                      ({release.discogs_num_for_sale} Angebote)
+                      ({release.discogs_num_for_sale} listings)
                     </span>
                   ) : null}
                 </span>
@@ -120,7 +137,7 @@ export default async function CatalogDetailPage({
             )}
             {release.estimated_value && (
               <div className="flex justify-between items-center">
-                <span className="text-muted-foreground text-sm">Schätzwert</span>
+                <span className="text-muted-foreground text-sm">Estimated Value</span>
                 <span className="text-sm font-mono">
                   &euro;{Number(release.estimated_value).toFixed(2)}
                 </span>
@@ -140,13 +157,13 @@ export default async function CatalogDetailPage({
               )}
               {release.catalogNumber && (
                 <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Katalognummer</dt>
+                  <dt className="text-muted-foreground">Catalog Number</dt>
                   <dd className="font-mono text-xs">{release.catalogNumber}</dd>
                 </div>
               )}
               {release.legacy_condition && (
                 <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Zustand</dt>
+                  <dt className="text-muted-foreground">Condition</dt>
                   <dd className="font-mono text-xs uppercase">{release.legacy_condition}</dd>
                 </div>
               )}
@@ -158,13 +175,13 @@ export default async function CatalogDetailPage({
               )}
               {release.media_condition && (
                 <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Medium</dt>
+                  <dt className="text-muted-foreground">Media</dt>
                   <dd>{release.media_condition}</dd>
                 </div>
               )}
               {release.sleeve_condition && (
                 <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Hülle</dt>
+                  <dt className="text-muted-foreground">Sleeve</dt>
                   <dd>{release.sleeve_condition}</dd>
                 </div>
               )}
@@ -176,7 +193,7 @@ export default async function CatalogDetailPage({
             <>
               <Separator className="my-6" />
               <div>
-                <h2 className="text-lg font-semibold mb-2">Beteiligte Künstler</h2>
+                <h2 className="text-lg font-semibold mb-2">Contributing Artists</h2>
                 <div className="flex flex-wrap gap-1.5">
                   {release.various_artists.map((va, i) => (
                     <Badge key={i} variant="secondary" className="text-xs">
@@ -220,7 +237,7 @@ export default async function CatalogDetailPage({
               <div>
                 <h2 className="text-lg font-semibold mb-2">Credits</h2>
                 <p className="text-sm text-muted-foreground whitespace-pre-line">
-                  {release.credits}
+                  {release.credits.replace(/\\r\\n/g, '\n').replace(/\\r/g, '\n').replace(/\\n/g, '\n')}
                 </p>
               </div>
             </>
@@ -232,7 +249,7 @@ export default async function CatalogDetailPage({
               <Separator className="my-6" />
               <div>
                 <h2 className="text-lg font-semibold mb-3">
-                  Bewertungen ({release.comments.length})
+                  Reviews ({release.comments.length})
                 </h2>
                 <div className="space-y-3">
                   {release.comments.map((comment) => (
@@ -245,7 +262,7 @@ export default async function CatalogDetailPage({
                         )}
                         {comment.legacy_date && (
                           <span className="text-xs text-muted-foreground">
-                            {new Date(comment.legacy_date).toLocaleDateString("de-DE")}
+                            {new Date(comment.legacy_date).toLocaleDateString("en-US")}
                           </span>
                         )}
                       </div>
@@ -259,11 +276,20 @@ export default async function CatalogDetailPage({
         </div>
       </div>
 
+      {/* Related Section */}
+      <Separator className="my-8" />
+      <CatalogRelatedSection
+        artistName={release.artist_name}
+        labelName={release.label_name}
+        relatedByArtist={release.related_by_artist || []}
+        relatedByLabel={release.related_by_label || []}
+      />
+
       <Separator className="my-8" />
       <Button variant="ghost" asChild>
         <Link href="/catalog">
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Zurück zum Katalog
+          Back to Catalog
         </Link>
       </Button>
     </main>

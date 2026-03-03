@@ -56,10 +56,10 @@ export default function WinsPage() {
       <div className="text-center py-16">
         <Trophy className="h-12 w-12 text-muted-foreground/20 mx-auto mb-4" />
         <p className="text-muted-foreground mb-2">
-          Sie haben noch keine Auktionen gewonnen.
+          You have not won any auctions yet.
         </p>
         <Button variant="outline" size="sm" asChild>
-          <Link href="/auctions">Zu den Auktionen</Link>
+          <Link href="/auctions">Go to Auctions</Link>
         </Button>
       </div>
     )
@@ -68,7 +68,7 @@ export default function WinsPage() {
   return (
     <div>
       <h2 className="text-xl font-semibold mb-6">
-        Gewonnene Auktionen
+        Won Auctions
         <Badge variant="secondary" className="ml-2">{wins.length}</Badge>
       </h2>
 
@@ -95,7 +95,7 @@ export default function WinsPage() {
 
               <div className="flex-1 min-w-0">
                 <Badge variant="outline" className="bg-green-500/15 text-green-500 border-green-500/30">
-                  Gewonnen
+                  Won
                 </Badge>
                 <p className="text-sm font-medium truncate mt-1">
                   {win.item.release_artist && (
@@ -103,7 +103,7 @@ export default function WinsPage() {
                       {win.item.release_artist} —{" "}
                     </span>
                   )}
-                  {win.item.release_title || "Unbekannt"}
+                  {win.item.release_title || "Unknown"}
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {win.block.title} · Lot {win.item.lot_number || "—"}
@@ -115,7 +115,7 @@ export default function WinsPage() {
                   &euro;{win.final_price.toFixed(2)}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {new Date(win.bid_date).toLocaleDateString("de-DE")}
+                  {new Date(win.bid_date).toLocaleDateString("en-US")}
                 </p>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -125,11 +125,11 @@ export default function WinsPage() {
                       disabled
                       className="mt-1 text-xs h-7"
                     >
-                      Bezahlen
+                      Pay
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>Zahlungsfunktion wird in Kürze verfügbar sein</p>
+                    <p>Payment feature will be available soon</p>
                   </TooltipContent>
                 </Tooltip>
               </div>

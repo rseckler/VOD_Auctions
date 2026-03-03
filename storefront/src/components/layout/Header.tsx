@@ -7,8 +7,8 @@ import { HeaderAuth } from "@/components/HeaderAuth"
 import { MobileNav } from "./MobileNav"
 
 const NAV_LINKS = [
-  { href: "/auctions", label: "Auktionen" },
-  { href: "/catalog", label: "Katalog" },
+  { href: "/auctions", label: "Auctions" },
+  { href: "/catalog", label: "Catalog" },
 ]
 
 export function Header() {
@@ -42,7 +42,7 @@ export function Header() {
         <button
           onClick={() => setMobileOpen(true)}
           className="md:hidden p-2 text-muted-foreground hover:text-foreground transition-colors"
-          aria-label="Navigation öffnen"
+          aria-label="Open navigation"
         >
           <Menu className="h-5 w-5" />
         </button>

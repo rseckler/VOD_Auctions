@@ -10,10 +10,10 @@ import type { AuctionBlock } from "@/types"
 type FilterTab = "all" | "active" | "upcoming" | "ended"
 
 const TABS: { value: FilterTab; label: string }[] = [
-  { value: "all", label: "Alle" },
-  { value: "active", label: "Laufend" },
-  { value: "upcoming", label: "Demnächst" },
-  { value: "ended", label: "Beendet" },
+  { value: "all", label: "All" },
+  { value: "active", label: "Active" },
+  { value: "upcoming", label: "Upcoming" },
+  { value: "ended", label: "Ended" },
 ]
 
 export function AuctionListFilter({ blocks }: { blocks: AuctionBlock[] }) {
@@ -78,7 +78,7 @@ export function AuctionListFilter({ blocks }: { blocks: AuctionBlock[] }) {
           >
             <PackageOpen className="h-10 w-10 mx-auto text-muted-foreground/20 mb-3" />
             <p className="text-muted-foreground">
-              Keine Auktionen in dieser Kategorie.
+              No auctions in this category.
             </p>
           </motion.div>
         ) : (

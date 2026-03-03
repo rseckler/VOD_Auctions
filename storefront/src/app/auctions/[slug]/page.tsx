@@ -7,13 +7,13 @@ import type { AuctionBlock } from "@/types"
 
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   active: { label: "Live", className: "text-status-active" },
-  scheduled: { label: "Geplant", className: "text-muted-foreground" },
-  preview: { label: "Vorschau", className: "text-status-preview" },
-  ended: { label: "Beendet", className: "text-muted-foreground/60" },
+  scheduled: { label: "Scheduled", className: "text-muted-foreground" },
+  preview: { label: "Preview", className: "text-status-preview" },
+  ended: { label: "Ended", className: "text-muted-foreground/60" },
 }
 
 const TYPE_LABELS: Record<string, string> = {
-  theme: "Themen-Block",
+  theme: "Theme Block",
   highlight: "Highlight",
   clearance: "Clearance",
   flash: "Flash",
@@ -21,7 +21,7 @@ const TYPE_LABELS: Record<string, string> = {
 
 function timeRemaining(endStr: string): string {
   const diff = new Date(endStr).getTime() - Date.now()
-  if (diff <= 0) return "Beendet"
+  if (diff <= 0) return "Ended"
   const days = Math.floor(diff / 86400000)
   const hours = Math.floor((diff % 86400000) / 3600000)
   if (days > 0) return `${days}d ${hours}h`
@@ -100,17 +100,17 @@ export default async function BlockDetailPage({
               <div className="font-serif text-2xl">{items.length}</div>
             </div>
             <div>
-              <div className="text-[11px] uppercase tracking-[1px] text-muted-foreground/60 font-medium mb-1">Zeitraum</div>
+              <div className="text-[11px] uppercase tracking-[1px] text-muted-foreground/60 font-medium mb-1">Period</div>
               <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                 <Calendar className="h-3.5 w-3.5" />
-                {startDate.toLocaleDateString("de-DE", { day: "numeric", month: "short" })}
+                {startDate.toLocaleDateString("en-US", { day: "numeric", month: "short" })}
                 {" – "}
-                {endDate.toLocaleDateString("de-DE", { day: "numeric", month: "short", year: "numeric" })}
+                {endDate.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })}
               </div>
             </div>
             {priceRange && (
               <div>
-                <div className="text-[11px] uppercase tracking-[1px] text-muted-foreground/60 font-medium mb-1">Ab</div>
+                <div className="text-[11px] uppercase tracking-[1px] text-muted-foreground/60 font-medium mb-1">From</div>
                 <div className="font-serif text-2xl text-primary">
                   &euro;{priceRange.min.toFixed(0)}
                 </div>
@@ -118,7 +118,7 @@ export default async function BlockDetailPage({
             )}
             {block.status === "active" && (
               <div>
-                <div className="text-[11px] uppercase tracking-[1px] text-muted-foreground/60 font-medium mb-1">Restzeit</div>
+                <div className="text-[11px] uppercase tracking-[1px] text-muted-foreground/60 font-medium mb-1">Time Left</div>
                 <div className="flex items-center gap-1.5 text-status-active font-semibold">
                   <Clock className="h-3.5 w-3.5" />
                   {timeRemaining(block.end_time)}
@@ -133,7 +133,7 @@ export default async function BlockDetailPage({
         {/* Breadcrumb */}
         <nav className="text-sm text-muted-foreground mb-8 flex items-center gap-1">
           <Link href="/auctions" className="hover:text-primary transition-colors">
-            Auktionen
+            Auctions
           </Link>
           <ChevronRight className="h-3.5 w-3.5" />
           <span className="text-foreground">{block.title}</span>
@@ -165,7 +165,7 @@ export default async function BlockDetailPage({
         <section>
           <h2 className="font-serif text-2xl mb-6 flex items-center gap-3">
             Lots
-            <span className="text-sm font-sans text-muted-foreground font-normal">{items.length} Stück</span>
+            <span className="text-sm font-sans text-muted-foreground font-normal">{items.length} items</span>
           </h2>
           <BlockItemsGrid items={items} blockSlug={block.slug} />
         </section>

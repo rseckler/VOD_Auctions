@@ -19,13 +19,13 @@ export function HomeContent({ blocks }: { blocks: AuctionBlock[] }) {
           <div className="flex items-center justify-between mb-8">
             <h2 className="font-serif text-2xl md:text-3xl flex items-center gap-3">
               <span className="w-2 h-2 rounded-full bg-status-active animate-pulse" />
-              Laufende Auktionen
+              Active Auctions
             </h2>
             <Link
               href="/auctions"
               className="text-sm text-primary hover:text-primary/80 transition-colors"
             >
-              Alle ansehen →
+              View all →
             </Link>
           </div>
           <motion.div
@@ -44,12 +44,12 @@ export function HomeContent({ blocks }: { blocks: AuctionBlock[] }) {
       {upcoming.length > 0 && (
         <section className="mx-auto max-w-6xl px-6 pb-16">
           <div className="flex items-center justify-between mb-8">
-            <h2 className="font-serif text-2xl md:text-3xl">Demnächst</h2>
+            <h2 className="font-serif text-2xl md:text-3xl">Coming Soon</h2>
             <Link
               href="/auctions"
               className="text-sm text-primary hover:text-primary/80 transition-colors"
             >
-              Alle ansehen →
+              View all →
             </Link>
           </div>
           <motion.div

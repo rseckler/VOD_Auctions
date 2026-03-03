@@ -17,7 +17,7 @@ class ErrorBoundary extends Component<
     if (this.state.error) {
       return (
         <div style={{ padding: 24, color: "#ef4444" }}>
-          <h2>Fehler in Medien-Verwaltung:</h2>
+          <h2>Error in Media Management:</h2>
           <pre style={{ whiteSpace: "pre-wrap", fontSize: 13 }}>
             {this.state.error.message}
             {"\n\n"}
@@ -78,7 +78,7 @@ const FORMAT_OPTIONS = ["LP", "CD", "CASSETTE", "DVD", "7\"", "10\"", "12\"", "B
 
 const formatDate = (d: string | null) => {
   if (!d) return "\u2014"
-  return new Date(d).toLocaleDateString("de-DE", {
+  return new Date(d).toLocaleDateString("en-GB", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -106,6 +106,11 @@ const MediaPage = () => {
   const [hasDiscogs, setHasDiscogs] = useState("")
   const [hasPrice, setHasPrice] = useState("")
   const [auctionStatus, setAuctionStatus] = useState("")
+  const [countryFilter, setCountryFilter] = useState("")
+  const [yearFrom, setYearFrom] = useState("")
+  const [yearTo, setYearTo] = useState("")
+  const [labelFilter, setLabelFilter] = useState("")
+  const [labelInput, setLabelInput] = useState("")
   const [sortField, setSortField] = useState("")
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
 
@@ -119,10 +124,16 @@ const MediaPage = () => {
     return () => clearTimeout(timer)
   }, [searchInput])
 
+  // Debounce label filter
+  useEffect(() => {
+    const timer = setTimeout(() => setLabelFilter(labelInput), 300)
+    return () => clearTimeout(timer)
+  }, [labelInput])
+
   // Reset page on filter change
   useEffect(() => {
     setPage(0)
-  }, [searchQuery, activeFormat, hasDiscogs, hasPrice, auctionStatus, pageSize])
+  }, [searchQuery, activeFormat, hasDiscogs, hasPrice, auctionStatus, countryFilter, yearFrom, yearTo, labelFilter, pageSize])
 
   // Fetch stats
   useEffect(() => {
@@ -147,7 +158,11 @@ const MediaPage = () => {
     if (hasDiscogs) params.set("has_discogs", hasDiscogs)
     if (hasPrice) params.set("has_price", hasPrice)
     if (auctionStatus) params.set("auction_status", auctionStatus)
-    if (sortField) params.set("sort", `${sortField}:${sortDir}`)
+    if (countryFilter) params.set("country", countryFilter)
+    if (yearFrom) params.set("year_from", yearFrom)
+    if (yearTo) params.set("year_to", yearTo)
+    if (labelFilter) params.set("label", labelFilter)
+    if (sortField) params.set("sort", `${sortField}_${sortDir}`)
     params.set("limit", String(pageSize))
     params.set("offset", String(page * pageSize))
 
@@ -162,7 +177,7 @@ const MediaPage = () => {
         console.error("Fetch error:", err)
         setLoading(false)
       })
-  }, [searchQuery, activeFormat, hasDiscogs, hasPrice, auctionStatus, sortField, sortDir, page, pageSize])
+  }, [searchQuery, activeFormat, hasDiscogs, hasPrice, auctionStatus, countryFilter, yearFrom, yearTo, labelFilter, sortField, sortDir, page, pageSize])
 
   const totalPages = Math.ceil(count / pageSize)
 
@@ -208,6 +223,14 @@ const MediaPage = () => {
     width: "auto",
     minWidth: "120px",
     cursor: "pointer",
+  }
+
+  const smallInputStyle: React.CSSProperties = {
+    ...inputStyle,
+    width: "80px",
+    minWidth: "80px",
+    padding: "6px 10px",
+    fontSize: "13px",
   }
 
   const thStyle: React.CSSProperties = {
@@ -261,52 +284,43 @@ const MediaPage = () => {
   return (
     <ErrorBoundary>
     <div style={{ padding: "24px", background: COLORS.bg, minHeight: "100vh", color: COLORS.text }}>
-      {/* Page Title */}
       <h1 style={{ fontSize: "24px", fontWeight: 700, marginBottom: "20px" }}>
-        Medien-Verwaltung
+        Media Management
       </h1>
 
-      {/* Stats Header */}
+      {/* Stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px", marginBottom: "24px" }}>
         <div style={cardStyle}>
-          <div style={{ fontSize: "12px", color: COLORS.muted, marginBottom: "4px", textTransform: "uppercase" }}>
-            Gesamt Releases
-          </div>
+          <div style={{ fontSize: "12px", color: COLORS.muted, marginBottom: "4px", textTransform: "uppercase" }}>Total Releases</div>
           <div style={{ fontSize: "28px", fontWeight: 700, color: COLORS.gold }}>
-            {statsLoading ? "..." : stats?.total?.toLocaleString("de-DE") || "0"}
+            {statsLoading ? "..." : stats?.total?.toLocaleString("en-US") || "0"}
           </div>
         </div>
         <div style={cardStyle}>
-          <div style={{ fontSize: "12px", color: COLORS.muted, marginBottom: "4px", textTransform: "uppercase" }}>
-            Mit Discogs
-          </div>
+          <div style={{ fontSize: "12px", color: COLORS.muted, marginBottom: "4px", textTransform: "uppercase" }}>With Discogs</div>
           <div style={{ fontSize: "28px", fontWeight: 700, color: COLORS.gold }}>
-            {statsLoading ? "..." : stats?.with_discogs?.toLocaleString("de-DE") || "0"}
+            {statsLoading ? "..." : stats?.with_discogs?.toLocaleString("en-US") || "0"}
           </div>
         </div>
         <div style={cardStyle}>
-          <div style={{ fontSize: "12px", color: COLORS.muted, marginBottom: "4px", textTransform: "uppercase" }}>
-            Mit Preis
-          </div>
+          <div style={{ fontSize: "12px", color: COLORS.muted, marginBottom: "4px", textTransform: "uppercase" }}>With Price</div>
           <div style={{ fontSize: "28px", fontWeight: 700, color: COLORS.gold }}>
-            {statsLoading ? "..." : stats?.with_price?.toLocaleString("de-DE") || "0"}
+            {statsLoading ? "..." : stats?.with_price?.toLocaleString("en-US") || "0"}
           </div>
         </div>
         <div style={cardStyle}>
-          <div style={{ fontSize: "12px", color: COLORS.muted, marginBottom: "4px", textTransform: "uppercase" }}>
-            Letzter Sync
-          </div>
+          <div style={{ fontSize: "12px", color: COLORS.muted, marginBottom: "4px", textTransform: "uppercase" }}>Last Sync</div>
           <div style={{ fontSize: "16px", fontWeight: 500 }}>
             {statsLoading ? "..." : formatDate(stats?.last_discogs_sync || null)}
           </div>
         </div>
       </div>
 
-      {/* Search Bar */}
+      {/* Search */}
       <div style={{ marginBottom: "16px" }}>
         <input
           type="text"
-          placeholder="Suche nach Artist, Titel, Label, CatNo..."
+          placeholder="Search by artist, title, label, catalog no..."
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
           style={{ ...inputStyle, maxWidth: "500px", fontSize: "15px", padding: "10px 14px" }}
@@ -315,66 +329,57 @@ const MediaPage = () => {
 
       {/* Format Pills */}
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "16px" }}>
-        <button
-          onClick={() => setActiveFormat(null)}
-          style={btnStyle(activeFormat === null)}
-        >
-          Alle
-        </button>
+        <button onClick={() => setActiveFormat(null)} style={btnStyle(activeFormat === null)}>All</button>
         {FORMAT_OPTIONS.map((f) => (
-          <button
-            key={f}
-            onClick={() => setActiveFormat(activeFormat === f ? null : f)}
-            style={btnStyle(activeFormat === f)}
-          >
-            {f}
-          </button>
+          <button key={f} onClick={() => setActiveFormat(activeFormat === f ? null : f)} style={btnStyle(activeFormat === f)}>{f}</button>
         ))}
       </div>
 
-      {/* Filter Row */}
+      {/* Filters */}
       <div style={{ display: "flex", gap: "12px", alignItems: "center", marginBottom: "20px", flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
           <label style={{ fontSize: "13px", color: COLORS.muted }}>Discogs:</label>
-          <select
-            value={hasDiscogs}
-            onChange={(e) => setHasDiscogs(e.target.value)}
-            style={selectStyle}
-          >
-            <option value="">Alle</option>
-            <option value="true">Ja</option>
-            <option value="false">Nein</option>
+          <select value={hasDiscogs} onChange={(e) => setHasDiscogs(e.target.value)} style={selectStyle}>
+            <option value="">All</option>
+            <option value="true">Yes</option>
+            <option value="false">No</option>
           </select>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <label style={{ fontSize: "13px", color: COLORS.muted }}>Preis:</label>
-          <select
-            value={hasPrice}
-            onChange={(e) => setHasPrice(e.target.value)}
-            style={selectStyle}
-          >
-            <option value="">Alle</option>
-            <option value="true">Ja</option>
-            <option value="false">Nein</option>
+          <label style={{ fontSize: "13px", color: COLORS.muted }}>Price:</label>
+          <select value={hasPrice} onChange={(e) => setHasPrice(e.target.value)} style={selectStyle}>
+            <option value="">All</option>
+            <option value="true">Yes</option>
+            <option value="false">No</option>
           </select>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <label style={{ fontSize: "13px", color: COLORS.muted }}>Auktions-Status:</label>
-          <select
-            value={auctionStatus}
-            onChange={(e) => setAuctionStatus(e.target.value)}
-            style={selectStyle}
-          >
-            <option value="">Alle</option>
-            <option value="available">Verfuegbar</option>
-            <option value="reserved">Reserviert</option>
-            <option value="in_auction">In Auktion</option>
-            <option value="sold">Verkauft</option>
-            <option value="unsold">Unverkauft</option>
+          <label style={{ fontSize: "13px", color: COLORS.muted }}>Status:</label>
+          <select value={auctionStatus} onChange={(e) => setAuctionStatus(e.target.value)} style={selectStyle}>
+            <option value="">All</option>
+            <option value="available">Available</option>
+            <option value="reserved">Reserved</option>
+            <option value="in_auction">In Auction</option>
+            <option value="sold">Sold</option>
+            <option value="unsold">Unsold</option>
           </select>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <label style={{ fontSize: "13px", color: COLORS.muted }}>Country:</label>
+          <input type="text" placeholder="e.g. Germany" value={countryFilter} onChange={(e) => setCountryFilter(e.target.value)} style={{ ...smallInputStyle, width: "110px" }} />
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <label style={{ fontSize: "13px", color: COLORS.muted }}>Year:</label>
+          <input type="number" placeholder="From" value={yearFrom} onChange={(e) => setYearFrom(e.target.value)} style={smallInputStyle} />
+          <span style={{ color: COLORS.muted }}>&ndash;</span>
+          <input type="number" placeholder="To" value={yearTo} onChange={(e) => setYearTo(e.target.value)} style={smallInputStyle} />
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <label style={{ fontSize: "13px", color: COLORS.muted }}>Label:</label>
+          <input type="text" placeholder="Search label..." value={labelInput} onChange={(e) => setLabelInput(e.target.value)} style={{ ...smallInputStyle, width: "140px" }} />
         </div>
         <div style={{ marginLeft: "auto", fontSize: "13px", color: COLORS.muted }}>
-          {count.toLocaleString("de-DE")} Ergebnis{count !== 1 ? "se" : ""}
+          {count.toLocaleString("en-US")} result{count !== 1 ? "s" : ""}
         </div>
       </div>
 
@@ -384,43 +389,24 @@ const MediaPage = () => {
           <thead>
             <tr>
               <th style={{ ...thStyle, width: "44px", cursor: "default" }}>Cover</th>
-              <th style={thStyle} onClick={() => handleSort("artist_name")}>
-                Artist{sortIndicator("artist_name")}
-              </th>
-              <th style={thStyle} onClick={() => handleSort("title")}>
-                Titel{sortIndicator("title")}
-              </th>
-              <th style={thStyle} onClick={() => handleSort("format")}>
-                Format{sortIndicator("format")}
-              </th>
-              <th style={thStyle} onClick={() => handleSort("year")}>
-                Jahr{sortIndicator("year")}
-              </th>
-              <th style={thStyle} onClick={() => handleSort("label_name")}>
-                Label{sortIndicator("label_name")}
-              </th>
+              <th style={thStyle} onClick={() => handleSort("artist_name")}>Artist{sortIndicator("artist_name")}</th>
+              <th style={thStyle} onClick={() => handleSort("title")}>Title{sortIndicator("title")}</th>
+              <th style={thStyle} onClick={() => handleSort("format")}>Format{sortIndicator("format")}</th>
+              <th style={thStyle} onClick={() => handleSort("year")}>Year{sortIndicator("year")}</th>
+              <th style={thStyle} onClick={() => handleSort("country")}>Country{sortIndicator("country")}</th>
+              <th style={thStyle} onClick={() => handleSort("label")}>Label{sortIndicator("label")}</th>
               <th style={{ ...thStyle, cursor: "default" }}>CatNo</th>
-              <th style={thStyle} onClick={() => handleSort("lowest_price")}>
-                Discogs Preis{sortIndicator("lowest_price")}
-              </th>
+              <th style={thStyle} onClick={() => handleSort("lowest_price")}>Discogs Price{sortIndicator("lowest_price")}</th>
               <th style={{ ...thStyle, cursor: "default" }}>Discogs ID</th>
               <th style={{ ...thStyle, cursor: "default" }}>Status</th>
-              <th style={{ ...thStyle, cursor: "default" }}>Letzter Sync</th>
+              <th style={{ ...thStyle, cursor: "default" }}>Last Sync</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr>
-                <td colSpan={11} style={{ ...tdStyle, textAlign: "center", padding: "40px", color: COLORS.muted }}>
-                  Laden...
-                </td>
-              </tr>
+              <tr><td colSpan={12} style={{ ...tdStyle, textAlign: "center", padding: "40px", color: COLORS.muted }}>Loading...</td></tr>
             ) : releases.length === 0 ? (
-              <tr>
-                <td colSpan={11} style={{ ...tdStyle, textAlign: "center", padding: "40px", color: COLORS.muted }}>
-                  Keine Ergebnisse gefunden.
-                </td>
-              </tr>
+              <tr><td colSpan={12} style={{ ...tdStyle, textAlign: "center", padding: "40px", color: COLORS.muted }}>No results found.</td></tr>
             ) : (
               releases.map((r) => (
                 <tr
@@ -432,93 +418,32 @@ const MediaPage = () => {
                 >
                   <td style={tdStyle}>
                     {r.coverImage ? (
-                      <img
-                        src={r.coverImage}
-                        alt=""
-                        style={{
-                          width: "32px",
-                          height: "32px",
-                          objectFit: "cover",
-                          borderRadius: "4px",
-                          border: `1px solid ${COLORS.border}`,
-                        }}
-                      />
+                      <img src={r.coverImage} alt="" style={{ width: "32px", height: "32px", objectFit: "cover", borderRadius: "4px", border: `1px solid ${COLORS.border}` }} />
                     ) : (
-                      <div
-                        style={{
-                          width: "32px",
-                          height: "32px",
-                          borderRadius: "4px",
-                          background: COLORS.border,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: "12px",
-                          color: COLORS.muted,
-                        }}
-                      >
-                        \u266B
-                      </div>
+                      <div style={{ width: "32px", height: "32px", borderRadius: "4px", background: COLORS.border, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", color: COLORS.muted }}>&#9835;</div>
                     )}
                   </td>
                   <td style={tdStyle}>{r.artist_name || "\u2014"}</td>
                   <td style={{ ...tdStyle, fontWeight: 500 }}>{r.title || "\u2014"}</td>
                   <td style={tdStyle}>
-                    <span
-                      style={{
-                        padding: "2px 8px",
-                        borderRadius: "4px",
-                        fontSize: "12px",
-                        background: COLORS.hover,
-                        color: COLORS.text,
-                      }}
-                    >
-                      {r.format || "\u2014"}
-                    </span>
+                    <span style={{ padding: "2px 8px", borderRadius: "4px", fontSize: "12px", background: COLORS.hover, color: COLORS.text }}>{r.format || "\u2014"}</span>
                   </td>
                   <td style={tdStyle}>{r.year || "\u2014"}</td>
+                  <td style={{ ...tdStyle, fontSize: "13px" }}>{r.country || "\u2014"}</td>
                   <td style={tdStyle}>{r.label_name || "\u2014"}</td>
                   <td style={{ ...tdStyle, fontSize: "12px", color: COLORS.muted }}>{r.cat_no || "\u2014"}</td>
-                  <td style={{ ...tdStyle, color: r.lowest_price ? COLORS.gold : COLORS.muted }}>
-                    {formatPrice(r.lowest_price)}
-                  </td>
+                  <td style={{ ...tdStyle, color: r.lowest_price ? COLORS.gold : COLORS.muted }}>{formatPrice(r.lowest_price)}</td>
                   <td style={tdStyle}>
                     {r.discogs_id ? (
-                      <a
-                        href={`https://www.discogs.com/release/${r.discogs_id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        style={{ color: COLORS.gold, textDecoration: "none", fontSize: "13px" }}
-                      >
-                        {r.discogs_id} \u2197
-                      </a>
-                    ) : (
-                      <span style={{ color: COLORS.muted }}>\u2014</span>
-                    )}
+                      <a href={`https://www.discogs.com/release/${r.discogs_id}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: COLORS.gold, textDecoration: "none", fontSize: "13px" }}>{r.discogs_id} &#8599;</a>
+                    ) : (<span style={{ color: COLORS.muted }}>{"\u2014"}</span>)}
                   </td>
                   <td style={tdStyle}>
                     {r.auction_status ? (
-                      <span
-                        style={{
-                          padding: "2px 8px",
-                          borderRadius: "12px",
-                          fontSize: "11px",
-                          fontWeight: 600,
-                          background: `${STATUS_COLORS[r.auction_status] || COLORS.muted}20`,
-                          color: STATUS_COLORS[r.auction_status] || COLORS.muted,
-                          textTransform: "capitalize",
-                        }}
-                      >
-                        {r.auction_status}
-                      </span>
-                    ) : (
-                      <span style={{ color: COLORS.muted }}>\u2014</span>
-                    )}
+                      <span style={{ padding: "2px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: 600, background: `${STATUS_COLORS[r.auction_status] || COLORS.muted}20`, color: STATUS_COLORS[r.auction_status] || COLORS.muted, textTransform: "capitalize" }}>{r.auction_status}</span>
+                    ) : (<span style={{ color: COLORS.muted }}>{"\u2014"}</span>)}
                   </td>
-                  <td style={{ ...tdStyle, fontSize: "12px", color: COLORS.muted }}>
-                    {formatDate(r.last_discogs_sync)}
-                  </td>
+                  <td style={{ ...tdStyle, fontSize: "12px", color: COLORS.muted }}>{formatDate(r.last_discogs_sync)}</td>
                 </tr>
               ))
             )}
@@ -528,75 +453,32 @@ const MediaPage = () => {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginTop: "16px",
-            flexWrap: "wrap",
-            gap: "12px",
-          }}
-        >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "16px", flexWrap: "wrap", gap: "12px" }}>
           <div style={{ display: "flex", gap: "4px", alignItems: "center", flexWrap: "wrap" }}>
-            <button
-              onClick={() => setPage(Math.max(0, page - 1))}
-              disabled={page === 0}
-              style={{
-                ...pageBtnStyle(false),
-                opacity: page === 0 ? 0.4 : 1,
-                cursor: page === 0 ? "default" : "pointer",
-              }}
-            >
-              \u2190 Zurueck
-            </button>
+            <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0} style={{ ...pageBtnStyle(false), opacity: page === 0 ? 0.4 : 1, cursor: page === 0 ? "default" : "pointer" }}>&#8592; Previous</button>
             {(() => {
               const pages: number[] = []
               const start = Math.max(0, page - 2)
               const end = Math.min(totalPages - 1, page + 2)
               if (start > 0) pages.push(0)
-              if (start > 1) pages.push(-1) // ellipsis marker
+              if (start > 1) pages.push(-1)
               for (let i = start; i <= end; i++) pages.push(i)
-              if (end < totalPages - 2) pages.push(-2) // ellipsis marker
+              if (end < totalPages - 2) pages.push(-2)
               if (end < totalPages - 1) pages.push(totalPages - 1)
               return pages.map((p, idx) =>
-                p < 0 ? (
-                  <span key={`ellipsis-${idx}`} style={{ color: COLORS.muted, padding: "0 4px" }}>
-                    ...
-                  </span>
-                ) : (
-                  <button key={p} onClick={() => setPage(p)} style={pageBtnStyle(p === page)}>
-                    {p + 1}
-                  </button>
-                )
+                p < 0 ? (<span key={`ellipsis-${idx}`} style={{ color: COLORS.muted, padding: "0 4px" }}>...</span>) : (<button key={p} onClick={() => setPage(p)} style={pageBtnStyle(p === page)}>{p + 1}</button>)
               )
             })()}
-            <button
-              onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
-              disabled={page >= totalPages - 1}
-              style={{
-                ...pageBtnStyle(false),
-                opacity: page >= totalPages - 1 ? 0.4 : 1,
-                cursor: page >= totalPages - 1 ? "default" : "pointer",
-              }}
-            >
-              Weiter \u2192
-            </button>
+            <button onClick={() => setPage(Math.min(totalPages - 1, page + 1))} disabled={page >= totalPages - 1} style={{ ...pageBtnStyle(false), opacity: page >= totalPages - 1 ? 0.4 : 1, cursor: page >= totalPages - 1 ? "default" : "pointer" }}>Next &#8594;</button>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <label style={{ fontSize: "13px", color: COLORS.muted }}>Pro Seite:</label>
-            <select
-              value={pageSize}
-              onChange={(e) => setPageSize(Number(e.target.value))}
-              style={{ ...selectStyle, minWidth: "70px" }}
-            >
+            <label style={{ fontSize: "13px", color: COLORS.muted }}>Per page:</label>
+            <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))} style={{ ...selectStyle, minWidth: "70px" }}>
               <option value={25}>25</option>
               <option value={50}>50</option>
               <option value={100}>100</option>
             </select>
-            <span style={{ fontSize: "13px", color: COLORS.muted }}>
-              Seite {page + 1} von {totalPages}
-            </span>
+            <span style={{ fontSize: "13px", color: COLORS.muted }}>Page {page + 1} of {totalPages}</span>
           </div>
         </div>
       )}
@@ -606,7 +488,7 @@ const MediaPage = () => {
 }
 
 export const config = defineRouteConfig({
-  label: "Medien",
+  label: "Media",
 })
 
 export default MediaPage

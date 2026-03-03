@@ -88,10 +88,10 @@ export default function CatalogPage() {
     <main className="mx-auto max-w-7xl px-6 py-8">
       <div className="mb-8">
         <h1 className="text-3xl md:text-4xl font-bold font-[family-name:var(--font-dm-serif)]">
-          Katalog
+          Catalog
         </h1>
         <p className="text-muted-foreground mt-2">
-          {total.toLocaleString("de-DE")} Releases aus dem Archiv
+          {total.toLocaleString("en-US")} releases from the archive
         </p>
       </div>
 
@@ -103,11 +103,11 @@ export default function CatalogPage() {
             <Input
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Suche nach Titel, Artist, Label, Katalognummer..."
+              placeholder="Search by title, artist, label, catalog number..."
               className="pl-10"
             />
           </div>
-          <Button type="submit" variant="secondary">Suchen</Button>
+          <Button type="submit" variant="secondary">Search</Button>
         </form>
 
         {/* Sort */}
@@ -115,8 +115,8 @@ export default function CatalogPage() {
           {[
             { key: "title", label: "A-Z" },
             { key: "artist", label: "Artist" },
-            { key: "year", label: "Jahr" },
-            { key: "price", label: "Preis" },
+            { key: "year", label: "Year" },
+            { key: "price", label: "Price" },
           ].map(({ key, label }) => (
             <Button
               key={key}
@@ -139,7 +139,7 @@ export default function CatalogPage() {
           onClick={() => { setFormat(""); setPage(1) }}
           className="text-xs"
         >
-          Alle
+          All
         </Button>
         {FORMATS.map((f) => (
           <Button
@@ -241,7 +241,7 @@ export default function CatalogPage() {
         <div className="text-center py-16">
           <Disc3 className="h-16 w-16 text-muted-foreground/30 mx-auto mb-4" />
           <p className="text-lg text-muted-foreground">
-            Keine Releases gefunden.
+            No releases found.
           </p>
         </div>
       )}
@@ -256,10 +256,10 @@ export default function CatalogPage() {
             disabled={page <= 1}
           >
             <ChevronLeft className="h-4 w-4 mr-1" />
-            Zurück
+            Back
           </Button>
           <span className="text-sm text-muted-foreground">
-            Seite {page} von {pages}
+            Page {page} of {pages}
           </span>
           <Button
             variant="outline"
@@ -267,7 +267,7 @@ export default function CatalogPage() {
             onClick={() => setPage(Math.min(pages, page + 1))}
             disabled={page >= pages}
           >
-            Weiter
+            Next
             <ChevronRight className="h-4 w-4 ml-1" />
           </Button>
         </div>

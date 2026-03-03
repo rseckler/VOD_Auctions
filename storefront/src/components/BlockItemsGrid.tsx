@@ -19,9 +19,9 @@ const FORMAT_COLORS: Record<string, string> = {
 type SortOption = "lot" | "price_asc" | "price_desc" | "artist"
 
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
-  { value: "lot", label: "Lot-Nr." },
-  { value: "price_asc", label: "Preis ↑" },
-  { value: "price_desc", label: "Preis ↓" },
+  { value: "lot", label: "Lot No." },
+  { value: "price_asc", label: "Price ↑" },
+  { value: "price_desc", label: "Price ↓" },
   { value: "artist", label: "Artist A-Z" },
 ]
 
@@ -77,7 +77,7 @@ export function BlockItemsGrid({
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/60" />
             <input
               type="text"
-              placeholder={`Suche in ${items.length} Lots...`}
+              placeholder={`Search in ${items.length} lots...`}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-4 py-2 bg-[rgba(232,224,212,0.04)] border border-[rgba(232,224,212,0.08)] rounded-lg text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-[rgba(212,165,74,0.3)] transition-colors"
@@ -105,7 +105,7 @@ export function BlockItemsGrid({
 
       {search.trim() && (
         <p className="text-sm text-muted-foreground mb-4">
-          {filtered.length} von {items.length} Lots
+          {filtered.length} of {items.length} lots
         </p>
       )}
 
@@ -121,8 +121,8 @@ export function BlockItemsGrid({
             <Disc3 className="h-10 w-10 mx-auto text-muted-foreground/20 mb-3" />
             <p className="text-muted-foreground">
               {search.trim()
-                ? "Keine Lots gefunden."
-                : "Noch keine Lots in diesem Block."}
+                ? "No lots found."
+                : "No lots in this block yet."}
             </p>
           </motion.div>
         ) : (
@@ -184,7 +184,7 @@ export function BlockItemsGrid({
                       </div>
                       {item.bid_count > 0 && (
                         <p className="text-[10px] text-muted-foreground/60 mt-1">
-                          {item.bid_count} Gebot{item.bid_count !== 1 ? "e" : ""}
+                          {item.bid_count} {item.bid_count !== 1 ? "bids" : "bid"}
                         </p>
                       )}
                     </div>

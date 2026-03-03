@@ -41,7 +41,7 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
       }
       onClose()
     } catch (err: any) {
-      setError(err.message || "Fehler")
+      setError(err.message || "Error")
     } finally {
       setLoading(false)
     }
@@ -52,12 +52,12 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {mode === "login" ? "Anmelden" : "Registrieren"}
+            {mode === "login" ? "Login" : "Register"}
           </DialogTitle>
           <DialogDescription>
             {mode === "login"
-              ? "Melden Sie sich an, um zu bieten."
-              : "Erstellen Sie ein Konto, um zu bieten."}
+              ? "Log in to place bids."
+              : "Create an account to bid."}
           </DialogDescription>
         </DialogHeader>
 
@@ -65,7 +65,7 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
           {mode === "register" && (
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="firstName">Vorname</Label>
+                <Label htmlFor="firstName">First Name</Label>
                 <Input
                   id="firstName"
                   type="text"
@@ -75,7 +75,7 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="lastName">Nachname</Label>
+                <Label htmlFor="lastName">Last Name</Label>
                 <Input
                   id="lastName"
                   type="text"
@@ -88,7 +88,7 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
           )}
 
           <div className="space-y-1.5">
-            <Label htmlFor="email">E-Mail</Label>
+            <Label htmlFor="email">Email</Label>
             <Input
               id="email"
               type="email"
@@ -99,7 +99,7 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="password">Passwort</Label>
+            <Label htmlFor="password">Password</Label>
             <Input
               id="password"
               type="password"
@@ -116,32 +116,32 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
 
           <Button type="submit" disabled={loading} className="w-full">
             {loading
-              ? "Bitte warten…"
+              ? "Please wait…"
               : mode === "login"
-                ? "Anmelden"
-                : "Konto erstellen"}
+                ? "Login"
+                : "Create Account"}
           </Button>
         </form>
 
         <p className="text-center text-xs text-muted-foreground mt-2">
           {mode === "login" ? (
             <>
-              Noch kein Konto?{" "}
+              Don&apos;t have an account?{" "}
               <button
                 onClick={() => { setMode("register"); setError("") }}
                 className="text-primary hover:underline"
               >
-                Registrieren
+                Register
               </button>
             </>
           ) : (
             <>
-              Bereits registriert?{" "}
+              Already registered?{" "}
               <button
                 onClick={() => { setMode("login"); setError("") }}
                 className="text-primary hover:underline"
               >
-                Anmelden
+                Login
               </button>
             </>
           )}

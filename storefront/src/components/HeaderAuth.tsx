@@ -44,25 +44,25 @@ export function HeaderAuth() {
           <DropdownMenuItem asChild>
             <Link href="/account" className="flex items-center gap-2">
               <User className="h-4 w-4" />
-              Mein Konto
+              My Account
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link href="/account/bids" className="flex items-center gap-2">
               <Gavel className="h-4 w-4" />
-              Meine Gebote
+              My Bids
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link href="/account/wins" className="flex items-center gap-2">
               <Trophy className="h-4 w-4" />
-              Gewonnen
+              Won
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link href="/account/settings" className="flex items-center gap-2">
               <Settings className="h-4 w-4" />
-              Einstellungen
+              Settings
             </Link>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
@@ -71,7 +71,7 @@ export function HeaderAuth() {
             className="flex items-center gap-2 text-muted-foreground"
           >
             <LogOut className="h-4 w-4" />
-            Abmelden
+            Logout
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -85,7 +85,7 @@ export function HeaderAuth() {
         onClick={() => setAuthModalOpen(true)}
         className="bg-gradient-to-r from-primary to-[#b8860b]"
       >
-        Anmelden
+        Login
       </Button>
       <AuthModal
         open={authModalOpen}

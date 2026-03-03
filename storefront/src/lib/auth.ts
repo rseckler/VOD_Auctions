@@ -21,7 +21,7 @@ export async function register(
 
   if (!authRes.ok) {
     const err = await authRes.json().catch(() => ({}))
-    throw new Error(err.message || "Registrierung fehlgeschlagen")
+    throw new Error(err.message || "Registration failed")
   }
 
   const { token } = await authRes.json()
@@ -43,7 +43,7 @@ export async function register(
 
   if (!custRes.ok) {
     const err = await custRes.json().catch(() => ({}))
-    throw new Error(err.message || "Kundenkonto konnte nicht erstellt werden")
+    throw new Error(err.message || "Customer account could not be created")
   }
 
   return token
@@ -61,7 +61,7 @@ export async function login(
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
-    throw new Error(err.message || "Anmeldung fehlgeschlagen")
+    throw new Error(err.message || "Login failed")
   }
 
   const { token } = await res.json()

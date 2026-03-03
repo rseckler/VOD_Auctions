@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { ImageGallery } from "@/components/ImageGallery"
 import { ItemBidSection } from "@/components/ItemBidSection"
+import { RelatedSection } from "@/components/RelatedSection"
 import { medusaFetch } from "@/lib/api"
-import type { BlockItem, ReleaseImage, TracklistEntry, VariousArtist, ReleaseComment } from "@/types"
+import type { AuctionBlock, BlockItem, ReleaseImage, TracklistEntry, VariousArtist, ReleaseComment } from "@/types"
 
 type BlockInfo = {
   id: string
@@ -42,6 +43,14 @@ async function getItem(
   )
 }
 
+async function getBlockItems(slug: string): Promise<BlockItem[]> {
+  const data = await medusaFetch<{ auction_block: AuctionBlock }>(
+    `/store/auction-blocks/${slug}`,
+    { revalidate: 60 }
+  )
+  return data?.auction_block?.items || []
+}
+
 const FORMAT_COLORS: Record<string, string> = {
   LP: "bg-format-vinyl/15 text-format-vinyl border-format-vinyl/30",
   CD: "bg-format-cd/15 text-format-cd border-format-cd/30",
@@ -54,7 +63,10 @@ export default async function ItemDetailPage({
   params: Promise<{ slug: string; itemId: string }>
 }) {
   const { slug, itemId } = await params
-  const data = await getItem(slug, itemId)
+  const [data, blockItems] = await Promise.all([
+    getItem(slug, itemId),
+    getBlockItems(slug),
+  ])
 
   if (!data) notFound()
 
@@ -76,7 +88,7 @@ export default async function ItemDetailPage({
       {/* Breadcrumb */}
       <nav className="text-sm text-muted-foreground mb-8 flex items-center gap-1 flex-wrap">
         <Link href="/auctions" className="hover:text-foreground transition-colors">
-          Auktionen
+          Auctions
         </Link>
         <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" />
         <Link href={`/auctions/${block.slug}`} className="hover:text-foreground transition-colors">
@@ -142,7 +154,7 @@ export default async function ItemDetailPage({
 
           {item.estimated_value && (
             <div className="mt-3 flex items-center justify-between text-sm px-1">
-              <span className="text-muted-foreground">Schätzwert</span>
+              <span className="text-muted-foreground">Estimated Value</span>
               <span className="text-muted-foreground">
                 &euro;{Number(item.estimated_value).toFixed(2)}
               </span>
@@ -161,25 +173,25 @@ export default async function ItemDetailPage({
               )}
               {release?.catalogNumber && (
                 <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Katalognummer</dt>
+                  <dt className="text-muted-foreground">Catalog Number</dt>
                   <dd className="font-mono text-xs">{release.catalogNumber}</dd>
                 </div>
               )}
               {release?.legacy_condition && (
                 <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Zustand</dt>
+                  <dt className="text-muted-foreground">Condition</dt>
                   <dd className="font-mono text-xs uppercase">{release.legacy_condition}</dd>
                 </div>
               )}
               {release?.media_condition && (
                 <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Medium</dt>
+                  <dt className="text-muted-foreground">Media</dt>
                   <dd>{release.media_condition}</dd>
                 </div>
               )}
               {release?.sleeve_condition && (
                 <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Hülle</dt>
+                  <dt className="text-muted-foreground">Sleeve</dt>
                   <dd>{release.sleeve_condition}</dd>
                 </div>
               )}
@@ -191,7 +203,7 @@ export default async function ItemDetailPage({
               )}
               {release?.legacy_price && (
                 <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Katalogpreis</dt>
+                  <dt className="text-muted-foreground">Catalog Price</dt>
                   <dd className="font-mono">&euro;{Number(release.legacy_price).toFixed(2)}</dd>
                 </div>
               )}
@@ -203,7 +215,7 @@ export default async function ItemDetailPage({
             <>
               <Separator className="my-6" />
               <div>
-                <h2 className="text-lg font-semibold mb-2">Beteiligte Künstler</h2>
+                <h2 className="text-lg font-semibold mb-2">Contributing Artists</h2>
                 <div className="flex flex-wrap gap-1.5">
                   {release.various_artists.map((va, i) => (
                     <Badge key={i} variant="secondary" className="text-xs">
@@ -247,7 +259,7 @@ export default async function ItemDetailPage({
               <div>
                 <h2 className="text-lg font-semibold mb-2">Credits</h2>
                 <p className="text-sm text-muted-foreground whitespace-pre-line">
-                  {release.credits}
+                  {release.credits.replace(/\\r\\n/g, '\n').replace(/\\r/g, '\n').replace(/\\n/g, '\n')}
                 </p>
               </div>
             </>
@@ -258,7 +270,7 @@ export default async function ItemDetailPage({
             <>
               <Separator className="my-6" />
               <div>
-                <h2 className="text-lg font-semibold mb-2">Beschreibung</h2>
+                <h2 className="text-lg font-semibold mb-2">Description</h2>
                 <p className="text-sm text-muted-foreground whitespace-pre-line">
                   {release.description}
                 </p>
@@ -272,7 +284,7 @@ export default async function ItemDetailPage({
               <Separator className="my-6" />
               <div>
                 <h2 className="text-lg font-semibold mb-3">
-                  Bewertungen ({release.comments.length})
+                  Reviews ({release.comments.length})
                 </h2>
                 <div className="space-y-3">
                   {release.comments.map((comment) => (
@@ -285,7 +297,7 @@ export default async function ItemDetailPage({
                         )}
                         {comment.legacy_date && (
                           <span className="text-xs text-muted-foreground">
-                            {new Date(comment.legacy_date).toLocaleDateString("de-DE")}
+                            {new Date(comment.legacy_date).toLocaleDateString("en-US")}
                           </span>
                         )}
                       </div>
@@ -299,11 +311,22 @@ export default async function ItemDetailPage({
         </div>
       </div>
 
+      {/* Related Section */}
+      <Separator className="my-8" />
+      <RelatedSection
+        blockSlug={block.slug}
+        currentItemId={item.id}
+        blockItems={blockItems}
+        artistName={release?.artist_name || null}
+        labelName={release?.label_name || null}
+        variousArtists={release?.various_artists}
+      />
+
       <Separator className="my-8" />
       <Button variant="ghost" asChild>
         <Link href={`/auctions/${block.slug}`}>
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Zurück zu &quot;{block.title}&quot;
+          Back to &quot;{block.title}&quot;
         </Link>
       </Button>
     </main>

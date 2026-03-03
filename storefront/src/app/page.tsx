@@ -28,24 +28,24 @@ export default async function Home() {
               {activeCount > 0 && (
                 <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[rgba(212,165,74,0.1)] border border-[rgba(212,165,74,0.25)] text-primary text-sm font-medium mb-6">
                   <span className="w-2 h-2 rounded-full bg-status-active animate-pulse" />
-                  {activeCount} Live-Auktion{activeCount > 1 ? "en" : ""}
+                  {activeCount} Live Auction{activeCount > 1 ? "s" : ""}
                 </div>
               )}
               <h1 className="font-serif text-5xl md:text-6xl leading-[1.1] mb-5">
-                Seltene Platten.
+                Rare Records.
                 <br />
-                <span className="text-primary">Echte Sammler.</span>
+                <span className="text-primary">True Collectors.</span>
               </h1>
               <p className="text-lg text-muted-foreground max-w-md mb-8 leading-relaxed">
-                Kuratierte Vinyl-Auktionen für Kenner. Industrial, EBM, Dark
-                Ambient und mehr — entdecke Raritäten und Erstpressungen.
+                Curated vinyl auctions for connoisseurs. Industrial, EBM, Dark
+                Ambient and more — discover rarities and first pressings.
               </p>
               <div className="flex gap-4">
                 <Button size="lg" asChild className="bg-gradient-to-r from-primary to-[#b8860b]">
-                  <Link href="/auctions">Jetzt entdecken</Link>
+                  <Link href="/auctions">Discover Now</Link>
                 </Button>
                 <Button size="lg" variant="ghost" asChild className="text-muted-foreground border border-[rgba(232,224,212,0.12)]">
-                  <Link href="/catalog">Katalog durchstöbern</Link>
+                  <Link href="/catalog">Browse Catalog</Link>
                 </Button>
               </div>
             </div>
@@ -85,19 +85,19 @@ export default async function Home() {
 
       <HomeContent blocks={blocks} />
 
-      {/* Katalog Teaser */}
+      {/* Catalog Teaser */}
       <section className="mx-auto max-w-6xl px-6 py-16">
         <div className="rounded-2xl border border-[rgba(232,224,212,0.08)] bg-[rgba(232,224,212,0.02)] p-12 text-center">
           <Disc3 className="h-12 w-12 mx-auto text-primary/40 mb-4" />
           <h2 className="font-serif text-2xl md:text-3xl mb-3">
-            30.000+ Releases im Katalog
+            30,000+ Releases in Catalog
           </h2>
           <p className="text-muted-foreground max-w-lg mx-auto mb-6">
-            Durchstöbere unser vollständiges Archiv — Industrial, EBM, Dark Ambient,
-            Noise, Experimental und mehr.
+            Browse our complete archive — Industrial, EBM, Dark Ambient,
+            Noise, Experimental and more.
           </p>
           <Button size="lg" variant="outline" asChild className="border-primary/30 text-primary hover:bg-primary/10">
-            <Link href="/catalog">Katalog durchstöbern</Link>
+            <Link href="/catalog">Browse Catalog</Link>
           </Button>
         </div>
       </section>
@@ -108,11 +108,10 @@ export default async function Home() {
           <div className="rounded-2xl border border-[rgba(232,224,212,0.08)] bg-[rgba(232,224,212,0.02)] p-16 text-center">
             <Disc3 className="h-12 w-12 mx-auto text-muted-foreground/20 mb-4" />
             <p className="text-muted-foreground">
-              Aktuell keine aktiven Auktionen.
+              Currently no active auctions.
             </p>
             <p className="text-muted-foreground/60 mt-2 text-sm">
-              Schaue bald wieder vorbei — neue Blöcke werden regelmäßig
-              veröffentlicht.
+              Check back soon — new blocks are published regularly.
             </p>
           </div>
         </section>

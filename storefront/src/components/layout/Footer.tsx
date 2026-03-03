@@ -14,8 +14,8 @@ export function Footer() {
               <span className="text-lg font-serif text-foreground">VOD Auctions</span>
             </div>
             <p className="text-muted-foreground text-sm max-w-xs">
-              Kuratierte Auktionen für seltene Tonträger aus den Bereichen
-              Industrial, Experimental und Electronic Music.
+              Curated auctions for rare records from the
+              Industrial, Experimental and Electronic Music genres.
             </p>
           </div>
           <div className="flex gap-12 text-sm">
@@ -25,15 +25,15 @@ export function Footer() {
                 href="/auctions"
                 className="text-muted-foreground hover:text-primary transition-colors"
               >
-                Aktuelle Auktionen
+                Current Auctions
               </Link>
             </div>
           </div>
         </div>
         <div className="border-t border-[rgba(232,224,212,0.08)] mt-8 pt-8">
           <p className="text-center text-xs text-muted-foreground/60">
-            &copy; {new Date().getFullYear()} VOD Auctions. Alle Rechte
-            vorbehalten.
+            &copy; {new Date().getFullYear()} VOD Auctions. All rights
+            reserved.
           </p>
         </div>
       </div>

@@ -41,7 +41,7 @@ export function MobileNav({
               className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-[rgba(232,224,212,0.04)] transition-colors"
             >
               <Gavel className="h-4 w-4" />
-              Auktionen
+              Auctions
             </Link>
             <Link
               href="/catalog"
@@ -49,7 +49,7 @@ export function MobileNav({
               className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-[rgba(232,224,212,0.04)] transition-colors"
             >
               <Library className="h-4 w-4" />
-              Katalog
+              Catalog
             </Link>
 
             {isAuthenticated && customer && (
@@ -61,7 +61,7 @@ export function MobileNav({
                   className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-[rgba(232,224,212,0.04)] transition-colors"
                 >
                   <User className="h-4 w-4" />
-                  Mein Konto
+                  My Account
                 </Link>
                 <button
                   onClick={() => {
@@ -71,7 +71,7 @@ export function MobileNav({
                   className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-[rgba(232,224,212,0.04)] transition-colors text-left"
                 >
                   <LogOut className="h-4 w-4" />
-                  Abmelden
+                  Logout
                 </button>
               </>
             )}
@@ -87,7 +87,7 @@ export function MobileNav({
                   }}
                   className="mx-3 bg-gradient-to-r from-primary to-[#b8860b]"
                 >
-                  Anmelden
+                  Login
                 </Button>
               </>
             )}

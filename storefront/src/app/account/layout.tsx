@@ -9,10 +9,10 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 
 const NAV_ITEMS = [
-  { href: "/account", label: "Übersicht", icon: LayoutDashboard },
-  { href: "/account/bids", label: "Meine Gebote", icon: Gavel },
-  { href: "/account/wins", label: "Gewonnen", icon: Trophy },
-  { href: "/account/settings", label: "Einstellungen", icon: Settings },
+  { href: "/account", label: "Overview", icon: LayoutDashboard },
+  { href: "/account/bids", label: "My Bids", icon: Gavel },
+  { href: "/account/wins", label: "Won", icon: Trophy },
+  { href: "/account/settings", label: "Settings", icon: Settings },
 ]
 
 export default function AccountLayout({
@@ -53,7 +53,7 @@ export default function AccountLayout({
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-12">
-      <h1 className="text-3xl font-bold mb-8">Mein Konto</h1>
+      <h1 className="text-3xl font-bold mb-8">My Account</h1>
 
       <div className="flex flex-col md:flex-row gap-8">
         <nav className="md:w-48 flex-shrink-0">

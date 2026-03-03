@@ -42,7 +42,7 @@ export default function AccountOverview() {
   return (
     <div>
       <h2 className="text-xl font-semibold mb-6">
-        Willkommen, {customer?.first_name || customer?.email}
+        Welcome, {customer?.first_name || customer?.email}
       </h2>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
@@ -52,7 +52,7 @@ export default function AccountOverview() {
               <div className="p-2 rounded-lg bg-primary/10">
                 <Gavel className="h-5 w-5 text-primary" />
               </div>
-              <p className="text-sm text-muted-foreground">Aktive Gebote</p>
+              <p className="text-sm text-muted-foreground">Active Bids</p>
             </div>
             <p className="text-3xl font-bold font-mono">
               {loaded ? activeBids : <Skeleton className="h-9 w-12 inline-block" />}
@@ -65,7 +65,7 @@ export default function AccountOverview() {
               <div className="p-2 rounded-lg bg-green-500/10">
                 <Trophy className="h-5 w-5 text-green-500" />
               </div>
-              <p className="text-sm text-muted-foreground">Gewonnene Auktionen</p>
+              <p className="text-sm text-muted-foreground">Won Auctions</p>
             </div>
             <p className="text-3xl font-bold font-mono">
               {loaded ? wins : <Skeleton className="h-9 w-12 inline-block" />}

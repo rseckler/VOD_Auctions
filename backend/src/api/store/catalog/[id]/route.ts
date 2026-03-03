@@ -67,12 +67,66 @@ export async function GET(
     .orderBy("legacy_date", "desc")
     .limit(50)
 
+  // Related releases by same artist
+  const related_by_artist = release.artist_name
+    ? await pgConnection("Release")
+        .select(
+          "Release.id",
+          "Release.title",
+          "Release.slug",
+          "Release.format",
+          "Release.year",
+          "Release.country",
+          "Release.coverImage",
+          "Release.legacy_price",
+          "Release.legacy_condition",
+          "Artist.name as artist_name",
+          "Label.name as label_name"
+        )
+        .leftJoin("Artist", "Release.artistId", "Artist.id")
+        .leftJoin("Label", "Release.labelId", "Label.id")
+        .where("Release.artistId", pgConnection.raw(
+          '(SELECT "artistId" FROM "Release" WHERE id = ?)', [id]
+        ))
+        .andWhereNot("Release.id", id)
+        .orderBy("Release.year", "desc")
+        .limit(50)
+    : []
+
+  // Related releases by same label
+  const related_by_label = release.label_name
+    ? await pgConnection("Release")
+        .select(
+          "Release.id",
+          "Release.title",
+          "Release.slug",
+          "Release.format",
+          "Release.year",
+          "Release.country",
+          "Release.coverImage",
+          "Release.legacy_price",
+          "Release.legacy_condition",
+          "Artist.name as artist_name",
+          "Label.name as label_name"
+        )
+        .leftJoin("Artist", "Release.artistId", "Artist.id")
+        .leftJoin("Label", "Release.labelId", "Label.id")
+        .where("Release.labelId", pgConnection.raw(
+          '(SELECT "labelId" FROM "Release" WHERE id = ?)', [id]
+        ))
+        .andWhereNot("Release.id", id)
+        .orderBy("Release.year", "desc")
+        .limit(50)
+    : []
+
   res.json({
     release: {
       ...release,
       images,
       various_artists,
       comments,
+      related_by_artist,
+      related_by_label,
     },
   })
 }

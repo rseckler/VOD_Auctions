@@ -8,10 +8,12 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 
 **Goal:** Eigene Plattform mit voller Kontrolle über Marke, Kundendaten, Preisgestaltung — statt 8-13% Gebühren an eBay/Discogs
 
-**Status:** Phase 1 — RSE-72 bis RSE-85 erledigt, Produkt-Browser + TipTap Editor implementiert, Clickdummy live, RSE-76 (Payment & Stripe) als nächstes
+**Status:** Phase 1 — RSE-72 bis RSE-85 erledigt, Produkt-Browser + TipTap Editor implementiert, Clickdummy live, Storefront + Admin live auf VPS, RSE-76 (Payment & Stripe) als nächstes
+
+**Sprache:** Storefront und Admin-UI komplett auf Englisch (seit 2026-03-03)
 
 **Created:** 2026-02-10
-**Last Updated:** 2026-03-02
+**Last Updated:** 2026-03-03
 
 **Clickdummy:** https://vodauction.thehotshit.de (VPS, PM2, Port 3005)
 
@@ -51,7 +53,7 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 | **Cache** | Upstash Redis (Bid-Cache) |
 | **Payments** | Stripe (+ Stripe Connect) |
 | **Storage** | Supabase Storage (Bilder, Content) |
-| **Hosting** | Vercel (Auto-Deploy) |
+| **Hosting** | VPS (PM2, nginx reverse proxy) |
 | **State** | Zustand (global) + React Query (server) |
 | **Rich-Text Editor** | TipTap (Prosemirror) — Admin Langbeschreibung |
 
@@ -158,8 +160,10 @@ VOD_Auctions/
 │   │   │   │   │   └── [id]/
 │   │   │   │   │       ├── route.ts  # GET/POST with status-transition validation (RSE-75b)
 │   │   │   │   │       └── items/    # Block Items: add, update price, remove
-│   │   │   │   └── releases/    # Search 30k Releases (Knex raw SQL, auction_status filter)
-│   │   │   │       └── filters/route.ts  # GET filter options with counts (format/country/year)
+│   │   │   │   ├── releases/    # Search 30k Releases (Knex raw SQL, auction_status filter)
+│   │   │   │   │   └── filters/route.ts  # GET filter options with counts (format/country/year)
+│   │   │   │   └── media/       # Medien-Verwaltung API (browse, edit, stats)
+│   │   │   │       └── [id]/route.ts     # GET/POST Release-Detail + Bewertung
 │   │   │   └── store/           # Store API (Publishable Key required)
 │   │   │       ├── auction-blocks/   # Public: list, detail, item detail
 │   │   │       │   ├── route.ts      # List blocks (items_count, status filter)
@@ -168,16 +172,23 @@ VOD_Auctions/
 │   │   │       │       └── items/[itemId]/
 │   │   │       │           ├── route.ts   # Item detail + Release + Images
 │   │   │       │           └── bids/route.ts  # GET bids + POST bid (auth required)
+│   │   │       ├── catalog/          # Katalog API (alle 30k Releases)
+│   │   │       │   └── [id]/route.ts # Release-Detail + Images + Related Releases
 │   │   │       └── account/          # Account APIs (RSE-75b, customer auth)
 │   │   │           ├── bids/route.ts  # GET: Meine Gebote (JOIN bid+item+block+release)
 │   │   │           └── wins/route.ts  # GET: Gewonnene Items
 │   │   │   ├── middlewares.ts   # Auth middleware (bids + /store/account/*)
 │   │   │   └── jobs/
 │   │   │       └── auction-lifecycle.ts  # Cron: Block activation/ending (every min)
-│   │   └── admin/routes/        # Admin Dashboard UI Extensions
-│   │       └── auction-blocks/
-│   │           ├── page.tsx     # Block-Übersicht (Tabelle)
-│   │           └── [id]/page.tsx # Block-Detail (Edit + Items + Produkt-Browser)
+│   │   └── admin/routes/        # Admin Dashboard UI Extensions (Englisch)
+│   │       ├── auction-blocks/
+│   │       │   ├── page.tsx     # Block-Übersicht (Tabelle)
+│   │       │   └── [id]/page.tsx # Block-Detail (Edit + Items + Produkt-Browser)
+│   │       ├── media/
+│   │       │   ├── page.tsx     # Media Management (30k Releases, Filter, Sortierung)
+│   │       │   └── [id]/page.tsx # Release-Detail (Info, Bewertung, Discogs-Daten)
+│   │       ├── sync/
+│   │       │   └── page.tsx     # Sync-Dashboard (Legacy + Discogs Status)
 │   │       └── components/
 │   │           └── rich-text-editor.tsx  # TipTap WYSIWYG Editor
 │   └── node_modules/
@@ -185,13 +196,16 @@ VOD_Auctions/
 │   ├── .env.local               # MEDUSA_URL + Publishable API Key
 │   ├── src/
 │   │   ├── app/
-│   │   │   ├── layout.tsx       # Layout: Header, Footer, Dark Theme, AuthProvider
+│   │   │   ├── layout.tsx       # Layout: Header, Footer, Dark Theme, AuthProvider (lang="en")
 │   │   │   ├── page.tsx         # Homepage: Hero, aktive/demnächst Blöcke
 │   │   │   ├── auctions/
 │   │   │   │   ├── page.tsx     # Auktionsübersicht + AuctionListFilter
 │   │   │   │   └── [slug]/
 │   │   │   │       ├── page.tsx # Block-Detail: Hero, BlockItemsGrid
-│   │   │   │       └── [itemId]/page.tsx  # Item-Detail + ItemBidSection
+│   │   │   │       └── [itemId]/page.tsx  # Item-Detail + ItemBidSection + RelatedSection
+│   │   │   ├── catalog/
+│   │   │   │   ├── page.tsx     # Katalog-Liste (alle 30k Releases, Suche, Filter)
+│   │   │   │   └── [id]/page.tsx # Katalog-Detail + CatalogRelatedSection
 │   │   │   └── account/         # Account-Bereich (RSE-75b)
 │   │   │       ├── layout.tsx   # Auth-Guard, Sidebar-Nav, Responsive
 │   │   │       ├── page.tsx     # Übersicht: Willkommen + Summary-Karten
@@ -206,13 +220,15 @@ VOD_Auctions/
 │   │   │   ├── ui/                   # shadcn/ui Komponenten (17 installiert)
 │   │   │   ├── AuthProvider.tsx      # Auth Context (JWT, Customer)
 │   │   │   ├── AuthModal.tsx         # Login/Register Modal
-│   │   │   ├── HeaderAuth.tsx        # Anmelden/Abmelden/Mein Konto im Header
-│   │   │   ├── HomeContent.tsx       # Homepage Sections (Laufend/Demnächst)
+│   │   │   ├── HeaderAuth.tsx        # Login/Logout/My Account im Header
+│   │   │   ├── HomeContent.tsx       # Homepage Sections (Running/Upcoming)
 │   │   │   ├── BlockCard.tsx         # BlockCardVertical + BlockCardHorizontal
 │   │   │   ├── ItemBidSection.tsx    # BidForm + BidHistory + Countdown + Realtime
-│   │   │   ├── AuctionListFilter.tsx # Pill-Filter (Alle/Laufend/Demnächst/Beendet)
+│   │   │   ├── AuctionListFilter.tsx # Pill-Filter (All/Running/Upcoming/Ended)
 │   │   │   ├── BlockItemsGrid.tsx    # Sort-Pills + Suche + Item-Grid
 │   │   │   ├── ImageGallery.tsx      # Lightbox + Thumbnails mit Gold-Ring
+│   │   │   ├── RelatedSection.tsx    # Related-Info Tabs (Artist/Label/Block Items) — Auktionen
+│   │   │   ├── CatalogRelatedSection.tsx # Related-Tabs (by Artist/Label) — Katalog
 │   │   │   └── EmptyState.tsx        # Reusable Empty State
 │   │   └── lib/
 │   │       ├── api.ts           # medusaFetch Helper
@@ -263,15 +279,30 @@ npx medusa develop    # Backend + Admin UI (hot reload)
 - `/admin/releases/filters` liefert verfügbare Filter-Optionen mit Counts
 - Block-Update Route strippt `items` aus Body (Items nur über `/items` Endpoint verwaltet)
 - `current_block_id` in Release-Tabelle ist UUID-Typ → Medusa ULIDs nicht kompatibel (nur auction_status wird aktualisiert)
+- **Admin Custom Routes:** `defineRouteConfig({ label })` NUR auf Top-Level-Seiten (`page.tsx`), NICHT auf `[id]/page.tsx` Detail-Seiten (verursacht Routing-Konflikte)
+- **Admin Build:** `medusa build` legt Admin-Assets in `.medusa/server/public/admin/`, muss nach `public/admin/` kopiert werden (siehe VPS Deploy)
+- `/admin/media` unterstützt: q, format, country, label, year_from, year_to, sort (field:dir Format), has_discogs, auction_status
+- Admin-UI komplett auf Englisch (Media Management, Release Detail, Sync Dashboard)
 
 ### Storefront
 
-**Port:** 3000
+**Port:** 3000 (lokal), 3006 (VPS/Produktion)
+**URL:** https://vod-auctions.com (VPS, PM2, Port 3006, nginx reverse proxy)
+**Sprache:** Englisch (alle UI-Texte, Locale en-US/en-GB)
 **Starten:**
 ```bash
 cd VOD_Auctions/storefront
-npm run dev
+npm run dev                  # Local development (port 3000)
 ```
+
+**Wichtig:**
+- `next.config.ts` muss externe Bild-Domains whitelisten (`tape-mag.com` für Legacy-Bilder)
+- Bilder-URLs: `https://tape-mag.com/bilder/gross/{filename}` (Legacy-System)
+- Storefront Katalog (`/catalog`): Zeigt alle 30k Releases mit Suche, Format-Filter, Sortierung
+- Katalog-Detail (`/catalog/[id]`): Release-Info + Images + Related Releases by Artist/Label
+- Auktions-Detail (`/auctions/[slug]/[itemId]`): Item-Info + Bidding + Related Section mit Block Items
+- Credits-Text: Wird beim Rendern bereinigt (literal `\r\n` → echte Newlines) via `.replace()` in Catalog + Auction Pages
+- **Related Sections:** `RelatedSection.tsx` (Auktionen, Tabs: by Artist/Label/Block Artists/Labels/All Lots) und `CatalogRelatedSection.tsx` (Katalog, Tabs: by Artist/Label) — beide als kompakte Tabellen
 
 ### Clickdummy
 
@@ -358,10 +389,13 @@ python3 discogs_price_test.py     # Feasibility test (100 random releases)
 
 ## Admin Panel Extensions
 
-**Medien-Verwaltung:** `/admin/media` — Browse/search/filter all 30k releases with Discogs data
+**Media Management:** `/admin/media` — Browse/search/filter alle 30k Releases mit Discogs-Daten
+- Spalten: Cover, Artist, Title, Year, Country, Label, Format, Discogs, Condition, Price, Status, Actions
+- Filter: Search (debounced), Format-Pills, Country, Year (von-bis Range), Label (debounced), Has Discogs, Auction Status
+- Sortierung: Alle Spalten sortierbar (field:dir Format)
 - API: GET /admin/media, GET /admin/media/:id, POST /admin/media/:id, GET /admin/media/stats
 
-**Sync-Dashboard:** `/admin/sync` — Legacy + Discogs sync status and reports
+**Sync-Dashboard:** `/admin/sync` — Legacy + Discogs Sync-Status und Reports
 - API: GET /admin/sync, GET /admin/sync/legacy, GET /admin/sync/discogs
 
 ## Related Projects
@@ -383,6 +417,49 @@ Store in `.env` (git-ignored), manage via `Passwords/` directory:
 - `STRIPE_WEBHOOK_SECRET` — Stripe Webhook Secret
 - `UPSTASH_REDIS_REST_URL` — Redis URL
 - `UPSTASH_REDIS_REST_TOKEN` — Redis Token
+
+## VPS Deployment
+
+**Server:** 72.62.148.205 (Hostinger Ubuntu)
+**SSH:** `ssh root@72.62.148.205`
+
+**URLs:**
+- Backend/Admin: https://api.vod-auctions.com (Port 9000, nginx reverse proxy)
+- Storefront: https://vod-auctions.com (Port 3006, nginx reverse proxy)
+- Clickdummy: https://vodauction.thehotshit.de (Port 3005, nginx reverse proxy)
+
+**PM2 Prozesse:**
+- `vodauction-backend` — Medusa.js Backend + Admin Dashboard
+- `vodauction-storefront` — Next.js Storefront
+
+**Deploy-Workflow (Backend + Admin):**
+```bash
+# Lokal: commit & push
+cd VOD_Auctions && git add . && git commit -m "..." && git push
+
+# Auf VPS:
+ssh root@72.62.148.205
+cd /root/VOD_Auctions && git pull
+cd backend
+npx medusa build                              # Backend + Admin UI kompilieren
+cp -r .medusa/server/public/admin public/admin  # Admin-Assets kopieren (WICHTIG!)
+pm2 restart vodauction-backend
+```
+
+**Deploy-Workflow (Storefront):**
+```bash
+ssh root@72.62.148.205
+cd /root/VOD_Auctions && git pull
+cd storefront
+npm run build
+pm2 restart vodauction-storefront
+```
+
+**WICHTIG — Admin Build Gotcha:**
+- `medusa build` legt Admin-Assets in `.medusa/server/public/admin/`
+- `medusa start` erwartet sie in `public/admin/`
+- Ohne `cp -r .medusa/server/public/admin public/admin` → 502 Bad Gateway!
+- Vor einem Rebuild: `rm -rf public/admin` um alten Cache zu löschen
 
 ## Development
 

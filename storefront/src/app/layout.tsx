@@ -21,7 +21,7 @@ const dmSerif = DM_Serif_Display({
 export const metadata: Metadata = {
   title: "VOD Auctions — Rare Music Auctions",
   description:
-    "Kuratierte Auktionen für seltene Industrial, Experimental & Electronic Music Tonträger.",
+    "Curated auctions for rare Industrial, Experimental & Electronic Music records.",
 }
 
 export default function RootLayout({
@@ -30,7 +30,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="de">
+    <html lang="en">
       <body
         className={`${dmSans.variable} ${dmSerif.variable} antialiased min-h-screen flex flex-col`}
       >

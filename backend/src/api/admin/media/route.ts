@@ -117,12 +117,18 @@ export async function GET(
     artist_desc: ["Artist.name", "desc"],
     year_asc: ["Release.year", "asc"],
     year_desc: ["Release.year", "desc"],
+    country_asc: ["Release.country", "asc"],
+    country_desc: ["Release.country", "desc"],
+    label_asc: ["Label.name", "asc"],
+    label_desc: ["Label.name", "desc"],
     price_asc: ["Release.discogs_lowest_price", "asc"],
     price_desc: ["Release.discogs_lowest_price", "desc"],
     synced_asc: ["Release.discogs_last_synced", "asc"],
     synced_desc: ["Release.discogs_last_synced", "desc"],
   }
-  const [sortCol, sortDir] = sortMap[sort as string] || sortMap.title_asc
+  // Support both "field_dir" and "field:dir" formats
+  const sortKey = (sort as string).replace(":", "_")
+  const [sortCol, sortDir] = sortMap[sortKey] || sortMap.title_asc
 
   const [releases, countResult] = await Promise.all([
     query

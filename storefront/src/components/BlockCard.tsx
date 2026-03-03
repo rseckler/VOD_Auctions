@@ -11,20 +11,20 @@ const STATUS_CONFIG: Record<
   { label: string; className: string }
 > = {
   active: { label: "Live", className: "text-status-active" },
-  scheduled: { label: "Geplant", className: "text-muted-foreground" },
-  preview: { label: "Vorschau", className: "text-status-preview" },
-  ended: { label: "Beendet", className: "text-muted-foreground/60" },
+  scheduled: { label: "Scheduled", className: "text-muted-foreground" },
+  preview: { label: "Preview", className: "text-status-preview" },
+  ended: { label: "Ended", className: "text-muted-foreground/60" },
 }
 
 const TYPE_LABELS: Record<string, string> = {
-  theme: "Themen-Block",
+  theme: "Theme Block",
   highlight: "Highlight",
   clearance: "Clearance",
   flash: "Flash",
 }
 
 function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("de-DE", {
+  return new Date(dateStr).toLocaleDateString("en-US", {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -33,11 +33,11 @@ function formatDate(dateStr: string) {
 
 function timeRemaining(endStr: string): string {
   const diff = new Date(endStr).getTime() - Date.now()
-  if (diff <= 0) return "Beendet"
+  if (diff <= 0) return "Ended"
   const days = Math.floor(diff / 86400000)
   const hours = Math.floor((diff % 86400000) / 3600000)
-  if (days > 0) return `Noch ${days}d ${hours}h`
-  return `Noch ${hours}h`
+  if (days > 0) return `${days}d ${hours}h left`
+  return `${hours}h left`
 }
 
 export function BlockCardVertical({ block }: { block: AuctionBlock }) {
@@ -97,7 +97,7 @@ export function BlockCardVertical({ block }: { block: AuctionBlock }) {
                 {formatDate(block.start_time)}
               </span>
               <span className="text-primary font-medium">
-                Ab &euro;{block.min_price?.toFixed(0) || "—"}
+                From &euro;{block.min_price?.toFixed(0) || "—"}
               </span>
             </div>
           </div>

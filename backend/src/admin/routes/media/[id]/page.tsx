@@ -17,7 +17,7 @@ class ErrorBoundary extends Component<
     if (this.state.error) {
       return (
         <div style={{ padding: 24, color: "#ef4444" }}>
-          <h2>Fehler in Medien-Detail:</h2>
+          <h2>Error in Media Detail:</h2>
           <pre style={{ whiteSpace: "pre-wrap", fontSize: 13 }}>
             {this.state.error.message}
             {"\n\n"}
@@ -93,7 +93,7 @@ const CONDITION_OPTIONS = ["M", "NM", "VG+", "VG", "G+", "G", "Fair", "Poor"]
 
 const formatDate = (d: string | null) => {
   if (!d) return "\u2014"
-  return new Date(d).toLocaleDateString("de-DE", {
+  return new Date(d).toLocaleDateString("en-GB", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -117,7 +117,6 @@ const MediaDetailPage = () => {
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [saveError, setSaveError] = useState("")
 
-  // Editable fields
   const [estimatedValue, setEstimatedValue] = useState<string>("")
   const [mediaCondition, setMediaCondition] = useState<string>("")
   const [sleeveCondition, setSleeveCondition] = useState<string>("")
@@ -168,437 +167,173 @@ const MediaDetailPage = () => {
         setTimeout(() => setSaveSuccess(false), 3000)
       } else {
         const err = await res.json().catch(() => ({}))
-        setSaveError(err.message || "Fehler beim Speichern")
+        setSaveError(err.message || "Failed to save")
       }
-    } catch (err) {
-      setSaveError("Netzwerkfehler")
+    } catch {
+      setSaveError("Network error")
     } finally {
       setSaving(false)
     }
   }
 
-  // Styles
-  const cardStyle: React.CSSProperties = {
-    background: COLORS.card,
-    borderRadius: "8px",
-    padding: "20px",
-    border: `1px solid ${COLORS.border}`,
-  }
-
-  const labelStyle: React.CSSProperties = {
-    fontSize: "12px",
-    color: COLORS.muted,
-    textTransform: "uppercase",
-    letterSpacing: "0.05em",
-    marginBottom: "4px",
-  }
-
-  const valueStyle: React.CSSProperties = {
-    fontSize: "14px",
-    color: COLORS.text,
-  }
-
-  const inputStyle: React.CSSProperties = {
-    background: COLORS.bg,
-    border: `1px solid ${COLORS.border}`,
-    borderRadius: "6px",
-    padding: "8px 12px",
-    color: COLORS.text,
-    fontSize: "14px",
-    outline: "none",
-    width: "100%",
-  }
-
-  const selectStyle: React.CSSProperties = {
-    ...inputStyle,
-    cursor: "pointer",
-  }
-
-  const thStyle: React.CSSProperties = {
-    padding: "8px 12px",
-    textAlign: "left",
-    fontSize: "12px",
-    fontWeight: 600,
-    color: COLORS.muted,
-    textTransform: "uppercase",
-    letterSpacing: "0.05em",
-    borderBottom: `1px solid ${COLORS.border}`,
-    whiteSpace: "nowrap",
-  }
-
-  const tdStyle: React.CSSProperties = {
-    padding: "8px 12px",
-    fontSize: "13px",
-    color: COLORS.text,
-    borderBottom: `1px solid ${COLORS.border}`,
-    verticalAlign: "top",
-  }
+  const cardStyle: React.CSSProperties = { background: COLORS.card, borderRadius: "8px", padding: "20px", border: `1px solid ${COLORS.border}` }
+  const labelStyle: React.CSSProperties = { fontSize: "12px", color: COLORS.muted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }
+  const valueStyle: React.CSSProperties = { fontSize: "14px", color: COLORS.text }
+  const inputStyle: React.CSSProperties = { background: COLORS.bg, border: `1px solid ${COLORS.border}`, borderRadius: "6px", padding: "8px 12px", color: COLORS.text, fontSize: "14px", outline: "none", width: "100%" }
+  const selectStyle: React.CSSProperties = { ...inputStyle, cursor: "pointer" }
+  const thStyle: React.CSSProperties = { padding: "8px 12px", textAlign: "left", fontSize: "12px", fontWeight: 600, color: COLORS.muted, textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: `1px solid ${COLORS.border}`, whiteSpace: "nowrap" }
+  const tdStyle: React.CSSProperties = { padding: "8px 12px", fontSize: "13px", color: COLORS.text, borderBottom: `1px solid ${COLORS.border}`, verticalAlign: "top" }
 
   if (loading) {
-    return (
-      <div style={{ padding: "24px", background: COLORS.bg, minHeight: "100vh", color: COLORS.text }}>
-        <div style={{ color: COLORS.muted }}>Laden...</div>
-      </div>
-    )
+    return (<div style={{ padding: "24px", background: COLORS.bg, minHeight: "100vh", color: COLORS.text }}><div style={{ color: COLORS.muted }}>Loading...</div></div>)
   }
 
   if (!release) {
     return (
       <div style={{ padding: "24px", background: COLORS.bg, minHeight: "100vh", color: COLORS.text }}>
-        <div style={{ color: COLORS.error }}>Release nicht gefunden.</div>
-        <a href="/app/media" style={{ color: COLORS.gold, textDecoration: "none", marginTop: "12px", display: "inline-block" }}>
-          \u2190 Zurueck zur Uebersicht
-        </a>
+        <div style={{ color: COLORS.error }}>Release not found.</div>
+        <a href="/app/media" style={{ color: COLORS.gold, textDecoration: "none", marginTop: "12px", display: "inline-block" }}>&larr; Back to Overview</a>
       </div>
     )
   }
 
   const infoFields: [string, string | null | number][] = [
     ["Artist", release.artist_name],
-    ["Titel", release.title],
+    ["Title", release.title],
     ["Format", release.format],
-    ["Jahr", release.year != null ? String(release.year) : null],
-    ["Land", release.country],
+    ["Year", release.year != null ? String(release.year) : null],
+    ["Country", release.country],
     ["Label", release.label_name],
     ["CatNo", release.cat_no],
     ["Barcode", release.barcode],
     ["Genre", release.genre],
     ["Styles", release.styles],
-    ["Auktions-Status", release.auction_status],
+    ["Auction Status", release.auction_status],
     ["Block ID", release.current_block_id],
-    ["Erstellt", formatDate(release.created_at)],
-    ["Aktualisiert", formatDate(release.updated_at)],
+    ["Created", formatDate(release.created_at)],
+    ["Updated", formatDate(release.updated_at)],
   ]
 
   return (
     <div style={{ padding: "24px", background: COLORS.bg, minHeight: "100vh", color: COLORS.text }}>
-      {/* Back Button */}
-      <a
-        href="/app/media"
-        style={{
-          color: COLORS.gold,
-          textDecoration: "none",
-          fontSize: "14px",
-          display: "inline-block",
-          marginBottom: "16px",
-        }}
-      >
-        \u2190 Zurueck zur Uebersicht
-      </a>
+      <a href="/app/media" style={{ color: COLORS.gold, textDecoration: "none", fontSize: "14px", display: "inline-block", marginBottom: "16px" }}>&larr; Back to Overview</a>
 
-      {/* Header */}
       <h1 style={{ fontSize: "24px", fontWeight: 700, marginBottom: "4px" }}>
-        {release.artist_name ? `${release.artist_name} \u2014 ` : ""}
-        {release.title}
+        {release.artist_name ? `${release.artist_name} \u2014 ` : ""}{release.title}
       </h1>
       <div style={{ fontSize: "14px", color: COLORS.muted, marginBottom: "24px" }}>
         {[release.format, release.year, release.label_name].filter(Boolean).join(" \u00B7 ")}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: "24px", marginBottom: "32px" }}>
-        {/* Cover Image */}
         <div>
           {release.coverImage || images.length > 0 ? (
-            <img
-              src={release.coverImage || images[0]?.url}
-              alt={release.title}
-              style={{
-                width: "100%",
-                borderRadius: "8px",
-                border: `1px solid ${COLORS.border}`,
-                aspectRatio: "1",
-                objectFit: "cover",
-              }}
-            />
+            <img src={release.coverImage || images[0]?.url} alt={release.title} style={{ width: "100%", borderRadius: "8px", border: `1px solid ${COLORS.border}`, aspectRatio: "1", objectFit: "cover" }} />
           ) : (
-            <div
-              style={{
-                width: "100%",
-                aspectRatio: "1",
-                borderRadius: "8px",
-                background: COLORS.card,
-                border: `1px solid ${COLORS.border}`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "48px",
-                color: COLORS.muted,
-              }}
-            >
-              \u266B
-            </div>
+            <div style={{ width: "100%", aspectRatio: "1", borderRadius: "8px", background: COLORS.card, border: `1px solid ${COLORS.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "48px", color: COLORS.muted }}>&#9835;</div>
           )}
-          {/* Additional images */}
           {images.length > 1 && (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px", marginTop: "8px" }}>
-              {images.slice(1, 5).map((img) => (
-                <img
-                  key={img.id}
-                  src={img.url}
-                  alt=""
-                  style={{
-                    width: "100%",
-                    aspectRatio: "1",
-                    objectFit: "cover",
-                    borderRadius: "4px",
-                    border: `1px solid ${COLORS.border}`,
-                  }}
-                />
-              ))}
+              {images.slice(1, 5).map((img) => (<img key={img.id} src={img.url} alt="" style={{ width: "100%", aspectRatio: "1", objectFit: "cover", borderRadius: "4px", border: `1px solid ${COLORS.border}` }} />))}
             </div>
           )}
         </div>
 
-        {/* Right Column */}
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-          {/* Release Info */}
           <div style={cardStyle}>
-            <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: COLORS.gold }}>
-              Release-Informationen
-            </h2>
+            <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: COLORS.gold }}>Release Information</h2>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-              {infoFields.map(([label, value]) => (
-                <div key={label}>
-                  <div style={labelStyle}>{label}</div>
-                  <div style={valueStyle}>{value ?? "\u2014"}</div>
-                </div>
-              ))}
+              {infoFields.map(([label, value]) => (<div key={label}><div style={labelStyle}>{label}</div><div style={valueStyle}>{value ?? "\u2014"}</div></div>))}
             </div>
           </div>
 
-          {/* Editable Section */}
           <div style={{ ...cardStyle, border: `1px solid ${COLORS.gold}40` }}>
-            <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: COLORS.gold }}>
-              Bewertung bearbeiten
-            </h2>
+            <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: COLORS.gold }}>Edit Valuation</h2>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px" }}>
               <div>
-                <div style={labelStyle}>Schaetzwert (\u20AC)</div>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={estimatedValue}
-                  onChange={(e) => setEstimatedValue(e.target.value)}
-                  placeholder="0.00"
-                  style={inputStyle}
-                />
+                <div style={labelStyle}>Estimated Value (&euro;)</div>
+                <input type="number" step="0.01" min="0" value={estimatedValue} onChange={(e) => setEstimatedValue(e.target.value)} placeholder="0.00" style={inputStyle} />
               </div>
               <div>
                 <div style={labelStyle}>Media Condition</div>
-                <select
-                  value={mediaCondition}
-                  onChange={(e) => setMediaCondition(e.target.value)}
-                  style={selectStyle}
-                >
-                  <option value="">-- Waehlen --</option>
-                  {CONDITION_OPTIONS.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
+                <select value={mediaCondition} onChange={(e) => setMediaCondition(e.target.value)} style={selectStyle}>
+                  <option value="">-- Select --</option>
+                  {CONDITION_OPTIONS.map((c) => (<option key={c} value={c}>{c}</option>))}
                 </select>
               </div>
               <div>
                 <div style={labelStyle}>Sleeve Condition</div>
-                <select
-                  value={sleeveCondition}
-                  onChange={(e) => setSleeveCondition(e.target.value)}
-                  style={selectStyle}
-                >
-                  <option value="">-- Waehlen --</option>
-                  {CONDITION_OPTIONS.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
+                <select value={sleeveCondition} onChange={(e) => setSleeveCondition(e.target.value)} style={selectStyle}>
+                  <option value="">-- Select --</option>
+                  {CONDITION_OPTIONS.map((c) => (<option key={c} value={c}>{c}</option>))}
                 </select>
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "16px" }}>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                style={{
-                  padding: "8px 24px",
-                  borderRadius: "6px",
-                  border: "none",
-                  background: COLORS.gold,
-                  color: "#1c1915",
-                  fontSize: "14px",
-                  fontWeight: 600,
-                  cursor: saving ? "wait" : "pointer",
-                  opacity: saving ? 0.7 : 1,
-                }}
-              >
-                {saving ? "Speichern..." : "Speichern"}
+              <button onClick={handleSave} disabled={saving} style={{ padding: "8px 24px", borderRadius: "6px", border: "none", background: COLORS.gold, color: "#1c1915", fontSize: "14px", fontWeight: 600, cursor: saving ? "wait" : "pointer", opacity: saving ? 0.7 : 1 }}>
+                {saving ? "Saving..." : "Save"}
               </button>
-              {saveSuccess && (
-                <span style={{ color: COLORS.success, fontSize: "13px" }}>
-                  Erfolgreich gespeichert
-                </span>
-              )}
-              {saveError && (
-                <span style={{ color: COLORS.error, fontSize: "13px" }}>
-                  {saveError}
-                </span>
-              )}
+              {saveSuccess && <span style={{ color: COLORS.success, fontSize: "13px" }}>Saved successfully</span>}
+              {saveError && <span style={{ color: COLORS.error, fontSize: "13px" }}>{saveError}</span>}
             </div>
           </div>
 
-          {/* Discogs Section */}
           <div style={cardStyle}>
-            <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: COLORS.gold }}>
-              Discogs-Daten
-            </h2>
+            <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: COLORS.gold }}>Discogs Data</h2>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: "16px" }}>
-              <div>
-                <div style={labelStyle}>Discogs ID</div>
-                <div style={valueStyle}>
-                  {release.discogs_id ? (
-                    <a
-                      href={`https://www.discogs.com/release/${release.discogs_id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ color: COLORS.gold, textDecoration: "none" }}
-                    >
-                      {release.discogs_id} \u2197
-                    </a>
-                  ) : (
-                    "\u2014"
-                  )}
-                </div>
-              </div>
-              <div>
-                <div style={labelStyle}>Niedrigster Preis</div>
-                <div style={{ ...valueStyle, color: release.lowest_price ? COLORS.gold : COLORS.muted }}>
-                  {formatPrice(release.lowest_price)}
-                </div>
-              </div>
-              <div>
-                <div style={labelStyle}>Zum Verkauf</div>
-                <div style={valueStyle}>{release.num_for_sale ?? "\u2014"}</div>
-              </div>
-              <div>
-                <div style={labelStyle}>Have</div>
-                <div style={valueStyle}>{release.have ?? "\u2014"}</div>
-              </div>
-              <div>
-                <div style={labelStyle}>Want</div>
-                <div style={valueStyle}>{release.want ?? "\u2014"}</div>
-              </div>
+              <div><div style={labelStyle}>Discogs ID</div><div style={valueStyle}>{release.discogs_id ? (<a href={`https://www.discogs.com/release/${release.discogs_id}`} target="_blank" rel="noopener noreferrer" style={{ color: COLORS.gold, textDecoration: "none" }}>{release.discogs_id} &#8599;</a>) : "\u2014"}</div></div>
+              <div><div style={labelStyle}>Lowest Price</div><div style={{ ...valueStyle, color: release.lowest_price ? COLORS.gold : COLORS.muted }}>{formatPrice(release.lowest_price)}</div></div>
+              <div><div style={labelStyle}>For Sale</div><div style={valueStyle}>{release.num_for_sale ?? "\u2014"}</div></div>
+              <div><div style={labelStyle}>Have</div><div style={valueStyle}>{release.have ?? "\u2014"}</div></div>
+              <div><div style={labelStyle}>Want</div><div style={valueStyle}>{release.want ?? "\u2014"}</div></div>
             </div>
-            <div style={{ marginTop: "12px" }}>
-              <div style={labelStyle}>Letzter Discogs-Sync</div>
-              <div style={{ ...valueStyle, fontSize: "13px" }}>{formatDate(release.last_discogs_sync)}</div>
-            </div>
+            <div style={{ marginTop: "12px" }}><div style={labelStyle}>Last Discogs Sync</div><div style={{ ...valueStyle, fontSize: "13px" }}>{formatDate(release.last_discogs_sync)}</div></div>
           </div>
         </div>
       </div>
 
-      {/* Notes / Tracklist */}
       {(release.notes || release.tracklist) && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", marginBottom: "32px" }}>
           {release.notes && (
             <div style={cardStyle}>
-              <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "12px", color: COLORS.gold }}>
-                Notizen
-              </h2>
-              <div style={{ fontSize: "13px", color: COLORS.text, whiteSpace: "pre-wrap", lineHeight: "1.5" }}>
-                {release.notes}
-              </div>
+              <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "12px", color: COLORS.gold }}>Notes</h2>
+              <div style={{ fontSize: "13px", color: COLORS.text, whiteSpace: "pre-wrap", lineHeight: "1.5" }}>{release.notes}</div>
             </div>
           )}
           {release.tracklist && (
             <div style={cardStyle}>
-              <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "12px", color: COLORS.gold }}>
-                Tracklist
-              </h2>
+              <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "12px", color: COLORS.gold }}>Tracklist</h2>
               <div style={{ fontSize: "13px", color: COLORS.text, lineHeight: "1.5" }}>
                 {Array.isArray(release.tracklist)
                   ? release.tracklist.map((t: { position?: string; title?: string; duration?: string }, i: number) => (
                       <div key={i} style={{ display: "flex", gap: "8px", marginBottom: "4px" }}>
-                        <span style={{ color: COLORS.muted, minWidth: "30px", textAlign: "right" }}>
-                          {t.position || `${i + 1}.`}
-                        </span>
+                        <span style={{ color: COLORS.muted, minWidth: "30px", textAlign: "right" }}>{t.position || `${i + 1}.`}</span>
                         <span style={{ flex: 1 }}>{t.title}</span>
                         {t.duration && <span style={{ color: COLORS.muted }}>{t.duration}</span>}
-                      </div>
-                    ))
-                  : typeof release.tracklist === "string"
-                    ? release.tracklist
-                    : JSON.stringify(release.tracklist, null, 2)}
+                      </div>))
+                  : typeof release.tracklist === "string" ? release.tracklist : JSON.stringify(release.tracklist, null, 2)}
               </div>
             </div>
           )}
         </div>
       )}
 
-      {/* Sync History */}
       <div style={cardStyle}>
-        <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: COLORS.gold }}>
-          Sync-Verlauf
-        </h2>
+        <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: COLORS.gold }}>Sync History</h2>
         {syncHistory.length === 0 ? (
-          <div style={{ color: COLORS.muted, fontSize: "14px", padding: "20px 0", textAlign: "center" }}>
-            Noch keine Sync-Eintraege vorhanden.
-          </div>
+          <div style={{ color: COLORS.muted, fontSize: "14px", padding: "20px 0", textAlign: "center" }}>No sync entries yet.</div>
         ) : (
           <div style={{ overflow: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr>
-                  <th style={thStyle}>Datum</th>
-                  <th style={thStyle}>Typ</th>
-                  <th style={thStyle}>Aenderungen</th>
-                  <th style={thStyle}>Status</th>
-                  <th style={thStyle}>Fehler</th>
-                </tr>
-              </thead>
+              <thead><tr><th style={thStyle}>Date</th><th style={thStyle}>Type</th><th style={thStyle}>Changes</th><th style={thStyle}>Status</th><th style={thStyle}>Error</th></tr></thead>
               <tbody>
                 {syncHistory.slice(0, 20).map((entry) => (
                   <tr key={entry.id}>
                     <td style={tdStyle}>{formatDate(entry.sync_date)}</td>
-                    <td style={tdStyle}>
-                      <span
-                        style={{
-                          padding: "2px 8px",
-                          borderRadius: "4px",
-                          fontSize: "11px",
-                          fontWeight: 600,
-                          background: entry.sync_type === "legacy" ? "#3b82f620" : "#a855f720",
-                          color: entry.sync_type === "legacy" ? "#60a5fa" : "#c084fc",
-                        }}
-                      >
-                        {entry.sync_type}
-                      </span>
-                    </td>
-                    <td style={{ ...tdStyle, maxWidth: "400px" }}>
-                      {entry.changes ? (
-                        <pre
-                          style={{
-                            fontSize: "11px",
-                            color: COLORS.muted,
-                            margin: 0,
-                            whiteSpace: "pre-wrap",
-                            wordBreak: "break-word",
-                            fontFamily: "monospace",
-                          }}
-                        >
-                          {JSON.stringify(entry.changes, null, 2)}
-                        </pre>
-                      ) : (
-                        <span style={{ color: COLORS.muted }}>\u2014</span>
-                      )}
-                    </td>
-                    <td style={tdStyle}>
-                      <span style={{ color: entry.status === "success" ? COLORS.success : COLORS.error }}>
-                        {entry.status === "success" ? "\u2713" : "\u2717"} {entry.status}
-                      </span>
-                    </td>
-                    <td style={{ ...tdStyle, fontSize: "12px", color: COLORS.error }}>
-                      {entry.error_message || "\u2014"}
-                    </td>
+                    <td style={tdStyle}><span style={{ padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: 600, background: entry.sync_type === "legacy" ? "#3b82f620" : "#a855f720", color: entry.sync_type === "legacy" ? "#60a5fa" : "#c084fc" }}>{entry.sync_type}</span></td>
+                    <td style={{ ...tdStyle, maxWidth: "400px" }}>{entry.changes ? (<pre style={{ fontSize: "11px", color: COLORS.muted, margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "monospace" }}>{JSON.stringify(entry.changes, null, 2)}</pre>) : (<span style={{ color: COLORS.muted }}>{"\u2014"}</span>)}</td>
+                    <td style={tdStyle}><span style={{ color: entry.status === "success" ? COLORS.success : COLORS.error }}>{entry.status === "success" ? "\u2713" : "\u2717"} {entry.status}</span></td>
+                    <td style={{ ...tdStyle, fontSize: "12px", color: COLORS.error }}>{entry.error_message || "\u2014"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -610,10 +345,6 @@ const MediaDetailPage = () => {
   )
 }
 
-const MediaDetailPageWithBoundary = () => (
-  <ErrorBoundary>
-    <MediaDetailPage />
-  </ErrorBoundary>
-)
+const MediaDetailPageWithBoundary = () => (<ErrorBoundary><MediaDetailPage /></ErrorBoundary>)
 
 export default MediaDetailPageWithBoundary
