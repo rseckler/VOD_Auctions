@@ -38,7 +38,7 @@ export async function POST(
     release_id: releaseId,
   })
   if (existing.length > 0) {
-    res.status(409).json({ message: "Release ist bereits in diesem Block" })
+    res.status(409).json({ message: "Release is already in this block" })
     return
   }
 

@@ -90,28 +90,28 @@ const STATUS_COLORS: Record<string, "green" | "orange" | "blue" | "grey" | "red"
 }
 
 const STATUS_LABELS: Record<string, string> = {
-  draft: "Entwurf",
-  scheduled: "Geplant",
-  preview: "Vorschau",
-  active: "Aktiv",
-  ended: "Beendet",
-  archived: "Archiviert",
+  draft: "Draft",
+  scheduled: "Scheduled",
+  preview: "Preview",
+  active: "Active",
+  ended: "Ended",
+  archived: "Archived",
 }
 
 const BLOCK_TYPES = [
-  { value: "theme", label: "Themen-Block" },
-  { value: "highlight", label: "Highlight-Block" },
-  { value: "clearance", label: "Clearance-Block" },
-  { value: "flash", label: "Flash-Block" },
+  { value: "theme", label: "Theme Block" },
+  { value: "highlight", label: "Highlight Block" },
+  { value: "clearance", label: "Clearance Block" },
+  { value: "flash", label: "Flash Block" },
 ]
 
 const SORT_OPTIONS = [
-  { value: "title_asc", label: "Titel A→Z" },
-  { value: "title_desc", label: "Titel Z→A" },
+  { value: "title_asc", label: "Title A→Z" },
+  { value: "title_desc", label: "Title Z→A" },
   { value: "artist_asc", label: "Artist A→Z" },
   { value: "artist_desc", label: "Artist Z→A" },
-  { value: "year_desc", label: "Jahr ↓" },
-  { value: "year_asc", label: "Jahr ↑" },
+  { value: "year_desc", label: "Year ↓" },
+  { value: "year_asc", label: "Year ↑" },
 ]
 
 const BlockDetailPage = () => {
@@ -200,11 +200,11 @@ const BlockDetailPage = () => {
   // Save block
   const handleSave = async () => {
     if (!block.title?.trim()) {
-      showMessage("Titel ist erforderlich", "error")
+      showMessage("Title is required", "error")
       return
     }
     if (block.start_time && block.end_time && new Date(block.start_time) >= new Date(block.end_time)) {
-      showMessage("Startzeit muss vor Endzeit liegen", "error")
+      showMessage("Start time must be before end time", "error")
       return
     }
 
@@ -222,15 +222,15 @@ const BlockDetailPage = () => {
       })
       const data = await res.json()
       if (res.ok) {
-        showMessage("Gespeichert!")
+        showMessage("Saved!")
         if (isNew && data.auction_block?.id) {
           window.location.href = `/app/auction-blocks/${data.auction_block.id}`
         }
       } else {
-        showMessage(data.message || "Unbekannter Fehler", "error")
+        showMessage(data.message || "Unknown error", "error")
       }
     } catch (err) {
-      showMessage(`Fehler: ${err}`, "error")
+      showMessage(`Error: ${err}`, "error")
     } finally {
       setSaving(false)
     }
@@ -239,12 +239,12 @@ const BlockDetailPage = () => {
   // Status change
   const handleStatusChange = async (newStatus: string) => {
     const labels: Record<string, string> = {
-      scheduled: "Block planen? Er wird zur Startzeit automatisch aktiviert.",
-      active: "Block jetzt aktivieren? Gebote werden sofort möglich.",
-      preview: "Block in Vorschau setzen? Kunden können Items sehen aber noch nicht bieten.",
-      archived: "Block archivieren?",
+      scheduled: "Schedule block? It will be activated automatically at start time.",
+      active: "Activate block now? Bidding will be possible immediately.",
+      preview: "Set block to preview? Customers can see items but cannot bid yet.",
+      archived: "Archive block?",
     }
-    if (!window.confirm(labels[newStatus] || `Status auf "${newStatus}" ändern?`)) return
+    if (!window.confirm(labels[newStatus] || `Change status to "${newStatus}"?`)) return
 
     try {
       const res = await fetch(`/admin/auction-blocks/${id}`, {
@@ -256,12 +256,12 @@ const BlockDetailPage = () => {
       const data = await res.json()
       if (res.ok) {
         setBlock(data.auction_block)
-        showMessage(`Status geändert: ${STATUS_LABELS[newStatus] || newStatus}`)
+        showMessage(`Status changed: ${STATUS_LABELS[newStatus] || newStatus}`)
       } else {
-        showMessage(data.message || "Statuswechsel fehlgeschlagen", "error")
+        showMessage(data.message || "Status change failed", "error")
       }
     } catch (err) {
-      showMessage(`Fehler: ${err}`, "error")
+      showMessage(`Error: ${err}`, "error")
     }
   }
 
@@ -336,7 +336,7 @@ const BlockDetailPage = () => {
   // Add release to block
   const handleAddItem = async (release: Release) => {
     if (isNew) {
-      showMessage("Block zuerst speichern bevor Items hinzugefügt werden können.", "error")
+      showMessage("Save block first before adding items.", "error")
       return
     }
     try {
@@ -358,19 +358,19 @@ const BlockDetailPage = () => {
         const data = await blockRes.json()
         setBlock(data.auction_block)
         setSearchResults((prev) => prev.filter((r) => r.id !== release.id))
-        showMessage("Produkt hinzugefügt!")
+        showMessage("Product added!")
       } else {
         const data = await res.json()
-        showMessage(data.message || "Fehler beim Hinzufügen", "error")
+        showMessage(data.message || "Error adding product", "error")
       }
     } catch (err) {
-      showMessage(`Fehler: ${err}`, "error")
+      showMessage(`Error: ${err}`, "error")
     }
   }
 
   // Remove item from block
   const handleRemoveItem = async (itemId: string) => {
-    if (!window.confirm("Produkt aus Block entfernen?")) return
+    if (!window.confirm("Remove product from block?")) return
     try {
       await fetch(`/admin/auction-blocks/${id}/items/${itemId}`, {
         method: "DELETE",
@@ -380,7 +380,7 @@ const BlockDetailPage = () => {
         ...b,
         items: b.items?.filter((i) => i.id !== itemId),
       }))
-      showMessage("Produkt entfernt")
+      showMessage("Product removed")
     } catch (err) {
       console.error(err)
     }
@@ -424,7 +424,7 @@ const BlockDetailPage = () => {
         <div className="flex items-center gap-3">
           <div>
             <Heading level="h1">
-              {isNew ? "Neuen Block erstellen" : block.title}
+              {isNew ? "Create New Block" : block.title}
             </Heading>
             {!isNew && block.status && (
               <Badge color={STATUS_COLORS[block.status] || "grey"}>
@@ -439,25 +439,25 @@ const BlockDetailPage = () => {
               variant="primary"
               onClick={() => handleStatusChange("scheduled")}
             >
-              Planen
+              Schedule
             </Button>
           )}
           {!isNew && block.status === "scheduled" && (
             <>
               <Button onClick={() => handleStatusChange("active")}>
-                Jetzt aktivieren
+                Activate Now
               </Button>
               <Button
                 variant="secondary"
                 onClick={() => handleStatusChange("preview")}
               >
-                Vorschau
+                Preview
               </Button>
             </>
           )}
           {!isNew && block.status === "preview" && (
             <Button onClick={() => handleStatusChange("active")}>
-              Jetzt aktivieren
+              Activate Now
             </Button>
           )}
           {!isNew && block.status === "ended" && (
@@ -465,7 +465,7 @@ const BlockDetailPage = () => {
               variant="secondary"
               onClick={() => handleStatusChange("archived")}
             >
-              Archivieren
+              Archive
             </Button>
           )}
 
@@ -480,10 +480,10 @@ const BlockDetailPage = () => {
           )}
 
           <a href="/app/auction-blocks">
-            <Button variant="secondary">Zurück</Button>
+            <Button variant="secondary">Back</Button>
           </a>
           <Button onClick={handleSave} isLoading={saving}>
-            Speichern
+            Save
           </Button>
         </div>
       </div>
@@ -504,18 +504,18 @@ const BlockDetailPage = () => {
       {/* Ended block summary */}
       {!isNew && block.status === "ended" && (
         <Container className="mb-6">
-          <Heading level="h2" className="mb-4">Ergebnis</Heading>
+          <Heading level="h2" className="mb-4">Results</Heading>
           <div className="grid grid-cols-4 gap-4">
             <div className="p-4 bg-ui-bg-subtle rounded">
-              <Text className="text-ui-fg-subtle">Umsatz</Text>
+              <Text className="text-ui-fg-subtle">Revenue</Text>
               <p className="text-xl font-bold">€{(block.total_revenue || 0).toFixed(2)}</p>
             </div>
             <div className="p-4 bg-ui-bg-subtle rounded">
-              <Text className="text-ui-fg-subtle">Verkauft</Text>
+              <Text className="text-ui-fg-subtle">Sold</Text>
               <p className="text-xl font-bold">{block.sold_items || 0} / {block.items?.length || 0}</p>
             </div>
             <div className="p-4 bg-ui-bg-subtle rounded">
-              <Text className="text-ui-fg-subtle">Gebote</Text>
+              <Text className="text-ui-fg-subtle">Bids</Text>
               <p className="text-xl font-bold">{block.total_bids || 0}</p>
             </div>
           </div>
@@ -525,15 +525,15 @@ const BlockDetailPage = () => {
       {/* Block Details Form */}
       <Container className="mb-6">
         <Heading level="h2" className="mb-4">
-          Block-Details
+          Block Details
         </Heading>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label>Titel *</Label>
+            <Label>Title *</Label>
             <Input
               value={block.title || ""}
               onChange={(e) => handleTitleChange(e.target.value)}
-              placeholder="z.B. Industrial Classics 1980-1985"
+              placeholder="e.g. Industrial Classics 1980-1985"
             />
           </div>
           <div>
@@ -544,17 +544,17 @@ const BlockDetailPage = () => {
             />
           </div>
           <div>
-            <Label>Untertitel</Label>
+            <Label>Subtitle</Label>
             <Input
               value={block.subtitle || ""}
               onChange={(e) =>
                 setBlock((b) => ({ ...b, subtitle: e.target.value }))
               }
-              placeholder="Optionaler Untertitel"
+              placeholder="Optional subtitle"
             />
           </div>
           <div>
-            <Label>Block-Typ</Label>
+            <Label>Block Type</Label>
             <Select
               value={block.block_type || "theme"}
               onValueChange={(val) =>
@@ -584,7 +584,7 @@ const BlockDetailPage = () => {
             />
           </div>
           <div>
-            <Label>Ende *</Label>
+            <Label>End *</Label>
             <Input
               type="datetime-local"
               value={block.end_time?.slice(0, 16) || ""}
@@ -596,29 +596,29 @@ const BlockDetailPage = () => {
         </div>
 
         <div className="mt-4">
-          <Label>Kurzbeschreibung</Label>
+          <Label>Short Description</Label>
           <Textarea
             value={block.short_description || ""}
             onChange={(e) =>
               setBlock((b) => ({ ...b, short_description: e.target.value }))
             }
-            placeholder="Max 300 Zeichen"
+            placeholder="Max 300 characters"
             rows={2}
           />
         </div>
         <div className="mt-4">
-          <Label>Langbeschreibung</Label>
+          <Label>Long Description</Label>
           <RichTextEditor
             content={block.long_description || ""}
             onChange={(html) =>
               setBlock((b) => ({ ...b, long_description: html }))
             }
-            placeholder="Redaktioneller Content zum Block..."
+            placeholder="Editorial content for the block..."
           />
         </div>
         <div className="grid grid-cols-3 gap-4 mt-4">
           <div>
-            <Label>Header-Bild URL</Label>
+            <Label>Header Image URL</Label>
             <Input
               value={block.header_image || ""}
               onChange={(e) =>
@@ -652,11 +652,11 @@ const BlockDetailPage = () => {
       {/* Settings */}
       <Container className="mb-6">
         <Heading level="h2" className="mb-4">
-          Einstellungen
+          Settings
         </Heading>
         <div className="grid grid-cols-4 gap-4">
           <div>
-            <Label>Startpreis-% vom Schätzwert</Label>
+            <Label>Start Price % of Estimated Value</Label>
             <Input
               type="number"
               value={block.default_start_price_percent || 50}
@@ -682,7 +682,7 @@ const BlockDetailPage = () => {
             />
           </div>
           <div>
-            <Label>Staffelungs-Intervall (Sek.)</Label>
+            <Label>Stagger Interval (sec.)</Label>
             <Input
               type="number"
               value={block.stagger_interval_seconds || 120}
@@ -703,11 +703,11 @@ const BlockDetailPage = () => {
           <Container className="mb-6">
             <div className="flex items-center justify-between mb-4">
               <Heading level="h2">
-                Produkt-Browser
+                Product Browser
               </Heading>
               {filtersData && (
                 <Text className="text-ui-fg-subtle text-sm">
-                  {filtersData.total.toLocaleString("de-DE")} Releases im Katalog
+                  {filtersData.total.toLocaleString("en-US")} releases in catalog
                 </Text>
               )}
             </div>
@@ -719,17 +719,17 @@ const BlockDetailPage = () => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                placeholder="Release suchen (Titel, Artist, Katalognummer)..."
+                placeholder="Search releases (title, artist, catalog number)..."
               />
               <Button onClick={() => handleSearch()} isLoading={searching}>
-                Suchen
+                Search
               </Button>
               {!browseMode && (
                 <Button
                   variant="secondary"
                   onClick={() => handleSearch()}
                 >
-                  Alle durchstöbern
+                  Browse All
                 </Button>
               )}
             </div>
@@ -751,7 +751,7 @@ const BlockDetailPage = () => {
                           : "bg-ui-bg-base text-ui-fg-subtle border border-ui-border-base hover:border-ui-fg-muted"
                       }`}
                     >
-                      {String(f.value)} ({Number(f.count).toLocaleString("de-DE")})
+                      {String(f.value)} ({Number(f.count).toLocaleString("en-US")})
                     </button>
                   )
                 })}
@@ -769,16 +769,16 @@ const BlockDetailPage = () => {
               <div className="flex flex-wrap gap-3 items-end">
                 {/* Country */}
                 <div className="w-44">
-                  <label className="text-xs text-ui-fg-subtle font-medium mb-1 block">Land</label>
+                  <label className="text-xs text-ui-fg-subtle font-medium mb-1 block">Country</label>
                   <select
                     value={selectedCountry}
                     onChange={(e) => setSelectedCountry(e.target.value)}
                     className="w-full h-8 px-2 text-sm rounded-md border border-ui-border-base bg-ui-bg-base text-ui-fg-base"
                   >
-                    <option value="">Alle Länder</option>
+                    <option value="">All Countries</option>
                     {filtersData?.countries?.map((c) => (
                       <option key={String(c.value)} value={String(c.value)}>
-                        {String(c.value)} ({Number(c.count).toLocaleString("de-DE")})
+                        {String(c.value)} ({Number(c.count).toLocaleString("en-US")})
                       </option>
                     ))}
                   </select>
@@ -786,7 +786,7 @@ const BlockDetailPage = () => {
 
                 {/* Year from */}
                 <div className="w-28">
-                  <label className="text-xs text-ui-fg-subtle font-medium mb-1 block">Jahr von</label>
+                  <label className="text-xs text-ui-fg-subtle font-medium mb-1 block">Year From</label>
                   <select
                     value={yearFrom}
                     onChange={(e) => setYearFrom(e.target.value)}
@@ -801,7 +801,7 @@ const BlockDetailPage = () => {
 
                 {/* Year to */}
                 <div className="w-28">
-                  <label className="text-xs text-ui-fg-subtle font-medium mb-1 block">Jahr bis</label>
+                  <label className="text-xs text-ui-fg-subtle font-medium mb-1 block">Year To</label>
                   <select
                     value={yearTo}
                     onChange={(e) => setYearTo(e.target.value)}
@@ -822,14 +822,14 @@ const BlockDetailPage = () => {
                     value={labelSearch}
                     onChange={(e) => setLabelSearch(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                    placeholder="Label suchen..."
+                    placeholder="Search label..."
                     className="w-full h-8 px-2 text-sm rounded-md border border-ui-border-base bg-ui-bg-base text-ui-fg-base placeholder:text-ui-fg-muted"
                   />
                 </div>
 
                 {/* Sort */}
                 <div className="w-36">
-                  <label className="text-xs text-ui-fg-subtle font-medium mb-1 block">Sortierung</label>
+                  <label className="text-xs text-ui-fg-subtle font-medium mb-1 block">Sort</label>
                   <select
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value)}
@@ -849,7 +849,7 @@ const BlockDetailPage = () => {
                     onChange={(e) => setOnlyAvailable(e.target.checked)}
                     className="rounded"
                   />
-                  Nur verfügbare
+                  Available only
                 </label>
 
                 {/* Reset all filters */}
@@ -864,7 +864,7 @@ const BlockDetailPage = () => {
                     }}
                     className="text-xs text-ui-fg-subtle hover:text-ui-fg-base self-end pb-1 underline"
                   >
-                    Alle Filter zurücksetzen
+                    Reset all filters
                   </button>
                 )}
               </div>
@@ -874,7 +874,7 @@ const BlockDetailPage = () => {
             {browseMode && (
               <div className="flex items-center justify-between mb-3">
                 <Text className="text-sm font-medium">
-                  {searchCount.toLocaleString("de-DE")} Releases gefunden
+                  {searchCount.toLocaleString("en-US")} releases found
                 </Text>
                 <div className="flex gap-1">
                   <button
@@ -895,7 +895,7 @@ const BlockDetailPage = () => {
                         : "bg-ui-bg-base text-ui-fg-subtle border border-ui-border-base"
                     }`}
                   >
-                    ☰ Tabelle
+                    ☰ Table
                   </button>
                 </div>
               </div>
@@ -963,7 +963,7 @@ const BlockDetailPage = () => {
                           {alreadyInBlock && (
                             <div className="absolute inset-0 bg-green-900/30 flex items-center justify-center">
                               <span className="px-2 py-1 bg-green-700 text-white text-xs font-medium rounded">
-                                Im Block
+                                In Block
                               </span>
                             </div>
                           )}
@@ -972,7 +972,7 @@ const BlockDetailPage = () => {
                         {/* Info */}
                         <div className="p-2">
                           <p className="text-xs font-medium truncate" title={r.artist_name || undefined}>
-                            {r.artist_name || "Unbekannt"}
+                            {r.artist_name || "Unknown"}
                           </p>
                           <p className="text-xs text-ui-fg-subtle truncate" title={r.title}>
                             {r.title}
@@ -1001,7 +1001,7 @@ const BlockDetailPage = () => {
                       onClick={() => handleSearch(true)}
                       isLoading={searching}
                     >
-                      Mehr laden ({searchResults.length} / {searchCount.toLocaleString("de-DE")})
+                      Load More ({searchResults.length} / {searchCount.toLocaleString("en-US")})
                     </Button>
                   </div>
                 )}
@@ -1016,11 +1016,11 @@ const BlockDetailPage = () => {
                     <Table.Row>
                       <Table.HeaderCell>Cover</Table.HeaderCell>
                       <Table.HeaderCell>Artist</Table.HeaderCell>
-                      <Table.HeaderCell>Titel</Table.HeaderCell>
+                      <Table.HeaderCell>Title</Table.HeaderCell>
                       <Table.HeaderCell>Label</Table.HeaderCell>
                       <Table.HeaderCell>Format</Table.HeaderCell>
-                      <Table.HeaderCell>Jahr</Table.HeaderCell>
-                      <Table.HeaderCell>Schätzwert</Table.HeaderCell>
+                      <Table.HeaderCell>Year</Table.HeaderCell>
+                      <Table.HeaderCell>Est. Value</Table.HeaderCell>
                       <Table.HeaderCell></Table.HeaderCell>
                     </Table.Row>
                   </Table.Header>
@@ -1056,7 +1056,7 @@ const BlockDetailPage = () => {
                           </Table.Cell>
                           <Table.Cell>
                             {alreadyInBlock ? (
-                              <Badge color="green">Im Block</Badge>
+                              <Badge color="green">In Block</Badge>
                             ) : (
                               <IconButton onClick={() => handleAddItem(r)}>
                                 <Plus />
@@ -1077,7 +1077,7 @@ const BlockDetailPage = () => {
                       onClick={() => handleSearch(true)}
                       isLoading={searching}
                     >
-                      Mehr laden ({searchResults.length} / {searchCount.toLocaleString("de-DE")})
+                      Load More ({searchResults.length} / {searchCount.toLocaleString("en-US")})
                     </Button>
                   </div>
                 )}
@@ -1088,7 +1088,7 @@ const BlockDetailPage = () => {
             {browseMode && searchResults.length === 0 && !searching && (
               <div className="text-center py-8">
                 <Text className="text-ui-fg-subtle">
-                  Keine Releases gefunden. Versuche andere Filter.
+                  No releases found. Try different filters.
                 </Text>
               </div>
             )}
@@ -1097,7 +1097,7 @@ const BlockDetailPage = () => {
           {/* Block Items */}
           <Container>
             <Heading level="h2" className="mb-4">
-              Block-Items ({block.items?.length || 0})
+              Block Items ({block.items?.length || 0})
             </Heading>
             {block.items && block.items.length > 0 ? (
               <Table>
@@ -1105,12 +1105,12 @@ const BlockDetailPage = () => {
                   <Table.Row>
                     <Table.HeaderCell>Lot</Table.HeaderCell>
                     <Table.HeaderCell>Cover</Table.HeaderCell>
-                    <Table.HeaderCell>Artist / Titel</Table.HeaderCell>
+                    <Table.HeaderCell>Artist / Title</Table.HeaderCell>
                     <Table.HeaderCell>Format</Table.HeaderCell>
-                    <Table.HeaderCell>Schätzwert</Table.HeaderCell>
-                    <Table.HeaderCell>Startpreis</Table.HeaderCell>
-                    <Table.HeaderCell>Mindestpreis</Table.HeaderCell>
-                    <Table.HeaderCell>Sofortkauf</Table.HeaderCell>
+                    <Table.HeaderCell>Est. Value</Table.HeaderCell>
+                    <Table.HeaderCell>Start Price</Table.HeaderCell>
+                    <Table.HeaderCell>Reserve Price</Table.HeaderCell>
+                    <Table.HeaderCell>Buy Now</Table.HeaderCell>
                     <Table.HeaderCell>Status</Table.HeaderCell>
                     <Table.HeaderCell></Table.HeaderCell>
                   </Table.Row>
@@ -1218,7 +1218,7 @@ const BlockDetailPage = () => {
               </Table>
             ) : (
               <Text className="text-ui-fg-subtle">
-                Noch keine Produkte zugeordnet. Nutze den Browser oben.
+                No products assigned yet. Use the browser above.
               </Text>
             )}
           </Container>

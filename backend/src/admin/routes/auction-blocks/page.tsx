@@ -49,36 +49,36 @@ const AuctionBlocksPage = () => {
     <Container>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <Heading level="h1">Auktions-Blöcke</Heading>
+          <Heading level="h1">Auction Blocks</Heading>
           <Text className="text-ui-fg-subtle mt-1">
-            Themen-Auktionsblöcke verwalten
+            Manage themed auction blocks
           </Text>
         </div>
         <a href="/app/auction-blocks/create">
-          <Button>Neuen Block erstellen</Button>
+          <Button>Create New Block</Button>
         </a>
       </div>
 
       {loading ? (
-        <Text>Laden...</Text>
+        <Text>Loading...</Text>
       ) : blocks.length === 0 ? (
         <Container className="text-center py-12">
           <Text className="text-ui-fg-subtle">
-            Noch keine Auktions-Blöcke erstellt.
+            No auction blocks created yet.
           </Text>
           <a href="/app/auction-blocks/create">
-            <Button className="mt-4">Ersten Block erstellen</Button>
+            <Button className="mt-4">Create First Block</Button>
           </a>
         </Container>
       ) : (
         <Table>
           <Table.Header>
             <Table.Row>
-              <Table.HeaderCell>Titel</Table.HeaderCell>
-              <Table.HeaderCell>Typ</Table.HeaderCell>
+              <Table.HeaderCell>Title</Table.HeaderCell>
+              <Table.HeaderCell>Type</Table.HeaderCell>
               <Table.HeaderCell>Status</Table.HeaderCell>
               <Table.HeaderCell>Start</Table.HeaderCell>
-              <Table.HeaderCell>Ende</Table.HeaderCell>
+              <Table.HeaderCell>End</Table.HeaderCell>
               <Table.HeaderCell>Items</Table.HeaderCell>
               <Table.HeaderCell></Table.HeaderCell>
             </Table.Row>
@@ -105,16 +105,16 @@ const AuctionBlocksPage = () => {
                   </Badge>
                 </Table.Cell>
                 <Table.Cell>
-                  {new Date(block.start_time).toLocaleDateString("de-DE")}
+                  {new Date(block.start_time).toLocaleDateString("en-GB")}
                 </Table.Cell>
                 <Table.Cell>
-                  {new Date(block.end_time).toLocaleDateString("de-DE")}
+                  {new Date(block.end_time).toLocaleDateString("en-GB")}
                 </Table.Cell>
                 <Table.Cell>{block.items?.length || 0}</Table.Cell>
                 <Table.Cell>
                   <a href={`/app/auction-blocks/${block.id}`}>
                     <Button variant="secondary" size="small">
-                      Bearbeiten
+                      Edit
                     </Button>
                   </a>
                 </Table.Cell>
@@ -128,7 +128,7 @@ const AuctionBlocksPage = () => {
 }
 
 export const config = defineRouteConfig({
-  label: "Auktions-Blöcke",
+  label: "Auction Blocks",
   icon: ChatBubbleLeftRight,
 })
 

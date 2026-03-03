@@ -39,6 +39,7 @@ type Release = {
   year: number | null
   country: string | null
   cat_no: string | null
+  article_number: string | null
   barcode: string | null
   genre: string | null
   styles: string | null
@@ -46,6 +47,8 @@ type Release = {
   notes: string | null
   discogs_id: number | null
   lowest_price: number | null
+  median_price: number | null
+  highest_price: number | null
   num_for_sale: number | null
   have: number | null
   want: number | null
@@ -198,6 +201,7 @@ const MediaDetailPage = () => {
   }
 
   const infoFields: [string, string | null | number][] = [
+    ["Article No.", release.article_number],
     ["Artist", release.artist_name],
     ["Title", release.title],
     ["Format", release.format],
@@ -280,9 +284,11 @@ const MediaDetailPage = () => {
 
           <div style={cardStyle}>
             <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: COLORS.gold }}>Discogs Data</h2>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: "16px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr 1fr 1fr", gap: "16px" }}>
               <div><div style={labelStyle}>Discogs ID</div><div style={valueStyle}>{release.discogs_id ? (<a href={`https://www.discogs.com/release/${release.discogs_id}`} target="_blank" rel="noopener noreferrer" style={{ color: COLORS.gold, textDecoration: "none" }}>{release.discogs_id} &#8599;</a>) : "\u2014"}</div></div>
-              <div><div style={labelStyle}>Lowest Price</div><div style={{ ...valueStyle, color: release.lowest_price ? COLORS.gold : COLORS.muted }}>{formatPrice(release.lowest_price)}</div></div>
+              <div><div style={labelStyle}>Low</div><div style={{ ...valueStyle, color: release.lowest_price ? COLORS.gold : COLORS.muted }}>{formatPrice(release.lowest_price)}</div></div>
+              <div><div style={labelStyle}>Median</div><div style={{ ...valueStyle, color: release.median_price ? COLORS.gold : COLORS.muted }}>{formatPrice(release.median_price)}</div></div>
+              <div><div style={labelStyle}>High</div><div style={{ ...valueStyle, color: release.highest_price ? COLORS.gold : COLORS.muted }}>{formatPrice(release.highest_price)}</div></div>
               <div><div style={labelStyle}>For Sale</div><div style={valueStyle}>{release.num_for_sale ?? "\u2014"}</div></div>
               <div><div style={labelStyle}>Have</div><div style={valueStyle}>{release.have ?? "\u2014"}</div></div>
               <div><div style={labelStyle}>Want</div><div style={valueStyle}>{release.want ?? "\u2014"}</div></div>

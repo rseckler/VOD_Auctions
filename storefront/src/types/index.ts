@@ -45,6 +45,7 @@ export type Release = {
   country: string | null
   coverImage: string | null
   catalogNumber: string | null
+  article_number: string | null
   estimated_value: number | null
   artist_name: string | null
   label_name: string | null
@@ -56,6 +57,11 @@ export type Release = {
   legacy_format_detail?: string | null
   tracklist?: TracklistEntry[] | null
   credits?: string | null
+  discogs_id?: number | null
+  discogs_lowest_price?: number | null
+  discogs_median_price?: number | null
+  discogs_highest_price?: number | null
+  discogs_num_for_sale?: number | null
   various_artists?: VariousArtist[]
   comments?: ReleaseComment[]
 }

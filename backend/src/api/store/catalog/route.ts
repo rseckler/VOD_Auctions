@@ -33,6 +33,7 @@ export async function GET(
       "Release.country",
       "Release.coverImage",
       "Release.catalogNumber",
+      "Release.article_number",
       "Release.legacy_condition",
       "Release.legacy_price",
       "Release.legacy_format_detail",
@@ -50,6 +51,7 @@ export async function GET(
     query = query.where(function () {
       this.whereILike("Release.title", term)
         .orWhereILike("Release.catalogNumber", term)
+        .orWhereILike("Release.article_number", term)
         .orWhereILike("Artist.name", term)
         .orWhereILike("Label.name", term)
     })

@@ -51,6 +51,7 @@ export async function GET(
         "Release.country",
         "Release.coverImage",
         "Release.catalogNumber",
+        "Release.article_number",
         "Release.estimated_value",
         "Release.legacy_condition",
         "Release.legacy_price",

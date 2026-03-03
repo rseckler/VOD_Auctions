@@ -36,6 +36,7 @@ export async function GET(
       "Release.country",
       "Release.coverImage",
       "Release.catalogNumber",
+      "Release.article_number",
       "Release.barcode",
       "Release.estimated_value",
       "Release.auction_status",
@@ -61,6 +62,7 @@ export async function GET(
       this.whereILike("Release.title", search)
         .orWhereILike("Artist.name", search)
         .orWhereILike("Release.catalogNumber", search)
+        .orWhereILike("Release.article_number", search)
     })
   }
 

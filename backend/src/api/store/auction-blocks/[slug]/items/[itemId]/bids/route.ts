@@ -97,7 +97,7 @@ export async function POST(
 
   const customerId = (req as any).auth_context?.actor_id
   if (!customerId) {
-    res.status(401).json({ message: "Anmeldung erforderlich" })
+    res.status(401).json({ message: "Authentication required" })
     return
   }
 
@@ -109,12 +109,12 @@ export async function POST(
 
   // Input validation
   if (!amount || typeof amount !== "number" || amount <= 0) {
-    res.status(400).json({ message: "Ungültiger Gebotsbetrag" })
+    res.status(400).json({ message: "Invalid bid amount" })
     return
   }
   if (max_amount !== undefined && max_amount < amount) {
     res.status(400).json({
-      message: "Maximalgebot muss >= Gebotsbetrag sein",
+      message: "Maximum bid must be >= bid amount",
     })
     return
   }
@@ -128,15 +128,15 @@ export async function POST(
         .first()
 
       if (!item) {
-        throw { status: 404, message: "Item nicht gefunden" }
+        throw { status: 404, message: "Item not found" }
       }
       if (item.status !== "active") {
-        throw { status: 400, message: "Item ist nicht aktiv" }
+        throw { status: 400, message: "Item is not active" }
       }
 
       // Check lot end time
       if (item.lot_end_time && new Date(item.lot_end_time) < new Date()) {
-        throw { status: 400, message: "Lot ist beendet" }
+        throw { status: 400, message: "Lot has ended" }
       }
 
       // Get the block
@@ -145,7 +145,7 @@ export async function POST(
         .first()
 
       if (!block || block.status !== "active") {
-        throw { status: 400, message: "Auktion ist nicht aktiv" }
+        throw { status: 400, message: "Auction is not active" }
       }
 
       // Calculate minimum bid
@@ -159,7 +159,7 @@ export async function POST(
       if (amount < minimumBid) {
         throw {
           status: 400,
-          message: `Mindestgebot: €${minimumBid.toFixed(2)}`,
+          message: `Minimum bid: €${minimumBid.toFixed(2)}`,
           minimum_bid: minimumBid,
         }
       }
@@ -182,12 +182,12 @@ export async function POST(
             bid_id: existingWinning.id,
             amount: parseFloat(existingWinning.amount),
             current_price: currentPrice,
-            message: "Maximalgebot aktualisiert",
+            message: "Maximum bid updated",
           }
         }
         throw {
           status: 400,
-          message: "Sie sind bereits Höchstbietender",
+          message: "You are already the highest bidder",
         }
       }
 
@@ -234,7 +234,7 @@ export async function POST(
             amount,
             outbid: true,
             current_price: autoResponse,
-            message: "Überboten — ein Proxy-Gebot war höher",
+            message: "Outbid — a proxy bid was higher",
           }
         }
       }
@@ -288,7 +288,7 @@ export async function POST(
     res.status(httpStatus).json(result)
   } catch (err: any) {
     const status = err.status || 500
-    const message = err.message || "Unbekannter Fehler"
+    const message = err.message || "Unknown error"
     res.status(status).json({ message, minimum_bid: err.minimum_bid })
   }
 }

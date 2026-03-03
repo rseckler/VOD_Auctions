@@ -25,7 +25,7 @@ export async function GET(
     .first()
 
   if (!release) {
-    res.status(404).json({ message: "Release nicht gefunden" })
+    res.status(404).json({ message: "Release not found" })
     return
   }
 
@@ -69,7 +69,7 @@ export async function POST(
 
   if (Object.keys(updates).length === 0) {
     res.status(400).json({
-      message: "Keine gültigen Felder zum Aktualisieren",
+      message: "No valid fields to update",
     })
     return
   }

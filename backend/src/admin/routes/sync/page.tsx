@@ -78,7 +78,7 @@ const COLORS = {
 
 const formatDate = (d: string | null) => {
   if (!d) return "\u2014"
-  return new Date(d).toLocaleDateString("de-DE", {
+  return new Date(d).toLocaleDateString("en-GB", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -211,7 +211,7 @@ const SyncDashboardPage = () => {
   if (loading) {
     return (
       <div style={{ padding: "24px", background: COLORS.bg, minHeight: "100vh", color: COLORS.text }}>
-        <div style={{ color: COLORS.muted }}>Laden...</div>
+        <div style={{ color: COLORS.muted }}>Loading...</div>
       </div>
     )
   }
@@ -247,7 +247,7 @@ const SyncDashboardPage = () => {
   return (
     <div style={{ padding: "24px", background: COLORS.bg, minHeight: "100vh", color: COLORS.text }}>
       {/* Page Title */}
-      <h1 style={{ fontSize: "24px", fontWeight: 700, marginBottom: "20px" }}>Sync-Dashboard</h1>
+      <h1 style={{ fontSize: "24px", fontWeight: 700, marginBottom: "20px" }}>Sync Dashboard</h1>
 
       {/* Header Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "28px" }}>
@@ -270,12 +270,12 @@ const SyncDashboardPage = () => {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
             <div>
-              <div style={labelStyle}>Letzter Sync</div>
+              <div style={labelStyle}>Last Sync</div>
               <div style={valueStyle}>{formatDate(overview?.last_legacy_sync || null)}</div>
             </div>
             <div>
-              <div style={labelStyle}>Gesamt Releases</div>
-              <div style={bigValueStyle}>{overview?.overview?.total_releases?.toLocaleString("de-DE") || "0"}</div>
+              <div style={labelStyle}>Total Releases</div>
+              <div style={bigValueStyle}>{overview?.overview?.total_releases?.toLocaleString("en-US") || "0"}</div>
             </div>
           </div>
         </div>
@@ -299,22 +299,22 @@ const SyncDashboardPage = () => {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px" }}>
             <div>
-              <div style={labelStyle}>Letzter Sync</div>
+              <div style={labelStyle}>Last Sync</div>
               <div style={valueStyle}>{formatDate(overview?.last_discogs_sync || null)}</div>
             </div>
             <div>
-              <div style={labelStyle}>Abdeckung</div>
+              <div style={labelStyle}>Coverage</div>
               <div style={valueStyle}>
-                <span style={{ color: COLORS.gold, fontWeight: 600 }}>{withDiscogs.toLocaleString("de-DE")}</span>
+                <span style={{ color: COLORS.gold, fontWeight: 600 }}>{withDiscogs.toLocaleString("en-US")}</span>
                 {" / "}
-                {totalReleases.toLocaleString("de-DE")}
+                {totalReleases.toLocaleString("en-US")}
                 {" = "}
                 <span style={{ color: COLORS.gold }}>{coveragePercent}%</span>
               </div>
             </div>
             <div>
-              <div style={labelStyle}>Mit Preis</div>
-              <div style={bigValueStyle}>{overview?.overview?.with_price?.toLocaleString("de-DE") || "0"}</div>
+              <div style={labelStyle}>With Price</div>
+              <div style={bigValueStyle}>{overview?.overview?.with_price?.toLocaleString("en-US") || "0"}</div>
             </div>
           </div>
         </div>
@@ -323,7 +323,7 @@ const SyncDashboardPage = () => {
       {/* Tab Navigation */}
       <div style={{ borderBottom: `1px solid ${COLORS.border}`, marginBottom: "20px" }}>
         <button style={tabStyle(activeTab === "log")} onClick={() => setActiveTab("log")}>
-          Sync-Log
+          Sync Log
         </button>
         <button style={tabStyle(activeTab === "legacy")} onClick={() => setActiveTab("legacy")}>
           Legacy Details
@@ -337,22 +337,22 @@ const SyncDashboardPage = () => {
       {activeTab === "log" && (
         <div style={cardStyle}>
           <h3 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: COLORS.gold }}>
-            Letzte Sync-Eintraege
+            Recent Sync Entries
           </h3>
           {!overview?.recent_logs || overview.recent_logs.length === 0 ? (
             <div style={{ color: COLORS.muted, textAlign: "center", padding: "30px 0" }}>
-              Keine Sync-Eintraege vorhanden.
+              No sync entries found.
             </div>
           ) : (
             <div style={{ overflow: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr>
-                    <th style={thStyle}>Datum</th>
-                    <th style={thStyle}>Typ</th>
+                    <th style={thStyle}>Date</th>
+                    <th style={thStyle}>Type</th>
                     <th style={thStyle}>Release</th>
                     <th style={thStyle}>Status</th>
-                    <th style={thStyle}>Aenderungen</th>
+                    <th style={thStyle}>Changes</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -417,7 +417,7 @@ const SyncDashboardPage = () => {
       {activeTab === "legacy" && (
         <div>
           {legacyLoading ? (
-            <div style={{ color: COLORS.muted, textAlign: "center", padding: "40px 0" }}>Laden...</div>
+            <div style={{ color: COLORS.muted, textAlign: "center", padding: "40px 0" }}>Loading...</div>
           ) : legacyData ? (
             <>
               {/* Count Comparison Cards */}
@@ -434,9 +434,9 @@ const SyncDashboardPage = () => {
                     <div key={key} style={cardStyle}>
                       <div style={labelStyle}>{labelMap[key]}</div>
                       <div style={{ display: "flex", alignItems: "baseline", gap: "8px", marginTop: "4px" }}>
-                        <span style={bigValueStyle}>{counts?.supabase?.toLocaleString("de-DE") || "0"}</span>
+                        <span style={bigValueStyle}>{counts?.supabase?.toLocaleString("en-US") || "0"}</span>
                         <span style={{ fontSize: "13px", color: COLORS.muted }}>
-                          / {counts?.legacy?.toLocaleString("de-DE") || "0"} Legacy
+                          / {counts?.legacy?.toLocaleString("en-US") || "0"} Legacy
                         </span>
                       </div>
                       {counts && counts.legacy > 0 && (
@@ -467,7 +467,7 @@ const SyncDashboardPage = () => {
               {/* Recently Added Releases */}
               <div style={cardStyle}>
                 <h3 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: COLORS.gold }}>
-                  Zuletzt hinzugefuegte Releases
+                  Recently Added Releases
                 </h3>
                 {legacyData.recent_added?.length > 0 ? (
                   <div style={{ overflow: "auto" }}>
@@ -475,9 +475,9 @@ const SyncDashboardPage = () => {
                       <thead>
                         <tr>
                           <th style={thStyle}>Artist</th>
-                          <th style={thStyle}>Titel</th>
+                          <th style={thStyle}>Title</th>
                           <th style={thStyle}>Format</th>
-                          <th style={thStyle}>Hinzugefuegt</th>
+                          <th style={thStyle}>Added</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -511,14 +511,14 @@ const SyncDashboardPage = () => {
                   </div>
                 ) : (
                   <div style={{ color: COLORS.muted, textAlign: "center", padding: "20px 0" }}>
-                    Keine kuerzlich hinzugefuegten Releases.
+                    No recently added releases.
                   </div>
                 )}
               </div>
             </>
           ) : (
             <div style={{ color: COLORS.muted, textAlign: "center", padding: "40px 0" }}>
-              Keine Legacy-Daten verfuegbar.
+              No legacy data available.
             </div>
           )}
         </div>
@@ -528,13 +528,13 @@ const SyncDashboardPage = () => {
       {activeTab === "discogs" && (
         <div>
           {discogsLoading ? (
-            <div style={{ color: COLORS.muted, textAlign: "center", padding: "40px 0" }}>Laden...</div>
+            <div style={{ color: COLORS.muted, textAlign: "center", padding: "40px 0" }}>Loading...</div>
           ) : discogsData ? (
             <>
               {/* Format Coverage */}
               <div style={{ ...cardStyle, marginBottom: "20px" }}>
                 <h3 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: COLORS.gold }}>
-                  Format-Abdeckung
+                  Format Coverage
                 </h3>
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                   {discogsData.format_coverage?.map((fc) => (
@@ -549,7 +549,7 @@ const SyncDashboardPage = () => {
                       >
                         <span style={{ fontWeight: 500 }}>{fc.format}</span>
                         <span style={{ color: COLORS.muted }}>
-                          {fc.matched.toLocaleString("de-DE")} / {fc.total.toLocaleString("de-DE")} ({fc.percentage}%)
+                          {fc.matched.toLocaleString("en-US")} / {fc.total.toLocaleString("en-US")} ({fc.percentage}%)
                         </span>
                       </div>
                       <div
@@ -576,7 +576,7 @@ const SyncDashboardPage = () => {
                 </div>
                 {discogsData.unscanned > 0 && (
                   <div style={{ marginTop: "16px", fontSize: "13px", color: COLORS.muted }}>
-                    {discogsData.unscanned.toLocaleString("de-DE")} Releases noch nicht gescannt
+                    {discogsData.unscanned.toLocaleString("en-US")} releases not yet scanned
                   </div>
                 )}
               </div>
@@ -585,7 +585,7 @@ const SyncDashboardPage = () => {
               {discogsData.price_stats && (
                 <div style={{ ...cardStyle, marginBottom: "20px" }}>
                   <h3 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: COLORS.gold }}>
-                    Preis-Statistiken
+                    Price Statistics
                   </h3>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px" }}>
                     <div>
@@ -597,7 +597,7 @@ const SyncDashboardPage = () => {
                       <div style={bigValueStyle}>{formatPrice(discogsData.price_stats.max)}</div>
                     </div>
                     <div>
-                      <div style={labelStyle}>Durchschnitt</div>
+                      <div style={labelStyle}>Average</div>
                       <div style={bigValueStyle}>{formatPrice(discogsData.price_stats.avg)}</div>
                     </div>
                     <div>
@@ -611,7 +611,7 @@ const SyncDashboardPage = () => {
               {/* Top Valued Releases */}
               <div style={{ ...cardStyle, marginBottom: "20px" }}>
                 <h3 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: COLORS.gold }}>
-                  Top 20 wertvollste Releases
+                  Top 20 Most Valuable Releases
                 </h3>
                 {discogsData.top_valued?.length > 0 ? (
                   <div style={{ overflow: "auto" }}>
@@ -620,8 +620,8 @@ const SyncDashboardPage = () => {
                         <tr>
                           <th style={{ ...thStyle, width: "40px" }}>#</th>
                           <th style={thStyle}>Artist</th>
-                          <th style={thStyle}>Titel</th>
-                          <th style={thStyle}>Preis</th>
+                          <th style={thStyle}>Title</th>
+                          <th style={thStyle}>Price</th>
                           <th style={thStyle}>Discogs</th>
                         </tr>
                       </thead>
@@ -658,7 +658,7 @@ const SyncDashboardPage = () => {
                   </div>
                 ) : (
                   <div style={{ color: COLORS.muted, textAlign: "center", padding: "20px 0" }}>
-                    Noch keine bewerteten Releases.
+                    No valued releases yet.
                   </div>
                 )}
               </div>
@@ -666,7 +666,7 @@ const SyncDashboardPage = () => {
               {/* Recent Price Changes */}
               <div style={cardStyle}>
                 <h3 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: COLORS.gold }}>
-                  Aktuelle Preisaenderungen
+                  Recent Price Changes
                 </h3>
                 {discogsData.recent_changes?.length > 0 ? (
                   <div style={{ overflow: "auto" }}>
@@ -674,11 +674,11 @@ const SyncDashboardPage = () => {
                       <thead>
                         <tr>
                           <th style={thStyle}>Artist</th>
-                          <th style={thStyle}>Titel</th>
-                          <th style={thStyle}>Alter Preis</th>
-                          <th style={thStyle}>Neuer Preis</th>
-                          <th style={thStyle}>Aenderung</th>
-                          <th style={thStyle}>Datum</th>
+                          <th style={thStyle}>Title</th>
+                          <th style={thStyle}>Old Price</th>
+                          <th style={thStyle}>New Price</th>
+                          <th style={thStyle}>Change</th>
+                          <th style={thStyle}>Date</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -713,7 +713,7 @@ const SyncDashboardPage = () => {
                                     {formatPrice(diff)}
                                   </span>
                                 ) : (
-                                  <span style={{ color: COLORS.success, fontSize: "12px" }}>Neu</span>
+                                  <span style={{ color: COLORS.success, fontSize: "12px" }}>New</span>
                                 )}
                               </td>
                               <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{formatDate(r.changed_at)}</td>
@@ -725,14 +725,14 @@ const SyncDashboardPage = () => {
                   </div>
                 ) : (
                   <div style={{ color: COLORS.muted, textAlign: "center", padding: "20px 0" }}>
-                    Keine Preisaenderungen vorhanden.
+                    No price changes found.
                   </div>
                 )}
               </div>
             </>
           ) : (
             <div style={{ color: COLORS.muted, textAlign: "center", padding: "40px 0" }}>
-              Keine Discogs-Daten verfuegbar.
+              No Discogs data available.
             </div>
           )}
         </div>
@@ -742,7 +742,7 @@ const SyncDashboardPage = () => {
 }
 
 export const config = defineRouteConfig({
-  label: "Sync-Status",
+  label: "Sync Status",
 })
 
 export default SyncDashboardPage

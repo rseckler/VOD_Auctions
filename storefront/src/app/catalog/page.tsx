@@ -20,6 +20,7 @@ type CatalogRelease = {
   country: string | null
   coverImage: string | null
   catalogNumber: string | null
+  article_number: string | null
   legacy_condition: string | null
   legacy_price: number | null
   legacy_format_detail: string | null

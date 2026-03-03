@@ -39,6 +39,7 @@ type Release = {
   year: number | null
   country: string | null
   cat_no: string | null
+  article_number: string | null
   discogs_id: number | null
   lowest_price: number | null
   auction_status: string | null
@@ -395,6 +396,7 @@ const MediaPage = () => {
               <th style={thStyle} onClick={() => handleSort("year")}>Year{sortIndicator("year")}</th>
               <th style={thStyle} onClick={() => handleSort("country")}>Country{sortIndicator("country")}</th>
               <th style={thStyle} onClick={() => handleSort("label")}>Label{sortIndicator("label")}</th>
+              <th style={{ ...thStyle, cursor: "default" }}>Art. No.</th>
               <th style={{ ...thStyle, cursor: "default" }}>CatNo</th>
               <th style={thStyle} onClick={() => handleSort("lowest_price")}>Discogs Price{sortIndicator("lowest_price")}</th>
               <th style={{ ...thStyle, cursor: "default" }}>Discogs ID</th>
@@ -404,9 +406,9 @@ const MediaPage = () => {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={12} style={{ ...tdStyle, textAlign: "center", padding: "40px", color: COLORS.muted }}>Loading...</td></tr>
+              <tr><td colSpan={13} style={{ ...tdStyle, textAlign: "center", padding: "40px", color: COLORS.muted }}>Loading...</td></tr>
             ) : releases.length === 0 ? (
-              <tr><td colSpan={12} style={{ ...tdStyle, textAlign: "center", padding: "40px", color: COLORS.muted }}>No results found.</td></tr>
+              <tr><td colSpan={13} style={{ ...tdStyle, textAlign: "center", padding: "40px", color: COLORS.muted }}>No results found.</td></tr>
             ) : (
               releases.map((r) => (
                 <tr
@@ -431,6 +433,7 @@ const MediaPage = () => {
                   <td style={tdStyle}>{r.year || "\u2014"}</td>
                   <td style={{ ...tdStyle, fontSize: "13px" }}>{r.country || "\u2014"}</td>
                   <td style={tdStyle}>{r.label_name || "\u2014"}</td>
+                  <td style={{ ...tdStyle, fontSize: "12px", fontFamily: "monospace", color: COLORS.gold }}>{r.article_number || "\u2014"}</td>
                   <td style={{ ...tdStyle, fontSize: "12px", color: COLORS.muted }}>{r.cat_no || "\u2014"}</td>
                   <td style={{ ...tdStyle, color: r.lowest_price ? COLORS.gold : COLORS.muted }}>{formatPrice(r.lowest_price)}</td>
                   <td style={tdStyle}>

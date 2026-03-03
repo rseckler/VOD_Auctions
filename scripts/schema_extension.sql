@@ -79,5 +79,13 @@ CREATE TABLE IF NOT EXISTS "Katalog" (
 CREATE INDEX IF NOT EXISTS idx_katalog_release ON "Katalog"("releaseId");
 CREATE INDEX IF NOT EXISTS idx_katalog_artist ON "Katalog"("artistId");
 
+-- 7. Article number column on Release table
+ALTER TABLE "Release" ADD COLUMN IF NOT EXISTS article_number TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_release_article_number ON "Release"(article_number) WHERE article_number IS NOT NULL;
+
+-- 8. Discogs price columns (median + highest)
+ALTER TABLE "Release" ADD COLUMN IF NOT EXISTS discogs_median_price DECIMAL(10,2);
+ALTER TABLE "Release" ADD COLUMN IF NOT EXISTS discogs_highest_price DECIMAL(10,2);
+
 -- Done
 SELECT 'Schema extension complete' as status;

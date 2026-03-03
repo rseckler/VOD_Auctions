@@ -145,20 +145,24 @@ def fetch_releases_with_discogs_id(pg_conn, last_id=None):
 
 
 def update_release_prices(pg_conn, release_id, lowest_price, num_for_sale,
-                          have=None, want=None):
+                          have=None, want=None, median_price=None,
+                          highest_price=None):
     """Update marketplace stats and discogs_last_synced for a release."""
     cur = pg_conn.cursor()
     cur.execute(
         """
         UPDATE "Release"
         SET discogs_lowest_price = %s,
+            discogs_median_price = COALESCE(%s, discogs_median_price),
+            discogs_highest_price = COALESCE(%s, discogs_highest_price),
             discogs_num_for_sale = %s,
             discogs_have = COALESCE(%s, discogs_have),
             discogs_want = COALESCE(%s, discogs_want),
             discogs_last_synced = NOW()
         WHERE id = %s
         """,
-        (lowest_price, num_for_sale, have, want, release_id),
+        (lowest_price, median_price, highest_price, num_for_sale, have, want,
+         release_id),
     )
     pg_conn.commit()
 
@@ -187,6 +191,48 @@ def get_marketplace_stats(discogs_id, session, rate_limiter):
     )
     resp.raise_for_status()
     return resp.json()
+
+
+def get_price_suggestions(discogs_id, session, rate_limiter):
+    """Fetch price suggestions by condition from Discogs.
+    Returns dict with median_price and highest_price derived from conditions.
+    """
+    rate_limiter.wait()
+    try:
+        resp = session.get(
+            f"{DISCOGS_BASE}/marketplace/price_suggestions/{discogs_id}",
+            headers=DISCOGS_HEADERS,
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        # Extract prices from condition-based suggestions
+        # Conditions: "Poor (P)", "Fair (F)", "Good (G)", "Good Plus (G+)",
+        #             "Very Good (VG)", "Very Good Plus (VG+)",
+        #             "Near Mint (NM or M-)", "Mint (M)"
+        prices = []
+        for condition, info in data.items():
+            if isinstance(info, dict) and "value" in info:
+                val = info["value"]
+                if val is not None:
+                    try:
+                        prices.append(float(val))
+                    except (ValueError, TypeError):
+                        pass
+
+        if not prices:
+            return {"median_price": None, "highest_price": None}
+
+        prices.sort()
+        # Median: middle value
+        n = len(prices)
+        median = prices[n // 2] if n % 2 == 1 else (prices[n // 2 - 1] + prices[n // 2]) / 2
+        highest = max(prices)
+
+        return {"median_price": round(median, 2), "highest_price": round(highest, 2)}
+    except requests.exceptions.RequestException:
+        return {"median_price": None, "highest_price": None}
 
 
 # ---------------------------------------------------------------------------
@@ -273,6 +319,11 @@ def main():
                         new_price = None
                 new_num = stats.get("num_for_sale", 0)
 
+            # Fetch price suggestions for median/highest
+            price_sugg = get_price_suggestions(discogs_id, session, rate_limiter)
+            median_price = price_sugg.get("median_price")
+            highest_price = price_sugg.get("highest_price")
+
             # Convert old values for comparison (handle Decimal from postgres)
             old_price_float = float(old_price) if old_price is not None else None
             old_num_int = int(old_num) if old_num is not None else None
@@ -280,11 +331,13 @@ def main():
             # Detect changes
             price_changed = (old_price_float != new_price)
             num_changed = (old_num_int != new_num)
-            has_changes = price_changed or num_changed
+            has_changes = price_changed or num_changed or median_price or highest_price
 
             if has_changes:
                 # Update DB
-                update_release_prices(pg_conn, release_id, new_price, new_num)
+                update_release_prices(pg_conn, release_id, new_price, new_num,
+                                      median_price=median_price,
+                                      highest_price=highest_price)
                 progress["updated"] += 1
 
                 # Track direction of change

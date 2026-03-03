@@ -76,7 +76,7 @@ export async function POST(
       const allowed = VALID_TRANSITIONS[currentStatus] || []
       if (!allowed.includes(newStatus)) {
         res.status(400).json({
-          message: `Ungültiger Statuswechsel: ${currentStatus} → ${newStatus}`,
+          message: `Invalid status transition: ${currentStatus} → ${newStatus}`,
         })
         return
       }
@@ -84,19 +84,19 @@ export async function POST(
       // Validation for draft → scheduled
       if (currentStatus === "draft" && newStatus === "scheduled") {
         const errors: string[] = []
-        if (!current.title?.trim()) errors.push("Titel ist erforderlich")
-        if (!current.slug?.trim()) errors.push("Slug ist erforderlich")
-        if (!current.start_time) errors.push("Startzeit ist erforderlich")
-        if (!current.end_time) errors.push("Endzeit ist erforderlich")
+        if (!current.title?.trim()) errors.push("Title is required")
+        if (!current.slug?.trim()) errors.push("Slug is required")
+        if (!current.start_time) errors.push("Start time is required")
+        if (!current.end_time) errors.push("End time is required")
         if (
           current.start_time &&
           current.end_time &&
           new Date(current.start_time) >= new Date(current.end_time)
         ) {
-          errors.push("Startzeit muss vor Endzeit liegen")
+          errors.push("Start time must be before end time")
         }
         if (!current.items || current.items.length === 0) {
-          errors.push("Mindestens ein Produkt muss zugeordnet sein")
+          errors.push("At least one product must be assigned")
         }
         if (errors.length > 0) {
           res.status(400).json({ message: errors.join(". ") })

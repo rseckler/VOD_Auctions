@@ -122,17 +122,46 @@ export default async function CatalogDetailPage({
                 </span>
               </div>
             )}
-            {release.discogs_lowest_price && (
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground text-sm">Discogs from</span>
-                <span className="text-sm font-mono">
-                  &euro;{Number(release.discogs_lowest_price).toFixed(2)}
+            {(release.discogs_lowest_price || release.discogs_median_price || release.discogs_highest_price || release.discogs_id) && (
+              <div className="space-y-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground text-sm">Discogs Prices</span>
                   {release.discogs_num_for_sale ? (
-                    <span className="text-muted-foreground ml-1">
-                      ({release.discogs_num_for_sale} listings)
+                    <span className="text-xs text-muted-foreground">
+                      {release.discogs_num_for_sale} listings
                     </span>
                   ) : null}
-                </span>
+                </div>
+                <div className="flex gap-3 text-sm font-mono">
+                  {release.discogs_lowest_price && (
+                    <div className="flex flex-col items-center">
+                      <span className="text-[10px] text-muted-foreground uppercase">Low</span>
+                      <span>&euro;{Number(release.discogs_lowest_price).toFixed(2)}</span>
+                    </div>
+                  )}
+                  {release.discogs_median_price && (
+                    <div className="flex flex-col items-center">
+                      <span className="text-[10px] text-muted-foreground uppercase">Median</span>
+                      <span className="font-semibold">&euro;{Number(release.discogs_median_price).toFixed(2)}</span>
+                    </div>
+                  )}
+                  {release.discogs_highest_price && (
+                    <div className="flex flex-col items-center">
+                      <span className="text-[10px] text-muted-foreground uppercase">High</span>
+                      <span>&euro;{Number(release.discogs_highest_price).toFixed(2)}</span>
+                    </div>
+                  )}
+                </div>
+                {release.discogs_id && (
+                  <a
+                    href={`https://www.discogs.com/release/${release.discogs_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-primary hover:underline inline-flex items-center gap-1 mt-1"
+                  >
+                    View on Discogs &rarr;
+                  </a>
+                )}
               </div>
             )}
             {release.estimated_value && (
@@ -149,6 +178,12 @@ export default async function CatalogDetailPage({
           <div className="space-y-3">
             <h2 className="text-lg font-semibold">Details</h2>
             <dl className="space-y-2 text-sm">
+              {release.article_number && (
+                <div className="flex justify-between">
+                  <dt className="text-muted-foreground">Article No.</dt>
+                  <dd className="font-mono text-xs">{release.article_number}</dd>
+                </div>
+              )}
               {release.label_name && (
                 <div className="flex justify-between">
                   <dt className="text-muted-foreground">Label</dt>
@@ -157,7 +192,7 @@ export default async function CatalogDetailPage({
               )}
               {release.catalogNumber && (
                 <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Catalog Number</dt>
+                  <dt className="text-muted-foreground">Catalog No.</dt>
                   <dd className="font-mono text-xs">{release.catalogNumber}</dd>
                 </div>
               )}
@@ -237,7 +272,15 @@ export default async function CatalogDetailPage({
               <div>
                 <h2 className="text-lg font-semibold mb-2">Credits</h2>
                 <p className="text-sm text-muted-foreground whitespace-pre-line">
-                  {release.credits.replace(/\\r\\n/g, '\n').replace(/\\r/g, '\n').replace(/\\n/g, '\n')}
+                  {release.credits
+                    .replace(/\\r\\n/g, '\n')
+                    .replace(/\\r/g, '\n')
+                    .replace(/\\n/g, '\n')
+                    .replace(/\r\n/g, '\n')
+                    .replace(/\r/g, '\n')
+                    .replace(/<br\s*\/?>/gi, '\n')
+                    .replace(/<[^>]+>/g, '')
+                    .trim()}
                 </p>
               </div>
             </>

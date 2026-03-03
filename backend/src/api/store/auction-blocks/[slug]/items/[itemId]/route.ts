@@ -53,6 +53,7 @@ export async function GET(
       "Release.country",
       "Release.coverImage",
       "Release.catalogNumber",
+      "Release.article_number",
       "Release.estimated_value",
       "Release.description",
       "Release.media_condition",
@@ -62,6 +63,10 @@ export async function GET(
       "Release.legacy_format_detail",
       "Release.tracklist",
       "Release.credits",
+      "Release.discogs_id",
+      "Release.discogs_lowest_price",
+      "Release.discogs_median_price",
+      "Release.discogs_highest_price",
       "Artist.name as artist_name",
       "Label.name as label_name"
     )
