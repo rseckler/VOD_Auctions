@@ -8,7 +8,7 @@ import { ImageGallery } from "@/components/ImageGallery"
 import { CatalogRelatedSection } from "@/components/CatalogRelatedSection"
 import { DirectPurchaseButton } from "@/components/DirectPurchaseButton"
 import { medusaFetch } from "@/lib/api"
-import { cleanCredits } from "@/lib/utils"
+import { CreditsTable } from "@/components/CreditsTable"
 import type { Release } from "@/types"
 
 type RelatedRelease = {
@@ -285,10 +285,8 @@ export default async function CatalogDetailPage({
             <>
               <Separator className="my-6" />
               <div>
-                <h2 className="text-lg font-semibold mb-2">Credits</h2>
-                <p className="text-sm text-muted-foreground whitespace-pre-line">
-                  {cleanCredits(release.credits)}
-                </p>
+                <h2 className="text-lg font-semibold mb-3">Credits</h2>
+                <CreditsTable credits={release.credits} />
               </div>
             </>
           )}
