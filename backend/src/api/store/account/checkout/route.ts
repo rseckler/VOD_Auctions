@@ -99,12 +99,12 @@ export async function POST(
       .where("id", item.release_id)
       .first()
 
-    const releaseArtists = await pgConnection("ReleaseArtist")
+    const artistRow = await pgConnection("Release")
       .select("Artist.name")
-      .join("Artist", "Artist.id", "ReleaseArtist.artist_id")
-      .where("ReleaseArtist.release_id", item.release_id)
-      .limit(3)
-    const artistName = releaseArtists.map((a: any) => a.name).join(", ") || "Unknown Artist"
+      .leftJoin("Artist", "Artist.id", "Release.artistId")
+      .where("Release.id", item.release_id)
+      .first()
+    const artistName = artistRow?.name || "Unknown Artist"
 
     // 5. Get customer email
     const customer = await pgConnection("customer")
