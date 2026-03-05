@@ -146,3 +146,23 @@ export type WinEntry = {
     slug: string
   }
 }
+
+export type Transaction = {
+  id: string
+  block_item_id: string
+  amount: number
+  shipping_cost: number
+  total_amount: number
+  currency: string
+  status: "pending" | "paid" | "failed" | "refunded"
+  shipping_status: "pending" | "shipped" | "delivered"
+  paid_at: string | null
+  shipped_at: string | null
+  delivered_at: string | null
+  created_at: string
+  release_title: string | null
+  release_artist: string | null
+  block_title: string
+  block_slug: string
+  lot_number: number | null
+}

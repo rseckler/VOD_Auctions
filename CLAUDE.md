@@ -8,26 +8,25 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 
 **Goal:** Eigene Plattform mit voller Kontrolle über Marke, Kundendaten, Preisgestaltung — statt 8-13% Gebühren an eBay/Discogs
 
-**Status:** Phase 1 — RSE-72 bis RSE-85 + RSE-87 bis RSE-96 erledigt, Clickdummy live, Storefront + Admin live auf VPS, Discogs-Preise backfill abgeschlossen (585 Releases), VPS Cronjobs aktiv, RSE-76 (Payment & Stripe) als nächstes
+**Status:** Phase 1 — RSE-72 bis RSE-96 + RSE-76 erledigt. Stripe Payment Integration live (Test-Mode). Nächstes: RSE-77 (Testlauf) oder RSE-100–105 (Checkout Flow, Order Tracking, Emails, Legal)
 
 **Sprache:** Storefront und Admin-UI komplett auf Englisch (seit 2026-03-03)
 
 **Created:** 2026-02-10
-**Last Updated:** 2026-03-03
+**Last Updated:** 2026-03-05
 
-### Letzte Änderungen (2026-03-03)
-- **RSE-87: Englische Übersetzung** — Alle UI-Texte (Storefront + Admin + API-Fehlermeldungen) auf Englisch
-- **RSE-88: Artikelnummern** — Neues DB-Feld `article_number` (Format: VOD-XXXXX), angezeigt in Storefront + Admin, durchsuchbar
-- **RSE-89: Discogs-Preise** — Low/Median/High statt nur Lowest, Discogs-Link auf Detailseiten, Sync-Script aktualisiert
-- **RSE-90: Credits-Fix** — `cleanCredits()` Utility in `storefront/src/lib/utils.ts` (literal Escape-Sequenzen, CRLF, HTML-Tags, fragmentierte Role–Name Patterns)
-- **RSE-91: Admin Detail Fix** — Feldnamen in Admin Media Detail korrigiert (DB-Spaltennamen statt Aliasnamen), `formatPrice` toleriert Strings von Knex
-- **RSE-92: Related Releases Fix** — Knex-Subquery durch direkte Wertvergleiche ersetzt (Subquery wurde nicht evaluiert)
-- **RSE-93: Backfill-Script** — `scripts/backfill_discogs_prices.py` — Two-Pass: 1) `/releases/{id}` für lowest_price + community data, 2) `/price_suggestions/{id}` für median/highest (graceful stop bei Rate-Limit)
-- **RSE-94: VPS Deployment** — Backend + Admin + Storefront deployed, `rm -rf public/admin` Gotcha dokumentiert
-- **RSE-95: Discogs Backfill ausgeführt** — 585 Releases mit Median/Highest-Preisen befüllt
-- **RSE-96: VPS Cronjobs verifiziert** — Legacy Sync (täglich 04:00 UTC) + Discogs Weekly (Sonntag 02:00 UTC) aktiv, alle Dependencies installiert
-- Related Sections: Tabellenformat für verwandte Releases (by Artist/Label)
-- Admin Media: Country-Spalte + Filter hinzugefügt
+### Letzte Änderungen (2026-03-05)
+- **RSE-76: Stripe Payment Integration** — Komplette Zahlungsabwicklung implementiert:
+  - Transaction Model (Medusa DML): status, shipping, Stripe IDs, Lieferadresse
+  - Stripe Checkout Session API (Hosted Page, Auto Capture)
+  - Stripe Webhook Handler (checkout.session.completed/expired)
+  - Flat-Rate Versand: DE €4.99 / EU €9.99 / Worldwide €14.99
+  - Wins-Page mit Pay-Button, Shipping-Zone-Auswahl, Status-Badges (Paid/Shipped/Delivered)
+  - Admin Transaction APIs (List + Shipping-Status Update)
+  - Stripe Account: VOD Records Sandbox (acct_1T7WaYEyxqyK4DXF)
+
+### Frühere Änderungen (2026-03-03)
+- **RSE-87–96:** English Translation, Article Numbers, Discogs Prices, Credits Fix, Admin Fixes, Backfill, VPS Deploy, Cronjobs
 
 **Clickdummy:** https://vodauction.thehotshit.de (VPS, PM2, Port 3005)
 
@@ -97,12 +96,12 @@ Shared DB für tape-mag-mvp + VOD_Auctions. Schema enthält 20 Tabellen (14 Basi
 - ~~RSE-85: Storefront UX Redesign~~ ✅
 - ~~RSE-87–94: Translation, Article Numbers, Discogs Prices, Credits, Bugfixes, Backfill, Deploy~~ ✅
 - ~~RSE-95–96: Discogs Backfill Completed, VPS Cronjobs Active~~ ✅
-- **RSE-76: Payment & Stripe Integration** ← NÄCHSTER SCHRITT
-- **RSE-100: Checkout Flow** (blocked by RSE-76)
-- **RSE-101: Order Progress Tracking** (blocked by RSE-76)
-- **RSE-103: Shipping Config** (blocked by RSE-76)
-- RSE-77: Testlauf: 1 Block mit 10-20 Produkten
-- RSE-102: Transactional Emails (6 Templates)
+- ~~RSE-76: Payment & Stripe Integration~~ ✅
+- **RSE-77: Testlauf: 1 Block mit 10-20 Produkten** ← NÄCHSTER SCHRITT
+- **RSE-100: Checkout Flow** (Order Summary + Stripe Payment)
+- **RSE-101: Order Progress Tracking** (Paid/Shipped/Delivered UI)
+- **RSE-102: Transactional Emails** (6 Templates)
+- **RSE-103: Shipping Config** (Admin-konfigurierbar)
 - RSE-104: Bid Confirmation Modal
 - RSE-105: Legal Pages (Impressum, AGB, Datenschutz)
 
@@ -127,11 +126,11 @@ Shared DB für tape-mag-mvp + VOD_Auctions. Schema enthält 20 Tabellen (14 Basi
 - `Artist`, `Label`, `Genre`, `Tag`, `Image`, `Track`
 - `User`, `Comment`, `Rating`, `Favorite`
 
-### Neu (Auktions-Layer)
-- `auction_blocks` — Themen-Auktionsblöcke
-- `block_items` — Zuordnung Release → Block (mit Startpreis, Status)
-- `bids` — Alle Gebote
-- `transactions` — Zahlungen & Versand
+### Neu (Auktions-Layer, Medusa ORM — Singular-Tabellennamen)
+- `auction_block` — Themen-Auktionsblöcke (status, timing, content, settings, results)
+- `block_item` — Zuordnung Release → Block (Startpreis, current_price, bid_count, lot_end_time, Status)
+- `bid` — Alle Gebote (amount, max_amount, is_winning, is_outbid)
+- `transaction` — Zahlungen & Versand (RSE-76: Stripe, status, shipping_status, Adresse)
 - `related_blocks` — Verwandte Blöcke
 
 ### Release-Erweiterung
@@ -182,8 +181,9 @@ VOD_Auctions/
 │   │   │   ├── models/
 │   │   │   │   ├── auction-block.ts  # AuctionBlock Entity (DML)
 │   │   │   │   ├── block-item.ts     # BlockItem Entity (DML)
-│   │   │   │   └── bid.ts            # Bid Entity (DML, RSE-75)
-│   │   │   ├── service.ts       # AuctionModuleService (auto-CRUD)
+│   │   │   │   ├── bid.ts            # Bid Entity (DML, RSE-75)
+│   │   │   │   └── transaction.ts    # Transaction Entity (DML, RSE-76)
+│   │   │   ├── service.ts       # AuctionModuleService (auto-CRUD, 4 models)
 │   │   │   └── index.ts         # Module Registration
 │   │   ├── api/
 │   │   │   ├── admin/           # Admin API (Auth required)
@@ -193,8 +193,11 @@ VOD_Auctions/
 │   │   │   │   │       └── items/    # Block Items: add, update price, remove
 │   │   │   │   ├── releases/    # Search 30k Releases (Knex raw SQL, auction_status filter)
 │   │   │   │   │   └── filters/route.ts  # GET filter options with counts (format/country/year)
-│   │   │   │   └── media/       # Medien-Verwaltung API (browse, edit, stats)
-│   │   │   │       └── [id]/route.ts     # GET/POST Release-Detail + Bewertung
+│   │   │   │   ├── media/       # Medien-Verwaltung API (browse, edit, stats)
+│   │   │   │   │   └── [id]/route.ts     # GET/POST Release-Detail + Bewertung
+│   │   │   │   └── transactions/         # Transaction Management (RSE-76)
+│   │   │   │       ├── route.ts          # GET: All transactions (filter by status)
+│   │   │   │       └── [id]/route.ts     # GET detail + POST shipping status update
 │   │   │   └── store/           # Store API (Publishable Key required)
 │   │   │       ├── auction-blocks/   # Public: list, detail, item detail
 │   │   │       │   ├── route.ts      # List blocks (items_count, status filter)
@@ -205,10 +208,14 @@ VOD_Auctions/
 │   │   │       │           └── bids/route.ts  # GET bids + POST bid (auth required)
 │   │   │       ├── catalog/          # Katalog API (alle 30k Releases)
 │   │   │       │   └── [id]/route.ts # Release-Detail + Images + Related Releases
-│   │   │       └── account/          # Account APIs (RSE-75b, customer auth)
-│   │   │           ├── bids/route.ts  # GET: Meine Gebote (JOIN bid+item+block+release)
-│   │   │           └── wins/route.ts  # GET: Gewonnene Items
-│   │   │   ├── middlewares.ts   # Auth middleware (bids + /store/account/*)
+│   │   │       └── account/          # Account APIs (RSE-75b + RSE-76)
+│   │   │           ├── bids/route.ts         # GET: Meine Gebote
+│   │   │           ├── wins/route.ts         # GET: Gewonnene Items
+│   │   │           ├── checkout/route.ts     # POST: Stripe Checkout Session (RSE-76)
+│   │   │           └── transactions/route.ts # GET: Meine Transactions (RSE-76)
+│   │   │   ├── webhooks/
+│   │   │   │   └── stripe/route.ts  # POST: Stripe Webhook (RSE-76)
+│   │   │   ├── middlewares.ts   # Auth middleware (bids + account + webhook raw body)
 │   │   │   └── jobs/
 │   │   │       └── auction-lifecycle.ts  # Cron: Block activation/ending (every min)
 │   │   └── admin/routes/        # Admin Dashboard UI Extensions (Englisch)
@@ -241,7 +248,7 @@ VOD_Auctions/
 │   │   │       ├── layout.tsx   # Auth-Guard, Sidebar-Nav, Responsive
 │   │   │       ├── page.tsx     # Übersicht: Willkommen + Summary-Karten
 │   │   │       ├── bids/page.tsx    # Meine Gebote (gruppiert, Status-Badges)
-│   │   │       ├── wins/page.tsx    # Gewonnene Items + Bezahl-Platzhalter
+│   │   │       ├── wins/page.tsx    # Gewonnene Items + Stripe Payment (RSE-76)
 │   │   │       └── settings/page.tsx # Profil-Informationen (readonly)
 │   │   ├── components/
 │   │   │   ├── layout/
@@ -395,13 +402,14 @@ npm run build             # Production build
 - ~~**RSE-95:** Re-run Discogs price backfill~~ ✅
 - ~~**RSE-96:** VPS Cronjobs (Legacy + Discogs Sync)~~ ✅
 
+- ~~**RSE-76:** Payment & Stripe Integration~~ ✅
+
 **Next (Backlog/Todo):**
-- **RSE-76:** Payment & Stripe Integration ← NÄCHSTER SCHRITT
-- **RSE-77:** Testlauf (1 Block, 10-20 Produkte)
-- **RSE-100:** Checkout Flow (Order Summary + Stripe Payment) — blocked by RSE-76
-- **RSE-101:** Order Progress Tracking (Paid/Shipped/Delivered) — blocked by RSE-76
+- **RSE-77:** Testlauf (1 Block, 10-20 Produkte) ← NÄCHSTER SCHRITT
+- **RSE-100:** Checkout Flow (Order Summary Page)
+- **RSE-101:** Order Progress Tracking (Paid/Shipped/Delivered UI)
 - **RSE-102:** Transactional Email Templates (6 Emails)
-- **RSE-103:** Shipping Configuration (Carrier + Flat Rate) — blocked by RSE-76
+- **RSE-103:** Shipping Configuration (Admin-konfigurierbar)
 - **RSE-104:** Bid Confirmation Modal
 - **RSE-105:** Legal Pages (Impressum, AGB, Datenschutz)
 
@@ -409,9 +417,6 @@ npm run build             # Production build
 - **RSE-97:** SEO & Meta Tags
 - **RSE-98:** Storefront Performance (Image optimization)
 - **RSE-99:** Admin Media Bulk Actions
-- **RSE-102:** Transactional Email Templates
-- **RSE-104:** Bid Confirmation Modal
-- **RSE-105:** Legal Pages
 
 ### Phase 2 (Launch) — Backlog
 - **RSE-78:** P2.1 Launch-Vorbereitung (Domain, SEO, Legal)
@@ -472,6 +477,54 @@ psycopg2-binary, python-dotenv, requests, mysql-connector-python
 
 **Sync-Dashboard:** `/admin/sync` — Legacy + Discogs Sync-Status und Reports
 - API: GET /admin/sync, GET /admin/sync/legacy, GET /admin/sync/discogs
+
+**Transaction Management:** `/admin/transactions` — Zahlungen & Versand (RSE-76)
+- API: GET /admin/transactions (filter: status, shipping_status)
+- API: GET /admin/transactions/:id, POST /admin/transactions/:id (shipping_status update)
+
+## Stripe Payment Integration (RSE-76)
+
+**Stripe Account:** VOD Records Sandbox (`acct_1T7WaYEyxqyK4DXF`)
+**Dashboard:** https://dashboard.stripe.com (frank@vod-records.com)
+**Mode:** Test (sk_test_... / whsec_...)
+**Webhook URL:** https://api.vod-auctions.com/webhooks/stripe
+**Events:** checkout.session.completed, checkout.session.expired
+
+### Payment Flow
+1. Auktion endet → `auction-lifecycle.ts` markiert Items als `sold`
+2. Gewinner sieht Items unter `/account/wins`
+3. Wählt Shipping-Zone (DE/EU/World) → klickt "Pay Now"
+4. POST `/store/account/checkout` erstellt Transaction + Stripe Checkout Session
+5. Redirect zu Stripe Hosted Checkout (Kreditkarte, SEPA, Klarna etc.)
+6. Nach Zahlung: Stripe Webhook → Transaction `status: "paid"`, Lieferadresse gespeichert
+7. Admin: Shipping-Status updaten (shipped/delivered) via POST `/admin/transactions/:id`
+
+### Shipping Rates (Flat-Rate, hardcoded)
+- **Germany:** €4.99
+- **Europe:** €9.99
+- **Worldwide:** €14.99
+
+### Transaction Status
+- `status`: pending → paid → refunded (oder failed)
+- `shipping_status`: pending → shipped → delivered
+
+### Key Files
+- `backend/src/lib/stripe.ts` — Stripe Client + Shipping-Rates Config
+- `backend/src/modules/auction/models/transaction.ts` — Transaction Model
+- `backend/src/api/store/account/checkout/route.ts` — Checkout Session erstellen
+- `backend/src/api/webhooks/stripe/route.ts` — Webhook Handler
+- `backend/src/api/store/account/transactions/route.ts` — Meine Transactions
+- `backend/src/api/admin/transactions/` — Admin Transaction Management
+- `storefront/src/app/account/wins/page.tsx` — Pay-Button + Status-Badges
+
+### Testing
+```bash
+# Lokal: Stripe CLI für Webhook-Forwarding
+stripe listen --forward-to localhost:9000/webhooks/stripe
+
+# Test-Karte
+4242 4242 4242 4242 (beliebiges Datum/CVC)
+```
 
 ## Related Projects
 

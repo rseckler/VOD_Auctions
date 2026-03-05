@@ -27,9 +27,11 @@ const BlockItem = model.define("block_item", {
 
   // Relations
   bids: model.hasMany(() => Bid),
+  transactions: model.hasMany(() => Transaction),
 })
 
 export default BlockItem
 
-// Forward reference
+// Forward references
 import Bid from "./bid"
+import Transaction from "./transaction"

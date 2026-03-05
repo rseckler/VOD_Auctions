@@ -1,45 +1,156 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { getToken } from "@/lib/auth"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
-import { Disc3, Trophy } from "lucide-react"
+import { Disc3, Trophy, CreditCard, Truck, CheckCircle2, Package } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
-import type { WinEntry } from "@/types"
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { toast } from "sonner"
+import type { WinEntry, Transaction } from "@/types"
+
+const SHIPPING_RATES = {
+  de: { label: "Germany — €4.99", price: 4.99 },
+  eu: { label: "Europe — €9.99", price: 9.99 },
+  world: { label: "Worldwide — €14.99", price: 14.99 },
+}
 
 export default function WinsPage() {
+  const searchParams = useSearchParams()
   const [wins, setWins] = useState<WinEntry[]>([])
+  const [transactions, setTransactions] = useState<Record<string, Transaction>>({})
   const [loading, setLoading] = useState(true)
+  const [payingItemId, setPayingItemId] = useState<string | null>(null)
+  const [shippingZones, setShippingZones] = useState<Record<string, string>>({})
 
   useEffect(() => {
+    fetchData()
+
+    const payment = searchParams.get("payment")
+    if (payment === "success") {
+      toast.success("Payment successful! You will receive a confirmation email.")
+    } else if (payment === "cancelled") {
+      toast.info("Payment cancelled. You can try again anytime.")
+    }
+  }, [searchParams])
+
+  async function fetchData() {
     const token = getToken()
     if (!token) {
       setLoading(false)
       return
     }
 
-    fetch(`${MEDUSA_URL}/store/account/wins`, {
-      headers: {
+    try {
+      const headers = {
         "x-publishable-api-key": PUBLISHABLE_KEY,
         Authorization: `Bearer ${token}`,
-      },
-    })
-      .then((r) => r.json())
-      .then((data) => {
-        setWins(data.wins || [])
-        setLoading(false)
+      }
+
+      const [winsRes, txRes] = await Promise.all([
+        fetch(`${MEDUSA_URL}/store/account/wins`, { headers }).then((r) => r.json()),
+        fetch(`${MEDUSA_URL}/store/account/transactions`, { headers }).then((r) => r.json()),
+      ])
+
+      setWins(winsRes.wins || [])
+
+      const txMap: Record<string, Transaction> = {}
+      for (const tx of txRes.transactions || []) {
+        txMap[tx.block_item_id] = tx
+      }
+      setTransactions(txMap)
+    } catch {
+      // silently fail
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handlePay(itemId: string) {
+    const token = getToken()
+    if (!token) return
+
+    const zone = shippingZones[itemId]
+    if (!zone) {
+      toast.error("Please select a shipping destination first.")
+      return
+    }
+
+    setPayingItemId(itemId)
+    try {
+      const res = await fetch(`${MEDUSA_URL}/store/account/checkout`, {
+        method: "POST",
+        headers: {
+          "x-publishable-api-key": PUBLISHABLE_KEY,
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          block_item_id: itemId,
+          shipping_zone: zone,
+        }),
       })
-      .catch(() => setLoading(false))
-  }, [])
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        toast.error(data.message || "Failed to start checkout")
+        return
+      }
+
+      if (data.checkout_url) {
+        window.location.href = data.checkout_url
+      }
+    } catch {
+      toast.error("Failed to start checkout. Please try again.")
+    } finally {
+      setPayingItemId(null)
+    }
+  }
+
+  function getStatusBadge(tx: Transaction | undefined) {
+    if (!tx) return null
+
+    if (tx.shipping_status === "delivered") {
+      return (
+        <Badge className="bg-green-600 text-white">
+          <CheckCircle2 className="w-3 h-3 mr-1" /> Delivered
+        </Badge>
+      )
+    }
+    if (tx.shipping_status === "shipped") {
+      return (
+        <Badge className="bg-blue-600 text-white">
+          <Truck className="w-3 h-3 mr-1" /> Shipped
+        </Badge>
+      )
+    }
+    if (tx.status === "paid") {
+      return (
+        <Badge className="bg-emerald-600 text-white">
+          <CreditCard className="w-3 h-3 mr-1" /> Paid
+        </Badge>
+      )
+    }
+    if (tx.status === "pending") {
+      return <Badge variant="outline">Payment Pending</Badge>
+    }
+    if (tx.status === "failed") {
+      return <Badge variant="destructive">Payment Failed</Badge>
+    }
+    return null
+  }
 
   if (loading) {
     return (
@@ -73,69 +184,102 @@ export default function WinsPage() {
       </h2>
 
       <div className="space-y-3">
-        {wins.map((win) => (
-          <Link
-            key={win.bid_id}
-            href={`/auctions/${win.block.slug}/${win.item.id}`}
-          >
-            <Card className="flex gap-4 p-4 hover:border-primary/30 transition-colors">
-              <div className="w-16 h-16 flex-shrink-0 rounded overflow-hidden bg-card">
-                {win.item.release_cover ? (
-                  <img
-                    src={win.item.release_cover}
-                    alt=""
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Disc3 className="h-6 w-6 text-muted-foreground/30" />
-                  </div>
-                )}
-              </div>
+        {wins.map((win) => {
+          const tx = transactions[win.item.id]
+          const isPaid = tx?.status === "paid" || tx?.shipping_status === "shipped" || tx?.shipping_status === "delivered"
+          const needsPayment = !tx || tx.status === "failed"
 
-              <div className="flex-1 min-w-0">
-                <Badge variant="outline" className="bg-green-500/15 text-green-500 border-green-500/30">
-                  Won
-                </Badge>
-                <p className="text-sm font-medium truncate mt-1">
-                  {win.item.release_artist && (
-                    <span className="text-muted-foreground">
-                      {win.item.release_artist} —{" "}
-                    </span>
+          return (
+            <Card key={win.bid_id} className="p-4">
+              <div className="flex gap-4">
+                {/* Cover */}
+                <Link
+                  href={`/auctions/${win.block.slug}/${win.item.id}`}
+                  className="w-16 h-16 flex-shrink-0 rounded overflow-hidden bg-card"
+                >
+                  {win.item.release_cover ? (
+                    <img
+                      src={win.item.release_cover}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <Disc3 className="h-6 w-6 text-muted-foreground/30" />
+                    </div>
                   )}
-                  {win.item.release_title || "Unknown"}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {win.block.title} · Lot {win.item.lot_number || "—"}
-                </p>
-              </div>
+                </Link>
 
-              <div className="text-right flex-shrink-0">
-                <p className="text-lg font-bold font-mono text-primary">
-                  &euro;{win.final_price.toFixed(2)}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {new Date(win.bid_date).toLocaleDateString("en-US")}
-                </p>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled
-                      className="mt-1 text-xs h-7"
-                    >
-                      Pay
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Payment feature will be available soon</p>
-                  </TooltipContent>
-                </Tooltip>
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant="outline" className="bg-green-500/15 text-green-500 border-green-500/30">
+                      Won
+                    </Badge>
+                    {getStatusBadge(tx)}
+                  </div>
+                  <p className="text-sm font-medium truncate mt-1">
+                    {win.item.release_artist && (
+                      <span className="text-muted-foreground">
+                        {win.item.release_artist} —{" "}
+                      </span>
+                    )}
+                    {win.item.release_title || "Unknown"}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {win.block.title} · Lot {win.item.lot_number || "—"}
+                  </p>
+                  {isPaid && tx && (
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Total: &euro;{tx.total_amount.toFixed(2)} (incl. &euro;{tx.shipping_cost.toFixed(2)} shipping)
+                    </p>
+                  )}
+                </div>
+
+                {/* Price + Action */}
+                <div className="text-right flex-shrink-0 flex flex-col items-end">
+                  <p className="text-lg font-bold font-mono text-primary">
+                    &euro;{win.final_price.toFixed(2)}
+                  </p>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    {new Date(win.bid_date).toLocaleDateString("en-US")}
+                  </p>
+
+                  {needsPayment && (
+                    <div className="flex flex-col gap-1.5 items-end">
+                      <Select
+                        value={shippingZones[win.item.id] || ""}
+                        onValueChange={(v) =>
+                          setShippingZones((prev) => ({ ...prev, [win.item.id]: v }))
+                        }
+                      >
+                        <SelectTrigger className="w-[170px] h-8 text-xs">
+                          <SelectValue placeholder="Ship to..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(SHIPPING_RATES).map(([key, rate]) => (
+                            <SelectItem key={key} value={key}>
+                              {rate.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        size="sm"
+                        onClick={() => handlePay(win.item.id)}
+                        disabled={!shippingZones[win.item.id] || payingItemId === win.item.id}
+                        className="bg-[#d4a54a] hover:bg-[#c49a3a] text-black h-8"
+                      >
+                        <CreditCard className="w-3.5 h-3.5 mr-1.5" />
+                        {payingItemId === win.item.id ? "Redirecting..." : "Pay Now"}
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
             </Card>
-          </Link>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
