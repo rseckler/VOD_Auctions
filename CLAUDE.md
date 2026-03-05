@@ -8,7 +8,7 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 
 **Goal:** Eigene Plattform mit voller Kontrolle über Marke, Kundendaten, Preisgestaltung — statt 8-13% Gebühren an eBay/Discogs
 
-**Status:** Phase 1 — RSE-72 bis RSE-96 + RSE-76 + RSE-109 + RSE-111 + RSE-112 + RSE-113 erledigt. Visibility-System + Inventory live. Nächstes: RSE-77 (Testlauf) oder RSE-100–105 (Order Tracking, Emails, Legal)
+**Status:** Phase 1 — RSE-72 bis RSE-96 + RSE-76 + RSE-109 + RSE-111 + RSE-112 + RSE-113 + RSE-114 erledigt. Credits-Rendering + Visibility + Inventory live. Nächstes: RSE-77 (Testlauf) oder RSE-100–105 (Order Tracking, Emails, Legal)
 
 **Sprache:** Storefront und Admin-UI komplett auf Englisch (seit 2026-03-03)
 
@@ -16,6 +16,13 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-05
 
 ### Letzte Änderungen (2026-03-05)
+- **RSE-114: Credits Structured Rendering** — Credits sauber als Tabelle statt Fließtext:
+  - `parseCredits()` in utils.ts: Parst Discogs-Style "Role – Name", "Role by Name", "Role: Name" Patterns
+  - `CreditsTable` Komponente: Strukturierte `<dl>` Darstellung mit Role/Name Spalten
+  - Fallback auf cleaned plain-text wenn keine Patterns erkannt
+  - Katalog-Detail + Auktions-Detail nutzen neue Komponente
+
+### Frühere Änderungen (2026-03-05)
 - **RSE-113: Inventory-Verwaltung** — Neues `inventory` Feld (Anzahl Stück) pro Release:
   - DB: `inventory` INTEGER Spalte, initial auf 1 gesetzt für alle sichtbaren Artikel
   - Admin Media Liste: Neue "Inv." Spalte (nach Cover)
