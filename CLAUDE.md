@@ -8,7 +8,7 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 
 **Goal:** Eigene Plattform mit voller Kontrolle über Marke, Kundendaten, Preisgestaltung — statt 8-13% Gebühren an eBay/Discogs
 
-**Status:** Phase 1 — RSE-72 bis RSE-96 + RSE-76 + RSE-109 + RSE-111 erledigt. Direktkauf/Warenkorb-System live. Nächstes: RSE-77 (Testlauf) oder RSE-100–105 (Order Tracking, Emails, Legal)
+**Status:** Phase 1 — RSE-72 bis RSE-96 + RSE-76 + RSE-109 + RSE-111 + RSE-112 + RSE-113 erledigt. Visibility-System + Inventory live. Nächstes: RSE-77 (Testlauf) oder RSE-100–105 (Order Tracking, Emails, Legal)
 
 **Sprache:** Storefront und Admin-UI komplett auf Englisch (seit 2026-03-03)
 
@@ -16,6 +16,20 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-05
 
 ### Letzte Änderungen (2026-03-05)
+- **RSE-113: Inventory-Verwaltung** — Neues `inventory` Feld (Anzahl Stück) pro Release:
+  - DB: `inventory` INTEGER Spalte, initial auf 1 gesetzt für alle sichtbaren Artikel
+  - Admin Media Liste: Neue "Inv." Spalte (nach Cover)
+  - Admin Media Detail: Editierbares Inventory-Feld im "Edit Valuation" Bereich
+  - Backend API: `inventory` in SELECT + allowedFields für Update
+- **RSE-112: Visibility-System** — Artikel ohne Bild/Preis ausblenden + Admin-Ampel:
+  - **Storefront:** Katalog-API filtert Releases ohne `coverImage` oder `legacy_price` komplett aus
+  - **Storefront:** Katalog-Detail + Auktions-Item-Detail geben 404 für versteckte Artikel
+  - **Auktionen:** Block-Items ohne Bild/Preis werden nach Enrichment gefiltert
+  - **Admin Media Liste:** Neue "Vis." Spalte (erste Spalte) mit Ampel: grün (●) = sichtbar, rot (●) = versteckt
+  - **Admin Media Liste:** Neuer "Visibility" Filter (All / Visible / Hidden)
+  - **Admin Media API:** `legacy_price` + `visibility` Query-Parameter hinzugefügt
+
+### Frühere Änderungen (2026-03-05)
 - **RSE-111: Direktkauf / Warenkorb-System** — Komplettes Direct Purchase + Cart + Combined Checkout:
   - **DB:** `cart_item` Model (Medusa DML), Transaction erweitert (block_item_id nullable, +release_id, +item_type, +order_group_id), Release +sale_mode +direct_price
   - **Backend:** `auction-helpers.ts` (hasWonAuction, isAvailableForDirectPurchase), Cart API (GET/POST/DELETE), Status API, Combined Checkout (multi-item Stripe Session mit order_group_id), Webhook erweitert, Transaction APIs LEFT JOIN
@@ -123,6 +137,8 @@ Shared DB für tape-mag-mvp + VOD_Auctions. Schema enthält 22 Tabellen (14 Basi
 - ~~RSE-76: Payment & Stripe Integration~~ ✅
 - ~~RSE-111: Direktkauf / Warenkorb-System~~ ✅
 - ~~RSE-100: Checkout Flow~~ ✅ (durch RSE-111 abgedeckt)
+- ~~RSE-112: Visibility-System (Artikel ohne Bild/Preis ausblenden + Admin-Ampel)~~ ✅
+- ~~RSE-113: Inventory-Verwaltung (Anzahl Stück pro Release)~~ ✅
 - **RSE-77: Testlauf: 1 Block mit 10-20 Produkten** ← NÄCHSTER SCHRITT
 - **RSE-101: Order Progress Tracking** (Paid/Shipped/Delivered UI)
 - **RSE-102: Transactional Emails** (6 Templates)
@@ -147,7 +163,7 @@ Shared DB für tape-mag-mvp + VOD_Auctions. Schema enthält 22 Tabellen (14 Basi
 ## Database Schema
 
 ### Bestehend (tape-mag-mvp)
-- `Release` — ~41.500 Produkte (4 Kategorien: release, band_literature, label_literature, press_literature)
+- `Release` — ~41.500 Produkte (4 Kategorien: release, band_literature, label_literature, press_literature), +inventory (INTEGER), Sichtbarkeit: coverImage + legacy_price NOT NULL
 - `Artist`, `Label`, `Genre`, `Tag`, `Image`, `Track`
 - `User`, `Comment`, `Rating`, `Favorite`
 - `Format` — 39 Referenz-Einträge (Legacy-Format-IDs, name, typ, kat, format_group)
