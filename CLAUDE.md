@@ -8,7 +8,7 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 
 **Goal:** Eigene Plattform mit voller Kontrolle über Marke, Kundendaten, Preisgestaltung — statt 8-13% Gebühren an eBay/Discogs
 
-**Status:** Phase 1 — RSE-72 bis RSE-96 + RSE-76 erledigt. Literature Migration (3 Kategorien + Format-Tabelle) erledigt. Nächstes: RSE-77 (Testlauf) oder RSE-100–105 (Checkout Flow, Order Tracking, Emails, Legal)
+**Status:** Phase 1 — RSE-72 bis RSE-96 + RSE-76 + RSE-109 + RSE-110 erledigt. Direktkauf/Warenkorb-System live. Nächstes: RSE-77 (Testlauf) oder RSE-100–105 (Order Tracking, Emails, Legal)
 
 **Sprache:** Storefront und Admin-UI komplett auf Englisch (seit 2026-03-03)
 
@@ -16,6 +16,15 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-05
 
 ### Letzte Änderungen (2026-03-05)
+- **RSE-110: Direktkauf / Warenkorb-System** — Komplettes Direct Purchase + Cart + Combined Checkout:
+  - **DB:** `cart_item` Model (Medusa DML), Transaction erweitert (block_item_id nullable, +release_id, +item_type, +order_group_id), Release +sale_mode +direct_price
+  - **Backend:** `auction-helpers.ts` (hasWonAuction, isAvailableForDirectPurchase), Cart API (GET/POST/DELETE), Status API, Combined Checkout (multi-item Stripe Session mit order_group_id), Webhook erweitert, Transaction APIs LEFT JOIN
+  - **Admin:** sale_mode Dropdown + direct_price Input auf Media Detail, sale_mode Badge auf Media Liste
+  - **Storefront:** AuthProvider (+hasWonAuction, +cartCount, +refreshStatus), Header Cart-Icon mit Badge, DirectPurchaseButton Komponente, Cart-Seite, Combined Checkout-Seite, Account-Nav erweitert, Wins-Page Checkout-Banner
+  - **Voraussetzung:** Nur Kunden mit ≥1 gewonnener Auktion können direkt kaufen
+  - **31 Dateien, +1446/-198 Zeilen**
+
+### Frühere Änderungen (2026-03-05)
 - **5-Kategorie Filter-System** — Category-Filter in allen APIs und UIs umgebaut:
   - 5 Kategorien basierend auf Format.typ/kat: Tapes (kat=1) | Vinyl (kat=2) | Artists/Bands Lit (typ=3) | Labels Lit (typ=2) | Press/Org Lit (typ=4)
   - Backend: `category` Query-Parameter (statt `product_category`) in allen 5 API-Routes
@@ -112,8 +121,8 @@ Shared DB für tape-mag-mvp + VOD_Auctions. Schema enthält 22 Tabellen (14 Basi
 - ~~RSE-87–94: Translation, Article Numbers, Discogs Prices, Credits, Bugfixes, Backfill, Deploy~~ ✅
 - ~~RSE-95–96: Discogs Backfill Completed, VPS Cronjobs Active~~ ✅
 - ~~RSE-76: Payment & Stripe Integration~~ ✅
+- ~~RSE-110: Direktkauf / Warenkorb-System~~ ✅
 - **RSE-77: Testlauf: 1 Block mit 10-20 Produkten** ← NÄCHSTER SCHRITT
-- **RSE-100: Checkout Flow** (Order Summary + Stripe Payment)
 - **RSE-101: Order Progress Tracking** (Paid/Shipped/Delivered UI)
 - **RSE-102: Transactional Emails** (6 Templates)
 - **RSE-103: Shipping Config** (Admin-konfigurierbar)
@@ -147,7 +156,8 @@ Shared DB für tape-mag-mvp + VOD_Auctions. Schema enthält 22 Tabellen (14 Basi
 - `auction_block` — Themen-Auktionsblöcke (status, timing, content, settings, results)
 - `block_item` — Zuordnung Release → Block (Startpreis, current_price, bid_count, lot_end_time, Status)
 - `bid` — Alle Gebote (amount, max_amount, is_winning, is_outbid)
-- `transaction` — Zahlungen & Versand (RSE-76: Stripe, status, shipping_status, Adresse)
+- `transaction` — Zahlungen & Versand (RSE-76: Stripe, status, shipping_status, Adresse; RSE-110: +release_id, +item_type, +order_group_id, block_item_id nullable)
+- `cart_item` — Warenkorb für Direktkäufe (RSE-110: user_id, release_id, price-Snapshot)
 - `related_blocks` — Verwandte Blöcke
 
 ### Release-Erweiterung
@@ -163,6 +173,8 @@ ALTER TABLE "Release" ADD COLUMN discogs_highest_price DECIMAL(10,2);
 ALTER TABLE "Release" ADD COLUMN product_category TEXT NOT NULL DEFAULT 'release';  -- release|band_literature|label_literature|press_literature
 ALTER TABLE "Release" ADD COLUMN format_id INTEGER REFERENCES "Format"(id);  -- FK zur Format-Tabelle
 ALTER TABLE "Release" ADD COLUMN "pressOrgaId" TEXT;  -- FK für Press/Org Literature
+ALTER TABLE "Release" ADD COLUMN sale_mode TEXT NOT NULL DEFAULT 'auction_only';  -- auction_only|direct_purchase|both
+ALTER TABLE "Release" ADD COLUMN direct_price DECIMAL(10,2);  -- Preis für Direktkauf
 ```
 
 ### Format-Tabelle
@@ -228,8 +240,9 @@ VOD_Auctions/
 │   │   │   │   ├── auction-block.ts  # AuctionBlock Entity (DML)
 │   │   │   │   ├── block-item.ts     # BlockItem Entity (DML)
 │   │   │   │   ├── bid.ts            # Bid Entity (DML, RSE-75)
-│   │   │   │   └── transaction.ts    # Transaction Entity (DML, RSE-76)
-│   │   │   ├── service.ts       # AuctionModuleService (auto-CRUD, 4 models)
+│   │   │   │   ├── transaction.ts    # Transaction Entity (DML, RSE-76/110)
+│   │   │   │   └── cart-item.ts      # CartItem Entity (DML, RSE-110)
+│   │   │   ├── service.ts       # AuctionModuleService (auto-CRUD, 5 models)
 │   │   │   └── index.ts         # Module Registration
 │   │   ├── api/
 │   │   │   ├── admin/           # Admin API (Auth required)
@@ -254,14 +267,20 @@ VOD_Auctions/
 │   │   │       │           └── bids/route.ts  # GET bids + POST bid (auth required)
 │   │   │       ├── catalog/          # Katalog API (alle 41k Releases, 5-category + legacy filters)
 │   │   │       │   └── [id]/route.ts # Release-Detail + Images + Format + PressOrga + Related Releases
-│   │   │       └── account/          # Account APIs (RSE-75b + RSE-76)
+│   │   │       └── account/          # Account APIs (RSE-75b + RSE-76 + RSE-110)
 │   │   │           ├── bids/route.ts         # GET: Meine Gebote
 │   │   │           ├── wins/route.ts         # GET: Gewonnene Items
-│   │   │           ├── checkout/route.ts     # POST: Stripe Checkout Session (RSE-76)
+│   │   │           ├── cart/route.ts         # GET + POST: Warenkorb (RSE-110)
+│   │   │           ├── cart/[id]/route.ts    # DELETE: Cart-Item entfernen (RSE-110)
+│   │   │           ├── status/route.ts       # GET: has_won_auction + cart_count (RSE-110)
+│   │   │           ├── checkout/route.ts     # POST: Combined Checkout (RSE-110, multi-item Stripe)
 │   │   │           └── transactions/route.ts # GET: Meine Transactions (RSE-76)
 │   │   │   ├── webhooks/
 │   │   │   │   └── stripe/route.ts  # POST: Stripe Webhook (RSE-76)
 │   │   │   ├── middlewares.ts   # Auth middleware (bids + account + webhook raw body)
+│   │   ├── lib/
+│   │   │   ├── stripe.ts       # Stripe Client + Shipping-Rates Config
+│   │   │   └── auction-helpers.ts  # hasWonAuction(), isAvailableForDirectPurchase() (RSE-110)
 │   │   │   └── jobs/
 │   │   │       └── auction-lifecycle.ts  # Cron: Block activation/ending (every min)
 │   │   └── admin/routes/        # Admin Dashboard UI Extensions (Englisch)
@@ -290,11 +309,13 @@ VOD_Auctions/
 │   │   │   ├── catalog/
 │   │   │   │   ├── page.tsx     # Katalog-Liste (alle 41k Releases, 5-Kategorie + Format + Advanced Filter)
 │   │   │   │   └── [id]/page.tsx # Katalog-Detail + CatalogRelatedSection
-│   │   │   └── account/         # Account-Bereich (RSE-75b)
-│   │   │       ├── layout.tsx   # Auth-Guard, Sidebar-Nav, Responsive
+│   │   │   └── account/         # Account-Bereich (RSE-75b + RSE-110)
+│   │   │       ├── layout.tsx   # Auth-Guard, Sidebar-Nav (+Cart, +Checkout)
 │   │   │       ├── page.tsx     # Übersicht: Willkommen + Summary-Karten
 │   │   │       ├── bids/page.tsx    # Meine Gebote (gruppiert, Status-Badges)
-│   │   │       ├── wins/page.tsx    # Gewonnene Items + Stripe Payment (RSE-76)
+│   │   │       ├── wins/page.tsx    # Gewonnene Items + Pay + Combined Checkout Banner
+│   │   │       ├── cart/page.tsx    # Warenkorb (RSE-110)
+│   │   │       ├── checkout/page.tsx # Combined Checkout (RSE-110)
 │   │   │       └── settings/page.tsx # Profil-Informationen (readonly)
 │   │   ├── components/
 │   │   │   ├── layout/
@@ -302,9 +323,10 @@ VOD_Auctions/
 │   │   │   │   ├── Footer.tsx        # Warm footer mit Disc3 icon
 │   │   │   │   └── MobileNav.tsx     # Sheet-based mobile nav
 │   │   │   ├── ui/                   # shadcn/ui Komponenten (17 installiert)
-│   │   │   ├── AuthProvider.tsx      # Auth Context (JWT, Customer)
+│   │   │   ├── AuthProvider.tsx      # Auth Context (JWT, Customer, hasWonAuction, cartCount)
 │   │   │   ├── AuthModal.tsx         # Login/Register Modal
 │   │   │   ├── HeaderAuth.tsx        # Login/Logout/My Account im Header
+│   │   │   ├── DirectPurchaseButton.tsx # "Add to Cart" (RSE-110, nur wenn hasWonAuction)
 │   │   │   ├── HomeContent.tsx       # Homepage Sections (Running/Upcoming)
 │   │   │   ├── BlockCard.tsx         # BlockCardVertical + BlockCardHorizontal
 │   │   │   ├── ItemBidSection.tsx    # BidForm + BidHistory + Countdown + Realtime
@@ -457,10 +479,10 @@ npm run build             # Production build
 
 - ~~**RSE-76:** Payment & Stripe Integration~~ ✅
 - ~~**RSE-109:** Literature Migration + 5-Category Filter System~~ ✅
+- ~~**RSE-110:** Direktkauf / Warenkorb-System (Direct Purchase + Cart + Combined Checkout)~~ ✅
 
 **Next (Backlog/Todo):**
 - **RSE-77:** Testlauf (1 Block, 10-20 Produkte) ← NÄCHSTER SCHRITT
-- **RSE-100:** Checkout Flow (Order Summary Page)
 - **RSE-101:** Order Progress Tracking (Paid/Shipped/Delivered UI)
 - **RSE-102:** Transactional Email Templates (6 Emails)
 - **RSE-103:** Shipping Configuration (Admin-konfigurierbar)
@@ -548,14 +570,19 @@ psycopg2-binary, python-dotenv, requests, mysql-connector-python
 **Webhook URL:** https://api.vod-auctions.com/webhooks/stripe
 **Events:** checkout.session.completed, checkout.session.expired
 
-### Payment Flow
+### Payment Flow (Combined Checkout — RSE-110)
 1. Auktion endet → `auction-lifecycle.ts` markiert Items als `sold`
-2. Gewinner sieht Items unter `/account/wins`
-3. Wählt Shipping-Zone (DE/EU/World) → klickt "Pay Now"
-4. POST `/store/account/checkout` erstellt Transaction + Stripe Checkout Session
-5. Redirect zu Stripe Hosted Checkout (Kreditkarte, SEPA, Klarna etc.)
-6. Nach Zahlung: Stripe Webhook → Transaction `status: "paid"`, Lieferadresse gespeichert
-7. Admin: Shipping-Status updaten (shipped/delivered) via POST `/admin/transactions/:id`
+2. Gewinner kann:
+   a) Einzeln bezahlen: `/account/wins` → Shipping-Zone → "Pay Now" (Legacy-Format)
+   b) Direkt kaufen: Katalog → "Add to Cart" → `/account/cart` → `/account/checkout`
+   c) Kombiniert bezahlen: `/account/checkout` → alle unbezahlten Gewinne + Cart-Items in einer Zahlung
+3. POST `/store/account/checkout` erstellt:
+   - `order_group_id` (ULID) → gruppiert alle Items
+   - 1 Transaction pro Item (auction_win oder direct_purchase)
+   - 1 Stripe Checkout Session mit N Line-Items + 1 Shipping Line
+4. Redirect zu Stripe Hosted Checkout
+5. Nach Zahlung: Stripe Webhook → alle Transactions mit order_group_id → `paid`, Direktkauf-Releases → `sold_direct`, Cart-Items gelöscht
+6. Admin: Shipping-Status updaten via POST `/admin/transactions/:id`
 
 ### Shipping Rates (Flat-Rate, hardcoded)
 - **Germany:** €4.99
@@ -568,26 +595,38 @@ psycopg2-binary, python-dotenv, requests, mysql-connector-python
 
 ### Key Files
 - `backend/src/lib/stripe.ts` — Stripe Client + Shipping-Rates Config
-- `backend/src/modules/auction/models/transaction.ts` — Transaction Model
-- `backend/src/api/store/account/checkout/route.ts` — Checkout Session erstellen
-- `backend/src/api/webhooks/stripe/route.ts` — Webhook Handler
-- `backend/src/api/store/account/transactions/route.ts` — Meine Transactions
+- `backend/src/lib/auction-helpers.ts` — hasWonAuction(), isAvailableForDirectPurchase()
+- `backend/src/modules/auction/models/transaction.ts` — Transaction Model (block_item_id nullable, +release_id, +item_type, +order_group_id)
+- `backend/src/modules/auction/models/cart-item.ts` — CartItem Model (user_id, release_id, price)
+- `backend/src/api/store/account/cart/route.ts` — Cart CRUD (GET + POST)
+- `backend/src/api/store/account/cart/[id]/route.ts` — Cart DELETE
+- `backend/src/api/store/account/status/route.ts` — Account Status (has_won_auction, cart_count)
+- `backend/src/api/store/account/checkout/route.ts` — Combined Checkout (multi-item Stripe)
+- `backend/src/api/webhooks/stripe/route.ts` — Webhook Handler (order_group_id support)
+- `backend/src/api/store/account/transactions/route.ts` — Meine Transactions (LEFT JOIN)
 - `backend/src/api/admin/transactions/` — Admin Transaction Management
-- `storefront/src/app/account/wins/page.tsx` — Pay-Button + Status-Badges
+- `storefront/src/components/DirectPurchaseButton.tsx` — "Add to Cart" Button
+- `storefront/src/app/account/cart/page.tsx` — Warenkorb-Seite
+- `storefront/src/app/account/checkout/page.tsx` — Combined Checkout-Seite
+- `storefront/src/app/account/wins/page.tsx` — Pay-Button + Combined Checkout Banner
 
 ### Testing
 
 **Test-Accounts:**
 - `bidder1@test.de` / `test1234` (Customer: `cus_01KJPXG37THC2MRPPA3JQSABJ1`)
-- `bidder2@test.de` / `test1234` (Customer: `cus_01KJPXRK22VAAK3ZPHHXRYMYQT`) — hat winning bid
+- `bidder2@test.de` / `test1234` (Customer: `cus_01KJPXRK22VAAK3ZPHHXRYMYQT`) — hat winning bid (Lot #1)
+- `testuser@vod-auctions.com` / `TestPass123!` (Customer: `cus_01KJZ9AKFPNQ82QCNB3Q6ZX92T`) — hat winning bid (Lot #2), für Direktkauf-Tests
 
 **Vorhandene Testdaten (DB):**
 - Block: "Industrial Classics 1980-1985" (`01KJPSH37MYWW9MSJZDG58FT1G`, status: ended)
-- Item: Cabaret Voltaire — "1974 - 1976", Lot #1, €25.00 (`01KJPSJ04Z7CW37FY4E8KZ1SVJ`, status: sold)
-- Winning Bid: bidder2@test.de, €25.00 (`bid_01KJPXRM1FXE788VYF37CVGGWD`, is_winning: true)
+- Item Lot #1: Cabaret Voltaire — "1974 - 1976", €25.00 (`01KJPSJ04Z7CW37FY4E8KZ1SVJ`, sold, bidder2)
+- Item Lot #2: release-4104, €15.00 (`01KJPSJ0BP5K9JH4EKARB6T3S3`, sold, testuser)
 - Publishable Key: `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d` (VOD Storefront)
 
 **Payment-Test:** Login als `bidder2@test.de` → `/account/wins` → Shipping-Zone wählen → "Pay Now" → Stripe Checkout → Test-Karte
+
+**Direktkauf-Test:** Login als `testuser@vod-auctions.com` → Katalog → Release mit sale_mode=direct_purchase/both → "Add to Cart" → `/account/cart` → `/account/checkout`
+- Voraussetzung: Mindestens 1 Release mit sale_mode ≠ auction_only + direct_price > 0 (über Admin-Panel setzen)
 
 ```bash
 # Lokal: Stripe CLI für Webhook-Forwarding
@@ -602,6 +641,47 @@ stripe listen --forward-to localhost:9000/webhooks/stripe
 - **ID-Generierung:** Medusa verwendet ULIDs als Text-IDs (kein auto-increment). Bei direktem Knex-Insert muss `id: generateEntityId()` mitgegeben werden.
 - **Transaction Insert:** `generateEntityId()` aus `@medusajs/framework/utils` importieren — ohne ID schlägt der Insert mit `NOT NULL violation` fehl.
 - **Webhook Raw Body:** Stripe-Signaturverifikation braucht den Raw Body. Middleware `bodyParser: false` ist konfiguriert in `middlewares.ts`.
+
+## Direct Purchase / Cart System (RSE-110)
+
+**Konzept:** Nach gewonnener Auktion können Kunden zusätzliche Artikel aus dem Katalog direkt kaufen. Alles wird in einem Combined Checkout bezahlt (Auktions-Gewinne + Warenkorb = eine Stripe-Zahlung, ein Versand).
+
+### Verfügbarkeits-Logik
+Ein Artikel ist direkt kaufbar wenn ALLE Bedingungen erfüllt:
+- `sale_mode` = 'direct_purchase' ODER 'both'
+- `direct_price` IS NOT NULL und > 0
+- `auction_status` = 'available' (nicht reserviert/in Auktion)
+- Nicht in einem aktiven/geplanten Auktions-Block
+- Kunde hat ≥1 Auktion gewonnen (`hasWonAuction`)
+
+### sale_mode Werte
+- `auction_only` (default) — nur über Auktion verkaufbar
+- `direct_purchase` — nur direkt kaufbar (kein Auktions-Listing)
+- `both` — sowohl Auktion als auch Direktkauf möglich
+
+### Combined Checkout Request
+```json
+{
+  "items": [
+    { "type": "auction_win", "block_item_id": "..." },
+    { "type": "cart", "cart_item_id": "..." }
+  ],
+  "shipping_zone": "de|eu|world"
+}
+```
+Backward-compat: Altes Format `{ block_item_id, shipping_zone }` wird intern konvertiert.
+
+### Transaction-Erweiterung
+- `block_item_id` — jetzt NULLABLE (Direktkäufe haben keins)
+- `release_id` — NEU, für Direktkäufe
+- `item_type` — 'auction' (default) | 'direct_purchase'
+- `order_group_id` — gruppiert Items aus einem Checkout
+
+### Bekannte Gotchas (RSE-110)
+- **LEFT JOIN:** Transaction APIs verwenden LEFT JOIN statt INNER JOIN auf block_item/auction_block (Direktkäufe haben kein block_item_id)
+- **COALESCE:** `COALESCE(block_item.release_id, transaction.release_id)` in Transaction-Queries
+- **Versandkosten-Verteilung:** Bei Combined Checkout wird Versand proportional auf Items verteilt (letztes Item bekommt Rest wegen Rundung)
+- **ID-Generierung:** `generateEntityId()` für cart_item und transaction (Medusa ULID-Pattern)
 
 ## Related Projects
 
