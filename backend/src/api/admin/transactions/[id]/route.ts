@@ -16,13 +16,13 @@ export async function GET(
     const transaction = await pgConnection("transaction")
       .select(
         "transaction.*",
-        "block_item.release_id",
+        pgConnection.raw("COALESCE(block_item.release_id, transaction.release_id) as release_id"),
         "block_item.lot_number",
         "auction_block.title as block_title",
         "auction_block.slug as block_slug"
       )
-      .join("block_item", "block_item.id", "transaction.block_item_id")
-      .join("auction_block", "auction_block.id", "block_item.auction_block_id")
+      .leftJoin("block_item", "block_item.id", "transaction.block_item_id")
+      .leftJoin("auction_block", "auction_block.id", "block_item.auction_block_id")
       .where("transaction.id", id)
       .first()
 

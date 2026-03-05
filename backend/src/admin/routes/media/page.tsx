@@ -47,6 +47,7 @@ type Release = {
   discogs_id: number | null
   lowest_price: number | null
   auction_status: string | null
+  sale_mode: string | null
   coverImage: string | null
   last_discogs_sync: string | null
 }
@@ -488,9 +489,17 @@ const MediaPage = () => {
                     ) : (<span style={{ color: COLORS.muted }}>{"\u2014"}</span>)}
                   </td>
                   <td style={tdStyle}>
-                    {r.auction_status ? (
-                      <span style={{ padding: "2px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: 600, background: `${STATUS_COLORS[r.auction_status] || COLORS.muted}20`, color: STATUS_COLORS[r.auction_status] || COLORS.muted, textTransform: "capitalize" }}>{r.auction_status}</span>
-                    ) : (<span style={{ color: COLORS.muted }}>{"\u2014"}</span>)}
+                    <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+                      {r.auction_status ? (
+                        <span style={{ padding: "2px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: 600, background: `${STATUS_COLORS[r.auction_status] || COLORS.muted}20`, color: STATUS_COLORS[r.auction_status] || COLORS.muted, textTransform: "capitalize" }}>{r.auction_status}</span>
+                      ) : (<span style={{ color: COLORS.muted }}>{"\u2014"}</span>)}
+                      {r.sale_mode === "direct_purchase" && (
+                        <span style={{ padding: "2px 6px", borderRadius: "8px", fontSize: "10px", fontWeight: 600, background: "#22c55e20", color: "#22c55e" }}>Direct</span>
+                      )}
+                      {r.sale_mode === "both" && (
+                        <span style={{ padding: "2px 6px", borderRadius: "8px", fontSize: "10px", fontWeight: 600, background: "#3b82f620", color: "#60a5fa" }}>Both</span>
+                      )}
+                    </div>
                   </td>
                   <td style={{ ...tdStyle, fontSize: "12px", color: COLORS.muted }}>{formatDate(r.last_discogs_sync)}</td>
                 </tr>

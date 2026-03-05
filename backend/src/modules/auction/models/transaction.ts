@@ -1,12 +1,20 @@
 import { model } from "@medusajs/framework/utils"
-import BlockItem from "./block-item"
 
 const Transaction = model.define("transaction", {
   id: model.id().primaryKey(),
 
-  // FK to block_item
-  block_item: model.belongsTo(() => BlockItem),
+  // FK to block_item (for auction wins) — NOW NULLABLE
+  block_item_id: model.text().nullable(),
+  // FK to Release (for direct purchases) — NEW
+  release_id: model.text().nullable(),
+
   user_id: model.text(),
+
+  // Type: auction | direct_purchase
+  item_type: model.text().default("auction"),
+
+  // Order grouping: all items in same checkout share this ID
+  order_group_id: model.text().nullable(),
 
   // Pricing
   amount: model.float(),

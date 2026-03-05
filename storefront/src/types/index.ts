@@ -68,6 +68,9 @@ export type Release = {
   discogs_median_price?: number | null
   discogs_highest_price?: number | null
   discogs_num_for_sale?: number | null
+  auction_status?: string | null
+  sale_mode?: string | null
+  direct_price?: number | null
   various_artists?: VariousArtist[]
   comments?: ReleaseComment[]
 }
@@ -155,7 +158,9 @@ export type WinEntry = {
 
 export type Transaction = {
   id: string
-  block_item_id: string
+  block_item_id: string | null
+  item_type: "auction" | "direct_purchase"
+  order_group_id: string | null
   amount: number
   shipping_cost: number
   total_amount: number
@@ -168,7 +173,21 @@ export type Transaction = {
   created_at: string
   release_title: string | null
   release_artist: string | null
-  block_title: string
-  block_slug: string
+  block_title: string | null
+  block_slug: string | null
   lot_number: number | null
+}
+
+export type CartItem = {
+  id: string
+  release_id: string
+  price: number
+  created_at: string
+  title: string
+  coverImage: string | null
+  format: string
+  sale_mode: string | null
+  direct_price: number | null
+  auction_status: string | null
+  artist_name: string | null
 }

@@ -1,10 +1,11 @@
 "use client"
 
 import Link from "next/link"
-import { Menu, Disc3 } from "lucide-react"
+import { Menu, Disc3, ShoppingCart } from "lucide-react"
 import { useState } from "react"
 import { HeaderAuth } from "@/components/HeaderAuth"
 import { MobileNav } from "./MobileNav"
+import { useAuth } from "@/components/AuthProvider"
 
 const NAV_LINKS = [
   { href: "/auctions", label: "Auctions" },
@@ -13,6 +14,7 @@ const NAV_LINKS = [
 
 export function Header() {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const { hasWonAuction, cartCount } = useAuth()
 
   return (
     <header className="sticky top-0 z-50 bg-[rgba(28,25,21,0.95)] backdrop-blur-xl border-b border-[rgba(232,224,212,0.1)]">
@@ -35,6 +37,19 @@ export function Header() {
               {link.label}
             </Link>
           ))}
+          {hasWonAuction && (
+            <Link
+              href="/account/cart"
+              className="relative text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ShoppingCart className="h-5 w-5" />
+              {cartCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-primary text-[#1c1915] text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                  {cartCount}
+                </span>
+              )}
+            </Link>
+          )}
           <HeaderAuth />
         </nav>
 

@@ -21,13 +21,13 @@ export async function GET(
     const transactions = await pgConnection("transaction")
       .select(
         "transaction.*",
-        "block_item.release_id",
+        pgConnection.raw("COALESCE(block_item.release_id, transaction.release_id) as release_id"),
         "block_item.lot_number",
         "auction_block.title as block_title",
         "auction_block.slug as block_slug"
       )
-      .join("block_item", "block_item.id", "transaction.block_item_id")
-      .join("auction_block", "auction_block.id", "block_item.auction_block_id")
+      .leftJoin("block_item", "block_item.id", "transaction.block_item_id")
+      .leftJoin("auction_block", "auction_block.id", "block_item.auction_block_id")
       .where("transaction.user_id", customerId)
       .orderBy("transaction.created_at", "desc")
 
@@ -51,6 +51,8 @@ export async function GET(
       return {
         id: t.id,
         block_item_id: t.block_item_id,
+        item_type: t.item_type || "auction",
+        order_group_id: t.order_group_id,
         amount: parseFloat(t.amount),
         shipping_cost: parseFloat(t.shipping_cost),
         total_amount: parseFloat(t.total_amount),
@@ -63,9 +65,9 @@ export async function GET(
         created_at: t.created_at,
         release_title: rel?.title || null,
         release_artist: rel?.artist_name || null,
-        block_title: t.block_title,
-        block_slug: t.block_slug,
-        lot_number: t.lot_number,
+        block_title: t.block_title || null,
+        block_slug: t.block_slug || null,
+        lot_number: t.lot_number || null,
       }
     })
 

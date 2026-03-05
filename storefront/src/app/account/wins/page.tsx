@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { getToken } from "@/lib/auth"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
-import { Disc3, Trophy, CreditCard, Truck, CheckCircle2, Package } from "lucide-react"
+import { Disc3, Trophy, CreditCard, Truck, CheckCircle2 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -182,6 +182,28 @@ export default function WinsPage() {
         Won Auctions
         <Badge variant="secondary" className="ml-2">{wins.length}</Badge>
       </h2>
+
+      {/* Combined checkout banner */}
+      {wins.some((w) => {
+        const tx = transactions[w.item.id]
+        return !tx || tx.status === "failed"
+      }) && (
+        <Card className="p-4 mb-6 border-primary/30 bg-primary/5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium">Pay for everything at once!</p>
+              <p className="text-sm text-muted-foreground">
+                Combine auction wins and cart items into a single payment.
+              </p>
+            </div>
+            <Button asChild className="bg-primary hover:bg-primary/90 text-[#1c1915]">
+              <Link href="/account/checkout">
+                <CreditCard className="w-4 h-4 mr-1.5" /> Go to Checkout
+              </Link>
+            </Button>
+          </div>
+        </Card>
+      )}
 
       <div className="space-y-3">
         {wins.map((win) => {

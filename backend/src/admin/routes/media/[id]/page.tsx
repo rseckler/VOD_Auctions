@@ -56,6 +56,8 @@ type Release = {
   media_condition: string | null
   sleeve_condition: string | null
   auction_status: string | null
+  sale_mode: string | null
+  direct_price: number | null
   current_block_id: string | null
   coverImage: string | null
   discogs_last_synced: string | null
@@ -123,6 +125,8 @@ const MediaDetailPage = () => {
   const [estimatedValue, setEstimatedValue] = useState<string>("")
   const [mediaCondition, setMediaCondition] = useState<string>("")
   const [sleeveCondition, setSleeveCondition] = useState<string>("")
+  const [saleMode, setSaleMode] = useState<string>("auction_only")
+  const [directPrice, setDirectPrice] = useState<string>("")
 
   useEffect(() => {
     if (!id) return
@@ -136,6 +140,8 @@ const MediaDetailPage = () => {
           setEstimatedValue(d.release.estimated_value != null ? String(d.release.estimated_value) : "")
           setMediaCondition(d.release.media_condition || "")
           setSleeveCondition(d.release.sleeve_condition || "")
+          setSaleMode(d.release.sale_mode || "auction_only")
+          setDirectPrice(d.release.direct_price != null ? String(d.release.direct_price) : "")
         }
         setLoading(false)
       })
@@ -156,6 +162,8 @@ const MediaDetailPage = () => {
       else body.estimated_value = null
       body.media_condition = mediaCondition || null
       body.sleeve_condition = sleeveCondition || null
+      body.sale_mode = saleMode
+      body.direct_price = directPrice !== "" ? parseFloat(directPrice) : null
 
       const res = await fetch(`/admin/media/${id}`, {
         method: "POST",
@@ -272,6 +280,22 @@ const MediaDetailPage = () => {
                   {CONDITION_OPTIONS.map((c) => (<option key={c} value={c}>{c}</option>))}
                 </select>
               </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginTop: "16px" }}>
+              <div>
+                <div style={labelStyle}>Sale Mode</div>
+                <select value={saleMode} onChange={(e) => setSaleMode(e.target.value)} style={selectStyle}>
+                  <option value="auction_only">Auction Only</option>
+                  <option value="direct_purchase">Direct Purchase</option>
+                  <option value="both">Both (Auction + Direct)</option>
+                </select>
+              </div>
+              {saleMode !== "auction_only" && (
+                <div>
+                  <div style={labelStyle}>Direct Price (&euro;)</div>
+                  <input type="number" step="0.01" min="0.01" value={directPrice} onChange={(e) => setDirectPrice(e.target.value)} placeholder="0.00" style={inputStyle} />
+                </div>
+              )}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "16px" }}>
               <button onClick={handleSave} disabled={saving} style={{ padding: "8px 24px", borderRadius: "6px", border: "none", background: COLORS.gold, color: "#1c1915", fontSize: "14px", fontWeight: 600, cursor: saving ? "wait" : "pointer", opacity: saving ? 0.7 : 1 }}>

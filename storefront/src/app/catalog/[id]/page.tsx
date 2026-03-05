@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { ImageGallery } from "@/components/ImageGallery"
 import { CatalogRelatedSection } from "@/components/CatalogRelatedSection"
+import { DirectPurchaseButton } from "@/components/DirectPurchaseButton"
 import { medusaFetch } from "@/lib/api"
 import { cleanCredits } from "@/lib/utils"
 import type { Release } from "@/types"
@@ -174,6 +175,13 @@ export default async function CatalogDetailPage({
               </div>
             )}
           </div>
+
+          <DirectPurchaseButton
+            releaseId={release.id}
+            saleMode={release.sale_mode || null}
+            directPrice={release.direct_price || null}
+            auctionStatus={release.auction_status || null}
+          />
 
           <Separator className="my-6" />
           <div className="space-y-3">

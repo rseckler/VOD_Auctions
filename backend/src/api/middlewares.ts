@@ -32,5 +32,13 @@ export default defineMiddlewares({
         authenticate("customer", ["session", "bearer"]),
       ],
     },
+    {
+      // Protect cart delete — require authenticated customer
+      matcher: "/store/account/*",
+      methods: ["DELETE"],
+      middlewares: [
+        authenticate("customer", ["session", "bearer"]),
+      ],
+    },
   ],
 })

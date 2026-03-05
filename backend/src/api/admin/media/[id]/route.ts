@@ -63,6 +63,8 @@ export async function POST(
     "estimated_value",
     "media_condition",
     "sleeve_condition",
+    "sale_mode",
+    "direct_price",
   ]
   const updates: Record<string, any> = {}
 
@@ -77,6 +79,21 @@ export async function POST(
       message: "No valid fields to update",
     })
     return
+  }
+
+  // Validate sale_mode
+  if (updates.sale_mode && !["auction_only", "direct_purchase", "both"].includes(updates.sale_mode)) {
+    res.status(400).json({ message: "Invalid sale_mode. Must be: auction_only, direct_purchase, or both" })
+    return
+  }
+
+  // If sale_mode requires direct_price, validate it exists
+  if (updates.sale_mode && updates.sale_mode !== "auction_only") {
+    const current = await pgConnection("Release").where("id", id).select("direct_price").first()
+    if (!updates.direct_price && (!current?.direct_price || Number(current.direct_price) <= 0)) {
+      res.status(400).json({ message: "direct_price is required when sale_mode is not auction_only" })
+      return
+    }
   }
 
   updates.updatedAt = new Date()

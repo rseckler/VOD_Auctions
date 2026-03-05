@@ -27,11 +27,10 @@ const BlockItem = model.define("block_item", {
 
   // Relations
   bids: model.hasMany(() => Bid),
-  transactions: model.hasMany(() => Transaction),
+  // Note: transactions use plain block_item_id text FK (nullable), not a Medusa ORM relation
 })
 
 export default BlockItem
 
 // Forward references
 import Bid from "./bid"
-import Transaction from "./transaction"

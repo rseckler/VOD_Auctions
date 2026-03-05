@@ -37,12 +37,8 @@ export async function POST(
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object
-        const transactionId = session.metadata?.transaction_id
-
-        if (!transactionId) {
-          console.error("[stripe-webhook] No transaction_id in session metadata")
-          break
-        }
+        const orderGroupId = session.metadata?.order_group_id
+        const transactionId = session.metadata?.transaction_id // legacy single-item
 
         const updateData: Record<string, any> = {
           status: "paid",
@@ -62,26 +58,61 @@ export async function POST(
           updateData.shipping_country = shipping.address.country || null
         }
 
-        await pgConnection("transaction")
-          .where("id", transactionId)
-          .update(updateData)
+        if (orderGroupId) {
+          // Combined checkout: update all transactions in the group
+          await pgConnection("transaction")
+            .where("order_group_id", orderGroupId)
+            .where("status", "pending")
+            .update(updateData)
 
-        console.log(`[stripe-webhook] Transaction ${transactionId} marked as paid`)
+          // Handle direct purchase items: update Release status + clean cart
+          const directPurchaseTxs = await pgConnection("transaction")
+            .where("order_group_id", orderGroupId)
+            .where("item_type", "direct_purchase")
+            .select("release_id", "user_id")
+
+          for (const tx of directPurchaseTxs) {
+            await pgConnection("Release")
+              .where("id", tx.release_id)
+              .update({ auction_status: "sold_direct", updatedAt: new Date() })
+
+            await pgConnection("cart_item")
+              .where({ user_id: tx.user_id, release_id: tx.release_id })
+              .whereNull("deleted_at")
+              .update({ deleted_at: new Date(), updated_at: new Date() })
+          }
+
+          console.log(`[stripe-webhook] Order group ${orderGroupId} marked as paid (${directPurchaseTxs.length} direct purchases)`)
+        } else if (transactionId) {
+          // Legacy single-item checkout
+          await pgConnection("transaction")
+            .where("id", transactionId)
+            .update(updateData)
+
+          console.log(`[stripe-webhook] Transaction ${transactionId} marked as paid`)
+        } else {
+          console.error("[stripe-webhook] No order_group_id or transaction_id in session metadata")
+        }
+
         break
       }
 
       case "checkout.session.expired": {
         const session = event.data.object
+        const orderGroupId = session.metadata?.order_group_id
         const transactionId = session.metadata?.transaction_id
 
-        if (transactionId) {
+        if (orderGroupId) {
+          await pgConnection("transaction")
+            .where("order_group_id", orderGroupId)
+            .where("status", "pending")
+            .update({ status: "failed", updated_at: new Date() })
+          console.log(`[stripe-webhook] Order group ${orderGroupId} expired`)
+        } else if (transactionId) {
           await pgConnection("transaction")
             .where("id", transactionId)
             .where("status", "pending")
-            .update({
-              status: "failed",
-              updated_at: new Date(),
-            })
+            .update({ status: "failed", updated_at: new Date() })
           console.log(`[stripe-webhook] Transaction ${transactionId} expired`)
         }
         break
