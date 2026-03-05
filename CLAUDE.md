@@ -8,7 +8,7 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 
 **Goal:** Eigene Plattform mit voller Kontrolle über Marke, Kundendaten, Preisgestaltung — statt 8-13% Gebühren an eBay/Discogs
 
-**Status:** Phase 1 — RSE-72 bis RSE-96 + RSE-76 + RSE-109 + RSE-111 + RSE-112 + RSE-113 + RSE-114 erledigt. Credits-Rendering + Visibility + Inventory live. Nächstes: RSE-77 (Testlauf) oder RSE-100–105 (Order Tracking, Emails, Legal)
+**Status:** Phase 1 — RSE-72 bis RSE-96 + RSE-76 + RSE-109 + RSE-111 + RSE-112 + RSE-113 + RSE-114 + RSE-115 erledigt. Sync Dashboard + Discogs Batch Fix live. Nächstes: RSE-77 (Testlauf) oder RSE-100–105 (Order Tracking, Emails, Legal)
 
 **Sprache:** Storefront und Admin-UI komplett auf Englisch (seit 2026-03-03)
 
@@ -16,6 +16,15 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-05
 
 ### Letzte Änderungen (2026-03-05)
+- **RSE-115: Sync Dashboard Enhancement + Discogs Batch Fix** — Sync-Monitoring erweitert + Batch-Bug behoben:
+  - **Batch Fix:** PostgreSQL transaction error in `discogs_batch.py` — fehlender `pg_conn.rollback()` nach DB-Fehlern führte zu Kaskaden-Fehlern (nur 692 statt ~2400 Matches geschrieben). Fix in allen 3 Scripts: `discogs_batch.py`, `discogs_weekly_sync.py`, `backfill_discogs_prices.py`
+  - **Tracklist-in-Credits Fix:** `extractTracklistFromText()` erkennt Tracklist-Daten im Credits-Feld (~2.311 Releases betroffen) und zeigt sie als Tracklist statt Credits
+  - **Neue API:** `GET /admin/sync/batch-progress` — Live-Fortschritt aus `discogs_batch_progress.json` + JSONL-Zähler + DB-Unmatched-Count
+  - **Sync Overview API:** Neue Felder `eligible`, `eligible_matched`, `eligible_with_price` (nur music releases)
+  - **Dashboard Frontend:** Field-Mismatches gefixt (`total_releases`→`total`, `percentage`→`match_rate`, `unscanned` array statt number), Coverage zeigt jetzt eligible-Counts
+  - **Batch Progress Card:** Live-Auto-Refresh (15s), Fortschrittsbalken, Matched/Errors/WithPrice Stats, Strategy-Breakdown (catno/barcode/full/basic), RUNNING/IDLE Status
+
+### Frühere Änderungen (2026-03-05)
 - **RSE-114: Credits Structured Rendering** — Credits sauber als Tabelle statt Fließtext:
   - `parseCredits()` in utils.ts: Parst Discogs-Style "Role – Name", "Role by Name", "Role: Name" Patterns
   - `CreditsTable` Komponente: Strukturierte `<dl>` Darstellung mit Role/Name Spalten
