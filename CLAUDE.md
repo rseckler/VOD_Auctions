@@ -456,6 +456,7 @@ npm run build             # Production build
 - ~~**RSE-96:** VPS Cronjobs (Legacy + Discogs Sync)~~ ✅
 
 - ~~**RSE-76:** Payment & Stripe Integration~~ ✅
+- ~~**RSE-109:** Literature Migration + 5-Category Filter System~~ ✅
 
 **Next (Backlog/Todo):**
 - **RSE-77:** Testlauf (1 Block, 10-20 Produkte) ← NÄCHSTER SCHRITT
@@ -470,6 +471,7 @@ npm run build             # Production build
 - **RSE-97:** SEO & Meta Tags
 - **RSE-98:** Storefront Performance (Image optimization)
 - **RSE-99:** Admin Media Bulk Actions
+- **RSE-106:** Google Analytics — Setup + Integration
 
 ### Phase 2 (Launch) — Backlog
 - **RSE-78:** P2.1 Launch-Vorbereitung (Domain, SEO, Legal)
