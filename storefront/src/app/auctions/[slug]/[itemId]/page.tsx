@@ -9,6 +9,7 @@ import { ItemBidSection } from "@/components/ItemBidSection"
 import { RelatedSection } from "@/components/RelatedSection"
 import { medusaFetch } from "@/lib/api"
 import { CreditsTable } from "@/components/CreditsTable"
+import { extractTracklistFromText } from "@/lib/utils"
 import type { AuctionBlock, BlockItem, ReleaseImage, TracklistEntry, VariousArtist, ReleaseComment } from "@/types"
 
 type BlockInfo = {
@@ -73,6 +74,18 @@ export default async function ItemDetailPage({
 
   const { block_item: item, auction_block: block } = data
   const release = item.release
+
+  // If tracklist is empty, try to extract from credits field (legacy data issue)
+  const hasTracklist = release?.tracklist && release.tracklist.length > 0
+  const extracted = !hasTracklist && release?.credits
+    ? extractTracklistFromText(release.credits)
+    : null
+  const effectiveTracklist = hasTracklist
+    ? release!.tracklist!
+    : extracted?.tracks.length ? extracted.tracks : null
+  const effectiveCredits = extracted?.tracks.length
+    ? extracted.remainingCredits
+    : (release?.credits || null)
 
   const images: string[] = []
   if (release?.coverImage) images.push(release.coverImage)
@@ -275,13 +288,13 @@ export default async function ItemDetailPage({
           )}
 
           {/* Tracklist */}
-          {release?.tracklist && release.tracklist.length > 0 && (
+          {effectiveTracklist && effectiveTracklist.length > 0 && (
             <>
               <Separator className="my-6" />
               <div>
                 <h2 className="text-lg font-semibold mb-3">Tracklist</h2>
                 <ol className="space-y-1.5">
-                  {release.tracklist.map((track, i) => (
+                  {effectiveTracklist.map((track, i) => (
                     <li key={i} className="flex items-baseline gap-3 text-sm">
                       <span className="text-muted-foreground font-mono text-xs w-8 flex-shrink-0 text-right">
                         {track.position || `${i + 1}.`}
@@ -300,18 +313,18 @@ export default async function ItemDetailPage({
           )}
 
           {/* Credits */}
-          {release?.credits && (
+          {effectiveCredits && (
             <>
               <Separator className="my-6" />
               <div>
                 <h2 className="text-lg font-semibold mb-3">Credits</h2>
-                <CreditsTable credits={release.credits} />
+                <CreditsTable credits={effectiveCredits} />
               </div>
             </>
           )}
 
           {/* Description */}
-          {release?.description && !release?.tracklist?.length && !release?.credits && (
+          {release?.description && !effectiveTracklist?.length && !effectiveCredits && (
             <>
               <Separator className="my-6" />
               <div>

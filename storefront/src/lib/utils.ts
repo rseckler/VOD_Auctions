@@ -109,3 +109,76 @@ export function parseCredits(raw: string): CreditEntry[] | null {
 export function cleanCredits(raw: string): string {
   return cleanRawCredits(raw).join('\n').trim()
 }
+
+type TracklistFromText = {
+  position?: string
+  title: string
+  duration?: string
+}
+
+const POSITION_RE = /^[A-Z]?\d{1,2}\.?$/
+const DURATION_RE = /^\d{1,3}:\d{2}$/
+
+/**
+ * Detect and extract tracklist data from a text field.
+ * Handles cases where the credits field actually contains tracklist data
+ * (fragmented lines: position, title, duration in sequence).
+ * Returns { tracks, remainingCredits } — remainingCredits is null if
+ * all lines were consumed as tracklist data.
+ */
+export function extractTracklistFromText(raw: string): {
+  tracks: TracklistFromText[]
+  remainingCredits: string | null
+} {
+  const lines = cleanRawCredits(raw)
+  if (lines.length === 0) return { tracks: [], remainingCredits: null }
+
+  const tracks: TracklistFromText[] = []
+  const creditLines: string[] = []
+  let i = 0
+
+  while (i < lines.length) {
+    const line = lines[i]
+
+    // Check if this line is a track position (A1, B2, 1, etc.)
+    if (POSITION_RE.test(line)) {
+      const position = line
+      let title: string | null = null
+      let duration: string | undefined
+
+      // Next non-empty line should be the title
+      let j = i + 1
+      while (j < lines.length && lines[j] === '') j++
+      if (j < lines.length && !POSITION_RE.test(lines[j]) && !DURATION_RE.test(lines[j])) {
+        title = lines[j]
+        j++
+        // Check for duration after title
+        while (j < lines.length && lines[j] === '') j++
+        if (j < lines.length && DURATION_RE.test(lines[j])) {
+          duration = lines[j]
+          j++
+        }
+      }
+
+      if (title) {
+        tracks.push({ position, title, duration })
+        i = j
+        continue
+      }
+    }
+
+    // Not a tracklist line — save as credit
+    if (line !== '') creditLines.push(line)
+    i++
+  }
+
+  // Only consider it a valid tracklist if we found >= 3 tracks
+  if (tracks.length < 3) {
+    return { tracks: [], remainingCredits: raw }
+  }
+
+  return {
+    tracks,
+    remainingCredits: creditLines.length > 0 ? creditLines.join('\n') : null,
+  }
+}
