@@ -418,6 +418,7 @@ def main():
                         lowest_price, num_for_sale, have, want,
                     )
                 except Exception as e:
+                    pg_conn.rollback()  # Reset transaction so subsequent queries work
                     _current_progress["errors"] += 1
                     print(f"\n  DB UPDATE ERROR for {release_id}: {e}")
 

@@ -157,12 +157,16 @@ def main():
                     vals.append(v)
             vals.append(release_id)
 
-            cur.execute(
-                f'UPDATE "Release" SET {", ".join(set_parts)} WHERE id = %s',
-                vals,
-            )
-            pg_conn.commit()
-            updated1 += 1
+            try:
+                cur.execute(
+                    f'UPDATE "Release" SET {", ".join(set_parts)} WHERE id = %s',
+                    vals,
+                )
+                pg_conn.commit()
+                updated1 += 1
+            except Exception as e:
+                pg_conn.rollback()
+                print(f"  DB ERROR for {release_id}: {e}")
         else:
             skipped1 += 1
 
@@ -200,16 +204,20 @@ def main():
             break
 
         if med is not None:
-            cur.execute("""
-                UPDATE "Release"
-                SET discogs_lowest_price = COALESCE(discogs_lowest_price, %s),
-                    discogs_median_price = %s,
-                    discogs_highest_price = %s,
-                    discogs_last_synced = NOW()
-                WHERE id = %s
-            """, (low, med, high, release_id))
-            pg_conn.commit()
-            updated2 += 1
+            try:
+                cur.execute("""
+                    UPDATE "Release"
+                    SET discogs_lowest_price = COALESCE(discogs_lowest_price, %s),
+                        discogs_median_price = %s,
+                        discogs_highest_price = %s,
+                        discogs_last_synced = NOW()
+                    WHERE id = %s
+                """, (low, med, high, release_id))
+                pg_conn.commit()
+                updated2 += 1
+            except Exception as e:
+                pg_conn.rollback()
+                print(f"  DB ERROR for {release_id}: {e}")
         else:
             skipped2 += 1
 

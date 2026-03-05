@@ -296,7 +296,7 @@ def main():
                 try:
                     update_last_synced_only(pg_conn, release_id)
                 except Exception:
-                    pass
+                    pg_conn.rollback()
 
                 if (idx + 1) % 50 == 0:
                     print(f"  [{progress['processed'] + 1}/{total}] {release_id} -> ERROR: {e}")
@@ -335,9 +335,16 @@ def main():
 
             if has_changes:
                 # Update DB
-                update_release_prices(pg_conn, release_id, new_price, new_num,
-                                      median_price=median_price,
-                                      highest_price=highest_price)
+                try:
+                    update_release_prices(pg_conn, release_id, new_price, new_num,
+                                          median_price=median_price,
+                                          highest_price=highest_price)
+                except Exception as db_err:
+                    pg_conn.rollback()
+                    progress["errors"] += 1
+                    progress["last_release_id"] = release_id
+                    progress["processed"] += 1
+                    continue
                 progress["updated"] += 1
 
                 # Track direction of change
@@ -372,7 +379,10 @@ def main():
                     pass  # Don't fail on logging errors
             else:
                 # No changes, just update timestamp
-                update_last_synced_only(pg_conn, release_id)
+                try:
+                    update_last_synced_only(pg_conn, release_id)
+                except Exception:
+                    pg_conn.rollback()
 
             progress["last_release_id"] = release_id
             progress["processed"] += 1
