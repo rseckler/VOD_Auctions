@@ -1,5 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, generateEntityId } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { stripe, SHIPPING_RATES, ShippingZone } from "../../../../lib/stripe"
 
@@ -131,6 +131,7 @@ export async function POST(
     } else {
       const [newTx] = await pgConnection("transaction")
         .insert({
+          id: generateEntityId(),
           block_item_id,
           user_id: customerId,
           amount: finalPrice,
