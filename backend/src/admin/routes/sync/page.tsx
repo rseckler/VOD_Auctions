@@ -1,16 +1,21 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 
 type SyncOverview = {
   overview: {
-    total_releases: number
+    total: number
+    eligible: number
     with_discogs: number
+    eligible_matched: number
     with_price: number
+    eligible_with_price: number
+    last_discogs_sync: string | null
+    last_legacy_sync: string | null
   }
-  last_legacy_sync: string | null
-  last_discogs_sync: string | null
+  last_legacy_sync: { sync_date: string; status: string; changes: Record<string, unknown> } | null
+  last_discogs_sync: { sync_date: string; status: string; changes: Record<string, unknown> } | null
   recent_logs: SyncLogEntry[]
-  monthly_stats: { month: string; legacy: number; discogs: number }[]
+  monthly_stats: { sync_type: string; status: string; count: number }[]
 }
 
 type SyncLogEntry = {
@@ -42,24 +47,42 @@ type LegacyData = {
 }
 
 type DiscogsData = {
-  format_coverage: { format: string; total: number; matched: number; percentage: number }[]
-  price_stats: { min: number; max: number; avg: number; median: number } | null
+  format_coverage: { format: string; total: number; matched: number; with_price: number; match_rate: number }[]
+  price_stats: { min: number; max: number; avg: number; median: number; count: number } | null
   top_valued: {
     id: string
     title: string
     artist_name: string | null
-    lowest_price: number
+    discogs_lowest_price: number
     discogs_id: number
   }[]
   recent_changes: {
     id: string
-    title: string
+    release_title: string | null
     artist_name: string | null
-    old_price: number | null
-    new_price: number
-    changed_at: string
+    changes: Record<string, unknown> | null
+    sync_date: string
   }[]
-  unscanned: number
+  unscanned: { format: string; count: number }[]
+}
+
+type BatchProgress = {
+  progress: {
+    last_release_id: string
+    processed: number
+    matched: number
+    with_price: number
+    errors: number
+    strategies: Record<string, number>
+    updated_at: string
+  } | null
+  results_count: number
+  total_unmatched: number
+  last_batch: {
+    sync_date: string
+    changes: Record<string, unknown>
+    status: string
+  } | null
 }
 
 const COLORS = {
@@ -96,6 +119,7 @@ const SyncDashboardPage = () => {
   const [overview, setOverview] = useState<SyncOverview | null>(null)
   const [legacyData, setLegacyData] = useState<LegacyData | null>(null)
   const [discogsData, setDiscogsData] = useState<DiscogsData | null>(null)
+  const [batchProgress, setBatchProgress] = useState<BatchProgress | null>(null)
   const [loading, setLoading] = useState(true)
   const [legacyLoading, setLegacyLoading] = useState(false)
   const [discogsLoading, setDiscogsLoading] = useState(false)
@@ -114,6 +138,20 @@ const SyncDashboardPage = () => {
         setLoading(false)
       })
   }, [])
+
+  // Fetch batch progress with auto-refresh every 15s
+  const fetchBatchProgress = useCallback(() => {
+    fetch("/admin/sync/batch-progress", { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => setBatchProgress(d))
+      .catch((err) => console.error("Batch progress error:", err))
+  }, [])
+
+  useEffect(() => {
+    fetchBatchProgress()
+    const interval = setInterval(fetchBatchProgress, 15000)
+    return () => clearInterval(interval)
+  }, [fetchBatchProgress])
 
   // Fetch legacy data on tab switch
   useEffect(() => {
@@ -240,9 +278,12 @@ const SyncDashboardPage = () => {
     </span>
   )
 
-  const withDiscogs = overview?.overview?.with_discogs || 0
-  const totalReleases = overview?.overview?.total_releases || 1
-  const coveragePercent = totalReleases > 0 ? Math.round((withDiscogs / totalReleases) * 100) : 0
+  const eligible = overview?.overview?.eligible || 0
+  const eligibleMatched = overview?.overview?.eligible_matched || 0
+  const eligibleWithPrice = overview?.overview?.eligible_with_price || 0
+  const coveragePercent = eligible > 0 ? Math.round((eligibleMatched / eligible) * 100) : 0
+  const bp = batchProgress?.progress
+  const batchRunning = bp && bp.processed > 0
 
   return (
     <div style={{ padding: "24px", background: COLORS.bg, minHeight: "100vh", color: COLORS.text }}>
@@ -250,7 +291,7 @@ const SyncDashboardPage = () => {
       <h1 style={{ fontSize: "24px", fontWeight: 700, marginBottom: "20px" }}>Sync Dashboard</h1>
 
       {/* Header Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "28px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "20px" }}>
         {/* Legacy Sync Card */}
         <div style={cardStyle}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
@@ -268,14 +309,18 @@ const SyncDashboardPage = () => {
             </span>
             <h2 style={{ fontSize: "16px", fontWeight: 600 }}>Legacy MySQL Sync</h2>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px" }}>
             <div>
               <div style={labelStyle}>Last Sync</div>
-              <div style={valueStyle}>{formatDate(overview?.last_legacy_sync || null)}</div>
+              <div style={valueStyle}>{formatDate(overview?.last_legacy_sync?.sync_date || overview?.overview?.last_legacy_sync || null)}</div>
             </div>
             <div>
               <div style={labelStyle}>Total Releases</div>
-              <div style={bigValueStyle}>{overview?.overview?.total_releases?.toLocaleString("en-US") || "0"}</div>
+              <div style={bigValueStyle}>{(overview?.overview?.total || 0).toLocaleString("en-US")}</div>
+            </div>
+            <div>
+              <div style={labelStyle}>Eligible (Music)</div>
+              <div style={bigValueStyle}>{eligible.toLocaleString("en-US")}</div>
             </div>
           </div>
         </div>
@@ -300,25 +345,164 @@ const SyncDashboardPage = () => {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px" }}>
             <div>
               <div style={labelStyle}>Last Sync</div>
-              <div style={valueStyle}>{formatDate(overview?.last_discogs_sync || null)}</div>
+              <div style={valueStyle}>{formatDate(overview?.last_discogs_sync?.sync_date || overview?.overview?.last_discogs_sync || null)}</div>
             </div>
             <div>
-              <div style={labelStyle}>Coverage</div>
+              <div style={labelStyle}>Coverage (Eligible)</div>
               <div style={valueStyle}>
-                <span style={{ color: COLORS.gold, fontWeight: 600 }}>{withDiscogs.toLocaleString("en-US")}</span>
+                <span style={{ color: COLORS.gold, fontWeight: 600 }}>{eligibleMatched.toLocaleString("en-US")}</span>
                 {" / "}
-                {totalReleases.toLocaleString("en-US")}
+                {eligible.toLocaleString("en-US")}
                 {" = "}
                 <span style={{ color: COLORS.gold }}>{coveragePercent}%</span>
               </div>
             </div>
             <div>
               <div style={labelStyle}>With Price</div>
-              <div style={bigValueStyle}>{overview?.overview?.with_price?.toLocaleString("en-US") || "0"}</div>
+              <div style={bigValueStyle}>{eligibleWithPrice.toLocaleString("en-US")}</div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Batch Progress Card */}
+      {(batchRunning || batchProgress?.last_batch) && (
+        <div style={{ ...cardStyle, marginBottom: "20px", borderColor: batchRunning ? COLORS.gold + "50" : COLORS.border }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span
+                style={{
+                  padding: "2px 8px",
+                  borderRadius: "4px",
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  background: batchRunning ? "#22c55e20" : "#a09080" + "20",
+                  color: batchRunning ? COLORS.success : COLORS.muted,
+                }}
+              >
+                {batchRunning ? "RUNNING" : "IDLE"}
+              </span>
+              <h2 style={{ fontSize: "16px", fontWeight: 600 }}>Batch Matching</h2>
+            </div>
+            {bp?.updated_at && (
+              <span style={{ fontSize: "11px", color: COLORS.muted }}>
+                Updated: {formatDate(bp.updated_at)}
+              </span>
+            )}
+          </div>
+
+          {batchRunning && bp && (
+            <>
+              {/* Progress bar */}
+              <div style={{ marginBottom: "16px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", marginBottom: "6px" }}>
+                  <span style={{ color: COLORS.muted }}>
+                    Processed: <span style={{ color: COLORS.text, fontWeight: 600 }}>{bp.processed.toLocaleString("en-US")}</span>
+                    {" / "}
+                    {(bp.processed + (batchProgress?.total_unmatched || 0)).toLocaleString("en-US")}
+                  </span>
+                  <span style={{ color: COLORS.gold, fontWeight: 600 }}>
+                    {((bp.processed / (bp.processed + (batchProgress?.total_unmatched || 1))) * 100).toFixed(1)}%
+                  </span>
+                </div>
+                <div style={{ height: "8px", borderRadius: "4px", background: COLORS.border, overflow: "hidden" }}>
+                  <div
+                    style={{
+                      height: "100%",
+                      width: `${(bp.processed / (bp.processed + (batchProgress?.total_unmatched || 1))) * 100}%`,
+                      background: `linear-gradient(90deg, ${COLORS.gold}, ${COLORS.success})`,
+                      borderRadius: "4px",
+                      transition: "width 0.5s ease",
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Stats grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px", marginBottom: "16px" }}>
+                <div>
+                  <div style={labelStyle}>Matched</div>
+                  <div style={{ ...bigValueStyle, fontSize: "22px" }}>
+                    {bp.matched.toLocaleString("en-US")}
+                    <span style={{ fontSize: "12px", color: COLORS.muted, fontWeight: 400, marginLeft: "4px" }}>
+                      ({bp.processed > 0 ? Math.round((bp.matched / bp.processed) * 100) : 0}%)
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <div style={labelStyle}>With Price</div>
+                  <div style={{ ...bigValueStyle, fontSize: "22px" }}>{bp.with_price.toLocaleString("en-US")}</div>
+                </div>
+                <div>
+                  <div style={labelStyle}>Errors</div>
+                  <div style={{ ...bigValueStyle, fontSize: "22px", color: bp.errors > 0 ? COLORS.error : COLORS.success }}>
+                    {bp.errors}
+                  </div>
+                </div>
+                <div>
+                  <div style={labelStyle}>Results File</div>
+                  <div style={{ ...bigValueStyle, fontSize: "22px" }}>{(batchProgress?.results_count || 0).toLocaleString("en-US")}</div>
+                </div>
+              </div>
+
+              {/* Strategy breakdown */}
+              {bp.strategies && Object.keys(bp.strategies).length > 0 && (
+                <div>
+                  <div style={{ ...labelStyle, marginBottom: "8px" }}>Match Strategy Breakdown</div>
+                  <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                    {Object.entries(bp.strategies)
+                      .sort(([, a], [, b]) => b - a)
+                      .map(([strategy, count]) => {
+                        const stratColors: Record<string, string> = {
+                          catno: "#60a5fa",
+                          barcode: "#a78bfa",
+                          full: "#34d399",
+                          basic: "#fbbf24",
+                        }
+                        return (
+                          <div
+                            key={strategy}
+                            style={{
+                              padding: "6px 12px",
+                              borderRadius: "6px",
+                              background: (stratColors[strategy] || COLORS.muted) + "15",
+                              border: `1px solid ${(stratColors[strategy] || COLORS.muted)}30`,
+                              fontSize: "13px",
+                            }}
+                          >
+                            <span style={{ color: stratColors[strategy] || COLORS.muted, fontWeight: 600 }}>
+                              {strategy}
+                            </span>
+                            <span style={{ color: COLORS.text, marginLeft: "6px" }}>
+                              {count.toLocaleString("en-US")}
+                            </span>
+                          </div>
+                        )
+                      })}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Last batch info when idle */}
+          {!batchRunning && batchProgress?.last_batch && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+              <div>
+                <div style={labelStyle}>Last Batch Run</div>
+                <div style={valueStyle}>{formatDate(batchProgress.last_batch.sync_date)}</div>
+              </div>
+              <div>
+                <div style={labelStyle}>Status</div>
+                <div style={valueStyle}>
+                  {statusIcon(batchProgress.last_batch.status)}{" "}
+                  {batchProgress.last_batch.status}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Tab Navigation */}
       <div style={{ borderBottom: `1px solid ${COLORS.border}`, marginBottom: "20px" }}>
@@ -547,9 +731,9 @@ const SyncDashboardPage = () => {
                           fontSize: "13px",
                         }}
                       >
-                        <span style={{ fontWeight: 500 }}>{fc.format}</span>
+                        <span style={{ fontWeight: 500 }}>{fc.format || "Unknown"}</span>
                         <span style={{ color: COLORS.muted }}>
-                          {fc.matched.toLocaleString("en-US")} / {fc.total.toLocaleString("en-US")} ({fc.percentage}%)
+                          {fc.matched.toLocaleString("en-US")} / {fc.total.toLocaleString("en-US")} ({fc.match_rate}%)
                         </span>
                       </div>
                       <div
@@ -563,9 +747,9 @@ const SyncDashboardPage = () => {
                         <div
                           style={{
                             height: "100%",
-                            width: `${fc.percentage}%`,
+                            width: `${fc.match_rate}%`,
                             background:
-                              fc.percentage >= 80 ? COLORS.success : fc.percentage >= 50 ? COLORS.gold : COLORS.error,
+                              fc.match_rate >= 80 ? COLORS.success : fc.match_rate >= 50 ? COLORS.gold : COLORS.error,
                             borderRadius: "4px",
                             transition: "width 0.3s",
                           }}
@@ -574,9 +758,16 @@ const SyncDashboardPage = () => {
                     </div>
                   ))}
                 </div>
-                {discogsData.unscanned > 0 && (
+                {discogsData.unscanned?.length > 0 && (
                   <div style={{ marginTop: "16px", fontSize: "13px", color: COLORS.muted }}>
-                    {discogsData.unscanned.toLocaleString("en-US")} releases not yet scanned
+                    {discogsData.unscanned.reduce((sum, u) => sum + u.count, 0).toLocaleString("en-US")} eligible releases not yet scanned
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "6px" }}>
+                      {discogsData.unscanned.slice(0, 8).map((u) => (
+                        <span key={u.format} style={{ fontSize: "11px", padding: "2px 6px", borderRadius: "3px", background: COLORS.hover }}>
+                          {u.format || "?"}: {u.count.toLocaleString("en-US")}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -638,7 +829,7 @@ const SyncDashboardPage = () => {
                             <td style={tdStyle}>{r.artist_name || "\u2014"}</td>
                             <td style={{ ...tdStyle, fontWeight: 500 }}>{r.title}</td>
                             <td style={{ ...tdStyle, color: COLORS.gold, fontWeight: 600 }}>
-                              {formatPrice(r.lowest_price)}
+                              {formatPrice(r.discogs_lowest_price)}
                             </td>
                             <td style={tdStyle}>
                               <a
@@ -663,10 +854,10 @@ const SyncDashboardPage = () => {
                 )}
               </div>
 
-              {/* Recent Price Changes */}
+              {/* Recent Discogs Sync Entries */}
               <div style={cardStyle}>
                 <h3 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: COLORS.gold }}>
-                  Recent Price Changes
+                  Recent Discogs Sync Activity
                 </h3>
                 {discogsData.recent_changes?.length > 0 ? (
                   <div style={{ overflow: "auto" }}>
@@ -675,57 +866,48 @@ const SyncDashboardPage = () => {
                         <tr>
                           <th style={thStyle}>Artist</th>
                           <th style={thStyle}>Title</th>
-                          <th style={thStyle}>Old Price</th>
-                          <th style={thStyle}>New Price</th>
-                          <th style={thStyle}>Change</th>
+                          <th style={thStyle}>Changes</th>
                           <th style={thStyle}>Date</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {discogsData.recent_changes.map((r) => {
-                          const diff = r.old_price != null ? r.new_price - r.old_price : null
-                          return (
-                            <tr
-                              key={r.id + r.changed_at}
-                              style={{ cursor: "pointer" }}
-                              onClick={() => (window.location.href = `/app/media/${r.id}`)}
-                              onMouseEnter={(e) => (e.currentTarget.style.background = COLORS.hover)}
-                              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                            >
-                              <td style={tdStyle}>{r.artist_name || "\u2014"}</td>
-                              <td style={{ ...tdStyle, fontWeight: 500 }}>{r.title}</td>
-                              <td style={{ ...tdStyle, color: COLORS.muted }}>
-                                {r.old_price != null ? formatPrice(r.old_price) : "\u2014"}
-                              </td>
-                              <td style={{ ...tdStyle, color: COLORS.gold, fontWeight: 600 }}>
-                                {formatPrice(r.new_price)}
-                              </td>
-                              <td style={tdStyle}>
-                                {diff !== null ? (
-                                  <span
-                                    style={{
-                                      color: diff > 0 ? COLORS.success : diff < 0 ? COLORS.error : COLORS.muted,
-                                      fontWeight: 600,
-                                      fontSize: "13px",
-                                    }}
-                                  >
-                                    {diff > 0 ? "+" : ""}
-                                    {formatPrice(diff)}
-                                  </span>
-                                ) : (
-                                  <span style={{ color: COLORS.success, fontSize: "12px" }}>New</span>
-                                )}
-                              </td>
-                              <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{formatDate(r.changed_at)}</td>
-                            </tr>
-                          )
-                        })}
+                        {discogsData.recent_changes.map((r, idx) => (
+                          <tr
+                            key={r.id + idx}
+                            style={{ cursor: "pointer" }}
+                            onClick={() => (window.location.href = `/app/media/${r.id}`)}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = COLORS.hover)}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                          >
+                            <td style={tdStyle}>{r.artist_name || "\u2014"}</td>
+                            <td style={{ ...tdStyle, fontWeight: 500 }}>{r.release_title || "\u2014"}</td>
+                            <td style={{ ...tdStyle, maxWidth: "300px" }}>
+                              {r.changes ? (
+                                <pre
+                                  style={{
+                                    fontSize: "11px",
+                                    color: COLORS.muted,
+                                    margin: 0,
+                                    whiteSpace: "pre-wrap",
+                                    wordBreak: "break-word",
+                                    fontFamily: "monospace",
+                                  }}
+                                >
+                                  {JSON.stringify(r.changes, null, 2)}
+                                </pre>
+                              ) : (
+                                <span style={{ color: COLORS.muted }}>{"\u2014"}</span>
+                              )}
+                            </td>
+                            <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{formatDate(r.sync_date)}</td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>
                 ) : (
                   <div style={{ color: COLORS.muted, textAlign: "center", padding: "20px 0" }}>
-                    No price changes found.
+                    No recent discogs sync activity found.
                   </div>
                 )}
               </div>
