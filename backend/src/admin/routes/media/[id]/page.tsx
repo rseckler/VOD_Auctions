@@ -58,6 +58,7 @@ type Release = {
   auction_status: string | null
   sale_mode: string | null
   direct_price: number | null
+  inventory: number | null
   current_block_id: string | null
   coverImage: string | null
   discogs_last_synced: string | null
@@ -127,6 +128,7 @@ const MediaDetailPage = () => {
   const [sleeveCondition, setSleeveCondition] = useState<string>("")
   const [saleMode, setSaleMode] = useState<string>("auction_only")
   const [directPrice, setDirectPrice] = useState<string>("")
+  const [inventory, setInventory] = useState<string>("")
 
   useEffect(() => {
     if (!id) return
@@ -142,6 +144,7 @@ const MediaDetailPage = () => {
           setSleeveCondition(d.release.sleeve_condition || "")
           setSaleMode(d.release.sale_mode || "auction_only")
           setDirectPrice(d.release.direct_price != null ? String(d.release.direct_price) : "")
+          setInventory(d.release.inventory != null ? String(d.release.inventory) : "")
         }
         setLoading(false)
       })
@@ -164,6 +167,7 @@ const MediaDetailPage = () => {
       body.sleeve_condition = sleeveCondition || null
       body.sale_mode = saleMode
       body.direct_price = directPrice !== "" ? parseFloat(directPrice) : null
+      body.inventory = inventory !== "" ? parseInt(inventory) : null
 
       const res = await fetch(`/admin/media/${id}`, {
         method: "POST",
@@ -261,7 +265,11 @@ const MediaDetailPage = () => {
 
           <div style={{ ...cardStyle, border: `1px solid ${COLORS.gold}40` }}>
             <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: COLORS.gold }}>Edit Valuation</h2>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "16px" }}>
+              <div>
+                <div style={labelStyle}>Inventory (pcs)</div>
+                <input type="number" step="1" min="0" value={inventory} onChange={(e) => setInventory(e.target.value)} placeholder="0" style={inputStyle} />
+              </div>
               <div>
                 <div style={labelStyle}>Estimated Value (&euro;)</div>
                 <input type="number" step="0.01" min="0" value={estimatedValue} onChange={(e) => setEstimatedValue(e.target.value)} placeholder="0.00" style={inputStyle} />

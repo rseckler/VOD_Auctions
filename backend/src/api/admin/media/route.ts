@@ -22,6 +22,7 @@ export async function GET(
     auction_status,
     has_discogs,
     has_price,
+    visibility,
     sort = "title_asc",
     limit = "25",
     offset = "0",
@@ -47,11 +48,13 @@ export async function GET(
       "Release.media_condition",
       "Release.sleeve_condition",
       "Release.discogs_id",
+      "Release.legacy_price",
       "Release.discogs_lowest_price",
       "Release.discogs_num_for_sale",
       "Release.discogs_have",
       "Release.discogs_want",
       "Release.discogs_last_synced",
+      "Release.inventory",
       "Release.legacy_last_synced",
       "Artist.name as artist_name",
       "Label.name as label_name",
@@ -129,6 +132,19 @@ export async function GET(
   }
   if (has_price === "false") {
     query = query.whereNull("Release.discogs_lowest_price")
+  }
+
+  // Visibility filter (visible = has coverImage AND legacy_price)
+  if (visibility === "visible") {
+    query = query
+      .whereNotNull("Release.coverImage")
+      .whereNotNull("Release.legacy_price")
+  }
+  if (visibility === "hidden") {
+    query = query.where(function () {
+      this.whereNull("Release.coverImage")
+        .orWhereNull("Release.legacy_price")
+    })
   }
 
   // Count before pagination

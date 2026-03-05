@@ -65,6 +65,7 @@ export async function POST(
     "sleeve_condition",
     "sale_mode",
     "direct_price",
+    "inventory",
   ]
   const updates: Record<string, any> = {}
 

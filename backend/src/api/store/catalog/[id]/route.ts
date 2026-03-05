@@ -59,7 +59,7 @@ export async function GET(
     .where("Release.id", id)
     .first()
 
-  if (!release) {
+  if (!release || !release.coverImage || release.legacy_price == null) {
     res.status(404).json({ message: "Release not found" })
     return
   }

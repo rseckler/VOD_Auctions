@@ -49,6 +49,8 @@ type Release = {
   auction_status: string | null
   sale_mode: string | null
   coverImage: string | null
+  legacy_price: number | null
+  inventory: number | null
   last_discogs_sync: string | null
 }
 
@@ -135,6 +137,7 @@ const MediaPage = () => {
   const [yearTo, setYearTo] = useState("")
   const [labelFilter, setLabelFilter] = useState("")
   const [labelInput, setLabelInput] = useState("")
+  const [visibilityFilter, setVisibilityFilter] = useState("")
   const [sortField, setSortField] = useState("")
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
 
@@ -157,7 +160,7 @@ const MediaPage = () => {
   // Reset page on filter change
   useEffect(() => {
     setPage(0)
-  }, [searchQuery, activeFormat, activeCategory, hasDiscogs, hasPrice, auctionStatus, countryFilter, yearFrom, yearTo, labelFilter, pageSize])
+  }, [searchQuery, activeFormat, activeCategory, hasDiscogs, hasPrice, auctionStatus, countryFilter, yearFrom, yearTo, labelFilter, visibilityFilter, pageSize])
 
   // Fetch stats
   useEffect(() => {
@@ -187,6 +190,7 @@ const MediaPage = () => {
     if (yearFrom) params.set("year_from", yearFrom)
     if (yearTo) params.set("year_to", yearTo)
     if (labelFilter) params.set("label", labelFilter)
+    if (visibilityFilter) params.set("visibility", visibilityFilter)
     if (sortField) params.set("sort", `${sortField}_${sortDir}`)
     params.set("limit", String(pageSize))
     params.set("offset", String(page * pageSize))
@@ -202,7 +206,7 @@ const MediaPage = () => {
         console.error("Fetch error:", err)
         setLoading(false)
       })
-  }, [searchQuery, activeFormat, activeCategory, hasDiscogs, hasPrice, auctionStatus, countryFilter, yearFrom, yearTo, labelFilter, sortField, sortDir, page, pageSize])
+  }, [searchQuery, activeFormat, activeCategory, hasDiscogs, hasPrice, auctionStatus, countryFilter, yearFrom, yearTo, labelFilter, visibilityFilter, sortField, sortDir, page, pageSize])
 
   const totalPages = Math.ceil(count / pageSize)
 
@@ -405,6 +409,14 @@ const MediaPage = () => {
           </select>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <label style={{ fontSize: "13px", color: COLORS.muted }}>Visibility:</label>
+          <select value={visibilityFilter} onChange={(e) => setVisibilityFilter(e.target.value)} style={selectStyle}>
+            <option value="">All</option>
+            <option value="visible">Visible</option>
+            <option value="hidden">Hidden</option>
+          </select>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
           <label style={{ fontSize: "13px", color: COLORS.muted }}>Country:</label>
           <input type="text" placeholder="e.g. Germany" value={countryFilter} onChange={(e) => setCountryFilter(e.target.value)} style={{ ...smallInputStyle, width: "110px" }} />
         </div>
@@ -428,7 +440,9 @@ const MediaPage = () => {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
+              <th style={{ ...thStyle, width: "32px", cursor: "default", textAlign: "center" }} title="Visible to customers (has image + price)">Vis.</th>
               <th style={{ ...thStyle, width: "44px", cursor: "default" }}>Cover</th>
+              <th style={{ ...thStyle, width: "40px", cursor: "default", textAlign: "center" }} title="Inventory (pieces in stock)">Inv.</th>
               <th style={thStyle} onClick={() => handleSort("artist_name")}>Artist{sortIndicator("artist_name")}</th>
               <th style={thStyle} onClick={() => handleSort("title")}>Title{sortIndicator("title")}</th>
               <th style={thStyle} onClick={() => handleSort("format")}>Format{sortIndicator("format")}</th>
@@ -445,9 +459,9 @@ const MediaPage = () => {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={13} style={{ ...tdStyle, textAlign: "center", padding: "40px", color: COLORS.muted }}>Loading...</td></tr>
+              <tr><td colSpan={15} style={{ ...tdStyle, textAlign: "center", padding: "40px", color: COLORS.muted }}>Loading...</td></tr>
             ) : releases.length === 0 ? (
-              <tr><td colSpan={13} style={{ ...tdStyle, textAlign: "center", padding: "40px", color: COLORS.muted }}>No results found.</td></tr>
+              <tr><td colSpan={15} style={{ ...tdStyle, textAlign: "center", padding: "40px", color: COLORS.muted }}>No results found.</td></tr>
             ) : (
               releases.map((r) => (
                 <tr
@@ -457,6 +471,9 @@ const MediaPage = () => {
                   onMouseEnter={(e) => (e.currentTarget.style.background = COLORS.hover)}
                   onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                 >
+                  <td style={{ ...tdStyle, textAlign: "center", width: "32px" }} title={r.coverImage && r.legacy_price != null ? "Visible to customers" : `Hidden: ${!r.coverImage ? "no image" : ""}${!r.coverImage && r.legacy_price == null ? " + " : ""}${r.legacy_price == null ? "no price" : ""}`}>
+                    <span style={{ fontSize: "16px", color: r.coverImage && r.legacy_price != null ? "#22c55e" : "#ef4444" }}>●</span>
+                  </td>
                   <td style={tdStyle}>
                     {r.coverImage ? (
                       <img src={r.coverImage} alt="" style={{ width: "32px", height: "32px", objectFit: "cover", borderRadius: "4px", border: `1px solid ${COLORS.border}` }} />
@@ -464,6 +481,7 @@ const MediaPage = () => {
                       <div style={{ width: "32px", height: "32px", borderRadius: "4px", background: COLORS.border, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", color: COLORS.muted }}>&#9835;</div>
                     )}
                   </td>
+                  <td style={{ ...tdStyle, textAlign: "center", fontFamily: "monospace", fontSize: "13px", color: r.inventory != null ? COLORS.text : COLORS.muted }}>{r.inventory ?? "\u2014"}</td>
                   <td style={tdStyle}>{r.artist_name || "\u2014"}</td>
                   <td style={{ ...tdStyle, fontWeight: 500 }}>{r.title || "\u2014"}</td>
                   <td style={tdStyle}>

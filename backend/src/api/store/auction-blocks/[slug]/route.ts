@@ -80,6 +80,10 @@ export async function GET(
       status: item.status,
       release: releasesMap[item.release_id] || null,
     }))
+    .filter((item: any) => {
+      const r = item.release
+      return r && r.coverImage && r.legacy_price != null
+    })
     .sort((a: any, b: any) => (a.lot_number || 999) - (b.lot_number || 999))
 
   res.json({

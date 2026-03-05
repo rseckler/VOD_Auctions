@@ -57,8 +57,12 @@ export async function GET(
     .leftJoin("Artist", "Release.artistId", "Artist.id")
     .leftJoin("Label", "Release.labelId", "Label.id")
     .leftJoin("Format", "Release.format_id", "Format.id")
+    .whereNotNull("Release.coverImage")
+    .whereNotNull("Release.legacy_price")
 
   let countQuery = pgConnection("Release")
+    .whereNotNull("Release.coverImage")
+    .whereNotNull("Release.legacy_price")
 
   // Search filter
   if (search && typeof search === "string" && search.trim()) {

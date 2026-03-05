@@ -75,6 +75,12 @@ export async function GET(
     .where("Release.id", item.release_id)
     .first()
 
+  // Hide items without image or price from customers
+  if (!release || !release.coverImage || release.legacy_price == null) {
+    res.status(404).json({ message: "Item not found" })
+    return
+  }
+
   // Get images for this release
   const images = await pgConnection("Image")
     .select("id", "url", "alt")
