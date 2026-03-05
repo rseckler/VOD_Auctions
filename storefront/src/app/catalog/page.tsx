@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { motion, AnimatePresence } from "framer-motion"
-import { Search, Disc3, ChevronLeft, ChevronRight } from "lucide-react"
+import { Search, Disc3, ChevronLeft, ChevronRight, SlidersHorizontal } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,6 +16,9 @@ type CatalogRelease = {
   title: string
   slug: string
   format: string
+  format_name: string | null
+  format_group: string | null
+  product_category: string
   year: number | null
   country: string | null
   coverImage: string | null
@@ -42,7 +45,15 @@ const FORMAT_COLORS: Record<string, string> = {
   CASSETTE: "bg-format-cassette/15 text-format-cassette border-format-cassette/30",
 }
 
-const FORMATS = ["LP", "CD", "CASSETTE", "DVD", "BOXSET", "BOOK", "ZINE", "POSTER", "OTHER"]
+const CATEGORIES = [
+  { value: "tapes", label: "Tapes" },
+  { value: "vinyl", label: "Vinyl" },
+  { value: "band_literature", label: "Artists/Bands Lit" },
+  { value: "label_literature", label: "Labels Lit" },
+  { value: "press_literature", label: "Press/Org Lit" },
+]
+
+const FORMATS = ["LP", "CD", "CASSETTE", "DVD", "REEL", "BOXSET", "MAGAZINE", "BOOK", "POSTER", "ZINE", "PHOTO", "POSTCARD", "MERCHANDISE", "OTHER"]
 
 export default function CatalogPage() {
   const [releases, setReleases] = useState<CatalogRelease[]>([])
@@ -51,7 +62,14 @@ export default function CatalogPage() {
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState("")
   const [searchInput, setSearchInput] = useState("")
+  const [category, setCategory] = useState("")
   const [format, setFormat] = useState("")
+  const [country, setCountry] = useState("")
+  const [yearFrom, setYearFrom] = useState("")
+  const [yearTo, setYearTo] = useState("")
+  const [label, setLabel] = useState("")
+  const [condition, setCondition] = useState("")
+  const [showFilters, setShowFilters] = useState(false)
   const [sort, setSort] = useState("title")
   const [loading, setLoading] = useState(true)
 
@@ -61,7 +79,13 @@ export default function CatalogPage() {
     params.set("page", String(page))
     params.set("limit", "24")
     if (search) params.set("search", search)
+    if (category) params.set("category", category)
     if (format) params.set("format", format)
+    if (country) params.set("country", country)
+    if (yearFrom) params.set("year_from", yearFrom)
+    if (yearTo) params.set("year_to", yearTo)
+    if (label) params.set("label", label)
+    if (condition) params.set("condition", condition)
     params.set("sort", sort)
 
     const data = await medusaFetch<CatalogResponse>(
@@ -73,7 +97,7 @@ export default function CatalogPage() {
       setPages(data.pages)
     }
     setLoading(false)
-  }, [page, search, format, sort])
+  }, [page, search, category, format, country, yearFrom, yearTo, label, condition, sort])
 
   useEffect(() => {
     fetchReleases()
@@ -84,6 +108,21 @@ export default function CatalogPage() {
     setSearch(searchInput)
     setPage(1)
   }
+
+  const clearAllFilters = () => {
+    setSearch("")
+    setSearchInput("")
+    setCategory("")
+    setFormat("")
+    setCountry("")
+    setYearFrom("")
+    setYearTo("")
+    setLabel("")
+    setCondition("")
+    setPage(1)
+  }
+
+  const hasActiveFilters = category || format || country || yearFrom || yearTo || label || condition
 
   return (
     <main className="mx-auto max-w-7xl px-6 py-8">
@@ -96,7 +135,7 @@ export default function CatalogPage() {
         </p>
       </div>
 
-      {/* Search & Filters */}
+      {/* Search & Sort */}
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
         <form onSubmit={handleSearch} className="flex-1 flex gap-2">
           <div className="relative flex-1">
@@ -118,7 +157,7 @@ export default function CatalogPage() {
             { key: "artist", label: "Artist" },
             { key: "year", label: "Year" },
             { key: "price", label: "Price" },
-          ].map(({ key, label }) => (
+          ].map(({ key, label: lbl }) => (
             <Button
               key={key}
               size="sm"
@@ -126,21 +165,44 @@ export default function CatalogPage() {
               onClick={() => { setSort(key); setPage(1) }}
               className="text-xs"
             >
-              {label}
+              {lbl}
             </Button>
           ))}
         </div>
       </div>
 
+      {/* Category filter pills */}
+      <div className="flex gap-1.5 flex-wrap mb-3">
+        <Button
+          size="sm"
+          variant={category === "" ? "default" : "outline"}
+          onClick={() => { setCategory(""); setPage(1) }}
+          className="text-xs"
+        >
+          All
+        </Button>
+        {CATEGORIES.map((c) => (
+          <Button
+            key={c.value}
+            size="sm"
+            variant={category === c.value ? "default" : "outline"}
+            onClick={() => { setCategory(c.value); setPage(1) }}
+            className="text-xs"
+          >
+            {c.label}
+          </Button>
+        ))}
+      </div>
+
       {/* Format filter pills */}
-      <div className="flex gap-1.5 flex-wrap mb-6">
+      <div className="flex gap-1.5 flex-wrap mb-3">
         <Button
           size="sm"
           variant={format === "" ? "default" : "outline"}
           onClick={() => { setFormat(""); setPage(1) }}
           className="text-xs"
         >
-          All
+          All Formats
         </Button>
         {FORMATS.map((f) => (
           <Button
@@ -154,6 +216,82 @@ export default function CatalogPage() {
           </Button>
         ))}
       </div>
+
+      {/* Advanced Filters Toggle */}
+      <div className="flex items-center gap-3 mb-4">
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => setShowFilters(!showFilters)}
+          className="text-xs text-muted-foreground"
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5 mr-1.5" />
+          {showFilters ? "Hide Filters" : "More Filters"}
+        </Button>
+        {hasActiveFilters && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={clearAllFilters}
+            className="text-xs text-muted-foreground hover:text-destructive"
+          >
+            Clear All
+          </Button>
+        )}
+      </div>
+
+      {/* Advanced Filters */}
+      {showFilters && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-6 p-4 rounded-lg border border-border/50 bg-secondary/30">
+          <div>
+            <label className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1 block">Country</label>
+            <Input
+              value={country}
+              onChange={(e) => { setCountry(e.target.value); setPage(1) }}
+              placeholder="e.g. Germany"
+              className="h-8 text-xs"
+            />
+          </div>
+          <div>
+            <label className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1 block">Year From</label>
+            <Input
+              type="number"
+              value={yearFrom}
+              onChange={(e) => { setYearFrom(e.target.value); setPage(1) }}
+              placeholder="1970"
+              className="h-8 text-xs"
+            />
+          </div>
+          <div>
+            <label className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1 block">Year To</label>
+            <Input
+              type="number"
+              value={yearTo}
+              onChange={(e) => { setYearTo(e.target.value); setPage(1) }}
+              placeholder="2025"
+              className="h-8 text-xs"
+            />
+          </div>
+          <div>
+            <label className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1 block">Label</label>
+            <Input
+              value={label}
+              onChange={(e) => { setLabel(e.target.value); setPage(1) }}
+              placeholder="Search label..."
+              className="h-8 text-xs"
+            />
+          </div>
+          <div>
+            <label className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1 block">Condition</label>
+            <Input
+              value={condition}
+              onChange={(e) => { setCondition(e.target.value); setPage(1) }}
+              placeholder="e.g. VG+"
+              className="h-8 text-xs"
+            />
+          </div>
+        </div>
+      )}
 
       {/* Results */}
       {loading ? (
@@ -169,7 +307,7 @@ export default function CatalogPage() {
       ) : (
         <AnimatePresence mode="wait">
           <motion.div
-            key={`${page}-${search}-${format}-${sort}`}
+            key={`${page}-${search}-${category}-${format}-${sort}-${country}-${yearFrom}-${yearTo}-${label}-${condition}`}
             variants={staggerContainer}
             initial="hidden"
             animate="visible"
@@ -195,12 +333,12 @@ export default function CatalogPage() {
                         <Disc3 className="h-12 w-12 text-muted-foreground/30" />
                       </div>
                     )}
-                    {release.format && (
+                    {(release.format_name || release.format) && (
                       <Badge
                         variant="outline"
                         className={`absolute top-1.5 right-1.5 text-[10px] px-1.5 py-0 backdrop-blur-sm ${FORMAT_COLORS[release.format] || "bg-secondary/80 text-muted-foreground"}`}
                       >
-                        {release.format}
+                        {release.format_name || release.format}
                       </Badge>
                     )}
                     {release.legacy_condition && (

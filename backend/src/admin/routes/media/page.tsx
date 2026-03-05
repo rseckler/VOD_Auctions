@@ -36,6 +36,10 @@ type Release = {
   artist_name: string | null
   label_name: string | null
   format: string
+  format_name: string | null
+  format_group: string | null
+  format_kat: number | null
+  product_category: string
   year: number | null
   country: string | null
   cat_no: string | null
@@ -54,6 +58,7 @@ type Stats = {
   last_discogs_sync: string | null
   last_legacy_sync: string | null
   formats: { format: string; count: number }[]
+  categories: { value: string; count: number }[]
   price_stats: { min: number; max: number; avg: number; median: number } | null
 }
 
@@ -75,7 +80,23 @@ const STATUS_COLORS: Record<string, string> = {
   unsold: "#a09080",
 }
 
-const FORMAT_OPTIONS = ["LP", "CD", "CASSETTE", "DVD", "7\"", "10\"", "12\"", "BOX SET", "OTHER"]
+const FORMAT_OPTIONS = ["LP", "CD", "CASSETTE", "DVD", "REEL", "BOXSET", "MAGAZINE", "BOOK", "POSTER", "ZINE", "PHOTO", "POSTCARD", "MERCHANDISE", "OTHER"]
+
+const CATEGORY_OPTIONS = [
+  { value: "tapes", label: "Tapes" },
+  { value: "vinyl", label: "Vinyl" },
+  { value: "band_literature", label: "Artists/Bands Lit" },
+  { value: "label_literature", label: "Labels Lit" },
+  { value: "press_literature", label: "Press/Org Lit" },
+]
+
+const CATEGORY_LABELS: Record<string, string> = {
+  tapes: "Tapes",
+  vinyl: "Vinyl",
+  band_literature: "Band Lit",
+  label_literature: "Label Lit",
+  press_literature: "Press Lit",
+}
 
 const formatDate = (d: string | null) => {
   if (!d) return "\u2014"
@@ -104,6 +125,7 @@ const MediaPage = () => {
   const [searchInput, setSearchInput] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
   const [activeFormat, setActiveFormat] = useState<string | null>(null)
+  const [activeCategory, setActiveCategory] = useState<string | null>(null)
   const [hasDiscogs, setHasDiscogs] = useState("")
   const [hasPrice, setHasPrice] = useState("")
   const [auctionStatus, setAuctionStatus] = useState("")
@@ -134,7 +156,7 @@ const MediaPage = () => {
   // Reset page on filter change
   useEffect(() => {
     setPage(0)
-  }, [searchQuery, activeFormat, hasDiscogs, hasPrice, auctionStatus, countryFilter, yearFrom, yearTo, labelFilter, pageSize])
+  }, [searchQuery, activeFormat, activeCategory, hasDiscogs, hasPrice, auctionStatus, countryFilter, yearFrom, yearTo, labelFilter, pageSize])
 
   // Fetch stats
   useEffect(() => {
@@ -156,6 +178,7 @@ const MediaPage = () => {
     const params = new URLSearchParams()
     if (searchQuery) params.set("q", searchQuery)
     if (activeFormat) params.set("format", activeFormat)
+    if (activeCategory) params.set("category", activeCategory)
     if (hasDiscogs) params.set("has_discogs", hasDiscogs)
     if (hasPrice) params.set("has_price", hasPrice)
     if (auctionStatus) params.set("auction_status", auctionStatus)
@@ -178,7 +201,7 @@ const MediaPage = () => {
         console.error("Fetch error:", err)
         setLoading(false)
       })
-  }, [searchQuery, activeFormat, hasDiscogs, hasPrice, auctionStatus, countryFilter, yearFrom, yearTo, labelFilter, sortField, sortDir, page, pageSize])
+  }, [searchQuery, activeFormat, activeCategory, hasDiscogs, hasPrice, auctionStatus, countryFilter, yearFrom, yearTo, labelFilter, sortField, sortDir, page, pageSize])
 
   const totalPages = Math.ceil(count / pageSize)
 
@@ -328,9 +351,24 @@ const MediaPage = () => {
         />
       </div>
 
+      {/* Category Pills */}
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "12px" }}>
+        <button onClick={() => setActiveCategory(null)} style={btnStyle(activeCategory === null)}>All Categories</button>
+        {CATEGORY_OPTIONS.map((c) => (
+          <button key={c.value} onClick={() => setActiveCategory(activeCategory === c.value ? null : c.value)} style={btnStyle(activeCategory === c.value)}>
+            {c.label}
+            {stats?.categories?.find((sc: any) => sc.value === c.value) && (
+              <span style={{ marginLeft: "6px", opacity: 0.7, fontSize: "11px" }}>
+                ({stats.categories.find((sc: any) => sc.value === c.value)?.count.toLocaleString("en-US")})
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
       {/* Format Pills */}
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "16px" }}>
-        <button onClick={() => setActiveFormat(null)} style={btnStyle(activeFormat === null)}>All</button>
+        <button onClick={() => setActiveFormat(null)} style={btnStyle(activeFormat === null)}>All Formats</button>
         {FORMAT_OPTIONS.map((f) => (
           <button key={f} onClick={() => setActiveFormat(activeFormat === f ? null : f)} style={btnStyle(activeFormat === f)}>{f}</button>
         ))}
@@ -428,7 +466,15 @@ const MediaPage = () => {
                   <td style={tdStyle}>{r.artist_name || "\u2014"}</td>
                   <td style={{ ...tdStyle, fontWeight: 500 }}>{r.title || "\u2014"}</td>
                   <td style={tdStyle}>
-                    <span style={{ padding: "2px 8px", borderRadius: "4px", fontSize: "12px", background: COLORS.hover, color: COLORS.text }}>{r.format || "\u2014"}</span>
+                    <span style={{ padding: "2px 8px", borderRadius: "4px", fontSize: "12px", background: COLORS.hover, color: COLORS.text }}>{r.format_name || r.format || "\u2014"}</span>
+                    {(() => {
+                      const cat = r.product_category === "release"
+                        ? (r.format_kat === 2 ? "vinyl" : "tapes")
+                        : r.product_category
+                      return cat !== "tapes" ? (
+                        <span style={{ marginLeft: "6px", padding: "1px 6px", borderRadius: "8px", fontSize: "10px", background: `${COLORS.gold}20`, color: COLORS.gold }}>{CATEGORY_LABELS[cat] || cat}</span>
+                      ) : null
+                    })()}
                   </td>
                   <td style={tdStyle}>{r.year || "\u2014"}</td>
                   <td style={{ ...tdStyle, fontSize: "13px" }}>{r.country || "\u2014"}</td>

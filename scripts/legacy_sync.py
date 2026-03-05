@@ -35,6 +35,7 @@ from shared import (
     get_pg_connection,
     log_sync,
     map_format,
+    map_format_by_id,
     parse_price,
     slugify,
 )
@@ -210,7 +211,8 @@ def sync_releases(mysql_conn, pg_conn):
                     catalog_number = re.sub(r"[\r\n]+", " ", catalog_number).strip()
 
                 year = row["year"] if row["year"] and row["year"] > 0 else None
-                format_enum = map_format(row.get("format_name"))
+                format_id = row["format"] if row["format"] and row["format"] > 0 else None
+                format_enum = map_format_by_id(format_id)
                 country = decode_entities(row["country_name"]) if row["country_name"] else None
 
                 artist_name = decode_entities(row["band_name"]) if row["band_name"] else "unknown"
@@ -238,6 +240,7 @@ def sync_releases(mysql_conn, pg_conn):
                     description,
                     year,
                     format_enum,
+                    format_id,
                     catalog_number,
                     country,
                     artist_id,
@@ -262,7 +265,7 @@ def sync_releases(mysql_conn, pg_conn):
             psycopg2.extras.execute_values(
                 pg_cur,
                 """INSERT INTO "Release" (
-                    id, slug, title, description, year, format,
+                    id, slug, title, description, year, format, format_id,
                     "catalogNumber", country, "artistId", "labelId", "coverImage",
                     legacy_price, legacy_condition, legacy_format_detail,
                     "createdAt", "updatedAt", legacy_last_synced
@@ -272,6 +275,7 @@ def sync_releases(mysql_conn, pg_conn):
                     description = EXCLUDED.description,
                     year = EXCLUDED.year,
                     format = EXCLUDED.format,
+                    format_id = EXCLUDED.format_id,
                     "catalogNumber" = EXCLUDED."catalogNumber",
                     country = EXCLUDED.country,
                     "artistId" = EXCLUDED."artistId",
@@ -283,7 +287,7 @@ def sync_releases(mysql_conn, pg_conn):
                     "updatedAt" = NOW(),
                     legacy_last_synced = NOW()""",
                 release_values,
-                template="(%s, %s, %s, %s, %s, %s::\"ReleaseFormat\", %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW())",
+                template="(%s, %s, %s, %s, %s, %s::\"ReleaseFormat\", %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW())",
             )
 
         # Insert new images (skip existing)
@@ -304,6 +308,185 @@ def sync_releases(mysql_conn, pg_conn):
 
     print(f"\n  Done: {processed} releases synced, {image_count} images, {errors} errors")
     cursor.close()
+    return {"processed": processed, "images": image_count, "errors": errors}
+
+
+def sync_pressorga(mysql_conn, pg_conn):
+    """Sync PressOrga entities: insert new ones, skip existing."""
+    print("\n=== Syncing PressOrga ===")
+    cursor = mysql_conn.cursor(dictionary=True)
+    cursor.execute("SELECT id, name FROM 3wadmin_tapes_pressorga ORDER BY id")
+    legacy_rows = cursor.fetchall()
+    cursor.close()
+
+    existing_ids = fetch_existing_ids(pg_conn, "PressOrga", "legacy-pressorga-")
+    new_rows = [r for r in legacy_rows if f"legacy-pressorga-{r['id']}" not in existing_ids]
+    print(f"  Legacy: {len(legacy_rows)} | Supabase: {len(existing_ids)} | New: {len(new_rows)}")
+
+    if not new_rows:
+        print("  Nothing to insert.")
+        return 0
+
+    pg_cur = pg_conn.cursor()
+    inserted = 0
+
+    for i in range(0, len(new_rows), BATCH_SIZE):
+        batch = new_rows[i : i + BATCH_SIZE]
+        values = []
+        for row in batch:
+            name = decode_entities(row["name"]) or f"PressOrga #{row['id']}"
+            slug = slugify(name) or f"pressorga-{row['id']}"
+            pid = f"legacy-pressorga-{row['id']}"
+            values.append((pid, slug + f"-{row['id']}", name))
+
+        psycopg2.extras.execute_values(
+            pg_cur,
+            """INSERT INTO "PressOrga" (id, slug, name, "createdAt", "updatedAt")
+               VALUES %s ON CONFLICT (id) DO NOTHING""",
+            values,
+            template="(%s, %s, %s, NOW(), NOW())",
+        )
+        inserted += len(batch)
+
+    pg_conn.commit()
+    print(f"  Inserted {inserted} new PressOrga.              ")
+    return inserted
+
+
+def sync_literature(mysql_conn, pg_conn, table, category, id_prefix, ref_field, ref_prefix, bilder_typ):
+    """Sync a literature table: upsert into Release, protect auction/discogs fields."""
+    print(f"\n=== Syncing {category} ===")
+    cursor = mysql_conn.cursor(dictionary=True)
+
+    if "band_lit" in table:
+        entity_join = "LEFT JOIN 3wadmin_tapes_band e ON t.aid = e.id"
+        entity_name_col = "e.name as entity_name"
+    elif "labels_lit" in table:
+        entity_join = "LEFT JOIN 3wadmin_tapes_labels e ON t.aid = e.id"
+        entity_name_col = "e.label as entity_name"
+    else:
+        entity_join = "LEFT JOIN 3wadmin_tapes_pressorga e ON t.aid = e.id"
+        entity_name_col = "e.name as entity_name"
+
+    cursor.execute(f"""
+        SELECT t.id, t.aid, t.title, t.text, t.country, t.year, t.format, t.preis,
+               {entity_name_col},
+               f.name as format_name,
+               c.name as country_name,
+               bi.bild as image_filename, bi.id as image_id
+        FROM `{table}` t
+        {entity_join}
+        LEFT JOIN 3wadmin_tapes_formate f ON t.format = f.id
+        LEFT JOIN 3wadmin_shop_countries c ON t.country = c.id
+        LEFT JOIN bilder_1 bi ON bi.inid = t.id AND bi.typ = {bilder_typ}
+        GROUP BY t.id ORDER BY t.id
+    """)
+    rows = cursor.fetchall()
+    cursor.close()
+    print(f"  Legacy: {len(rows)} items")
+
+    pg_cur = pg_conn.cursor()
+    processed = 0
+    image_count = 0
+    errors = 0
+
+    for i in range(0, len(rows), BATCH_SIZE):
+        batch = rows[i : i + BATCH_SIZE]
+        release_values = []
+        image_values = []
+
+        for r in batch:
+            try:
+                title = decode_entities(r["title"]) or f"Literature #{r['id']}"
+                description = str(r["text"]) if r["text"] else None
+                entity_name = decode_entities(r["entity_name"]) if r["entity_name"] else "unknown"
+
+                year = None
+                if r["year"]:
+                    try:
+                        y = int(str(r["year"]).strip())
+                        if 0 < y <= 2100:
+                            year = y
+                    except (ValueError, TypeError):
+                        pass
+
+                format_id = r["format"] if r["format"] and r["format"] > 0 else None
+                format_enum = map_format_by_id(format_id)
+                country = decode_entities(r["country_name"]) if r["country_name"] else None
+                format_detail = decode_entities(r["format_name"]) if r["format_name"] else None
+                price = parse_price(r.get("preis"))
+
+                slug = slugify(f"{entity_name} {title} {r['id']}") or f"{id_prefix}-{r['id']}"
+                release_id = f"{id_prefix}-{r['id']}"
+                ref_id = f"{ref_prefix}-{r['aid']}" if r["aid"] else None
+
+                artist_id = ref_id if ref_field == "artistId" else None
+                label_id = ref_id if ref_field == "labelId" else None
+                pressorga_id = ref_id if ref_field == "pressOrgaId" else None
+
+                cover_image = None
+                if r.get("image_filename"):
+                    cover_image = IMAGE_BASE_URL + str(r["image_filename"])
+
+                release_values.append((
+                    release_id, slug, title, description, year,
+                    format_enum, format_id, country,
+                    artist_id, label_id, pressorga_id,
+                    cover_image, price, format_detail, category,
+                ))
+
+                if cover_image and r.get("image_id"):
+                    image_values.append((
+                        f"legacy-image-lit-{r['image_id']}",
+                        cover_image, title, release_id,
+                    ))
+            except Exception as e:
+                errors += 1
+                print(f"\n  ERROR on {table} #{r['id']}: {e}")
+
+        if release_values:
+            psycopg2.extras.execute_values(
+                pg_cur,
+                """INSERT INTO "Release" (
+                    id, slug, title, description, year, format, format_id,
+                    country, "artistId", "labelId", "pressOrgaId", "coverImage",
+                    legacy_price, legacy_format_detail, product_category,
+                    "createdAt", "updatedAt", legacy_last_synced
+                ) VALUES %s
+                ON CONFLICT (id) DO UPDATE SET
+                    title = EXCLUDED.title,
+                    description = EXCLUDED.description,
+                    year = EXCLUDED.year,
+                    format = EXCLUDED.format,
+                    format_id = EXCLUDED.format_id,
+                    country = EXCLUDED.country,
+                    "artistId" = EXCLUDED."artistId",
+                    "labelId" = EXCLUDED."labelId",
+                    "pressOrgaId" = EXCLUDED."pressOrgaId",
+                    "coverImage" = EXCLUDED."coverImage",
+                    legacy_price = EXCLUDED.legacy_price,
+                    legacy_format_detail = EXCLUDED.legacy_format_detail,
+                    "updatedAt" = NOW(),
+                    legacy_last_synced = NOW()""",
+                release_values,
+                template="(%s, %s, %s, %s, %s, %s::\"ReleaseFormat\", %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW())",
+            )
+
+        if image_values:
+            psycopg2.extras.execute_values(
+                pg_cur,
+                """INSERT INTO "Image" (id, url, alt, "releaseId", "createdAt")
+                   VALUES %s ON CONFLICT (id) DO NOTHING""",
+                image_values,
+                template="(%s, %s, %s, %s, NOW())",
+            )
+            image_count += len(image_values)
+
+        pg_conn.commit()
+        processed += len(batch)
+        print(f"  Synced {processed}/{len(rows)} ({errors} errors)...", end="\r")
+
+    print(f"\n  Done: {processed} items, {image_count} images, {errors} errors")
     return {"processed": processed, "images": image_count, "errors": errors}
 
 
@@ -335,40 +518,70 @@ def main():
         return
 
     try:
-        # Sync artists and labels
+        # Sync entities
         new_artists = sync_artists(mysql_conn, pg_conn)
         new_labels = sync_labels(mysql_conn, pg_conn)
+        new_pressorga = sync_pressorga(mysql_conn, pg_conn)
 
         # Sync releases (full upsert)
         release_stats = sync_releases(mysql_conn, pg_conn)
 
+        # Sync literature tables
+        band_lit = sync_literature(
+            mysql_conn, pg_conn,
+            table="3wadmin_tapes_band_lit", category="band_literature",
+            id_prefix="legacy-bandlit", ref_field="artistId",
+            ref_prefix="legacy-artist", bilder_typ=13,
+        )
+        labels_lit = sync_literature(
+            mysql_conn, pg_conn,
+            table="3wadmin_tapes_labels_lit", category="label_literature",
+            id_prefix="legacy-labellit", ref_field="labelId",
+            ref_prefix="legacy-label", bilder_typ=15,
+        )
+        press_lit = sync_literature(
+            mysql_conn, pg_conn,
+            table="3wadmin_tapes_pressorga_lit", category="press_literature",
+            id_prefix="legacy-presslit", ref_field="pressOrgaId",
+            ref_prefix="legacy-pressorga", bilder_typ=14,
+        )
+
         # Log batch result to sync_log
         elapsed = time.time() - start_time
+        total_errors = (release_stats["errors"] + band_lit["errors"]
+                        + labels_lit["errors"] + press_lit["errors"])
         changes = {
             "new_artists": new_artists,
             "new_labels": new_labels,
+            "new_pressorga": new_pressorga,
             "releases_processed": release_stats["processed"],
-            "new_images": release_stats["images"],
-            "errors": release_stats["errors"],
+            "band_lit_processed": band_lit["processed"],
+            "labels_lit_processed": labels_lit["processed"],
+            "press_lit_processed": press_lit["processed"],
+            "new_images": (release_stats["images"] + band_lit["images"]
+                           + labels_lit["images"] + press_lit["images"]),
+            "errors": total_errors,
             "duration_seconds": round(elapsed, 1),
         }
 
-        status = "success" if release_stats["errors"] == 0 else "success"
         error_msg = None
-        if release_stats["errors"] > 0:
-            error_msg = f"{release_stats['errors']} release processing errors"
+        if total_errors > 0:
+            error_msg = f"{total_errors} processing errors"
 
-        log_sync(pg_conn, None, "legacy", changes, status=status, error_message=error_msg)
+        log_sync(pg_conn, None, "legacy", changes, status="success", error_message=error_msg)
 
         # Print summary
         print(f"\n{'=' * 60}")
-        print(f"SYNC SUMMARY")
+        print("SYNC SUMMARY")
         print(f"{'=' * 60}")
         print(f"  New artists:       {new_artists}")
         print(f"  New labels:        {new_labels}")
+        print(f"  New PressOrga:     {new_pressorga}")
         print(f"  Releases synced:   {release_stats['processed']}")
-        print(f"  New images:        {release_stats['images']}")
-        print(f"  Errors:            {release_stats['errors']}")
+        print(f"  Band Literature:   {band_lit['processed']}")
+        print(f"  Labels Literature: {labels_lit['processed']}")
+        print(f"  Press Literature:  {press_lit['processed']}")
+        print(f"  Total errors:      {total_errors}")
         print(f"  Duration:          {elapsed:.1f}s ({elapsed / 60:.1f} min)")
         print(f"{'=' * 60}")
 

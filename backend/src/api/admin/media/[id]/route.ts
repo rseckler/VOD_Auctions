@@ -12,15 +12,20 @@ export async function GET(
   )
   const { id } = req.params
 
-  // Fetch release with artist + label
+  // Fetch release with artist + label + format + pressorga
   const release = await pgConnection("Release")
     .select(
       "Release.*",
       "Artist.name as artist_name",
-      "Label.name as label_name"
+      "Label.name as label_name",
+      "Format.name as format_name",
+      "Format.format_group",
+      "PressOrga.name as pressorga_name"
     )
     .leftJoin("Artist", "Release.artistId", "Artist.id")
     .leftJoin("Label", "Release.labelId", "Label.id")
+    .leftJoin("Format", "Release.format_id", "Format.id")
+    .leftJoin("PressOrga", "Release.pressOrgaId", "PressOrga.id")
     .where("Release.id", id)
     .first()
 

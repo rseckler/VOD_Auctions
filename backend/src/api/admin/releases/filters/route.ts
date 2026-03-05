@@ -11,7 +11,7 @@ export async function GET(
     ContainerRegistrationKeys.PG_CONNECTION
   )
 
-  const [formats, countries, years, totalResult] = await Promise.all([
+  const [formats, countries, years, totalResult, categories] = await Promise.all([
     pgConnection("Release")
       .select("format as value")
       .count("id as count")
@@ -37,12 +37,31 @@ export async function GET(
       .orderBy("year", "desc"),
 
     pgConnection("Release").count("id as count").first(),
+
+    pgConnection("Release")
+      .select(
+        pgConnection.raw(`
+          CASE
+            WHEN "Release".product_category = 'release' AND "Format".kat = 1 THEN 'tapes'
+            WHEN "Release".product_category = 'release' AND "Format".kat = 2 THEN 'vinyl'
+            WHEN "Release".product_category = 'band_literature' THEN 'band_literature'
+            WHEN "Release".product_category = 'label_literature' THEN 'label_literature'
+            WHEN "Release".product_category = 'press_literature' THEN 'press_literature'
+            ELSE 'other'
+          END as value
+        `)
+      )
+      .count("Release.id as count")
+      .leftJoin("Format", "Release.format_id", "Format.id")
+      .groupBy("value")
+      .orderBy("count", "desc"),
   ])
 
   res.json({
     formats: formats.map((f: any) => ({ value: f.value, count: Number(f.count) })),
     countries: countries.map((c: any) => ({ value: c.value, count: Number(c.count) })),
     years: years.map((y: any) => ({ value: Number(y.value), count: Number(y.count) })),
+    categories: categories.map((c: any) => ({ value: c.value, count: Number(c.count) })),
     total: Number(totalResult?.count || 0),
   })
 }

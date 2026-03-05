@@ -14,6 +14,7 @@ export async function GET(
   const {
     q,
     format,
+    category,
     year,
     year_from,
     year_to,
@@ -31,6 +32,8 @@ export async function GET(
       "Release.title",
       "Release.slug",
       "Release.format",
+      "Release.format_id",
+      "Release.product_category",
       "Release.year",
       "Release.country",
       "Release.coverImage",
@@ -38,10 +41,13 @@ export async function GET(
       "Release.estimated_value",
       "Release.auction_status",
       "Artist.name as artist_name",
-      "Label.name as label_name"
+      "Label.name as label_name",
+      "Format.name as format_name",
+      "Format.format_group"
     )
     .leftJoin("Artist", "Release.artistId", "Artist.id")
     .leftJoin("Label", "Release.labelId", "Label.id")
+    .leftJoin("Format", "Release.format_id", "Format.id")
 
   // Full-text search on title + artist name + catalog number
   if (q && typeof q === "string" && q.trim()) {
@@ -79,6 +85,26 @@ export async function GET(
 
   if (auction_status && typeof auction_status === "string") {
     query = query.where("Release.auction_status", auction_status)
+  }
+
+  if (category && typeof category === "string") {
+    switch (category) {
+      case "tapes":
+        query = query.where("Release.product_category", "release").where("Format.kat", 1)
+        break
+      case "vinyl":
+        query = query.where("Release.product_category", "release").where("Format.kat", 2)
+        break
+      case "band_literature":
+        query = query.where("Release.product_category", "band_literature")
+        break
+      case "label_literature":
+        query = query.where("Release.product_category", "label_literature")
+        break
+      case "press_literature":
+        query = query.where("Release.product_category", "press_literature")
+        break
+    }
   }
 
   // Count

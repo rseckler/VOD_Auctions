@@ -97,12 +97,12 @@ export default async function CatalogDetailPage({
           </h1>
 
           <div className="flex flex-wrap items-center gap-2 mt-4">
-            {release.format && (
+            {(release.format_name || release.format) && (
               <Badge
                 variant="outline"
                 className={FORMAT_COLORS[release.format] || "bg-secondary text-muted-foreground"}
               >
-                {release.format}
+                {release.format_name || release.format}
               </Badge>
             )}
             {release.year && (
@@ -191,6 +191,12 @@ export default async function CatalogDetailPage({
                   <dd>{release.label_name}</dd>
                 </div>
               )}
+              {release.pressorga_name && (
+                <div className="flex justify-between">
+                  <dt className="text-muted-foreground">Press / Org</dt>
+                  <dd>{release.pressorga_name}</dd>
+                </div>
+              )}
               {release.catalogNumber && (
                 <div className="flex justify-between">
                   <dt className="text-muted-foreground">Catalog No.</dt>
@@ -203,10 +209,10 @@ export default async function CatalogDetailPage({
                   <dd className="font-mono text-xs uppercase">{release.legacy_condition}</dd>
                 </div>
               )}
-              {release.legacy_format_detail && (
+              {(release.format_name || release.legacy_format_detail) && (
                 <div className="flex justify-between">
                   <dt className="text-muted-foreground">Format (Detail)</dt>
-                  <dd>{release.legacy_format_detail}</dd>
+                  <dd>{release.format_name || release.legacy_format_detail}</dd>
                 </div>
               )}
               {release.media_condition && (

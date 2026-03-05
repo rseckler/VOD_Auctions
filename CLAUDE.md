@@ -4,11 +4,11 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 
 ## Project Overview
 
-**Purpose:** Auktionsplattform für ~30.000 Tonträger (Industrial Music, Nischen-Genres)
+**Purpose:** Auktionsplattform für ~41.500 Produkte (Industrial Music Tonträger + Literatur/Merchandise)
 
 **Goal:** Eigene Plattform mit voller Kontrolle über Marke, Kundendaten, Preisgestaltung — statt 8-13% Gebühren an eBay/Discogs
 
-**Status:** Phase 1 — RSE-72 bis RSE-96 + RSE-76 erledigt. Stripe Payment Integration live (Test-Mode). Nächstes: RSE-77 (Testlauf) oder RSE-100–105 (Checkout Flow, Order Tracking, Emails, Legal)
+**Status:** Phase 1 — RSE-72 bis RSE-96 + RSE-76 erledigt. Literature Migration (3 Kategorien + Format-Tabelle) erledigt. Nächstes: RSE-77 (Testlauf) oder RSE-100–105 (Checkout Flow, Order Tracking, Emails, Legal)
 
 **Sprache:** Storefront und Admin-UI komplett auf Englisch (seit 2026-03-03)
 
@@ -16,14 +16,25 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-05
 
 ### Letzte Änderungen (2026-03-05)
+- **Literature Migration** — 3 fehlende Produkt-Kategorien + Format-Tabelle migriert:
+  - `Format`-Tabelle: 39 Einträge aus Legacy `3wadmin_tapes_formate` (ID-basiert, mit `format_group` für Filter)
+  - `PressOrga`-Tabelle: 1.983 Press/Org-Entitäten
+  - 11.370 neue Releases: 3.915 band_literature + 1.129 label_literature + 6.326 press_literature
+  - ~4.686 neue Bilder (band_lit typ=13, pressorga_lit typ=14, labels_lit typ=15)
+  - Release-Erweiterung: `product_category`, `format_id` (FK → Format), `pressOrgaId` (FK → PressOrga)
+  - ReleaseFormat Enum: +MAGAZINE, +PHOTO, +POSTCARD, +MERCHANDISE, +REEL
+  - Alle Backend-APIs: `product_category` Filter, Format JOIN, PressOrga JOIN
+  - Admin Media: Kategorie-Pills (Releases/Band Lit/Label Lit/Press Lit), format_name Anzeige
+  - Storefront Katalog: format_name Badge, erweiterte Format-Filter (14 Werte)
+  - Storefront Detail: PressOrga-Name, format_name Badge
+  - Legacy Sync: 4 neue sync-Funktionen (pressorga, band_lit, labels_lit, press_lit)
+  - Discogs Scripts: Literature-Items korrekt übersprungen (DISCOGS_SKIP_FORMATS)
+
+### Frühere Änderungen (2026-03-05)
 - **RSE-76: Stripe Payment Integration** — Komplette Zahlungsabwicklung implementiert:
-  - Transaction Model (Medusa DML): status, shipping, Stripe IDs, Lieferadresse
-  - Stripe Checkout Session API (Hosted Page, Auto Capture)
-  - Stripe Webhook Handler (checkout.session.completed/expired)
+  - Transaction Model, Stripe Checkout Session, Webhook Handler
   - Flat-Rate Versand: DE €4.99 / EU €9.99 / Worldwide €14.99
-  - Wins-Page mit Pay-Button, Shipping-Zone-Auswahl, Status-Badges (Paid/Shipped/Delivered)
-  - Admin Transaction APIs (List + Shipping-Status Update)
-  - Stripe Account: VOD Records Sandbox (acct_1T7WaYEyxqyK4DXF)
+  - Wins-Page mit Pay-Button, Stripe Account: VOD Records Sandbox
 
 ### Frühere Änderungen (2026-03-03)
 - **RSE-87–96:** English Translation, Article Numbers, Discogs Prices, Credits Fix, Admin Fixes, Backfill, VPS Deploy, Cronjobs
@@ -76,14 +87,15 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **URL:** https://bofblwqieuvmqybzxapx.supabase.co
 **Dashboard:** https://supabase.com/dashboard/project/bofblwqieuvmqybzxapx
 
-Shared DB für tape-mag-mvp + VOD_Auctions. Schema enthält 20 Tabellen (14 Basis + 6 Auktions-Erweiterung).
+Shared DB für tape-mag-mvp + VOD_Auctions. Schema enthält 22 Tabellen (14 Basis + 2 neue Referenz + 6 Auktions-Erweiterung).
 
-**Migrierte Daten (RSE-72, 2026-03-01):**
-- 12.451 Artists, 3.077 Labels, 30.158 Releases, 22.302 Images
+**Migrierte Daten (aktuell):**
+- 12.451 Artists, 3.077 Labels, ~41.529 Releases, ~73.658 Images, 1.983 PressOrga, 39 Formats
+- **Releases nach Kategorie:** 30.159 release + 3.915 band_literature + 1.129 label_literature + 6.326 press_literature
 - Quelle: Legacy MySQL (213.133.106.99/vodtapes)
-- IDs: `legacy-artist-{id}`, `legacy-label-{id}`, `legacy-release-{id}`, `legacy-image-{id}`
-- Auktions-Tabellen angelegt (leer): auction_blocks, block_items, bids, transactions, auction_users, related_blocks
-- 75 Indexes, RLS auf allen 20 Tabellen aktiv
+- IDs: `legacy-artist-{id}`, `legacy-label-{id}`, `legacy-release-{id}`, `legacy-image-{id}`, `legacy-bandlit-{id}`, `legacy-labellit-{id}`, `legacy-presslit-{id}`, `legacy-pressorga-{id}`
+- Auktions-Tabellen angelegt: auction_blocks, block_items, bids, transactions, auction_users, related_blocks
+- 75+ Indexes, RLS auf allen Tabellen aktiv
 
 ## Implementation Plan
 
@@ -122,9 +134,11 @@ Shared DB für tape-mag-mvp + VOD_Auctions. Schema enthält 20 Tabellen (14 Basi
 ## Database Schema
 
 ### Bestehend (tape-mag-mvp)
-- `Release` — ~30.000 Produkte (Vinyl, CDs, Kassetten)
+- `Release` — ~41.500 Produkte (4 Kategorien: release, band_literature, label_literature, press_literature)
 - `Artist`, `Label`, `Genre`, `Tag`, `Image`, `Track`
 - `User`, `Comment`, `Rating`, `Favorite`
+- `Format` — 39 Referenz-Einträge (Legacy-Format-IDs, name, typ, kat, format_group)
+- `PressOrga` — 1.983 Press/Org-Entitäten (für press_literature)
 
 ### Neu (Auktions-Layer, Medusa ORM — Singular-Tabellennamen)
 - `auction_block` — Themen-Auktionsblöcke (status, timing, content, settings, results)
@@ -143,6 +157,35 @@ ALTER TABLE "Release" ADD COLUMN current_block_id TEXT;
 ALTER TABLE "Release" ADD COLUMN article_number TEXT;  -- VOD-XXXXX, unique
 ALTER TABLE "Release" ADD COLUMN discogs_median_price DECIMAL(10,2);
 ALTER TABLE "Release" ADD COLUMN discogs_highest_price DECIMAL(10,2);
+ALTER TABLE "Release" ADD COLUMN product_category TEXT NOT NULL DEFAULT 'release';  -- release|band_literature|label_literature|press_literature
+ALTER TABLE "Release" ADD COLUMN format_id INTEGER REFERENCES "Format"(id);  -- FK zur Format-Tabelle
+ALTER TABLE "Release" ADD COLUMN "pressOrgaId" TEXT;  -- FK für Press/Org Literature
+```
+
+### Format-Tabelle
+```sql
+CREATE TABLE "Format" (
+    id INTEGER PRIMARY KEY,          -- Legacy-ID beibehalten (4, 5, 15, ...)
+    name TEXT NOT NULL,              -- ANZEIGE-NAME: "Tape-3", "Vinyl-Lp", "Mag/Lit"
+    typ INTEGER NOT NULL,            -- 1=Release, 2=Labels-Lit, 3=Band/Labels/Press-Lit, 4=Press-Lit
+    kat INTEGER NOT NULL,            -- 1=Tapes/Sonstiges, 2=Vinyl
+    format_group TEXT NOT NULL       -- FILTER-GRUPPE: CASSETTE, LP, MAGAZINE, etc.
+);
+```
+
+**Format-Darstellungs-Prinzip:**
+- `Format.name` = primäre Anzeige überall (z.B. "Tape-3", "Vinyl-12"", "Mag/Lit")
+- `Format.format_group` = nur für Gruppierung/Filter (CASSETTE, LP, MAGAZINE, etc.)
+- API liefert: `format` (Enum), `format_id` (FK), `format_name` (Anzeige), `format_group` (Filter)
+
+### PressOrga-Tabelle
+```sql
+CREATE TABLE "PressOrga" (
+    id TEXT PRIMARY KEY,             -- legacy-pressorga-{id}
+    slug TEXT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT, country TEXT, year TEXT
+);
 ```
 
 **Artikelnummern generieren:**
@@ -191,10 +234,10 @@ VOD_Auctions/
 │   │   │   │   │   └── [id]/
 │   │   │   │   │       ├── route.ts  # GET/POST with status-transition validation (RSE-75b)
 │   │   │   │   │       └── items/    # Block Items: add, update price, remove
-│   │   │   │   ├── releases/    # Search 30k Releases (Knex raw SQL, auction_status filter)
-│   │   │   │   │   └── filters/route.ts  # GET filter options with counts (format/country/year)
-│   │   │   │   ├── media/       # Medien-Verwaltung API (browse, edit, stats)
-│   │   │   │   │   └── [id]/route.ts     # GET/POST Release-Detail + Bewertung
+│   │   │   │   ├── releases/    # Search 41k Releases (Knex raw SQL, product_category + auction_status filter)
+│   │   │   │   │   └── filters/route.ts  # GET filter options with counts (format/country/year/categories)
+│   │   │   │   ├── media/       # Medien-Verwaltung API (browse, edit, stats, product_category filter)
+│   │   │   │   │   └── [id]/route.ts     # GET/POST Release-Detail + Format + PressOrga JOINs
 │   │   │   │   └── transactions/         # Transaction Management (RSE-76)
 │   │   │   │       ├── route.ts          # GET: All transactions (filter by status)
 │   │   │   │       └── [id]/route.ts     # GET detail + POST shipping status update
@@ -206,8 +249,8 @@ VOD_Auctions/
 │   │   │       │       └── items/[itemId]/
 │   │   │       │           ├── route.ts   # Item detail + Release + Images
 │   │   │       │           └── bids/route.ts  # GET bids + POST bid (auth required)
-│   │   │       ├── catalog/          # Katalog API (alle 30k Releases)
-│   │   │       │   └── [id]/route.ts # Release-Detail + Images + Related Releases
+│   │   │       ├── catalog/          # Katalog API (alle 41k Releases, product_category filter)
+│   │   │       │   └── [id]/route.ts # Release-Detail + Images + Format + PressOrga + Related Releases
 │   │   │       └── account/          # Account APIs (RSE-75b + RSE-76)
 │   │   │           ├── bids/route.ts         # GET: Meine Gebote
 │   │   │           ├── wins/route.ts         # GET: Gewonnene Items
@@ -285,6 +328,12 @@ VOD_Auctions/
 │   │   └── data/                # Static JSON (50 Items, 3 Blocks, Bids)
 │   └── node_modules/
 ├── scripts/                     # Migration-Scripts (Python)
+│   ├── shared.py                # DB connections, format mapping, Discogs config, RateLimiter
+│   ├── legacy_sync.py           # Daily sync: Artists, Labels, PressOrga, Releases, 3x Literature
+│   ├── migrate_literature.py    # One-time: Format + PressOrga + 11.370 Lit-Items + Bilder
+│   ├── discogs_batch.py         # Initial Discogs match (8-12h, resumable)
+│   ├── discogs_weekly_sync.py   # Weekly Discogs price update (4-5h, resumable)
+│   ├── backfill_discogs_prices.py # Two-pass Discogs backfill
 │   ├── extract_legacy_data.py   # MySQL → JSON
 │   ├── load_json_to_supabase.py # JSON → Supabase (psycopg2, Batch 500)
 │   ├── requirements.txt         # Python deps
@@ -313,15 +362,15 @@ npx medusa develop    # Backend + Admin UI (hot reload)
 - Legacy-Daten (Release, Artist, Label) werden via Knex raw SQL abgefragt, nicht über Medusa ORM
 - Store-API braucht `x-publishable-api-key` Header
 - Admin Produkt-Browser: Filter (Format-Pills, Land, Jahr-Range, Label, Sortierung) + Grid/Tabellen-Ansicht
-- `/admin/releases` unterstützt: q, format, country, label, year_from, year_to, sort, auction_status
-- `/admin/releases/filters` liefert verfügbare Filter-Optionen mit Counts
+- `/admin/releases` unterstützt: q, format, country, label, year_from, year_to, sort, auction_status, product_category
+- `/admin/releases/filters` liefert verfügbare Filter-Optionen mit Counts (inkl. categories)
 - Block-Update Route strippt `items` aus Body (Items nur über `/items` Endpoint verwaltet)
 - `current_block_id` in Release-Tabelle ist UUID-Typ → Medusa ULIDs nicht kompatibel (nur auction_status wird aktualisiert)
 - **Admin Custom Routes:** `defineRouteConfig({ label })` NUR auf Top-Level-Seiten (`page.tsx`), NICHT auf `[id]/page.tsx` Detail-Seiten (verursacht Routing-Konflikte)
 - **Knex Gotcha — Decimal-Spalten:** Knex gibt DECIMAL-Spalten als Strings zurück, nicht als Numbers. In Admin-UI immer `Number(value)` vor `.toFixed()` verwenden.
 - **Knex Gotcha — Subqueries:** `.where("col", pgConnection.raw('(SELECT ...)'))` funktioniert NICHT korrekt. Stattdessen: Wert zuerst abfragen, dann direkt verwenden: `.where("col", fetchedValue)`
 - **Admin Build:** `medusa build` legt Admin-Assets in `.medusa/server/public/admin/`, muss nach `public/admin/` kopiert werden (siehe VPS Deploy)
-- `/admin/media` unterstützt: q, format, country, label, year_from, year_to, sort (field:dir Format), has_discogs, auction_status
+- `/admin/media` unterstützt: q, format, country, label, year_from, year_to, sort (field:dir Format), has_discogs, auction_status, product_category
 - Admin-UI komplett auf Englisch (Media Management, Release Detail, Sync Dashboard)
 
 ### Storefront
@@ -338,8 +387,8 @@ npm run dev                  # Local development (port 3000)
 **Wichtig:**
 - `next.config.ts` muss externe Bild-Domains whitelisten (`tape-mag.com` für Legacy-Bilder)
 - Bilder-URLs: `https://tape-mag.com/bilder/gross/{filename}` (Legacy-System)
-- Storefront Katalog (`/catalog`): Zeigt alle 30k Releases mit Suche, Format-Filter, Sortierung
-- Katalog-Detail (`/catalog/[id]`): Release-Info + Images + Related Releases by Artist/Label
+- Storefront Katalog (`/catalog`): Zeigt alle ~41.500 Releases mit Suche, Format-Filter (14 Werte), format_name Badge, Sortierung
+- Katalog-Detail (`/catalog/[id]`): Release-Info + Images + format_name Badge + PressOrga-Name + Related Releases by Artist/Label
 - Auktions-Detail (`/auctions/[slug]/[itemId]`): Item-Info + Bidding + Related Section mit Block Items
 - Credits-Text: Wird beim Rendern bereinigt (literal Escape-Sequenzen, CRLF, HTML-Tags → echte Newlines) via `.replace()` in Catalog + Auction Pages
 - Artikelnummer: Wird als erstes Feld in Details-Sektion angezeigt (Catalog + Auction)
@@ -438,13 +487,16 @@ npm run build             # Production build
 cd VOD_Auctions/scripts
 
 # Shared utilities (imported by all scripts)
-# scripts/shared.py — DB connections, format mapping, Discogs config, RateLimiter
+# scripts/shared.py — DB connections, format mapping (LEGACY_FORMAT_ID_MAP), Discogs config, RateLimiter
 
 # Legacy MySQL → Supabase Sync (daily)
-python3 legacy_sync.py           # Incremental sync of new/changed entries
+python3 legacy_sync.py           # Incremental sync: Artists, Labels, PressOrga, Releases (+format_id), 3x Literature
+
+# One-time Literature Migration
+python3 migrate_literature.py    # Format-Tabelle + PressOrga + 11.370 Literature + Bilder (already run)
 
 # Discogs Price Enrichment
-python3 discogs_batch.py          # Initial batch: match all 30k releases (8-12h, resumable)
+python3 discogs_batch.py          # Initial batch: match releases (8-12h, resumable, skips literature)
 python3 discogs_weekly_sync.py    # Weekly price update (lowest + median + highest, 4-5h, resumable)
 python3 backfill_discogs_prices.py # Two-pass backfill: 1) /releases for basic data, 2) /price_suggestions for median/highest
 python3 discogs_price_test.py     # Feasibility test (100 random releases)
@@ -464,16 +516,16 @@ psql $SUPABASE_DB_URL -f generate_article_numbers.sql  # Generate VOD-XXXXX numb
 **VPS Python Dependencies (venv at `scripts/venv/`):**
 psycopg2-binary, python-dotenv, requests, mysql-connector-python
 
-**New DB columns:** discogs_id, discogs_lowest_price, discogs_median_price, discogs_highest_price, discogs_num_for_sale, discogs_have, discogs_want, discogs_last_synced, legacy_last_synced, article_number
-**New DB table:** sync_log (id, release_id, sync_type, sync_date, changes JSONB, status, error_message)
+**New DB columns:** discogs_id, discogs_lowest_price, discogs_median_price, discogs_highest_price, discogs_num_for_sale, discogs_have, discogs_want, discogs_last_synced, legacy_last_synced, article_number, product_category, format_id, pressOrgaId
+**New DB tables:** sync_log, Format (39 entries), PressOrga (1.983 entries)
 
 ## Admin Panel Extensions
 
-**Media Management:** `/admin/media` — Browse/search/filter alle 30k Releases mit Discogs-Daten
-- Spalten: Cover, Artist, Title, Format, Year, Country, Label, Art. No., CatNo, Discogs Price, Discogs ID, Status, Last Sync
-- Filter: Search (debounced), Format-Pills, Country, Year (von-bis Range), Label (debounced), Has Discogs, Auction Status
+**Media Management:** `/admin/media` — Browse/search/filter alle ~41.500 Releases mit Discogs-Daten
+- Spalten: Cover, Artist, Title, Format (format_name), Year, Country, Label, Art. No., CatNo, Discogs Price, Discogs ID, Status, Last Sync
+- Filter: Search (debounced), **Kategorie-Pills** (All/Releases/Band Lit/Label Lit/Press Lit), Format-Pills (14 Werte), Country, Year (von-bis Range), Label (debounced), Has Discogs, Auction Status
 - Sortierung: Alle Spalten sortierbar (field:dir Format)
-- API: GET /admin/media, GET /admin/media/:id, POST /admin/media/:id, GET /admin/media/stats
+- API: GET /admin/media (?product_category), GET /admin/media/:id (Format+PressOrga JOINs), POST /admin/media/:id, GET /admin/media/stats (categories)
 
 **Sync-Dashboard:** `/admin/sync` — Legacy + Discogs Sync-Status und Reports
 - API: GET /admin/sync, GET /admin/sync/legacy, GET /admin/sync/discogs
@@ -518,6 +570,19 @@ psycopg2-binary, python-dotenv, requests, mysql-connector-python
 - `storefront/src/app/account/wins/page.tsx` — Pay-Button + Status-Badges
 
 ### Testing
+
+**Test-Accounts:**
+- `bidder1@test.de` / `test1234` (Customer: `cus_01KJPXG37THC2MRPPA3JQSABJ1`)
+- `bidder2@test.de` / `test1234` (Customer: `cus_01KJPXRK22VAAK3ZPHHXRYMYQT`) — hat winning bid
+
+**Vorhandene Testdaten (DB):**
+- Block: "Industrial Classics 1980-1985" (`01KJPSH37MYWW9MSJZDG58FT1G`, status: ended)
+- Item: Cabaret Voltaire — "1974 - 1976", Lot #1, €25.00 (`01KJPSJ04Z7CW37FY4E8KZ1SVJ`, status: sold)
+- Winning Bid: bidder2@test.de, €25.00 (`bid_01KJPXRM1FXE788VYF37CVGGWD`, is_winning: true)
+- Publishable Key: `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d` (VOD Storefront)
+
+**Payment-Test:** Login als `bidder2@test.de` → `/account/wins` → Shipping-Zone wählen → "Pay Now" → Stripe Checkout → Test-Karte
+
 ```bash
 # Lokal: Stripe CLI für Webhook-Forwarding
 stripe listen --forward-to localhost:9000/webhooks/stripe
@@ -525,6 +590,12 @@ stripe listen --forward-to localhost:9000/webhooks/stripe
 # Test-Karte
 4242 4242 4242 4242 (beliebiges Datum/CVC)
 ```
+
+### Bekannte Gotchas (RSE-76)
+- **CamelCase Spalten:** Legacy-Tabellen (`Release`, `Artist`, `ReleaseArtist`) verwenden camelCase (`artistId`, `releaseId`, `createdAt`). Medusa/Auction-Tabellen verwenden snake_case (`block_item_id`, `user_id`, `created_at`).
+- **ID-Generierung:** Medusa verwendet ULIDs als Text-IDs (kein auto-increment). Bei direktem Knex-Insert muss `id: generateEntityId()` mitgegeben werden.
+- **Transaction Insert:** `generateEntityId()` aus `@medusajs/framework/utils` importieren — ohne ID schlägt der Insert mit `NOT NULL violation` fehl.
+- **Webhook Raw Body:** Stripe-Signaturverifikation braucht den Raw Body. Middleware `bodyParser: false` ist konfiguriert in `middlewares.ts`.
 
 ## Related Projects
 

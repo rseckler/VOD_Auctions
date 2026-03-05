@@ -41,6 +41,10 @@ export type Release = {
   title: string
   slug: string
   format: string
+  format_id?: number | null
+  format_name?: string | null
+  format_group?: string | null
+  product_category?: string
   year: number | null
   country: string | null
   coverImage: string | null
@@ -49,6 +53,8 @@ export type Release = {
   estimated_value: number | null
   artist_name: string | null
   label_name: string | null
+  pressorga_name?: string | null
+  pressOrgaId?: string | null
   description?: string | null
   media_condition?: string | null
   sleeve_condition?: string | null

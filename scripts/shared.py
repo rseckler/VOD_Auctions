@@ -34,15 +34,17 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 BATCH_SIZE = 500
 IMAGE_BASE_URL = "https://tape-mag.com/bilder/gross/"
 
-# Format mapping from legacy DB (tape-mag-migration/mapper.ts)
+# Format name -> format_group mapping (string-based, used by map_format())
 FORMAT_MAP = {
+    # Release formats
     "tape": "CASSETTE",
+    "tapes": "CASSETTE",
     "vinyl lp": "LP",
     'vinyl 7"': "LP",
     'vinyl 12"': "LP",
     'vinyl 10"': "LP",
     "video": "DVD",
-    "reel": "OTHER",
+    "reel": "REEL",
     "cd": "CD",
     "dvd": "DVD",
     "lp": "LP",
@@ -55,12 +57,40 @@ FORMAT_MAP = {
     "magazin": "ZINE",
     "box": "BOXSET",
     "boxset": "BOXSET",
+    # Literature formats
+    "mag/lit": "MAGAZINE",
+    "picture": "PHOTO",
+    "postcards": "POSTCARD",
+    "t-shirt": "MERCHANDISE",
+    "shirt": "MERCHANDISE",
 }
 
 # Valid ReleaseFormat enum values in Supabase
 VALID_FORMATS = {
     "LP", "CD", "CASSETTE", "BOOK", "POSTER", "ZINE",
     "DIGITAL", "DVD", "BOXSET", "OTHER",
+    "MAGAZINE", "PHOTO", "POSTCARD", "MERCHANDISE", "REEL",
+}
+
+# Legacy format ID -> format_group (direct ID-based mapping from Format table)
+LEGACY_FORMAT_ID_MAP = {
+    # Tapes (typ=1, kat=1)
+    4: "CASSETTE", 5: "CASSETTE", 15: "CASSETTE", 16: "CASSETTE",
+    17: "CASSETTE", 18: "CASSETTE", 19: "CASSETTE", 20: "CASSETTE",
+    21: "CASSETTE", 23: "CASSETTE", 24: "CASSETTE", 35: "CASSETTE",
+    # Other release formats (typ=1, kat=1)
+    36: "REEL", 40: "DVD", 54: "CD",
+    # Vinyl (typ=1, kat=2)
+    41: "LP", 42: "LP", 43: "LP", 44: "LP", 45: "LP",
+    46: "LP", 47: "LP", 48: "LP", 49: "LP", 50: "LP",
+    51: "LP", 52: "LP", 53: "LP",
+    # Literature formats (typ=2,3,4)
+    26: "MAGAZINE", 27: "MAGAZINE", 32: "MAGAZINE",
+    28: "PHOTO", 33: "PHOTO",
+    29: "POSTCARD",
+    30: "POSTER", 34: "POSTER",
+    37: "BOOK",
+    55: "MERCHANDISE", 56: "MERCHANDISE",
 }
 
 # ---------------------------------------------------------------------------
@@ -85,7 +115,7 @@ DISCOGS_FORMAT_MAP = {
 }
 
 # Formats that should be skipped for Discogs matching (no music releases)
-DISCOGS_SKIP_FORMATS = {"BOOK", "POSTER", "ZINE"}
+DISCOGS_SKIP_FORMATS = {"BOOK", "POSTER", "ZINE", "MAGAZINE", "PHOTO", "POSTCARD", "MERCHANDISE"}
 
 
 # ---------------------------------------------------------------------------
@@ -108,6 +138,13 @@ def decode_entities(text) -> str:
     if text is None:
         return ""
     return html.unescape(str(text)).strip()
+
+
+def map_format_by_id(format_id: int | None) -> str:
+    """Map legacy format ID directly to ReleaseFormat enum value."""
+    if format_id is None or format_id == 0:
+        return "OTHER"
+    return LEGACY_FORMAT_ID_MAP.get(format_id, "OTHER")
 
 
 def map_format(format_name: str | None) -> str:
