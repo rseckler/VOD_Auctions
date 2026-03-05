@@ -16,6 +16,13 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-05
 
 ### Letzte Änderungen (2026-03-05)
+- **5-Kategorie Filter-System** — Category-Filter in allen APIs und UIs umgebaut:
+  - 5 Kategorien basierend auf Format.typ/kat: Tapes (kat=1) | Vinyl (kat=2) | Artists/Bands Lit (typ=3) | Labels Lit (typ=2) | Press/Org Lit (typ=4)
+  - Backend: `category` Query-Parameter (statt `product_category`) in allen 5 API-Routes
+  - SQL: CASE-basierte Kategorie-Ableitung mit Format LEFT JOIN
+  - Admin Media: 5 Kategorie-Pills + format_kat in API-Response
+  - Storefront Katalog: Kategorie-Pills + Format-Pills + erweiterte Filter (Country, Year Range, Label, Condition)
+  - Store Catalog API: Alle Legacy-Filter übernommen (country, year_from, year_to, label, artist, condition)
 - **Literature Migration** — 3 fehlende Produkt-Kategorien + Format-Tabelle migriert:
   - `Format`-Tabelle: 39 Einträge aus Legacy `3wadmin_tapes_formate` (ID-basiert, mit `format_group` für Filter)
   - `PressOrga`-Tabelle: 1.983 Press/Org-Entitäten
@@ -23,10 +30,6 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
   - ~4.686 neue Bilder (band_lit typ=13, pressorga_lit typ=14, labels_lit typ=15)
   - Release-Erweiterung: `product_category`, `format_id` (FK → Format), `pressOrgaId` (FK → PressOrga)
   - ReleaseFormat Enum: +MAGAZINE, +PHOTO, +POSTCARD, +MERCHANDISE, +REEL
-  - Alle Backend-APIs: `product_category` Filter, Format JOIN, PressOrga JOIN
-  - Admin Media: Kategorie-Pills (Releases/Band Lit/Label Lit/Press Lit), format_name Anzeige
-  - Storefront Katalog: format_name Badge, erweiterte Format-Filter (14 Werte)
-  - Storefront Detail: PressOrga-Name, format_name Badge
   - Legacy Sync: 4 neue sync-Funktionen (pressorga, band_lit, labels_lit, press_lit)
   - Discogs Scripts: Literature-Items korrekt übersprungen (DISCOGS_SKIP_FORMATS)
 
@@ -234,9 +237,9 @@ VOD_Auctions/
 │   │   │   │   │   └── [id]/
 │   │   │   │   │       ├── route.ts  # GET/POST with status-transition validation (RSE-75b)
 │   │   │   │   │       └── items/    # Block Items: add, update price, remove
-│   │   │   │   ├── releases/    # Search 41k Releases (Knex raw SQL, product_category + auction_status filter)
-│   │   │   │   │   └── filters/route.ts  # GET filter options with counts (format/country/year/categories)
-│   │   │   │   ├── media/       # Medien-Verwaltung API (browse, edit, stats, product_category filter)
+│   │   │   │   ├── releases/    # Search 41k Releases (Knex raw SQL, 5-category + auction_status filter)
+│   │   │   │   │   └── filters/route.ts  # GET filter options with counts (format/country/year/5 categories)
+│   │   │   │   ├── media/       # Medien-Verwaltung API (browse, edit, stats, 5-category filter)
 │   │   │   │   │   └── [id]/route.ts     # GET/POST Release-Detail + Format + PressOrga JOINs
 │   │   │   │   └── transactions/         # Transaction Management (RSE-76)
 │   │   │   │       ├── route.ts          # GET: All transactions (filter by status)
@@ -249,7 +252,7 @@ VOD_Auctions/
 │   │   │       │       └── items/[itemId]/
 │   │   │       │           ├── route.ts   # Item detail + Release + Images
 │   │   │       │           └── bids/route.ts  # GET bids + POST bid (auth required)
-│   │   │       ├── catalog/          # Katalog API (alle 41k Releases, product_category filter)
+│   │   │       ├── catalog/          # Katalog API (alle 41k Releases, 5-category + legacy filters)
 │   │   │       │   └── [id]/route.ts # Release-Detail + Images + Format + PressOrga + Related Releases
 │   │   │       └── account/          # Account APIs (RSE-75b + RSE-76)
 │   │   │           ├── bids/route.ts         # GET: Meine Gebote
@@ -285,7 +288,7 @@ VOD_Auctions/
 │   │   │   │       ├── page.tsx # Block-Detail: Hero, BlockItemsGrid
 │   │   │   │       └── [itemId]/page.tsx  # Item-Detail + ItemBidSection + RelatedSection
 │   │   │   ├── catalog/
-│   │   │   │   ├── page.tsx     # Katalog-Liste (alle 30k Releases, Suche, Filter)
+│   │   │   │   ├── page.tsx     # Katalog-Liste (alle 41k Releases, 5-Kategorie + Format + Advanced Filter)
 │   │   │   │   └── [id]/page.tsx # Katalog-Detail + CatalogRelatedSection
 │   │   │   └── account/         # Account-Bereich (RSE-75b)
 │   │   │       ├── layout.tsx   # Auth-Guard, Sidebar-Nav, Responsive
@@ -362,15 +365,16 @@ npx medusa develop    # Backend + Admin UI (hot reload)
 - Legacy-Daten (Release, Artist, Label) werden via Knex raw SQL abgefragt, nicht über Medusa ORM
 - Store-API braucht `x-publishable-api-key` Header
 - Admin Produkt-Browser: Filter (Format-Pills, Land, Jahr-Range, Label, Sortierung) + Grid/Tabellen-Ansicht
-- `/admin/releases` unterstützt: q, format, country, label, year_from, year_to, sort, auction_status, product_category
-- `/admin/releases/filters` liefert verfügbare Filter-Optionen mit Counts (inkl. categories)
+- `/admin/releases` unterstützt: q, format, country, label, year_from, year_to, sort, auction_status, category (tapes/vinyl/band_literature/label_literature/press_literature)
+- `/admin/releases/filters` liefert verfügbare Filter-Optionen mit Counts (inkl. 5 categories via CASE SQL)
 - Block-Update Route strippt `items` aus Body (Items nur über `/items` Endpoint verwaltet)
 - `current_block_id` in Release-Tabelle ist UUID-Typ → Medusa ULIDs nicht kompatibel (nur auction_status wird aktualisiert)
 - **Admin Custom Routes:** `defineRouteConfig({ label })` NUR auf Top-Level-Seiten (`page.tsx`), NICHT auf `[id]/page.tsx` Detail-Seiten (verursacht Routing-Konflikte)
 - **Knex Gotcha — Decimal-Spalten:** Knex gibt DECIMAL-Spalten als Strings zurück, nicht als Numbers. In Admin-UI immer `Number(value)` vor `.toFixed()` verwenden.
 - **Knex Gotcha — Subqueries:** `.where("col", pgConnection.raw('(SELECT ...)'))` funktioniert NICHT korrekt. Stattdessen: Wert zuerst abfragen, dann direkt verwenden: `.where("col", fetchedValue)`
 - **Admin Build:** `medusa build` legt Admin-Assets in `.medusa/server/public/admin/`, muss nach `public/admin/` kopiert werden (siehe VPS Deploy)
-- `/admin/media` unterstützt: q, format, country, label, year_from, year_to, sort (field:dir Format), has_discogs, auction_status, product_category
+- `/admin/media` unterstützt: q, format, country, label, year_from, year_to, sort (field:dir Format), has_discogs, auction_status, category (5 Kategorien via Format.kat)
+- `/admin/media/stats` liefert: total, with_discogs, with_price, categories (5 Kategorien via CASE SQL mit Format JOIN)
 - Admin-UI komplett auf Englisch (Media Management, Release Detail, Sync Dashboard)
 
 ### Storefront
@@ -387,7 +391,7 @@ npm run dev                  # Local development (port 3000)
 **Wichtig:**
 - `next.config.ts` muss externe Bild-Domains whitelisten (`tape-mag.com` für Legacy-Bilder)
 - Bilder-URLs: `https://tape-mag.com/bilder/gross/{filename}` (Legacy-System)
-- Storefront Katalog (`/catalog`): Zeigt alle ~41.500 Releases mit Suche, Format-Filter (14 Werte), format_name Badge, Sortierung
+- Storefront Katalog (`/catalog`): Zeigt alle ~41.500 Releases mit Suche, 5 Kategorie-Pills, Format-Filter (14 Werte), erweiterte Filter (Country, Year Range, Label, Condition), Sortierung (A-Z, Artist, Year, Price)
 - Katalog-Detail (`/catalog/[id]`): Release-Info + Images + format_name Badge + PressOrga-Name + Related Releases by Artist/Label
 - Auktions-Detail (`/auctions/[slug]/[itemId]`): Item-Info + Bidding + Related Section mit Block Items
 - Credits-Text: Wird beim Rendern bereinigt (literal Escape-Sequenzen, CRLF, HTML-Tags → echte Newlines) via `.replace()` in Catalog + Auction Pages
@@ -523,9 +527,9 @@ psycopg2-binary, python-dotenv, requests, mysql-connector-python
 
 **Media Management:** `/admin/media` — Browse/search/filter alle ~41.500 Releases mit Discogs-Daten
 - Spalten: Cover, Artist, Title, Format (format_name), Year, Country, Label, Art. No., CatNo, Discogs Price, Discogs ID, Status, Last Sync
-- Filter: Search (debounced), **Kategorie-Pills** (All/Releases/Band Lit/Label Lit/Press Lit), Format-Pills (14 Werte), Country, Year (von-bis Range), Label (debounced), Has Discogs, Auction Status
+- Filter: Search (debounced), **5 Kategorie-Pills** (All/Tapes/Vinyl/Artists-Bands Lit/Labels Lit/Press-Org Lit), Format-Pills (14 Werte), Country, Year (von-bis Range), Label (debounced), Has Discogs, Auction Status
 - Sortierung: Alle Spalten sortierbar (field:dir Format)
-- API: GET /admin/media (?product_category), GET /admin/media/:id (Format+PressOrga JOINs), POST /admin/media/:id, GET /admin/media/stats (categories)
+- API: GET /admin/media (?category), GET /admin/media/:id (Format+PressOrga JOINs), POST /admin/media/:id, GET /admin/media/stats (5 categories via CASE SQL)
 
 **Sync-Dashboard:** `/admin/sync` — Legacy + Discogs Sync-Status und Reports
 - API: GET /admin/sync, GET /admin/sync/legacy, GET /admin/sync/discogs
