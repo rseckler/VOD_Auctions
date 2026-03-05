@@ -11,9 +11,9 @@ export async function GET(
     ContainerRegistrationKeys.PG_CONNECTION
   )
 
-  const [discogsStats, lastLegacySync, lastDiscogsSync, recentLogs, monthlyAgg] =
+  const [discogsStats, eligibleStats, lastLegacySync, lastDiscogsSync, recentLogs, monthlyAgg] =
     await Promise.all([
-      // Discogs coverage
+      // Total + Discogs coverage (all releases)
       pgConnection("Release")
         .select(
           pgConnection.raw("COUNT(*) as total"),
@@ -28,6 +28,16 @@ export async function GET(
             "MAX(legacy_last_synced) as last_legacy_sync"
           )
         )
+        .first(),
+
+      // Eligible music releases (excluding literature/merchandise)
+      pgConnection("Release")
+        .select(
+          pgConnection.raw("COUNT(*) as eligible"),
+          pgConnection.raw("COUNT(discogs_id) as eligible_matched"),
+          pgConnection.raw("COUNT(discogs_lowest_price) as eligible_with_price")
+        )
+        .where("product_category", "release")
         .first(),
 
       // Last legacy sync log
@@ -63,8 +73,11 @@ export async function GET(
   res.json({
     overview: {
       total: Number(discogsStats?.total || 0),
+      eligible: Number(eligibleStats?.eligible || 0),
       with_discogs: Number(discogsStats?.with_discogs || 0),
+      eligible_matched: Number(eligibleStats?.eligible_matched || 0),
       with_price: Number(discogsStats?.with_price || 0),
+      eligible_with_price: Number(eligibleStats?.eligible_with_price || 0),
       last_discogs_sync: discogsStats?.last_discogs_sync,
       last_legacy_sync: discogsStats?.last_legacy_sync,
     },
