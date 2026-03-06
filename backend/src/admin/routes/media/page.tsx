@@ -128,6 +128,261 @@ const CONDITION_OPTIONS = [
   "Poor (P)",
 ]
 
+type GalleryRelease = {
+  id: string
+  title: string
+  artist_name: string | null
+  label_name: string | null
+  format: string
+  format_name: string | null
+  year: number | null
+  coverImage: string
+  discogs_lowest_price: number | null
+  legacy_price: number | null
+  auction_status: string | null
+}
+
+const ImageGalleryOverlay = ({ onClose }: { onClose: () => void }) => {
+  const [items, setItems] = useState<GalleryRelease[]>([])
+  const [galleryCount, setGalleryCount] = useState(0)
+  const [galleryLoading, setGalleryLoading] = useState(true)
+  const [galleryPage, setGalleryPage] = useState(0)
+  const [gallerySearch, setGallerySearch] = useState("")
+  const [gallerySearchInput, setGallerySearchInput] = useState("")
+  const [lightboxImage, setLightboxImage] = useState<GalleryRelease | null>(null)
+  const galleryPageSize = 60
+
+  useEffect(() => {
+    const timer = setTimeout(() => setGallerySearch(gallerySearchInput), 300)
+    return () => clearTimeout(timer)
+  }, [gallerySearchInput])
+
+  useEffect(() => { setGalleryPage(0) }, [gallerySearch])
+
+  useEffect(() => {
+    setGalleryLoading(true)
+    const params = new URLSearchParams()
+    params.set("has_image", "true")
+    if (gallerySearch) params.set("q", gallerySearch)
+    params.set("limit", String(galleryPageSize))
+    params.set("offset", String(galleryPage * galleryPageSize))
+    params.set("sort", "artist_name_asc")
+    fetch(`/admin/media?${params.toString()}`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => {
+        setItems(d.releases || [])
+        setGalleryCount(d.count || 0)
+        setGalleryLoading(false)
+      })
+      .catch(() => setGalleryLoading(false))
+  }, [gallerySearch, galleryPage])
+
+  const totalGalleryPages = Math.ceil(galleryCount / galleryPageSize)
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (lightboxImage) setLightboxImage(null)
+        else onClose()
+      }
+    }
+    window.addEventListener("keydown", handleKey)
+    return () => window.removeEventListener("keydown", handleKey)
+  }, [lightboxImage, onClose])
+
+  return (
+    <div style={{
+      position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+      background: "rgba(0,0,0,0.85)", zIndex: 9999,
+      display: "flex", flexDirection: "column",
+      overflow: "hidden",
+    }}>
+      {/* Header */}
+      <div style={{
+        padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between",
+        borderBottom: `1px solid ${COLORS.border}`, background: COLORS.bg, flexShrink: 0,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <h2 style={{ fontSize: "20px", fontWeight: 700, color: COLORS.text, margin: 0 }}>Image Gallery</h2>
+          <span style={{ fontSize: "13px", color: COLORS.muted }}>{galleryCount.toLocaleString("en-US")} items with images</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <input
+            type="text"
+            placeholder="Search artist, title, label..."
+            value={gallerySearchInput}
+            onChange={(e) => setGallerySearchInput(e.target.value)}
+            autoFocus
+            style={{
+              background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: "6px",
+              padding: "8px 14px", color: COLORS.text, fontSize: "14px", outline: "none", width: "300px",
+            }}
+          />
+          <button onClick={onClose} style={{
+            background: "transparent", border: `1px solid ${COLORS.border}`, borderRadius: "6px",
+            color: COLORS.text, fontSize: "20px", cursor: "pointer", padding: "4px 12px", lineHeight: 1,
+          }}>&times;</button>
+        </div>
+      </div>
+
+      {/* Grid */}
+      <div style={{ flex: 1, overflow: "auto", padding: "20px 24px" }}>
+        {galleryLoading ? (
+          <div style={{ textAlign: "center", padding: "60px", color: COLORS.muted }}>Loading...</div>
+        ) : items.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "60px", color: COLORS.muted }}>No images found.</div>
+        ) : (
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+            gap: "16px",
+          }}>
+            {items.map((r) => (
+              <div
+                key={r.id}
+                style={{
+                  background: COLORS.card, borderRadius: "8px", border: `1px solid ${COLORS.border}`,
+                  overflow: "hidden", cursor: "pointer", transition: "border-color 0.15s, transform 0.15s",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = COLORS.gold
+                  e.currentTarget.style.transform = "translateY(-2px)"
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = COLORS.border
+                  e.currentTarget.style.transform = "translateY(0)"
+                }}
+                onClick={() => setLightboxImage(r)}
+              >
+                <div style={{ position: "relative", width: "100%", paddingTop: "100%", overflow: "hidden" }}>
+                  <img
+                    src={r.coverImage}
+                    alt={r.title}
+                    loading="lazy"
+                    style={{
+                      position: "absolute", top: 0, left: 0, width: "100%", height: "100%",
+                      objectFit: "cover",
+                    }}
+                  />
+                  {r.auction_status && (
+                    <span style={{
+                      position: "absolute", top: "6px", right: "6px",
+                      padding: "2px 6px", borderRadius: "8px", fontSize: "10px", fontWeight: 600,
+                      background: `${STATUS_COLORS[r.auction_status] || COLORS.muted}cc`,
+                      color: "#fff", textTransform: "capitalize",
+                    }}>{r.auction_status}</span>
+                  )}
+                </div>
+                <div style={{ padding: "8px 10px" }}>
+                  <div style={{
+                    fontSize: "12px", fontWeight: 600, color: COLORS.text,
+                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                  }}>{r.artist_name || "Unknown"}</div>
+                  <div style={{
+                    fontSize: "11px", color: COLORS.muted,
+                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                  }}>{r.title}</div>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginTop: "4px" }}>
+                    <span style={{ fontSize: "10px", color: COLORS.muted }}>{r.format_name || r.format}{r.year ? ` \u00B7 ${r.year}` : ""}</span>
+                    {r.legacy_price != null && (
+                      <span style={{ fontSize: "10px", color: COLORS.gold, fontWeight: 600 }}>\u20AC{r.legacy_price.toFixed(2)}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Pagination */}
+      {totalGalleryPages > 1 && (
+        <div style={{
+          padding: "12px 24px", borderTop: `1px solid ${COLORS.border}`, background: COLORS.bg,
+          display: "flex", justifyContent: "center", alignItems: "center", gap: "8px", flexShrink: 0,
+        }}>
+          <button
+            onClick={() => setGalleryPage(Math.max(0, galleryPage - 1))}
+            disabled={galleryPage === 0}
+            style={{
+              padding: "6px 12px", borderRadius: "4px", border: `1px solid ${COLORS.border}`,
+              background: "transparent", color: COLORS.text, fontSize: "13px",
+              cursor: galleryPage === 0 ? "default" : "pointer", opacity: galleryPage === 0 ? 0.4 : 1,
+            }}
+          >&larr; Previous</button>
+          <span style={{ fontSize: "13px", color: COLORS.muted }}>
+            Page {galleryPage + 1} of {totalGalleryPages}
+          </span>
+          <button
+            onClick={() => setGalleryPage(Math.min(totalGalleryPages - 1, galleryPage + 1))}
+            disabled={galleryPage >= totalGalleryPages - 1}
+            style={{
+              padding: "6px 12px", borderRadius: "4px", border: `1px solid ${COLORS.border}`,
+              background: "transparent", color: COLORS.text, fontSize: "13px",
+              cursor: galleryPage >= totalGalleryPages - 1 ? "default" : "pointer",
+              opacity: galleryPage >= totalGalleryPages - 1 ? 0.4 : 1,
+            }}
+          >Next &rarr;</button>
+        </div>
+      )}
+
+      {/* Lightbox */}
+      {lightboxImage && (
+        <div
+          style={{
+            position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+            background: "rgba(0,0,0,0.92)", zIndex: 10000,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer",
+          }}
+          onClick={() => setLightboxImage(null)}
+        >
+          <div
+            style={{
+              maxWidth: "90vw", maxHeight: "90vh", display: "flex", flexDirection: "column",
+              alignItems: "center", gap: "16px",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={lightboxImage.coverImage}
+              alt={lightboxImage.title}
+              style={{
+                maxWidth: "80vw", maxHeight: "70vh", objectFit: "contain",
+                borderRadius: "8px", border: `1px solid ${COLORS.border}`,
+              }}
+            />
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: "18px", fontWeight: 700, color: COLORS.text }}>
+                {lightboxImage.artist_name ? `${lightboxImage.artist_name} \u2014 ` : ""}{lightboxImage.title}
+              </div>
+              <div style={{ fontSize: "14px", color: COLORS.muted, marginTop: "4px" }}>
+                {[lightboxImage.format_name || lightboxImage.format, lightboxImage.year, lightboxImage.label_name].filter(Boolean).join(" \u00B7 ")}
+              </div>
+              <div style={{ marginTop: "12px", display: "flex", gap: "12px", justifyContent: "center" }}>
+                <button
+                  onClick={() => { window.location.href = `/app/media/${lightboxImage.id}` }}
+                  style={{
+                    padding: "8px 20px", borderRadius: "6px", border: "none",
+                    background: COLORS.gold, color: "#1c1915", fontSize: "13px", fontWeight: 600, cursor: "pointer",
+                  }}
+                >Open Detail</button>
+                <button
+                  onClick={() => setLightboxImage(null)}
+                  style={{
+                    padding: "8px 20px", borderRadius: "6px", border: `1px solid ${COLORS.border}`,
+                    background: "transparent", color: COLORS.text, fontSize: "13px", cursor: "pointer",
+                  }}
+                >Close</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 const MediaPage = () => {
   const [releases, setReleases] = useState<Release[]>([])
   const [count, setCount] = useState(0)
@@ -146,6 +401,7 @@ const MediaPage = () => {
   const [bulkLoading, setBulkLoading] = useState(false)
   const [refetchTrigger, setRefetchTrigger] = useState(0)
   const [blocks, setBlocks] = useState<{ id: string; title: string; status: string }[]>([])
+  const [galleryOpen, setGalleryOpen] = useState(false)
 
   const allOnPageSelected = releases.length > 0 && releases.every((r) => selectedIds.has(r.id))
 
@@ -517,9 +773,26 @@ const MediaPage = () => {
   return (
     <ErrorBoundary>
     <div style={{ padding: "24px", background: COLORS.bg, minHeight: "100vh", color: COLORS.text }}>
-      <h1 style={{ fontSize: "24px", fontWeight: 700, marginBottom: "20px" }}>
-        Media Management
-      </h1>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+        <h1 style={{ fontSize: "24px", fontWeight: 700, margin: 0 }}>
+          Media Management
+        </h1>
+        <button
+          onClick={() => setGalleryOpen(true)}
+          style={{
+            padding: "8px 18px", borderRadius: "6px",
+            border: `1px solid ${COLORS.gold}`,
+            background: "transparent", color: COLORS.gold,
+            fontSize: "14px", fontWeight: 600, cursor: "pointer",
+            display: "flex", alignItems: "center", gap: "8px",
+            transition: "background 0.15s",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = `${COLORS.gold}15` }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent" }}
+        >
+          &#9635; Browse Images
+        </button>
+      </div>
 
       {/* Stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px", marginBottom: "24px" }}>
@@ -978,6 +1251,7 @@ const MediaPage = () => {
         </div>
       )}
     </div>
+    {galleryOpen && <ImageGalleryOverlay onClose={() => setGalleryOpen(false)} />}
     </ErrorBoundary>
   )
 }

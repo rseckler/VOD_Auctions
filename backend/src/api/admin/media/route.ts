@@ -22,6 +22,7 @@ export async function GET(
     auction_status,
     has_discogs,
     has_price,
+    has_image,
     visibility,
     sort = "title_asc",
     limit = "25",
@@ -132,6 +133,16 @@ export async function GET(
   }
   if (has_price === "false") {
     query = query.whereNull("Release.discogs_lowest_price")
+  }
+
+  // Image filter
+  if (has_image === "true") {
+    query = query.whereNotNull("Release.coverImage").where("Release.coverImage", "!=", "")
+  }
+  if (has_image === "false") {
+    query = query.where(function () {
+      this.whereNull("Release.coverImage").orWhere("Release.coverImage", "")
+    })
   }
 
   // Visibility filter (visible = has coverImage AND legacy_price)

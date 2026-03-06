@@ -62,6 +62,7 @@ type Release = {
   shipping_item_type_id: string | null
   current_block_id: string | null
   coverImage: string | null
+  tape_mag_url: string | null
   discogs_last_synced: string | null
   legacy_last_synced: string | null
   createdAt: string | null
@@ -219,6 +220,8 @@ const MediaDetailPage = () => {
     )
   }
 
+  const tapeMagUrl = release.tape_mag_url
+
   const infoFields: [string, string | null | number][] = [
     ["Article No.", release.article_number],
     ["Artist", release.artist_name],
@@ -268,6 +271,14 @@ const MediaDetailPage = () => {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
               {infoFields.map(([label, value]) => (<div key={label}><div style={labelStyle}>{label}</div><div style={valueStyle}>{value ?? "\u2014"}</div></div>))}
             </div>
+            {tapeMagUrl && (
+              <div style={{ marginTop: "16px", paddingTop: "12px", borderTop: `1px solid ${COLORS.border}` }}>
+                <div style={labelStyle}>tape-mag.com</div>
+                <a href={tapeMagUrl} target="_blank" rel="noopener noreferrer" style={{ color: COLORS.gold, textDecoration: "none", fontSize: "13px" }}>
+                  Open on tape-mag.com &#8599;
+                </a>
+              </div>
+            )}
           </div>
 
           <div style={{ ...cardStyle, border: `1px solid ${COLORS.gold}40` }}>
