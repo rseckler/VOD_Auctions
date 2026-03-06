@@ -16,6 +16,15 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-06
 
 ### Letzte Änderungen (2026-03-06)
+- **Literature Image Fix + Visibility Filter Removal + LabelPerson Import:**
+  - **CoverImage Fix:** label_literature 24→1.080 (95.7%), press_literature 1.001→5.956 (94.2%) — Migration hatte falschen bilder_1.typ (15 statt 14)
+  - **Gallery-Bilder:** +15.098 neue Image-Einträge aus Legacy bilder_1 typ=12 (band/label/press literature)
+  - **API-Filter entfernt:** `whereNotNull(coverImage/legacy_price)` aus allen 4 Store-APIs entfernt (Catalog list+detail, Auction block+item detail)
+  - **Image-Limit:** 20→50 in Catalog-Detail + Auction-Item-Detail APIs
+  - **LabelPerson:** 458 Personen + 362 Links zu Labels als Backend-Referenzdaten (nicht public)
+  - **DB-Tabellen:** `LabelPerson` + `LabelPersonLink` (RLS, Indexes)
+  - **Script:** `scripts/fix_literature_images.py` für Nachimport
+  - **VPS:** Backend deployed
 - **Extended Image Gallery + Catalog Result Count:**
   - **ImageGallery:** "Show all X images" Button bei >8 Bildern → Fullscreen-Grid-Overlay (2-5 Spalten, responsive)
   - **Lightbox-Verbesserungen:** Prev/Next-Pfeile, Tastatur-Navigation (←/→), scrollbare Thumbnail-Leiste, Bild-Zähler "X / Y"
@@ -248,13 +257,14 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **URL:** https://bofblwqieuvmqybzxapx.supabase.co
 **Dashboard:** https://supabase.com/dashboard/project/bofblwqieuvmqybzxapx
 
-Shared DB für tape-mag-mvp + VOD_Auctions. Schema enthält 22 Tabellen (14 Basis + 2 neue Referenz + 6 Auktions-Erweiterung).
+Shared DB für tape-mag-mvp + VOD_Auctions. Schema enthält 24 Tabellen (14 Basis + 4 Referenz + 6 Auktions-Erweiterung).
 
 **Migrierte Daten (aktuell):**
-- 12.451 Artists, 3.077 Labels, ~41.529 Releases, ~73.658 Images, 1.983 PressOrga, 39 Formats
+- 12.451 Artists, 3.077 Labels, ~41.529 Releases, ~102.895 Images, 1.983 PressOrga, 39 Formats, 458 LabelPersons
 - **Releases nach Kategorie:** 30.159 release + 3.915 band_literature + 1.129 label_literature + 6.326 press_literature
+- **CoverImage-Abdeckung:** release 97%+, band_literature 93.5%, label_literature 95.7%, press_literature 94.2%
 - Quelle: Legacy MySQL (213.133.106.99/vodtapes)
-- IDs: `legacy-artist-{id}`, `legacy-label-{id}`, `legacy-release-{id}`, `legacy-image-{id}`, `legacy-bandlit-{id}`, `legacy-labellit-{id}`, `legacy-presslit-{id}`, `legacy-pressorga-{id}`
+- IDs: `legacy-artist-{id}`, `legacy-label-{id}`, `legacy-release-{id}`, `legacy-image-{id}`, `legacy-bandlit-{id}`, `legacy-labellit-{id}`, `legacy-presslit-{id}`, `legacy-pressorga-{id}`, `legacy-labelperson-{id}`
 - Auktions-Tabellen angelegt: auction_blocks, block_items, bids, transactions, auction_users, related_blocks
 - 75+ Indexes, RLS auf allen Tabellen aktiv
 
@@ -358,6 +368,21 @@ CREATE TABLE "PressOrga" (
     description TEXT, country TEXT, year TEXT
 );
 ```
+
+### LabelPerson-Tabelle (Backend-Referenzdaten, nicht public)
+```sql
+CREATE TABLE "LabelPerson" (
+    id TEXT PRIMARY KEY,             -- legacy-labelperson-{id}
+    name TEXT NOT NULL,
+    description TEXT, gender INTEGER, country TEXT, year TEXT
+);
+CREATE TABLE "LabelPersonLink" (
+    id TEXT PRIMARY KEY,             -- legacy-perslink-{id}
+    "personId" TEXT REFERENCES "LabelPerson"(id),
+    "labelId" TEXT REFERENCES "Label"(id)
+);
+```
+458 Personen hinter Labels + 362 Verknüpfungen. Keine Storefront-Anzeige — reine Referenzdaten.
 
 **Artikelnummern generieren:**
 ```bash
