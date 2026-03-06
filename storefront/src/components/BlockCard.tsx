@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import { Clock, Calendar, Disc3 } from "lucide-react"
 import { motion } from "framer-motion"
 import { staggerItem } from "@/lib/motion"
@@ -48,12 +49,14 @@ export function BlockCardVertical({ block }: { block: AuctionBlock }) {
       <Link href={`/auctions/${block.slug}`}>
         <div className="group overflow-hidden rounded-2xl bg-[rgba(232,224,212,0.04)] border border-[rgba(232,224,212,0.08)] hover:border-[rgba(212,165,74,0.4)] transition-all duration-300 hover:-translate-y-1">
           {/* Image */}
-          <div className="relative aspect-[16/10] overflow-hidden">
+          <div className="relative aspect-[16/10] overflow-hidden bg-[#2a2520]">
             {block.header_image ? (
-              <img
+              <Image
                 src={block.header_image}
                 alt={block.title}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                fill
+                sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                className="object-cover group-hover:scale-105 transition-transform duration-500"
               />
             ) : (
               <div className="w-full h-full bg-gradient-to-br from-[#2a2520] to-[#3a3028] flex items-center justify-center">
@@ -115,11 +118,13 @@ export function BlockCardHorizontal({ block }: { block: AuctionBlock }) {
       <Link href={`/auctions/${block.slug}`}>
         <div className="group flex flex-col sm:flex-row gap-0 overflow-hidden rounded-2xl bg-[rgba(232,224,212,0.04)] border border-[rgba(232,224,212,0.08)] hover:border-[rgba(212,165,74,0.4)] transition-all duration-300">
           {block.header_image && (
-            <div className="sm:w-52 sm:h-36 flex-shrink-0 overflow-hidden">
-              <img
+            <div className="relative sm:w-52 sm:h-36 flex-shrink-0 overflow-hidden aspect-[16/10] sm:aspect-auto">
+              <Image
                 src={block.header_image}
                 alt={block.title}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                fill
+                sizes="(max-width: 640px) 100vw, 208px"
+                className="object-cover group-hover:scale-105 transition-transform duration-500"
               />
             </div>
           )}

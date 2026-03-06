@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
+import Image from "next/image"
 import { getToken } from "@/lib/auth"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
 import { Disc3, Trophy, CreditCard, Truck, CheckCircle2 } from "lucide-react"
@@ -259,13 +260,15 @@ export default function WinsPage() {
                 {/* Cover */}
                 <Link
                   href={`/auctions/${win.block.slug}/${win.item.id}`}
-                  className="w-16 h-16 flex-shrink-0 rounded overflow-hidden bg-card"
+                  className="relative w-16 h-16 flex-shrink-0 rounded overflow-hidden bg-card"
                 >
                   {win.item.release_cover ? (
-                    <img
+                    <Image
                       src={win.item.release_cover}
                       alt=""
-                      className="w-full h-full object-cover"
+                      fill
+                      sizes="64px"
+                      className="object-cover"
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">

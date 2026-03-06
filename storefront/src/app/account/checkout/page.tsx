@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
+import Image from "next/image"
 import { getToken } from "@/lib/auth"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
 import { useAuth } from "@/components/AuthProvider"
@@ -250,9 +251,9 @@ export default function CheckoutPage() {
             {unpaidWins.map((win) => (
               <Card key={win.bid_id} className="p-3">
                 <div className="flex gap-3 items-center">
-                  <div className="w-12 h-12 flex-shrink-0 rounded overflow-hidden bg-card">
+                  <div className="relative w-12 h-12 flex-shrink-0 rounded overflow-hidden bg-card">
                     {win.item.release_cover ? (
-                      <img src={win.item.release_cover} alt="" className="w-full h-full object-cover" />
+                      <Image src={win.item.release_cover} alt="" fill sizes="48px" className="object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         <Disc3 className="h-5 w-5 text-muted-foreground/30" />
@@ -290,9 +291,9 @@ export default function CheckoutPage() {
             {cartItems.map((item) => (
               <Card key={item.id} className="p-3">
                 <div className="flex gap-3 items-center">
-                  <div className="w-12 h-12 flex-shrink-0 rounded overflow-hidden bg-card">
+                  <div className="relative w-12 h-12 flex-shrink-0 rounded overflow-hidden bg-card">
                     {item.coverImage ? (
-                      <img src={item.coverImage} alt="" className="w-full h-full object-cover" />
+                      <Image src={item.coverImage} alt="" fill sizes="48px" className="object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         <Disc3 className="h-5 w-5 text-muted-foreground/30" />

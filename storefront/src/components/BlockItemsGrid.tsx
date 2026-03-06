@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { motion, AnimatePresence } from "framer-motion"
 import { Search, Disc3 } from "lucide-react"
 import { staggerContainer, staggerItem } from "@/lib/motion"
@@ -140,10 +141,12 @@ export function BlockItemsGrid({
                     {/* Image */}
                     <div className="aspect-square bg-[#2a2520] overflow-hidden relative">
                       {item.release?.coverImage ? (
-                        <img
+                        <Image
                           src={item.release.coverImage}
                           alt={item.release?.title || ""}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          fill
+                          sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 25vw"
+                          className="object-cover group-hover:scale-105 transition-transform duration-500"
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">

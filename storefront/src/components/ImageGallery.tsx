@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Image from "next/image"
 import { motion, AnimatePresence } from "framer-motion"
 import { Disc3, ZoomIn } from "lucide-react"
 import {
@@ -36,16 +37,23 @@ export function ImageGallery({
           className="relative group w-full aspect-square rounded-xl overflow-hidden bg-[#2a2520] border border-[rgba(232,224,212,0.08)] cursor-zoom-in"
         >
           <AnimatePresence mode="wait">
-            <motion.img
+            <motion.div
               key={images[selected]}
-              src={images[selected]}
-              alt={title}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="w-full h-full object-cover"
-            />
+              className="w-full h-full"
+            >
+              <Image
+                src={images[selected]}
+                alt={title}
+                fill
+                sizes="(max-width: 768px) 100vw, 50vw"
+                className="object-cover"
+                priority
+              />
+            </motion.div>
           </AnimatePresence>
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
             <ZoomIn className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -59,16 +67,18 @@ export function ImageGallery({
               <button
                 key={i}
                 onClick={() => setSelected(i)}
-                className={`aspect-square rounded-lg overflow-hidden border-2 transition-all ${
+                className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${
                   i === selected
                     ? "border-primary ring-2 ring-primary/30"
                     : "border-[rgba(232,224,212,0.08)] hover:border-[rgba(232,224,212,0.2)]"
                 }`}
               >
-                <img
+                <Image
                   src={url}
                   alt=""
-                  className="w-full h-full object-cover"
+                  fill
+                  sizes="25vw"
+                  className="object-cover"
                 />
               </button>
             ))}
@@ -80,27 +90,34 @@ export function ImageGallery({
       <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
         <DialogContent className="max-w-4xl p-2 bg-[rgba(28,25,21,0.95)] backdrop-blur-xl border-[rgba(232,224,212,0.1)]">
           <DialogTitle className="sr-only">{title}</DialogTitle>
-          <img
-            src={images[selected]}
-            alt={title}
-            className="w-full h-auto max-h-[85vh] object-contain rounded-lg"
-          />
+          <div className="relative w-full max-h-[85vh] aspect-square">
+            <Image
+              src={images[selected]}
+              alt={title}
+              fill
+              sizes="(max-width: 1024px) 100vw, 896px"
+              className="object-contain rounded-lg"
+              priority
+            />
+          </div>
           {images.length > 1 && (
             <div className="flex justify-center gap-2 mt-2">
               {images.map((url, i) => (
                 <button
                   key={i}
                   onClick={() => setSelected(i)}
-                  className={`w-12 h-12 rounded-lg overflow-hidden border-2 transition-all ${
+                  className={`relative w-12 h-12 rounded-lg overflow-hidden border-2 transition-all ${
                     i === selected
                       ? "border-primary ring-1 ring-primary/30"
                       : "border-[rgba(232,224,212,0.08)] hover:border-[rgba(232,224,212,0.2)]"
                   }`}
                 >
-                  <img
+                  <Image
                     src={url}
                     alt=""
-                    className="w-full h-full object-cover"
+                    fill
+                    sizes="48px"
+                    className="object-cover"
                   />
                 </button>
               ))}

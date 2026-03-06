@@ -1,4 +1,6 @@
+import type { Metadata } from "next"
 import Link from "next/link"
+import Image from "next/image"
 import { notFound } from "next/navigation"
 import { ChevronRight, Calendar, Package, Clock, Disc3 } from "lucide-react"
 import { BlockItemsGrid } from "@/components/BlockItemsGrid"
@@ -36,6 +38,37 @@ async function getBlock(slug: string): Promise<AuctionBlock | null> {
   return data?.auction_block || null
 }
 
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>
+}): Promise<Metadata> {
+  const { slug } = await params
+  const block = await getBlock(slug)
+  if (!block) return { title: "Auction Not Found" }
+
+  const description = block.short_description ||
+    `${block.title} — ${block.items_count || 0} lots. ${block.subtitle || "Rare music auction on VOD Auctions."}`
+
+  return {
+    title: block.title,
+    description,
+    openGraph: {
+      title: `${block.title} — VOD Auctions`,
+      description,
+      ...(block.header_image
+        ? { images: [{ url: block.header_image, alt: block.title }] }
+        : {}),
+    },
+    twitter: {
+      card: block.header_image ? "summary_large_image" : "summary",
+      title: `${block.title} — VOD Auctions`,
+      description,
+      ...(block.header_image ? { images: [block.header_image] } : {}),
+    },
+  }
+}
+
 export default async function BlockDetailPage({
   params,
 }: {
@@ -64,10 +97,13 @@ export default async function BlockDetailPage({
       <section className="relative">
         {block.header_image ? (
           <div className="relative h-72 md:h-[28rem]">
-            <img
+            <Image
               src={block.header_image}
               alt={block.title}
-              className="w-full h-full object-cover"
+              fill
+              sizes="100vw"
+              className="object-cover"
+              priority
             />
             <div className="absolute inset-0 bg-gradient-to-t from-[#1c1915] via-[rgba(28,25,21,0.6)] to-transparent" />
           </div>
