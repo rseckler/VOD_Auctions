@@ -238,8 +238,9 @@ export default function CatalogPage() {
             Clear All
           </Button>
         )}
-        <span className="ml-auto text-xs text-muted-foreground tabular-nums">
-          {total.toLocaleString("en-US")} {total === 1 ? "result" : "results"}
+        <span className="ml-auto inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span className="tabular-nums font-medium text-primary/80">{total.toLocaleString("en-US")}</span>
+          {total === 1 ? "result" : "results"}
         </span>
       </div>
 
