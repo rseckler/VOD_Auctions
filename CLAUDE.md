@@ -16,6 +16,11 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-06
 
 ### Letzte Änderungen (2026-03-06)
+- **Credits Parsing Fix** — Kaputte Credits bei VA-Compilations mit gescraptem Discogs-HTML behoben:
+  - **`cleanRawCredits`:** Standalone `*` (Discogs Artist-Credit-Variante) wird in vorherige Zeile gemergt, `/` (Multi-Artist-Separator) wird als Joiner behandelt (prev / next), `–` Dash-Merge überspringt jetzt leere Zeilen korrekt
+  - **`extractTracklistFromText`:** Durations die VOR Positions stehen (gescraptes Discogs-HTML Muster) werden als Track-Duration konsumiert statt als Garbage-Credits
+  - **Ergebnis:** z.B. `legacy-release-29569` zeigt jetzt 14 saubere Tracks statt kaputten Credits-Text
+  - **VPS:** Deployed (`NEXT_PRIVATE_WORKER_THREADS=false` für Build nötig wegen Turbopack-Bug auf Node 20)
 - **RSE-116: About VOD Records** — Neuer `/about` Bereich:
   - **about/page.tsx:** Statische Seite mit 9 Sektionen: Hero, Founder (Frank Bull), Mission, Genres, Notable Artists (20), Sub-Labels (3), TAPE-MAG, VOD Fest 2026, External Links
   - **Externe Links:** vod-records.com, tape-mag.com, vod-records.com/vod-fest
