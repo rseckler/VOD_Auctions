@@ -230,9 +230,10 @@ export default function CatalogPage() {
             Clear All
           </Button>
         )}
-        <span className="ml-auto inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-          <span className="tabular-nums font-medium text-primary/80">{total.toLocaleString("en-US")}</span>
-          {total === 1 ? "result" : "results"}
+        <span className="ml-auto inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/8 px-3 py-1 text-sm">
+          <Disc3 className="h-3.5 w-3.5 text-primary/70" />
+          <span className="tabular-nums font-semibold text-primary">{total.toLocaleString("en-US")}</span>
+          <span className="text-muted-foreground text-xs">{total === 1 ? "result" : "results"}</span>
         </span>
       </div>
 
