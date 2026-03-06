@@ -4,6 +4,7 @@ import { AuthProvider } from "@/components/AuthProvider"
 import { Header } from "@/components/layout/Header"
 import { Footer } from "@/components/layout/Footer"
 import { GoogleAnalytics } from "@/components/GoogleAnalytics"
+import { CookieConsent } from "@/components/CookieConsent"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import "./globals.css"
@@ -81,6 +82,7 @@ export default function RootLayout({
             <div className="flex-1">{children}</div>
             <Footer />
             <Toaster richColors position="bottom-right" />
+            <CookieConsent />
           </TooltipProvider>
         </AuthProvider>
       </body>
