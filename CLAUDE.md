@@ -8,7 +8,7 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 
 **Goal:** Eigene Plattform mit voller Kontrolle über Marke, Kundendaten, Preisgestaltung — statt 8-13% Gebühren an eBay/Discogs
 
-**Status:** Phase 1 — RSE-72 bis RSE-97 + RSE-76 + RSE-101 + RSE-102 + RSE-103 + RSE-104 + RSE-105 + RSE-109 + RSE-111 + RSE-112 + RSE-113 + RSE-114 + RSE-115 + RSE-116 + RSE-117 erledigt. Nächstes: RSE-77 (Testlauf)
+**Status:** Phase 1 — RSE-72 bis RSE-97 + RSE-76 + RSE-101 + RSE-102 + RSE-103 + RSE-104 + RSE-105 + RSE-109 + RSE-111 + RSE-112 + RSE-113 + RSE-114 + RSE-115 + RSE-116 + RSE-117 + RSE-78 (teilweise) erledigt. Nächstes: RSE-77 (Testlauf)
 
 **Sprache:** Storefront und Admin-UI komplett auf Englisch (seit 2026-03-03)
 
@@ -16,6 +16,12 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-06
 
 ### Letzte Änderungen (2026-03-06)
+- **RSE-78: Launch-Vorbereitung (teilweise):**
+  - **Stripe Live-Mode:** `.env.example` + `backend/.env.template` auf Live-Key-Platzhalter aktualisiert, Live-Keys auf VPS deployed
+  - **Cookie-Consent-Banner:** DSGVO-konformer Banner (`CookieConsent.tsx`), GA4 wird nur bei explizitem Opt-In geladen, Consent in `localStorage` (`vod-cookie-consent`)
+  - **Cookies-Seite korrigiert:** GA-Cookies dokumentiert (war fälschlich als "kein Analytics" deklariert), Consent-Banner referenziert
+  - **Sentry Error-Tracking:** `@sentry/nextjs` integriert, `sentry.client/server/edge.config.ts`, `global-error.tsx`, nur in Production aktiv (10% Traces), DSN auf VPS deployed
+  - **Offen:** E-Commerce-Anwalt für AGB-Prüfung (externer Prozess)
 - **RSE-117: CMS Content Management** — Admin-Editor + Storefront-Integration:
   - **DB:** `content_block` Tabelle (JSONB content, page+section unique key, RLS, Indexes)
   - **Admin API:** `GET /admin/content`, `GET/POST /admin/content/:page/:section` (Upsert)
@@ -468,7 +474,8 @@ VOD_Auctions/
 │   │   │   ├── ImageGallery.tsx      # Lightbox + Thumbnails mit Gold-Ring
 │   │   │   ├── RelatedSection.tsx    # Related-Info Tabs (Artist/Label/Block Items) — Auktionen
 │   │   │   ├── CatalogRelatedSection.tsx # Related-Tabs (by Artist/Label) — Katalog
-│   │   │   ├── GoogleAnalytics.tsx    # GA4 Script Loader (RSE-106)
+│   │   │   ├── CookieConsent.tsx      # GDPR Cookie Consent Banner (RSE-78)
+│   │   │   ├── GoogleAnalytics.tsx    # GA4 Script Loader, consent-gated (RSE-106/78)
 │   │   │   └── EmptyState.tsx        # Reusable Empty State
 │   │   └── lib/
 │   │       ├── api.ts           # medusaFetch Helper
@@ -631,7 +638,7 @@ npm run build             # Production build
 - ~~**RSE-106:** Google Analytics — Setup + Integration~~ ✅
 
 ### Phase 2 (Launch) — Backlog
-- **RSE-78:** P2.1 Launch-Vorbereitung (Domain, SEO, Legal)
+- **RSE-78:** P2.1 Launch-Vorbereitung — ~~Stripe Live~~ ✅ ~~Cookie Consent~~ ✅ ~~Sentry~~ ✅ ~~Analytics~~ ✅ ~~Legal Pages~~ ✅ ~~Domain~~ ✅ | Offen: E-Commerce-Anwalt AGB-Prüfung
 - **RSE-79:** P2.2 Erste öffentliche Themen-Auktionen
 - **RSE-80:** P2.3 Marketing (tape-mag.com Kundenbasis)
 
