@@ -8,7 +8,7 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 
 **Goal:** Eigene Plattform mit voller Kontrolle über Marke, Kundendaten, Preisgestaltung — statt 8-13% Gebühren an eBay/Discogs
 
-**Status:** Phase 1 — RSE-72 bis RSE-97 + RSE-76 + RSE-101 + RSE-102 + RSE-103 + RSE-104 + RSE-105 + RSE-109 + RSE-111 + RSE-112 + RSE-113 + RSE-114 + RSE-115 + RSE-116 erledigt. Nächstes: RSE-77 (Testlauf)
+**Status:** Phase 1 — RSE-72 bis RSE-97 + RSE-76 + RSE-101 + RSE-102 + RSE-103 + RSE-104 + RSE-105 + RSE-109 + RSE-111 + RSE-112 + RSE-113 + RSE-114 + RSE-115 + RSE-116 + RSE-117 erledigt. Nächstes: RSE-77 (Testlauf)
 
 **Sprache:** Storefront und Admin-UI komplett auf Englisch (seit 2026-03-03)
 
@@ -16,6 +16,14 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-06
 
 ### Letzte Änderungen (2026-03-06)
+- **RSE-117: CMS Content Management** — Admin-Editor + Storefront-Integration:
+  - **DB:** `content_block` Tabelle (JSONB content, page+section unique key, RLS, Indexes)
+  - **Admin API:** `GET /admin/content`, `GET/POST /admin/content/:page/:section` (Upsert)
+  - **Store API:** `GET /store/content?page=X` (Public, nur is_published=true)
+  - **Admin UI:** `/admin/content` — Tabs (Home/About/Auctions), TipTap Richtext, 6 Feldtypen (text, textarea, richtext, list, object-list, url), Section-Level Save mit Modified/Saved/New Badges
+  - **Storefront:** About-Seite + Homepage holen Content von CMS, Fallback auf Hardcoded-Defaults wenn DB leer
+  - **Seeded:** 12 Content-Blocks (2 Home, 1 Auctions, 9 About)
+  - **VPS:** Backend + Storefront deployed
 - **Credits Parsing Fix** — Kaputte Credits bei VA-Compilations mit gescraptem Discogs-HTML behoben:
   - **`cleanRawCredits`:** Standalone `*` (Discogs Artist-Credit-Variante) wird in vorherige Zeile gemergt, `/` (Multi-Artist-Separator) wird als Joiner behandelt (prev / next), `–` Dash-Merge überspringt jetzt leere Zeilen korrekt
   - **`extractTracklistFromText`:** Durations die VOR Positions stehen (gescraptes Discogs-HTML Muster) werden als Track-Duration konsumiert statt als Garbage-Credits
@@ -412,6 +420,8 @@ VOD_Auctions/
 │   │       ├── media/
 │   │       │   ├── page.tsx     # Media Management (30k Releases, Filter, Sortierung)
 │   │       │   └── [id]/page.tsx # Release-Detail (Info, Bewertung, Discogs-Daten)
+│   │       ├── content/
+│   │       │   └── page.tsx     # CMS Content Editor (Home/About/Auctions Tabs, TipTap)
 │   │       ├── sync/
 │   │       │   └── page.tsx     # Sync-Dashboard (Legacy + Discogs Status)
 │   │       └── components/
