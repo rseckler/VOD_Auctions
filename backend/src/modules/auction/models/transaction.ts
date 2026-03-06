@@ -36,6 +36,10 @@ const Transaction = model.define("transaction", {
   shipped_at: model.dateTime().nullable(),
   delivered_at: model.dateTime().nullable(),
 
+  // Shipping tracking
+  tracking_number: model.text().nullable(),
+  carrier: model.text().nullable(),
+
   // Shipping address (collected by Stripe Checkout)
   shipping_name: model.text().nullable(),
   shipping_address_line1: model.text().nullable(),

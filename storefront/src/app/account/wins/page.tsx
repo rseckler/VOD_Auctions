@@ -119,37 +119,79 @@ export default function WinsPage() {
     }
   }
 
-  function getStatusBadge(tx: Transaction | undefined) {
+  function getStepIndex(tx: Transaction | undefined): number {
+    if (!tx || tx.status !== "paid") return -1
+    if (tx.shipping_status === "delivered") return 2
+    if (tx.shipping_status === "shipped") return 1
+    return 0
+  }
+
+  function OrderProgressBar({ tx }: { tx: Transaction | undefined }) {
     if (!tx) return null
 
-    if (tx.shipping_status === "delivered") {
-      return (
-        <Badge className="bg-green-600 text-white">
-          <CheckCircle2 className="w-3 h-3 mr-1" /> Delivered
-        </Badge>
-      )
-    }
-    if (tx.shipping_status === "shipped") {
-      return (
-        <Badge className="bg-blue-600 text-white">
-          <Truck className="w-3 h-3 mr-1" /> Shipped
-        </Badge>
-      )
-    }
-    if (tx.status === "paid") {
-      return (
-        <Badge className="bg-emerald-600 text-white">
-          <CreditCard className="w-3 h-3 mr-1" /> Paid
-        </Badge>
-      )
-    }
     if (tx.status === "pending") {
       return <Badge variant="outline">Payment Pending</Badge>
     }
     if (tx.status === "failed") {
       return <Badge variant="destructive">Payment Failed</Badge>
     }
-    return null
+
+    const step = getStepIndex(tx)
+    if (step < 0) return null
+
+    const steps = [
+      { label: "Paid", icon: CreditCard },
+      { label: "Shipped", icon: Truck },
+      { label: "Delivered", icon: CheckCircle2 },
+    ]
+
+    return (
+      <div className="w-full mt-2">
+        <div className="flex items-center">
+          {steps.map((s, i) => {
+            const done = i <= step
+            const Icon = s.icon
+            return (
+              <div key={s.label} className="flex items-center flex-1 last:flex-none">
+                <div className="flex flex-col items-center">
+                  <div
+                    className={`w-7 h-7 rounded-full flex items-center justify-center ${
+                      done
+                        ? i === step
+                          ? "bg-primary text-[#1c1915]"
+                          : "bg-primary/70 text-[#1c1915]"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                  </div>
+                  <span
+                    className={`text-[10px] mt-1 ${
+                      done ? "text-primary font-medium" : "text-muted-foreground"
+                    }`}
+                  >
+                    {s.label}
+                  </span>
+                </div>
+                {i < steps.length - 1 && (
+                  <div
+                    className={`flex-1 h-0.5 mx-1.5 mt-[-14px] ${
+                      i < step ? "bg-primary/70" : "bg-muted"
+                    }`}
+                  />
+                )}
+              </div>
+            )
+          })}
+        </div>
+        {tx.shipping_status === "shipped" && tx.tracking_number && (
+          <p className="text-[10px] text-muted-foreground mt-1.5">
+            {tx.carrier && <span>{tx.carrier}: </span>}
+            <span className="font-mono">{tx.tracking_number}</span>
+          </p>
+        )}
+      </div>
+    )
   }
 
   if (loading) {
@@ -238,7 +280,7 @@ export default function WinsPage() {
                     <Badge variant="outline" className="bg-green-500/15 text-green-500 border-green-500/30">
                       Won
                     </Badge>
-                    {getStatusBadge(tx)}
+                    {!isPaid && <OrderProgressBar tx={tx} />}
                   </div>
                   <p className="text-sm font-medium truncate mt-1">
                     {win.item.release_artist && (
@@ -256,6 +298,7 @@ export default function WinsPage() {
                       Total: &euro;{tx.total_amount.toFixed(2)} (incl. &euro;{tx.shipping_cost.toFixed(2)} shipping)
                     </p>
                   )}
+                  {isPaid && <OrderProgressBar tx={tx} />}
                 </div>
 
                 {/* Price + Action */}

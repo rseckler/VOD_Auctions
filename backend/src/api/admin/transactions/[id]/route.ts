@@ -44,8 +44,10 @@ export async function POST(
   res: MedusaResponse
 ): Promise<void> {
   const { id } = req.params
-  const { shipping_status } = req.body as {
+  const { shipping_status, tracking_number, carrier } = req.body as {
     shipping_status: "shipped" | "delivered"
+    tracking_number?: string
+    carrier?: string
   }
 
   if (!shipping_status || !["shipped", "delivered"].includes(shipping_status)) {
@@ -77,7 +79,11 @@ export async function POST(
       updated_at: new Date(),
     }
 
-    if (shipping_status === "shipped") updateData.shipped_at = new Date()
+    if (shipping_status === "shipped") {
+      updateData.shipped_at = new Date()
+      if (tracking_number) updateData.tracking_number = tracking_number
+      if (carrier) updateData.carrier = carrier
+    }
     if (shipping_status === "delivered") updateData.delivered_at = new Date()
 
     await pgConnection("transaction").where("id", id).update(updateData)

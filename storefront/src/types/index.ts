@@ -170,6 +170,8 @@ export type Transaction = {
   paid_at: string | null
   shipped_at: string | null
   delivered_at: string | null
+  tracking_number: string | null
+  carrier: string | null
   created_at: string
   release_title: string | null
   release_artist: string | null
