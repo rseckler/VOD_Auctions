@@ -68,7 +68,6 @@ export async function GET(
   const images = await pgConnection("Image")
     .select("id", "url", "alt")
     .where("releaseId", id)
-    .limit(50)
 
   // Various artists
   const various_artists = await pgConnection("ReleaseArtist")
