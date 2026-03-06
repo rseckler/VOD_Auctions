@@ -82,7 +82,7 @@ export async function GET(
     }))
     .filter((item: any) => {
       const r = item.release
-      return r && r.coverImage && r.legacy_price != null
+      return r != null
     })
     .sort((a: any, b: any) => (a.lot_number || 999) - (b.lot_number || 999))
 
