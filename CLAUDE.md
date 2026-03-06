@@ -8,7 +8,7 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 
 **Goal:** Eigene Plattform mit voller Kontrolle über Marke, Kundendaten, Preisgestaltung — statt 8-13% Gebühren an eBay/Discogs
 
-**Status:** Phase 1 — RSE-72 bis RSE-97 + RSE-76 + RSE-101 + RSE-102 + RSE-103 + RSE-104 + RSE-105 + RSE-109 + RSE-111 + RSE-112 + RSE-113 + RSE-114 + RSE-115 erledigt. Nächstes: RSE-77 (Testlauf)
+**Status:** Phase 1 — RSE-72 bis RSE-97 + RSE-76 + RSE-101 + RSE-102 + RSE-103 + RSE-104 + RSE-105 + RSE-109 + RSE-111 + RSE-112 + RSE-113 + RSE-114 + RSE-115 + RSE-116 erledigt. Nächstes: RSE-77 (Testlauf)
 
 **Sprache:** Storefront und Admin-UI komplett auf Englisch (seit 2026-03-03)
 
@@ -16,6 +16,12 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-06
 
 ### Letzte Änderungen (2026-03-06)
+- **RSE-116: About VOD Records** — Neuer `/about` Bereich:
+  - **about/page.tsx:** Statische Seite mit 9 Sektionen: Hero, Founder (Frank Bull), Mission, Genres, Notable Artists (20), Sub-Labels (3), TAPE-MAG, VOD Fest 2026, External Links
+  - **Externe Links:** vod-records.com, tape-mag.com, vod-records.com/vod-fest
+  - **Navigation:** About-Link in Header, MobileNav und Footer hinzugefügt
+  - **SEO:** metadata mit title, description, OpenGraph
+  - **VPS:** Deployed, Storefront neugestartet
 - **RSE-106: Google Analytics — Setup + Integration** — GA4 Property `G-M9BJGC5D69`:
   - **GoogleAnalytics.tsx:** Client-Komponente, lädt gtag.js via `next/script` (afterInteractive), rendert nichts ohne Measurement ID
   - **analytics.ts:** 7 Event-Tracking-Helpers: `trackBidPlaced`, `trackAuctionWon`, `trackRegistration`, `trackLogin`, `trackCatalogSearch`, `trackCatalogView`, `trackAuctionView`
@@ -417,6 +423,7 @@ VOD_Auctions/
 │   │   │   │   └── [slug]/
 │   │   │   │       ├── page.tsx # Block-Detail: Hero, BlockItemsGrid
 │   │   │   │       └── [itemId]/page.tsx  # Item-Detail + ItemBidSection + RelatedSection
+│   │   │   ├── about/page.tsx   # About VOD Records: Founder, Mission, Genres, Artists, Sub-Labels, TAPE-MAG, VOD Fest, Links
 │   │   │   ├── catalog/
 │   │   │   │   ├── page.tsx     # Katalog-Liste (alle 41k Releases, 5-Kategorie + Format + Advanced Filter)
 │   │   │   │   └── [id]/page.tsx # Katalog-Detail + CatalogRelatedSection
