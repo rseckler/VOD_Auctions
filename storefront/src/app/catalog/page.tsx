@@ -57,20 +57,64 @@ const CATEGORIES = [
 const FORMATS = ["LP", "CD", "CASSETTE", "DVD", "MAGAZINE", "POSTER", "PHOTO", "POSTCARD"]
 
 export default function CatalogPage() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const isInitialMount = useRef(true)
+
+  // Initialize state from URL search params
   const [releases, setReleases] = useState<CatalogRelease[]>([])
   const [total, setTotal] = useState(0)
   const [pages, setPages] = useState(0)
-  const [page, setPage] = useState(1)
-  const [search, setSearch] = useState("")
-  const [searchInput, setSearchInput] = useState("")
-  const [category, setCategory] = useState("")
-  const [format, setFormat] = useState("")
-  const [country, setCountry] = useState("")
-  const [label, setLabel] = useState("")
-  const [condition, setCondition] = useState("")
-  const [showFilters, setShowFilters] = useState(false)
-  const [sort, setSort] = useState("title")
+  const [page, setPage] = useState(() => Number(searchParams.get("page")) || 1)
+  const [search, setSearch] = useState(() => searchParams.get("search") || "")
+  const [searchInput, setSearchInput] = useState(() => searchParams.get("search") || "")
+  const [category, setCategory] = useState(() => searchParams.get("category") || "")
+  const [format, setFormat] = useState(() => searchParams.get("format") || "")
+  const [country, setCountry] = useState(() => searchParams.get("country") || "")
+  const [label, setLabel] = useState(() => searchParams.get("label") || "")
+  const [condition, setCondition] = useState(() => searchParams.get("condition") || "")
+  const [showFilters, setShowFilters] = useState(() => !!(searchParams.get("country") || searchParams.get("label") || searchParams.get("condition")))
+  const [sort, setSort] = useState(() => searchParams.get("sort") || "title")
   const [loading, setLoading] = useState(true)
+
+  // Sync state to URL (replaceState so back button works per-navigation)
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false
+      return
+    }
+    const params = new URLSearchParams()
+    if (page > 1) params.set("page", String(page))
+    if (search) params.set("search", search)
+    if (category) params.set("category", category)
+    if (format) params.set("format", format)
+    if (country) params.set("country", country)
+    if (label) params.set("label", label)
+    if (condition) params.set("condition", condition)
+    if (sort && sort !== "title") params.set("sort", sort)
+    const qs = params.toString()
+    const newUrl = qs ? `/catalog?${qs}` : "/catalog"
+    window.history.replaceState(null, "", newUrl)
+  }, [page, search, category, format, country, label, condition, sort])
+
+  // Restore state when navigating back (popstate)
+  useEffect(() => {
+    const handlePopState = () => {
+      const sp = new URLSearchParams(window.location.search)
+      setPage(Number(sp.get("page")) || 1)
+      setSearch(sp.get("search") || "")
+      setSearchInput(sp.get("search") || "")
+      setCategory(sp.get("category") || "")
+      setFormat(sp.get("format") || "")
+      setCountry(sp.get("country") || "")
+      setLabel(sp.get("label") || "")
+      setCondition(sp.get("condition") || "")
+      setSort(sp.get("sort") || "title")
+      if (sp.get("country") || sp.get("label") || sp.get("condition")) setShowFilters(true)
+    }
+    window.addEventListener("popstate", handlePopState)
+    return () => window.removeEventListener("popstate", handlePopState)
+  }, [])
 
   const fetchReleases = useCallback(async () => {
     setLoading(true)
