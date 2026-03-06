@@ -1,4 +1,4 @@
-import { Component, useEffect, useState } from "react"
+import { Component, useCallback, useEffect, useState } from "react"
 import type { ErrorInfo, ReactNode } from "react"
 import { useParams } from "react-router-dom"
 
@@ -133,6 +133,25 @@ const MediaDetailPage = () => {
   const [inventory, setInventory] = useState<string>("")
   const [shippingTypeId, setShippingTypeId] = useState<string>("")
   const [shippingTypes, setShippingTypes] = useState<Array<{ id: string; name: string; default_weight_grams: number }>>([])
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
+
+  const goLightbox = useCallback((dir: "prev" | "next") => {
+    setLightboxIndex((i) => {
+      if (i === null) return null
+      return dir === "prev" ? (i - 1 + images.length) % images.length : (i + 1) % images.length
+    })
+  }, [images.length])
+
+  useEffect(() => {
+    if (lightboxIndex === null) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightboxIndex(null)
+      else if (e.key === "ArrowLeft") goLightbox("prev")
+      else if (e.key === "ArrowRight") goLightbox("next")
+    }
+    window.addEventListener("keydown", handler)
+    return () => window.removeEventListener("keydown", handler)
+  }, [lightboxIndex, goLightbox])
 
   useEffect(() => {
     if (!id) return
@@ -254,7 +273,14 @@ const MediaDetailPage = () => {
       <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: "24px", marginBottom: "32px" }}>
         <div>
           {release.coverImage || images.length > 0 ? (
-            <img src={release.coverImage || images[0]?.url} alt={release.title} style={{ width: "100%", borderRadius: "8px", border: `1px solid ${COLORS.border}`, aspectRatio: "1", objectFit: "cover" }} />
+            <div style={{ position: "relative", cursor: "pointer" }} onClick={() => setLightboxIndex(0)}>
+              <img src={release.coverImage || images[0]?.url} alt={release.title} style={{ width: "100%", borderRadius: "8px", border: `1px solid ${COLORS.border}`, aspectRatio: "1", objectFit: "cover" }} />
+              {images.length > 1 && (
+                <span style={{ position: "absolute", bottom: "8px", right: "8px", fontSize: "11px", fontFamily: "monospace", background: "rgba(0,0,0,0.6)", color: "rgba(255,255,255,0.9)", padding: "2px 8px", borderRadius: "12px", backdropFilter: "blur(4px)" }}>
+                  1 / {images.length}
+                </span>
+              )}
+            </div>
           ) : (
             <div style={{ width: "100%", aspectRatio: "1", borderRadius: "8px", background: COLORS.card, border: `1px solid ${COLORS.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "48px", color: COLORS.muted }}>&#9835;</div>
           )}
@@ -262,7 +288,7 @@ const MediaDetailPage = () => {
             <>
               <div style={{ fontSize: "12px", color: COLORS.muted, marginTop: "8px", marginBottom: "4px" }}>{images.length} images</div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "6px", maxHeight: "320px", overflowY: "auto" }}>
-                {images.slice(1).map((img) => (<img key={img.id} src={img.url} alt="" style={{ width: "100%", aspectRatio: "1", objectFit: "cover", borderRadius: "4px", border: `1px solid ${COLORS.border}`, cursor: "pointer" }} onClick={() => window.open(img.url, "_blank")} />))}
+                {images.slice(1).map((img, i) => (<img key={img.id} src={img.url} alt="" style={{ width: "100%", aspectRatio: "1", objectFit: "cover", borderRadius: "4px", border: `1px solid ${COLORS.border}`, cursor: "pointer" }} onClick={() => setLightboxIndex(i + 1)} />))}
               </div>
             </>
           )}
@@ -274,14 +300,22 @@ const MediaDetailPage = () => {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
               {infoFields.map(([label, value]) => (<div key={label}><div style={labelStyle}>{label}</div><div style={valueStyle}>{value ?? "\u2014"}</div></div>))}
             </div>
-            {tapeMagUrl && (
-              <div style={{ marginTop: "16px", paddingTop: "12px", borderTop: `1px solid ${COLORS.border}` }}>
-                <div style={labelStyle}>tape-mag.com</div>
-                <a href={tapeMagUrl} target="_blank" rel="noopener noreferrer" style={{ color: COLORS.gold, textDecoration: "none", fontSize: "13px" }}>
-                  Open on tape-mag.com &#8599;
+            <div style={{ marginTop: "16px", paddingTop: "12px", borderTop: `1px solid ${COLORS.border}`, display: "flex", gap: "24px", flexWrap: "wrap" }}>
+              <div>
+                <div style={labelStyle}>Storefront</div>
+                <a href={`https://vod-auctions.com/catalog/${release.id}`} target="_blank" rel="noopener noreferrer" style={{ color: COLORS.gold, textDecoration: "none", fontSize: "13px" }}>
+                  View in Catalog &#8599;
                 </a>
               </div>
-            )}
+              {tapeMagUrl && (
+                <div>
+                  <div style={labelStyle}>tape-mag.com</div>
+                  <a href={tapeMagUrl} target="_blank" rel="noopener noreferrer" style={{ color: COLORS.gold, textDecoration: "none", fontSize: "13px" }}>
+                    Open on tape-mag.com &#8599;
+                  </a>
+                </div>
+              )}
+            </div>
           </div>
 
           <div style={{ ...cardStyle, border: `1px solid ${COLORS.gold}40` }}>
@@ -383,6 +417,41 @@ const MediaDetailPage = () => {
                       </div>))
                   : typeof release.tracklist === "string" ? release.tracklist : JSON.stringify(release.tracklist, null, 2)}
               </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Lightbox Overlay */}
+      {lightboxIndex !== null && images.length > 0 && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.92)", backdropFilter: "blur(8px)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }} onClick={() => setLightboxIndex(null)}>
+          {/* Close button */}
+          <button onClick={() => setLightboxIndex(null)} style={{ position: "absolute", top: "16px", right: "16px", background: "rgba(255,255,255,0.1)", border: "none", color: "white", fontSize: "24px", width: "40px", height: "40px", borderRadius: "8px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&times;</button>
+
+          {/* Main image */}
+          <div style={{ position: "relative", maxWidth: "85vw", maxHeight: "75vh", display: "flex", alignItems: "center", justifyContent: "center" }} onClick={(e) => e.stopPropagation()}>
+            <img src={images[lightboxIndex].url} alt="" style={{ maxWidth: "85vw", maxHeight: "75vh", objectFit: "contain", borderRadius: "8px" }} />
+
+            {/* Prev/Next */}
+            {images.length > 1 && (
+              <>
+                <button onClick={() => goLightbox("prev")} style={{ position: "absolute", left: "-48px", top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.1)", border: "none", color: "white", fontSize: "20px", width: "36px", height: "36px", borderRadius: "50%", cursor: "pointer" }}>&lsaquo;</button>
+                <button onClick={() => goLightbox("next")} style={{ position: "absolute", right: "-48px", top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.1)", border: "none", color: "white", fontSize: "20px", width: "36px", height: "36px", borderRadius: "50%", cursor: "pointer" }}>&rsaquo;</button>
+              </>
+            )}
+          </div>
+
+          {/* Counter */}
+          {images.length > 1 && (
+            <div style={{ color: "rgba(255,255,255,0.6)", fontSize: "13px", marginTop: "12px" }}>{lightboxIndex + 1} / {images.length}</div>
+          )}
+
+          {/* Thumbnail strip */}
+          {images.length > 1 && (
+            <div style={{ display: "flex", gap: "6px", marginTop: "8px", overflowX: "auto", maxWidth: "90vw", padding: "4px" }} onClick={(e) => e.stopPropagation()}>
+              {images.map((img, i) => (
+                <img key={img.id} src={img.url} alt="" onClick={() => setLightboxIndex(i)} style={{ width: "48px", height: "48px", objectFit: "cover", borderRadius: "6px", cursor: "pointer", flexShrink: 0, border: i === lightboxIndex ? `2px solid ${COLORS.gold}` : "2px solid transparent", opacity: i === lightboxIndex ? 1 : 0.5 }} />
+              ))}
             </div>
           )}
         </div>
