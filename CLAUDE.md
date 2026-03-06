@@ -16,6 +16,14 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-06
 
 ### Letzte Änderungen (2026-03-06)
+- **Catalog Visibility Admin Toggle:**
+  - **DB:** `site_config` Tabelle (Key-Value, single row `default`) mit `catalog_visibility` Feld (`all` oder `visible`)
+  - **Admin API:** `GET/POST /admin/site-config` — Lesen + Umschalten der Einstellung
+  - **Store Catalog API:** Liest `site_config.catalog_visibility` als Default wenn kein `visibility` Query-Parameter übergeben wird
+  - **Admin UI:** Toggle-Button auf Media Management Seite — "Filter OFF — Showing All" (gold) ↔ "Filter ON — Only with Image + Price" (grün)
+  - **Wirkung:** `visible` = Kunden sehen nur Artikel mit coverImage + legacy_price, `all` = alles sichtbar
+  - **Storefront-Filter entfernt:** Leere Formate (Boxset/Zine/Book/Merchandise/Reel) + Year/Price Sort+Filter aus Katalog-UI entfernt
+  - **VPS:** Backend + Admin deployed
 - **Literature Image Fix + Visibility Filter Removal + LabelPerson Import:**
   - **CoverImage Fix:** label_literature 24→1.080 (95.7%), press_literature 1.001→5.956 (94.2%) — Migration hatte falschen bilder_1.typ (15 statt 14)
   - **Gallery-Bilder:** +15.098 neue Image-Einträge aus Legacy bilder_1 typ=12 (band/label/press literature)
@@ -325,6 +333,7 @@ Shared DB für tape-mag-mvp + VOD_Auctions. Schema enthält 24 Tabellen (14 Basi
 - `shipping_zone` — 3 Versandzonen DE/EU/World (RSE-103)
 - `shipping_rate` — 15 Gewichtsstufen-Tarife (RSE-103)
 - `shipping_config` — Globale Versand-Einstellungen (RSE-103)
+- `site_config` — Globale Site-Einstellungen (catalog_visibility: all/visible)
 
 ### Release-Erweiterung
 ```sql
@@ -435,6 +444,7 @@ VOD_Auctions/
 │   │   │   │   │   └── filters/route.ts  # GET filter options with counts (format/country/year/5 categories)
 │   │   │   │   ├── media/       # Medien-Verwaltung API (browse, edit, stats, 5-category filter)
 │   │   │   │   │   └── [id]/route.ts     # GET/POST Release-Detail + Format + PressOrga JOINs
+│   │   │   │   ├── site-config/route.ts   # GET/POST: Catalog visibility toggle (site_config)
 │   │   │   │   └── transactions/         # Transaction Management (RSE-76)
 │   │   │   │       ├── route.ts          # GET: All transactions (filter by status)
 │   │   │   │       └── [id]/route.ts     # GET detail + POST shipping status update
