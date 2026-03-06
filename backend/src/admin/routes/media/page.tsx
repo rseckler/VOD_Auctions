@@ -135,6 +135,10 @@ const MediaPage = () => {
   const [stats, setStats] = useState<Stats | null>(null)
   const [statsLoading, setStatsLoading] = useState(true)
 
+  // Catalog visibility setting
+  const [catalogVisibility, setCatalogVisibility] = useState<string>("all")
+  const [catalogVisibilityLoading, setCatalogVisibilityLoading] = useState(false)
+
   // Selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkAction, setBulkAction] = useState<string | null>(null)
@@ -349,6 +353,33 @@ const MediaPage = () => {
       })
   }, [])
 
+  // Fetch catalog visibility setting
+  useEffect(() => {
+    fetch("/admin/site-config", { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => setCatalogVisibility(d.config?.catalog_visibility || "all"))
+      .catch(() => {})
+  }, [])
+
+  const toggleCatalogVisibility = async () => {
+    const newValue = catalogVisibility === "visible" ? "all" : "visible"
+    setCatalogVisibilityLoading(true)
+    try {
+      const resp = await fetch("/admin/site-config", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ catalog_visibility: newValue }),
+      })
+      const d = await resp.json()
+      setCatalogVisibility(d.config?.catalog_visibility || newValue)
+    } catch (err) {
+      console.error("Failed to update catalog visibility:", err)
+    } finally {
+      setCatalogVisibilityLoading(false)
+    }
+  }
+
   // Fetch releases
   useEffect(() => {
     setLoading(true)
@@ -516,6 +547,40 @@ const MediaPage = () => {
             {statsLoading ? "..." : formatDate(stats?.last_discogs_sync || null)}
           </div>
         </div>
+      </div>
+
+      {/* Catalog Visibility Toggle */}
+      <div style={{
+        ...cardStyle,
+        marginBottom: "16px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+      }}>
+        <div>
+          <span style={{ fontSize: "14px", fontWeight: 600 }}>Storefront Catalog Visibility</span>
+          <span style={{ fontSize: "13px", color: COLORS.muted, marginLeft: "12px" }}>
+            {catalogVisibility === "visible"
+              ? "Customers see only items with image and price"
+              : "Customers see all items"}
+          </span>
+        </div>
+        <button
+          onClick={toggleCatalogVisibility}
+          disabled={catalogVisibilityLoading}
+          style={{
+            padding: "8px 20px",
+            borderRadius: "6px",
+            border: "none",
+            fontWeight: 600,
+            fontSize: "13px",
+            cursor: catalogVisibilityLoading ? "wait" : "pointer",
+            background: catalogVisibility === "visible" ? "#22c55e" : COLORS.gold,
+            color: catalogVisibility === "visible" ? "#fff" : "#1c1915",
+          }}
+        >
+          {catalogVisibilityLoading ? "..." : catalogVisibility === "visible" ? "Filter ON — Only with Image + Price" : "Filter OFF — Showing All"}
+        </button>
       </div>
 
       {/* Search */}

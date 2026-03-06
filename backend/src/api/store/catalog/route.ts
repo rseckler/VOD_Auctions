@@ -156,15 +156,18 @@ export async function GET(
     countQuery = countQuery.whereILike("Release.legacy_condition", `%${condition.trim()}%`)
   }
 
-  // Visibility filter
-  if (visibility === "visible") {
+  // Visibility filter — read from site_config if not explicitly passed
+  const siteConfig = await pgConnection("site_config").where("id", "default").first()
+  const effectiveVisibility = visibility || siteConfig?.catalog_visibility || "all"
+
+  if (effectiveVisibility === "visible") {
     query = query
       .whereNotNull("Release.coverImage")
       .whereNotNull("Release.legacy_price")
     countQuery = countQuery
       .whereNotNull("Release.coverImage")
       .whereNotNull("Release.legacy_price")
-  } else if (visibility === "hidden") {
+  } else if (effectiveVisibility === "hidden") {
     query = query.where(function () {
       this.whereNull("Release.coverImage")
         .orWhereNull("Release.legacy_price")
