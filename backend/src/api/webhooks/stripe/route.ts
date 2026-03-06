@@ -2,6 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { stripe } from "../../../lib/stripe"
+import { sendPaymentConfirmationEmail } from "../../../lib/email-helpers.js"
 
 // POST /webhooks/stripe — Stripe Webhook Handler
 export async function POST(
@@ -83,6 +84,11 @@ export async function POST(
           }
 
           console.log(`[stripe-webhook] Order group ${orderGroupId} marked as paid (${directPurchaseTxs.length} direct purchases)`)
+
+          // Send payment confirmation email (async, non-blocking)
+          sendPaymentConfirmationEmail(pgConnection, orderGroupId).catch((err) => {
+            console.error("[stripe-webhook] Failed to send payment email:", err)
+          })
         } else if (transactionId) {
           // Legacy single-item checkout
           await pgConnection("transaction")
@@ -90,6 +96,12 @@ export async function POST(
             .update(updateData)
 
           console.log(`[stripe-webhook] Transaction ${transactionId} marked as paid`)
+
+          // For legacy single-item, create a pseudo order_group_id from transaction
+          const tx = await pgConnection("transaction").where("id", transactionId).first()
+          if (tx?.order_group_id) {
+            sendPaymentConfirmationEmail(pgConnection, tx.order_group_id).catch(() => {})
+          }
         } else {
           console.error("[stripe-webhook] No order_group_id or transaction_id in session metadata")
         }

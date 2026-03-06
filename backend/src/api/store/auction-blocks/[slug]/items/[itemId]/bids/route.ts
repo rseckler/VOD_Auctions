@@ -6,6 +6,7 @@ import {
 import { Knex } from "knex"
 import AuctionModuleService from "../../../../../../../modules/auction/service"
 import { AUCTION_MODULE } from "../../../../../../../modules/auction"
+import { sendOutbidEmail } from "../../../../../../../lib/email-helpers.js"
 
 // GET /store/auction-blocks/:slug/items/:itemId/bids — Public: bid history
 export async function GET(
@@ -235,11 +236,17 @@ export async function POST(
             outbid: true,
             current_price: autoResponse,
             message: "Outbid — a proxy bid was higher",
+            _outbid_user: customerId,
+            _outbid_amount: amount,
+            _current_bid: autoResponse,
           }
         }
       }
 
       // New bid wins
+      const outbidUserId = existingWinning?.user_id
+      const outbidAmount = existingWinning ? parseFloat(existingWinning.amount) : null
+
       if (existingWinning) {
         await trx("bid")
           .where("id", existingWinning.id)
@@ -281,11 +288,27 @@ export async function POST(
         amount: finalAmount,
         outbid: false,
         current_price: finalAmount,
+        _outbid_user: outbidUserId || null,
+        _outbid_amount: outbidAmount,
+        _current_bid: finalAmount,
       }
     })
 
-    const httpStatus = result.status || 201
-    res.status(httpStatus).json(result)
+    // Send outbid email AFTER transaction commits (async, non-blocking)
+    if (result._outbid_user) {
+      sendOutbidEmail(
+        pgConnection,
+        result._outbid_user,
+        itemId,
+        result._outbid_amount!,
+        result._current_bid!
+      ).catch(() => {})
+    }
+
+    // Strip internal fields before sending response
+    const { _outbid_user, _outbid_amount, _current_bid, ...response } = result
+    const httpStatus = response.status || 201
+    res.status(httpStatus).json(response)
   } catch (err: any) {
     const status = err.status || 500
     const message = err.message || "Unknown error"

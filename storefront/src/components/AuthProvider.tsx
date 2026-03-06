@@ -125,6 +125,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const c = await getCustomer(token)
       setCustomer(c)
       await fetchStatus(token)
+
+      // Send welcome email (fire-and-forget)
+      fetch(`${MEDUSA_URL}/store/account/send-welcome`, {
+        method: "POST",
+        headers: {
+          "x-publishable-api-key": PUBLISHABLE_KEY,
+          Authorization: `Bearer ${token}`,
+        },
+      }).catch(() => {})
     },
     [fetchStatus]
   )

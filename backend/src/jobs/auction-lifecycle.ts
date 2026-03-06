@@ -1,5 +1,6 @@
 import { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { sendBidWonEmail } from "../lib/email-helpers.js"
 
 export default async function auctionLifecycle(container: MedusaContainer) {
   const pgConnection = container.resolve(
@@ -68,6 +69,9 @@ export default async function auctionLifecycle(container: MedusaContainer) {
 
     if (hasActiveItems) continue
 
+    // Collect winners for email notifications
+    const winners: { userId: string; blockItemId: string; price: number; lotNumber: number }[] = []
+
     await pgConnection.transaction(async (trx: any) => {
       const items = await trx("block_item")
         .where("auction_block_id", block.id)
@@ -92,6 +96,19 @@ export default async function auctionLifecycle(container: MedusaContainer) {
               .update({ status: "sold", updated_at: now })
             totalRevenue += parseFloat(item.current_price)
             soldCount++
+
+            // Find the winning bidder
+            const winningBid = await trx("bid")
+              .where({ block_item_id: item.id, is_winning: true })
+              .first()
+            if (winningBid) {
+              winners.push({
+                userId: winningBid.user_id,
+                blockItemId: item.id,
+                price: parseFloat(item.current_price),
+                lotNumber: item.lot_number,
+              })
+            }
           } else {
             await trx("block_item")
               .where("id", item.id)
@@ -119,6 +136,20 @@ export default async function auctionLifecycle(container: MedusaContainer) {
         `[lifecycle] Block "${block.title}" ended: ${soldCount}/${items.length} sold, €${totalRevenue.toFixed(2)} revenue`
       )
     })
+
+    // Send bid-won emails AFTER transaction commits (async, non-blocking)
+    for (const winner of winners) {
+      sendBidWonEmail(
+        pgConnection,
+        winner.userId,
+        winner.blockItemId,
+        winner.price,
+        winner.lotNumber,
+        block.title
+      ).catch((err) => {
+        console.error(`[lifecycle] Failed to send bid-won email:`, err)
+      })
+    }
   }
 }
 

@@ -59,6 +59,7 @@ type Release = {
   sale_mode: string | null
   direct_price: number | null
   inventory: number | null
+  shipping_item_type_id: string | null
   current_block_id: string | null
   coverImage: string | null
   discogs_last_synced: string | null
@@ -129,15 +130,19 @@ const MediaDetailPage = () => {
   const [saleMode, setSaleMode] = useState<string>("auction_only")
   const [directPrice, setDirectPrice] = useState<string>("")
   const [inventory, setInventory] = useState<string>("")
+  const [shippingTypeId, setShippingTypeId] = useState<string>("")
+  const [shippingTypes, setShippingTypes] = useState<Array<{ id: string; name: string; default_weight_grams: number }>>([])
 
   useEffect(() => {
     if (!id) return
-    fetch(`/admin/media/${id}`, { credentials: "include" })
-      .then((r) => r.json())
-      .then((d) => {
+    Promise.all([
+      fetch(`/admin/media/${id}`, { credentials: "include" }).then((r) => r.json()),
+      fetch("/admin/shipping/item-types", { credentials: "include" }).then((r) => r.json()).catch(() => ({ item_types: [] })),
+    ]).then(([d, st]) => {
         setRelease(d.release || null)
         setSyncHistory(d.sync_history || [])
         setImages(d.images || [])
+        setShippingTypes(st.item_types || [])
         if (d.release) {
           setEstimatedValue(d.release.estimated_value != null ? String(d.release.estimated_value) : "")
           setMediaCondition(d.release.media_condition || "")
@@ -145,6 +150,7 @@ const MediaDetailPage = () => {
           setSaleMode(d.release.sale_mode || "auction_only")
           setDirectPrice(d.release.direct_price != null ? String(d.release.direct_price) : "")
           setInventory(d.release.inventory != null ? String(d.release.inventory) : "")
+          setShippingTypeId(d.release.shipping_item_type_id || "")
         }
         setLoading(false)
       })
@@ -168,6 +174,7 @@ const MediaDetailPage = () => {
       body.sale_mode = saleMode
       body.direct_price = directPrice !== "" ? parseFloat(directPrice) : null
       body.inventory = inventory !== "" ? parseInt(inventory) : null
+      body.shipping_item_type_id = shippingTypeId || null
 
       const res = await fetch(`/admin/media/${id}`, {
         method: "POST",
@@ -305,6 +312,17 @@ const MediaDetailPage = () => {
                 </div>
               )}
             </div>
+            {shippingTypes.length > 0 && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginTop: "16px" }}>
+                <div>
+                  <div style={labelStyle}>Shipping Type (override)</div>
+                  <select value={shippingTypeId} onChange={(e) => setShippingTypeId(e.target.value)} style={selectStyle}>
+                    <option value="">Auto (from format)</option>
+                    {shippingTypes.map((t) => (<option key={t.id} value={t.id}>{t.name} ({t.default_weight_grams}g)</option>))}
+                  </select>
+                </div>
+              </div>
+            )}
             <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "16px" }}>
               <button onClick={handleSave} disabled={saving} style={{ padding: "8px 24px", borderRadius: "6px", border: "none", background: COLORS.gold, color: "#1c1915", fontSize: "14px", fontWeight: 600, cursor: saving ? "wait" : "pointer", opacity: saving ? 0.7 : 1 }}>
                 {saving ? "Saving..." : "Save"}

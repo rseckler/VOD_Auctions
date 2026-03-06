@@ -8,14 +8,38 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 
 **Goal:** Eigene Plattform mit voller Kontrolle über Marke, Kundendaten, Preisgestaltung — statt 8-13% Gebühren an eBay/Discogs
 
-**Status:** Phase 1 — RSE-72 bis RSE-96 + RSE-76 + RSE-109 + RSE-111 + RSE-112 + RSE-113 + RSE-114 + RSE-115 erledigt. Sync Dashboard + Discogs Batch Fix live. Nächstes: RSE-77 (Testlauf) oder RSE-100–105 (Order Tracking, Emails, Legal)
+**Status:** Phase 1 — RSE-72 bis RSE-96 + RSE-76 + RSE-101 + RSE-104 + RSE-105 + RSE-109 + RSE-111 + RSE-112 + RSE-113 + RSE-114 + RSE-115 erledigt. Nächstes: RSE-77 (Testlauf) oder RSE-102–103 (Emails, Shipping)
 
 **Sprache:** Storefront und Admin-UI komplett auf Englisch (seit 2026-03-03)
 
 **Created:** 2026-02-10
-**Last Updated:** 2026-03-05
+**Last Updated:** 2026-03-06
 
-### Letzte Änderungen (2026-03-05)
+### Letzte Änderungen (2026-03-06)
+- **RSE-105: Legal Pages** — 5 rechtliche Seiten + Footer-Update:
+  - `/impressum` — Impressum (von vod-records.com), Verweis auf alle 3 Plattformen
+  - `/agb` — AGB mit Auktions-Bedingungen (Proxy-Bidding, Zuschlag, Stripe, Versandkosten)
+  - `/datenschutz` — DSGVO-konform, alle Dienste erfasst (Supabase, Stripe, Upstash, Google Fonts, Discogs, Resend, Hostinger)
+  - `/widerruf` — Widerrufsbelehrung mit § 312g BGB Auktions-Ausnahme + Muster-Formular
+  - `/cookies` — Cookie-Richtlinie (nur technisch notwendige Cookies, kein Tracking)
+  - **Footer:** Neue "Legal"-Spalte mit Links zu allen 5 Seiten
+
+### Frühere Änderungen (2026-03-06)
+- **RSE-101: Order Progress Tracking** — Paid/Shipped/Delivered Lifecycle komplett:
+  - **Transaction Model:** +`tracking_number`, +`carrier` Felder (nullable text)
+  - **Admin API:** `POST /admin/transactions/:id` akzeptiert jetzt `tracking_number` + `carrier` beim "shipped" Update
+  - **Admin UI:** Neue Transactions-Seite (`/app/transactions`) — Tabelle mit Status-Filtern, Ship-Button (Carrier-Dropdown + Tracking-Eingabe), Delivered-Button
+  - **Storefront Wins Page:** Status-Badges durch 3-Step Progress Bar ersetzt (Paid → Shipped → Delivered), Tracking-Nummer + Carrier Anzeige bei "Shipped"
+  - **DB Migration:** `tracking_number` + `carrier` Spalten in Supabase angelegt
+
+### Frühere Änderungen (2026-03-06)
+- **RSE-104: Bid Confirmation Modal** — shadcn Dialog durch custom Framer Motion Modal ersetzt:
+  - Gavel-Icon zentriert, "Confirm your bid" Titel (serif), Betrag prominent in Primary-Farbe
+  - Backdrop blur + click-outside-to-close, scale/slide Animationen (AnimatePresence)
+  - Proxy-Bid Anzeige falls Maximum gesetzt, Cancel + Confirm Buttons mit Check-Icon
+  - shadcn Dialog-Imports entfernt, Design matching Clickdummy `BidSection.tsx`
+
+### Frühere Änderungen (2026-03-05)
 - **RSE-115: Sync Dashboard Enhancement + Discogs Batch Fix** — Sync-Monitoring erweitert + Batch-Bug behoben:
   - **Batch Fix:** PostgreSQL transaction error in `discogs_batch.py` — fehlender `pg_conn.rollback()` nach DB-Fehlern führte zu Kaskaden-Fehlern (nur 692 statt ~2400 Matches geschrieben). Fix in allen 3 Scripts: `discogs_batch.py`, `discogs_weekly_sync.py`, `backfill_discogs_prices.py`
   - **Tracklist-in-Credits Fix:** `extractTracklistFromText()` erkennt Tracklist-Daten im Credits-Feld (~2.311 Releases betroffen) und zeigt sie als Tracklist statt Credits
@@ -156,11 +180,11 @@ Shared DB für tape-mag-mvp + VOD_Auctions. Schema enthält 22 Tabellen (14 Basi
 - ~~RSE-112: Visibility-System (Artikel ohne Bild/Preis ausblenden + Admin-Ampel)~~ ✅
 - ~~RSE-113: Inventory-Verwaltung (Anzahl Stück pro Release)~~ ✅
 - **RSE-77: Testlauf: 1 Block mit 10-20 Produkten** ← NÄCHSTER SCHRITT
-- **RSE-101: Order Progress Tracking** (Paid/Shipped/Delivered UI)
+- ~~RSE-101: Order Progress Tracking (Paid/Shipped/Delivered UI)~~ ✅
 - **RSE-102: Transactional Emails** (6 Templates)
 - **RSE-103: Shipping Config** (Admin-konfigurierbar)
-- RSE-104: Bid Confirmation Modal
-- RSE-105: Legal Pages (Impressum, AGB, Datenschutz)
+- ~~RSE-104: Bid Confirmation Modal~~ ✅
+- ~~RSE-105: Legal Pages (Impressum, AGB, Datenschutz, Widerrufsbelehrung, Cookie-Richtlinie)~~ ✅
 
 ### Phase 2: Launch (Monate 3-4)
 - Erste öffentliche Themen-Auktionen
@@ -519,8 +543,8 @@ npm run build             # Production build
 - **RSE-101:** Order Progress Tracking (Paid/Shipped/Delivered UI)
 - **RSE-102:** Transactional Email Templates (6 Emails)
 - **RSE-103:** Shipping Configuration (Admin-konfigurierbar)
-- **RSE-104:** Bid Confirmation Modal
-- **RSE-105:** Legal Pages (Impressum, AGB, Datenschutz)
+- ~~**RSE-104:** Bid Confirmation Modal~~ ✅
+- ~~**RSE-105:** Legal Pages (Impressum, AGB, Datenschutz, Widerrufsbelehrung, Cookie Policy)~~ ✅
 
 **Independent (can start now):**
 - **RSE-97:** SEO & Meta Tags

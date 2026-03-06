@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
+import { sendShippingEmail, sendFeedbackRequestEmail } from "../../../../lib/email-helpers.js"
 
 // GET /admin/transactions/:id — Transaction detail
 export async function GET(
@@ -74,6 +75,8 @@ export async function POST(
       return
     }
 
+    const previousShippingStatus = transaction.shipping_status
+
     const updateData: Record<string, any> = {
       shipping_status,
       updated_at: new Date(),
@@ -87,6 +90,20 @@ export async function POST(
     if (shipping_status === "delivered") updateData.delivered_at = new Date()
 
     await pgConnection("transaction").where("id", id).update(updateData)
+
+    // Send shipping email when status changes to "shipped" (async, non-blocking)
+    if (shipping_status === "shipped" && previousShippingStatus !== "shipped") {
+      sendShippingEmail(pgConnection, id).catch((err) => {
+        console.error("[admin/transactions] Failed to send shipping email:", err)
+      })
+    }
+
+    // Send feedback request email when status changes to "delivered" (async, non-blocking)
+    if (shipping_status === "delivered" && previousShippingStatus !== "delivered") {
+      sendFeedbackRequestEmail(pgConnection, id).catch((err) => {
+        console.error("[admin/transactions] Failed to send feedback email:", err)
+      })
+    }
 
     res.json({ success: true, shipping_status })
   } catch (error: any) {

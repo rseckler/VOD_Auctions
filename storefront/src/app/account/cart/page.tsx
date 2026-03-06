@@ -170,7 +170,7 @@ export default function CartPage() {
           </span>
         </div>
         <p className="text-xs text-muted-foreground mt-1">
-          Shipping will be calculated at checkout.
+          Shipping calculated at checkout based on weight and destination.
         </p>
         <Button asChild className="w-full mt-4 bg-primary hover:bg-primary/90 text-[#1c1915]">
           <Link href="/account/checkout">Proceed to Checkout</Link>

@@ -1,8 +1,9 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, generateEntityId } from "@medusajs/framework/utils"
 import { Knex } from "knex"
-import { stripe, SHIPPING_RATES, ShippingZone } from "../../../../lib/stripe"
+import { stripe } from "../../../../lib/stripe"
 import { isAvailableForDirectPurchase } from "../../../../lib/auction-helpers"
+import { calculateShipping, getShippingConfig } from "../../../../lib/shipping"
 
 const APP_URL = process.env.STOREFRONT_URL || "http://localhost:3000"
 
@@ -39,7 +40,7 @@ export async function POST(
 
   // Backward compatibility: old format { block_item_id, shipping_zone }
   let items: CheckoutItem[]
-  let shipping_zone: ShippingZone
+  let shipping_zone: string
 
   const body = req.body as any
   if (body.block_item_id && !body.items) {
@@ -55,7 +56,9 @@ export async function POST(
     return
   }
 
-  if (!SHIPPING_RATES[shipping_zone]) {
+  // Validate zone exists
+  const zoneCheck = await pgConnection("shipping_zone").where("slug", shipping_zone).first()
+  if (!zoneCheck) {
     res.status(400).json({ message: "Invalid shipping_zone. Must be: de, eu, or world" })
     return
   }
@@ -192,9 +195,32 @@ export async function POST(
       return
     }
 
-    // Calculate shipping (one flat rate for entire order)
-    const shippingCost = SHIPPING_RATES[shipping_zone].price
+    // Calculate shipping dynamically based on item weights
+    const shippingItems = transactionInserts.map((t) => ({
+      release_id: t.release_id,
+      quantity: 1,
+    }))
+
+    let shippingCost: number
+    let shippingLabel: string
+    try {
+      const estimate = await calculateShipping(pgConnection, shippingItems, shipping_zone)
+      shippingCost = estimate.price
+      shippingLabel = `Shipping (${estimate.zone.name} — ${estimate.carrier})`
+    } catch {
+      // Fallback to simple flat rates if shipping tables not yet configured
+      const fallbackRates: Record<string, number> = { de: 4.99, eu: 9.99, world: 14.99 }
+      shippingCost = fallbackRates[shipping_zone] || 14.99
+      shippingLabel = `Shipping (${shipping_zone.toUpperCase()})`
+    }
+
+    // Check free shipping threshold
+    const shippingConfig = await getShippingConfig(pgConnection)
     const itemsTotal = transactionInserts.reduce((sum, t) => sum + t.amount, 0)
+    if (shippingConfig?.free_shipping_threshold && itemsTotal >= parseFloat(shippingConfig.free_shipping_threshold)) {
+      shippingCost = 0
+      shippingLabel = "Shipping (Free)"
+    }
 
     // Distribute shipping cost proportionally across items
     let shippingDistributed = 0
@@ -207,17 +233,19 @@ export async function POST(
       shippingDistributed += share
     }
 
-    // Add shipping line item
-    lineItems.push({
-      price_data: {
-        currency: "eur",
-        product_data: {
-          name: `Shipping (${SHIPPING_RATES[shipping_zone].label})`,
+    // Add shipping line item (only if there's a cost)
+    if (shippingCost > 0) {
+      lineItems.push({
+        price_data: {
+          currency: "eur",
+          product_data: {
+            name: shippingLabel,
+          },
+          unit_amount: Math.round(shippingCost * 100),
         },
-        unit_amount: Math.round(shippingCost * 100),
-      },
-      quantity: 1,
-    })
+        quantity: 1,
+      })
+    }
 
     // Delete existing pending transactions for these auction items (avoid duplicates on retry)
     const auctionBlockItemIds = transactionInserts.filter(t => t.block_item_id).map(t => t.block_item_id)

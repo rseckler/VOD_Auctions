@@ -21,10 +21,16 @@ import {
 import { toast } from "sonner"
 import type { WinEntry, Transaction, CartItem } from "@/types"
 
-const SHIPPING_RATES = {
-  de: { label: "Germany — €4.99", price: 4.99 },
-  eu: { label: "Europe — €9.99", price: 9.99 },
-  world: { label: "Worldwide — €14.99", price: 14.99 },
+type ShippingZoneInfo = {
+  id: string
+  name: string
+  slug: string
+  rates: Array<{
+    weight_from_grams: number
+    weight_to_grams: number
+    price_standard: number
+    price_oversized: number
+  }>
 }
 
 export default function CheckoutPage() {
@@ -36,6 +42,11 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(true)
   const [paying, setPaying] = useState(false)
   const [shippingZone, setShippingZone] = useState("")
+  const [shippingZones, setShippingZones] = useState<ShippingZoneInfo[]>([])
+  const [shippingCost, setShippingCost] = useState(0)
+  const [shippingLabel, setShippingLabel] = useState("")
+  const [estimating, setEstimating] = useState(false)
+  const [freeThreshold, setFreeThreshold] = useState<number | null>(null)
 
   useEffect(() => {
     fetchData()
@@ -62,14 +73,20 @@ export default function CheckoutPage() {
         Authorization: `Bearer ${token}`,
       }
 
-      const [winsRes, txRes, cartRes] = await Promise.all([
+      const [winsRes, txRes, cartRes, shippingRes] = await Promise.all([
         fetch(`${MEDUSA_URL}/store/account/wins`, { headers }).then((r) => r.json()),
         fetch(`${MEDUSA_URL}/store/account/transactions`, { headers }).then((r) => r.json()),
         fetch(`${MEDUSA_URL}/store/account/cart`, { headers }).then((r) => r.json()),
+        fetch(`${MEDUSA_URL}/store/shipping`, { headers }).then((r) => r.json()).catch(() => null),
       ])
 
       setWins(winsRes.wins || [])
       setCartItems(cartRes.items || [])
+
+      if (shippingRes?.zones) {
+        setShippingZones(shippingRes.zones)
+        setFreeThreshold(shippingRes.free_shipping_threshold)
+      }
 
       const txMap: Record<string, Transaction> = {}
       for (const tx of txRes.transactions || []) {
@@ -92,9 +109,67 @@ export default function CheckoutPage() {
   const winsSubtotal = unpaidWins.reduce((sum, w) => sum + w.final_price, 0)
   const cartSubtotal = cartItems.reduce((sum, item) => sum + item.price, 0)
   const itemsTotal = winsSubtotal + cartSubtotal
-  const shippingCost = shippingZone ? SHIPPING_RATES[shippingZone as keyof typeof SHIPPING_RATES]?.price || 0 : 0
   const grandTotal = itemsTotal + shippingCost
   const hasItems = unpaidWins.length > 0 || cartItems.length > 0
+
+  // Estimate shipping when zone changes
+  useEffect(() => {
+    if (!shippingZone || !hasItems) {
+      setShippingCost(0)
+      setShippingLabel("")
+      return
+    }
+
+    const releaseIds = [
+      ...unpaidWins.map((w) => w.item.release_id).filter(Boolean),
+      ...cartItems.map((c) => c.release_id).filter(Boolean),
+    ]
+
+    if (releaseIds.length === 0) {
+      // No release_ids available, use zone info to show minimum price
+      const zone = shippingZones.find((z) => z.slug === shippingZone)
+      if (zone && zone.rates.length > 0) {
+        const minRate = zone.rates[0]
+        setShippingCost(minRate.price_standard)
+        setShippingLabel(zone.name)
+      }
+      return
+    }
+
+    setEstimating(true)
+    const token = getToken()
+    fetch(`${MEDUSA_URL}/store/shipping`, {
+      method: "POST",
+      headers: {
+        "x-publishable-api-key": PUBLISHABLE_KEY,
+        Authorization: `Bearer ${token || ""}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ release_ids: releaseIds, zone_slug: shippingZone }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.estimate) {
+          // Check free shipping
+          if (freeThreshold && itemsTotal >= freeThreshold) {
+            setShippingCost(0)
+            setShippingLabel("Free Shipping")
+          } else {
+            setShippingCost(data.estimate.price)
+            setShippingLabel(
+              `${data.estimate.zone.name} — ${data.estimate.carrier} (${data.estimate.shipping_weight_grams}g)`
+            )
+          }
+        }
+      })
+      .catch(() => {
+        // Fallback
+        const fallback: Record<string, number> = { de: 4.99, eu: 9.99, world: 14.99 }
+        setShippingCost(fallback[shippingZone] || 14.99)
+        setShippingLabel(shippingZone.toUpperCase())
+      })
+      .finally(() => setEstimating(false))
+  }, [shippingZone, unpaidWins.length, cartItems.length])
 
   async function handleCheckout() {
     const token = getToken()
@@ -270,20 +345,38 @@ export default function CheckoutPage() {
                 <SelectValue placeholder="Select destination..." />
               </SelectTrigger>
               <SelectContent>
-                {Object.entries(SHIPPING_RATES).map(([key, rate]) => (
-                  <SelectItem key={key} value={key}>
-                    {rate.label}
-                  </SelectItem>
-                ))}
+                {shippingZones.length > 0
+                  ? shippingZones.map((z) => (
+                      <SelectItem key={z.slug} value={z.slug}>
+                        {z.name}
+                      </SelectItem>
+                    ))
+                  : ["de", "eu", "world"].map((key) => (
+                      <SelectItem key={key} value={key}>
+                        {key === "de" ? "Germany" : key === "eu" ? "Europe" : "Worldwide"}
+                      </SelectItem>
+                    ))}
               </SelectContent>
             </Select>
           </div>
 
           {shippingZone && (
             <div className="flex justify-between">
-              <span></span>
-              <span className="font-mono">&euro;{shippingCost.toFixed(2)}</span>
+              <span className="text-xs text-muted-foreground">
+                {estimating ? "Calculating..." : shippingLabel}
+              </span>
+              <span className="font-mono">
+                {shippingCost === 0 && freeThreshold
+                  ? "FREE"
+                  : `\u20AC${shippingCost.toFixed(2)}`}
+              </span>
             </div>
+          )}
+
+          {freeThreshold && itemsTotal < freeThreshold && (
+            <p className="text-xs text-muted-foreground">
+              Free shipping on orders over &euro;{freeThreshold.toFixed(2)}
+            </p>
           )}
 
           <div className="border-t border-border pt-3 mt-3 flex justify-between items-center">
