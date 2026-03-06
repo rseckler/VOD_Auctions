@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Clock, Gavel, AlertTriangle } from "lucide-react"
+import { Clock, Gavel, AlertTriangle, Check } from "lucide-react"
 import { toast } from "sonner"
 import { useAuth } from "./AuthProvider"
 import { AuthModal } from "./AuthModal"
@@ -14,14 +14,6 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
 
 type BidRecord = {
@@ -435,29 +427,55 @@ function BidForm({
         </Button>
       </form>
 
-      {/* Confirmation Dialog */}
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Confirm Bid</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to bid &euro;{parseFloat(amount || "0").toFixed(2)}?
-              {showProxy &&
-                maxAmount &&
-                ` (Maximum bid: €${parseFloat(maxAmount).toFixed(2)})`}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              variant="outline"
-              onClick={() => setConfirmOpen(false)}
+      {/* Confirmation Modal */}
+      <AnimatePresence>
+        {confirmOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={() => setConfirmOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
             >
-              Cancel
-            </Button>
-            <Button onClick={confirmBid}>Place Bid</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              <Gavel className="h-10 w-10 text-primary mx-auto mb-4" />
+              <h3 className="font-serif text-xl text-center mb-2">Confirm your bid</h3>
+              <p className="text-center text-muted-foreground text-sm mb-4">
+                You are bidding{" "}
+                <span className="text-primary font-bold">
+                  &euro;{parseFloat(amount || "0").toFixed(2)}
+                </span>
+                {showProxy && maxAmount && (
+                  <span>
+                    {" "}(Maximum: &euro;{parseFloat(maxAmount).toFixed(2)})
+                  </span>
+                )}
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setConfirmOpen(false)}
+                  className="flex-1 rounded-lg border border-border py-2.5 text-sm hover:bg-secondary transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmBid}
+                  className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+                >
+                  <Check className="h-4 w-4" />
+                  Confirm Bid
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   )
 }
