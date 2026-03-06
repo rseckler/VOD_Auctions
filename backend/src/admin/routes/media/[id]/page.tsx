@@ -259,9 +259,12 @@ const MediaDetailPage = () => {
             <div style={{ width: "100%", aspectRatio: "1", borderRadius: "8px", background: COLORS.card, border: `1px solid ${COLORS.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "48px", color: COLORS.muted }}>&#9835;</div>
           )}
           {images.length > 1 && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px", marginTop: "8px" }}>
-              {images.slice(1, 5).map((img) => (<img key={img.id} src={img.url} alt="" style={{ width: "100%", aspectRatio: "1", objectFit: "cover", borderRadius: "4px", border: `1px solid ${COLORS.border}` }} />))}
-            </div>
+            <>
+              <div style={{ fontSize: "12px", color: COLORS.muted, marginTop: "8px", marginBottom: "4px" }}>{images.length} images</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "6px", maxHeight: "320px", overflowY: "auto" }}>
+                {images.slice(1).map((img) => (<img key={img.id} src={img.url} alt="" style={{ width: "100%", aspectRatio: "1", objectFit: "cover", borderRadius: "4px", border: `1px solid ${COLORS.border}`, cursor: "pointer" }} onClick={() => window.open(img.url, "_blank")} />))}
+              </div>
+            </>
           )}
         </div>
 
