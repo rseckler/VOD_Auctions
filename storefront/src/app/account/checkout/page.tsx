@@ -121,7 +121,7 @@ export default function CheckoutPage() {
     }
 
     const releaseIds = [
-      ...unpaidWins.map((w) => w.item.release_id).filter(Boolean),
+      ...unpaidWins.map((w) => (w.item as any).release_id).filter(Boolean),
       ...cartItems.map((c) => c.release_id).filter(Boolean),
     ]
 
