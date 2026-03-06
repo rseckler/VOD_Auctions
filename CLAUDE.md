@@ -16,6 +16,12 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-06
 
 ### Letzte Änderungen (2026-03-06)
+- **Image Gallery Overlay + tape_mag_url:**
+  - **Admin Media:** "Browse Images" Button öffnet Fullscreen-Overlay mit Bildergrid (60/Seite), Suche, Lightbox, Detail-Navigation
+  - **API:** `has_image` Query-Parameter für `/admin/media` (true/false)
+  - **DB:** `tape_mag_url` TEXT-Spalte auf `Release` — alle 41.529 Releases mit tape-mag.com URL befüllt
+  - **Detail-Seite:** Zeigt tape-mag.com Link aus DB-Feld in Release Information
+  - **VPS:** Backend deployed
 - **Catalog Visibility Admin Toggle:**
   - **DB:** `site_config` Tabelle (Key-Value, single row `default`) mit `catalog_visibility` Feld (`all` oder `visible`)
   - **Admin API:** `GET/POST /admin/site-config` — Lesen + Umschalten der Einstellung
