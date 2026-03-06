@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Gavel, User, LogOut, Disc3, Library } from "lucide-react"
+import { Gavel, User, LogOut, Disc3, Library, Info } from "lucide-react"
 import { useAuth } from "@/components/AuthProvider"
 import { Button } from "@/components/ui/button"
 import {
@@ -50,6 +50,14 @@ export function MobileNav({
             >
               <Library className="h-4 w-4" />
               Catalog
+            </Link>
+            <Link
+              href="/about"
+              onClick={onClose}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-[rgba(232,224,212,0.04)] transition-colors"
+            >
+              <Info className="h-4 w-4" />
+              About
             </Link>
 
             {isAuthenticated && customer && (

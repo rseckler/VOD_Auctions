@@ -10,6 +10,7 @@ import { useAuth } from "@/components/AuthProvider"
 const NAV_LINKS = [
   { href: "/auctions", label: "Auctions" },
   { href: "/catalog", label: "Catalog" },
+  { href: "/about", label: "About" },
 ]
 
 export function Header() {

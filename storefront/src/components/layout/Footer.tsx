@@ -33,6 +33,12 @@ export function Footer() {
               >
                 Catalog
               </Link>
+              <Link
+                href="/about"
+                className="text-muted-foreground hover:text-primary transition-colors"
+              >
+                About VOD Records
+              </Link>
             </div>
             <div className="flex flex-col gap-2">
               <p className="text-foreground font-medium">Legal</p>
