@@ -117,12 +117,185 @@ const formatPrice = (p: number | null) => {
   return `\u20AC${p.toFixed(2)}`
 }
 
+const CONDITION_OPTIONS = [
+  "Mint (M)",
+  "Near Mint (NM or M-)",
+  "Very Good Plus (VG+)",
+  "Very Good (VG)",
+  "Good Plus (G+)",
+  "Good (G)",
+  "Fair (F)",
+  "Poor (P)",
+]
+
 const MediaPage = () => {
   const [releases, setReleases] = useState<Release[]>([])
   const [count, setCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState<Stats | null>(null)
   const [statsLoading, setStatsLoading] = useState(true)
+
+  // Selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkAction, setBulkAction] = useState<string | null>(null)
+  const [bulkValue, setBulkValue] = useState("")
+  const [bulkLoading, setBulkLoading] = useState(false)
+  const [refetchTrigger, setRefetchTrigger] = useState(0)
+  const [blocks, setBlocks] = useState<{ id: string; title: string; status: string }[]>([])
+
+  const allOnPageSelected = releases.length > 0 && releases.every((r) => selectedIds.has(r.id))
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    if (allOnPageSelected) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        releases.forEach((r) => next.delete(r.id))
+        return next
+      })
+    } else {
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        releases.forEach((r) => next.add(r.id))
+        return next
+      })
+    }
+  }
+
+  const clearSelection = () => {
+    setSelectedIds(new Set())
+    setBulkAction(null)
+    setBulkValue("")
+  }
+
+  const executeBulkUpdate = async () => {
+    if (!bulkAction || selectedIds.size === 0) return
+    setBulkLoading(true)
+
+    const updates: Record<string, any> = {}
+    if (bulkAction === "estimated_value") {
+      updates.estimated_value = bulkValue === "" ? null : Number(bulkValue)
+    } else if (bulkAction === "estimated_value_discogs") {
+      // Set estimated_value from discogs median — handled per-release
+      const releasesWithDiscogs = releases.filter(
+        (r) => selectedIds.has(r.id) && r.lowest_price != null
+      )
+      if (releasesWithDiscogs.length === 0) {
+        alert("None of the selected releases have a Discogs price.")
+        setBulkLoading(false)
+        return
+      }
+      // Batch update each with its own discogs price
+      try {
+        for (const r of releasesWithDiscogs) {
+          await fetch(`/admin/media/${r.id}`, {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ estimated_value: Number(r.lowest_price) }),
+          })
+        }
+        alert(`Updated ${releasesWithDiscogs.length} releases with Discogs prices.`)
+        setRefetchTrigger((n) => n + 1)
+      } catch (err) {
+        alert("Error updating releases: " + (err as Error).message)
+      }
+      setBulkLoading(false)
+      setBulkAction(null)
+      setBulkValue("")
+      return
+    } else if (bulkAction === "assign_to_block") {
+      const blockId = bulkValue
+      let added = 0
+      let skipped = 0
+      let errors = 0
+      try {
+        for (const id of Array.from(selectedIds)) {
+          const resp = await fetch(`/admin/auction-blocks/${blockId}/items`, {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ release_id: id }),
+          })
+          if (resp.ok) {
+            added++
+          } else if (resp.status === 409) {
+            skipped++
+          } else {
+            errors++
+          }
+        }
+        alert(`Assigned ${added} to block. ${skipped ? `${skipped} already in block. ` : ""}${errors ? `${errors} errors.` : ""}`)
+        setRefetchTrigger((n) => n + 1)
+      } catch (err) {
+        alert("Error assigning to block: " + (err as Error).message)
+      }
+      setBulkLoading(false)
+      setBulkAction(null)
+      setBulkValue("")
+      return
+    } else if (bulkAction === "media_condition") {
+      updates.media_condition = bulkValue || null
+    } else if (bulkAction === "sleeve_condition") {
+      updates.sleeve_condition = bulkValue || null
+    } else if (bulkAction === "auction_status") {
+      updates.auction_status = bulkValue || null
+    }
+
+    try {
+      const resp = await fetch("/admin/media/bulk", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selectedIds), updates }),
+      })
+      const data = await resp.json()
+      if (!resp.ok) {
+        alert("Error: " + (data.message || "Bulk update failed"))
+      } else {
+        alert(`Updated ${data.updated_count} releases.`)
+        setRefetchTrigger((n) => n + 1)
+      }
+    } catch (err) {
+      alert("Error: " + (err as Error).message)
+    }
+    setBulkLoading(false)
+    setBulkAction(null)
+    setBulkValue("")
+  }
+
+  const exportCsv = async () => {
+    if (selectedIds.size === 0) return
+    try {
+      const resp = await fetch("/admin/media/export", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      })
+      if (!resp.ok) {
+        alert("Export failed")
+        return
+      }
+      const blob = await resp.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `media-export-${new Date().toISOString().slice(0, 10)}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      alert("Export error: " + (err as Error).message)
+    }
+  }
 
   // Filters
   const [searchInput, setSearchInput] = useState("")
@@ -206,7 +379,7 @@ const MediaPage = () => {
         console.error("Fetch error:", err)
         setLoading(false)
       })
-  }, [searchQuery, activeFormat, activeCategory, hasDiscogs, hasPrice, auctionStatus, countryFilter, yearFrom, yearTo, labelFilter, visibilityFilter, sortField, sortDir, page, pageSize])
+  }, [searchQuery, activeFormat, activeCategory, hasDiscogs, hasPrice, auctionStatus, countryFilter, yearFrom, yearTo, labelFilter, visibilityFilter, sortField, sortDir, page, pageSize, refetchTrigger])
 
   const totalPages = Math.ceil(count / pageSize)
 
@@ -435,11 +608,176 @@ const MediaPage = () => {
         </div>
       </div>
 
+      {/* Bulk Actions Toolbar */}
+      {selectedIds.size > 0 && (
+        <div style={{
+          ...cardStyle,
+          marginBottom: "16px",
+          display: "flex",
+          alignItems: "center",
+          gap: "12px",
+          flexWrap: "wrap",
+          background: `${COLORS.gold}10`,
+          border: `1px solid ${COLORS.gold}40`,
+        }}>
+          <span style={{ fontSize: "14px", fontWeight: 600, color: COLORS.gold }}>
+            {selectedIds.size} selected
+          </span>
+          <button onClick={clearSelection} style={{ ...btnStyle(false), fontSize: "12px", padding: "4px 10px" }}>Clear</button>
+          <span style={{ width: "1px", height: "24px", background: COLORS.border }} />
+
+          {/* Action selector */}
+          <select
+            value={bulkAction || ""}
+            onChange={(e) => {
+              const action = e.target.value || null
+              setBulkAction(action)
+              setBulkValue("")
+              if (action === "assign_to_block") {
+                fetch("/admin/auction-blocks", { credentials: "include" })
+                  .then((r) => r.json())
+                  .then((d) => setBlocks(
+                    (d.auction_blocks || [])
+                      .filter((b: any) => b.status === "draft" || b.status === "preview")
+                      .map((b: any) => ({ id: b.id, title: b.title, status: b.status }))
+                  ))
+                  .catch(() => setBlocks([]))
+              }
+            }}
+            style={{ ...selectStyle, minWidth: "180px" }}
+          >
+            <option value="">Choose action...</option>
+            <option value="estimated_value">Set Estimated Value</option>
+            <option value="estimated_value_discogs">Set Value from Discogs Price</option>
+            <option value="media_condition">Set Media Condition</option>
+            <option value="sleeve_condition">Set Sleeve Condition</option>
+            <option value="auction_status">Set Auction Status</option>
+            <option value="assign_to_block">Assign to Auction Block</option>
+          </select>
+
+          {/* Value input based on action */}
+          {bulkAction === "estimated_value" && (
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder="Value in EUR"
+              value={bulkValue}
+              onChange={(e) => setBulkValue(e.target.value)}
+              style={{ ...smallInputStyle, width: "120px" }}
+            />
+          )}
+          {(bulkAction === "media_condition" || bulkAction === "sleeve_condition") && (
+            <select value={bulkValue} onChange={(e) => setBulkValue(e.target.value)} style={{ ...selectStyle, minWidth: "200px" }}>
+              <option value="">Select condition...</option>
+              {CONDITION_OPTIONS.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          )}
+          {bulkAction === "auction_status" && (
+            <select value={bulkValue} onChange={(e) => setBulkValue(e.target.value)} style={selectStyle}>
+              <option value="">Select status...</option>
+              <option value="available">Available</option>
+              <option value="reserved">Reserved</option>
+            </select>
+          )}
+          {bulkAction === "assign_to_block" && (
+            <select value={bulkValue} onChange={(e) => setBulkValue(e.target.value)} style={{ ...selectStyle, minWidth: "220px" }}>
+              <option value="">Select block...</option>
+              {blocks.map((b) => (
+                <option key={b.id} value={b.id}>{b.title} ({b.status})</option>
+              ))}
+              {blocks.length === 0 && <option disabled>No draft/preview blocks</option>}
+            </select>
+          )}
+
+          {bulkAction && bulkAction !== "estimated_value_discogs" && bulkAction !== "assign_to_block" && (
+            <button
+              onClick={executeBulkUpdate}
+              disabled={bulkLoading || !bulkValue}
+              style={{
+                padding: "6px 16px",
+                borderRadius: "6px",
+                border: "none",
+                background: bulkLoading || !bulkValue ? COLORS.border : COLORS.gold,
+                color: bulkLoading || !bulkValue ? COLORS.muted : "#1c1915",
+                fontSize: "13px",
+                fontWeight: 600,
+                cursor: bulkLoading || !bulkValue ? "default" : "pointer",
+              }}
+            >
+              {bulkLoading ? "Updating..." : "Apply"}
+            </button>
+          )}
+          {bulkAction === "estimated_value_discogs" && (
+            <button
+              onClick={executeBulkUpdate}
+              disabled={bulkLoading}
+              style={{
+                padding: "6px 16px",
+                borderRadius: "6px",
+                border: "none",
+                background: bulkLoading ? COLORS.border : COLORS.gold,
+                color: bulkLoading ? COLORS.muted : "#1c1915",
+                fontSize: "13px",
+                fontWeight: 600,
+                cursor: bulkLoading ? "default" : "pointer",
+              }}
+            >
+              {bulkLoading ? "Updating..." : "Apply Discogs Prices"}
+            </button>
+          )}
+          {bulkAction === "assign_to_block" && (
+            <button
+              onClick={executeBulkUpdate}
+              disabled={bulkLoading || !bulkValue}
+              style={{
+                padding: "6px 16px",
+                borderRadius: "6px",
+                border: "none",
+                background: bulkLoading || !bulkValue ? COLORS.border : COLORS.gold,
+                color: bulkLoading || !bulkValue ? COLORS.muted : "#1c1915",
+                fontSize: "13px",
+                fontWeight: 600,
+                cursor: bulkLoading || !bulkValue ? "default" : "pointer",
+              }}
+            >
+              {bulkLoading ? "Assigning..." : `Assign ${selectedIds.size} to Block`}
+            </button>
+          )}
+
+          <span style={{ width: "1px", height: "24px", background: COLORS.border }} />
+          <button
+            onClick={exportCsv}
+            style={{
+              padding: "6px 14px",
+              borderRadius: "6px",
+              border: `1px solid ${COLORS.border}`,
+              background: "transparent",
+              color: COLORS.text,
+              fontSize: "13px",
+              cursor: "pointer",
+            }}
+          >
+            Export CSV
+          </button>
+        </div>
+      )}
+
       {/* Table */}
       <div style={{ ...cardStyle, padding: 0, overflow: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
+              <th style={{ ...thStyle, width: "36px", cursor: "pointer", textAlign: "center" }}>
+                <input
+                  type="checkbox"
+                  checked={allOnPageSelected}
+                  onChange={toggleSelectAll}
+                  style={{ cursor: "pointer", accentColor: COLORS.gold }}
+                />
+              </th>
               <th style={{ ...thStyle, width: "32px", cursor: "default", textAlign: "center" }} title="Visible to customers (has image + price)">Vis.</th>
               <th style={{ ...thStyle, width: "44px", cursor: "default" }}>Cover</th>
               <th style={{ ...thStyle, width: "40px", cursor: "default", textAlign: "center" }} title="Inventory (pieces in stock)">Inv.</th>
@@ -459,18 +797,34 @@ const MediaPage = () => {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={15} style={{ ...tdStyle, textAlign: "center", padding: "40px", color: COLORS.muted }}>Loading...</td></tr>
+              <tr><td colSpan={16} style={{ ...tdStyle, textAlign: "center", padding: "40px", color: COLORS.muted }}>Loading...</td></tr>
             ) : releases.length === 0 ? (
-              <tr><td colSpan={15} style={{ ...tdStyle, textAlign: "center", padding: "40px", color: COLORS.muted }}>No results found.</td></tr>
+              <tr><td colSpan={16} style={{ ...tdStyle, textAlign: "center", padding: "40px", color: COLORS.muted }}>No results found.</td></tr>
             ) : (
               releases.map((r) => (
                 <tr
                   key={r.id}
                   onClick={() => navigateToDetail(r.id)}
-                  style={{ cursor: "pointer", transition: "background 0.1s" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = COLORS.hover)}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                  style={{
+                    cursor: "pointer",
+                    transition: "background 0.1s",
+                    background: selectedIds.has(r.id) ? `${COLORS.gold}08` : "transparent",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!selectedIds.has(r.id)) e.currentTarget.style.background = COLORS.hover
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = selectedIds.has(r.id) ? `${COLORS.gold}08` : "transparent"
+                  }}
                 >
+                  <td style={{ ...tdStyle, textAlign: "center", width: "36px" }} onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(r.id)}
+                      onChange={() => toggleSelect(r.id)}
+                      style={{ cursor: "pointer", accentColor: COLORS.gold }}
+                    />
+                  </td>
                   <td style={{ ...tdStyle, textAlign: "center", width: "32px" }} title={r.coverImage && r.legacy_price != null ? "Visible to customers" : `Hidden: ${!r.coverImage ? "no image" : ""}${!r.coverImage && r.legacy_price == null ? " + " : ""}${r.legacy_price == null ? "no price" : ""}`}>
                     <span style={{ fontSize: "16px", color: r.coverImage && r.legacy_price != null ? "#22c55e" : "#ef4444" }}>●</span>
                   </td>

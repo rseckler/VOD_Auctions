@@ -16,6 +16,12 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-06
 
 ### Letzte Änderungen (2026-03-06)
+- **RSE-106: Google Analytics — Setup + Integration** — GA4 Property `G-M9BJGC5D69`:
+  - **GoogleAnalytics.tsx:** Client-Komponente, lädt gtag.js via `next/script` (afterInteractive), rendert nichts ohne Measurement ID
+  - **analytics.ts:** 7 Event-Tracking-Helpers: `trackBidPlaced`, `trackAuctionWon`, `trackRegistration`, `trackLogin`, `trackCatalogSearch`, `trackCatalogView`, `trackAuctionView`
+  - **layout.tsx:** `<GoogleAnalytics />` eingebunden
+  - **Env:** `NEXT_PUBLIC_GA_MEASUREMENT_ID=G-M9BJGC5D69` (lokal + VPS)
+  - **VPS:** Deployed, Storefront neugestartet
 - **RSE-98: Image Optimization** — All raw `<img>` tags converted to Next.js `<Image>`:
   - **ImageGallery:** Main image (motion.div wrapper), thumbnails, lightbox — all with responsive `sizes`
   - **BlockCard:** Vertical + Horizontal variants with `fill` + `sizes`
@@ -440,11 +446,13 @@ VOD_Auctions/
 │   │   │   ├── ImageGallery.tsx      # Lightbox + Thumbnails mit Gold-Ring
 │   │   │   ├── RelatedSection.tsx    # Related-Info Tabs (Artist/Label/Block Items) — Auktionen
 │   │   │   ├── CatalogRelatedSection.tsx # Related-Tabs (by Artist/Label) — Katalog
+│   │   │   ├── GoogleAnalytics.tsx    # GA4 Script Loader (RSE-106)
 │   │   │   └── EmptyState.tsx        # Reusable Empty State
 │   │   └── lib/
 │   │       ├── api.ts           # medusaFetch Helper
 │   │       ├── auth.ts          # Medusa Auth Helpers
 │   │       ├── motion.ts        # Framer Motion Variants
+│   │       ├── analytics.ts     # Google Analytics event tracking helpers (RSE-106)
 │   │       ├── utils.ts         # cn() Helper + cleanCredits() for legacy data cleanup
 │   │       └── supabase.ts      # Supabase Client (Realtime)
 │   └── node_modules/
@@ -598,7 +606,7 @@ npm run build             # Production build
 - ~~**RSE-97:** SEO & Meta Tags~~ ✅
 - ~~**RSE-98:** Storefront Performance (Image optimization)~~ ✅
 - **RSE-99:** Admin Media Bulk Actions
-- **RSE-106:** Google Analytics — Setup + Integration
+- ~~**RSE-106:** Google Analytics — Setup + Integration~~ ✅
 
 ### Phase 2 (Launch) — Backlog
 - **RSE-78:** P2.1 Launch-Vorbereitung (Domain, SEO, Legal)
