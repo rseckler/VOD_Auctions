@@ -16,6 +16,15 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-06
 
 ### Letzte Änderungen (2026-03-06)
+- **RSE-98: Image Optimization** — All raw `<img>` tags converted to Next.js `<Image>`:
+  - **ImageGallery:** Main image (motion.div wrapper), thumbnails, lightbox — all with responsive `sizes`
+  - **BlockCard:** Vertical + Horizontal variants with `fill` + `sizes`
+  - **BlockItemsGrid:** Auction item grid with responsive `sizes`
+  - **Auction Detail:** Hero image with `priority` (above-the-fold)
+  - **Wins + Checkout:** Small thumbnails (48-64px) with fixed `sizes`
+  - **Benefits:** Automatic WebP/AVIF, responsive srcset, lazy loading by default, `priority` for above-fold
+  - **Catalog page** already used `<Image>` — no changes needed
+  - **Zero raw `<img>` tags remaining** in storefront
 - **RSE-97: SEO & Meta Tags** — Storefront pages:
   - **Root Layout:** `metadataBase`, title template (`%s — VOD Auctions`), keywords, OpenGraph + Twitter Card defaults, canonical URL
   - **OG Image:** `opengraph-image.tsx` — generated vinyl-branded OG image
@@ -586,8 +595,8 @@ npm run build             # Production build
 - ~~**RSE-105:** Legal Pages (Impressum, AGB, Datenschutz, Widerrufsbelehrung, Cookie Policy)~~ ✅
 
 **Independent (can start now):**
-- **RSE-97:** SEO & Meta Tags
-- **RSE-98:** Storefront Performance (Image optimization)
+- ~~**RSE-97:** SEO & Meta Tags~~ ✅
+- ~~**RSE-98:** Storefront Performance (Image optimization)~~ ✅
 - **RSE-99:** Admin Media Bulk Actions
 - **RSE-106:** Google Analytics — Setup + Integration
 
