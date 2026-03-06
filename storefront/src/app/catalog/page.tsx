@@ -53,7 +53,7 @@ const CATEGORIES = [
   { value: "press_literature", label: "Press/Org Lit" },
 ]
 
-const FORMATS = ["LP", "CD", "CASSETTE", "DVD", "REEL", "BOXSET", "MAGAZINE", "BOOK", "POSTER", "ZINE", "PHOTO", "POSTCARD", "MERCHANDISE", "OTHER"]
+const FORMATS = ["LP", "CD", "CASSETTE", "DVD", "MAGAZINE", "POSTER", "PHOTO", "POSTCARD"]
 
 export default function CatalogPage() {
   const [releases, setReleases] = useState<CatalogRelease[]>([])
@@ -65,8 +65,6 @@ export default function CatalogPage() {
   const [category, setCategory] = useState("")
   const [format, setFormat] = useState("")
   const [country, setCountry] = useState("")
-  const [yearFrom, setYearFrom] = useState("")
-  const [yearTo, setYearTo] = useState("")
   const [label, setLabel] = useState("")
   const [condition, setCondition] = useState("")
   const [showFilters, setShowFilters] = useState(false)
@@ -82,8 +80,6 @@ export default function CatalogPage() {
     if (category) params.set("category", category)
     if (format) params.set("format", format)
     if (country) params.set("country", country)
-    if (yearFrom) params.set("year_from", yearFrom)
-    if (yearTo) params.set("year_to", yearTo)
     if (label) params.set("label", label)
     if (condition) params.set("condition", condition)
     params.set("sort", sort)
@@ -97,7 +93,7 @@ export default function CatalogPage() {
       setPages(data.pages)
     }
     setLoading(false)
-  }, [page, search, category, format, country, yearFrom, yearTo, label, condition, sort])
+  }, [page, search, category, format, country, label, condition, sort])
 
   useEffect(() => {
     fetchReleases()
@@ -115,14 +111,12 @@ export default function CatalogPage() {
     setCategory("")
     setFormat("")
     setCountry("")
-    setYearFrom("")
-    setYearTo("")
     setLabel("")
     setCondition("")
     setPage(1)
   }
 
-  const hasActiveFilters = category || format || country || yearFrom || yearTo || label || condition
+  const hasActiveFilters = category || format || country || label || condition
 
   return (
     <main className="mx-auto max-w-7xl px-6 py-8">
@@ -155,8 +149,6 @@ export default function CatalogPage() {
           {[
             { key: "title", label: "A-Z" },
             { key: "artist", label: "Artist" },
-            { key: "year", label: "Year" },
-            { key: "price", label: "Price" },
           ].map(({ key, label: lbl }) => (
             <Button
               key={key}
@@ -246,33 +238,13 @@ export default function CatalogPage() {
 
       {/* Advanced Filters */}
       {showFilters && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-6 p-4 rounded-lg border border-border/50 bg-secondary/30">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6 p-4 rounded-lg border border-border/50 bg-secondary/30">
           <div>
             <label className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1 block">Country</label>
             <Input
               value={country}
               onChange={(e) => { setCountry(e.target.value); setPage(1) }}
               placeholder="e.g. Germany"
-              className="h-8 text-xs"
-            />
-          </div>
-          <div>
-            <label className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1 block">Year From</label>
-            <Input
-              type="number"
-              value={yearFrom}
-              onChange={(e) => { setYearFrom(e.target.value); setPage(1) }}
-              placeholder="1970"
-              className="h-8 text-xs"
-            />
-          </div>
-          <div>
-            <label className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1 block">Year To</label>
-            <Input
-              type="number"
-              value={yearTo}
-              onChange={(e) => { setYearTo(e.target.value); setPage(1) }}
-              placeholder="2025"
               className="h-8 text-xs"
             />
           </div>
@@ -311,7 +283,7 @@ export default function CatalogPage() {
       ) : (
         <AnimatePresence mode="wait">
           <motion.div
-            key={`${page}-${search}-${category}-${format}-${sort}-${country}-${yearFrom}-${yearTo}-${label}-${condition}`}
+            key={`${page}-${search}-${category}-${format}-${sort}-${country}-${label}-${condition}`}
             variants={staggerContainer}
             initial="hidden"
             animate="visible"
