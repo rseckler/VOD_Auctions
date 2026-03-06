@@ -59,7 +59,7 @@ export async function GET(
     .where("Release.id", id)
     .first()
 
-  if (!release || !release.coverImage || release.legacy_price == null) {
+  if (!release) {
     res.status(404).json({ message: "Release not found" })
     return
   }
@@ -68,7 +68,7 @@ export async function GET(
   const images = await pgConnection("Image")
     .select("id", "url", "alt")
     .where("releaseId", id)
-    .limit(20)
+    .limit(50)
 
   // Various artists
   const various_artists = await pgConnection("ReleaseArtist")
