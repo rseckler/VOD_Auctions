@@ -12,9 +12,38 @@ async function getBlocks(): Promise<AuctionBlock[]> {
   return data?.auction_blocks || []
 }
 
+type CmsContent = Record<string, Record<string, unknown>>
+
+async function getHomeContent(): Promise<CmsContent> {
+  const data = await medusaFetch<{ sections: CmsContent }>(
+    "/store/content?page=home",
+    { revalidate: 120 }
+  )
+  return data?.sections || {}
+}
+
 export default async function Home() {
-  const blocks = await getBlocks()
+  const [blocks, cms] = await Promise.all([getBlocks(), getHomeContent()])
   const activeCount = blocks.filter((b) => b.status === "active").length
+
+  const hero = cms.hero as Record<string, unknown> | undefined
+  const heroTitle = (hero?.title as string) || "Rare Records.\nTrue Collectors."
+  const heroSubtitle =
+    (hero?.subtitle as string) ||
+    "Curated vinyl auctions for connoisseurs. Industrial, EBM, Dark Ambient and more — discover rarities and first pressings."
+  const heroCta = (hero?.cta_text as string) || "Discover Now"
+  const heroCtaLink = (hero?.cta_link as string) || "/auctions"
+  const heroCta2 = (hero?.cta2_text as string) || "Browse Catalog"
+  const heroCta2Link = (hero?.cta2_link as string) || "/catalog"
+
+  const teaser = cms.catalog_teaser as Record<string, unknown> | undefined
+  const teaserTitle =
+    (teaser?.title as string) || "40,000+ Releases in Catalog"
+  const teaserBody =
+    (teaser?.body as string) ||
+    "Browse our complete archive — Industrial, EBM, Dark Ambient, Noise, Experimental and more."
+  const teaserCta = (teaser?.cta_text as string) || "Browse Catalog"
+  const teaserCtaLink = (teaser?.cta_link as string) || "/catalog"
 
   return (
     <main>
@@ -32,20 +61,25 @@ export default async function Home() {
                 </div>
               )}
               <h1 className="font-serif text-5xl md:text-6xl leading-[1.1] mb-5">
-                Rare Records.
-                <br />
-                <span className="text-primary">True Collectors.</span>
+                {heroTitle.includes("\n") ? (
+                  <>
+                    {heroTitle.split("\n")[0]}
+                    <br />
+                    <span className="text-primary">{heroTitle.split("\n")[1]}</span>
+                  </>
+                ) : (
+                  heroTitle
+                )}
               </h1>
               <p className="text-lg text-muted-foreground max-w-md mb-8 leading-relaxed">
-                Curated vinyl auctions for connoisseurs. Industrial, EBM, Dark
-                Ambient and more — discover rarities and first pressings.
+                {heroSubtitle}
               </p>
               <div className="flex gap-4">
                 <Button size="lg" asChild className="bg-gradient-to-r from-primary to-[#b8860b]">
-                  <Link href="/auctions">Discover Now</Link>
+                  <Link href={heroCtaLink}>{heroCta}</Link>
                 </Button>
                 <Button size="lg" variant="ghost" asChild className="text-muted-foreground border border-[rgba(232,224,212,0.12)]">
-                  <Link href="/catalog">Browse Catalog</Link>
+                  <Link href={heroCta2Link}>{heroCta2}</Link>
                 </Button>
               </div>
             </div>
@@ -90,14 +124,13 @@ export default async function Home() {
         <div className="rounded-2xl border border-[rgba(232,224,212,0.08)] bg-[rgba(232,224,212,0.02)] p-12 text-center">
           <Disc3 className="h-12 w-12 mx-auto text-primary/40 mb-4" />
           <h2 className="font-serif text-2xl md:text-3xl mb-3">
-            40,000+ Releases in Catalog
+            {teaserTitle}
           </h2>
           <p className="text-muted-foreground max-w-lg mx-auto mb-6">
-            Browse our complete archive — Industrial, EBM, Dark Ambient,
-            Noise, Experimental and more.
+            {teaserBody}
           </p>
           <Button size="lg" variant="outline" asChild className="border-primary/30 text-primary hover:bg-primary/10">
-            <Link href="/catalog">Browse Catalog</Link>
+            <Link href={teaserCtaLink}>{teaserCta}</Link>
           </Button>
         </div>
       </section>

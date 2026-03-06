@@ -41,15 +41,49 @@ function cleanRawCredits(raw: string): string[] {
     return acc
   }, [])
 
+  // Merge Discogs fragment suffixes (* = artist credit variant) into previous line
+  // Merge / (artist separator) as joiner: prev / next
+  const prefixed: string[] = []
+  for (let k = 0; k < lines.length; k++) {
+    const line = lines[k]
+    if (line === '*' && prefixed.length > 0) {
+      let prevIdx = prefixed.length - 1
+      while (prevIdx >= 0 && prefixed[prevIdx] === '') prevIdx--
+      if (prevIdx >= 0) {
+        prefixed[prevIdx] += ' *'
+        continue
+      }
+    }
+    if (line === '/' && prefixed.length > 0) {
+      // Find last non-empty entry to join with
+      let prevIdx = prefixed.length - 1
+      while (prevIdx >= 0 && prefixed[prevIdx] === '') prevIdx--
+      // Look ahead for next non-empty line to join
+      let next = k + 1
+      while (next < lines.length && lines[next] === '') next++
+      if (prevIdx >= 0 && next < lines.length) {
+        prefixed[prevIdx] += ' / ' + lines[next]
+        k = next
+        continue
+      }
+    }
+    prefixed.push(line)
+  }
+
   // Merge fragmented "Role \n – \n Name" patterns
   const merged: string[] = []
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
+  for (let i = 0; i < prefixed.length; i++) {
+    const line = prefixed[i]
     if (/^[–\-—]+$/.test(line) && merged.length > 0) {
       let next = i + 1
-      while (next < lines.length && lines[next] === '') next++
-      if (next < lines.length) {
-        merged[merged.length - 1] += ' – ' + lines[next]
+      while (next < prefixed.length && prefixed[next] === '') next++
+      if (next < prefixed.length) {
+        // Find last non-empty entry to merge with
+        let prevIdx = merged.length - 1
+        while (prevIdx >= 0 && merged[prevIdx] === '') prevIdx--
+        if (prevIdx >= 0) {
+          merged[prevIdx] += ' – ' + prefixed[next]
+        }
         i = next
       }
     } else {
@@ -140,6 +174,21 @@ export function extractTracklistFromText(raw: string): {
   while (i < lines.length) {
     const line = lines[i]
 
+    // Consume standalone duration lines that precede a position (scraped Discogs pattern)
+    if (DURATION_RE.test(line)) {
+      // Check if next non-empty line is a position — if so, this duration belongs to the tracklist
+      let peek = i + 1
+      while (peek < lines.length && lines[peek] === '') peek++
+      if (peek < lines.length && POSITION_RE.test(lines[peek])) {
+        // Assign duration to previous track if it has none
+        if (tracks.length > 0 && !tracks[tracks.length - 1].duration) {
+          tracks[tracks.length - 1].duration = line
+        }
+        i++
+        continue
+      }
+    }
+
     // Check if this line is a track position (A1, B2, 1, etc.)
     if (POSITION_RE.test(line)) {
       const position = line
@@ -170,6 +219,16 @@ export function extractTracklistFromText(raw: string): {
     // Not a tracklist line — save as credit
     if (line !== '') creditLines.push(line)
     i++
+  }
+
+  // Handle trailing duration (last track in the sequence, duration appears before a final position)
+  // Also consume the very last duration if it precedes the end
+  if (tracks.length > 0 && creditLines.length > 0) {
+    const lastCredit = creditLines[creditLines.length - 1]
+    if (DURATION_RE.test(lastCredit) && !tracks[tracks.length - 1].duration) {
+      tracks[tracks.length - 1].duration = lastCredit
+      creditLines.pop()
+    }
   }
 
   // Only consider it a valid tracklist if we found >= 3 tracks
