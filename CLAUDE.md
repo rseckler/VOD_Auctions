@@ -16,6 +16,11 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-06
 
 ### Letzte Änderungen (2026-03-06)
+- **Admin Detail Lightbox + Frontend Link + Catalog URL State:**
+  - **Admin Detail Lightbox:** Klick auf Bild öffnet Fullscreen-Lightbox mit Prev/Next, Tastatur (←/→/Esc), Thumbnail-Leiste, Counter-Badge
+  - **Admin Frontend Link:** "View in Catalog" Link zu `vod-auctions.com/catalog/{id}` in Release Information
+  - **Catalog URL Persistence:** Filter, Sortierung und Paginierung werden in URL-Query-Params gespeichert (`/catalog?category=vinyl&page=5`), Back-Button stellt exakten Zustand wieder her
+  - **VPS:** Backend + Storefront deployed
 - **Data Quality Fix — Images, Covers, Tracklists, Credits:**
   - **band_literature images:** +3.437 fehlende Bilder für 885 Artikel importiert (typ=13 aus Legacy bilder_1)
   - **Release coverImage:** 3.198 Covers korrigiert (Sortierung nach rang/id statt zufällig)
