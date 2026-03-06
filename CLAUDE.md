@@ -8,7 +8,7 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 
 **Goal:** Eigene Plattform mit voller Kontrolle über Marke, Kundendaten, Preisgestaltung — statt 8-13% Gebühren an eBay/Discogs
 
-**Status:** Phase 1 — RSE-72 bis RSE-96 + RSE-76 + RSE-101 + RSE-104 + RSE-105 + RSE-109 + RSE-111 + RSE-112 + RSE-113 + RSE-114 + RSE-115 erledigt. Nächstes: RSE-77 (Testlauf) oder RSE-102–103 (Emails, Shipping)
+**Status:** Phase 1 — RSE-72 bis RSE-96 + RSE-76 + RSE-101 + RSE-102 + RSE-103 + RSE-104 + RSE-105 + RSE-109 + RSE-111 + RSE-112 + RSE-113 + RSE-114 + RSE-115 erledigt. Nächstes: RSE-77 (Testlauf)
 
 **Sprache:** Storefront und Admin-UI komplett auf Englisch (seit 2026-03-03)
 
@@ -16,6 +16,28 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-06
 
 ### Letzte Änderungen (2026-03-06)
+- **RSE-103: Shipping Configuration** — Gewichtsbasierte Versandkostenberechnung:
+  - **4 neue DB-Tabellen:** `shipping_item_type` (13 Artikeltypen mit Gewichten), `shipping_zone` (DE/EU/World), `shipping_rate` (15 Gewichtsstufen × 3 Zonen), `shipping_config` (Global-Settings)
+  - **Oversized-Erkennung:** Vinyl LPs (>25cm) automatisch als "oversized" → DHL Paket statt Deutsche Post
+  - **Format-Auto-Mapping:** Release.format_group → shipping_item_type (z.B. LP→260g, CASSETTE→80g, CD→110g)
+  - **Admin UI:** 4-Tab Shipping-Seite (Settings, Item Types, Zones & Rates, Calculator) unter `/admin/shipping`
+  - **Admin APIs:** `/admin/shipping` (overview), `/admin/shipping/config`, `/admin/shipping/item-types`, `/admin/shipping/zones`, `/admin/shipping/rates`, `/admin/shipping/estimate`
+  - **Store API:** `GET /store/shipping` (Zonen für Frontend), `POST /store/shipping` (Schätzung mit release_ids)
+  - **Checkout:** Dynamische Berechnung mit Fallback auf Flat-Rates, Free-Shipping-Threshold Support
+  - **Margin:** Konfigurierbare Marge auf berechnete Versandkosten
+  - **Bugfix:** `.js` Import-Erweiterungen in RSE-102 Email-Dateien entfernt (brachen Medusa Dev-Server)
+
+### Frühere Änderungen (2026-03-06)
+- **RSE-102: Transactional Emails + Feedback** — 6 Email-Templates + Feedback-System:
+  - **Email-System:** Resend als Provider, 6 HTML-Templates (welcome, bid-won, outbid, payment-confirmation, shipping, feedback-request)
+  - **Email-Helpers:** `sendShippingEmail()` + `sendFeedbackRequestEmail()` — automatisch getriggert bei Shipping-Status-Änderung
+  - **Feedback-Seite:** `/account/feedback` — Post-Delivery Rating + Textfeld
+  - **DB:** Feedback-Spalten auf Transaction-Tabelle
+  - **Checkout:** Verbesserte Combined-Checkout-Logik
+  - **Auction Lifecycle:** Email-Benachrichtigungen bei Bid-Events
+  - **Tracking URLs:** Carrier-spezifische Tracking-Links (DHL, DPD, Hermes, etc.)
+
+### Frühere Änderungen (2026-03-06)
 - **RSE-105: Legal Pages** — 5 rechtliche Seiten + Footer-Update:
   - `/impressum` — Impressum (von vod-records.com), Verweis auf alle 3 Plattformen
   - `/agb` — AGB mit Auktions-Bedingungen (Proxy-Bidding, Zuschlag, Stripe, Versandkosten)
@@ -181,8 +203,8 @@ Shared DB für tape-mag-mvp + VOD_Auctions. Schema enthält 22 Tabellen (14 Basi
 - ~~RSE-113: Inventory-Verwaltung (Anzahl Stück pro Release)~~ ✅
 - **RSE-77: Testlauf: 1 Block mit 10-20 Produkten** ← NÄCHSTER SCHRITT
 - ~~RSE-101: Order Progress Tracking (Paid/Shipped/Delivered UI)~~ ✅
-- **RSE-102: Transactional Emails** (6 Templates)
-- **RSE-103: Shipping Config** (Admin-konfigurierbar)
+- ~~RSE-102: Transactional Emails (6 Templates)~~ ✅
+- ~~RSE-103: Shipping Config (Gewichtsbasiert, Admin-konfigurierbar)~~ ✅
 - ~~RSE-104: Bid Confirmation Modal~~ ✅
 - ~~RSE-105: Legal Pages (Impressum, AGB, Datenschutz, Widerrufsbelehrung, Cookie-Richtlinie)~~ ✅
 
@@ -216,6 +238,10 @@ Shared DB für tape-mag-mvp + VOD_Auctions. Schema enthält 22 Tabellen (14 Basi
 - `transaction` — Zahlungen & Versand (RSE-76: Stripe, status, shipping_status, Adresse; RSE-111: +release_id, +item_type, +order_group_id, block_item_id nullable)
 - `cart_item` — Warenkorb für Direktkäufe (RSE-111: user_id, release_id, price-Snapshot)
 - `related_blocks` — Verwandte Blöcke
+- `shipping_item_type` — 13 Artikeltypen mit Gewichten (RSE-103)
+- `shipping_zone` — 3 Versandzonen DE/EU/World (RSE-103)
+- `shipping_rate` — 15 Gewichtsstufen-Tarife (RSE-103)
+- `shipping_config` — Globale Versand-Einstellungen (RSE-103)
 
 ### Release-Erweiterung
 ```sql
@@ -540,9 +566,9 @@ npm run build             # Production build
 
 **Next (Backlog/Todo):**
 - **RSE-77:** Testlauf (1 Block, 10-20 Produkte) ← NÄCHSTER SCHRITT
-- **RSE-101:** Order Progress Tracking (Paid/Shipped/Delivered UI)
-- **RSE-102:** Transactional Email Templates (6 Emails)
-- **RSE-103:** Shipping Configuration (Admin-konfigurierbar)
+- ~~**RSE-101:** Order Progress Tracking (Paid/Shipped/Delivered UI)~~ ✅
+- ~~**RSE-102:** Transactional Email Templates (6 Emails)~~ ✅
+- ~~**RSE-103:** Shipping Configuration (Weight-based, Admin-konfigurierbar)~~ ✅
 - ~~**RSE-104:** Bid Confirmation Modal~~ ✅
 - ~~**RSE-105:** Legal Pages (Impressum, AGB, Datenschutz, Widerrufsbelehrung, Cookie Policy)~~ ✅
 
@@ -641,17 +667,23 @@ psycopg2-binary, python-dotenv, requests, mysql-connector-python
 5. Nach Zahlung: Stripe Webhook → alle Transactions mit order_group_id → `paid`, Direktkauf-Releases → `sold_direct`, Cart-Items gelöscht
 6. Admin: Shipping-Status updaten via POST `/admin/transactions/:id`
 
-### Shipping Rates (Flat-Rate, hardcoded)
-- **Germany:** €4.99
-- **Europe:** €9.99
-- **Worldwide:** €14.99
+### Shipping (RSE-103 — Weight-based, Admin-configurable)
+- **Calculation:** Item weight (from format_group auto-mapping) + packaging weight → rate tier lookup
+- **Oversized:** Vinyl LPs/10"/Reels (>25cm) → DHL Paket pricing; CDs/Cassettes → Deutsche Post pricing
+- **Zones:** Germany (DE), EU (26 countries), Worldwide
+- **Free Shipping:** Configurable threshold (admin setting)
+- **Margin:** Configurable percentage added to calculated cost
+- **Admin:** `/admin/shipping` — 4-tab config page (Settings, Item Types, Zones & Rates, Calculator)
+- **Fallback:** Flat rates (DE €4.99, EU €9.99, World €14.99) if shipping tables not configured
+- **DB Tables:** `shipping_item_type`, `shipping_zone`, `shipping_rate`, `shipping_config`
 
 ### Transaction Status
 - `status`: pending → paid → refunded (oder failed)
 - `shipping_status`: pending → shipped → delivered
 
 ### Key Files
-- `backend/src/lib/stripe.ts` — Stripe Client + Shipping-Rates Config
+- `backend/src/lib/shipping.ts` — Weight-based shipping calculator (RSE-103)
+- `backend/src/lib/stripe.ts` — Stripe Client + Legacy Shipping-Rates Config
 - `backend/src/lib/auction-helpers.ts` — hasWonAuction(), isAvailableForDirectPurchase()
 - `backend/src/modules/auction/models/transaction.ts` — Transaction Model (block_item_id nullable, +release_id, +item_type, +order_group_id)
 - `backend/src/modules/auction/models/cart-item.ts` — CartItem Model (user_id, release_id, price)
