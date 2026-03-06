@@ -1,6 +1,18 @@
+import type { Metadata } from "next"
 import { AuctionListFilter } from "@/components/AuctionListFilter"
 import { medusaFetch } from "@/lib/api"
 import type { AuctionBlock } from "@/types"
+
+export const metadata: Metadata = {
+  title: "Auctions",
+  description:
+    "Browse live, scheduled, and past auction blocks for rare Industrial, EBM, Dark Ambient and Experimental Music records.",
+  openGraph: {
+    title: "Auctions — VOD Auctions",
+    description:
+      "Browse live, scheduled, and past auction blocks for rare Industrial, EBM, Dark Ambient and Experimental Music records.",
+  },
+}
 
 async function getAllBlocks(): Promise<AuctionBlock[]> {
   const data = await medusaFetch<{ auction_blocks: AuctionBlock[] }>(

@@ -8,7 +8,7 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 
 **Goal:** Eigene Plattform mit voller Kontrolle über Marke, Kundendaten, Preisgestaltung — statt 8-13% Gebühren an eBay/Discogs
 
-**Status:** Phase 1 — RSE-72 bis RSE-96 + RSE-76 + RSE-101 + RSE-102 + RSE-103 + RSE-104 + RSE-105 + RSE-109 + RSE-111 + RSE-112 + RSE-113 + RSE-114 + RSE-115 erledigt. Nächstes: RSE-77 (Testlauf)
+**Status:** Phase 1 — RSE-72 bis RSE-97 + RSE-76 + RSE-101 + RSE-102 + RSE-103 + RSE-104 + RSE-105 + RSE-109 + RSE-111 + RSE-112 + RSE-113 + RSE-114 + RSE-115 erledigt. Nächstes: RSE-77 (Testlauf)
 
 **Sprache:** Storefront und Admin-UI komplett auf Englisch (seit 2026-03-03)
 
@@ -16,6 +16,15 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-06
 
 ### Letzte Änderungen (2026-03-06)
+- **RSE-97: SEO & Meta Tags** — Storefront pages:
+  - **Root Layout:** `metadataBase`, title template (`%s — VOD Auctions`), keywords, OpenGraph + Twitter Card defaults, canonical URL
+  - **OG Image:** `opengraph-image.tsx` — generated vinyl-branded OG image
+  - **Catalog:** Static meta via `catalog/layout.tsx` (client component workaround), dynamic `generateMetadata` on detail page with cover image
+  - **Auctions:** Static meta on list, dynamic `generateMetadata` on block detail (header image) and item detail (cover image)
+  - **Account:** Refactored to server layout + `AccountLayoutClient.tsx`, `noindex/nofollow`
+  - **Legal Pages:** All 5 pages with template titles + descriptions
+  - **robots.ts:** Allow `/`, disallow `/account/` and `/api/`
+  - **sitemap.ts:** Dynamic — homepage, catalog, auctions, legal pages, all auction blocks + catalog releases (up to 1000)
 - **RSE-103: Shipping Configuration** — Gewichtsbasierte Versandkostenberechnung:
   - **4 neue DB-Tabellen:** `shipping_item_type` (13 Artikeltypen mit Gewichten), `shipping_zone` (DE/EU/World), `shipping_rate` (15 Gewichtsstufen × 3 Zonen), `shipping_config` (Global-Settings)
   - **Oversized-Erkennung:** Vinyl LPs (>25cm) automatisch als "oversized" → DHL Paket statt Deutsche Post
@@ -30,12 +39,16 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 ### Frühere Änderungen (2026-03-06)
 - **RSE-102: Transactional Emails + Feedback** — 6 Email-Templates + Feedback-System:
   - **Email-System:** Resend als Provider, 6 HTML-Templates (welcome, bid-won, outbid, payment-confirmation, shipping, feedback-request)
+  - **Resend Domain:** `vod-auctions.com` verifiziert (SPF, DKIM, MX bei All-Inkl), FROM: `noreply@vod-auctions.com`
+  - **Resend Account:** frank@vod-records.com
   - **Email-Helpers:** `sendShippingEmail()` + `sendFeedbackRequestEmail()` — automatisch getriggert bei Shipping-Status-Änderung
   - **Feedback-Seite:** `/account/feedback` — Post-Delivery Rating + Textfeld
-  - **DB:** Feedback-Spalten auf Transaction-Tabelle
+  - **Feedback-Cron:** `feedback-email.ts` — täglich 10:00 UTC, sendet Feedback-Request 5 Tage nach Shipping
+  - **DB:** Feedback-Spalten auf Transaction-Tabelle (`feedback_email_sent`, `feedback_rating`, `feedback_comment`, `feedback_at`)
   - **Checkout:** Verbesserte Combined-Checkout-Logik
   - **Auction Lifecycle:** Email-Benachrichtigungen bei Bid-Events
   - **Tracking URLs:** Carrier-spezifische Tracking-Links (DHL, DPD, Hermes, etc.)
+  - **VPS:** RESEND_API_KEY in `.env` konfiguriert, Backend + Storefront deployed
 
 ### Frühere Änderungen (2026-03-06)
 - **RSE-105: Legal Pages** — 5 rechtliche Seiten + Footer-Update:
@@ -791,6 +804,7 @@ Store in `.env` (git-ignored), manage via `Passwords/` directory:
 - `STRIPE_WEBHOOK_SECRET` — Stripe Webhook Secret
 - `UPSTASH_REDIS_REST_URL` — Redis URL
 - `UPSTASH_REDIS_REST_TOKEN` — Redis Token
+- `RESEND_API_KEY` — Resend Email API Key (Account: frank@vod-records.com)
 
 ## VPS Deployment
 

@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { ChevronRight, ArrowLeft } from "lucide-react"
@@ -47,6 +48,44 @@ const FORMAT_COLORS: Record<string, string> = {
   LP: "bg-format-vinyl/15 text-format-vinyl border-format-vinyl/30",
   CD: "bg-format-cd/15 text-format-cd border-format-cd/30",
   CASSETTE: "bg-format-cassette/15 text-format-cassette border-format-cassette/30",
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}): Promise<Metadata> {
+  const { id } = await params
+  const data = await getRelease(id)
+  if (!data) return { title: "Release Not Found" }
+
+  const r = data.release
+  const title = r.artist_name ? `${r.artist_name} — ${r.title}` : r.title
+  const description = [
+    r.format_name || r.format,
+    r.label_name,
+    r.year,
+    r.country,
+    r.legacy_condition,
+  ]
+    .filter(Boolean)
+    .join(" · ")
+
+  return {
+    title,
+    description: description || `${title} — available on VOD Auctions`,
+    openGraph: {
+      title: `${title} — VOD Auctions`,
+      description: description || `${title} — available on VOD Auctions`,
+      ...(r.coverImage ? { images: [{ url: r.coverImage, alt: title }] } : {}),
+    },
+    twitter: {
+      card: r.coverImage ? "summary_large_image" : "summary",
+      title: `${title} — VOD Auctions`,
+      description: description || `${title} — available on VOD Auctions`,
+      ...(r.coverImage ? { images: [r.coverImage] } : {}),
+    },
+  }
 }
 
 export default async function CatalogDetailPage({

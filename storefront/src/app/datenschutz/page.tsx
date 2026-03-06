@@ -1,7 +1,8 @@
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
-  title: "Privacy Policy — VOD Auctions",
+  title: "Privacy Policy",
+  description: "Privacy policy and data protection information for VOD Auctions.",
 }
 
 export default function DatenschutzPage() {

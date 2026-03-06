@@ -1,7 +1,8 @@
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
-  title: "Cookie Policy — VOD Auctions",
+  title: "Cookie Policy",
+  description: "Cookie policy for VOD Auctions.",
 }
 
 export default function CookiesPage() {

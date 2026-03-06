@@ -1,7 +1,8 @@
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
-  title: "Terms & Conditions — VOD Auctions",
+  title: "Terms & Conditions",
+  description: "Terms and conditions for using VOD Auctions.",
 }
 
 export default function AGBPage() {

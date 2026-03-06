@@ -1,7 +1,8 @@
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
-  title: "Right of Withdrawal — VOD Auctions",
+  title: "Right of Withdrawal",
+  description: "Right of withdrawal and cancellation policy for VOD Auctions.",
 }
 
 export default function WiderrufPage() {

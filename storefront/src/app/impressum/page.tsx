@@ -1,7 +1,8 @@
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
-  title: "Legal Notice — VOD Auctions",
+  title: "Legal Notice",
+  description: "Legal notice and imprint for VOD Auctions (Impressum).",
 }
 
 export default function ImpressumPage() {

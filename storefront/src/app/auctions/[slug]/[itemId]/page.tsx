@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { ChevronRight, ArrowLeft } from "lucide-react"
@@ -57,6 +58,49 @@ const FORMAT_COLORS: Record<string, string> = {
   LP: "bg-format-vinyl/15 text-format-vinyl border-format-vinyl/30",
   CD: "bg-format-cd/15 text-format-cd border-format-cd/30",
   CASSETTE: "bg-format-cassette/15 text-format-cassette border-format-cassette/30",
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string; itemId: string }>
+}): Promise<Metadata> {
+  const { slug, itemId } = await params
+  const data = await getItem(slug, itemId)
+  if (!data) return { title: "Item Not Found" }
+
+  const { block_item: item, auction_block: block } = data
+  const r = item.release
+  const title = r?.artist_name
+    ? `${r.artist_name} — ${r.title}`
+    : r?.title || `Lot ${item.lot_number}`
+  const description = [
+    r?.format,
+    r?.label_name,
+    r?.year,
+    r?.country,
+    `Starting at €${item.start_price.toFixed(2)}`,
+  ]
+    .filter(Boolean)
+    .join(" · ")
+
+  return {
+    title: `${title} | ${block.title}`,
+    description: description || `${title} — auction lot on VOD Auctions`,
+    openGraph: {
+      title: `${title} — VOD Auctions`,
+      description: description || `${title} — auction lot on VOD Auctions`,
+      ...(r?.coverImage
+        ? { images: [{ url: r.coverImage, alt: title }] }
+        : {}),
+    },
+    twitter: {
+      card: r?.coverImage ? "summary_large_image" : "summary",
+      title: `${title} — VOD Auctions`,
+      description: description || `${title} — auction lot on VOD Auctions`,
+      ...(r?.coverImage ? { images: [r.coverImage] } : {}),
+    },
+  }
 }
 
 export default async function ItemDetailPage({
