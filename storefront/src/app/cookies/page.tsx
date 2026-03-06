@@ -1,38 +1,37 @@
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
-  title: "Cookie-Richtlinie — VOD Auctions",
+  title: "Cookie Policy — VOD Auctions",
 }
 
 export default function CookiesPage() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-16">
-      <h1 className="font-serif text-4xl mb-8">Cookie-Richtlinie</h1>
+      <h1 className="font-serif text-4xl mb-8">Cookie Policy</h1>
 
       <div className="prose prose-invert prose-sm max-w-none space-y-6 text-muted-foreground">
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            Was sind Cookies?
+            What Are Cookies?
           </h2>
           <p>
-            Cookies sind kleine Textdateien, die auf Ihrem Endgerät
-            gespeichert werden, wenn Sie eine Website besuchen. Sie
-            dienen dazu, die Website funktionsfähig zu machen und das
-            Nutzererlebnis zu verbessern.
+            Cookies are small text files stored on your device when you
+            visit a website. They are used to make the website
+            functional and to improve the user experience.
           </p>
         </section>
 
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            Welche Cookies verwenden wir?
+            Which Cookies Do We Use?
           </h2>
           <p>
-            VOD Auctions verwendet{" "}
+            VOD Auctions uses{" "}
             <strong className="text-foreground">
-              ausschließlich technisch notwendige Cookies
+              only technically necessary cookies
             </strong>
-            . Wir setzen keine Tracking-, Analyse- oder Marketing-Cookies
-            ein.
+            . We do not use any tracking, analytics, or marketing
+            cookies.
           </p>
 
           <div className="mt-4 overflow-x-auto">
@@ -40,23 +39,23 @@ export default function CookiesPage() {
               <thead>
                 <tr className="border-b border-[rgba(232,224,212,0.12)] bg-[rgba(232,224,212,0.03)]">
                   <th className="text-left p-3 text-foreground font-medium">Cookie</th>
-                  <th className="text-left p-3 text-foreground font-medium">Zweck</th>
-                  <th className="text-left p-3 text-foreground font-medium">Dauer</th>
-                  <th className="text-left p-3 text-foreground font-medium">Typ</th>
+                  <th className="text-left p-3 text-foreground font-medium">Purpose</th>
+                  <th className="text-left p-3 text-foreground font-medium">Duration</th>
+                  <th className="text-left p-3 text-foreground font-medium">Type</th>
                 </tr>
               </thead>
               <tbody>
                 <tr className="border-b border-[rgba(232,224,212,0.06)]">
                   <td className="p-3 font-mono text-xs">sb-*-auth-token</td>
-                  <td className="p-3">Supabase-Authentifizierung — hält Ihre Anmeldung aufrecht</td>
-                  <td className="p-3">Session / 1 Woche</td>
-                  <td className="p-3">Notwendig</td>
+                  <td className="p-3">Supabase authentication — maintains your login session</td>
+                  <td className="p-3">Session / 1 week</td>
+                  <td className="p-3">Essential</td>
                 </tr>
                 <tr className="border-b border-[rgba(232,224,212,0.06)]">
                   <td className="p-3 font-mono text-xs">sb-*-auth-token-code-verifier</td>
-                  <td className="p-3">PKCE-Sicherheitstoken für sichere Authentifizierung</td>
+                  <td className="p-3">PKCE security token for secure authentication</td>
                   <td className="p-3">Session</td>
-                  <td className="p-3">Notwendig</td>
+                  <td className="p-3">Essential</td>
                 </tr>
               </tbody>
             </table>
@@ -65,56 +64,53 @@ export default function CookiesPage() {
 
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            Keine Tracking-Cookies
+            No Tracking Cookies
           </h2>
           <div className="rounded-lg border border-[rgba(232,224,212,0.12)] bg-[rgba(232,224,212,0.03)] p-4">
             <p>
-              Wir verwenden{" "}
-              <strong className="text-foreground">kein</strong> Google
-              Analytics, kein Facebook Pixel, keine Werbe-Tracker und
-              keine sonstigen Analyse- oder Marketing-Tools, die Cookies
-              setzen. Ihre Nutzung unserer Website wird nicht für
-              Werbezwecke oder Profilbildung ausgewertet.
+              We do <strong className="text-foreground">not</strong> use
+              Google Analytics, Facebook Pixel, advertising trackers, or
+              any other analytics or marketing tools that set cookies.
+              Your use of our website is not analysed for advertising
+              purposes or profiling.
             </p>
           </div>
         </section>
 
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            Cookie-Einstellungen verwalten
+            Managing Cookie Settings
           </h2>
           <p>
-            Da wir ausschließlich technisch notwendige Cookies verwenden,
-            ist kein Cookie-Consent-Banner erforderlich (§ 25 Abs. 2
-            TDDDG). Diese Cookies sind für den Betrieb der Website
-            unerlässlich und können nicht deaktiviert werden, ohne die
-            Funktionalität einzuschränken.
+            Since we only use technically necessary cookies, no cookie
+            consent banner is required (§ 25 (2) TDDDG). These cookies
+            are essential for the operation of the website and cannot be
+            disabled without limiting functionality.
           </p>
           <p>
-            Sie können Cookies jederzeit über die Einstellungen Ihres
-            Browsers verwalten oder löschen. Bitte beachten Sie, dass
-            die Deaktivierung notwendiger Cookies dazu führen kann, dass
-            bestimmte Funktionen (z.B. Anmeldung, Warenkorb) nicht mehr
-            verfügbar sind.
+            You can manage or delete cookies at any time through your
+            browser settings. Please note that disabling essential
+            cookies may result in certain features (e.g. login, shopping
+            cart) no longer being available.
           </p>
         </section>
 
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            Weitere Informationen
+            Further Information
           </h2>
           <p>
-            Ausführliche Informationen zum Datenschutz finden Sie in
-            unserer{" "}
+            For detailed information on data protection, please refer to
+            our{" "}
             <a href="/datenschutz" className="text-primary hover:underline">
-              Datenschutzerklärung
+              Privacy Policy
             </a>
             .
           </p>
         </section>
 
         <p className="text-xs text-muted-foreground/60 pt-4">
-          Stand: März 2026
+          Last updated: March 2026
         </p>
       </div>
     </main>

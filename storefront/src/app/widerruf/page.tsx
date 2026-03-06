@@ -1,31 +1,30 @@
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
-  title: "Widerrufsbelehrung — VOD Auctions",
+  title: "Right of Withdrawal — VOD Auctions",
 }
 
 export default function WiderrufPage() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-16">
-      <h1 className="font-serif text-4xl mb-8">Widerrufsbelehrung</h1>
+      <h1 className="font-serif text-4xl mb-8">Right of Withdrawal</h1>
 
       <div className="prose prose-invert prose-sm max-w-none space-y-6 text-muted-foreground">
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            Widerrufsrecht für Verbraucher
+            Withdrawal Policy for Consumers
           </h2>
           <p>
-            Sie haben das Recht, binnen vierzehn Tagen ohne Angabe von
-            Gründen diesen Vertrag zu widerrufen. Die Widerrufsfrist
-            beträgt vierzehn Tage ab dem Tag, an dem Sie oder ein von
-            Ihnen benannter Dritter, der nicht der Beförderer ist, die
-            Waren in Besitz genommen haben bzw. hat.
+            You have the right to withdraw from this contract within
+            fourteen days without giving any reason. The withdrawal
+            period is fourteen days from the day on which you, or a
+            third party other than the carrier designated by you, have
+            taken possession of the goods.
           </p>
           <p>
-            Um Ihr Widerrufsrecht auszuüben, müssen Sie uns mittels
-            einer eindeutigen Erklärung (z. B. ein mit der Post
-            versandter Brief oder E-Mail) über Ihren Entschluss, diesen
-            Vertrag zu widerrufen, informieren:
+            To exercise your right of withdrawal, you must inform us by
+            means of a clear statement (e.g. a letter sent by post or
+            email) of your decision to withdraw from this contract:
           </p>
           <p>
             Frank Bull
@@ -36,7 +35,9 @@ export default function WiderrufPage() {
             <br />
             88045 Friedrichshafen
             <br />
-            E-Mail:{" "}
+            Germany
+            <br />
+            Email:{" "}
             <a
               href="mailto:frank@vinyl-on-demand.com"
               className="text-primary hover:underline"
@@ -45,121 +46,115 @@ export default function WiderrufPage() {
             </a>
           </p>
           <p>
-            Zur Wahrung der Widerrufsfrist genügt es, dass Sie die
-            Mitteilung über die Ausübung des Widerrufsrechts vor Ablauf
-            der Widerrufsfrist absenden.
+            To meet the withdrawal deadline, it is sufficient for you to
+            send your communication concerning the exercise of the right
+            of withdrawal before the withdrawal period has expired.
           </p>
         </section>
 
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            Folgen des Widerrufs
+            Effects of Withdrawal
           </h2>
           <p>
-            Wenn Sie diesen Vertrag widerrufen, haben wir Ihnen alle
-            Zahlungen, die wir von Ihnen erhalten haben, einschließlich
-            der Lieferkosten (mit Ausnahme der zusätzlichen Kosten, die
-            sich daraus ergeben, dass Sie eine andere Art der Lieferung
-            als die von uns angebotene, günstigste Standardlieferung
-            gewählt haben), unverzüglich und spätestens binnen vierzehn
-            Tagen ab dem Tag zurückzuzahlen, an dem die Mitteilung über
-            Ihren Widerruf dieses Vertrags bei uns eingegangen ist.
+            If you withdraw from this contract, we shall reimburse all
+            payments received from you, including the costs of delivery
+            (with the exception of additional costs resulting from your
+            choice of a type of delivery other than the least expensive
+            standard delivery offered by us), without undue delay and in
+            any event not later than fourteen days from the day on which
+            we are informed of your decision to withdraw from this
+            contract.
           </p>
           <p>
-            Für diese Rückzahlung verwenden wir dasselbe Zahlungsmittel,
-            das Sie bei der ursprünglichen Transaktion eingesetzt haben,
-            es sei denn, mit Ihnen wurde ausdrücklich etwas anderes
-            vereinbart; in keinem Fall werden Ihnen wegen dieser
-            Rückzahlung Entgelte berechnet.
+            We will make the reimbursement using the same means of
+            payment as you used for the initial transaction, unless you
+            have expressly agreed otherwise; in any event, you will not
+            incur any fees as a result of such reimbursement.
           </p>
           <p>
-            Wir können die Rückzahlung verweigern, bis wir die Waren
-            wieder zurückerhalten haben oder bis Sie den Nachweis
-            erbracht haben, dass Sie die Waren zurückgesandt haben, je
-            nachdem, welches der frühere Zeitpunkt ist.
+            We may withhold reimbursement until we have received the
+            goods back or you have supplied evidence of having sent back
+            the goods, whichever is the earliest.
           </p>
           <p>
-            Sie haben die Waren unverzüglich und in jedem Fall
-            spätestens binnen vierzehn Tagen ab dem Tag, an dem Sie uns
-            über den Widerruf dieses Vertrags unterrichten, an uns
-            zurückzusenden oder zu übergeben. Die Frist ist gewahrt,
-            wenn Sie die Waren vor Ablauf der Frist von vierzehn Tagen
-            absenden.
+            You shall send back the goods without undue delay and in any
+            event not later than fourteen days from the day on which you
+            communicate your withdrawal from this contract to us. The
+            deadline is met if you send back the goods before the period
+            of fourteen days has expired.
           </p>
           <p>
-            Sie tragen die unmittelbaren Kosten der Rücksendung der
-            Waren.
+            You will bear the direct cost of returning the goods.
           </p>
           <p>
-            Sie müssen für einen etwaigen Wertverlust der Waren nur
-            aufkommen, wenn dieser Wertverlust auf einen zur Prüfung der
-            Beschaffenheit, Eigenschaften und Funktionsweise der Waren
-            nicht notwendigen Umgang mit ihnen zurückzuführen ist.
+            You are only liable for any diminished value of the goods
+            resulting from handling other than what is necessary to
+            establish the nature, characteristics, and functioning of
+            the goods.
           </p>
         </section>
 
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            Ausnahmen vom Widerrufsrecht
+            Exceptions to the Right of Withdrawal
           </h2>
           <div className="rounded-lg border border-[rgba(232,224,212,0.12)] bg-[rgba(232,224,212,0.03)] p-4">
             <p className="text-foreground font-medium mb-2">
-              Wichtiger Hinweis für Auktionskäufe:
+              Important notice for auction purchases:
             </p>
             <p>
-              Das Widerrufsrecht besteht gemäß § 312g Abs. 2 Nr. 10 BGB
-              <strong className="text-foreground"> nicht</strong> bei
-              Verträgen, die im Rahmen einer öffentlich zugänglichen
-              Versteigerung (§ 156 BGB) geschlossen werden. Unsere
-              Online-Auktionen können unter diese Ausnahme fallen, soweit
-              sie als öffentlich zugängliche Versteigerungen im Sinne des
-              Gesetzes ausgestaltet sind.
+              Pursuant to § 312g (2) No. 10 of the German Civil Code
+              (BGB), the right of withdrawal{" "}
+              <strong className="text-foreground">does not apply</strong>{" "}
+              to contracts concluded at a publicly accessible auction
+              (§ 156 BGB). Our online auctions may fall under this
+              exception insofar as they are structured as publicly
+              accessible auctions within the meaning of the law.
             </p>
           </div>
           <p className="mt-3">
-            Das Widerrufsrecht erlischt ferner bei Verträgen zur
-            Lieferung versiegelter Waren, die aus Gründen des
-            Gesundheitsschutzes oder der Hygiene nicht zur Rückgabe
-            geeignet sind, wenn ihre Versiegelung nach der Lieferung
-            entfernt wurde.
+            The right of withdrawal also expires for contracts for the
+            delivery of sealed goods which are not suitable for return
+            due to health protection or hygiene reasons, if their seal
+            has been removed after delivery.
           </p>
           <p>
-            Bei Direktkäufen (außerhalb von Auktionen) gilt das
-            Widerrufsrecht uneingeschränkt.
+            For direct purchases (outside of auctions), the right of
+            withdrawal applies without restriction.
           </p>
         </section>
 
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            Muster-Widerrufsformular
+            Model Withdrawal Form
           </h2>
           <p>
-            (Wenn Sie den Vertrag widerrufen wollen, dann füllen Sie
-            bitte dieses Formular aus und senden Sie es zurück.)
+            (If you wish to withdraw from the contract, please complete
+            and return this form.)
           </p>
           <div className="rounded-lg border border-[rgba(232,224,212,0.12)] bg-[rgba(232,224,212,0.03)] p-4 space-y-2">
             <p>
-              An: Frank Bull, VOD-Records, Alpenstrasse 25/1, 88045
-              Friedrichshafen, E-Mail: frank@vinyl-on-demand.com
+              To: Frank Bull, VOD-Records, Alpenstrasse 25/1, 88045
+              Friedrichshafen, Germany, Email: frank@vinyl-on-demand.com
             </p>
             <p>
-              Hiermit widerrufe(n) ich/wir (*) den von mir/uns (*)
-              abgeschlossenen Vertrag über den Kauf der folgenden Waren
-              (*):
+              I/We (*) hereby give notice that I/We (*) withdraw from
+              my/our (*) contract of sale of the following goods (*):
             </p>
-            <p>Bestellt am (*) / erhalten am (*):</p>
-            <p>Name des/der Verbraucher(s):</p>
-            <p>Anschrift des/der Verbraucher(s):</p>
-            <p>Unterschrift des/der Verbraucher(s) (nur bei Mitteilung auf Papier):</p>
-            <p>Datum:</p>
+            <p>Ordered on (*) / received on (*):</p>
+            <p>Name of consumer(s):</p>
+            <p>Address of consumer(s):</p>
+            <p>Signature of consumer(s) (only for paper notification):</p>
+            <p>Date:</p>
             <p className="text-xs text-muted-foreground/60">
-              (*) Unzutreffendes streichen
+              (*) Delete as appropriate
             </p>
           </div>
         </section>
 
         <p className="text-xs text-muted-foreground/60 pt-4">
-          Stand: März 2026
+          Last updated: March 2026
         </p>
       </div>
     </main>

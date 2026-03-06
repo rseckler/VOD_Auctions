@@ -40,31 +40,31 @@ export function Footer() {
                 href="/impressum"
                 className="text-muted-foreground hover:text-primary transition-colors"
               >
-                Impressum
+                Legal Notice
               </Link>
               <Link
                 href="/agb"
                 className="text-muted-foreground hover:text-primary transition-colors"
               >
-                AGB
+                Terms &amp; Conditions
               </Link>
               <Link
                 href="/datenschutz"
                 className="text-muted-foreground hover:text-primary transition-colors"
               >
-                Datenschutz
+                Privacy Policy
               </Link>
               <Link
                 href="/widerruf"
                 className="text-muted-foreground hover:text-primary transition-colors"
               >
-                Widerrufsbelehrung
+                Right of Withdrawal
               </Link>
               <Link
                 href="/cookies"
                 className="text-muted-foreground hover:text-primary transition-colors"
               >
-                Cookie-Richtlinie
+                Cookie Policy
               </Link>
             </div>
           </div>

@@ -1,24 +1,24 @@
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
-  title: "Datenschutzerklärung — VOD Auctions",
+  title: "Privacy Policy — VOD Auctions",
 }
 
 export default function DatenschutzPage() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-16">
-      <h1 className="font-serif text-4xl mb-8">Datenschutzerklärung</h1>
+      <h1 className="font-serif text-4xl mb-8">Privacy Policy</h1>
 
       <div className="prose prose-invert prose-sm max-w-none space-y-6 text-muted-foreground">
-        {/* 1. Verantwortlicher */}
+        {/* 1. Controller */}
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            1. Verantwortlicher
+            1. Data Controller
           </h2>
           <p>
-            Verantwortlich im Sinne der Datenschutz-Grundverordnung
-            (DSGVO) und anderer nationaler Datenschutzgesetze sowie
-            sonstiger datenschutzrechtlicher Bestimmungen ist:
+            The controller within the meaning of the General Data
+            Protection Regulation (GDPR) and other applicable data
+            protection legislation is:
           </p>
           <p>
             Frank Bull
@@ -29,11 +29,11 @@ export default function DatenschutzPage() {
             <br />
             88045 Friedrichshafen
             <br />
-            Deutschland
+            Germany
             <br />
-            Telefon: +49 7541 34412
+            Phone: +49 7541 34412
             <br />
-            E-Mail:{" "}
+            Email:{" "}
             <a
               href="mailto:frank@vinyl-on-demand.com"
               className="text-primary hover:underline"
@@ -43,19 +43,17 @@ export default function DatenschutzPage() {
           </p>
         </section>
 
-        {/* 2. Allgemeines */}
+        {/* 2. General */}
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            2. Allgemeines zur Datenverarbeitung
+            2. General Information on Data Processing
           </h2>
           <p>
-            Wir verarbeiten personenbezogene Daten unserer Nutzer
-            grundsätzlich nur, soweit dies zur Bereitstellung einer
-            funktionsfähigen Website sowie unserer Inhalte und Leistungen
-            erforderlich ist. Die Rechtsgrundlagen sind Art. 6 Abs. 1
-            lit. a (Einwilligung), lit. b (Vertragserfüllung), lit. c
-            (rechtliche Verpflichtung) und lit. f (berechtigtes
-            Interesse) DSGVO.
+            We process personal data of our users only to the extent
+            necessary to provide a functional website and our content
+            and services. The legal bases are Art. 6 (1)(a) (consent),
+            (b) (contract performance), (c) (legal obligation), and (f)
+            (legitimate interest) GDPR.
           </p>
         </section>
 
@@ -65,129 +63,128 @@ export default function DatenschutzPage() {
             3. Hosting
           </h2>
           <p>
-            Diese Website wird auf einem Server der Hostinger
-            International Ltd. gehostet. Beim Besuch unserer Website
-            werden automatisch Informationen in Server-Logdateien
-            gespeichert:
+            This website is hosted on a server provided by Hostinger
+            International Ltd. When you visit our website, the following
+            information is automatically stored in server log files:
           </p>
           <ul className="list-disc pl-5 space-y-1">
-            <li>Browsertyp und -version</li>
-            <li>Verwendetes Betriebssystem</li>
-            <li>Referrer-URL</li>
-            <li>Hostname des zugreifenden Rechners</li>
-            <li>IP-Adresse</li>
-            <li>Uhrzeit der Serveranfrage</li>
+            <li>Browser type and version</li>
+            <li>Operating system</li>
+            <li>Referrer URL</li>
+            <li>Hostname of the accessing device</li>
+            <li>IP address</li>
+            <li>Time of the server request</li>
           </ul>
           <p>
-            Rechtsgrundlage: Art. 6 Abs. 1 lit. f DSGVO (berechtigtes
-            Interesse an einem sicheren und effizienten Betrieb).
+            Legal basis: Art. 6 (1)(f) GDPR (legitimate interest in
+            secure and efficient operation).
           </p>
         </section>
 
-        {/* 4. Benutzerkonto */}
+        {/* 4. User Account */}
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            4. Benutzerkonto und Registrierung
+            4. User Account &amp; Registration
           </h2>
           <p>
-            Zur Teilnahme an Auktionen und zum Direktkauf ist eine
-            Registrierung erforderlich. Folgende Daten werden erhoben:
+            Registration is required to participate in auctions and make
+            direct purchases. The following data is collected:
           </p>
           <ul className="list-disc pl-5 space-y-1">
-            <li>E-Mail-Adresse</li>
-            <li>Passwort (verschlüsselt gespeichert)</li>
-            <li>Name und Lieferadresse (bei Bestellung)</li>
+            <li>Email address</li>
+            <li>Password (stored encrypted)</li>
+            <li>Name and shipping address (upon order)</li>
           </ul>
           <p>
-            Die Authentifizierung erfolgt über Supabase Auth (Supabase
-            Inc., EU-Region Frankfurt). Die Daten werden für die Dauer
-            der Geschäftsbeziehung und darüber hinaus gemäß gesetzlicher
-            Aufbewahrungsfristen gespeichert.
+            Authentication is handled via Supabase Auth (Supabase Inc.,
+            EU region Frankfurt). Data is stored for the duration of the
+            business relationship and beyond in accordance with
+            statutory retention periods.
           </p>
-          <p>Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO.</p>
+          <p>Legal basis: Art. 6 (1)(b) GDPR.</p>
         </section>
 
-        {/* 5. Auktionen & Gebote */}
+        {/* 5. Auctions & Bids */}
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            5. Auktionen und Gebote
+            5. Auctions &amp; Bids
           </h2>
           <p>
-            Bei der Gebotsabgabe werden folgende Daten verarbeitet:
+            When placing bids, the following data is processed:
           </p>
           <ul className="list-disc pl-5 space-y-1">
-            <li>Gebotsbetrag und Zeitpunkt</li>
-            <li>Benutzer-ID (pseudonymisiert gegenüber anderen Nutzern)</li>
-            <li>Proxy-Bid-Maximum (nur intern gespeichert)</li>
+            <li>Bid amount and timestamp</li>
+            <li>User ID (pseudonymised for other users)</li>
+            <li>Proxy bid maximum (stored internally only)</li>
           </ul>
           <p>
-            Zur Gewährleistung der Echtzeit-Gebotsfunktion werden
-            Gebotsdaten temporär in einem Cache-System (Upstash Redis,
-            Upstash Inc., EU-Region) zwischengespeichert. Echtzeit-
-            Updates werden über Supabase Realtime (WebSocket) übertragen.
+            To ensure real-time bidding functionality, bid data is
+            temporarily cached in Upstash Redis (Upstash Inc., EU
+            region). Real-time updates are delivered via Supabase
+            Realtime (WebSocket).
           </p>
-          <p>Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO.</p>
+          <p>Legal basis: Art. 6 (1)(b) GDPR.</p>
         </section>
 
-        {/* 6. Zahlungsabwicklung */}
+        {/* 6. Payment */}
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            6. Zahlungsabwicklung — Stripe
+            6. Payment Processing — Stripe
           </h2>
           <p>
-            Für die Zahlungsabwicklung nutzen wir den Dienst Stripe
-            (Stripe Payments Europe, Ltd., 1 Grand Canal Street Lower,
-            Grand Canal Dock, Dublin, D02 H210, Irland).
+            We use Stripe for payment processing (Stripe Payments
+            Europe, Ltd., 1 Grand Canal Street Lower, Grand Canal Dock,
+            Dublin, D02 H210, Ireland).
           </p>
-          <p>Bei einer Zahlung werden folgende Daten an Stripe übermittelt:</p>
+          <p>The following data is transmitted to Stripe during payment:</p>
           <ul className="list-disc pl-5 space-y-1">
-            <li>Zahlungsbetrag und Währung</li>
-            <li>Zahlungsmethode (Kreditkartendaten, SEPA etc.)</li>
-            <li>Name und E-Mail-Adresse</li>
-            <li>Rechnungs- und Lieferadresse</li>
+            <li>Payment amount and currency</li>
+            <li>Payment method (credit card details, SEPA, etc.)</li>
+            <li>Name and email address</li>
+            <li>Billing and shipping address</li>
           </ul>
           <p>
-            Die Verarbeitung der Zahlungsdaten erfolgt ausschließlich
-            durch Stripe. Wir speichern keine Kreditkartendaten auf
-            unseren Servern. Stripe ist PCI DSS Level 1 zertifiziert.
+            Payment data is processed exclusively by Stripe. We do not
+            store any credit card data on our servers. Stripe is PCI DSS
+            Level 1 certified.
           </p>
           <p>
-            Datenschutzerklärung von Stripe:{" "}
+            Stripe Privacy Policy:{" "}
             <a
-              href="https://stripe.com/de/privacy"
+              href="https://stripe.com/privacy"
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary hover:underline"
             >
-              https://stripe.com/de/privacy
+              https://stripe.com/privacy
             </a>
           </p>
-          <p>Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO.</p>
+          <p>Legal basis: Art. 6 (1)(b) GDPR.</p>
         </section>
 
-        {/* 7. Datenbank */}
+        {/* 7. Database */}
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            7. Datenbank und Speicherung — Supabase
+            7. Database &amp; Storage — Supabase
           </h2>
           <p>
-            Für die Speicherung aller Anwendungsdaten (Benutzerkonten,
-            Gebote, Bestellungen, Produktdaten, Bilder) nutzen wir
-            Supabase (Supabase Inc.), gehostet in der EU-Region Frankfurt
-            (eu-central-1). Supabase bietet:
+            For storing all application data (user accounts, bids,
+            orders, product data, images), we use Supabase (Supabase
+            Inc.), hosted in the EU region Frankfurt (eu-central-1).
+            Supabase provides:
           </p>
           <ul className="list-disc pl-5 space-y-1">
-            <li>PostgreSQL-Datenbank mit Row Level Security (RLS)</li>
-            <li>Authentifizierung (Supabase Auth)</li>
-            <li>Realtime-Verbindungen für Live-Gebote (WebSocket)</li>
-            <li>Datei-Speicher für Produktbilder (Supabase Storage)</li>
+            <li>PostgreSQL database with Row Level Security (RLS)</li>
+            <li>Authentication (Supabase Auth)</li>
+            <li>Real-time connections for live bidding (WebSocket)</li>
+            <li>File storage for product images (Supabase Storage)</li>
           </ul>
           <p>
-            Alle Daten werden verschlüsselt übertragen (TLS) und at-rest
-            verschlüsselt gespeichert.
+            All data is encrypted in transit (TLS) and encrypted at
+            rest.
           </p>
           <p>
-            Datenschutzerklärung von Supabase:{" "}
+            Supabase Privacy Policy:{" "}
             <a
               href="https://supabase.com/privacy"
               target="_blank"
@@ -197,7 +194,7 @@ export default function DatenschutzPage() {
               https://supabase.com/privacy
             </a>
           </p>
-          <p>Rechtsgrundlage: Art. 6 Abs. 1 lit. b und f DSGVO.</p>
+          <p>Legal basis: Art. 6 (1)(b) and (f) GDPR.</p>
         </section>
 
         {/* 8. Caching */}
@@ -206,14 +203,14 @@ export default function DatenschutzPage() {
             8. Caching — Upstash Redis
           </h2>
           <p>
-            Zur Performance-Optimierung und Echtzeit-Gebotsverwaltung
-            nutzen wir Upstash Redis (Upstash Inc., EU-Region). Dort
-            werden temporäre, nicht-personenbezogene Daten (Gebotsstände,
-            Session-Informationen) zwischengespeichert. Die Daten werden
-            automatisch nach kurzer Zeit gelöscht.
+            For performance optimisation and real-time bid management,
+            we use Upstash Redis (Upstash Inc., EU region). Temporary,
+            non-personal data (bid states, session information) is
+            cached there. This data is automatically deleted after a
+            short period.
           </p>
           <p>
-            Datenschutzerklärung von Upstash:{" "}
+            Upstash Privacy Policy:{" "}
             <a
               href="https://upstash.com/trust/privacy.pdf"
               target="_blank"
@@ -223,7 +220,7 @@ export default function DatenschutzPage() {
               https://upstash.com/trust/privacy.pdf
             </a>
           </p>
-          <p>Rechtsgrundlage: Art. 6 Abs. 1 lit. f DSGVO.</p>
+          <p>Legal basis: Art. 6 (1)(f) GDPR.</p>
         </section>
 
         {/* 9. Google Fonts */}
@@ -232,18 +229,18 @@ export default function DatenschutzPage() {
             9. Google Fonts
           </h2>
           <p>
-            Diese Seite nutzt zur Darstellung die Schriftarten
-            &quot;DM Sans&quot; und &quot;DM Serif Display&quot; von
-            Google Fonts. Die Schriften werden beim Seitenaufruf über die
-            Google-Server geladen. Dabei kann Ihre IP-Adresse an Google
-            übermittelt werden.
+            This website uses the fonts &quot;DM Sans&quot; and &quot;DM
+            Serif Display&quot; from Google Fonts for display purposes.
+            When loading a page, the fonts are fetched from Google
+            servers. Your IP address may be transmitted to Google in the
+            process.
           </p>
           <p>
-            Anbieter: Google Ireland Limited, Gordon House, Barrow
-            Street, Dublin 4, Irland.
+            Provider: Google Ireland Limited, Gordon House, Barrow
+            Street, Dublin 4, Ireland.
           </p>
           <p>
-            Datenschutzerklärung von Google:{" "}
+            Google Privacy Policy:{" "}
             <a
               href="https://policies.google.com/privacy"
               target="_blank"
@@ -253,38 +250,37 @@ export default function DatenschutzPage() {
               https://policies.google.com/privacy
             </a>
           </p>
-          <p>Rechtsgrundlage: Art. 6 Abs. 1 lit. f DSGVO.</p>
+          <p>Legal basis: Art. 6 (1)(f) GDPR.</p>
         </section>
 
         {/* 10. Discogs API */}
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            10. Discogs API — Produktdaten
+            10. Discogs API — Product Data
           </h2>
           <p>
-            Zur Anreicherung unserer Produktdaten (Marktpreise,
-            Tracklisten, Credits) nutzen wir die Discogs API (Zink Media
-            Inc., Portland, USA). Dabei werden keine personenbezogenen
-            Daten der Nutzer an Discogs übermittelt. Es werden
-            ausschließlich Produktinformationen abgerufen.
+            To enrich our product data (market prices, tracklists,
+            credits), we use the Discogs API (Zink Media Inc., Portland,
+            USA). No personal user data is transmitted to Discogs. Only
+            product information is retrieved.
           </p>
-          <p>Rechtsgrundlage: Art. 6 Abs. 1 lit. f DSGVO.</p>
+          <p>Legal basis: Art. 6 (1)(f) GDPR.</p>
         </section>
 
-        {/* 11. E-Mails */}
+        {/* 11. Emails */}
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            11. Transaktions-E-Mails
+            11. Transactional Emails
           </h2>
           <p>
-            Wir versenden transaktionale E-Mails (Registrierung,
-            Gebotsbestätigung, Zuschlag, Zahlungsbestätigung,
-            Versandbenachrichtigung) über den E-Mail-Dienst Resend
-            (Resend Inc., USA). Dabei werden Ihre E-Mail-Adresse und die
-            relevanten Bestell-/Gebotsinformationen an Resend übermittelt.
+            We send transactional emails (registration, bid
+            confirmation, auction award, payment confirmation, shipping
+            notification) via the email service Resend (Resend Inc.,
+            USA). Your email address and the relevant order/bid
+            information are transmitted to Resend for this purpose.
           </p>
           <p>
-            Datenschutzerklärung von Resend:{" "}
+            Resend Privacy Policy:{" "}
             <a
               href="https://resend.com/legal/privacy-policy"
               target="_blank"
@@ -294,22 +290,21 @@ export default function DatenschutzPage() {
               https://resend.com/legal/privacy-policy
             </a>
           </p>
-          <p>Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO.</p>
+          <p>Legal basis: Art. 6 (1)(b) GDPR.</p>
         </section>
 
-        {/* 12. Externe Bilder */}
+        {/* 12. External Images */}
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            12. Externe Bildinhalte
+            12. External Image Content
           </h2>
           <p>
-            Einige Produktbilder werden von unseren Partnerseiten
-            geladen (tape-mag.com, vod-records.com). Beim Laden dieser
-            Bilder kann Ihre IP-Adresse an die jeweiligen Server
-            übermittelt werden. Diese Server werden ebenfalls von
-            VOD-Records betrieben.
+            Some product images are loaded from our partner websites
+            (tape-mag.com, vod-records.com). When loading these images,
+            your IP address may be transmitted to the respective
+            servers. These servers are also operated by VOD-Records.
           </p>
-          <p>Rechtsgrundlage: Art. 6 Abs. 1 lit. f DSGVO.</p>
+          <p>Legal basis: Art. 6 (1)(f) GDPR.</p>
         </section>
 
         {/* 13. Cookies */}
@@ -318,59 +313,56 @@ export default function DatenschutzPage() {
             13. Cookies
           </h2>
           <p>
-            Unsere Website verwendet folgende Arten von Cookies:
+            Our website uses the following types of cookies:
           </p>
           <ul className="list-disc pl-5 space-y-1">
             <li>
               <strong className="text-foreground">
-                Technisch notwendige Cookies:
+                Technically necessary cookies:
               </strong>{" "}
-              Session-Cookies für die Authentifizierung und
-              Warenkorb-Funktion. Diese sind für den Betrieb der Website
-              zwingend erforderlich.
+              Session cookies for authentication and shopping cart
+              functionality. These are essential for the operation of
+              the website.
             </li>
             <li>
               <strong className="text-foreground">
-                Supabase Auth Cookies:
+                Supabase Auth cookies:
               </strong>{" "}
-              Zur Aufrechterhaltung Ihrer Anmeldung (Token-basiert).
+              To maintain your login session (token-based).
             </li>
           </ul>
           <p>
-            Wir verwenden <strong className="text-foreground">keine</strong>{" "}
-            Tracking-, Analyse- oder Marketing-Cookies. Es findet
-            kein Tracking durch Google Analytics oder vergleichbare
-            Dienste statt.
+            We do <strong className="text-foreground">not</strong> use
+            any tracking, analytics, or marketing cookies. No tracking
+            via Google Analytics or comparable services takes place.
           </p>
           <p>
-            Sie können Ihren Browser so einstellen, dass er Sie über das
-            Setzen von Cookies informiert, Cookies nur im Einzelfall
-            erlaubt, die Annahme von Cookies für bestimmte Fälle oder
-            generell ausschließt oder das automatische Löschen der
-            Cookies beim Schließen des Browsers aktiviert.
+            You can configure your browser to inform you about the
+            setting of cookies, to allow cookies only on a case-by-case
+            basis, to reject cookies in general, or to automatically
+            delete cookies when closing the browser.
           </p>
-          <p>Rechtsgrundlage: Art. 6 Abs. 1 lit. f DSGVO, § 25 TDDDG.</p>
+          <p>Legal basis: Art. 6 (1)(f) GDPR, § 25 TDDDG.</p>
         </section>
 
-        {/* 14. Betroffenenrechte */}
+        {/* 14. Your Rights */}
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            14. Ihre Rechte
+            14. Your Rights
           </h2>
           <p>
-            Sie haben gegenüber uns folgende Rechte hinsichtlich Ihrer
-            personenbezogenen Daten:
+            You have the following rights regarding your personal data:
           </p>
           <ul className="list-disc pl-5 space-y-1">
-            <li>Recht auf Auskunft (Art. 15 DSGVO)</li>
-            <li>Recht auf Berichtigung (Art. 16 DSGVO)</li>
-            <li>Recht auf Löschung (Art. 17 DSGVO)</li>
-            <li>Recht auf Einschränkung der Verarbeitung (Art. 18 DSGVO)</li>
-            <li>Recht auf Datenübertragbarkeit (Art. 20 DSGVO)</li>
-            <li>Recht auf Widerspruch (Art. 21 DSGVO)</li>
+            <li>Right of access (Art. 15 GDPR)</li>
+            <li>Right to rectification (Art. 16 GDPR)</li>
+            <li>Right to erasure (Art. 17 GDPR)</li>
+            <li>Right to restriction of processing (Art. 18 GDPR)</li>
+            <li>Right to data portability (Art. 20 GDPR)</li>
+            <li>Right to object (Art. 21 GDPR)</li>
           </ul>
           <p>
-            Zur Ausübung Ihrer Rechte wenden Sie sich bitte an:{" "}
+            To exercise your rights, please contact:{" "}
             <a
               href="mailto:frank@vinyl-on-demand.com"
               className="text-primary hover:underline"
@@ -379,10 +371,8 @@ export default function DatenschutzPage() {
             </a>
           </p>
           <p>
-            Sie haben zudem das Recht, sich bei einer
-            Datenschutz-Aufsichtsbehörde über die Verarbeitung Ihrer
-            personenbezogenen Daten zu beschweren. Zuständige
-            Aufsichtsbehörde:
+            You also have the right to lodge a complaint with a data
+            protection supervisory authority. The competent authority is:
           </p>
           <p>
             Der Landesbeauftragte für den Datenschutz und die
@@ -403,71 +393,68 @@ export default function DatenschutzPage() {
           </p>
         </section>
 
-        {/* 15. Datenweitergabe */}
+        {/* 15. Data Sharing */}
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            15. Weitergabe von Daten an Dritte
+            15. Sharing Data with Third Parties
           </h2>
           <p>
-            Eine Weitergabe personenbezogener Daten an Dritte erfolgt
-            nur, soweit dies zur Vertragserfüllung erforderlich ist:
+            Personal data is only shared with third parties to the
+            extent necessary for contract fulfilment:
           </p>
           <ul className="list-disc pl-5 space-y-1">
             <li>
-              <strong className="text-foreground">Stripe</strong> — zur
-              Zahlungsabwicklung
+              <strong className="text-foreground">Stripe</strong> — for
+              payment processing
             </li>
             <li>
-              <strong className="text-foreground">DHL / Paketdienst</strong>{" "}
-              — zur Lieferung (Name, Adresse)
+              <strong className="text-foreground">DHL / Parcel service</strong>{" "}
+              — for delivery (name, address)
             </li>
             <li>
-              <strong className="text-foreground">Resend</strong> — zum
-              E-Mail-Versand
+              <strong className="text-foreground">Resend</strong> — for
+              sending emails
             </li>
           </ul>
           <p>
-            Darüber hinaus findet keine Weitergabe an Dritte statt. Wir
-            verkaufen oder vermieten keine personenbezogenen Daten.
+            Beyond this, no data is shared with third parties. We do not
+            sell or rent personal data.
           </p>
         </section>
 
-        {/* 16. Datensicherheit */}
+        {/* 16. Data Security */}
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            16. Datensicherheit
+            16. Data Security
           </h2>
           <p>
-            Wir verwenden innerhalb des Website-Besuchs das verbreitete
-            TLS-Verfahren (Transport Layer Security) in Verbindung mit
-            der jeweils höchsten Verschlüsselungsstufe, die von Ihrem
-            Browser unterstützt wird. Alle übertragenen Daten zwischen
-            Ihrem Browser und unserem Server sind verschlüsselt.
+            We use TLS (Transport Layer Security) encryption with the
+            highest level supported by your browser for all data
+            transmitted between your browser and our server.
           </p>
         </section>
 
-        {/* 17. Aufbewahrung */}
+        {/* 17. Retention */}
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            17. Speicherdauer
+            17. Data Retention
           </h2>
           <p>
-            Personenbezogene Daten werden gelöscht oder gesperrt, sobald
-            der Zweck der Speicherung entfällt. Eine Speicherung über
-            diesen Zeitraum hinaus erfolgt nur, wenn dies durch
-            gesetzliche Aufbewahrungsfristen vorgesehen ist
-            (Handelsrecht: 6 Jahre, Steuerrecht: 10 Jahre).
+            Personal data is deleted or blocked as soon as the purpose
+            for its storage ceases to apply. Data may be stored beyond
+            this period only if required by statutory retention periods
+            (commercial law: 6 years, tax law: 10 years).
           </p>
         </section>
 
-        {/* 18. Plattformübergreifend */}
+        {/* 18. Other Platforms */}
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            18. Hinweis zu weiteren Plattformen
+            18. Notice Regarding Other Platforms
           </h2>
           <p>
-            Der Verantwortliche betreibt auch folgende Webauftritte mit
-            eigenen Datenschutzhinweisen:
+            The data controller also operates the following websites
+            with their own privacy notices:
           </p>
           <ul className="list-disc pl-5 space-y-1">
             <li>
@@ -479,7 +466,7 @@ export default function DatenschutzPage() {
               >
                 www.vod-records.com
               </a>{" "}
-              — Online-Shop (PayPal, Google Web Fonts, Cookies)
+              — Online Shop (PayPal, Google Web Fonts, Cookies)
             </li>
             <li>
               <a
@@ -490,7 +477,7 @@ export default function DatenschutzPage() {
               >
                 www.tape-mag.com
               </a>{" "}
-              — Archiv &amp; Datenbank (Google Analytics, Google Tag
+              — Archive &amp; Database (Google Analytics, Google Tag
               Manager, Google Web Fonts, Cookies)
             </li>
             <li>
@@ -502,17 +489,17 @@ export default function DatenschutzPage() {
               >
                 vod-records.com/vod-fest
               </a>{" "}
-              — Festival-Seite
+              — Festival Website
             </li>
           </ul>
           <p>
-            Bitte beachten Sie die jeweiligen Datenschutzerklärungen
-            dieser Plattformen.
+            Please refer to the respective privacy policies of these
+            platforms.
           </p>
         </section>
 
         <p className="text-xs text-muted-foreground/60 pt-4">
-          Stand: März 2026
+          Last updated: March 2026
         </p>
       </div>
     </main>

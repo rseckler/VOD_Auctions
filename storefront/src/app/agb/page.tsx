@@ -1,211 +1,208 @@
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
-  title: "AGB — VOD Auctions",
+  title: "Terms & Conditions — VOD Auctions",
 }
 
 export default function AGBPage() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-16">
       <h1 className="font-serif text-4xl mb-8">
-        Allgemeine Geschäftsbedingungen (AGB)
+        Terms &amp; Conditions
       </h1>
 
       <div className="prose prose-invert prose-sm max-w-none space-y-6 text-muted-foreground">
         <section>
-          <h2 className="text-lg font-medium text-foreground">§ 1 Geltungsbereich</h2>
+          <h2 className="text-lg font-medium text-foreground">§ 1 Scope</h2>
           <p>
-            (1) Diese Allgemeinen Geschäftsbedingungen (AGB) gelten für
-            alle Geschäftsbeziehungen zwischen Frank Bull, VOD-Records,
-            Alpenstrasse 25/1, 88045 Friedrichshafen (nachfolgend
-            &quot;Anbieter&quot;) und dem Kunden über die Plattform
-            VOD Auctions (nachfolgend &quot;Plattform&quot;).
+            (1) These Terms &amp; Conditions apply to all business
+            relationships between Frank Bull, VOD-Records,
+            Alpenstrasse 25/1, 88045 Friedrichshafen, Germany
+            (hereinafter &quot;Seller&quot;) and the customer via the
+            VOD Auctions platform (hereinafter &quot;Platform&quot;).
           </p>
           <p>
-            (2) Maßgeblich ist die jeweils zum Zeitpunkt des
-            Vertragsschlusses gültige Fassung dieser AGB.
+            (2) The version of these Terms &amp; Conditions valid at the
+            time of contract conclusion shall apply.
           </p>
           <p>
-            (3) Abweichende Bedingungen des Kunden werden nicht
-            anerkannt, es sei denn, der Anbieter stimmt ihrer Geltung
-            ausdrücklich schriftlich zu.
-          </p>
-        </section>
-
-        <section>
-          <h2 className="text-lg font-medium text-foreground">
-            § 2 Vertragspartner und Vertragsschluss
-          </h2>
-          <p>
-            (1) Der Kaufvertrag kommt zustande mit Frank Bull,
-            VOD-Records, Alpenstrasse 25/1, 88045 Friedrichshafen.
-          </p>
-          <p>
-            (2) Die Darstellung der Produkte auf der Plattform stellt
-            kein rechtlich bindendes Angebot, sondern eine Aufforderung
-            zur Gebotsabgabe bzw. Bestellung dar.
-          </p>
-          <p>
-            (3) Bei Auktionen: Der Vertrag kommt durch Zuschlag zum
-            Höchstgebot bei Auktionsende zustande. Der Zuschlag wird per
-            E-Mail bestätigt.
-          </p>
-          <p>
-            (4) Bei Direktkauf: Der Vertrag kommt durch die
-            Bestellbestätigung per E-Mail zustande.
+            (3) Deviating terms of the customer shall not be recognised
+            unless the Seller expressly agrees to their validity in
+            writing.
           </p>
         </section>
 
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            § 3 Auktionsbedingungen
+            § 2 Contracting Party &amp; Contract Formation
           </h2>
           <p>
-            (1) Auktionen werden in thematisch kuratierten Blöcken
-            durchgeführt. Jeder Block hat eine festgelegte Laufzeit.
+            (1) The purchase contract is concluded with Frank Bull,
+            VOD-Records, Alpenstrasse 25/1, 88045 Friedrichshafen,
+            Germany.
           </p>
           <p>
-            (2) Gebote sind verbindlich. Ein Gebot kann nach Abgabe
-            nicht zurückgenommen werden.
+            (2) The presentation of products on the Platform does not
+            constitute a legally binding offer, but rather an invitation
+            to submit a bid or order.
           </p>
           <p>
-            (3) Das Mindestgebot wird vom Anbieter festgelegt. Jedes
-            folgende Gebot muss höher sein als das aktuelle Höchstgebot.
+            (3) For auctions: The contract is concluded when the highest
+            bid is awarded at the end of the auction. The award is
+            confirmed by email.
           </p>
           <p>
-            (4) Proxy-Bidding: Kunden können ein Maximalgebot angeben.
-            Das System bietet automatisch den niedrigstmöglichen Betrag,
-            der zum Höchstgebot führt, bis das Maximum erreicht ist.
-          </p>
-          <p>
-            (5) Bei identischen Geboten erhält das zeitlich frühere
-            Gebot den Zuschlag.
-          </p>
-          <p>
-            (6) Der Anbieter behält sich das Recht vor, Auktionen ohne
-            Angabe von Gründen zu stornieren oder vorzeitig zu beenden.
-            Bereits abgegebene Gebote werden in diesem Fall ungültig.
+            (4) For direct purchases: The contract is concluded upon
+            order confirmation by email.
           </p>
         </section>
 
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            § 4 Preise und Zahlung
+            § 3 Auction Terms
           </h2>
           <p>
-            (1) Alle angegebenen Preise sind Endpreise inkl. der
-            gesetzlichen Mehrwertsteuer (sofern anwendbar). Versandkosten
-            werden gesondert ausgewiesen.
+            (1) Auctions are conducted in thematically curated blocks.
+            Each block has a defined duration.
           </p>
           <p>
-            (2) Bei Auktionen: Der Endpreis entspricht dem Höchstgebot
-            bei Auktionsende zuzüglich Versandkosten.
+            (2) Bids are binding. A bid cannot be retracted once placed.
           </p>
           <p>
-            (3) Die Zahlung erfolgt über den Zahlungsdienstleister
-            Stripe. Akzeptierte Zahlungsmittel: Kreditkarte (Visa,
-            Mastercard, American Express), SEPA-Lastschrift, und weitere
-            von Stripe unterstützte Zahlungsmethoden.
+            (3) The minimum bid is set by the Seller. Each subsequent
+            bid must exceed the current highest bid.
           </p>
           <p>
-            (4) Die Zahlung ist innerhalb von 7 Tagen nach Zuschlag
-            bzw. Bestellbestätigung fällig.
+            (4) Proxy bidding: Customers may set a maximum bid. The
+            system automatically bids the lowest amount necessary to
+            hold the highest bid until the maximum is reached.
           </p>
           <p>
-            (5) Kunden außerhalb der EU können ohne deutsche
-            Mehrwertsteuer (19%) kaufen, sofern die Voraussetzungen für
-            eine steuerfreie Ausfuhrlieferung erfüllt sind.
+            (5) In the case of identical bids, the earlier bid takes
+            precedence.
+          </p>
+          <p>
+            (6) The Seller reserves the right to cancel or end auctions
+            early without stating reasons. In such cases, all submitted
+            bids become void.
           </p>
         </section>
 
         <section>
-          <h2 className="text-lg font-medium text-foreground">§ 5 Versand und Lieferung</h2>
+          <h2 className="text-lg font-medium text-foreground">
+            § 4 Prices &amp; Payment
+          </h2>
           <p>
-            (1) Der Versand erfolgt per DHL oder vergleichbarem
-            Paketdienst.
+            (1) All stated prices are final prices including statutory
+            VAT where applicable. Shipping costs are shown separately.
           </p>
           <p>
-            (2) Versandkosten:
+            (2) For auctions: The final price equals the highest bid at
+            auction end plus shipping costs.
+          </p>
+          <p>
+            (3) Payment is processed via the payment service provider
+            Stripe. Accepted payment methods: credit card (Visa,
+            Mastercard, American Express), SEPA direct debit, and other
+            methods supported by Stripe.
+          </p>
+          <p>
+            (4) Payment is due within 7 days of the award or order
+            confirmation.
+          </p>
+          <p>
+            (5) Customers outside the EU may purchase without German VAT
+            (19%), provided the requirements for a tax-exempt export
+            delivery are met.
+          </p>
+        </section>
+
+        <section>
+          <h2 className="text-lg font-medium text-foreground">§ 5 Shipping &amp; Delivery</h2>
+          <p>
+            (1) Shipping is handled via DHL or a comparable parcel
+            service.
+          </p>
+          <p>
+            (2) Shipping costs:
           </p>
           <ul className="list-disc pl-5 space-y-1">
-            <li>Deutschland: 4,99 €</li>
-            <li>EU: 9,99 €</li>
-            <li>Weltweit: 14,99 €</li>
+            <li>Germany: €4.99</li>
+            <li>Europe: €9.99</li>
+            <li>Worldwide: €14.99</li>
           </ul>
           <p>
-            (3) Bei mehreren Artikeln aus einer Auktion bzw. Bestellung
-            werden die Versandkosten nur einmal berechnet.
+            (3) For multiple items from the same auction or order,
+            shipping is charged only once.
           </p>
           <p>
-            (4) Die Lieferzeit beträgt in der Regel 3–7 Werktage
-            (Deutschland), 5–14 Werktage (EU) bzw. 7–21 Werktage
-            (Weltweit) nach Zahlungseingang.
+            (4) Estimated delivery times: 3–7 business days (Germany),
+            5–14 business days (EU), 7–21 business days (worldwide)
+            after receipt of payment.
           </p>
           <p>
-            (5) Transportschäden sind unverzüglich dem Anbieter und dem
-            Transportunternehmen zu melden.
-          </p>
-        </section>
-
-        <section>
-          <h2 className="text-lg font-medium text-foreground">
-            § 6 Eigentumsvorbehalt
-          </h2>
-          <p>
-            Die Ware bleibt bis zur vollständigen Bezahlung Eigentum des
-            Anbieters.
+            (5) Transport damage must be reported immediately to the
+            Seller and the carrier.
           </p>
         </section>
 
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            § 7 Gewährleistung und Zustandsbeschreibung
+            § 6 Retention of Title
           </h2>
           <p>
-            (1) Es handelt sich bei den angebotenen Artikeln
-            überwiegend um gebrauchte Tonträger und Druckerzeugnisse. Der
-            Zustand wird nach branchenüblichen Standards beschrieben
-            (Mint, Near Mint, Very Good Plus, Very Good, Good Plus, Good,
-            Fair, Poor).
-          </p>
-          <p>
-            (2) Die gesetzlichen Gewährleistungsrechte bleiben
-            unberührt. Bei gebrauchten Waren beträgt die
-            Gewährleistungsfrist 12 Monate ab Lieferung.
-          </p>
-          <p>
-            (3) Mängel sind innerhalb von 14 Tagen nach Erhalt der
-            Ware schriftlich oder per E-Mail anzuzeigen.
-          </p>
-        </section>
-
-        <section>
-          <h2 className="text-lg font-medium text-foreground">§ 8 Haftung</h2>
-          <p>
-            (1) Der Anbieter haftet unbeschränkt für Vorsatz und grobe
-            Fahrlässigkeit.
-          </p>
-          <p>
-            (2) Bei leichter Fahrlässigkeit haftet der Anbieter nur bei
-            Verletzung wesentlicher Vertragspflichten
-            (Kardinalpflichten), begrenzt auf den vorhersehbaren,
-            vertragstypischen Schaden.
-          </p>
-          <p>
-            (3) Die vorstehenden Haftungsbeschränkungen gelten nicht bei
-            Verletzung von Leben, Körper oder Gesundheit.
+            The goods remain the property of the Seller until full
+            payment has been received.
           </p>
         </section>
 
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            § 9 Datenschutz
+            § 7 Warranty &amp; Condition Grading
           </h2>
           <p>
-            Informationen zur Verarbeitung personenbezogener Daten
-            finden Sie in unserer{" "}
+            (1) The items offered are predominantly used sound carriers
+            and printed materials. Condition is described according to
+            industry-standard grading (Mint, Near Mint, Very Good Plus,
+            Very Good, Good Plus, Good, Fair, Poor).
+          </p>
+          <p>
+            (2) Statutory warranty rights remain unaffected. For used
+            goods, the warranty period is 12 months from delivery.
+          </p>
+          <p>
+            (3) Defects must be reported in writing or by email within
+            14 days of receiving the goods.
+          </p>
+        </section>
+
+        <section>
+          <h2 className="text-lg font-medium text-foreground">§ 8 Liability</h2>
+          <p>
+            (1) The Seller is fully liable for intent and gross
+            negligence.
+          </p>
+          <p>
+            (2) For slight negligence, the Seller is only liable for
+            breach of essential contractual obligations (cardinal
+            obligations), limited to foreseeable, contract-typical
+            damage.
+          </p>
+          <p>
+            (3) The above limitations of liability do not apply to
+            injury to life, body, or health.
+          </p>
+        </section>
+
+        <section>
+          <h2 className="text-lg font-medium text-foreground">
+            § 9 Data Protection
+          </h2>
+          <p>
+            Information on the processing of personal data can be found
+            in our{" "}
             <a href="/datenschutz" className="text-primary hover:underline">
-              Datenschutzerklärung
+              Privacy Policy
             </a>
             .
           </p>
@@ -213,27 +210,28 @@ export default function AGBPage() {
 
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            § 10 Schlussbestimmungen
+            § 10 Final Provisions
           </h2>
           <p>
-            (1) Es gilt das Recht der Bundesrepublik Deutschland unter
-            Ausschluss des UN-Kaufrechts (CISG).
+            (1) The law of the Federal Republic of Germany applies,
+            excluding the UN Convention on Contracts for the
+            International Sale of Goods (CISG).
           </p>
           <p>
-            (2) Sofern der Kunde Kaufmann, juristische Person des
-            öffentlichen Rechts oder öffentlich-rechtliches
-            Sondervermögen ist, ist Gerichtsstand für alle
-            Streitigkeiten der Sitz des Anbieters.
+            (2) If the customer is a merchant, a legal entity under
+            public law, or a special fund under public law, the place
+            of jurisdiction for all disputes is the Seller&apos;s place
+            of business.
           </p>
           <p>
-            (3) Sollten einzelne Bestimmungen dieser AGB unwirksam sein
-            oder werden, bleibt die Wirksamkeit der übrigen Bestimmungen
-            unberührt.
+            (3) Should individual provisions of these Terms &amp;
+            Conditions be or become invalid, the validity of the
+            remaining provisions shall not be affected.
           </p>
         </section>
 
         <p className="text-xs text-muted-foreground/60 pt-4">
-          Stand: März 2026
+          Last updated: March 2026
         </p>
       </div>
     </main>
