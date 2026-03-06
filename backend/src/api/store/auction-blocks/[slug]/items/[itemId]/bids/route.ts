@@ -6,7 +6,7 @@ import {
 import { Knex } from "knex"
 import AuctionModuleService from "../../../../../../../modules/auction/service"
 import { AUCTION_MODULE } from "../../../../../../../modules/auction"
-import { sendOutbidEmail } from "../../../../../../../lib/email-helpers.js"
+import { sendOutbidEmail } from "../../../../../../../lib/email-helpers"
 
 // GET /store/auction-blocks/:slug/items/:itemId/bids — Public: bid history
 export async function GET(

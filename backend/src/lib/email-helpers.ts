@@ -1,12 +1,12 @@
 import { Knex } from "knex"
-import { sendEmail, APP_URL } from "./email.js"
-import { getTrackingUrl } from "./tracking.js"
-import { welcomeEmail } from "../emails/welcome.js"
-import { outbidEmail } from "../emails/outbid.js"
-import { bidWonEmail } from "../emails/bid-won.js"
-import { paymentConfirmationEmail } from "../emails/payment-confirmation.js"
-import { shippingEmail } from "../emails/shipping.js"
-import { feedbackRequestEmail } from "../emails/feedback-request.js"
+import { sendEmail, APP_URL } from "./email"
+import { getTrackingUrl } from "./tracking"
+import { welcomeEmail } from "../emails/welcome"
+import { outbidEmail } from "../emails/outbid"
+import { bidWonEmail } from "../emails/bid-won"
+import { paymentConfirmationEmail } from "../emails/payment-confirmation"
+import { shippingEmail } from "../emails/shipping"
+import { feedbackRequestEmail } from "../emails/feedback-request"
 
 // Resolve customer email + first_name from Medusa customer ID
 async function getCustomer(pg: Knex, userId: string) {

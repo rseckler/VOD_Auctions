@@ -1,4 +1,4 @@
-import { emailLayout, emailButton, formatPrice } from "./layout.js"
+import { emailLayout, emailButton, formatPrice } from "./layout"
 
 type OrderItem = {
   title: string

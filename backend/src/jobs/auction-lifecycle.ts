@@ -1,6 +1,6 @@
 import { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { sendBidWonEmail } from "../lib/email-helpers.js"
+import { sendBidWonEmail } from "../lib/email-helpers"
 
 export default async function auctionLifecycle(container: MedusaContainer) {
   const pgConnection = container.resolve(

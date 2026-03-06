@@ -1,4 +1,4 @@
-import { emailLayout, emailButton, emailItemPreview } from "./layout.js"
+import { emailLayout, emailButton, emailItemPreview } from "./layout"
 
 type FeedbackItem = {
   title: string

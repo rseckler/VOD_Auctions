@@ -1,4 +1,4 @@
-import { emailLayout, emailButton } from "./layout.js"
+import { emailLayout, emailButton } from "./layout"
 
 export function welcomeEmail(opts: {
   firstName: string

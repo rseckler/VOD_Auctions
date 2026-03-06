@@ -1,6 +1,6 @@
 import { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { sendFeedbackRequestEmail } from "../lib/email-helpers.js"
+import { sendFeedbackRequestEmail } from "../lib/email-helpers"
 
 // Cron job: send feedback request emails 5 days after shipping
 export default async function feedbackEmail(container: MedusaContainer) {

@@ -2,7 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { stripe } from "../../../lib/stripe"
-import { sendPaymentConfirmationEmail } from "../../../lib/email-helpers.js"
+import { sendPaymentConfirmationEmail } from "../../../lib/email-helpers"
 
 // POST /webhooks/stripe — Stripe Webhook Handler
 export async function POST(

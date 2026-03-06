@@ -1,7 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
-import { sendShippingEmail, sendFeedbackRequestEmail } from "../../../../lib/email-helpers.js"
+import { sendShippingEmail, sendFeedbackRequestEmail } from "../../../../lib/email-helpers"
 
 // GET /admin/transactions/:id — Transaction detail
 export async function GET(

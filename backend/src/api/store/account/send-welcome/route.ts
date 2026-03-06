@@ -1,7 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
-import { sendWelcomeEmail } from "../../../../lib/email-helpers.js"
+import { sendWelcomeEmail } from "../../../../lib/email-helpers"
 
 // POST /store/account/send-welcome — Send welcome email after registration
 export async function POST(

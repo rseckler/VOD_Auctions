@@ -1,4 +1,4 @@
-import { emailLayout, emailButton, emailItemPreview, formatPrice } from "./layout.js"
+import { emailLayout, emailButton, emailItemPreview, formatPrice } from "./layout"
 
 export function outbidEmail(opts: {
   firstName: string
