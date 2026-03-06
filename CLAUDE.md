@@ -16,6 +16,26 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-06
 
 ### Letzte Änderungen (2026-03-06)
+- **Extended Image Gallery + Catalog Result Count:**
+  - **ImageGallery:** "Show all X images" Button bei >8 Bildern → Fullscreen-Grid-Overlay (2-5 Spalten, responsive)
+  - **Lightbox-Verbesserungen:** Prev/Next-Pfeile, Tastatur-Navigation (←/→), scrollbare Thumbnail-Leiste, Bild-Zähler "X / Y"
+  - **Counter-Badge:** Auf dem Hauptbild unten rechts "1 / 154"
+  - **Katalog-Suche:** Gesamtzahl gefundener Artikel rechts in der Filter-Zeile ("12,067 results")
+  - **Backend:** Image-Limit pro Release von 20 auf 50 erhöht, Visibility-Filter (coverImage/legacy_price required) aus Catalog-API entfernt
+  - **VPS:** Backend + Storefront deployed
+- **RSE-77: Smoke-Test / Phase 1 VPS-Check (bestanden):**
+  - **Backend (PM2):** online, Port 9000, 56 MB RAM, `/health` → 200 in 55ms
+  - **Storefront (PM2):** online, Port 3006, 197 MB RAM, `https://vod-auctions.com` → 200 in 69ms
+  - **Nginx:** aktiv, SSL valid, Domains `vod-auctions.com` + `api.vod-auctions.com` korrekt
+  - **Store API:** Auction-Blocks (leer — erwartungsgemäß), Catalog (12.067 Releases), Shipping (3 Zones, 15 Gewichtsstufen) — alle OK
+  - **Stripe Live-Mode:** `sk_live_*` + `whsec_*` auf VPS gesetzt, Checkout-Code generiert IDs korrekt (`generateEntityId()`)
+  - **Email (Resend):** API-Key gesetzt, FROM `VOD Auctions <noreply@vod-auctions.com>`, 6 Templates vorhanden
+  - **Redis (Upstash):** `REDIS_URL` gesetzt
+  - **Supabase Realtime:** `NEXT_PUBLIC_SUPABASE_URL` gesetzt
+  - **Sentry:** DSN gesetzt, Production-only
+  - **PM2 Restart-Counter zurückgesetzt** (waren 457/1180 durch alte Crash-Loop wegen fehlendem Build)
+  - **Bekannte nicht-kritische Issues:** Nginx doppelter Servername `vodauction.thehotshit.de` (kosmetisch), Stripe-Webhook Spam von Bots ("No webhook payload")
+  - **Nächster Schritt:** Phase 2 — Auction-Block mit 2 Artikeln anlegen + E2E-Testlauf
 - **RSE-78: Launch-Vorbereitung (teilweise):**
   - **Stripe Live-Mode:** `.env.example` + `backend/.env.template` auf Live-Key-Platzhalter aktualisiert, Live-Keys auf VPS deployed
   - **Cookie-Consent-Banner:** DSGVO-konformer Banner (`CookieConsent.tsx`), GA4 wird nur bei explizitem Opt-In geladen, Consent in `localStorage` (`vod-cookie-consent`)
