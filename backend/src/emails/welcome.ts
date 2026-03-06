@@ -13,7 +13,7 @@ export function welcomeEmail(opts: {
         from the world of Industrial, Experimental &amp; Electronic Music.
       </p>
       <p style="margin:0 0 16px;font-size:14px;color:#52525b;line-height:1.6;">
-        Over 30,000 records are waiting in thematically curated auction blocks for new owners.
+        Over 40,000 records are waiting in thematically curated auction blocks for new owners.
       </p>
       <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;background-color:#fafafa;border-radius:8px;margin-bottom:16px;">
         <tr>

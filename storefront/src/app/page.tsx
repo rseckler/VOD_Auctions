@@ -90,7 +90,7 @@ export default async function Home() {
         <div className="rounded-2xl border border-[rgba(232,224,212,0.08)] bg-[rgba(232,224,212,0.02)] p-12 text-center">
           <Disc3 className="h-12 w-12 mx-auto text-primary/40 mb-4" />
           <h2 className="font-serif text-2xl md:text-3xl mb-3">
-            30,000+ Releases in Catalog
+            40,000+ Releases in Catalog
           </h2>
           <p className="text-muted-foreground max-w-lg mx-auto mb-6">
             Browse our complete archive — Industrial, EBM, Dark Ambient,
