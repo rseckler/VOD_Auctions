@@ -16,6 +16,15 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-06
 
 ### Letzte Änderungen (2026-03-06)
+- **Data Quality Fix — Images, Covers, Tracklists, Credits:**
+  - **band_literature images:** +3.437 fehlende Bilder für 885 Artikel importiert (typ=13 aus Legacy bilder_1)
+  - **Release coverImage:** 3.198 Covers korrigiert (Sortierung nach rang/id statt zufällig)
+  - **band_lit covers:** 239 korrigiert
+  - **Tracklists:** 774 kaputte repariert + 332 neue (content_ETGfR Discogs-HTML-Format)
+  - **Credits:** 1.736 abgeschnittene vervollständigt + 555 neue (UL/LI HTML-Format)
+  - **Notes:** 3.764 aus Discogs-HTML extrahiert und an Credits angehängt
+  - **Vergleichstest:** 50 zufällige Artikel gegen Legacy DB: 94% perfekt, 100% Cover korrekt, 100% Titel korrekt
+  - **Scripts:** `fix_bandlit_images_and_covers.py`, `fix_reparse_descriptions.py`, `compare_vod_vs_legacy.py`
 - **Image Gallery Overlay + tape_mag_url:**
   - **Admin Media:** "Browse Images" Button öffnet Fullscreen-Overlay mit Bildergrid (60/Seite), Suche, Lightbox, Detail-Navigation
   - **API:** `has_image` Query-Parameter für `/admin/media` (true/false)
@@ -274,7 +283,7 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 Shared DB für tape-mag-mvp + VOD_Auctions. Schema enthält 24 Tabellen (14 Basis + 4 Referenz + 6 Auktions-Erweiterung).
 
 **Migrierte Daten (aktuell):**
-- 12.451 Artists, 3.077 Labels, ~41.529 Releases, ~102.895 Images, 1.983 PressOrga, 39 Formats, 458 LabelPersons
+- 12.451 Artists, 3.077 Labels, ~41.529 Releases, ~75.124 Images, 1.983 PressOrga, 39 Formats, 458 LabelPersons
 - **Releases nach Kategorie:** 30.159 release + 3.915 band_literature + 1.129 label_literature + 6.326 press_literature
 - **CoverImage-Abdeckung:** release 97%+, band_literature 93.5%, label_literature 95.7%, press_literature 94.2%
 - Quelle: Legacy MySQL (213.133.106.99/vodtapes)
@@ -564,6 +573,13 @@ VOD_Auctions/
 │   ├── backfill_discogs_prices.py # Two-pass Discogs backfill
 │   ├── extract_legacy_data.py   # MySQL → JSON
 │   ├── load_json_to_supabase.py # JSON → Supabase (psycopg2, Batch 500)
+│   ├── fix_reimport_images.py   # Re-import ALL typ=10 release images (GROUP BY fix)
+│   ├── fix_literature_image_assignments.py  # Fix cross-category lit image misassignment
+│   ├── fix_bandlit_images_and_covers.py     # Fix band_lit missing images + release cover sorting
+│   ├── fix_description_parser.py            # Parse tracklist/credits from classic HTML
+│   ├── fix_reparse_descriptions.py          # Improved parser for content_ETGfR format
+│   ├── compare_vod_vs_legacy.py             # 50-article comparison: VOD vs legacy DB
+│   ├── top_images.py            # Show top articles by image count
 │   ├── requirements.txt         # Python deps
 │   └── data/                    # Extrahierte JSON-Daten (git-ignored)
 ├── supabase/migrations/         # SQL Migrations (RSE-72)
