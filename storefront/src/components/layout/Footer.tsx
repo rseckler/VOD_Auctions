@@ -27,6 +27,45 @@ export function Footer() {
               >
                 Current Auctions
               </Link>
+              <Link
+                href="/catalog"
+                className="text-muted-foreground hover:text-primary transition-colors"
+              >
+                Catalog
+              </Link>
+            </div>
+            <div className="flex flex-col gap-2">
+              <p className="text-foreground font-medium">Legal</p>
+              <Link
+                href="/impressum"
+                className="text-muted-foreground hover:text-primary transition-colors"
+              >
+                Impressum
+              </Link>
+              <Link
+                href="/agb"
+                className="text-muted-foreground hover:text-primary transition-colors"
+              >
+                AGB
+              </Link>
+              <Link
+                href="/datenschutz"
+                className="text-muted-foreground hover:text-primary transition-colors"
+              >
+                Datenschutz
+              </Link>
+              <Link
+                href="/widerruf"
+                className="text-muted-foreground hover:text-primary transition-colors"
+              >
+                Widerrufsbelehrung
+              </Link>
+              <Link
+                href="/cookies"
+                className="text-muted-foreground hover:text-primary transition-colors"
+              >
+                Cookie-Richtlinie
+              </Link>
             </div>
           </div>
         </div>
