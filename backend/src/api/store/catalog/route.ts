@@ -23,6 +23,7 @@ export async function GET(
     label,
     artist,
     condition,
+    visibility,
     sort = "title",
     order = "asc",
   } = req.query as Record<string, string>
@@ -153,6 +154,25 @@ export async function GET(
   if (condition && typeof condition === "string" && condition.trim()) {
     query = query.whereILike("Release.legacy_condition", `%${condition.trim()}%`)
     countQuery = countQuery.whereILike("Release.legacy_condition", `%${condition.trim()}%`)
+  }
+
+  // Visibility filter
+  if (visibility === "visible") {
+    query = query
+      .whereNotNull("Release.coverImage")
+      .whereNotNull("Release.legacy_price")
+    countQuery = countQuery
+      .whereNotNull("Release.coverImage")
+      .whereNotNull("Release.legacy_price")
+  } else if (visibility === "hidden") {
+    query = query.where(function () {
+      this.whereNull("Release.coverImage")
+        .orWhereNull("Release.legacy_price")
+    })
+    countQuery = countQuery.where(function () {
+      this.whereNull("Release.coverImage")
+        .orWhereNull("Release.legacy_price")
+    })
   }
 
   // Count total
