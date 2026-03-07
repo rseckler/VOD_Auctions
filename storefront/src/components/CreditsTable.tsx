@@ -17,21 +17,23 @@ export function CreditsTable({ credits }: { credits: string }) {
   }
 
   return (
-    <dl className="space-y-1.5">
+    <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
       {entries.map((entry, i) =>
         entry.role ? (
-          <div key={i} className="flex gap-3 text-sm">
-            <dt className="text-muted-foreground flex-shrink-0 min-w-[120px] max-w-[200px]">
+          <div key={i} className="contents">
+            <span className="text-xs text-primary/70 font-medium text-right py-0.5 whitespace-nowrap">
               {entry.role}
-            </dt>
-            <dd>{entry.name}</dd>
+            </span>
+            <span className="text-sm py-0.5 border-b border-white/[0.04]">
+              {entry.name}
+            </span>
           </div>
         ) : (
-          <div key={i} className="text-sm">
+          <div key={i} className="col-span-2 text-sm py-0.5">
             {entry.name}
           </div>
         )
       )}
-    </dl>
+    </div>
   )
 }

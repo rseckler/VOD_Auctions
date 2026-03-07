@@ -219,67 +219,36 @@ export default async function ItemDetailPage({
             </div>
           )}
 
-          <Separator className="my-6" />
-          <div className="space-y-3">
-            <h2 className="text-lg font-semibold">Details</h2>
-            <dl className="space-y-2 text-sm">
-              {release?.article_number && (
-                <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Article No.</dt>
-                  <dd className="font-mono text-xs">{release.article_number}</dd>
+          {/* Details — Concept C "Vinyl Groove" */}
+          <div className="relative pl-4 mt-8 mb-7">
+            <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full bg-gradient-to-b from-primary via-primary/60 to-transparent" />
+            <h2 className="font-serif text-[15px] text-primary mb-3">Details</h2>
+            <div>
+              {[
+                release?.article_number && { k: "Article No.", v: release.article_number, mono: true },
+                release?.label_name && { k: "Label", v: release.label_name },
+                release?.catalogNumber && { k: "Catalog No.", v: release.catalogNumber, mono: true },
+                release?.legacy_condition && { k: "Condition", v: release.legacy_condition, mono: true },
+                release?.media_condition && { k: "Media", v: release.media_condition },
+                release?.sleeve_condition && { k: "Sleeve", v: release.sleeve_condition },
+                release?.legacy_format_detail && { k: "Format", v: release.legacy_format_detail },
+                release?.legacy_price && { k: "Catalog Price", v: `€${Number(release.legacy_price).toFixed(2)}`, mono: true },
+              ].filter(Boolean).map((row, i) => (
+                <div key={i} className={`flex justify-between py-1.5 ${i > 0 ? "border-t border-dotted border-white/[0.06]" : ""}`}>
+                  <span className="text-xs text-muted-foreground">{(row as { k: string }).k}</span>
+                  <span className={`text-[13px] font-medium ${(row as { mono?: boolean }).mono ? "font-mono text-xs font-normal" : ""}`}>
+                    {(row as { v: string }).v}
+                  </span>
                 </div>
-              )}
-              {release?.label_name && (
-                <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Label</dt>
-                  <dd>{release.label_name}</dd>
-                </div>
-              )}
-              {release?.catalogNumber && (
-                <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Catalog No.</dt>
-                  <dd className="font-mono text-xs">{release.catalogNumber}</dd>
-                </div>
-              )}
-              {release?.legacy_condition && (
-                <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Condition</dt>
-                  <dd className="font-mono text-xs uppercase">{release.legacy_condition}</dd>
-                </div>
-              )}
-              {release?.media_condition && (
-                <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Media</dt>
-                  <dd>{release.media_condition}</dd>
-                </div>
-              )}
-              {release?.sleeve_condition && (
-                <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Sleeve</dt>
-                  <dd>{release.sleeve_condition}</dd>
-                </div>
-              )}
-              {release?.legacy_format_detail && (
-                <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Format (Detail)</dt>
-                  <dd>{release.legacy_format_detail}</dd>
-                </div>
-              )}
-              {release?.legacy_price && (
-                <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Catalog Price</dt>
-                  <dd className="font-mono">&euro;{Number(release.legacy_price).toFixed(2)}</dd>
-                </div>
-              )}
-            </dl>
+              ))}
+            </div>
           </div>
 
           {/* Discogs Prices */}
           {(release?.discogs_lowest_price || release?.discogs_median_price || release?.discogs_highest_price) && (
-            <>
-              <Separator className="my-6" />
-              <div>
-                <h2 className="text-lg font-semibold mb-2">Discogs Market</h2>
+            <div className="relative pl-4 mb-7">
+              <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full bg-gradient-to-b from-primary via-primary/60 to-transparent" />
+              <h2 className="font-serif text-[15px] text-primary mb-2">Discogs Market</h2>
                 <div className="flex gap-4 text-sm font-mono">
                   {release.discogs_lowest_price && (
                     <div className="flex flex-col items-center">
@@ -310,61 +279,85 @@ export default async function ItemDetailPage({
                     View on Discogs &rarr;
                   </a>
                 )}
-              </div>
-            </>
+            </div>
           )}
 
-          {/* Various Artists (Compilations) */}
+          {/* Contributing Artists */}
           {release?.various_artists && release.various_artists.length > 0 && (
-            <>
-              <Separator className="my-6" />
-              <div>
-                <h2 className="text-lg font-semibold mb-2">Contributing Artists</h2>
-                <div className="flex flex-wrap gap-1.5">
-                  {release.various_artists.map((va, i) => (
-                    <Badge key={i} variant="secondary" className="text-xs">
-                      {va.artist_name || "Unknown"}
-                    </Badge>
-                  ))}
-                </div>
+            <div className="relative pl-4 mb-7">
+              <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full bg-gradient-to-b from-primary via-primary/60 to-transparent" />
+              <h2 className="font-serif text-[15px] text-primary mb-3">
+                Contributing Artists{" "}
+                <span className="font-sans text-[11px] text-muted-foreground font-normal ml-1.5">
+                  {release.various_artists.length}
+                </span>
+              </h2>
+              <div className="flex flex-wrap gap-2">
+                {release.various_artists.map((va, i) => (
+                  <span
+                    key={i}
+                    className="relative text-xs py-1 pl-3.5 pr-3 rounded border border-primary/15 bg-gradient-to-br from-primary/[0.08] to-primary/[0.03]"
+                  >
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-[60%] bg-primary/60 rounded-r-sm" />
+                    {va.artist_name || "Unknown"}
+                  </span>
+                ))}
               </div>
-            </>
+            </div>
           )}
 
           {/* Tracklist */}
           {effectiveTracklist && effectiveTracklist.length > 0 && (
-            <>
-              <Separator className="my-6" />
-              <div>
-                <h2 className="text-lg font-semibold mb-3">Tracklist</h2>
-                <ol className="space-y-1.5">
-                  {effectiveTracklist.map((track, i) => (
-                    <li key={i} className="flex items-baseline gap-3 text-sm">
-                      <span className="text-muted-foreground font-mono text-xs w-8 flex-shrink-0 text-right">
-                        {track.position || `${i + 1}.`}
-                      </span>
-                      <span className="flex-1">{track.title}</span>
-                      {track.duration && (
-                        <span className="text-muted-foreground font-mono text-xs">
-                          {track.duration}
-                        </span>
+            <div className="relative pl-4 mb-7">
+              <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full bg-gradient-to-b from-primary via-primary/60 to-transparent" />
+              <h2 className="font-serif text-[15px] text-primary mb-3">
+                Tracklist{" "}
+                <span className="font-sans text-[11px] text-muted-foreground font-normal ml-1.5">
+                  {effectiveTracklist.length} tracks
+                </span>
+              </h2>
+              <div className="bg-card rounded-lg p-3 border border-white/[0.06]">
+                {effectiveTracklist.map((track, i) => {
+                  const pos = track.position || `${i + 1}`
+                  const prevPos = i > 0 ? (effectiveTracklist[i - 1].position || `${i}`) : null
+                  const side = pos.match(/^[A-Za-z]/)?.[0]?.toUpperCase()
+                  const prevSide = prevPos?.match(/^[A-Za-z]/)?.[0]?.toUpperCase()
+                  const showSide = side && side !== prevSide
+                  return (
+                    <div key={i}>
+                      {showSide && (
+                        <>
+                          {i > 0 && <div className="h-px bg-white/[0.06] my-1" />}
+                          <div className="text-[10px] uppercase tracking-[0.15em] text-primary font-semibold mt-2 mb-1.5">
+                            Side {side}
+                          </div>
+                        </>
                       )}
-                    </li>
-                  ))}
-                </ol>
+                      <div className="flex items-baseline gap-2.5 py-1">
+                        <span className="font-mono text-[11px] text-primary w-6 text-right flex-shrink-0">
+                          {pos}
+                        </span>
+                        <span className="flex-1 text-[13px]">{track.title}</span>
+                        {track.duration && (
+                          <span className="font-mono text-[11px] text-muted-foreground/60">
+                            {track.duration}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
-            </>
+            </div>
           )}
 
           {/* Credits */}
           {effectiveCredits && (
-            <>
-              <Separator className="my-6" />
-              <div>
-                <h2 className="text-lg font-semibold mb-3">Credits</h2>
-                <CreditsTable credits={effectiveCredits} />
-              </div>
-            </>
+            <div className="relative pl-4 mb-7">
+              <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full bg-gradient-to-b from-primary via-primary/60 to-transparent" />
+              <h2 className="font-serif text-[15px] text-primary mb-3">Credits</h2>
+              <CreditsTable credits={effectiveCredits} />
+            </div>
           )}
 
           {/* Description */}
