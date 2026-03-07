@@ -47,7 +47,7 @@ export async function GET(
     ])
 
     // Aggregate campaign performance
-    const campaigns = sentCampaigns.campaigns || []
+    const campaigns = (sentCampaigns.campaigns || []) as any[]
     const totalSent = campaigns.reduce(
       (sum: number, c: any) =>
         sum + (c.statistics?.globalStats?.sent || 0),
