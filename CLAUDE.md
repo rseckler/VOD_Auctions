@@ -16,6 +16,15 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-07
 
 ### Letzte Änderungen (2026-03-07)
+- **Concept C "Vinyl Groove" Detail Page Design:**
+  - Applied unified section design to catalog detail (`/catalog/[id]`) and auction item detail (`/auctions/[slug]/[itemId]`)
+  - **Design pattern:** Gold gradient left-border (`bg-gradient-to-b from-primary via-primary/60 to-transparent`), DM Serif Display section headers (`font-serif text-[15px] text-primary`), dotted row separators
+  - **Tracklist:** Auto-detected Side A/B labels from position letters, vinyl-style card with side dividers
+  - **Contributing Artists:** Gold-accented pills with left bar indicator
+  - **Credits:** `CreditsTable` component — CSS grid (`grid-cols-[auto_1fr]`) with gold role labels, fallback to cleaned plain-text
+  - **Details:** Array-based rendering with `filter(Boolean)` pattern, dotted separators
+  - **Files:** `storefront/src/app/catalog/[id]/page.tsx`, `storefront/src/app/auctions/[slug]/[itemId]/page.tsx`, `storefront/src/components/CreditsTable.tsx`
+  - **VPS:** Storefront deployed
 - **RSE-128-131,133,138: Newsletter + CRM Dashboard + GDPR:**
   - **RSE-129: Newsletter Admin API + UI:** `/admin/newsletter` page — campaigns list with open/click rates, subscriber counts per list, send campaign endpoint (generic + block announcement), Brevo dashboard link
   - **RSE-128: Newsletter Opt-in Flow:** Registration checkbox (unchecked by default), account settings toggle with live Brevo status, `GET/POST /store/account/newsletter` API
