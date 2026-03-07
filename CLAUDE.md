@@ -13,9 +13,26 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Sprache:** Storefront und Admin-UI komplett auf Englisch (seit 2026-03-03)
 
 **Created:** 2026-02-10
-**Last Updated:** 2026-03-06
+**Last Updated:** 2026-03-07
 
-### Letzte Änderungen (2026-03-06)
+### Letzte Änderungen (2026-03-07)
+- **RSE-125/126/127: Brevo CRM Integration** — API Client + Event-Sync + Batch-Import:
+  - **Brevo API Client:** `backend/src/lib/brevo.ts` — Stateless REST client (contacts, lists, campaigns, transactional emails)
+  - **CRM Event-Sync:** `backend/src/lib/crm-sync.ts` — Fire-and-forget Brevo sync for 5 events:
+    - Registration → upsert contact (name, segment=registered, list assignment)
+    - Bid placed → update TOTAL_BIDS_PLACED, LAST_BID_DATE, segment=bidder
+    - Auction won → update TOTAL_AUCTIONS_WON, segment=buyer
+    - Payment completed → update TOTAL_PURCHASES, TOTAL_SPENT
+    - Shipping update → update LAST_SHIPMENT_DATE / LAST_DELIVERY_DATE
+  - **Route Hooks:** 1-line async CRM hooks in 5 routes (send-welcome, bids, auction-lifecycle, stripe webhook, admin transactions)
+  - **Batch Import:** `scripts/crm_import.py` — Phase 1: vod-auctions (3 customers synced), Phase 2: tape-mag (3,577 ready), Phase 3: vod-records (manual CSV)
+  - **Brevo Account:** VOD Records (free plan, 300 emails/day)
+  - **Lists:** VOD Auctions Customers (id=4), TAPE-MAG Customers (id=5)
+  - **17 Custom Attributes:** PLATFORM_ORIGIN, MEDUSA_CUSTOMER_ID, TOTAL_PURCHASES, TOTAL_SPENT, TOTAL_BIDS_PLACED, TOTAL_AUCTIONS_WON, CUSTOMER_SEGMENT, etc.
+  - **GDPR:** All imports with NEWSLETTER_OPTIN=false, newsletter requires Double Opt-in
+  - **VPS:** Backend deployed, BREVO_API_KEY in .env
+
+### Frühere Änderungen (2026-03-06)
 - **Admin Detail Lightbox + Frontend Link + Catalog URL State:**
   - **Admin Detail Lightbox:** Klick auf Bild öffnet Fullscreen-Lightbox mit Prev/Next, Tastatur (←/→/Esc), Thumbnail-Leiste, Counter-Badge
   - **Admin Frontend Link:** "View in Catalog" Link zu `vod-auctions.com/catalog/{id}` in Release Information
@@ -719,6 +736,12 @@ npm run build             # Production build
 - **RSE-99:** Admin Media Bulk Actions
 - ~~**RSE-106:** Google Analytics — Setup + Integration~~ ✅
 
+### CRM/Newsletter (Phase 2) — RSE-125–144
+- ~~**RSE-125:** Brevo Setup & API Client~~ ✅
+- ~~**RSE-126:** CRM Event-Sync (Medusa → Brevo)~~ ✅
+- ~~**RSE-127:** Initialer CRM-Import (3 Plattformen → Brevo)~~ ✅
+- **RSE-128–144:** Newsletter Templates, Signup Widget, Automations, Analytics Dashboard (Backlog)
+
 ### Phase 2 (Launch) — Backlog
 - **RSE-78:** P2.1 Launch-Vorbereitung — ~~Stripe Live~~ ✅ ~~Cookie Consent~~ ✅ ~~Sentry~~ ✅ ~~Analytics~~ ✅ ~~Legal Pages~~ ✅ ~~Domain~~ ✅ | Offen: E-Commerce-Anwalt AGB-Prüfung
 - **RSE-79:** P2.2 Erste öffentliche Themen-Auktionen
@@ -755,6 +778,12 @@ python3 discogs_price_test.py     # Feasibility test (100 random releases)
 
 # Article Numbers
 psql $SUPABASE_DB_URL -f generate_article_numbers.sql  # Generate VOD-XXXXX numbers
+
+# CRM Import (Brevo, RSE-127)
+python3 crm_import.py                  # All phases (1+2)
+python3 crm_import.py --phase 1        # Only vod-auctions customers
+python3 crm_import.py --phase 2        # Only tape-mag (3,577 contacts)
+python3 crm_import.py --dry-run        # Preview without sending
 ```
 
 **Cronjobs (VPS — verifiziert 2026-03-03, alle Dependencies installiert):**
@@ -825,6 +854,8 @@ psycopg2-binary, python-dotenv, requests, mysql-connector-python
 ### Key Files
 - `backend/src/lib/shipping.ts` — Weight-based shipping calculator (RSE-103)
 - `backend/src/lib/stripe.ts` — Stripe Client + Legacy Shipping-Rates Config
+- `backend/src/lib/brevo.ts` — Brevo CRM REST API client (RSE-125)
+- `backend/src/lib/crm-sync.ts` — Fire-and-forget CRM event sync (RSE-126)
 - `backend/src/lib/auction-helpers.ts` — hasWonAuction(), isAvailableForDirectPurchase()
 - `backend/src/modules/auction/models/transaction.ts` — Transaction Model (block_item_id nullable, +release_id, +item_type, +order_group_id)
 - `backend/src/modules/auction/models/cart-item.ts` — CartItem Model (user_id, release_id, price)
@@ -933,6 +964,9 @@ Store in `.env` (git-ignored), manage via `Passwords/` directory:
 - `UPSTASH_REDIS_REST_URL` — Redis URL
 - `UPSTASH_REDIS_REST_TOKEN` — Redis Token
 - `RESEND_API_KEY` — Resend Email API Key (Account: frank@vod-records.com)
+- `BREVO_API_KEY` — Brevo CRM/Newsletter API Key (Account: VOD Records, free plan)
+- `BREVO_LIST_VOD_AUCTIONS` — Brevo list ID for VOD Auctions customers (4)
+- `BREVO_LIST_TAPE_MAG` — Brevo list ID for TAPE-MAG customers (5)
 
 ## VPS Deployment
 
