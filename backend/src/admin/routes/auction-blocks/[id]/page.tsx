@@ -137,6 +137,7 @@ const BlockDetailPage = () => {
     items: [],
   })
   const [saving, setSaving] = useState(false)
+  const [sendingNewsletter, setSendingNewsletter] = useState(false)
   const [message, setMessage] = useState("")
   const [messageType, setMessageType] = useState<"success" | "error">("success")
 
@@ -262,6 +263,39 @@ const BlockDetailPage = () => {
       }
     } catch (err) {
       showMessage(`Error: ${err}`, "error")
+    }
+  }
+
+  const handleSendNewsletter = async () => {
+    if (!window.confirm("Send a newsletter announcement for this auction block to all subscribers?")) return
+    setSendingNewsletter(true)
+    try {
+      const templateId = window.prompt("Enter Brevo template ID for the announcement email:")
+      if (!templateId) {
+        setSendingNewsletter(false)
+        return
+      }
+      const res = await fetch("/admin/newsletter/send", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "block_announcement",
+          block_id: id,
+          templateId: Number(templateId),
+          subject: `New Auction: ${block.title}`,
+        }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        showMessage("Newsletter announcement sent successfully!")
+      } else {
+        showMessage(data.message || "Failed to send newsletter", "error")
+      }
+    } catch (err) {
+      showMessage(`Error: ${err}`, "error")
+    } finally {
+      setSendingNewsletter(false)
     }
   }
 
@@ -466,6 +500,16 @@ const BlockDetailPage = () => {
               onClick={() => handleStatusChange("archived")}
             >
               Archive
+            </Button>
+          )}
+
+          {!isNew && (block.status === "scheduled" || block.status === "active" || block.status === "preview") && (
+            <Button
+              variant="secondary"
+              onClick={handleSendNewsletter}
+              isLoading={sendingNewsletter}
+            >
+              Send Newsletter
             </Button>
           )}
 

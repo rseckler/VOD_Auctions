@@ -202,11 +202,33 @@ export async function sendTransactionalTemplate(
   })
 }
 
+// --- CRM: Contact Listing ---
+
+/**
+ * List contacts from a specific list with attributes.
+ */
+export async function listContacts(opts?: {
+  listId?: number
+  limit?: number
+  offset?: number
+  sort?: "asc" | "desc"
+}): Promise<{ contacts: BrevoContact[]; count: number }> {
+  const limit = opts?.limit || 50
+  const offset = opts?.offset || 0
+  const sort = opts?.sort || "desc"
+
+  if (opts?.listId) {
+    return brevoFetch(`/contacts/lists/${opts.listId}/contacts?limit=${limit}&offset=${offset}&sort=${sort}`)
+  }
+
+  return brevoFetch(`/contacts?limit=${limit}&offset=${offset}&sort=${sort}`)
+}
+
 // --- Config helpers ---
 
 export const BREVO_LIST_VOD_AUCTIONS = Number(process.env.BREVO_LIST_VOD_AUCTIONS) || 0
 export const BREVO_LIST_TAPE_MAG = Number(process.env.BREVO_LIST_TAPE_MAG) || 0
-export const BREVO_SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || "newsletter@vod-auctions.com"
+export const BREVO_SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || "admin@vod-auctions.com"
 export const BREVO_SENDER_NAME = process.env.BREVO_SENDER_NAME || "VOD Auctions"
 
 /**

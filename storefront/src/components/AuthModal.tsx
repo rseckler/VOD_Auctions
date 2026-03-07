@@ -25,6 +25,7 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
   const [password, setPassword] = useState("")
   const [firstName, setFirstName] = useState("")
   const [lastName, setLastName] = useState("")
+  const [newsletterOptin, setNewsletterOptin] = useState(false)
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
 
@@ -37,7 +38,7 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
       if (mode === "login") {
         await login(email, password)
       } else {
-        await register(email, password, firstName, lastName)
+        await register(email, password, firstName, lastName, newsletterOptin)
       }
       onClose()
     } catch (err: any) {
@@ -109,6 +110,20 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
               onChange={(e) => setPassword(e.target.value)}
             />
           </div>
+
+          {mode === "register" && (
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={newsletterOptin}
+                onChange={(e) => setNewsletterOptin(e.target.checked)}
+                className="mt-0.5 accent-primary"
+              />
+              <span className="text-xs text-muted-foreground leading-tight">
+                Subscribe to the VOD Auctions newsletter for auction updates, new arrivals, and exclusive offers. You can unsubscribe at any time.
+              </span>
+            </label>
+          )}
 
           {error && (
             <p className="text-sm text-destructive">{error}</p>

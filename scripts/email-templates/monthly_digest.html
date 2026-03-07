@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monthly Digest — VOD Auctions</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;700&display=swap');
+  </style>
+</head>
+<body style="margin:0; padding:0; background-color:#141210; font-family:'DM Sans',Arial,sans-serif; color:#e8e2d8;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#141210;">
+    <tr>
+      <td align="center" style="padding:20px 10px;">
+        <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px; width:100%;">
+
+          <!-- Header -->
+          <tr>
+            <td style="padding:30px 40px; text-align:center; border-bottom:2px solid #d4a54a;">
+              <h1 style="margin:0; font-family:'DM Serif Display',Georgia,serif; font-size:28px; color:#d4a54a; letter-spacing:1px;">
+                VOD AUCTIONS
+              </h1>
+            </td>
+          </tr>
+
+          <!-- Greeting -->
+          <tr>
+            <td style="padding:40px 40px 24px; background-color:#1c1915;">
+              <p style="margin:0 0 8px; font-size:13px; color:#a39b8e; text-transform:uppercase; letter-spacing:2px;">Monthly Digest · {{ params.MONTH }}</p>
+              <h2 style="margin:0 0 16px; font-family:'DM Serif Display',Georgia,serif; font-size:28px; color:#e8e2d8;">
+                Hi {{ contact.FIRSTNAME }},
+              </h2>
+              <p style="margin:0; font-size:14px; color:#c4bdb0; line-height:1.6;">
+                {{ params.INTRO_TEXT }}
+              </p>
+            </td>
+          </tr>
+
+          <!-- Stats -->
+          <tr>
+            <td style="padding:0 40px 32px; background-color:#1c1915;">
+              <table width="100%" cellpadding="0" cellspacing="8">
+                <tr>
+                  <td width="50%" style="text-align:center; padding:20px; background-color:#231f1a; border-radius:8px;">
+                    <p style="margin:0 0 4px; font-size:28px; font-weight:700; color:#d4a54a;">{{ params.AUCTIONS_RUN }}</p>
+                    <p style="margin:0; font-size:12px; color:#a39b8e;">Auctions</p>
+                  </td>
+                  <td width="50%" style="text-align:center; padding:20px; background-color:#231f1a; border-radius:8px;">
+                    <p style="margin:0 0 4px; font-size:28px; font-weight:700; color:#d4a54a;">{{ params.ITEMS_SOLD }}</p>
+                    <p style="margin:0; font-size:12px; color:#a39b8e;">Items Sold</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td width="50%" style="text-align:center; padding:20px; background-color:#231f1a; border-radius:8px;">
+                    <p style="margin:0 0 4px; font-size:28px; font-weight:700; color:#d4a54a;">{{ params.NEW_ITEMS }}</p>
+                    <p style="margin:0; font-size:12px; color:#a39b8e;">New Catalog Items</p>
+                  </td>
+                  <td width="50%" style="text-align:center; padding:20px; background-color:#231f1a; border-radius:8px;">
+                    <p style="margin:0 0 4px; font-size:28px; font-weight:700; color:#d4a54a;">{{ params.TOTAL_BIDS }}</p>
+                    <p style="margin:0; font-size:12px; color:#a39b8e;">Bids Placed</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Upcoming -->
+          {% if params.UPCOMING_TEXT %}
+          <tr>
+            <td style="padding:32px 40px; background-color:#1a1714; text-align:center;">
+              <h3 style="margin:0 0 12px; font-family:'DM Serif Display',Georgia,serif; font-size:20px; color:#d4a54a;">
+                Coming Up
+              </h3>
+              <p style="margin:0 0 20px; font-size:14px; color:#c4bdb0; line-height:1.6;">
+                {{ params.UPCOMING_TEXT }}
+              </p>
+              <a href="https://vod-auctions.com/auctions" style="display:inline-block; padding:14px 36px; background-color:#d4a54a; color:#1c1915; font-family:'DM Sans',Arial,sans-serif; font-size:14px; font-weight:700; text-decoration:none; border-radius:6px; letter-spacing:0.5px;">
+                VIEW AUCTIONS
+              </a>
+            </td>
+          </tr>
+          {% endif %}
+
+          <!-- Community -->
+          {% if params.COMMUNITY_TEXT %}
+          <tr>
+            <td style="padding:32px 40px; background-color:#1c1915;">
+              <h3 style="margin:0 0 12px; font-family:'DM Serif Display',Georgia,serif; font-size:20px; color:#d4a54a; text-align:center;">
+                From the Community
+              </h3>
+              <p style="margin:0; font-size:14px; color:#c4bdb0; line-height:1.6; text-align:center;">
+                {{ params.COMMUNITY_TEXT }}
+              </p>
+            </td>
+          </tr>
+          {% endif %}
+
+          <!-- CTA -->
+          <tr>
+            <td style="padding:32px 40px; background-color:#1a1714; text-align:center;">
+              <a href="https://vod-auctions.com/catalog" style="display:inline-block; padding:14px 36px; background-color:transparent; color:#d4a54a; font-family:'DM Sans',Arial,sans-serif; font-size:14px; font-weight:700; text-decoration:none; border-radius:6px; border:2px solid #d4a54a; letter-spacing:0.5px;">
+                BROWSE CATALOG
+              </a>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:30px 40px; text-align:center; border-top:1px solid #2a2520;">
+              <p style="margin:0 0 8px; font-size:12px; color:#6b6358;">
+                VOD Auctions — Industrial Music Auctions
+              </p>
+              <p style="margin:0 0 16px; font-size:12px; color:#6b6358;">
+                <a href="https://vod-auctions.com" style="color:#a39b8e; text-decoration:none;">vod-auctions.com</a>
+              </p>
+              <p style="margin:0; font-size:11px; color:#4a4540;">
+                <a href="{{ unsubscribe }}" style="color:#6b6358; text-decoration:underline;">Unsubscribe</a>
+                &nbsp;|&nbsp;
+                <a href="https://vod-auctions.com/datenschutz" style="color:#6b6358; text-decoration:underline;">Privacy Policy</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

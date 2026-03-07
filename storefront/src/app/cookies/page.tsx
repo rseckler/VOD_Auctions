@@ -93,6 +93,47 @@ export default function CookiesPage() {
               </tbody>
             </table>
           </div>
+
+          <h3 className="text-base font-medium text-foreground mt-6">
+            Marketing Cookies (optional — not currently active)
+          </h3>
+          <p>
+            These cookies may be used in the future for advertising and
+            remarketing purposes. They will only be set if you explicitly
+            consent to marketing cookies in our cookie consent banner.
+          </p>
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-sm border border-[rgba(232,224,212,0.12)]">
+              <thead>
+                <tr className="border-b border-[rgba(232,224,212,0.12)] bg-[rgba(232,224,212,0.03)]">
+                  <th className="text-left p-3 text-foreground font-medium">Cookie</th>
+                  <th className="text-left p-3 text-foreground font-medium">Purpose</th>
+                  <th className="text-left p-3 text-foreground font-medium">Duration</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b border-[rgba(232,224,212,0.06)]">
+                  <td className="p-3 font-mono text-xs">_fbp</td>
+                  <td className="p-3">Facebook Pixel — tracks visits for ad targeting</td>
+                  <td className="p-3">3 months</td>
+                </tr>
+                <tr className="border-b border-[rgba(232,224,212,0.06)]">
+                  <td className="p-3 font-mono text-xs">_fbc</td>
+                  <td className="p-3">Facebook Pixel — stores click identifier from ads</td>
+                  <td className="p-3">3 months</td>
+                </tr>
+                <tr className="border-b border-[rgba(232,224,212,0.06)]">
+                  <td className="p-3 font-mono text-xs">_gcl_*</td>
+                  <td className="p-3">Google Ads — conversion tracking and remarketing</td>
+                  <td className="p-3">90 days</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground/60">
+            Note: Marketing cookies are not currently in use. This section is included
+            for transparency about potential future implementations.
+          </p>
         </section>
 
         <section>
@@ -101,9 +142,10 @@ export default function CookiesPage() {
           </h2>
           <p>
             When you first visit VOD Auctions, a cookie consent banner
-            allows you to accept or reject analytics cookies. Essential
-            cookies cannot be disabled as they are necessary for the
-            website to function.
+            allows you to choose which optional cookies you accept.
+            You can accept or reject analytics and marketing cookies
+            independently. Essential cookies cannot be disabled as they
+            are necessary for the website to function.
           </p>
           <p>
             To change your preference, clear your browser cookies for

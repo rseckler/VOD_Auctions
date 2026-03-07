@@ -294,10 +294,49 @@ export default function DatenschutzPage() {
           <p>Legal basis: Art. 6 (1)(b) GDPR.</p>
         </section>
 
-        {/* 12. External Images */}
+        {/* 12. Newsletter & CRM — Brevo */}
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            12. External Image Content
+            12. Newsletter &amp; CRM — Brevo
+          </h2>
+          <p>
+            We use Brevo (formerly Sendinblue) for newsletter delivery
+            and customer relationship management (Sendinblue SAS, 106
+            boulevard Haussmann, 75008 Paris, France). Data is
+            processed on EU servers.
+          </p>
+          <p>The following data may be transmitted to Brevo:</p>
+          <ul className="list-disc pl-5 space-y-1">
+            <li>Email address and name</li>
+            <li>Newsletter subscription status</li>
+            <li>
+              Aggregated purchase and bidding activity (e.g. total
+              purchases, total bids placed)
+            </li>
+          </ul>
+          <p>
+            Newsletter emails are only sent if you have explicitly
+            opted in (double opt-in). You can unsubscribe at any time
+            via the link in each newsletter email.
+          </p>
+          <p>
+            Brevo Privacy Policy:{" "}
+            <a
+              href="https://www.brevo.com/legal/privacypolicy/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              https://www.brevo.com/legal/privacypolicy/
+            </a>
+          </p>
+          <p>Legal basis: Art. 6 (1)(a) GDPR (consent for newsletter), Art. 6 (1)(f) GDPR (CRM).</p>
+        </section>
+
+        {/* 13. External Images */}
+        <section>
+          <h2 className="text-lg font-medium text-foreground">
+            13. External Image Content
           </h2>
           <p>
             Some product images are loaded from our partner websites
@@ -308,10 +347,63 @@ export default function DatenschutzPage() {
           <p>Legal basis: Art. 6 (1)(f) GDPR.</p>
         </section>
 
-        {/* 13. Cookies */}
+        {/* 14. Google Analytics */}
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            13. Cookies
+            14. Google Analytics
+          </h2>
+          <p>
+            This website uses Google Analytics 4 (GA4) for web
+            analytics. Google Analytics is only loaded if you
+            explicitly consent to analytics cookies via our cookie
+            consent banner.
+          </p>
+          <p>
+            Provider: Google Ireland Limited, Gordon House, Barrow
+            Street, Dublin 4, Ireland.
+          </p>
+          <p>When activated, Google Analytics collects:</p>
+          <ul className="list-disc pl-5 space-y-1">
+            <li>Pages visited and time spent</li>
+            <li>Device and browser information</li>
+            <li>Approximate geographic location (IP anonymisation enabled)</li>
+            <li>Referral source</li>
+          </ul>
+          <p>
+            IP anonymisation is active. No personal data (name, email)
+            is transmitted to Google.
+          </p>
+          <p>
+            Google Privacy Policy:{" "}
+            <a
+              href="https://policies.google.com/privacy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              https://policies.google.com/privacy
+            </a>
+          </p>
+          <p>
+            Opt-out: You can reject analytics cookies via our cookie
+            consent banner or use the{" "}
+            <a
+              href="https://tools.google.com/dlpage/gaoptout"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              Google Analytics Opt-out Browser Add-on
+            </a>
+            .
+          </p>
+          <p>Legal basis: Art. 6 (1)(a) GDPR (consent).</p>
+        </section>
+
+        {/* 15. Cookies */}
+        <section>
+          <h2 className="text-lg font-medium text-foreground">
+            15. Cookies
           </h2>
           <p>
             Our website uses the following types of cookies:
@@ -331,25 +423,42 @@ export default function DatenschutzPage() {
               </strong>{" "}
               To maintain your login session (token-based).
             </li>
+            <li>
+              <strong className="text-foreground">
+                Analytics cookies (opt-in):
+              </strong>{" "}
+              Google Analytics cookies (_ga, _ga_*) are only set if you
+              accept analytics in our cookie consent banner.
+            </li>
+            <li>
+              <strong className="text-foreground">
+                Marketing cookies (opt-in):
+              </strong>{" "}
+              Marketing cookies (e.g. Facebook Pixel, Google Ads) may
+              be used in the future and will only be set with your
+              explicit consent.
+            </li>
           </ul>
           <p>
-            We do <strong className="text-foreground">not</strong> use
-            any tracking, analytics, or marketing cookies. No tracking
-            via Google Analytics or comparable services takes place.
+            You can manage your cookie preferences via our cookie
+            consent banner, which appears on your first visit. To
+            change your preference later, clear your browser cookies
+            for vod-auctions.com and reload the page.
           </p>
           <p>
-            You can configure your browser to inform you about the
-            setting of cookies, to allow cookies only on a case-by-case
-            basis, to reject cookies in general, or to automatically
-            delete cookies when closing the browser.
+            For more details, see our{" "}
+            <a href="/cookies" className="text-primary hover:underline">
+              Cookie Policy
+            </a>
+            .
           </p>
-          <p>Legal basis: Art. 6 (1)(f) GDPR, § 25 TDDDG.</p>
+          <p>Legal basis: Art. 6 (1)(a) GDPR (consent), § 25 TDDDG.</p>
         </section>
 
-        {/* 14. Your Rights */}
+        {/* 16. Your Rights */}
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            14. Your Rights
+            16. Your Rights
           </h2>
           <p>
             You have the following rights regarding your personal data:
@@ -394,10 +503,10 @@ export default function DatenschutzPage() {
           </p>
         </section>
 
-        {/* 15. Data Sharing */}
+        {/* 17. Data Sharing */}
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            15. Sharing Data with Third Parties
+            17. Sharing Data with Third Parties
           </h2>
           <p>
             Personal data is only shared with third parties to the
@@ -414,7 +523,11 @@ export default function DatenschutzPage() {
             </li>
             <li>
               <strong className="text-foreground">Resend</strong> — for
-              sending emails
+              sending transactional emails
+            </li>
+            <li>
+              <strong className="text-foreground">Brevo</strong> — for
+              newsletter delivery and CRM (EU servers)
             </li>
           </ul>
           <p>
@@ -423,10 +536,10 @@ export default function DatenschutzPage() {
           </p>
         </section>
 
-        {/* 16. Data Security */}
+        {/* 18. Data Security */}
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            16. Data Security
+            18. Data Security
           </h2>
           <p>
             We use TLS (Transport Layer Security) encryption with the
@@ -435,10 +548,10 @@ export default function DatenschutzPage() {
           </p>
         </section>
 
-        {/* 17. Retention */}
+        {/* 19. Retention */}
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            17. Data Retention
+            19. Data Retention
           </h2>
           <p>
             Personal data is deleted or blocked as soon as the purpose
@@ -448,10 +561,10 @@ export default function DatenschutzPage() {
           </p>
         </section>
 
-        {/* 18. Other Platforms */}
+        {/* 20. Other Platforms */}
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            18. Notice Regarding Other Platforms
+            20. Notice Regarding Other Platforms
           </h2>
           <p>
             The data controller also operates the following websites

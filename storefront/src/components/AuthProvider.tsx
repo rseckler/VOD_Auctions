@@ -36,7 +36,8 @@ type AuthContextType = {
     email: string,
     password: string,
     firstName: string,
-    lastName: string
+    lastName: string,
+    newsletterOptin?: boolean
   ) => Promise<void>
   logout: () => void
   refreshStatus: () => Promise<void>
@@ -118,7 +119,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email: string,
       password: string,
       firstName: string,
-      lastName: string
+      lastName: string,
+      newsletterOptin?: boolean
     ) => {
       const token = await authRegister(email, password, firstName, lastName)
       setToken(token)
@@ -134,6 +136,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           Authorization: `Bearer ${token}`,
         },
       }).catch(() => {})
+
+      // Sync newsletter opt-in preference to Brevo (fire-and-forget)
+      if (newsletterOptin) {
+        fetch(`${MEDUSA_URL}/store/account/newsletter`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-publishable-api-key": PUBLISHABLE_KEY,
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ newsletter_optin: true }),
+        }).catch(() => {})
+      }
     },
     [fetchStatus]
   )

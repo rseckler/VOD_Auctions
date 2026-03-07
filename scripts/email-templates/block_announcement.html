@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>New Auction: {{ params.BLOCK_TITLE }}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;700&display=swap');
+  </style>
+</head>
+<body style="margin:0; padding:0; background-color:#141210; font-family:'DM Sans',Arial,sans-serif; color:#e8e2d8;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#141210;">
+    <tr>
+      <td align="center" style="padding:20px 10px;">
+        <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px; width:100%;">
+
+          <!-- Header -->
+          <tr>
+            <td style="padding:30px 40px; text-align:center; border-bottom:2px solid #d4a54a;">
+              <h1 style="margin:0; font-family:'DM Serif Display',Georgia,serif; font-size:28px; color:#d4a54a; letter-spacing:1px;">
+                VOD AUCTIONS
+              </h1>
+            </td>
+          </tr>
+
+          <!-- Hero -->
+          <tr>
+            <td style="padding:40px; background-color:#1c1915; text-align:center;">
+              <p style="margin:0 0 8px; font-size:13px; color:#a39b8e; text-transform:uppercase; letter-spacing:2px;">New Auction</p>
+              <h2 style="margin:0 0 16px; font-family:'DM Serif Display',Georgia,serif; font-size:32px; color:#e8e2d8; line-height:1.2;">
+                {{ params.BLOCK_TITLE }}
+              </h2>
+              {% if params.BLOCK_SUBTITLE %}
+              <p style="margin:0 0 16px; font-size:16px; color:#a39b8e;">{{ params.BLOCK_SUBTITLE }}</p>
+              {% endif %}
+              {% if params.BLOCK_DESCRIPTION %}
+              <p style="margin:0 0 24px; font-size:14px; color:#c4bdb0; line-height:1.6;">{{ params.BLOCK_DESCRIPTION }}</p>
+              {% endif %}
+              <p style="margin:0 0 24px; font-size:14px; color:#d4a54a;">
+                Starts: {{ params.BLOCK_START }}
+              </p>
+              <a href="{{ params.BLOCK_URL }}" style="display:inline-block; padding:14px 36px; background-color:#d4a54a; color:#1c1915; font-family:'DM Sans',Arial,sans-serif; font-size:14px; font-weight:700; text-decoration:none; border-radius:6px; letter-spacing:0.5px;">
+                VIEW AUCTION
+              </a>
+            </td>
+          </tr>
+
+          <!-- Highlight Items -->
+          {% if params.ITEMS %}
+          <tr>
+            <td style="padding:32px 40px 16px; background-color:#1a1714;">
+              <h3 style="margin:0 0 20px; font-family:'DM Serif Display',Georgia,serif; font-size:20px; color:#d4a54a; text-align:center;">
+                Featured Items
+              </h3>
+            </td>
+          </tr>
+          {% for item in params.ITEMS %}
+          <tr>
+            <td style="padding:0 40px 16px; background-color:#1a1714;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#231f1a; border-radius:8px; overflow:hidden;">
+                <tr>
+                  {% if item.image %}
+                  <td width="80" style="padding:12px; vertical-align:top;">
+                    <img src="{{ item.image }}" width="80" height="80" alt="" style="display:block; border-radius:4px; object-fit:cover;">
+                  </td>
+                  {% endif %}
+                  <td style="padding:12px; vertical-align:middle;">
+                    <p style="margin:0 0 4px; font-size:13px; color:#a39b8e;">{{ item.artist }}</p>
+                    <p style="margin:0 0 6px; font-size:15px; font-weight:500; color:#e8e2d8;">{{ item.title }}</p>
+                    <p style="margin:0; font-size:14px; color:#d4a54a; font-weight:700;">Starting at {{ item.price }}</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          {% endfor %}
+          <tr>
+            <td style="padding:16px 40px 32px; background-color:#1a1714; text-align:center;">
+              <a href="{{ params.BLOCK_URL }}" style="font-size:14px; color:#d4a54a; text-decoration:underline;">
+                View all items →
+              </a>
+            </td>
+          </tr>
+          {% endif %}
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:30px 40px; text-align:center; border-top:1px solid #2a2520;">
+              <p style="margin:0 0 8px; font-size:12px; color:#6b6358;">
+                VOD Auctions — Industrial Music Auctions
+              </p>
+              <p style="margin:0 0 16px; font-size:12px; color:#6b6358;">
+                <a href="https://vod-auctions.com" style="color:#a39b8e; text-decoration:none;">vod-auctions.com</a>
+              </p>
+              <p style="margin:0; font-size:11px; color:#4a4540;">
+                <a href="{{ unsubscribe }}" style="color:#6b6358; text-decoration:underline;">Unsubscribe</a>
+                &nbsp;|&nbsp;
+                <a href="https://vod-auctions.com/datenschutz" style="color:#6b6358; text-decoration:underline;">Privacy Policy</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
