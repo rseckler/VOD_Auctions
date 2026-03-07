@@ -21,7 +21,7 @@ Dieses Dokument beschreibt das Konzept einer eigenen Auktionsplattform für ~30.
 - **Bestand:** ~30.000 Tonträger (Industrial Music, Nischen-Genres)
 - **Bisherige Verkaufskanäle:**
   - Physischer Shop
-  - Website tape-mag.com (30.000+ Releases, Shopify-Test)
+  - Website tape-mag.com (30.000+ Releases, Online-Katalog)
   - Discogs & eBay (jahrelange Erfahrung)
 - **Erfahrung:** Jahrelanger Handel über eBay und Discogs — der Markt, die Zielgruppe und das Auktionsprinzip sind bekannt und validiert
 - **Motivation für eigene Plattform:**
@@ -156,7 +156,6 @@ Dieses Dokument beschreibt das Konzept einer eigenen Auktionsplattform für ~30.
 - Gebührenstruktur (8-13%) frisst die Marge
 - Keine Kontrolle über Kundendaten, Branding, UX
 - Themen-Block-Modell ist auf keiner bestehenden Plattform möglich
-- Shopify war ein Test — die Daten liegen dort, aber es ist kein strategischer Kanal
 
 **Vorgehen:** Direkter Aufbau der eigenen Auktionsplattform (siehe Phasenplan Kapitel 6)
 
@@ -557,14 +556,14 @@ VOD_Auctions nutzt die **bestehende tape-mag-mvp Supabase-Instanz** (PostgreSQL)
 
 #### Begründung
 
-| Kriterium | tape-mag-mvp Supabase | Shopify API | Legacy MySQL | Eigene neue DB |
-|-----------|----------------------|------------|-------------|---------------|
-| **Schema-Qualität** | Excellent (14 Tabellen, Prisma 6) | Limitiert (Metafields) | Schlecht (latin1, HTML-Entities) | Müsste erst gebaut werden |
-| **Erweiterbarkeit** | Direkt (neue Tabellen hinzufügen) | Nein (Shopify API fix) | Nein (Read-only) | Ja, aber Duplizierung |
-| **Performance** | Direkte SQL-Queries | API-Rate-Limits (40/s) | OK, aber Drittanbieter-Server | Direkte SQL |
-| **Real-time** | Supabase Realtime inklusive | Nein | Nein | Müsste eingerichtet werden |
-| **Kosten** | 0€ (Free Tier, bereits bezahlt) | Shopify-Abo nötig | 0€ | Zusätzliches Supabase-Projekt |
-| **Sync-Aufwand** | 0 (gleiche DB) | Hoch (API-Polling) | Hoch (ETL-Pipeline) | Hoch (Duplizierung) |
+| Kriterium | tape-mag-mvp Supabase | Legacy MySQL | Eigene neue DB |
+|-----------|----------------------|-------------|---------------|
+| **Schema-Qualität** | Excellent (14 Tabellen, Prisma 6) | Schlecht (latin1, HTML-Entities) | Müsste erst gebaut werden |
+| **Erweiterbarkeit** | Direkt (neue Tabellen hinzufügen) | Nein (Read-only) | Ja, aber Duplizierung |
+| **Performance** | Direkte SQL-Queries | OK, aber Drittanbieter-Server | Direkte SQL |
+| **Real-time** | Supabase Realtime inklusive | Nein | Müsste eingerichtet werden |
+| **Kosten** | 0€ (Free Tier, bereits bezahlt) | 0€ | Zusätzliches Supabase-Projekt |
+| **Sync-Aufwand** | 0 (gleiche DB) | Hoch (ETL-Pipeline) | Hoch (Duplizierung) |
 
 #### Bestehende Datenstruktur (tape-mag-mvp)
 
@@ -1074,7 +1073,6 @@ cd /Users/robin/Documents/4_AI/VOD/tape-mag-migration
 - Zustandsbewertung → `media_condition`, `sleeve_condition` (manuell beim Listing)
 - Bilder → Supabase Storage (Migration aus Legacy FTP)
 
-**Hinweis:** Shopify enthält Testdaten aus einer früheren Evaluierung — diese sind nicht die primäre Datenquelle.
 
 ### 4.5 Admin Panel
 
@@ -1782,6 +1780,841 @@ Neuer Admin-Bereich unter `/admin/sync` für den Überblick über alle Sync-Proz
 
 ---
 
+---
+
+## 12. Erweiterung: CRM, Newsletter, Social Media & Marketing-Automation
+
+**Stand:** 2026-03-07
+**Kontext:** VOD Records betreibt 3 Plattformen (tape-mag.com, vod-records.com, vod-auctions.com) mit überlappender Zielgruppe. Bisher gibt es keine zentrale Kundenverwaltung, kein Newsletter-System und keine systematische Social-Media-Präsenz. Dieses Kapitel definiert die Architektur für den Aufbau einer integrierten Marketing-Infrastruktur.
+
+### 12.1 Ist-Zustand & Bestandsaufnahme
+
+#### 12.1.1 Bestehende Systeme
+
+| System | Plattform | Auth | Kundendaten | Status |
+|--------|-----------|------|-------------|--------|
+| **vod-auctions.com** | Medusa.js Backend (VPS:9000) | Medusa Auth (JWT) | `customer` Tabelle (Medusa ORM) | Production |
+| **tape-mag.com** | Statischer Katalog (Legacy PHP) | Kein Login | Legacy MySQL Customer DB | Production |
+| **vod-records.com** | WordPress/WooCommerce | WP Auth | WooCommerce Customer DB | Production |
+| **Transaktionale Emails** | Resend | — | — | 6 Templates, Domain verifiziert |
+| **Analytics** | Google Analytics 4 | — | GA4 Property `G-M9BJGC5D69` | Consent-gated |
+| **Error Tracking** | Sentry | — | — | Production-only |
+
+#### 12.1.2 Bestehende Kundendaten
+
+| Quelle | Geschätzte Kontakte | Verfügbare Daten |
+|--------|---------------------|------------------|
+| tape-mag.com (Legacy) | ~2.000-5.000 | Email, Name, Kaufhistorie, Adresse |
+| vod-records.com (WooCommerce) | ~500-2.000 | Email, Name, Bestellungen |
+| vod-auctions.com (Medusa) | ~10-50 (neu) | Email, Name, Gebote, Käufe, Präferenzen |
+| Legacy MySQL (vodtapes) | Unbekannt | Ggf. alte Kundeneinträge |
+
+#### 12.1.3 VPS-Infrastruktur (72.62.148.205)
+
+Laufende PM2-Prozesse relevant für die Erweiterung:
+- `vodauction-backend` — Medusa.js (Port 9000)
+- `vodauction-storefront` — Next.js (Port 3006)
+- Cronjobs: Legacy Sync (04:00 UTC), Discogs Weekly (So 02:00 UTC), Feedback Emails (10:00 UTC)
+
+**Freie Kapazität:** VPS hat noch Headroom für 2-3 weitere leichte Services (Newsletter-Cron, Social-Media-Scheduler).
+
+---
+
+### 12.2 CRM — Zentrale Kundenverwaltung
+
+#### 12.2.1 Anforderungen
+
+1. **Unified Customer Profile:** Ein Kontakt über alle 3 Plattformen hinweg (Deduplizierung via Email)
+2. **Kaufverhalten tracken:** Auktions-Gebote, Gewinne, Direktkäufe, WooCommerce-Bestellungen
+3. **Segmentierung:** Nach Genre-Präferenzen, Kauffrequenz, Durchschnittswert, Plattform-Herkunft
+4. **Automatisierung:** Trigger-basierte Aktionen (neuer Auktions-Block → Notification an relevante Segmente)
+5. **DSGVO-konform:** Double Opt-in, Löschrechte, Datenexport
+6. **API-Zugang:** Bidirektionaler Sync mit Medusa Backend
+
+#### 12.2.2 Plattform-Entscheidung
+
+| Option | Tool | Kosten/Monat | CRM | Newsletter | Automation | API |
+|--------|------|-------------|-----|-----------|------------|-----|
+| **A: All-in-One SaaS** | **Brevo (ex-Sendinblue)** | Free (300/Tag) → Starter €9 → Business €18 | Ja | Ja | Ja | REST + SMTP |
+| **B: CRM + separater Newsletter** | HubSpot Free + Resend | €0 + €0 | Ja | Nein (Resend bleibt) | Begrenzt | REST |
+| **C: Self-hosted** | Listmonk + Custom DB | €0 (VPS) | Custom | Ja | Custom | Custom |
+| **D: Premium SaaS** | Klaviyo / Mailchimp | €20-100+ | Ja | Ja | Ja | REST |
+
+**Empfehlung: Option A — Brevo**
+
+Begründung:
+- **CRM + Newsletter + Automation in einer Plattform** — kein Tooling-Wildwuchs
+- **Free Tier** reicht für Start: 300 Emails/Tag, unbegrenzte Kontakte, CRM, Automation
+- **Resend bleibt** für transaktionale Emails (Bid-Won, Outbid, Payment, Shipping) — Brevo nur für Marketing
+- **REST API** für bidirektionalen Sync mit Medusa Backend
+- **DSGVO-konform:** EU-Unternehmen (Frankreich), Server in EU
+- **Skalierung:** Starter (€9/Monat, 5.000 Emails/Monat) → Business (€18/Monat, 5.000 Emails/Monat + Marketing Automation)
+
+#### 12.2.3 Datenmodell — Brevo Contact Properties
+
+```
+# Standard-Felder (Brevo built-in)
+EMAIL                    # Primary Key / Deduplizierung
+FIRSTNAME, LASTNAME
+PHONE
+
+# Custom Contact Attributes
+PLATFORM_ORIGIN          # tape-mag | vod-records | vod-auctions | multi
+MEDUSA_CUSTOMER_ID       # Mapping zu Medusa customer Tabelle
+WOOCOMMERCE_CUSTOMER_ID  # Mapping zu WooCommerce (für Import)
+TAPE_MAG_CUSTOMER_ID     # Mapping zu tape-mag.com Legacy (für Import)
+
+# Kaufverhalten
+TOTAL_PURCHASES          # Anzahl Käufe (alle Plattformen)
+TOTAL_SPENT              # Gesamtumsatz in €
+AVG_ORDER_VALUE          # Durchschnittlicher Bestellwert
+LAST_PURCHASE_DATE       # Letzter Kauf
+
+# Auktions-spezifisch
+TOTAL_BIDS_PLACED        # Anzahl abgegebener Gebote
+TOTAL_AUCTIONS_WON       # Anzahl gewonnener Auktionen
+HIGHEST_BID_EVER         # Höchstes jemals abgegebenes Gebot
+PREFERRED_GENRES         # Komma-separiert: "Industrial, Dark Ambient, Noise"
+PREFERRED_FORMATS        # Komma-separiert: "Vinyl, Cassette"
+
+# Engagement
+NEWSLETTER_OPTIN         # Boolean: Newsletter-Einwilligung
+OPTIN_DATE               # Datum der Einwilligung
+LAST_ACTIVITY_DATE       # Letzter Login/Besuch
+CUSTOMER_SEGMENT         # VIP | Active | Occasional | Dormant | New
+```
+
+#### 12.2.4 Integration: Medusa Backend → Brevo CRM
+
+**Architektur:** Event-driven Sync via Medusa Backend Webhooks → Brevo API
+
+```
+┌──────────────────┐     Events      ┌─────────────────┐
+│  Medusa Backend  │ ──────────────→ │   Brevo CRM     │
+│  (VPS:9000)      │                 │   (SaaS)        │
+│                  │                 │                  │
+│  • Registration  │  POST /v3/      │  • Contacts      │
+│  • Bid placed    │  contacts       │  • Lists          │
+│  • Auction won   │                 │  • Automation     │
+│  • Purchase      │  ←────────────  │  • Campaigns      │
+│  • Shipping      │  Webhooks       │  • Analytics      │
+└──────────────────┘                 └─────────────────┘
+```
+
+**Sync-Events (Medusa → Brevo):**
+
+| Event | Trigger | Brevo Action |
+|-------|---------|-------------|
+| **Customer Registration** | `POST /store/auth/register` | Create/Update Contact, add to "VOD Auctions" List |
+| **Bid Placed** | `POST /store/.../bids` | Update `TOTAL_BIDS_PLACED`, `LAST_ACTIVITY_DATE` |
+| **Auction Won** | `auction-lifecycle.ts` (Block endet) | Update `TOTAL_AUCTIONS_WON`, trigger "Congratulations" Automation |
+| **Purchase Completed** | Stripe Webhook → `paid` | Update `TOTAL_PURCHASES`, `TOTAL_SPENT`, `LAST_PURCHASE_DATE` |
+| **Shipping Sent** | Admin: shipping_status → `shipped` | Trigger Tracking-Notification |
+
+**Implementation (neues Backend-Modul):**
+
+```
+backend/src/lib/brevo.ts              # Brevo API Client (REST, API-Key Auth)
+backend/src/lib/crm-sync.ts           # Event-Handler: syncContactToBrevo()
+```
+
+**Brevo API-Key:** Wird als `BREVO_API_KEY` in `.env` gespeichert (VPS + lokal).
+
+**Sync-Logik (`crm-sync.ts`):**
+```typescript
+// Pseudocode — wird bei jedem relevanten Event aufgerufen
+async function syncContactToBrevo(email: string, attributes: Record<string, any>) {
+  // POST https://api.brevo.com/v3/contacts
+  // Body: { email, attributes, listIds: [VOD_AUCTIONS_LIST_ID], updateEnabled: true }
+  // updateEnabled: true → Create or Update (Upsert)
+}
+```
+
+**Kein separater Cronjob nötig:** Events werden synchron im Request-Handler getriggert (fire-and-forget, non-blocking). Bei Fehler: Log + Retry-Queue (optional, Phase 2).
+
+#### 12.2.5 Initialer Datenimport
+
+**Phase 1 — vod-auctions.com Kunden (sofort):**
+- SQL-Query auf Medusa `customer` Tabelle → CSV Export
+- Brevo CSV-Import mit Mapping auf Custom Attributes
+- Automatisch in Liste "VOD Auctions Customers"
+
+**Phase 2 — tape-mag.com Kunden (Launch):**
+- Legacy MySQL → Customers Export (SQL-Query → CSV)
+- Brevo CSV-Import, `PLATFORM_ORIGIN = tape-mag`
+- Automatisch in Liste "TAPE-MAG Customers"
+- Deduplizierung via Email (Brevo built-in)
+
+**Phase 3 — vod-records.com Kunden (Launch):**
+- WooCommerce → WP Admin → Users/Orders → Export CSV (Plugin: "Users & Customers Export")
+- Brevo CSV-Import, `PLATFORM_ORIGIN = vod-records`
+- Deduplizierung via Email
+
+**DSGVO-Hinweis:** Bestehende Kunden dürfen nur für transaktionale Kommunikation kontaktiert werden. Für Newsletter-Marketing ist ein erneutes Opt-in erforderlich (Double Opt-in via Brevo Confirmation Email). Import mit `NEWSLETTER_OPTIN = false` als Default.
+
+---
+
+### 12.3 SSO — Single Sign-On Bewertung
+
+#### 12.3.1 Analyse der 3 Plattformen
+
+| Plattform | Auth-System | Änderbarkeit | User-Volumen |
+|-----------|------------|-------------|-------------|
+| **vod-auctions.com** | Medusa Auth (Custom JWT) | Voll kontrolliert | Gering (neu) |
+| **tape-mag.com** | Legacy PHP (kein Login) | Kein Auth-System vorhanden | Gering |
+| **vod-records.com** | WordPress Auth | Änderbar (Plugin) | Mittel |
+
+#### 12.3.2 Entscheidung: Kein SSO — CRM-basierte Unified Identity
+
+**Begründung:**
+1. **tape-mag.com hat kein Auth-System:** Legacy PHP-Katalog ohne Login-Funktionalität — SSO kann dort nicht angebunden werden
+2. **Unterschiedliche Zwecke:** tape-mag.com (Katalog, kein Login nötig), vod-records.com (Shop), vod-auctions.com (Auktionen) — Nutzer brauchen selten Zugang zu allen 3 gleichzeitig
+3. **Kosten-Nutzen:** Keycloak/Auth0 Setup-Aufwand (2-4 Wochen) steht in keinem Verhältnis zum Nutzen bei aktuellen User-Zahlen
+4. **CRM löst 90% des Problems:** Brevo CRM führt alle Kontakte über alle Plattformen zusammen (Deduplizierung via Email). Der Kunde muss nicht dieselben Credentials haben — er ist im CRM als ein Kontakt mit mehreren Plattform-IDs gespeichert.
+
+**Zukunftsoption (Phase 4+):**
+Wenn tape-mag.com auf ein eigenes Frontend migriert wird (z.B. Next.js + Medusa), kann ein gemeinsames Auth-System eingeführt werden:
+- **Supabase Auth** als zentrale Auth-Instanz für alle 3 Plattformen
+- Shared Supabase-Projekt `bofblwqieuvmqybzxapx` ist bereits die gemeinsame DB
+- Medusa Auth könnte durch Supabase Auth ersetzt oder via Custom Auth Provider verbunden werden
+
+**Voraussetzung:** Erst wenn tape-mag.com ein eigenes Auth-System hat.
+
+---
+
+### 12.4 Newsletter-System
+
+#### 12.4.1 Strategie
+
+**Ziel:** Regelmäßige Newsletter an Sammler-Community mit hohem Engagement (>30% Open Rate erwartet wegen Nische).
+
+**Frequenz:**
+- **Auktions-Ankündigungen:** Bei jedem neuen Themen-Block (unregelmäßig, ~2-4× pro Monat)
+- **Katalog-Highlights:** 1× pro Woche (neue Zugänge, Preisänderungen, Featured Items)
+- **Community-Newsletter:** 1× pro Monat (Rückblick, Statistiken, Szene-News)
+
+#### 12.4.2 Newsletter-Typen
+
+| Typ | Trigger | Zielgruppe | Inhalt |
+|-----|---------|-----------|--------|
+| **Neuer Auktions-Block** | Admin erstellt Block mit Status "scheduled" | Alle Opt-in Kontakte + Segment nach Genre | Block-Titel, Teaser-Text, 3-5 Highlight-Items mit Bildern, Start-Datum, CTA "View Auction" |
+| **Wöchentliche Highlights** | Cronjob (Montags 10:00 UTC) | Alle Opt-in Kontakte | Top 10 neue Katalog-Einträge, Preis-Updates, meistgesuchte Items |
+| **Auktions-Ergebnisse** | Block endet (Status "ended") | Teilnehmer des Blocks | Ergebnisse, Verkaufspreise, "Similar items available" |
+| **Persönliche Empfehlungen** | Cronjob (monatlich) | Aktive Bieter | AI-generierte Empfehlungen basierend auf Gebotshistorie |
+| **Monatlicher Digest** | Cronjob (1. des Monats) | Alle Opt-in Kontakte | Zusammenfassung, Statistiken, Community-Highlights |
+
+#### 12.4.3 Technische Umsetzung
+
+**Brevo als Newsletter-Plattform:**
+- Templates in Brevo erstellen (Drag & Drop Editor oder HTML)
+- Design: Konsistent mit VOD Auctions Branding (Dark Theme, Gold Akzente, DM Serif Display)
+- Variablen: `{{contact.FIRSTNAME}}`, `{{params.BLOCK_TITLE}}`, `{{params.ITEM_IMAGE_URL}}`
+
+**Automatisierte Newsletter via Medusa Backend:**
+
+```
+┌──────────────────┐                  ┌─────────────────┐
+│  Medusa Backend  │   Brevo API      │   Brevo         │
+│                  │   POST /v3/      │                  │
+│  auction-        │   smtp/email     │   • Template     │
+│  lifecycle.ts    │ ───────────────→ │   • Sending      │
+│  (Block → scheduled)               │   • Tracking     │
+│                  │                  │   • Unsubscribe   │
+│  newsletter-     │                  │                  │
+│  cron.ts (weekly)│                  │                  │
+└──────────────────┘                  └─────────────────┘
+```
+
+**Neue Backend-Dateien:**
+```
+backend/src/lib/brevo.ts                    # Brevo API Client
+backend/src/lib/newsletter.ts               # Newsletter-Logik (Template-Auswahl, Daten-Aggregation)
+backend/src/jobs/newsletter-weekly.ts        # Cronjob: Wöchentliche Highlights
+backend/src/jobs/newsletter-block-announce.ts # Triggered: Neuer Block angekündigt
+```
+
+**Cronjob (VPS):**
+```bash
+# Wöchentlicher Newsletter (Montags 10:00 UTC)
+0 10 * * 1 cd ~/VOD_Auctions/backend && node -e "require('./dist/jobs/newsletter-weekly.js').run()" >> newsletter.log 2>&1
+```
+
+Alternativ: Medusa Scheduled Job (wie `auction-lifecycle.ts`), dann ist kein separater Cronjob nötig.
+
+#### 12.4.4 Double Opt-in Flow
+
+1. Kunde registriert sich auf vod-auctions.com
+2. Medusa → Brevo: Contact erstellt mit `NEWSLETTER_OPTIN = false`
+3. Storefront zeigt Checkbox: "Subscribe to our newsletter" (unchecked by default)
+4. Bei Opt-in → Brevo Double Opt-in Email (Brevo built-in Feature)
+5. Kunde bestätigt → `NEWSLETTER_OPTIN = true`
+6. Unsubscribe: Brevo Unsubscribe-Link in jedem Newsletter (DSGVO-Pflicht)
+
+#### 12.4.5 Resend vs. Brevo — Klare Trennung
+
+| Zweck | System | Beispiele |
+|-------|--------|----------|
+| **Transaktionale Emails** | Resend (bleibt) | Bid-Won, Outbid, Payment-Confirmation, Shipping, Feedback-Request, Welcome |
+| **Marketing-Emails** | Brevo (neu) | Newsletter, Auktions-Ankündigungen, Empfehlungen, Digest |
+
+Begründung: Transaktionale Emails müssen sofort und zuverlässig zugestellt werden (Resend, dedizierte IP, verifizierte Domain `noreply@vod-auctions.com`). Marketing-Emails haben andere Anforderungen (Tracking, A/B-Testing, Unsubscribe, Segmentierung).
+
+---
+
+### 12.5 Social Media System
+
+#### 12.5.1 Plattform-Strategie
+
+| Plattform | Priorität | Content-Typ | Frequenz | Zielgruppe |
+|-----------|----------|-------------|---------|-----------|
+| **Instagram** | Hoch | Produkt-Fotos, Auktions-Teaser, Stories | 3-5× pro Woche | Sammler, Vinyl-Community |
+| **Facebook** | Mittel | Auktions-Links, Community-Posts, Events | 2-3× pro Woche | Ältere Sammler, Gruppen |
+| **TikTok** | Niedrig (Zukunft) | Unboxing, "What's this worth?", Behind-the-scenes | 1-2× pro Woche | Jüngere Sammler |
+| **Threads** | Niedrig | Cross-posting von Instagram | Automatisch | Ergänzend |
+| **YouTube** | Zukunft (Phase 4+) | Auktions-Previews, Genre-Dokumentationen, Vinyl-Reviews | 1-2× pro Monat | Deep-dive Publikum |
+
+#### 12.5.2 Content-Scheduling Tool
+
+**Empfehlung: Buffer (Free Plan)**
+- 3 Kanäle kostenlos (Instagram, Facebook, Threads)
+- Scheduling + Analytics
+- Kein Self-Hosting nötig
+- Upgrade auf Essentials ($6/Monat/Kanal) wenn mehr Kanäle nötig
+
+**Alternativen:** Later (Free: 1 Social Set), Hootsuite (teuer), Publer
+
+#### 12.5.3 AI-gestützte Content-Generierung (Phase 3)
+
+**Konzept:** Automatische Erstellung von Social-Media-Posts aus Auktions-Daten.
+
+**Trigger:** Neuer Auktions-Block wird auf "scheduled" gesetzt.
+
+**Pipeline:**
+```
+┌──────────────┐     Block-Daten      ┌──────────────┐     Posts        ┌──────────────┐
+│  Medusa DB   │ ──────────────────→  │  Python      │ ──────────────→ │  Buffer API  │
+│  (Supabase)  │  Items, Images,      │  Script      │  Text + Bild   │  (Scheduling)│
+│              │  Artists, Prices     │  + Claude    │  pro Plattform │              │
+└──────────────┘                      │  API         │                 └──────────────┘
+                                      └──────────────┘
+```
+
+**Script:** `scripts/social_media_generator.py`
+- Liest Block-Daten aus Supabase (Titel, Items, Bilder, Genres)
+- Claude Haiku 4.5 generiert plattformspezifische Texte (Instagram: kurz + Hashtags, Facebook: länger, Threads: casual)
+- Wählt 3-5 beste Produktbilder als Carousel
+- Optional: Buffer API zum automatischen Scheduling (oder manuelles Posten via Buffer UI)
+
+**Kosten:** ~$0.01-0.05 pro generiertem Post (Claude Haiku 4.5)
+
+**VPS-Integration:**
+```bash
+# Manuell oder via Cronjob nach Block-Erstellung
+cd ~/VOD_Auctions/scripts
+python3 social_media_generator.py --block-id <BLOCK_ID>
+```
+
+#### 12.5.4 Content-Kategorien
+
+| Kategorie | Anteil | Beispiel |
+|-----------|--------|---------|
+| **Auktions-Teaser** | 40% | "Coming soon: Dark Ambient Rarities 1990-1995 — 50 lots, starting at €1. Bidding opens March 15." + Carousel |
+| **Produkt-Highlights** | 30% | Einzelnes Item mit Story/Hintergrund, Discogs-Bewertung, "Available in our catalog" |
+| **Behind-the-scenes** | 15% | Lager, Verpackung, neue Funde, Frank Bulls Expertise |
+| **Community/Engagement** | 15% | Polls ("What's your grail?"), Repost von Käufer-Fotos, Genre-Diskussionen |
+
+---
+
+### 12.6 Marketing-Automation & Paid Ads
+
+#### 12.6.1 Phasenplan
+
+| Phase | Zeitraum | Maßnahmen | Budget/Monat |
+|-------|----------|----------|-------------|
+| **Phase 2 (Launch)** | Monate 3-4 | Newsletter an Bestandskunden, Social Media organisch, Cross-Links tape-mag.com | €0 |
+| **Phase 3 (Skalierung)** | Monate 5-8 | Google Ads (Search), Facebook/Instagram Ads, Retargeting | €500-1.000 |
+| **Phase 4 (Vollausbau)** | Monate 9-12 | Lookalike Audiences, AI-Empfehlungen, Influencer-Kooperationen | €1.000-3.000 |
+
+#### 12.6.2 Brevo Marketing-Automationen
+
+**Automation 1: Welcome Flow (ab Launch)**
+```
+Trigger: Neuer Kontakt mit NEWSLETTER_OPTIN = true
+→ Sofort: Welcome Email (Brevo Template)
+→ +3 Tage: "Discover our catalog" Email (Top-Items nach Genre)
+→ +7 Tage: "Your first auction" Email (Anleitung + aktive Blöcke)
+```
+
+**Automation 2: Auktions-Engagement (ab Launch)**
+```
+Trigger: Kontakt hat geboten aber nicht gewonnen (TOTAL_BIDS > 0, TOTAL_AUCTIONS_WON = 0)
+→ +1 Tag nach Block-Ende: "Similar items" Email
+→ +7 Tage: "New auctions starting soon" Email
+```
+
+**Automation 3: Win-Back (ab Phase 3)**
+```
+Trigger: LAST_ACTIVITY_DATE > 60 Tage
+→ "We miss you" Email mit aktuellen Highlights
+→ +14 Tage: Exklusiver 10% Gutschein für Direktkauf
+```
+
+**Automation 4: VIP Segment (ab Phase 3)**
+```
+Trigger: TOTAL_SPENT > 500€ ODER TOTAL_AUCTIONS_WON > 5
+→ Automatisch in Segment "VIP" verschieben
+→ Early Access zu neuen Auktions-Blöcken (24h vor öffentlichem Start)
+→ Exklusive Preview-Emails
+```
+
+#### 12.6.3 Google Ads (Phase 3)
+
+**Kampagnen-Struktur:**
+- **Search Ads:** Keywords wie "Industrial Vinyl kaufen", "Rare Cassettes auction", "Throbbing Gristle vinyl", "Dark Ambient records"
+- **Shopping Ads:** Katalog-Feed aus Supabase → Google Merchant Center (Produkt-URLs von vod-auctions.com/catalog/*)
+- **Display Retargeting:** GA4 Audiences → Besucher die Katalog/Auktionen angesehen aber nicht geboten haben
+
+**GA4 Integration:**
+- Audiences in GA4 anlegen (basierend auf bestehenden Events: `trackCatalogView`, `trackAuctionView`, `trackBidPlaced`)
+- Google Ads Conversion Tracking: `trackAuctionWon` + Stripe Payment Confirmed als Conversions
+- Bereits implementiert: `analytics.ts` mit 7 Event-Tracking-Helpers (RSE-106)
+
+**Kosten-Kontrolle:**
+- Tages-Budget: €20-30 (€600-900/Monat)
+- CPC-Erwartung: €0.30-0.80 (Nischen-Keywords, wenig Wettbewerb)
+- Ziel-ROAS: 5:1 (€5 Umsatz pro €1 Ads-Ausgabe)
+
+#### 12.6.4 Meta Ads — Facebook & Instagram (Phase 3)
+
+**Kampagnen-Typen:**
+- **Awareness:** Carousel Ads mit Auktions-Highlights → Link zu Block-Seite
+- **Retargeting:** Facebook Pixel auf vod-auctions.com → Besucher die nicht geboten haben
+- **Lookalike:** Basierend auf bestehenden Käufern (Brevo CRM Export → Facebook Custom Audience)
+
+**Implementation:**
+- Facebook Pixel in Storefront einbauen (ähnlich GoogleAnalytics.tsx, consent-gated)
+- Conversion API (Server-side) über Medusa Backend für Bid/Purchase Events
+
+**Geschätzte Kosten:** €300-500/Monat
+
+---
+
+### 12.7 Backend-Integrationen — Zentralisierung im Medusa Backend
+
+**Prinzip:** Das Medusa Backend (VPS:9000) ist bereits der zentrale Hub für alle Kunden-Events (Registration, Bids, Wins, Purchases, Shipping). Statt separate Tools für CRM, Newsletter und Social Media zu verwalten, werden alle Integrationen als Module im Backend gebündelt. Frank bedient alles über eine Oberfläche — das Admin-Panel.
+
+**Leitlinie:** Alles was durch Kundenaktionen getriggert wird, gehört ins Backend. Externe Tools (Brevo, Buffer) sind nur für Delivery zuständig (Emails versenden, Posts publizieren).
+
+#### 12.7.1 Übersicht — Neue Backend-Module
+
+| Modul | Dateien | Aufwand | Priorität | Phase |
+|-------|---------|---------|-----------|-------|
+| **Brevo API Client** | `lib/brevo.ts` | ~100 Zeilen | Hoch | 2 (Launch) |
+| **CRM Event-Sync** | `lib/crm-sync.ts` | ~150 Zeilen | Hoch | 2 (Launch) |
+| **Newsletter Admin API** | `api/admin/newsletter/` | ~80 Zeilen | Hoch | 2 (Launch) |
+| **Newsletter Admin UI** | `admin/routes/newsletter/page.tsx` | ~200 Zeilen | Hoch | 2 (Launch) |
+| **Brevo Webhook Handler** | `api/webhooks/brevo/route.ts` | ~50 Zeilen | Mittel | 2 (Launch) |
+| **CRM Dashboard** | `admin/routes/customers/page.tsx` | ~150 Zeilen | Mittel | 3 (Skalierung) |
+| **Social Media Generator** | `api/admin/social-media/` | ~120 Zeilen | Niedrig | 3 (Skalierung) |
+
+**Gesamt:** ~850 Zeilen neuer Code. Kein neues DB-Modell nötig (Brevo ist die CRM-Datenbank).
+
+#### 12.7.2 Brevo API Client (`lib/brevo.ts`)
+
+Zentraler, stateless REST-Client für alle Brevo-Interaktionen.
+
+```typescript
+// backend/src/lib/brevo.ts — Pseudocode
+class BrevoClient {
+  private apiKey: string;
+  private baseUrl = 'https://api.brevo.com/v3';
+
+  // CRM
+  async upsertContact(email: string, attributes: Record<string, any>, listIds?: number[])
+  async getContact(email: string): Promise<BrevoContact>
+  async updateContactAttributes(email: string, attributes: Record<string, any>)
+
+  // Newsletter
+  async sendCampaign(templateId: number, listId: number, params: Record<string, any>)
+  async sendTransactionalTemplate(templateId: number, to: string, params: Record<string, any>)
+
+  // Segments
+  async getListContacts(listId: number): Promise<{ count: number }>
+  async getContactsBySegment(segmentId: number): Promise<BrevoContact[]>
+}
+
+export const brevo = new BrevoClient(process.env.BREVO_API_KEY);
+```
+
+#### 12.7.3 CRM Event-Sync (`lib/crm-sync.ts`)
+
+Event-Router: Jede relevante Aktion im Backend triggered einen Brevo-Sync. Alle Calls sind **fire-and-forget** (non-blocking, kein `await` im Request-Handler). Wenn Brevo down ist, geht kein Bid oder Kauf verloren — nur der CRM-Sync fehlt temporär.
+
+**Hook-Points in bestehenden Routes (je 1 Zeile Ergänzung):**
+
+| Bestehende Route | Neuer Aufruf | Brevo-Aktion |
+|---|---|---|
+| `POST /store/auth/register` | `crmSync.contactCreated(customer)` | Contact anlegen, Liste "VOD Auctions" zuweisen |
+| `POST /store/.../bids` | `crmSync.bidPlaced(customer, item)` | `TOTAL_BIDS_PLACED` +1, `PREFERRED_GENRES` updaten |
+| `auction-lifecycle.ts` (Block endet) | `crmSync.auctionWon(customer, items)` | `TOTAL_AUCTIONS_WON` +1, Segment-Check (VIP?) |
+| Stripe Webhook → `paid` | `crmSync.purchaseCompleted(customer, total)` | `TOTAL_SPENT`, `TOTAL_PURCHASES`, `LAST_PURCHASE_DATE` |
+| `POST /admin/transactions/:id` → shipped | `crmSync.orderShipped(customer)` | Trigger Brevo Tracking-Automation |
+
+```typescript
+// backend/src/lib/crm-sync.ts — Pseudocode
+import { brevo } from './brevo';
+
+export const crmSync = {
+  async contactCreated(customer: { email: string; first_name: string; last_name: string }) {
+    brevo.upsertContact(customer.email, {
+      FIRSTNAME: customer.first_name,
+      LASTNAME: customer.last_name,
+      PLATFORM_ORIGIN: 'vod-auctions',
+      MEDUSA_CUSTOMER_ID: customer.id,
+      CUSTOMER_SEGMENT: 'New',
+      LAST_ACTIVITY_DATE: new Date().toISOString(),
+    }, [BREVO_LIST_VOD_AUCTIONS]).catch(logBrevoError);
+  },
+
+  async bidPlaced(customer: { email: string }, item: { genres?: string[] }) {
+    brevo.updateContactAttributes(customer.email, {
+      TOTAL_BIDS_PLACED: { operation: 'increment', value: 1 },
+      LAST_ACTIVITY_DATE: new Date().toISOString(),
+      PREFERRED_GENRES: item.genres?.join(', '),
+    }).catch(logBrevoError);
+  },
+
+  async auctionWon(customer: { email: string }, items: any[]) {
+    brevo.updateContactAttributes(customer.email, {
+      TOTAL_AUCTIONS_WON: { operation: 'increment', value: items.length },
+      LAST_ACTIVITY_DATE: new Date().toISOString(),
+    }).catch(logBrevoError);
+  },
+
+  async purchaseCompleted(customer: { email: string }, total: number) {
+    brevo.updateContactAttributes(customer.email, {
+      TOTAL_PURCHASES: { operation: 'increment', value: 1 },
+      TOTAL_SPENT: { operation: 'increment', value: total },
+      LAST_PURCHASE_DATE: new Date().toISOString(),
+      CUSTOMER_SEGMENT: total > 500 ? 'VIP' : 'Active',
+    }).catch(logBrevoError);
+  },
+
+  async orderShipped(customer: { email: string }) {
+    // Brevo Automation wird durch Attribut-Update getriggert
+    brevo.updateContactAttributes(customer.email, {
+      LAST_ACTIVITY_DATE: new Date().toISOString(),
+    }).catch(logBrevoError);
+  },
+};
+```
+
+#### 12.7.4 Newsletter Admin API + UI
+
+**Ziel:** Frank kann Newsletter direkt aus dem Medusa Admin-Panel senden — kein Login bei Brevo nötig für den Alltag.
+
+**Neue Admin API Endpoints:**
+
+```
+GET  /admin/newsletter              # Liste: Brevo Campaigns + Stats
+POST /admin/newsletter/send         # Newsletter versenden (Template + Daten)
+POST /admin/newsletter/preview      # Preview HTML generieren
+GET  /admin/newsletter/stats        # Subscriber-Count, Open Rates, etc.
+```
+
+**Neue Admin-Seite:** `/admin/newsletter`
+
+Funktionen:
+- **Block-Ankündigung:** Button "Send Announcement" auf der Block-Detail-Seite → Backend aggregiert Block-Daten (Titel, 5 Highlight-Items mit Bildern, Start-Datum) → sendet an Brevo API als Campaign
+- **Wöchentliche Highlights:** Medusa Scheduled Job (wie `auction-lifecycle.ts`) → aggregiert Top-10 neue Releases der Woche → sendet an Brevo
+- **Auktions-Ergebnisse:** Automatisch wenn Block auf "ended" geht (Hook in `auction-lifecycle.ts`)
+- **Stats-Anzeige:** Subscriber-Count pro Liste, letzte Campaigns, Open/Click Rates
+
+**Dateien:**
+```
+backend/src/api/admin/newsletter/route.ts           # GET: Campaigns + Stats
+backend/src/api/admin/newsletter/send/route.ts      # POST: Campaign senden
+backend/src/api/admin/newsletter/preview/route.ts   # POST: Preview generieren
+backend/src/admin/routes/newsletter/page.tsx         # Admin UI: Newsletter Dashboard
+backend/src/jobs/newsletter-weekly.ts                # Scheduled Job: Wöchentliche Highlights
+```
+
+**Auktions-Block Integration (bestehende Datei):**
+```typescript
+// backend/src/admin/routes/auction-blocks/[id]/page.tsx — Ergänzung
+// Neuer Button "Send Newsletter Announcement" im Block-Detail
+// → POST /admin/newsletter/send { type: 'block_announcement', block_id: '...' }
+```
+
+#### 12.7.5 Brevo Inbound Webhooks
+
+Brevo meldet Events zurück (Unsubscribe, Bounce, Spam). Diese werden im Backend verarbeitet.
+
+```
+backend/src/api/webhooks/brevo/route.ts    # POST: Brevo Webhook Handler
+```
+
+**Webhook-URL:** `https://api.vod-auctions.com/webhooks/brevo`
+
+**Events:**
+| Brevo Event | Backend-Aktion |
+|---|---|
+| `unsubscribe` | `NEWSLETTER_OPTIN = false` in Brevo (automatisch) + optionales Logging |
+| `hard_bounce` | Email-Adresse als ungültig markieren, aus aktiven Kampagnen entfernen |
+| `spam` | Kontakt aus allen Marketing-Listen entfernen |
+| `delivered` / `opened` / `clicked` | Statistiken (werden von Brevo selbst getrackt, optional loggen) |
+
+**Middleware:** Raw Body Parsing analog zu Stripe Webhook (`middlewares.ts` Ergänzung).
+
+#### 12.7.6 CRM Dashboard im Admin (Phase 3)
+
+```
+backend/src/api/admin/customers/route.ts          # GET: CRM Stats von Brevo API
+backend/src/admin/routes/customers/page.tsx        # Admin UI: Kunden-Dashboard
+```
+
+**Zeigt auf einen Blick (Daten von Brevo API, kein eigenes DB-Modell):**
+- Kontakte gesamt / Newsletter Opt-ins / Aktive Bieter
+- Segment-Verteilung: VIP | Active | Occasional | Dormant | New (Pie Chart)
+- Letzte 10 Registrierungen mit Plattform-Herkunft
+- Top-10 Kunden nach Umsatz
+- Newsletter-Performance: Letzte 5 Campaigns mit Open/Click Rate
+
+#### 12.7.7 Social Media Content-Generator (Phase 3)
+
+Admin klickt auf Block-Detail-Seite "Generate Social Posts" → Backend ruft Claude API → generiert plattformspezifische Texte → zeigt Preview im Admin → Admin klickt "Schedule" → Backend sendet an Buffer API.
+
+```
+backend/src/api/admin/social-media/generate/route.ts   # POST: AI Content generieren
+backend/src/api/admin/social-media/schedule/route.ts    # POST: An Buffer API senden
+backend/src/admin/routes/social-media/page.tsx          # Admin UI: Social Media Queue
+```
+
+**Bis Phase 3:** Social Media manuell über Buffer UI. Das Script `scripts/social_media_generator.py` bleibt als Alternative für CLI-Nutzung.
+
+#### 12.7.8 Abgrenzung — Was NICHT ins Backend gehört
+
+| Bereich | Warum extern | Tool |
+|---|---|---|
+| **Newsletter-Templates** | Brevo Drag & Drop Editor ist besser als custom HTML im Backend | Brevo UI |
+| **Email-Zustellung** | Dedizierte Infrastruktur (IP-Reputation, SPF, DKIM) | Brevo + Resend |
+| **Automation-Flows** | Brevo Automation Builder (visuell, drag & drop) — im Backend nachbauen wäre Overengineering | Brevo UI |
+| **Social Media Scheduling** | Buffer UI ist dafür optimiert | Buffer |
+| **Paid Ads Management** | Google/Meta Ads Dashboards sind nicht ersetzbar | Google/Meta UI |
+
+#### 12.7.9 Erweiterte Projektstruktur (Neue Dateien)
+
+```
+backend/src/
+├── lib/
+│   ├── brevo.ts                    # NEU: Brevo REST API Client
+│   ├── crm-sync.ts                 # NEU: Event-Router (6 Methoden)
+│   ├── stripe.ts                   # (bestehend)
+│   ├── resend.ts                   # (bestehend — transaktionale Emails)
+│   ├── auction-helpers.ts          # (bestehend)
+│   └── shipping.ts                 # (bestehend)
+├── api/
+│   ├── admin/
+│   │   ├── newsletter/             # NEU
+│   │   │   ├── route.ts            #   GET: Campaigns + Stats
+│   │   │   ├── send/route.ts       #   POST: Campaign senden
+│   │   │   └── preview/route.ts    #   POST: Preview HTML
+│   │   ├── customers/              # NEU (Phase 3)
+│   │   │   └── route.ts            #   GET: CRM Stats
+│   │   ├── social-media/           # NEU (Phase 3)
+│   │   │   ├── generate/route.ts   #   POST: AI Content
+│   │   │   └── schedule/route.ts   #   POST: Buffer API
+│   │   ├── auction-blocks/         # (bestehend)
+│   │   ├── media/                  # (bestehend)
+│   │   ├── transactions/           # (bestehend)
+│   │   └── ...
+│   ├── webhooks/
+│   │   ├── stripe/route.ts         # (bestehend)
+│   │   └── brevo/route.ts          # NEU: Unsubscribe/Bounce Handler
+│   └── store/                      # (bestehend)
+├── jobs/
+│   ├── auction-lifecycle.ts        # (bestehend) + crmSync Hooks
+│   └── newsletter-weekly.ts        # NEU: Wöchentliche Highlights
+├── admin/routes/
+│   ├── newsletter/page.tsx         # NEU: Newsletter Dashboard
+│   ├── customers/page.tsx          # NEU: CRM Dashboard (Phase 3)
+│   ├── social-media/page.tsx       # NEU: Social Media Queue (Phase 3)
+│   ├── auction-blocks/             # (bestehend)
+│   ├── media/                      # (bestehend)
+│   └── ...
+```
+
+#### 12.7.10 Änderungen an bestehenden Dateien (minimal-invasiv)
+
+Nur 1-Zeile-Hooks werden in bestehende Routes eingefügt:
+
+```typescript
+// 1. backend/src/api/store/auth/register — nach erfolgreicher Registration
+crmSync.contactCreated(customer);
+
+// 2. backend/src/api/store/.../bids/route.ts — nach erfolgreichem Bid
+crmSync.bidPlaced(customer, { genres: release.genres });
+
+// 3. backend/src/api/webhooks/stripe/route.ts — nach payment confirmed
+crmSync.purchaseCompleted(customer, totalAmount);
+
+// 4. backend/src/api/admin/transactions/[id]/route.ts — nach shipping update
+if (newStatus === 'shipped') crmSync.orderShipped(customer);
+
+// 5. backend/src/jobs/auction-lifecycle.ts — nach Block-Ende, für jeden Gewinner
+crmSync.auctionWon(winner, wonItems);
+
+// 6. backend/src/api/middlewares.ts — Brevo Webhook Route hinzufügen
+// { path: '/webhooks/brevo', bodyParser: false }
+```
+
+**Keine bestehende Funktionalität wird verändert.** Die CRM-Sync Calls sind fire-and-forget und blockieren nicht.
+
+---
+
+### 12.8 Gesamtarchitektur — Marketing-Stack
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    MEDUSA ADMIN PANEL                                │
+│                    (api.vod-auctions.com/app)                       │
+│                                                                     │
+│  ┌──────────┐ ┌──────────┐ ┌───────────┐ ┌──────────┐ ┌─────────┐ │
+│  │ Auction  │ │  Media   │ │Newsletter │ │Customers │ │ Social  │ │
+│  │ Blocks   │ │ Mgmt     │ │  Send     │ │  CRM     │ │ Media   │ │
+│  │          │ │          │ │  Preview  │ │  Stats   │ │ Generate│ │
+│  │(bestehd.)│ │(bestehd.)│ │  (neu)    │ │ (neu,P3) │ │(neu,P3) │ │
+│  └──────────┘ └──────────┘ └───────────┘ └──────────┘ └─────────┘ │
+└─────────────────────────────────────────────────────────────────────┘
+                               │
+┌─────────────────────────────────────────────────────────────────────┐
+│                        VPS (72.62.148.205)                          │
+│                                                                     │
+│  ┌──────────────────────────────┐  ┌────────────────────────┐      │
+│  │  Medusa Backend (PM2:9000)   │  │  Storefront (PM2:3006) │      │
+│  │                              │  │                         │      │
+│  │  lib/brevo.ts ──→ Brevo API  │  │  • Newsletter Opt-in   │      │
+│  │  lib/crm-sync.ts (Events)    │  │  • Cookie Consent      │      │
+│  │  lib/resend.ts ──→ Resend    │  │  • FB Pixel (Phase 3)  │      │
+│  │  lib/stripe.ts ──→ Stripe    │  │                         │      │
+│  │                              │  └────────────────────────┘      │
+│  │  jobs/newsletter-weekly.ts   │                                   │
+│  │  jobs/auction-lifecycle.ts   │                                   │
+│  │                              │                                   │
+│  │  webhooks/brevo/ ←── Brevo   │                                   │
+│  │  webhooks/stripe/ ←── Stripe │                                   │
+│  └──────────────────────────────┘                                   │
+│                                                                     │
+│  ┌─────────────────────────────────────────────────────┐            │
+│  │  Python Scripts (Cronjobs)                          │            │
+│  │  • social_media_generator.py (AI Content, Phase 3)  │            │
+│  │  • crm_sync_batch.py (Initialer Import)             │            │
+│  └─────────────────────────────────────────────────────┘            │
+└─────────────────────────────────────────────────────────────────────┘
+          │                    │                    │
+          ▼                    ▼                    ▼
+┌──────────────┐    ┌──────────────┐    ┌──────────────────┐
+│   Brevo      │    │   Resend     │    │   Buffer         │
+│   (SaaS)     │    │   (SaaS)     │    │   (SaaS)         │
+│              │    │              │    │                    │
+│  • CRM       │    │  • Trans-    │    │  • Social Media   │
+│  • Newsletter│    │    aktionale │    │    Scheduling      │
+│  • Automation│    │    Emails    │    │  • IG, FB, Threads │
+│  • Segments  │    │  • 6 Templ.  │    │  • Analytics       │
+│  • Analytics │    │  • Domain    │    │                    │
+│              │    │    verified  │    │                    │
+└──────────────┘    └──────────────┘    └──────────────────┘
+          │                                      │
+          ▼                                      ▼
+┌──────────────┐                      ┌──────────────────┐
+│  Google Ads  │                      │  Meta Ads        │
+│  (Phase 3)   │                      │  (Phase 3)       │
+│              │                      │                    │
+│  • Search    │                      │  • FB/IG Ads      │
+│  • Shopping  │                      │  • Retargeting    │
+│  • Retarget  │                      │  • Lookalike      │
+└──────────────┘                      └──────────────────┘
+```
+
+### 12.9 Kosten-Übersicht Marketing-Stack
+
+| Komponente | Phase 2 (Launch) | Phase 3 (Skalierung) | Phase 4 (Vollausbau) |
+|------------|-----------------|---------------------|---------------------|
+| **Brevo CRM + Newsletter** | €0 (Free) | €9-18/Monat (Starter/Business) | €18-49/Monat |
+| **Resend (transaktional)** | €0 (Free Tier) | €0 (Free Tier reicht) | €20/Monat (bei >3k Emails) |
+| **Buffer (Social Media)** | €0 (Free, 3 Kanäle) | €6-18/Monat | €18-36/Monat |
+| **Claude API (Content-Gen)** | €0 | ~€2/Monat | ~€5/Monat |
+| **Google Ads** | €0 | €600-900/Monat | €1.000-2.000/Monat |
+| **Meta Ads** | €0 | €300-500/Monat | €500-1.000/Monat |
+| **Gesamt** | **€0/Monat** | **€917-1.447/Monat** | **€1.561-3.110/Monat** |
+
+### 12.10 Implementierungsroadmap
+
+#### Phase 2 — Launch (Monate 3-4)
+- [ ] Brevo Account erstellen + API-Key generieren
+- [ ] `backend/src/lib/brevo.ts` — Brevo API Client implementieren
+- [ ] `backend/src/lib/crm-sync.ts` — Event-Handler für Customer Registration + Purchase
+- [ ] Brevo CRM: Contact Properties anlegen (Custom Attributes)
+- [ ] Initialer Import: vod-auctions.com Kunden → Brevo (CSV)
+- [ ] Initialer Import: tape-mag.com Kunden → Brevo (Legacy MySQL Export)
+- [ ] Initialer Import: vod-records.com Kunden → Brevo (WooCommerce Export)
+- [ ] Newsletter Opt-in Checkbox in Storefront Registration/Settings
+- [ ] Brevo Double Opt-in Flow konfigurieren
+- [ ] Erster Newsletter-Template in Brevo (VOD Auctions Branding)
+- [ ] Buffer Account + Instagram/Facebook/Threads verbinden
+- [ ] Manuelles Social-Media-Posting zu ersten Auktions-Blöcken
+
+#### Phase 3 — Skalierung (Monate 5-8)
+- [ ] Brevo Automationen einrichten (Welcome Flow, Auktions-Engagement)
+- [ ] `scripts/social_media_generator.py` — AI Content-Generator (Claude Haiku)
+- [ ] Wöchentlicher Newsletter-Cronjob (Highlights)
+- [ ] Google Ads Setup (Merchant Center, Search Campaigns)
+- [ ] Facebook Pixel in Storefront (consent-gated)
+- [ ] Meta Ads: Erste Retargeting-Kampagnen
+- [ ] Brevo Segmentierung: VIP, Active, Dormant
+
+#### Phase 4 — Vollausbau (Monate 9-12)
+- [ ] Brevo Marketing Automation erweitern (Win-Back, VIP Early Access)
+- [ ] Lookalike Audiences (Brevo → Meta Ads)
+- [ ] AI-Empfehlungen im Newsletter (personalisiert nach Genre/Format)
+- [ ] TikTok-Kanal starten (wenn Instagram-Community > 1.000 Follower)
+- [ ] YouTube-Kanal evaluieren
+- [ ] SSO re-evaluieren (abhängig von tape-mag.com Migration)
+
+### 12.11 Env-Variablen (Neu)
+
+```bash
+# Brevo CRM + Newsletter (backend/.env)
+BREVO_API_KEY=xkeysib-...              # Brevo REST API Key
+BREVO_LIST_VOD_AUCTIONS=<list_id>      # Brevo Contact List ID
+BREVO_LIST_TAPE_MAG=<list_id>          # Brevo Contact List ID
+BREVO_SENDER_EMAIL=newsletter@vod-auctions.com
+BREVO_SENDER_NAME=VOD Auctions
+
+# Buffer (nur für AI Content-Generator Script)
+BUFFER_ACCESS_TOKEN=...                 # Buffer API Token (Phase 3)
+
+# Meta Ads (storefront/.env.local)
+NEXT_PUBLIC_FB_PIXEL_ID=...            # Facebook Pixel ID (Phase 3)
+```
+
+### 12.12 Datenschutz-Ergänzung
+
+Die Datenschutzerklärung (`/datenschutz`) muss um folgende Dienste erweitert werden:
+
+- **Brevo (Sendinblue SAS):** CRM und Newsletter-Versand, Sitz in Paris (Frankreich), EU-Server, Auftragsverarbeitungsvertrag (AVV) über Brevo Dashboard abschließen
+- **Buffer Inc.:** Social-Media-Management, Sitz in San Francisco (USA), Standard Contractual Clauses (SCC)
+- **Facebook/Meta Pixel:** Conversion-Tracking und Retargeting (nur mit Cookie-Consent), Meta Platforms Ireland Ltd.
+- **Google Ads:** Suchmaschinen-Werbung und Remarketing (nur mit Cookie-Consent), Google Ireland Ltd.
+
+Die Cookie-Richtlinie (`/cookies`) muss um Marketing-Cookies erweitert werden:
+- Facebook Pixel (`_fbp`, `_fbc`) — Kategorie: Marketing (Opt-in erforderlich)
+- Google Ads (`_gcl_*`) — Kategorie: Marketing (Opt-in erforderlich)
+
+Der Cookie-Consent-Banner (`CookieConsent.tsx`) muss um die Kategorie "Marketing" erweitert werden (neben "Analytics").
+
+---
+
 **Ende des Konzeptdokuments**
 
-*Nächster Schritt: Phase 1 starten — Data Migration + Prototyp-Entwicklung*
+*Nächster Schritt: Phase 1 abschließen (RSE-77 Testlauf) → Phase 2 mit CRM + Newsletter starten*

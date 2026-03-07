@@ -2,6 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { sendShippingEmail, sendFeedbackRequestEmail } from "../../../../lib/email-helpers"
+import { crmSyncShippingUpdate } from "../../../../lib/crm-sync"
 
 // GET /admin/transactions/:id — Transaction detail
 export async function GET(
@@ -96,6 +97,7 @@ export async function POST(
       sendShippingEmail(pgConnection, id).catch((err) => {
         console.error("[admin/transactions] Failed to send shipping email:", err)
       })
+      crmSyncShippingUpdate(pgConnection, id, "shipped").catch(() => {})
     }
 
     // Send feedback request email when status changes to "delivered" (async, non-blocking)
@@ -103,6 +105,7 @@ export async function POST(
       sendFeedbackRequestEmail(pgConnection, id).catch((err) => {
         console.error("[admin/transactions] Failed to send feedback email:", err)
       })
+      crmSyncShippingUpdate(pgConnection, id, "delivered").catch(() => {})
     }
 
     res.json({ success: true, shipping_status })

@@ -2,6 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { sendWelcomeEmail } from "../../../../lib/email-helpers"
+import { crmSyncRegistration } from "../../../../lib/crm-sync"
 
 // POST /store/account/send-welcome — Send welcome email after registration
 export async function POST(
@@ -21,6 +22,11 @@ export async function POST(
   // Send welcome email (async, non-blocking)
   sendWelcomeEmail(pgConnection, customerId).catch((err) => {
     console.error("[send-welcome] Failed:", err)
+  })
+
+  // Sync new customer to Brevo CRM (async, non-blocking)
+  crmSyncRegistration(pgConnection, customerId).catch((err) => {
+    console.error("[send-welcome] CRM sync failed:", err)
   })
 
   res.json({ success: true })

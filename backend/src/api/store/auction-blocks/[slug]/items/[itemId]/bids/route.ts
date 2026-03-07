@@ -7,6 +7,7 @@ import { Knex } from "knex"
 import AuctionModuleService from "../../../../../../../modules/auction/service"
 import { AUCTION_MODULE } from "../../../../../../../modules/auction"
 import { sendOutbidEmail } from "../../../../../../../lib/email-helpers"
+import { crmSyncBidPlaced } from "../../../../../../../lib/crm-sync"
 
 // GET /store/auction-blocks/:slug/items/:itemId/bids — Public: bid history
 export async function GET(
@@ -304,6 +305,9 @@ export async function POST(
         result._current_bid!
       ).catch(() => {})
     }
+
+    // Sync bid to Brevo CRM (async, non-blocking)
+    crmSyncBidPlaced(pgConnection, customerId, result.amount).catch(() => {})
 
     // Strip internal fields before sending response
     const { _outbid_user, _outbid_amount, _current_bid, ...response } = result

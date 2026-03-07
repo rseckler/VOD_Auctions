@@ -1,6 +1,7 @@
 import { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { sendBidWonEmail } from "../lib/email-helpers"
+import { crmSyncAuctionWon } from "../lib/crm-sync"
 
 export default async function auctionLifecycle(container: MedusaContainer) {
   const pgConnection = container.resolve(
@@ -149,6 +150,9 @@ export default async function auctionLifecycle(container: MedusaContainer) {
       ).catch((err) => {
         console.error(`[lifecycle] Failed to send bid-won email:`, err)
       })
+
+      // Sync auction win to Brevo CRM
+      crmSyncAuctionWon(pgConnection, winner.userId, winner.price).catch(() => {})
     }
   }
 }

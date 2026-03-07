@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { stripe } from "../../../lib/stripe"
 import { sendPaymentConfirmationEmail } from "../../../lib/email-helpers"
+import { crmSyncPaymentCompleted } from "../../../lib/crm-sync"
 
 // POST /webhooks/stripe — Stripe Webhook Handler
 export async function POST(
@@ -89,6 +90,9 @@ export async function POST(
           sendPaymentConfirmationEmail(pgConnection, orderGroupId).catch((err) => {
             console.error("[stripe-webhook] Failed to send payment email:", err)
           })
+
+          // Sync payment to Brevo CRM
+          crmSyncPaymentCompleted(pgConnection, orderGroupId).catch(() => {})
         } else if (transactionId) {
           // Legacy single-item checkout
           await pgConnection("transaction")
