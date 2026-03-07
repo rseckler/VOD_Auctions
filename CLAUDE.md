@@ -16,6 +16,23 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-07
 
 ### Letzte Änderungen (2026-03-07)
+- **RSE-128-131,133,138: Newsletter + CRM Dashboard + GDPR:**
+  - **RSE-129: Newsletter Admin API + UI:** `/admin/newsletter` page — campaigns list with open/click rates, subscriber counts per list, send campaign endpoint (generic + block announcement), Brevo dashboard link
+  - **RSE-128: Newsletter Opt-in Flow:** Registration checkbox (unchecked by default), account settings toggle with live Brevo status, `GET/POST /store/account/newsletter` API
+  - **RSE-130: Brevo Email Templates:** 4 HTML templates (block_announcement, weekly_highlights, auction_results, monthly_digest) + `scripts/brevo_create_templates.py` upload script, sender fixed to `admin@vod-auctions.com`
+  - **RSE-131: Brevo Webhook Handler:** `POST /webhooks/brevo` — handles unsubscribed, hardBounce, softBounce, complaint/spam, delivered/opened/click events
+  - **RSE-133: Datenschutz-Erweiterung:** New sections for Brevo (CRM/Newsletter) + Google Analytics (GA4, consent-gated), 3-category cookie consent (Essential/Analytics/Marketing), marketing cookies table (FB Pixel, Google Ads — prepared for future)
+  - **RSE-138: CRM Dashboard:** `/admin/customers` — 5 overview cards (total contacts, per-list, newsletter opt-ins, Medusa customers), segment distribution bars, recent CRM contacts table, top customers by spend, campaign performance table
+  - **Brevo Lib:** +`listContacts()` for contact listing with attributes
+  - **Templates:** Brevo IDs: Block Announcement (2), Weekly Highlights (3), Auction Results (4), Monthly Digest (5)
+  - **Brevo Sender:** Only `admin@vod-auctions.com` (id: 1, name: "VOD Records") is verified
+- **Comprehensive Moreinfo Parser** — `scripts/fix_moreinfo_comprehensive.py`:
+  - Fills gaps left by `fix_description_parser.py` and `fix_reparse_descriptions.py`
+  - Handles 6 format variants: Discogs V1 playlist tables (schema.org), V2/V3 MUI tables (hashed CSS classes), section text with `<h3 class="group">` headers, simple div wraps, colon format (`A1 : Artist - Title`), plain text (no HTML)
+  - Supports letter-only positions (A, B, C) not just A1/B2
+  - Results: +463 new tracklists, +91 improved, +6 new credits, +10 improved credits, +251 notes appended to credits
+  - Coverage improvement: tracklist 87.3% → 89.4% of releases with description (remaining 2,390 genuinely have no tracklist data — tape format only, archive numbers, etc.)
+  - Idempotent — safe to re-run, skips already-filled fields
 - **RSE-125/126/127: Brevo CRM Integration** — API Client + Event-Sync + Batch-Import:
   - **Brevo API Client:** `backend/src/lib/brevo.ts` — Stateless REST client (contacts, lists, campaigns, transactional emails)
   - **CRM Event-Sync:** `backend/src/lib/crm-sync.ts` — Fire-and-forget Brevo sync for 5 events:
@@ -485,6 +502,11 @@ VOD_Auctions/
 │   │   │   │   └── transactions/         # Transaction Management (RSE-76)
 │   │   │   │       ├── route.ts          # GET: All transactions (filter by status)
 │   │   │   │       └── [id]/route.ts     # GET detail + POST shipping status update
+│   │   │   ├── newsletter/          # Newsletter Admin API (RSE-129)
+│   │   │   │   ├── route.ts          # GET: Campaigns + subscriber counts
+│   │   │   │   ├── stats/route.ts    # GET: Detailed subscriber + campaign stats
+│   │   │   │   └── send/route.ts     # POST: Send campaign (generic or block announcement)
+│   │   │   ├── customers/route.ts    # GET: CRM Dashboard data (Brevo + Medusa DB) (RSE-138)
 │   │   │   └── store/           # Store API (Publishable Key required)
 │   │   │       ├── auction-blocks/   # Public: list, detail, item detail
 │   │   │       │   ├── route.ts      # List blocks (items_count, status filter)
@@ -502,9 +524,11 @@ VOD_Auctions/
 │   │   │           ├── cart/[id]/route.ts    # DELETE: Cart-Item entfernen (RSE-111)
 │   │   │           ├── status/route.ts       # GET: has_won_auction + cart_count (RSE-111)
 │   │   │           ├── checkout/route.ts     # POST: Combined Checkout (RSE-111, multi-item Stripe)
+│   │   │           ├── newsletter/route.ts   # GET/POST: Newsletter opt-in/opt-out (RSE-128)
 │   │   │           └── transactions/route.ts # GET: Meine Transactions (RSE-76)
 │   │   │   ├── webhooks/
-│   │   │   │   └── stripe/route.ts  # POST: Stripe Webhook (RSE-76)
+│   │   │   │   ├── stripe/route.ts  # POST: Stripe Webhook (RSE-76)
+│   │   │   │   └── brevo/route.ts   # POST: Brevo Webhook (unsubscribe/bounce/spam) (RSE-131)
 │   │   │   ├── middlewares.ts   # Auth middleware (bids + account + webhook raw body)
 │   │   ├── lib/
 │   │   │   ├── stripe.ts       # Stripe Client + Shipping-Rates Config
@@ -522,6 +546,10 @@ VOD_Auctions/
 │   │       │   └── page.tsx     # CMS Content Editor (Home/About/Auctions Tabs, TipTap)
 │   │       ├── sync/
 │   │       │   └── page.tsx     # Sync-Dashboard (Legacy + Discogs Status)
+│   │       ├── newsletter/
+│   │       │   └── page.tsx     # Newsletter Admin (Campaigns, Stats, Send)
+│   │       ├── customers/
+│   │       │   └── page.tsx     # CRM Dashboard (Segments, Top Customers, Campaigns)
 │   │       └── components/
 │   │           └── rich-text-editor.tsx  # TipTap WYSIWYG Editor
 │   └── node_modules/
@@ -547,7 +575,8 @@ VOD_Auctions/
 │   │   │       ├── wins/page.tsx    # Gewonnene Items + Pay + Combined Checkout Banner
 │   │   │       ├── cart/page.tsx    # Warenkorb (RSE-111)
 │   │   │       ├── checkout/page.tsx # Combined Checkout (RSE-111)
-│   │   │       └── settings/page.tsx # Profil-Informationen (readonly)
+│   │   │       ├── settings/page.tsx # Profil-Informationen + Newsletter Toggle
+│   │   │       └── feedback/page.tsx # Post-Delivery Feedback
 │   │   ├── components/
 │   │   │   ├── layout/
 │   │   │   │   ├── Header.tsx        # Disc3 Logo + Gold Gradient, sticky header
@@ -733,14 +762,22 @@ npm run build             # Production build
 **Independent (can start now):**
 - ~~**RSE-97:** SEO & Meta Tags~~ ✅
 - ~~**RSE-98:** Storefront Performance (Image optimization)~~ ✅
-- **RSE-99:** Admin Media Bulk Actions
+- ~~**RSE-99:** Admin Media Bulk Actions~~ ✅
 - ~~**RSE-106:** Google Analytics — Setup + Integration~~ ✅
 
 ### CRM/Newsletter (Phase 2) — RSE-125–144
 - ~~**RSE-125:** Brevo Setup & API Client~~ ✅
 - ~~**RSE-126:** CRM Event-Sync (Medusa → Brevo)~~ ✅
 - ~~**RSE-127:** Initialer CRM-Import (3 Plattformen → Brevo)~~ ✅
-- **RSE-128–144:** Newsletter Templates, Signup Widget, Automations, Analytics Dashboard (Backlog)
+- ~~**RSE-128:** Newsletter Opt-in & Double Opt-in Flow~~ ✅
+- ~~**RSE-129:** Newsletter Admin API + UI~~ ✅
+- ~~**RSE-130:** Brevo Email Templates (4 Templates uploaded)~~ ✅
+- ~~**RSE-131:** Brevo Webhook Handler (Unsubscribe/Bounce)~~ ✅
+- **RSE-132:** Buffer Setup & Social Media (manuell, wartend)
+- ~~**RSE-133:** Datenschutz-Erweiterung (Brevo, GA4, Marketing-Cookies)~~ ✅
+- **RSE-134–137:** Marketing-Automationen, Newsletter-Cronjob, Social Media AI (Phase 3)
+- ~~**RSE-138:** CRM Dashboard im Admin~~ ✅
+- **RSE-139–144:** Google Ads, FB Pixel, Segmentierung, Marketing Vollausbau (Phase 3-4)
 
 ### Phase 2 (Launch) — Backlog
 - **RSE-78:** P2.1 Launch-Vorbereitung — ~~Stripe Live~~ ✅ ~~Cookie Consent~~ ✅ ~~Sentry~~ ✅ ~~Analytics~~ ✅ ~~Legal Pages~~ ✅ ~~Domain~~ ✅ | Offen: E-Commerce-Anwalt AGB-Prüfung
