@@ -24,6 +24,7 @@ type RelatedRelease = {
   legacy_price: number | null
   legacy_condition: string | null
   artist_name: string | null
+  artist_slug: string | null
   label_name: string | null
 }
 
@@ -143,7 +144,13 @@ export default async function CatalogDetailPage({
         {/* Details */}
         <div>
           <p className="text-muted-foreground text-lg">
-            {release.artist_name || "Unknown Artist"}
+            {release.artist_slug ? (
+              <Link href={`/band/${release.artist_slug}`} className="hover:text-primary transition-colors">
+                {release.artist_name}
+              </Link>
+            ) : (
+              release.artist_name || "Unknown Artist"
+            )}
           </p>
           <h1 className="text-3xl md:text-4xl font-bold tracking-tight mt-1">
             {release.title}
@@ -242,21 +249,28 @@ export default async function CatalogDetailPage({
             <div>
               {[
                 release.article_number && { k: "Article No.", v: release.article_number, mono: true },
-                release.label_name && { k: "Label", v: release.label_name },
-                release.pressorga_name && { k: "Press / Org", v: release.pressorga_name },
+                release.label_name && { k: "Label", v: release.label_name, link: release.label_slug ? `/label/${release.label_slug}` : undefined },
+                release.pressorga_name && { k: "Press / Org", v: release.pressorga_name, link: release.pressorga_slug ? `/press/${release.pressorga_slug}` : undefined },
                 release.catalogNumber && { k: "Catalog No.", v: release.catalogNumber, mono: true },
                 release.legacy_condition && { k: "Condition", v: release.legacy_condition, mono: true },
                 (release.format_name || release.legacy_format_detail) && { k: "Format", v: release.format_name || release.legacy_format_detail },
                 release.media_condition && { k: "Media", v: release.media_condition },
                 release.sleeve_condition && { k: "Sleeve", v: release.sleeve_condition },
-              ].filter(Boolean).map((row, i) => (
-                <div key={i} className={`flex justify-between py-1.5 ${i > 0 ? "border-t border-dotted border-white/[0.06]" : ""}`}>
-                  <span className="text-xs text-muted-foreground">{(row as { k: string }).k}</span>
-                  <span className={`text-[13px] font-medium ${(row as { mono?: boolean }).mono ? "font-mono text-xs font-normal" : ""}`}>
-                    {(row as { v: string }).v}
-                  </span>
-                </div>
-              ))}
+              ].filter(Boolean).map((row, i) => {
+                const { k, v, mono, link } = row as { k: string; v: string; mono?: boolean; link?: string }
+                return (
+                  <div key={i} className={`flex justify-between py-1.5 ${i > 0 ? "border-t border-dotted border-white/[0.06]" : ""}`}>
+                    <span className="text-xs text-muted-foreground">{k}</span>
+                    <span className={`text-[13px] font-medium ${mono ? "font-mono text-xs font-normal" : ""}`}>
+                      {link ? (
+                        <Link href={link} className="hover:text-primary transition-colors">
+                          {v}
+                        </Link>
+                      ) : v}
+                    </span>
+                  </div>
+                )
+              })}
             </div>
           </div>
 

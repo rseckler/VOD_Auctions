@@ -68,7 +68,9 @@ export async function GET(
       "Release.discogs_median_price",
       "Release.discogs_highest_price",
       "Artist.name as artist_name",
-      "Label.name as label_name"
+      "Artist.slug as artist_slug",
+      "Label.name as label_name",
+      "Label.slug as label_slug"
     )
     .leftJoin("Artist", "Release.artistId", "Artist.id")
     .leftJoin("Label", "Release.labelId", "Label.id")

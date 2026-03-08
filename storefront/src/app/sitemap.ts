@@ -10,6 +10,12 @@ type CatalogResponse = {
   pages: number
 }
 
+type EntityEntry = {
+  entity_type: string
+  slug: string
+  updated_at: string
+}
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const entries: MetadataRoute.Sitemap = [
     {
@@ -74,6 +80,33 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
   } catch {
     // Backend unavailable — skip catalog entries
+  }
+
+  // Entity pages (bands, labels, press orgs with published content)
+  try {
+    const entityData = await medusaFetch<{ entities: EntityEntry[] }>(
+      "/store/entities"
+    )
+    const entities = entityData?.entities || []
+
+    const routeMap: Record<string, { path: string; priority: number }> = {
+      artist: { path: "band", priority: 0.6 },
+      label: { path: "label", priority: 0.6 },
+      press_orga: { path: "press", priority: 0.5 },
+    }
+
+    for (const entity of entities) {
+      const route = routeMap[entity.entity_type]
+      if (!route) continue
+      entries.push({
+        url: `${SITE_URL}/${route.path}/${entity.slug}`,
+        lastModified: new Date(entity.updated_at),
+        changeFrequency: "weekly",
+        priority: route.priority,
+      })
+    }
+  } catch {
+    // Backend unavailable — skip entity entries
   }
 
   return entries

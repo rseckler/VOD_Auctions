@@ -51,7 +51,9 @@ export async function GET(
       "Release.sale_mode",
       "Release.direct_price",
       "Artist.name as artist_name",
+      "Artist.slug as artist_slug",
       "Label.name as label_name",
+      "Label.slug as label_slug",
       "Format.name as format_name",
       "Format.format_group"
     )

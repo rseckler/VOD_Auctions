@@ -14,6 +14,7 @@ type RelatedRelease = {
   legacy_price: number | null
   legacy_condition: string | null
   artist_name: string | null
+  artist_slug: string | null
   label_name: string | null
 }
 
@@ -100,19 +101,26 @@ function ReleaseTable({ releases }: { releases: RelatedRelease[] }) {
       {/* Rows */}
       <div className="divide-y divide-[rgba(232,224,212,0.05)]">
         {releases.map((r) => (
-          <Link
+          <div
             key={r.id}
-            href={`/catalog/${r.id}`}
             className="grid grid-cols-[2fr_1fr_4.5rem_4rem_5rem] sm:grid-cols-[2fr_1fr_4.5rem_4rem_5rem] gap-x-3 px-3 py-2.5 hover:bg-[rgba(212,165,74,0.06)] transition-colors group items-center"
           >
             {/* Artist — Title */}
             <div className="min-w-0">
-              <span className="text-sm truncate block group-hover:text-primary transition-colors">
-                <span className="text-muted-foreground">
-                  {r.artist_name || "Unknown"}
-                </span>
+              <span className="text-sm truncate block">
+                {r.artist_slug ? (
+                  <Link href={`/band/${r.artist_slug}`} className="text-muted-foreground hover:text-primary transition-colors">
+                    {r.artist_name || "Unknown"}
+                  </Link>
+                ) : (
+                  <span className="text-muted-foreground">
+                    {r.artist_name || "Unknown"}
+                  </span>
+                )}
                 {" — "}
-                <span className="font-medium">{r.title}</span>
+                <Link href={`/catalog/${r.id}`} className="font-medium group-hover:text-primary transition-colors">
+                  {r.title}
+                </Link>
               </span>
             </div>
             {/* Label */}
@@ -130,12 +138,12 @@ function ReleaseTable({ releases }: { releases: RelatedRelease[] }) {
               {r.year || "—"}
             </span>
             {/* Price */}
-            <span className="text-sm font-serif font-bold text-primary text-right">
+            <Link href={`/catalog/${r.id}`} className="text-sm font-serif font-bold text-primary text-right">
               {r.legacy_price
                 ? <>&euro;{Number(r.legacy_price).toFixed(0)}</>
                 : "—"}
-            </span>
-          </Link>
+            </Link>
+          </div>
         ))}
       </div>
     </div>

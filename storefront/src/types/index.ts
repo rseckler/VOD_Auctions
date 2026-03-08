@@ -52,8 +52,11 @@ export type Release = {
   article_number: string | null
   estimated_value: number | null
   artist_name: string | null
+  artist_slug?: string | null
   label_name: string | null
+  label_slug?: string | null
   pressorga_name?: string | null
+  pressorga_slug?: string | null
   pressOrgaId?: string | null
   description?: string | null
   media_condition?: string | null

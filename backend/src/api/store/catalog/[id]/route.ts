@@ -47,10 +47,13 @@ export async function GET(
       "Release.labelId",
       "Release.pressOrgaId",
       "Artist.name as artist_name",
+      "Artist.slug as artist_slug",
       "Label.name as label_name",
+      "Label.slug as label_slug",
       "Format.name as format_name",
       "Format.format_group",
-      "PressOrga.name as pressorga_name"
+      "PressOrga.name as pressorga_name",
+      "PressOrga.slug as pressorga_slug"
     )
     .leftJoin("Artist", "Release.artistId", "Artist.id")
     .leftJoin("Label", "Release.labelId", "Label.id")
