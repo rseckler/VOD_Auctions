@@ -8,7 +8,7 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 
 **Goal:** Eigene Plattform mit voller Kontrolle über Marke, Kundendaten, Preisgestaltung — statt 8-13% Gebühren an eBay/Discogs
 
-**Status:** Phase 1 — RSE-72 bis RSE-97 + RSE-76 + RSE-101 + RSE-102 + RSE-103 + RSE-104 + RSE-105 + RSE-109 + RSE-111 + RSE-112 + RSE-113 + RSE-114 + RSE-115 + RSE-116 + RSE-117 + RSE-78 (teilweise) + RSE-147 bis RSE-152 (SEO Entity Pages) erledigt. Nächstes: RSE-77 (Testlauf)
+**Status:** Phase 1 — RSE-72 bis RSE-97 + RSE-76 + RSE-101 + RSE-102 + RSE-103 + RSE-104 + RSE-105 + RSE-109 + RSE-111 + RSE-112 + RSE-113 + RSE-114 + RSE-115 + RSE-116 + RSE-117 + RSE-78 (teilweise) + RSE-147 bis RSE-152 (SEO Entity Pages) + RSE-156 (Discogs Daily Sync + Health Dashboard) erledigt. Nächstes: RSE-77 (Testlauf)
 
 **Sprache:** Storefront und Admin-UI komplett auf Englisch (seit 2026-03-03)
 
@@ -16,6 +16,15 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-08
 
 ### Letzte Änderungen (2026-03-08)
+- **RSE-156: Discogs Daily Sync + Health Dashboard:**
+  - **Problem:** Wöchentlicher Discogs-Sync (Sonntag, 16.500+ Releases auf einmal) führte zu 58% 429-Fehlerrate durch Discogs API Rate Limiting
+  - **Fix:** `discogs_daily_sync.py` ersetzt `discogs_weekly_sync.py` — 5 tägliche Chunks (Mo-Fr, ~3.300/Tag), exponentieller Backoff (30s→60s→120s), Emergency Stop nach 20 konsekutiven 429s, Rate Limit 40 req/min
+  - **Health Dashboard:** Neuer Admin-Bereich in `/admin/sync` — Echtzeit-Statusanzeige (Chunk, Processed, Updated, 429 Errors, Error Rate, Rate Limit), Progress Bar, 4 Action Buttons (Reduce Rate, Reset & Run, Run Chunk, Run Conservative)
+  - **API:** `GET/POST /admin/sync/discogs-health` — liest `discogs_sync_health.json`, führt Actions aus (startet Python-Prozesse via nohup)
+  - **Crontab:** Täglich Mo-Fr 02:00 UTC statt Sonntag 02:00 UTC
+  - **Neue Dateien:** `scripts/discogs_daily_sync.py`, `backend/src/api/admin/sync/discogs-health/route.ts`
+  - **VPS:** Script + Backend + Crontab deployed
+
 - **RSE-147–152: SEO Entity Pages (Bands, Labels, Press Orgas):**
   - **RSE-147: Entity Content DB:** `entity_content` Tabelle (entity_type, entity_id, description, short_description, country, founded_year, genre_tags TEXT[], external_links JSONB, is_published, ai_generated), UNIQUE(entity_type, entity_id), RLS, Indexes
   - **RSE-148: Backend APIs:** 6 neue Routes — Admin CRUD (`/admin/entity-content`), Store public detail (`/store/band/:slug`, `/store/label/:slug`, `/store/press/:slug`), Sitemap feed (`/store/entities`). Bestehende APIs erweitert: artist_slug + label_slug in Catalog + Auction APIs
@@ -855,7 +864,8 @@ python3 migrate_literature.py    # Format-Tabelle + PressOrga + 11.370 Literatur
 
 # Discogs Price Enrichment
 python3 discogs_batch.py          # Initial batch: match releases (8-12h, resumable, skips literature)
-python3 discogs_weekly_sync.py    # Weekly price update (lowest + median + highest, 4-5h, resumable)
+python3 discogs_daily_sync.py     # Daily price update (Mon-Fri chunks, ~3300/day, exponential backoff on 429)
+python3 discogs_daily_sync.py --chunk 2 --rate 25  # Run specific chunk with custom rate limit
 python3 backfill_discogs_prices.py # Two-pass backfill: 1) /releases for basic data, 2) /price_suggestions for median/highest
 python3 discogs_price_test.py     # Feasibility test (100 random releases)
 
@@ -879,8 +889,8 @@ python3 generate_entity_content.py --dry-run --limit 5            # Preview with
 ```bash
 # Legacy MySQL → Supabase (daily 04:00 UTC)
 0 4 * * * cd ~/VOD_Auctions/scripts && ~/VOD_Auctions/scripts/venv/bin/python3 legacy_sync.py >> legacy_sync.log 2>&1
-# Discogs Weekly Price Update (Sunday 02:00 UTC)
-0 2 * * 0 cd ~/VOD_Auctions/scripts && ~/VOD_Auctions/scripts/venv/bin/python3 discogs_weekly_sync.py >> discogs_weekly.log 2>&1
+# Discogs Daily Price Update (Mon-Fri 02:00 UTC, 5 chunks rotating)
+0 2 * * 1-5 cd ~/VOD_Auctions/scripts && ~/VOD_Auctions/scripts/venv/bin/python3 discogs_daily_sync.py >> discogs_daily.log 2>&1
 ```
 
 **VPS Python Dependencies (venv at `scripts/venv/`):**
@@ -899,6 +909,9 @@ psycopg2-binary, python-dotenv, requests, mysql-connector-python
 
 **Sync-Dashboard:** `/admin/sync` — Legacy + Discogs Sync-Status und Reports
 - API: GET /admin/sync, GET /admin/sync/legacy, GET /admin/sync/discogs
+- API: GET /admin/sync/discogs-health (live health status + action buttons)
+- API: POST /admin/sync/discogs-health (execute actions: reduce_rate, reset_and_run, run_chunk, run_conservative)
+- API: GET /admin/sync/batch-progress (batch matching progress)
 
 **Transaction Management:** `/admin/transactions` — Zahlungen & Versand (RSE-76)
 - API: GET /admin/transactions (filter: status, shipping_status)

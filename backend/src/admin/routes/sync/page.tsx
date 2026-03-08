@@ -85,6 +85,37 @@ type BatchProgress = {
   } | null
 }
 
+type DiscogsHealthAction = {
+  id: string
+  label: string
+  description: string
+  variant: "default" | "warning" | "danger"
+  disabled?: boolean
+}
+
+type DiscogsHealth = {
+  health: {
+    status: string
+    message: string | null
+    severity: string
+    alert: string | null
+    chunk_id: number | string | null
+    processed: number
+    chunk_total: number
+    updated: number
+    errors: number
+    errors_429: number
+    errors_other: number
+    retries_success: number
+    error_rate_percent: number
+    rate_limit: number
+    price_increased: number
+    price_decreased: number
+    updated_at: string
+  } | null
+  actions: DiscogsHealthAction[]
+}
+
 const COLORS = {
   bg: "#1c1915",
   card: "#2a2520",
@@ -120,6 +151,9 @@ const SyncDashboardPage = () => {
   const [legacyData, setLegacyData] = useState<LegacyData | null>(null)
   const [discogsData, setDiscogsData] = useState<DiscogsData | null>(null)
   const [batchProgress, setBatchProgress] = useState<BatchProgress | null>(null)
+  const [discogsHealth, setDiscogsHealth] = useState<DiscogsHealth | null>(null)
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [actionResult, setActionResult] = useState<{ success: boolean; message: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [legacyLoading, setLegacyLoading] = useState(false)
   const [discogsLoading, setDiscogsLoading] = useState(false)
@@ -152,6 +186,46 @@ const SyncDashboardPage = () => {
     const interval = setInterval(fetchBatchProgress, 15000)
     return () => clearInterval(interval)
   }, [fetchBatchProgress])
+
+  // Fetch Discogs health status (with auto-refresh every 30s)
+  const fetchDiscogsHealth = useCallback(() => {
+    fetch("/admin/sync/discogs-health", { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => setDiscogsHealth(d))
+      .catch((err) => console.error("Discogs health error:", err))
+  }, [])
+
+  useEffect(() => {
+    fetchDiscogsHealth()
+    const interval = setInterval(fetchDiscogsHealth, 30000)
+    return () => clearInterval(interval)
+  }, [fetchDiscogsHealth])
+
+  // Execute a Discogs sync action
+  const executeAction = useCallback(async (actionId: string, params?: Record<string, unknown>) => {
+    setActionLoading(actionId)
+    setActionResult(null)
+    try {
+      const resp = await fetch("/admin/sync/discogs-health", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: actionId, params }),
+      })
+      const data = await resp.json()
+      if (resp.ok) {
+        setActionResult({ success: true, message: data.message })
+        // Refresh health after action
+        setTimeout(fetchDiscogsHealth, 3000)
+      } else {
+        setActionResult({ success: false, message: data.error || "Action failed" })
+      }
+    } catch (err) {
+      setActionResult({ success: false, message: String(err) })
+    } finally {
+      setActionLoading(null)
+    }
+  }, [fetchDiscogsHealth])
 
   // Fetch legacy data on tab switch
   useEffect(() => {
@@ -364,6 +438,225 @@ const SyncDashboardPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Discogs Sync Health Alert */}
+      {discogsHealth?.health && (discogsHealth.health.severity !== "ok" || discogsHealth.health.status === "running") && (
+        <div
+          style={{
+            ...cardStyle,
+            marginBottom: "20px",
+            borderColor:
+              discogsHealth.health.severity === "critical"
+                ? COLORS.error + "80"
+                : discogsHealth.health.severity === "warning"
+                ? "#f59e0b80"
+                : discogsHealth.health.status === "running"
+                ? COLORS.success + "50"
+                : COLORS.border,
+            background:
+              discogsHealth.health.severity === "critical"
+                ? "#ef444410"
+                : discogsHealth.health.severity === "warning"
+                ? "#f59e0b10"
+                : COLORS.card,
+          }}
+        >
+          {/* Header */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <span
+                style={{
+                  padding: "2px 8px",
+                  borderRadius: "4px",
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  background:
+                    discogsHealth.health.status === "running"
+                      ? "#22c55e20"
+                      : discogsHealth.health.status === "rate_limited"
+                      ? "#ef444420"
+                      : discogsHealth.health.status === "completed"
+                      ? "#22c55e20"
+                      : "#f59e0b20",
+                  color:
+                    discogsHealth.health.status === "running"
+                      ? COLORS.success
+                      : discogsHealth.health.status === "rate_limited"
+                      ? COLORS.error
+                      : discogsHealth.health.status === "completed"
+                      ? COLORS.success
+                      : "#f59e0b",
+                }}
+              >
+                {discogsHealth.health.status.toUpperCase().replace("_", " ")}
+              </span>
+              <h2 style={{ fontSize: "16px", fontWeight: 600 }}>Discogs Daily Sync Health</h2>
+            </div>
+            {discogsHealth.health.updated_at && (
+              <span style={{ fontSize: "11px", color: COLORS.muted }}>
+                Updated: {formatDate(discogsHealth.health.updated_at)}
+              </span>
+            )}
+          </div>
+
+          {/* Alert message */}
+          {discogsHealth.health.alert && (
+            <div
+              style={{
+                padding: "10px 14px",
+                borderRadius: "6px",
+                marginBottom: "16px",
+                fontSize: "13px",
+                fontWeight: 500,
+                background:
+                  discogsHealth.health.severity === "critical" ? "#ef444418" : "#f59e0b18",
+                color:
+                  discogsHealth.health.severity === "critical" ? "#fca5a5" : "#fcd34d",
+                border: `1px solid ${
+                  discogsHealth.health.severity === "critical" ? "#ef444430" : "#f59e0b30"
+                }`,
+              }}
+            >
+              {discogsHealth.health.severity === "critical" ? "\u26A0" : "\u26A0"}{" "}
+              {discogsHealth.health.alert}
+              {discogsHealth.health.message && (
+                <span style={{ display: "block", marginTop: "4px", fontSize: "12px", opacity: 0.8 }}>
+                  {discogsHealth.health.message}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Stats row */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "12px", marginBottom: "16px" }}>
+            <div>
+              <div style={labelStyle}>Chunk</div>
+              <div style={valueStyle}>
+                {discogsHealth.health.chunk_id || "\u2014"} / 5
+              </div>
+            </div>
+            <div>
+              <div style={labelStyle}>Processed</div>
+              <div style={valueStyle}>
+                {discogsHealth.health.processed.toLocaleString("en-US")}
+                {discogsHealth.health.chunk_total > 0 && (
+                  <span style={{ color: COLORS.muted }}> / {discogsHealth.health.chunk_total.toLocaleString("en-US")}</span>
+                )}
+              </div>
+            </div>
+            <div>
+              <div style={labelStyle}>Updated</div>
+              <div style={{ ...valueStyle, color: COLORS.success }}>{discogsHealth.health.updated.toLocaleString("en-US")}</div>
+            </div>
+            <div>
+              <div style={labelStyle}>429 Errors</div>
+              <div style={{ ...valueStyle, color: discogsHealth.health.errors_429 > 0 ? COLORS.error : COLORS.success }}>
+                {discogsHealth.health.errors_429.toLocaleString("en-US")}
+              </div>
+            </div>
+            <div>
+              <div style={labelStyle}>Error Rate</div>
+              <div
+                style={{
+                  ...valueStyle,
+                  color:
+                    discogsHealth.health.error_rate_percent > 30
+                      ? COLORS.error
+                      : discogsHealth.health.error_rate_percent > 10
+                      ? "#f59e0b"
+                      : COLORS.success,
+                  fontWeight: 600,
+                }}
+              >
+                {discogsHealth.health.error_rate_percent}%
+              </div>
+            </div>
+            <div>
+              <div style={labelStyle}>Rate Limit</div>
+              <div style={valueStyle}>{discogsHealth.health.rate_limit} req/min</div>
+            </div>
+          </div>
+
+          {/* Progress bar */}
+          {discogsHealth.health.chunk_total > 0 && discogsHealth.health.status === "running" && (
+            <div style={{ marginBottom: "16px" }}>
+              <div style={{ height: "6px", borderRadius: "3px", background: COLORS.border, overflow: "hidden" }}>
+                <div
+                  style={{
+                    height: "100%",
+                    width: `${Math.min(100, Math.round((discogsHealth.health.processed / discogsHealth.health.chunk_total) * 100))}%`,
+                    background: discogsHealth.health.severity === "critical"
+                      ? `linear-gradient(90deg, ${COLORS.error}, #f59e0b)`
+                      : `linear-gradient(90deg, ${COLORS.gold}, ${COLORS.success})`,
+                    borderRadius: "3px",
+                    transition: "width 0.5s ease",
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          {discogsHealth.actions.length > 0 && (
+            <div>
+              <div style={{ ...labelStyle, marginBottom: "10px" }}>Available Actions</div>
+              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                {discogsHealth.actions.map((action) => {
+                  const isLoading = actionLoading === action.id
+                  const btnColors = {
+                    default: { bg: COLORS.gold + "20", border: COLORS.gold + "40", color: COLORS.gold },
+                    warning: { bg: "#f59e0b20", border: "#f59e0b40", color: "#fbbf24" },
+                    danger: { bg: "#ef444420", border: "#ef444440", color: "#fca5a5" },
+                  }
+                  const c = btnColors[action.variant]
+                  return (
+                    <div key={action.id} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                      <button
+                        onClick={() => executeAction(action.id)}
+                        disabled={action.disabled || isLoading}
+                        title={action.description}
+                        style={{
+                          padding: "8px 16px",
+                          borderRadius: "6px",
+                          border: `1px solid ${action.disabled ? COLORS.border : c.border}`,
+                          background: action.disabled ? COLORS.border + "30" : c.bg,
+                          color: action.disabled ? COLORS.muted : c.color,
+                          fontSize: "13px",
+                          fontWeight: 600,
+                          cursor: action.disabled ? "not-allowed" : "pointer",
+                          opacity: action.disabled ? 0.5 : 1,
+                          transition: "all 0.15s",
+                        }}
+                      >
+                        {isLoading ? "Starting..." : action.label}
+                      </button>
+                      <span style={{ fontSize: "11px", color: COLORS.muted, maxWidth: "260px" }}>
+                        {action.description}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+              {/* Action result toast */}
+              {actionResult && (
+                <div
+                  style={{
+                    marginTop: "12px",
+                    padding: "8px 14px",
+                    borderRadius: "6px",
+                    fontSize: "13px",
+                    background: actionResult.success ? "#22c55e18" : "#ef444418",
+                    color: actionResult.success ? "#86efac" : "#fca5a5",
+                    border: `1px solid ${actionResult.success ? "#22c55e30" : "#ef444430"}`,
+                  }}
+                >
+                  {actionResult.success ? "\u2713" : "\u2717"} {actionResult.message}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Batch Progress Card */}
       {(batchRunning || batchProgress?.last_batch) && (
