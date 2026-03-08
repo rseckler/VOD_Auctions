@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { motion, AnimatePresence } from "framer-motion"
@@ -57,7 +57,6 @@ const CATEGORIES = [
 const FORMATS = ["LP", "CD", "CASSETTE", "VHS", "MAGAZINE", "POSTER", "PHOTO", "POSTCARD"]
 
 export default function CatalogPage() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const isInitialMount = useRef(true)
 
@@ -73,8 +72,8 @@ export default function CatalogPage() {
   const [country, setCountry] = useState(() => searchParams.get("country") || "")
   const [label, setLabel] = useState(() => searchParams.get("label") || "")
   const [yearFrom, setYearFrom] = useState(() => searchParams.get("year_from") || "")
-  const [yearTo, setYearTo] = useState(() => searchParams.get("year_to") || "")
-  const [showFilters, setShowFilters] = useState(() => !!(searchParams.get("country") || searchParams.get("label") || searchParams.get("year_from") || searchParams.get("year_to")))
+  const [visibility, setVisibility] = useState(() => searchParams.get("visibility") || "all")
+  const [showFilters, setShowFilters] = useState(() => !!(searchParams.get("country") || searchParams.get("label") || searchParams.get("year_from")))
   const [loading, setLoading] = useState(true)
 
   // Sync state to URL (replaceState so back button works per-navigation)
@@ -91,11 +90,11 @@ export default function CatalogPage() {
     if (country) params.set("country", country)
     if (label) params.set("label", label)
     if (yearFrom) params.set("year_from", yearFrom)
-    if (yearTo) params.set("year_to", yearTo)
+    if (visibility && visibility !== "all") params.set("visibility", visibility)
     const qs = params.toString()
     const newUrl = qs ? `/catalog?${qs}` : "/catalog"
     window.history.replaceState(null, "", newUrl)
-  }, [page, search, category, format, country, label, yearFrom, yearTo])
+  }, [page, search, category, format, country, label, yearFrom, visibility])
 
   // Restore state when navigating back (popstate)
   useEffect(() => {
@@ -109,8 +108,8 @@ export default function CatalogPage() {
       setCountry(sp.get("country") || "")
       setLabel(sp.get("label") || "")
       setYearFrom(sp.get("year_from") || "")
-      setYearTo(sp.get("year_to") || "")
-      if (sp.get("country") || sp.get("label") || sp.get("year_from") || sp.get("year_to")) setShowFilters(true)
+      setVisibility(sp.get("visibility") || "all")
+      if (sp.get("country") || sp.get("label") || sp.get("year_from")) setShowFilters(true)
     }
     window.addEventListener("popstate", handlePopState)
     return () => window.removeEventListener("popstate", handlePopState)
@@ -127,7 +126,7 @@ export default function CatalogPage() {
     if (country) params.set("country", country)
     if (label) params.set("label", label)
     if (yearFrom) params.set("year_from", yearFrom)
-    if (yearTo) params.set("year_to", yearTo)
+    if (visibility) params.set("visibility", visibility)
     params.set("sort", "artist")
 
     const data = await medusaFetch<CatalogResponse>(
@@ -139,7 +138,7 @@ export default function CatalogPage() {
       setPages(data.pages)
     }
     setLoading(false)
-  }, [page, search, category, format, country, label, yearFrom, yearTo])
+  }, [page, search, category, format, country, label, yearFrom, visibility])
 
   useEffect(() => {
     fetchReleases()
@@ -165,21 +164,45 @@ export default function CatalogPage() {
     setCountry("")
     setLabel("")
     setYearFrom("")
-    setYearTo("")
     setPage(1)
   }
 
-  const hasActiveFilters = category || format || country || label || yearFrom || yearTo
+  const hasActiveFilters = category || format || country || label || yearFrom
 
   return (
     <main className="mx-auto max-w-7xl px-6 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl md:text-4xl font-bold font-[family-name:var(--font-dm-serif)]">
-          Catalog
-        </h1>
-        <p className="text-muted-foreground mt-2">
-          {total.toLocaleString("en-US")} releases from the archive
-        </p>
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl md:text-4xl font-bold font-[family-name:var(--font-dm-serif)]">
+            Catalog
+          </h1>
+          <p className="text-muted-foreground mt-2">
+            {total.toLocaleString("en-US")} releases from the archive
+          </p>
+        </div>
+        {/* Visibility Toggle */}
+        <div className="flex items-center gap-1 rounded-lg border border-[rgba(232,224,212,0.12)] p-1">
+          <button
+            onClick={() => { setVisibility("all"); setPage(1) }}
+            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+              visibility === "all"
+                ? "bg-gradient-to-r from-primary to-[#b8860b] text-[#1c1915]"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Complete Catalog
+          </button>
+          <button
+            onClick={() => { setVisibility("visible"); setPage(1) }}
+            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+              visibility === "visible"
+                ? "bg-gradient-to-r from-primary to-[#b8860b] text-[#1c1915]"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Sales Catalog
+          </button>
+        </div>
       </div>
 
       {/* Search */}
@@ -274,7 +297,7 @@ export default function CatalogPage() {
 
       {/* Advanced Filters */}
       {showFilters && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6 p-4 rounded-lg border border-border/50 bg-secondary/30">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6 p-4 rounded-lg border border-border/50 bg-secondary/30">
           <div>
             <label className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1 block">Country</label>
             <Input
@@ -294,22 +317,12 @@ export default function CatalogPage() {
             />
           </div>
           <div>
-            <label className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1 block">Year From</label>
+            <label className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1 block">Year</label>
             <Input
               type="number"
               value={yearFrom}
               onChange={(e) => { setYearFrom(e.target.value); setPage(1) }}
-              placeholder="e.g. 1980"
-              className="h-8 text-xs"
-            />
-          </div>
-          <div>
-            <label className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1 block">Year To</label>
-            <Input
-              type="number"
-              value={yearTo}
-              onChange={(e) => { setYearTo(e.target.value); setPage(1) }}
-              placeholder="e.g. 1995"
+              placeholder="e.g. 1985"
               className="h-8 text-xs"
             />
           </div>
@@ -330,7 +343,7 @@ export default function CatalogPage() {
       ) : (
         <AnimatePresence mode="wait">
           <motion.div
-            key={`${page}-${search}-${category}-${format}-${country}-${label}-${yearFrom}-${yearTo}`}
+            key={`${page}-${search}-${category}-${format}-${country}-${label}-${yearFrom}-${visibility}`}
             variants={staggerContainer}
             initial="hidden"
             animate="visible"

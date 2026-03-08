@@ -99,9 +99,11 @@ export function BlockCardVertical({ block }: { block: AuctionBlock }) {
                 <Calendar className="h-3 w-3" />
                 {formatDate(block.start_time)}
               </span>
-              <span className="text-primary font-medium">
-                From &euro;{block.min_price?.toFixed(0) || "—"}
-              </span>
+              {block.status !== "ended" && (
+                <span className="text-primary font-medium">
+                  From &euro;{block.min_price?.toFixed(0) || "—"}
+                </span>
+              )}
             </div>
           </div>
         </div>

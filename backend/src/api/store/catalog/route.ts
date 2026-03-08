@@ -126,14 +126,17 @@ export async function GET(
     countQuery = countQuery.where("Release.country", country)
   }
 
-  // Year range filter
+  // Year filter (exact match when only year_from, range when both)
   if (year_from && typeof year_from === "string") {
-    query = query.where("Release.year", ">=", parseInt(year_from))
-    countQuery = countQuery.where("Release.year", ">=", parseInt(year_from))
-  }
-  if (year_to && typeof year_to === "string") {
-    query = query.where("Release.year", "<=", parseInt(year_to))
-    countQuery = countQuery.where("Release.year", "<=", parseInt(year_to))
+    if (year_to && typeof year_to === "string") {
+      query = query.where("Release.year", ">=", parseInt(year_from))
+      countQuery = countQuery.where("Release.year", ">=", parseInt(year_from))
+      query = query.where("Release.year", "<=", parseInt(year_to))
+      countQuery = countQuery.where("Release.year", "<=", parseInt(year_to))
+    } else {
+      query = query.where("Release.year", parseInt(year_from))
+      countQuery = countQuery.where("Release.year", parseInt(year_from))
+    }
   }
 
   // Label filter

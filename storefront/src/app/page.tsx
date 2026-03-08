@@ -31,14 +31,12 @@ export default async function Home() {
   const heroSubtitle =
     (hero?.subtitle as string) ||
     "Curated vinyl auctions for connoisseurs. Industrial, EBM, Dark Ambient and more — discover rarities and first pressings."
-  const heroCta = (hero?.cta_text as string) || "Discover Now"
+  const heroCta = (hero?.cta_text as string) || "Current Auctions"
   const heroCtaLink = (hero?.cta_link as string) || "/auctions"
-  const heroCta2 = (hero?.cta2_text as string) || "Browse Catalog"
-  const heroCta2Link = (hero?.cta2_link as string) || "/catalog"
 
   const teaser = cms.catalog_teaser as Record<string, unknown> | undefined
   const teaserTitle =
-    (teaser?.title as string) || "40,000+ Releases in Catalog"
+    (teaser?.title as string) || "40,000+ Releases in complete Catalog"
   const teaserBody =
     (teaser?.body as string) ||
     "Browse our complete archive — Industrial, EBM, Dark Ambient, Noise, Experimental and more."
@@ -74,12 +72,15 @@ export default async function Home() {
               <p className="text-lg text-muted-foreground max-w-md mb-8 leading-relaxed">
                 {heroSubtitle}
               </p>
-              <div className="flex gap-4">
+              <div className="flex flex-wrap gap-3">
                 <Button size="lg" asChild className="bg-gradient-to-r from-primary to-[#b8860b]">
                   <Link href={heroCtaLink}>{heroCta}</Link>
                 </Button>
                 <Button size="lg" variant="ghost" asChild className="text-muted-foreground border border-[rgba(232,224,212,0.12)]">
-                  <Link href={heroCta2Link}>{heroCta2}</Link>
+                  <Link href="/catalog?visibility=all">Browse Complete Catalog</Link>
+                </Button>
+                <Button size="lg" variant="ghost" asChild className="text-muted-foreground border border-[rgba(232,224,212,0.12)]">
+                  <Link href="/catalog?visibility=visible">Browse Sales Catalog</Link>
                 </Button>
               </div>
             </div>

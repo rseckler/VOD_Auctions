@@ -7,13 +7,12 @@ import { BlockCardHorizontal } from "./BlockCard"
 import { staggerContainer } from "@/lib/motion"
 import type { AuctionBlock } from "@/types"
 
-type FilterTab = "all" | "active" | "upcoming" | "ended"
+type FilterTab = "all" | "active" | "upcoming"
 
 const TABS: { value: FilterTab; label: string }[] = [
   { value: "all", label: "All" },
   { value: "active", label: "Active" },
   { value: "upcoming", label: "Upcoming" },
-  { value: "ended", label: "Ended" },
 ]
 
 export function AuctionListFilter({ blocks }: { blocks: AuctionBlock[] }) {
@@ -25,8 +24,6 @@ export function AuctionListFilter({ blocks }: { blocks: AuctionBlock[] }) {
         return b.status === "active"
       case "upcoming":
         return ["scheduled", "preview"].includes(b.status)
-      case "ended":
-        return b.status === "ended"
       default:
         return true
     }
@@ -38,7 +35,6 @@ export function AuctionListFilter({ blocks }: { blocks: AuctionBlock[] }) {
     upcoming: blocks.filter((b) =>
       ["scheduled", "preview"].includes(b.status)
     ).length,
-    ended: blocks.filter((b) => b.status === "ended").length,
   }
 
   return (
