@@ -15,7 +15,7 @@ const NAV_LINKS = [
 
 export function Header() {
   const [mobileOpen, setMobileOpen] = useState(false)
-  const { hasWonAuction, cartCount } = useAuth()
+  const { isAuthenticated, cartCount } = useAuth()
 
   return (
     <header className="sticky top-0 z-50 bg-[rgba(28,25,21,0.95)] backdrop-blur-xl border-b border-[rgba(232,224,212,0.1)]">
@@ -38,7 +38,7 @@ export function Header() {
               {link.label}
             </Link>
           ))}
-          {hasWonAuction && (
+          {isAuthenticated && (
             <Link
               href="/account/cart"
               className="relative text-muted-foreground hover:text-foreground transition-colors"

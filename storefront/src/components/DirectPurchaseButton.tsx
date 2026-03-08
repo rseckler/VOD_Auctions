@@ -16,7 +16,7 @@ type Props = {
 }
 
 export function DirectPurchaseButton({ releaseId, saleMode, directPrice, auctionStatus }: Props) {
-  const { isAuthenticated, hasWonAuction, refreshStatus } = useAuth()
+  const { isAuthenticated, refreshStatus } = useAuth()
   const [adding, setAdding] = useState(false)
   const [added, setAdded] = useState(false)
 
@@ -25,8 +25,8 @@ export function DirectPurchaseButton({ releaseId, saleMode, directPrice, auction
   if (!directPrice || directPrice <= 0) return null
   if (auctionStatus !== "available") return null
 
-  // Only show for authenticated users who have won an auction
-  if (!isAuthenticated || !hasWonAuction) return null
+  // Only show for authenticated users
+  if (!isAuthenticated) return null
 
   async function handleAddToCart() {
     const token = getToken()

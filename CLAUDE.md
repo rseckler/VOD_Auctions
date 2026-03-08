@@ -318,7 +318,7 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
   - **Backend:** `auction-helpers.ts` (hasWonAuction, isAvailableForDirectPurchase), Cart API (GET/POST/DELETE), Status API, Combined Checkout (multi-item Stripe Session mit order_group_id), Webhook erweitert, Transaction APIs LEFT JOIN
   - **Admin:** sale_mode Dropdown + direct_price Input auf Media Detail, sale_mode Badge auf Media Liste
   - **Storefront:** AuthProvider (+hasWonAuction, +cartCount, +refreshStatus), Header Cart-Icon mit Badge, DirectPurchaseButton Komponente, Cart-Seite, Combined Checkout-Seite, Account-Nav erweitert, Wins-Page Checkout-Banner
-  - **Voraussetzung:** Nur Kunden mit ≥1 gewonnener Auktion können direkt kaufen
+  - **Voraussetzung:** Jeder eingeloggte Kunde kann direkt kaufen (hasWonAuction-Gate entfernt)
   - **31 Dateien, +1446/-198 Zeilen**
 
 ### Frühere Änderungen (2026-03-05)
@@ -611,7 +611,7 @@ VOD_Auctions/
 │   │   │           ├── wins/route.ts         # GET: Gewonnene Items
 │   │   │           ├── cart/route.ts         # GET + POST: Warenkorb (RSE-111)
 │   │   │           ├── cart/[id]/route.ts    # DELETE: Cart-Item entfernen (RSE-111)
-│   │   │           ├── status/route.ts       # GET: has_won_auction + cart_count (RSE-111)
+│   │   │           ├── status/route.ts       # GET: cart_count (RSE-111)
 │   │   │           ├── checkout/route.ts     # POST: Combined Checkout (RSE-111, multi-item Stripe)
 │   │   │           ├── newsletter/route.ts   # GET/POST: Newsletter opt-in/opt-out (RSE-128)
 │   │   │           └── transactions/route.ts # GET: Meine Transactions (RSE-76)
@@ -621,7 +621,7 @@ VOD_Auctions/
 │   │   │   ├── middlewares.ts   # Auth middleware (bids + account + webhook raw body)
 │   │   ├── lib/
 │   │   │   ├── stripe.ts       # Stripe Client + Shipping-Rates Config
-│   │   │   └── auction-helpers.ts  # hasWonAuction(), isAvailableForDirectPurchase() (RSE-111)
+│   │   │   └── auction-helpers.ts  # isAvailableForDirectPurchase() (RSE-111)
 │   │   │   └── jobs/
 │   │   │       └── auction-lifecycle.ts  # Cron: Block activation/ending (every min)
 │   │   └── admin/routes/        # Admin Dashboard UI Extensions (Englisch)
@@ -677,10 +677,10 @@ VOD_Auctions/
 │   │   │   │   ├── Footer.tsx        # Warm footer mit Disc3 icon
 │   │   │   │   └── MobileNav.tsx     # Sheet-based mobile nav
 │   │   │   ├── ui/                   # shadcn/ui Komponenten (17 installiert)
-│   │   │   ├── AuthProvider.tsx      # Auth Context (JWT, Customer, hasWonAuction, cartCount)
+│   │   │   ├── AuthProvider.tsx      # Auth Context (JWT, Customer, cartCount)
 │   │   │   ├── AuthModal.tsx         # Login/Register Modal
 │   │   │   ├── HeaderAuth.tsx        # Login/Logout/My Account im Header
-│   │   │   ├── DirectPurchaseButton.tsx # "Add to Cart" (RSE-111, nur wenn hasWonAuction)
+│   │   │   ├── DirectPurchaseButton.tsx # "Add to Cart" (RSE-111, für alle eingeloggten User)
 │   │   │   ├── HomeContent.tsx       # Homepage Sections (Running/Upcoming)
 │   │   │   ├── BlockCard.tsx         # BlockCardVertical + BlockCardHorizontal
 │   │   │   ├── ItemBidSection.tsx    # BidForm + BidHistory + Countdown + Realtime
@@ -1005,12 +1005,12 @@ psycopg2-binary, python-dotenv, requests, mysql-connector-python
 - `backend/src/lib/stripe.ts` — Stripe Client + Legacy Shipping-Rates Config
 - `backend/src/lib/brevo.ts` — Brevo CRM REST API client (RSE-125)
 - `backend/src/lib/crm-sync.ts` — Fire-and-forget CRM event sync (RSE-126)
-- `backend/src/lib/auction-helpers.ts` — hasWonAuction(), isAvailableForDirectPurchase()
+- `backend/src/lib/auction-helpers.ts` — isAvailableForDirectPurchase()
 - `backend/src/modules/auction/models/transaction.ts` — Transaction Model (block_item_id nullable, +release_id, +item_type, +order_group_id)
 - `backend/src/modules/auction/models/cart-item.ts` — CartItem Model (user_id, release_id, price)
 - `backend/src/api/store/account/cart/route.ts` — Cart CRUD (GET + POST)
 - `backend/src/api/store/account/cart/[id]/route.ts` — Cart DELETE
-- `backend/src/api/store/account/status/route.ts` — Account Status (has_won_auction, cart_count)
+- `backend/src/api/store/account/status/route.ts` — Account Status (cart_count)
 - `backend/src/api/store/account/checkout/route.ts` — Combined Checkout (multi-item Stripe)
 - `backend/src/api/webhooks/stripe/route.ts` — Webhook Handler (order_group_id support)
 - `backend/src/api/store/account/transactions/route.ts` — Meine Transactions (LEFT JOIN)
@@ -1054,7 +1054,7 @@ stripe listen --forward-to localhost:9000/webhooks/stripe
 
 ## Direct Purchase / Cart System (RSE-111)
 
-**Konzept:** Nach gewonnener Auktion können Kunden zusätzliche Artikel aus dem Katalog direkt kaufen. Alles wird in einem Combined Checkout bezahlt (Auktions-Gewinne + Warenkorb = eine Stripe-Zahlung, ein Versand).
+**Konzept:** Alle eingeloggten Kunden können Artikel aus dem Katalog direkt kaufen. Alles wird in einem Combined Checkout bezahlt (Auktions-Gewinne + Warenkorb = eine Stripe-Zahlung, ein Versand).
 
 ### Verfügbarkeits-Logik
 Ein Artikel ist direkt kaufbar wenn ALLE Bedingungen erfüllt:
@@ -1062,7 +1062,7 @@ Ein Artikel ist direkt kaufbar wenn ALLE Bedingungen erfüllt:
 - `direct_price` IS NOT NULL und > 0
 - `auction_status` = 'available' (nicht reserviert/in Auktion)
 - Nicht in einem aktiven/geplanten Auktions-Block
-- Kunde hat ≥1 Auktion gewonnen (`hasWonAuction`)
+- Kunde ist eingeloggt (Authentifizierung)
 
 ### sale_mode Werte
 - `auction_only` (default) — nur über Auktion verkaufbar

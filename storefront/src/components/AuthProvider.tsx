@@ -29,7 +29,6 @@ type AuthContextType = {
   isAuthenticated: boolean
   customer: Customer | null
   loading: boolean
-  hasWonAuction: boolean
   cartCount: number
   login: (email: string, password: string) => Promise<void>
   register: (
@@ -47,7 +46,6 @@ const AuthContext = createContext<AuthContextType>({
   isAuthenticated: false,
   customer: null,
   loading: true,
-  hasWonAuction: false,
   cartCount: 0,
   login: async () => {},
   register: async () => {},
@@ -62,7 +60,6 @@ export function useAuth() {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [loading, setLoading] = useState(true)
-  const [hasWonAuction, setHasWonAuction] = useState(false)
   const [cartCount, setCartCount] = useState(0)
 
   const fetchStatus = useCallback(async (token: string) => {
@@ -75,7 +72,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       if (res.ok) {
         const data = await res.json()
-        setHasWonAuction(data.has_won_auction || false)
         setCartCount(data.cart_count || 0)
       }
     } catch {
@@ -156,7 +152,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     clearToken()
     setCustomer(null)
-    setHasWonAuction(false)
     setCartCount(0)
   }, [])
 
@@ -166,7 +161,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticated: !!customer,
         customer,
         loading,
-        hasWonAuction,
         cartCount,
         login,
         register,

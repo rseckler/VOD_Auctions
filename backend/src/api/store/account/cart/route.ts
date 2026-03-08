@@ -1,7 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, generateEntityId } from "@medusajs/framework/utils"
 import { Knex } from "knex"
-import { hasWonAuction, isAvailableForDirectPurchase } from "../../../../lib/auction-helpers"
+import { isAvailableForDirectPurchase } from "../../../../lib/auction-helpers"
 
 // GET /store/account/cart — List cart items
 export async function GET(
@@ -61,13 +61,6 @@ export async function POST(
   const pgConnection: Knex = req.scope.resolve(
     ContainerRegistrationKeys.PG_CONNECTION
   )
-
-  // Check if user has won at least one auction
-  const won = await hasWonAuction(pgConnection, customerId)
-  if (!won) {
-    res.status(403).json({ message: "You must win at least one auction before you can purchase directly" })
-    return
-  }
 
   // Check if release is available for direct purchase
   const { available, release, reason } = await isAvailableForDirectPurchase(pgConnection, release_id)
