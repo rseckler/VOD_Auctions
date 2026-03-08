@@ -18,7 +18,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(__file__))
 
-from shared import get_legacy_connection, get_pg_connection, IMAGE_BASE_URL
+from shared import get_mysql_connection, get_pg_connection, IMAGE_BASE_URL
 
 BATCH_SIZE = 500
 
@@ -26,7 +26,7 @@ BATCH_SIZE = 500
 def main():
     dry_run = "--dry-run" in sys.argv
 
-    mysql_conn = get_legacy_connection()
+    mysql_conn = get_mysql_connection()
     pg_conn = get_pg_connection()
     pg_cur = pg_conn.cursor()
 
