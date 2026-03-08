@@ -54,7 +54,7 @@ const CATEGORIES = [
   { value: "press_literature", label: "Press/Org Lit" },
 ]
 
-const FORMATS = ["LP", "CD", "CASSETTE", "DVD", "MAGAZINE", "POSTER", "PHOTO", "POSTCARD"]
+const FORMATS = ["LP", "CD", "CASSETTE", "VHS", "MAGAZINE", "POSTER", "PHOTO", "POSTCARD"]
 
 export default function CatalogPage() {
   const router = useRouter()
@@ -72,9 +72,9 @@ export default function CatalogPage() {
   const [format, setFormat] = useState(() => searchParams.get("format") || "")
   const [country, setCountry] = useState(() => searchParams.get("country") || "")
   const [label, setLabel] = useState(() => searchParams.get("label") || "")
-  const [condition, setCondition] = useState(() => searchParams.get("condition") || "")
-  const [showFilters, setShowFilters] = useState(() => !!(searchParams.get("country") || searchParams.get("label") || searchParams.get("condition")))
-  const [sort, setSort] = useState(() => searchParams.get("sort") || "artist")
+  const [yearFrom, setYearFrom] = useState(() => searchParams.get("year_from") || "")
+  const [yearTo, setYearTo] = useState(() => searchParams.get("year_to") || "")
+  const [showFilters, setShowFilters] = useState(() => !!(searchParams.get("country") || searchParams.get("label") || searchParams.get("year_from") || searchParams.get("year_to")))
   const [loading, setLoading] = useState(true)
 
   // Sync state to URL (replaceState so back button works per-navigation)
@@ -90,12 +90,12 @@ export default function CatalogPage() {
     if (format) params.set("format", format)
     if (country) params.set("country", country)
     if (label) params.set("label", label)
-    if (condition) params.set("condition", condition)
-    if (sort && sort !== "title") params.set("sort", sort)
+    if (yearFrom) params.set("year_from", yearFrom)
+    if (yearTo) params.set("year_to", yearTo)
     const qs = params.toString()
     const newUrl = qs ? `/catalog?${qs}` : "/catalog"
     window.history.replaceState(null, "", newUrl)
-  }, [page, search, category, format, country, label, condition, sort])
+  }, [page, search, category, format, country, label, yearFrom, yearTo])
 
   // Restore state when navigating back (popstate)
   useEffect(() => {
@@ -108,9 +108,9 @@ export default function CatalogPage() {
       setFormat(sp.get("format") || "")
       setCountry(sp.get("country") || "")
       setLabel(sp.get("label") || "")
-      setCondition(sp.get("condition") || "")
-      setSort(sp.get("sort") || "title")
-      if (sp.get("country") || sp.get("label") || sp.get("condition")) setShowFilters(true)
+      setYearFrom(sp.get("year_from") || "")
+      setYearTo(sp.get("year_to") || "")
+      if (sp.get("country") || sp.get("label") || sp.get("year_from") || sp.get("year_to")) setShowFilters(true)
     }
     window.addEventListener("popstate", handlePopState)
     return () => window.removeEventListener("popstate", handlePopState)
@@ -126,8 +126,9 @@ export default function CatalogPage() {
     if (format) params.set("format", format)
     if (country) params.set("country", country)
     if (label) params.set("label", label)
-    if (condition) params.set("condition", condition)
-    params.set("sort", sort)
+    if (yearFrom) params.set("year_from", yearFrom)
+    if (yearTo) params.set("year_to", yearTo)
+    params.set("sort", "artist")
 
     const data = await medusaFetch<CatalogResponse>(
       `/store/catalog?${params.toString()}`
@@ -138,7 +139,7 @@ export default function CatalogPage() {
       setPages(data.pages)
     }
     setLoading(false)
-  }, [page, search, category, format, country, label, condition, sort])
+  }, [page, search, category, format, country, label, yearFrom, yearTo])
 
   useEffect(() => {
     fetchReleases()
@@ -150,6 +151,12 @@ export default function CatalogPage() {
     setPage(1)
   }
 
+  const handleCategoryChange = (value: string) => {
+    setCategory(value)
+    setFormat("")
+    setPage(1)
+  }
+
   const clearAllFilters = () => {
     setSearch("")
     setSearchInput("")
@@ -157,11 +164,12 @@ export default function CatalogPage() {
     setFormat("")
     setCountry("")
     setLabel("")
-    setCondition("")
+    setYearFrom("")
+    setYearTo("")
     setPage(1)
   }
 
-  const hasActiveFilters = category || format || country || label || condition
+  const hasActiveFilters = category || format || country || label || yearFrom || yearTo
 
   return (
     <main className="mx-auto max-w-7xl px-6 py-8">
@@ -174,7 +182,7 @@ export default function CatalogPage() {
         </p>
       </div>
 
-      {/* Search & Sort */}
+      {/* Search */}
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
         <form onSubmit={handleSearch} className="flex-1 flex gap-2">
           <div className="relative flex-1">
@@ -188,24 +196,6 @@ export default function CatalogPage() {
           </div>
           <Button type="submit" variant="secondary">Search</Button>
         </form>
-
-        {/* Sort */}
-        <div className="flex gap-1.5 flex-wrap">
-          {[
-            { key: "artist", label: "Artist" },
-            { key: "title", label: "A-Z" },
-          ].map(({ key, label: lbl }) => (
-            <Button
-              key={key}
-              size="sm"
-              variant={sort === key ? "default" : "outline"}
-              onClick={() => { setSort(key); setPage(1) }}
-              className="text-xs"
-            >
-              {lbl}
-            </Button>
-          ))}
-        </div>
       </div>
 
       {/* Category filter pills */}
@@ -213,7 +203,7 @@ export default function CatalogPage() {
         <Button
           size="sm"
           variant={category === "" ? "default" : "outline"}
-          onClick={() => { setCategory(""); setPage(1) }}
+          onClick={() => handleCategoryChange("")}
           className="text-xs"
         >
           All
@@ -223,7 +213,7 @@ export default function CatalogPage() {
             key={c.value}
             size="sm"
             variant={category === c.value ? "default" : "outline"}
-            onClick={() => { setCategory(c.value); setPage(1) }}
+            onClick={() => handleCategoryChange(c.value)}
             className="text-xs"
           >
             {c.label}
@@ -284,7 +274,7 @@ export default function CatalogPage() {
 
       {/* Advanced Filters */}
       {showFilters && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6 p-4 rounded-lg border border-border/50 bg-secondary/30">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6 p-4 rounded-lg border border-border/50 bg-secondary/30">
           <div>
             <label className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1 block">Country</label>
             <Input
@@ -304,11 +294,22 @@ export default function CatalogPage() {
             />
           </div>
           <div>
-            <label className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1 block">Condition</label>
+            <label className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1 block">Year From</label>
             <Input
-              value={condition}
-              onChange={(e) => { setCondition(e.target.value); setPage(1) }}
-              placeholder="e.g. VG+"
+              type="number"
+              value={yearFrom}
+              onChange={(e) => { setYearFrom(e.target.value); setPage(1) }}
+              placeholder="e.g. 1980"
+              className="h-8 text-xs"
+            />
+          </div>
+          <div>
+            <label className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1 block">Year To</label>
+            <Input
+              type="number"
+              value={yearTo}
+              onChange={(e) => { setYearTo(e.target.value); setPage(1) }}
+              placeholder="e.g. 1995"
               className="h-8 text-xs"
             />
           </div>
@@ -329,7 +330,7 @@ export default function CatalogPage() {
       ) : (
         <AnimatePresence mode="wait">
           <motion.div
-            key={`${page}-${search}-${category}-${format}-${sort}-${country}-${label}-${condition}`}
+            key={`${page}-${search}-${category}-${format}-${country}-${label}-${yearFrom}-${yearTo}`}
             variants={staggerContainer}
             initial="hidden"
             animate="visible"

@@ -83,7 +83,7 @@ const STATUS_COLORS: Record<string, string> = {
   unsold: "#a09080",
 }
 
-const FORMAT_OPTIONS = ["LP", "CD", "CASSETTE", "DVD", "REEL", "BOXSET", "MAGAZINE", "BOOK", "POSTER", "ZINE", "PHOTO", "POSTCARD", "MERCHANDISE", "OTHER"]
+const FORMAT_OPTIONS = ["LP", "CD", "CASSETTE", "VHS", "REEL", "BOXSET", "MAGAZINE", "BOOK", "POSTER", "ZINE", "PHOTO", "POSTCARD", "MERCHANDISE", "OTHER"]
 
 const CATEGORY_OPTIONS = [
   { value: "tapes", label: "Tapes" },

@@ -40,7 +40,7 @@ FORMAT_MAP = {
     "LP": "Vinyl",
     "CD": "CD",
     "CASSETTE": "Cassette",
-    "DVD": "DVD",
+    "VHS": "DVD",
     "BOXSET": "Box Set",
     "DIGITAL": "File",
     "BOOK": None,

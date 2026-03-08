@@ -43,10 +43,10 @@ FORMAT_MAP = {
     'vinyl 7"': "LP",
     'vinyl 12"': "LP",
     'vinyl 10"': "LP",
-    "video": "DVD",
+    "video": "VHS",
     "reel": "REEL",
     "cd": "CD",
-    "dvd": "DVD",
+    "dvd": "VHS",
     "lp": "LP",
     "kassette": "CASSETTE",
     "mc": "CASSETTE",
@@ -68,7 +68,7 @@ FORMAT_MAP = {
 # Valid ReleaseFormat enum values in Supabase
 VALID_FORMATS = {
     "LP", "CD", "CASSETTE", "BOOK", "POSTER", "ZINE",
-    "DIGITAL", "DVD", "BOXSET", "OTHER",
+    "DIGITAL", "VHS", "BOXSET", "OTHER",
     "MAGAZINE", "PHOTO", "POSTCARD", "MERCHANDISE", "REEL",
 }
 
@@ -79,7 +79,7 @@ LEGACY_FORMAT_ID_MAP = {
     17: "CASSETTE", 18: "CASSETTE", 19: "CASSETTE", 20: "CASSETTE",
     21: "CASSETTE", 23: "CASSETTE", 24: "CASSETTE", 35: "CASSETTE",
     # Other release formats (typ=1, kat=1)
-    36: "REEL", 40: "DVD", 54: "CD",
+    36: "REEL", 40: "VHS", 54: "CD",
     # Vinyl (typ=1, kat=2)
     41: "LP", 42: "LP", 43: "LP", 44: "LP", 45: "LP",
     46: "LP", 47: "LP", 48: "LP", 49: "LP", 50: "LP",
@@ -109,7 +109,7 @@ DISCOGS_FORMAT_MAP = {
     "LP": "Vinyl",
     "CD": "CD",
     "CASSETTE": "Cassette",
-    "DVD": "DVD",
+    "VHS": "DVD",
     "BOXSET": "Box Set",
     "DIGITAL": "File",
 }

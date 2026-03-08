@@ -40,10 +40,10 @@ FORMAT_MAP = {
     'vinyl 7"': "LP",
     'vinyl 12"': "LP",
     'vinyl 10"': "LP",
-    "video": "DVD",
+    "video": "VHS",
     "reel": "OTHER",
     "cd": "CD",
-    "dvd": "DVD",
+    "dvd": "VHS",
     "lp": "LP",
     "kassette": "CASSETTE",
     "mc": "CASSETTE",
@@ -57,7 +57,7 @@ FORMAT_MAP = {
 }
 
 # Valid ReleaseFormat enum values
-VALID_FORMATS = {"LP", "CD", "CASSETTE", "BOOK", "POSTER", "ZINE", "DIGITAL", "DVD", "BOXSET", "OTHER"}
+VALID_FORMATS = {"LP", "CD", "CASSETTE", "BOOK", "POSTER", "ZINE", "DIGITAL", "VHS", "BOXSET", "OTHER"}
 
 
 def slugify(text: str) -> str:

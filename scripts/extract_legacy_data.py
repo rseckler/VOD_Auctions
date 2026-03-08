@@ -22,12 +22,12 @@ OUTPUT_DIR = Path(__file__).parent / "data"
 
 FORMAT_MAP = {
     "tape": "CASSETTE", "vinyl lp": "LP", 'vinyl 7"': "LP", 'vinyl 12"': "LP",
-    'vinyl 10"': "LP", "video": "DVD", "reel": "OTHER", "cd": "CD", "dvd": "DVD",
+    'vinyl 10"': "LP", "video": "VHS", "reel": "OTHER", "cd": "CD", "dvd": "VHS",
     "lp": "LP", "kassette": "CASSETTE", "mc": "CASSETTE", "buch": "BOOK",
     "book": "BOOK", "poster": "POSTER", "zine": "ZINE", "magazin": "ZINE",
     "box": "BOXSET", "boxset": "BOXSET",
 }
-VALID_FORMATS = {"LP", "CD", "CASSETTE", "BOOK", "POSTER", "ZINE", "DIGITAL", "DVD", "BOXSET", "OTHER"}
+VALID_FORMATS = {"LP", "CD", "CASSETTE", "BOOK", "POSTER", "ZINE", "DIGITAL", "VHS", "BOXSET", "OTHER"}
 
 
 def slugify(text: str) -> str:
