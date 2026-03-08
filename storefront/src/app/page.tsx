@@ -69,9 +69,13 @@ export default async function Home() {
                   heroTitle
                 )}
               </h1>
-              <p className="text-lg text-muted-foreground max-w-md mb-8 leading-relaxed">
-                {heroSubtitle}
-              </p>
+              <div className="text-lg text-muted-foreground max-w-md mb-8 leading-relaxed">
+                {heroSubtitle.split("\n").map((line, i) => (
+                  <p key={i} className={i > 0 ? "mt-3" : ""}>
+                    {line}
+                  </p>
+                ))}
+              </div>
               <div className="flex flex-wrap gap-3">
                 <Button size="lg" asChild className="bg-gradient-to-r from-primary to-[#b8860b]">
                   <Link href={heroCtaLink}>{heroCta}</Link>
