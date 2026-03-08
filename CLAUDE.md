@@ -16,6 +16,13 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-08
 
 ### Letzte Änderungen (2026-03-08)
+- **Entity Page Fixes + Admin Generation Progress:**
+  - **Storefront Entity Pages Fix:** Band/Label/Press Detail-Seiten (`/band/[slug]`, `/label/[slug]`, `/press/[slug]`) crashten mit "Something went wrong" — API-Response-Struktur-Mismatch (Pages erwarteten verschachtelte Struktur `data.press.press_literature`, API liefert flache Struktur `data.publications`). Alle 3 Pages rewritten mit korrekten Types.
+  - **Admin Entity Content Fix:** `/admin/entity-content` zeigte keine Einträge trotz 610+ Records — `__BACKEND_URL__` resolvte zu `"/"`, Fetch-URL wurde `//admin/entity-content` (Protocol-relative URL). Fix: Direkter Pfad `/admin/entity-content` wie alle anderen Admin-Pages.
+  - **Admin Generation Progress Panel:** Neuer Bereich oben auf Entity Content Page — zeigt Progress Bars für alle 3 Entity-Typen (Bands/Labels/Press) mit Prozent, Counts, farbcodierten Balken (orange→gold→grün) und Gesamtübersicht.
+  - **AI Content Generation:** P1 komplett (897 Entities), P2 läuft (Artists done, Labels in Progress), P3 startet automatisch via `check_p2_and_start_p3.sh`
+  - **VPS:** Backend + Storefront + Admin deployed
+
 - **Literature Image Regression Fix (bilder_typ Mapping):**
   - **Problem:** Nightly `legacy_sync.py` verwendete falsche `bilder_1.typ`-Werte für label_literature (typ=15 statt 14) und press_literature (typ=14 statt 12), überschrieb jede Nacht die zuvor korrigierten Cover-Bilder
   - **Symptome:** Labels Lit (visible) nur 2 statt 116 Ergebnisse, Press/Org Lit nur 255 statt 1.381, falsche Bilder durch Cross-Category-Zuordnung
