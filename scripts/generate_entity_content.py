@@ -23,7 +23,8 @@ import psycopg2.extras
 from dotenv import load_dotenv
 from pathlib import Path
 
-# Load .env from parent directory (VOD_Auctions/.env)
+# Load .env — try scripts/.env first, then VOD_Auctions/.env
+load_dotenv(Path(__file__).parent / ".env")
 load_dotenv(Path(__file__).parent.parent / ".env")
 
 # Lazy import — only needed when not in --dry-run mode
