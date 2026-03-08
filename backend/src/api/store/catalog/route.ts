@@ -216,20 +216,30 @@ export async function GET(
     countQuery = countQuery.where("Release.format", format)
   }
 
-  // Category filter (typ/kat-based: tapes, vinyl, band_literature, label_literature, press_literature)
+  // Category filter (7 categories: tapes, vinyl, cd, vhs, band_literature, label_literature, press_literature)
   if (category && typeof category === "string") {
     switch (category) {
       case "tapes":
         query = query.where("Release.product_category", "release").where("Format.kat", 1)
+          .whereNotIn("Release.format", ["CD", "VHS"])
         countQuery = countQuery
           .leftJoin("Format as F", "Release.format_id", "F.id")
           .where("Release.product_category", "release").where("F.kat", 1)
+          .whereNotIn("Release.format", ["CD", "VHS"])
         break
       case "vinyl":
         query = query.where("Release.product_category", "release").where("Format.kat", 2)
         countQuery = countQuery
           .leftJoin("Format as F", "Release.format_id", "F.id")
           .where("Release.product_category", "release").where("F.kat", 2)
+        break
+      case "cd":
+        query = query.where("Release.format", "CD")
+        countQuery = countQuery.where("Release.format", "CD")
+        break
+      case "vhs":
+        query = query.where("Release.format", "VHS")
+        countQuery = countQuery.where("Release.format", "VHS")
         break
       case "band_literature":
         query = query.where("Release.product_category", "band_literature")

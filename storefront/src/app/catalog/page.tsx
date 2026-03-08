@@ -49,12 +49,15 @@ const FORMAT_COLORS: Record<string, string> = {
 const CATEGORIES = [
   { value: "tapes", label: "Tapes" },
   { value: "vinyl", label: "Vinyl" },
+  { value: "cd", label: "CD" },
+  { value: "vhs", label: "VHS" },
   { value: "band_literature", label: "Artists/Bands Lit" },
   { value: "label_literature", label: "Labels Lit" },
   { value: "press_literature", label: "Press/Org Lit" },
 ]
 
-const FORMATS = ["LP", "CD", "CASSETTE", "VHS", "MAGAZINE", "POSTER", "PHOTO", "POSTCARD"]
+const LITERATURE_CATEGORIES = ["band_literature", "label_literature", "press_literature"]
+const LITERATURE_FORMATS = ["MAGAZINE", "POSTER", "PHOTO", "POSTCARD"]
 
 export default function CatalogPage() {
   const searchParams = useSearchParams()
@@ -244,28 +247,30 @@ export default function CatalogPage() {
         ))}
       </div>
 
-      {/* Format filter pills */}
-      <div className="flex gap-1.5 flex-wrap mb-3">
-        <Button
-          size="sm"
-          variant={format === "" ? "default" : "outline"}
-          onClick={() => { setFormat(""); setPage(1) }}
-          className="text-xs"
-        >
-          All Formats
-        </Button>
-        {FORMATS.map((f) => (
+      {/* Literature subfilter pills — only shown for literature categories */}
+      {LITERATURE_CATEGORIES.includes(category) && (
+        <div className="flex gap-1.5 flex-wrap mb-3">
           <Button
-            key={f}
             size="sm"
-            variant={format === f ? "default" : "outline"}
-            onClick={() => { setFormat(f); setPage(1) }}
+            variant={format === "" ? "default" : "outline"}
+            onClick={() => { setFormat(""); setPage(1) }}
             className="text-xs"
           >
-            {f}
+            All Formats
           </Button>
-        ))}
-      </div>
+          {LITERATURE_FORMATS.map((f) => (
+            <Button
+              key={f}
+              size="sm"
+              variant={format === f ? "default" : "outline"}
+              onClick={() => { setFormat(f); setPage(1) }}
+              className="text-xs"
+            >
+              {f}
+            </Button>
+          ))}
+        </div>
+      )}
 
       {/* Advanced Filters Toggle */}
       <div className="flex items-center gap-3 mb-4">
