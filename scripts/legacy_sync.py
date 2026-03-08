@@ -240,14 +240,14 @@ def sync_releases(mysql_conn, pg_conn):
                 l.label as label_name,
                 f.name as format_name,
                 c.name as country_name,
-                bi.bild as image_filename
+                (SELECT bi2.bild FROM bilder_1 bi2
+                 WHERE bi2.inid = r.id AND bi2.typ = 10
+                 ORDER BY bi2.rang, bi2.id LIMIT 1) as image_filename
             FROM 3wadmin_tapes_releases r
             LEFT JOIN 3wadmin_tapes_band b ON r.artist = b.id
             LEFT JOIN 3wadmin_tapes_labels l ON r.label = l.id
             LEFT JOIN 3wadmin_tapes_formate f ON r.format = f.id
             LEFT JOIN 3wadmin_shop_countries c ON r.country = c.id
-            LEFT JOIN bilder_1 bi ON bi.inid = r.id AND bi.typ = 10
-            GROUP BY r.id
             ORDER BY r.id ASC
             LIMIT %s OFFSET %s
             """,
@@ -431,13 +431,17 @@ def sync_literature(mysql_conn, pg_conn, table, category, id_prefix, ref_field, 
                {entity_name_col},
                f.name as format_name,
                c.name as country_name,
-               bi.bild as image_filename, bi.id as image_id
+               (SELECT bi2.bild FROM bilder_1 bi2
+                WHERE bi2.inid = t.id AND bi2.typ = {bilder_typ}
+                ORDER BY bi2.rang, bi2.id LIMIT 1) as image_filename,
+               (SELECT bi2.id FROM bilder_1 bi2
+                WHERE bi2.inid = t.id AND bi2.typ = {bilder_typ}
+                ORDER BY bi2.rang, bi2.id LIMIT 1) as image_id
         FROM `{table}` t
         {entity_join}
         LEFT JOIN 3wadmin_tapes_formate f ON t.format = f.id
         LEFT JOIN 3wadmin_shop_countries c ON t.country = c.id
-        LEFT JOIN bilder_1 bi ON bi.inid = t.id AND bi.typ = {bilder_typ}
-        GROUP BY t.id ORDER BY t.id
+        ORDER BY t.id
     """)
     rows = cursor.fetchall()
     cursor.close()

@@ -112,14 +112,15 @@ export default async function CatalogDetailPage({
     ? extracted.remainingCredits
     : release.credits
 
+  // Use images in API sort order (by URL, matching legacy rang order)
+  // coverImage only used as fallback when no gallery images exist
   const images: string[] = []
-  if (release.coverImage) images.push(release.coverImage)
-  if (release.images) {
+  if (release.images && release.images.length > 0) {
     for (const img of release.images) {
-      if (img.url && img.url !== release.coverImage) {
-        images.push(img.url)
-      }
+      if (img.url) images.push(img.url)
     }
+  } else if (release.coverImage) {
+    images.push(release.coverImage)
   }
 
   return (

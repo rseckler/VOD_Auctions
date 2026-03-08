@@ -86,6 +86,7 @@ export async function GET(
   const images = await pgConnection("Image")
     .select("id", "url", "alt")
     .where("releaseId", item.release_id)
+    .orderBy("url", "asc")
 
   // Get various artists (for compilations)
   const variousArtists = await pgConnection("ReleaseArtist")
