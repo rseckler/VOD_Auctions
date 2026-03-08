@@ -145,6 +145,44 @@ export default function ImpressumPage() {
         </section>
 
         <section>
+          <h2 className="text-lg font-medium text-foreground">
+            Service & Development
+          </h2>
+          <p>
+            Service concepted and developed by
+          </p>
+          <p>
+            digital spread UG
+            <br />
+            Brückenstr. 10
+            <br />
+            88097 Eriskirch
+            <br />
+            Germany
+          </p>
+          <p>
+            Web:{" "}
+            <a
+              href="https://www.digitalspread.de"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              www.digitalspread.de
+            </a>
+            <br />
+            Email:{" "}
+            <a
+              href="mailto:info@digitalspread.de"
+              className="text-primary hover:underline"
+            >
+              info@digitalspread.de
+            </a>
+          </p>
+          <p>Robin Seckler</p>
+        </section>
+
+        <section>
           <h2 className="text-lg font-medium text-foreground">Other Platforms</h2>
           <p>
             This legal notice also applies to the following websites:
