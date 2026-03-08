@@ -288,7 +288,7 @@ def main():
             bilder_typ=13,
         )
 
-        # 3. Migrate Labels Literature (bilder_1.typ=15)
+        # 3. Migrate Labels Literature (bilder_1.typ=14)
         labels_lit = migrate_literature(
             mysql_conn, pg_conn,
             table="3wadmin_tapes_labels_lit",
@@ -296,10 +296,10 @@ def main():
             id_prefix="legacy-labellit",
             ref_field="labelId",
             ref_prefix="legacy-label",
-            bilder_typ=15,
+            bilder_typ=14,  # typ=14 = labels_lit images
         )
 
-        # 4. Migrate Press/Org Literature (bilder_1.typ=14)
+        # 4. Migrate Press/Org Literature (bilder_1.typ=12)
         press_lit = migrate_literature(
             mysql_conn, pg_conn,
             table="3wadmin_tapes_pressorga_lit",
@@ -307,7 +307,7 @@ def main():
             id_prefix="legacy-presslit",
             ref_field="pressOrgaId",
             ref_prefix="legacy-pressorga",
-            bilder_typ=14,
+            bilder_typ=12,  # typ=12 = pressorga_lit images
         )
 
         # Log results

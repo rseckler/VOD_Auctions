@@ -595,13 +595,13 @@ def main():
             mysql_conn, pg_conn,
             table="3wadmin_tapes_labels_lit", category="label_literature",
             id_prefix="legacy-labellit", ref_field="labelId",
-            ref_prefix="legacy-label", bilder_typ=15,
+            ref_prefix="legacy-label", bilder_typ=14,  # typ=14 = labels_lit images
         )
         press_lit = sync_literature(
             mysql_conn, pg_conn,
             table="3wadmin_tapes_pressorga_lit", category="press_literature",
             id_prefix="legacy-presslit", ref_field="pressOrgaId",
-            ref_prefix="legacy-pressorga", bilder_typ=14,
+            ref_prefix="legacy-pressorga", bilder_typ=12,  # typ=12 = pressorga_lit images
         )
 
         # Log batch result to sync_log
