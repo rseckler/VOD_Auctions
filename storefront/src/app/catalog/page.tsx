@@ -74,7 +74,7 @@ export default function CatalogPage() {
   const [label, setLabel] = useState(() => searchParams.get("label") || "")
   const [condition, setCondition] = useState(() => searchParams.get("condition") || "")
   const [showFilters, setShowFilters] = useState(() => !!(searchParams.get("country") || searchParams.get("label") || searchParams.get("condition")))
-  const [sort, setSort] = useState(() => searchParams.get("sort") || "title")
+  const [sort, setSort] = useState(() => searchParams.get("sort") || "artist")
   const [loading, setLoading] = useState(true)
 
   // Sync state to URL (replaceState so back button works per-navigation)
@@ -192,8 +192,8 @@ export default function CatalogPage() {
         {/* Sort */}
         <div className="flex gap-1.5 flex-wrap">
           {[
-            { key: "title", label: "A-Z" },
             { key: "artist", label: "Artist" },
+            { key: "title", label: "A-Z" },
           ].map(({ key, label: lbl }) => (
             <Button
               key={key}

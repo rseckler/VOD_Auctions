@@ -24,7 +24,7 @@ export async function GET(
     artist,
     condition,
     visibility,
-    sort = "title",
+    sort = "artist",
     order = "asc",
   } = req.query as Record<string, string>
 
@@ -191,8 +191,14 @@ export async function GET(
     : `"Release"."title"`
   const sortOrder = order === "desc" ? "desc" : "asc"
 
+  // Secondary sort: artist→title or title→artist
+  const secondarySort =
+    sort === "artist" ? `"Release"."title" asc NULLS LAST`
+    : sort === "title" ? `"Artist"."name" asc NULLS LAST`
+    : ""
+
   query = query
-    .orderByRaw(`${sortField} ${sortOrder} NULLS LAST`)
+    .orderByRaw(`${sortField} ${sortOrder} NULLS LAST${secondarySort ? `, ${secondarySort}` : ""}`)
     .offset(offset)
     .limit(pageSize)
 

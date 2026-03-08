@@ -8,14 +8,26 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 
 **Goal:** Eigene Plattform mit voller Kontrolle über Marke, Kundendaten, Preisgestaltung — statt 8-13% Gebühren an eBay/Discogs
 
-**Status:** Phase 1 — RSE-72 bis RSE-97 + RSE-76 + RSE-101 + RSE-102 + RSE-103 + RSE-104 + RSE-105 + RSE-109 + RSE-111 + RSE-112 + RSE-113 + RSE-114 + RSE-115 + RSE-116 + RSE-117 + RSE-78 (teilweise) erledigt. Nächstes: RSE-77 (Testlauf)
+**Status:** Phase 1 — RSE-72 bis RSE-97 + RSE-76 + RSE-101 + RSE-102 + RSE-103 + RSE-104 + RSE-105 + RSE-109 + RSE-111 + RSE-112 + RSE-113 + RSE-114 + RSE-115 + RSE-116 + RSE-117 + RSE-78 (teilweise) + RSE-147 bis RSE-152 (SEO Entity Pages) erledigt. Nächstes: RSE-77 (Testlauf)
 
 **Sprache:** Storefront und Admin-UI komplett auf Englisch (seit 2026-03-03)
 
 **Created:** 2026-02-10
-**Last Updated:** 2026-03-07
+**Last Updated:** 2026-03-08
 
-### Letzte Änderungen (2026-03-07)
+### Letzte Änderungen (2026-03-08)
+- **RSE-147–152: SEO Entity Pages (Bands, Labels, Press Orgas):**
+  - **RSE-147: Entity Content DB:** `entity_content` Tabelle (entity_type, entity_id, description, short_description, country, founded_year, genre_tags TEXT[], external_links JSONB, is_published, ai_generated), UNIQUE(entity_type, entity_id), RLS, Indexes
+  - **RSE-148: Backend APIs:** 6 neue Routes — Admin CRUD (`/admin/entity-content`), Store public detail (`/store/band/:slug`, `/store/label/:slug`, `/store/press/:slug`), Sitemap feed (`/store/entities`). Bestehende APIs erweitert: artist_slug + label_slug in Catalog + Auction APIs
+  - **RSE-149: Storefront Pages:** `/band/[slug]`, `/label/[slug]`, `/press/[slug]` — Vinyl Groove Design, Discography/Katalog/Publications-Tabellen, Schema.org JSON-LD (MusicGroup/Organization), generateMetadata(), 300s ISR, Breadcrumbs
+  - **RSE-150: Internal Linking:** Hub-Spoke Modell — Catalog/Auction Detail-Seiten linken zu Entity-Pages (artist_slug, label_slug, pressorga_slug), CatalogRelatedSection mit Artist-Links, Sitemap erweitert mit Entity-Pages
+  - **RSE-151: Admin Entity Content Editor:** `/admin/entity-content` — 3 Tabs (Bands/Labels/Press), Stats-Bar, Search + Filter, Expand/Edit Panel, AI Generate Button
+  - **RSE-152: AI Content Script:** `scripts/generate_entity_content.py` — Claude Haiku 4.5, Priority-Tiers (P1/P2/P3), --dry-run, Rate Limiting 50 req/min
+  - **Konzept-Dokument:** `SEO_Optimierung.md` (10 Kapitel, Wireframes, URL-Struktur, Implementation Plan)
+  - **~17.500 neue indexierbare Seiten** aus bestehenden Daten (12.451 Artists + 3.077 Labels + 1.983 PressOrga)
+  - **VPS:** Backend + Storefront deployed
+
+### Frühere Änderungen (2026-03-07)
 - **Concept C "Vinyl Groove" Detail Page Design:**
   - Applied unified section design to catalog detail (`/catalog/[id]`) and auction item detail (`/auctions/[slug]/[itemId]`)
   - **Design pattern:** Gold gradient left-border (`bg-gradient-to-b from-primary via-primary/60 to-transparent`), DM Serif Display section headers (`font-serif text-[15px] text-primary`), dotted row separators
@@ -305,6 +317,10 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 
 2. **[README.md](README.md)** — Kurzübersicht
 
+3. **[SEO_Optimierung.md](SEO_Optimierung.md)** — SEO Entity Pages Konzept
+   - 10 Kapitel: SEO-Analyse, URL-Struktur, Wireframes, DB-Schema, AI-Pipeline, Implementation Plan
+   - ~17.500 neue Seiten (Bands, Labels, Press Orga)
+
 ## Technology Stack
 
 | Komponente | Technologie |
@@ -397,6 +413,7 @@ Shared DB für tape-mag-mvp + VOD_Auctions. Schema enthält 24 Tabellen (14 Basi
 - `shipping_rate` — 15 Gewichtsstufen-Tarife (RSE-103)
 - `shipping_config` — Globale Versand-Einstellungen (RSE-103)
 - `site_config` — Globale Site-Einstellungen (catalog_visibility: all/visible)
+- `entity_content` — CMS-Content für Entity-Seiten (RSE-147: description, short_description, genre_tags TEXT[], external_links JSONB, is_published, ai_generated)
 
 ### Release-Erweiterung
 ```sql
@@ -516,6 +533,9 @@ VOD_Auctions/
 │   │   │   │   ├── stats/route.ts    # GET: Detailed subscriber + campaign stats
 │   │   │   │   └── send/route.ts     # POST: Send campaign (generic or block announcement)
 │   │   │   ├── customers/route.ts    # GET: CRM Dashboard data (Brevo + Medusa DB) (RSE-138)
+│   │   │   ├── entity-content/       # Entity Content CRUD (RSE-148)
+│   │   │   │   ├── route.ts          # GET: List with filters + stats
+│   │   │   │   └── [type]/[entityId]/route.ts  # GET/POST/DELETE: Single entity content
 │   │   │   └── store/           # Store API (Publishable Key required)
 │   │   │       ├── auction-blocks/   # Public: list, detail, item detail
 │   │   │       │   ├── route.ts      # List blocks (items_count, status filter)
@@ -524,6 +544,10 @@ VOD_Auctions/
 │   │   │       │       └── items/[itemId]/
 │   │   │       │           ├── route.ts   # Item detail + Release + Images
 │   │   │       │           └── bids/route.ts  # GET bids + POST bid (auth required)
+│   │   │       ├── band/[slug]/route.ts    # GET: Public band detail (RSE-148)
+│   │   │       ├── label/[slug]/route.ts  # GET: Public label detail (RSE-148)
+│   │   │       ├── press/[slug]/route.ts  # GET: Public press orga detail (RSE-148)
+│   │   │       ├── entities/route.ts      # GET: Sitemap feed for entity pages (RSE-148)
 │   │   │       ├── catalog/          # Katalog API (alle 41k Releases, 5-category + legacy filters)
 │   │   │       │   └── [id]/route.ts # Release-Detail + Images + Format + PressOrga + Related Releases
 │   │   │       └── account/          # Account APIs (RSE-75b + RSE-76 + RSE-111)
@@ -559,6 +583,8 @@ VOD_Auctions/
 │   │       │   └── page.tsx     # Newsletter Admin (Campaigns, Stats, Send)
 │   │       ├── customers/
 │   │       │   └── page.tsx     # CRM Dashboard (Segments, Top Customers, Campaigns)
+│   │       ├── entity-content/
+│   │       │   └── page.tsx     # Entity Content Editor (Bands/Labels/Press Tabs, RSE-151)
 │   │       └── components/
 │   │           └── rich-text-editor.tsx  # TipTap WYSIWYG Editor
 │   └── node_modules/
@@ -574,6 +600,9 @@ VOD_Auctions/
 │   │   │   │       ├── page.tsx # Block-Detail: Hero, BlockItemsGrid
 │   │   │   │       └── [itemId]/page.tsx  # Item-Detail + ItemBidSection + RelatedSection
 │   │   │   ├── about/page.tsx   # About VOD Records: Founder, Mission, Genres, Artists, Sub-Labels, TAPE-MAG, VOD Fest, Links
+│   │   │   ├── band/[slug]/page.tsx    # Band-Detail: Discography, Literature, Labels, Schema.org MusicGroup (RSE-149)
+│   │   │   ├── label/[slug]/page.tsx   # Label-Detail: Katalog, Literature, Persons, Artists, Schema.org Org (RSE-149)
+│   │   │   ├── press/[slug]/page.tsx   # Press-Detail: Publications, Schema.org Organization (RSE-149)
 │   │   │   ├── catalog/
 │   │   │   │   ├── page.tsx     # Katalog-Liste (alle 41k Releases, 5-Kategorie + Format + Advanced Filter)
 │   │   │   │   └── [id]/page.tsx # Katalog-Detail + CatalogRelatedSection
@@ -788,6 +817,14 @@ npm run build             # Production build
 - ~~**RSE-138:** CRM Dashboard im Admin~~ ✅
 - **RSE-139–144:** Google Ads, FB Pixel, Segmentierung, Marketing Vollausbau (Phase 3-4)
 
+### SEO Entity Pages — RSE-147–152 (Done)
+- ~~**RSE-147:** Entity Content Database + Migration~~ ✅
+- ~~**RSE-148:** Backend Entity Content APIs (Admin + Store)~~ ✅
+- ~~**RSE-149:** Storefront Entity Pages (/band, /label, /press)~~ ✅
+- ~~**RSE-150:** Internal Linking + Sitemap + Schema.org~~ ✅
+- ~~**RSE-151:** Admin Entity Content Editor~~ ✅
+- ~~**RSE-152:** AI Content Generation Script (Claude Haiku)~~ ✅
+
 ### Phase 2 (Launch) — Backlog
 - **RSE-78:** P2.1 Launch-Vorbereitung — ~~Stripe Live~~ ✅ ~~Cookie Consent~~ ✅ ~~Sentry~~ ✅ ~~Analytics~~ ✅ ~~Legal Pages~~ ✅ ~~Domain~~ ✅ | Offen: E-Commerce-Anwalt AGB-Prüfung
 - **RSE-79:** P2.2 Erste öffentliche Themen-Auktionen
@@ -830,6 +867,12 @@ python3 crm_import.py                  # All phases (1+2)
 python3 crm_import.py --phase 1        # Only vod-auctions customers
 python3 crm_import.py --phase 2        # Only tape-mag (3,577 contacts)
 python3 crm_import.py --dry-run        # Preview without sending
+
+# AI Entity Content Generation (RSE-152)
+python3 generate_entity_content.py --type artist --priority P1    # Top artists (>10 releases)
+python3 generate_entity_content.py --type label --priority P1     # Top labels
+python3 generate_entity_content.py --type press_orga --priority P1 # Top press orgs
+python3 generate_entity_content.py --dry-run --limit 5            # Preview without writing
 ```
 
 **Cronjobs (VPS — verifiziert 2026-03-03, alle Dependencies installiert):**
