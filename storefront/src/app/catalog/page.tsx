@@ -385,7 +385,7 @@ export default function CatalogPage() {
                   </div>
 
                   <p className="text-xs text-muted-foreground truncate">
-                    {release.artist_name || "Unknown"}
+                    {release.artist_name || release.label_name || "Unknown"}
                   </p>
                   <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">
                     {release.title}

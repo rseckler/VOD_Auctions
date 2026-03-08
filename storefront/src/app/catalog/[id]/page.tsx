@@ -149,7 +149,7 @@ export default async function CatalogDetailPage({
                 {release.artist_name}
               </Link>
             ) : (
-              release.artist_name || "Unknown Artist"
+              release.artist_name || release.label_name || "Unknown Artist"
             )}
           </p>
           <h1 className="text-3xl md:text-4xl font-bold tracking-tight mt-1">
