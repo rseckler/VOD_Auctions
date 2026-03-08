@@ -16,6 +16,34 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-08
 
 ### Letzte Änderungen (2026-03-08)
+- **Image Ordering Fix (rang-basiert):**
+  - **Problem:** Gallery-Bilder und coverImage in falscher Reihenfolge — `legacy_sync.py` verwendete `GROUP BY r.id` (willkürliches Bild), Image-Tabelle hatte kein Ordering-Feld
+  - **Fix:** `rang` INTEGER Spalte auf Image-Tabelle hinzugefügt, aus Legacy MySQL `bilder_1.rang` befüllt (17.787 Images)
+  - **coverImage:** 4.593 Releases korrigiert (erstes Bild nach `rang, id` aus Legacy)
+  - **Backend APIs:** Catalog Detail + Auction Item Detail + Admin Media → `ORDER BY rang ASC, id ASC`
+  - **Storefront:** Catalog + Auction Detail Pages verwenden jetzt API-Reihenfolge statt coverImage-Override
+  - **legacy_sync.py:** `GROUP BY` durch Subquery `ORDER BY rang, id LIMIT 1` ersetzt (verhindert Regression)
+  - **Index:** `idx_image_release_rang` für Performance
+  - **Script:** `fix_cover_images_from_url_order.py` — One-time Fix (rang + coverImage + Index)
+  - **VPS:** Backend + Storefront deployed, Script ausgeführt
+
+- **CMS On-Demand Revalidation + Subtitle Line Breaks:**
+  - **Revalidation:** Backend CMS-Save triggert `revalidatePath()` auf Storefront via `POST /api/revalidate` (shared secret auth, fire-and-forget)
+  - **Subtitle:** CMS-Text mit `\n` wird jetzt als separate `<p>`-Elemente gerendert (`.split("\n").map()`)
+  - **VPS:** `REVALIDATE_SECRET` + `STOREFRONT_URL` in Backend `.env`, `REVALIDATE_SECRET` in Storefront `.env.local`
+
+- **Google Search Console eingerichtet:**
+  - Domain-Property `vod-auctions.com` verifiziert (DNS TXT-Record)
+  - Sitemap `https://vod-auctions.com/sitemap.xml` eingereicht (900+ URLs)
+  - Indexierung beantragt für Homepage + Catalog (Auctions-Seite abgelehnt wegen Thin Content — keine aktiven Auktionen)
+  - SEO-Check bestanden: robots.txt OK, meta robots `index,follow`, canonical, OG-Tags, Twitter Card alles vorhanden
+
+- **Homepage Spacing + Catalog Filter Redesign + Unknown Artist Fix:**
+  - **Homepage Spacing:** Abstand zwischen Hero-Buttons und "40,000+ Releases" Teaser-Box um 50% reduziert (Hero pb halved, Teaser pt halved)
+  - **Catalog Filter Redesign:** 5 Kategorien → 7 Hauptfilter (Tapes, Vinyl, CD, VHS, Artists/Bands Lit, Labels Lit, Press/Org Lit). Format-Subfilter (Magazine, Poster, Photo, Postcard) nur bei Literature-Kategorien sichtbar. Backend: `cd` und `vhs` Cases hinzugefügt, `tapes` excludiert jetzt CD/VHS
+  - **Unknown Artist Fix:** Literature-Items ohne Artist zeigen jetzt Label-Name statt "Unknown Artist" (Fallback: artist_name → label_name → "Unknown Artist" in Catalog + Auction Detail Pages)
+  - **VPS:** Backend + Storefront deployed
+
 - **Entity Page Fixes + Admin Generation Progress:**
   - **Storefront Entity Pages Fix:** Band/Label/Press Detail-Seiten (`/band/[slug]`, `/label/[slug]`, `/press/[slug]`) crashten mit "Something went wrong" — API-Response-Struktur-Mismatch (Pages erwarteten verschachtelte Struktur `data.press.press_literature`, API liefert flache Struktur `data.publications`). Alle 3 Pages rewritten mit korrekten Types.
   - **Admin Entity Content Fix:** `/admin/entity-content` zeigte keine Einträge trotz 610+ Records — `__BACKEND_URL__` resolvte zu `"/"`, Fetch-URL wurde `//admin/entity-content` (Protocol-relative URL). Fix: Direkter Pfad `/admin/entity-content` wie alle anderen Admin-Pages.
@@ -186,6 +214,7 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
   - **layout.tsx:** `<GoogleAnalytics />` eingebunden
   - **Env:** `NEXT_PUBLIC_GA_MEASUREMENT_ID=G-M9BJGC5D69` (lokal + VPS)
   - **VPS:** Deployed, Storefront neugestartet
+- **Google Search Console** — Domain-Property `vod-auctions.com`, verifiziert via DNS TXT-Record (`google-site-verification=lfq-yKrCxgafV9Nq2Er-_ULcVlnuGeNrG0KE4qRLeqQ`), Sitemap eingereicht
 - **RSE-98: Image Optimization** — All raw `<img>` tags converted to Next.js `<Image>`:
   - **ImageGallery:** Main image (motion.div wrapper), thumbnails, lightbox — all with responsive `sizes`
   - **BlockCard:** Vertical + Horizontal variants with `fill` + `sizes`
