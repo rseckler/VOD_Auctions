@@ -83,10 +83,12 @@ export async function GET(
   }
 
   // Get images for this release
+  // Images — ordered by rang (legacy bilder_1 position), then id
   const images = await pgConnection("Image")
-    .select("id", "url", "alt")
+    .select("id", "url", "alt", "rang")
     .where("releaseId", item.release_id)
-    .orderBy("url", "asc")
+    .orderBy("rang", "asc")
+    .orderBy("id", "asc")
 
   // Get various artists (for compilations)
   const variousArtists = await pgConnection("ReleaseArtist")

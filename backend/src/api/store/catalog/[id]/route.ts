@@ -67,11 +67,12 @@ export async function GET(
     return
   }
 
-  // Images — ordered by URL to match legacy rang order (filename suffixes _1, _2, _3...)
+  // Images — ordered by rang (legacy bilder_1 position), then id
   const images = await pgConnection("Image")
-    .select("id", "url", "alt")
+    .select("id", "url", "alt", "rang")
     .where("releaseId", id)
-    .orderBy("url", "asc")
+    .orderBy("rang", "asc")
+    .orderBy("id", "asc")
 
   // Various artists
   const various_artists = await pgConnection("ReleaseArtist")

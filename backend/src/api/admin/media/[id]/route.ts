@@ -43,7 +43,8 @@ export async function GET(
   // Fetch images
   const images = await pgConnection("Image")
     .where("releaseId", id)
-    .orderBy("url", "asc")
+    .orderBy("rang", "asc")
+    .orderBy("id", "asc")
 
   res.json({ release, sync_history, images })
 }
