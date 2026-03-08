@@ -36,23 +36,28 @@ type LabelPerson = {
   name: string
 }
 
-type LabelDetail = {
-  id: string
-  slug: string
-  name: string
-  country: string | null
-  year: string | null
-  short_description: string | null
-  description: string | null
+type LabelData = {
+  label: {
+    id: string
+    slug: string
+    name: string
+    country: string | null
+    year: string | null
+  }
+  content: {
+    short_description: string | null
+    description: string | null
+    external_links: { discogs?: string; wikipedia?: string } | null
+  } | null
   releases: LabelRelease[]
-  label_literature: LabelLiterature[]
+  literature: LabelLiterature[]
   artists: LabelArtist[]
   persons: LabelPerson[]
-  external_links: { discogs?: string; wikipedia?: string }
+  release_count: number
 }
 
-async function getLabel(slug: string): Promise<{ label: LabelDetail } | null> {
-  return medusaFetch<{ label: LabelDetail }>(
+async function getLabel(slug: string): Promise<LabelData | null> {
+  return medusaFetch<LabelData>(
     `/store/label/${slug}`,
     { revalidate: 300 }
   )
@@ -69,8 +74,8 @@ export async function generateMetadata({
 
   const l = data.label
   const description =
-    l.short_description ||
-    `Explore the catalog of ${l.name}${l.country ? ` (${l.country})` : ""}. ${l.releases.length} releases available on VOD Auctions.`
+    data.content?.short_description ||
+    `Explore the catalog of ${l.name}${l.country ? ` (${l.country})` : ""}. ${data.releases.length} releases available on VOD Auctions.`
 
   return {
     title: `${l.name} — Catalog & Releases`,
@@ -240,6 +245,9 @@ export default async function LabelPage({
   if (!data) notFound()
 
   const label = data.label
+  const content = data.content
+  const description = content?.description || null
+  const external_links = content?.external_links || null
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -247,7 +255,7 @@ export default async function LabelPage({
     name: label.name,
     ...(label.country && { address: { "@type": "PostalAddress", addressCountry: label.country } }),
     ...(label.year && { foundingDate: label.year }),
-    ...(label.description && { description: label.description.replace(/<[^>]*>/g, "").slice(0, 300) }),
+    ...(description && { description: description.replace(/<[^>]*>/g, "").slice(0, 300) }),
     url: `https://vod-auctions.com/label/${label.slug}`,
   }
 
@@ -287,18 +295,18 @@ export default async function LabelPage({
       </div>
 
       {/* Description */}
-      {label.description && (
+      {description && (
         <div className="relative pl-4 mb-10">
           <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full bg-gradient-to-b from-primary via-primary/60 to-transparent" />
           <h2 className="font-serif text-[15px] text-primary mb-3">About</h2>
-          {isHtml(label.description) ? (
+          {isHtml(description) ? (
             <div
               className="prose prose-invert prose-sm max-w-none text-muted-foreground"
-              dangerouslySetInnerHTML={{ __html: label.description }}
+              dangerouslySetInnerHTML={{ __html: description }}
             />
           ) : (
             <div className="space-y-2 text-sm text-muted-foreground">
-              {label.description.split("\n").filter(Boolean).map((p, i) => (
+              {description.split("\n").filter(Boolean).map((p, i) => (
                 <p key={i}>{p}</p>
               ))}
             </div>
@@ -307,40 +315,40 @@ export default async function LabelPage({
       )}
 
       {/* Catalog Releases */}
-      {label.releases.length > 0 && (
+      {data.releases.length > 0 && (
         <div className="relative pl-4 mb-10">
           <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full bg-gradient-to-b from-primary via-primary/60 to-transparent" />
           <h2 className="font-serif text-[15px] text-primary mb-3">
             Catalog{" "}
             <span className="font-sans text-[11px] text-muted-foreground font-normal ml-1.5">
-              {label.releases.length} releases
+              {data.releases.length} releases
             </span>
           </h2>
-          <ReleaseTable releases={label.releases} />
+          <ReleaseTable releases={data.releases} />
         </div>
       )}
 
       {/* Literature */}
-      {label.label_literature.length > 0 && (
+      {data.literature.length > 0 && (
         <div className="relative pl-4 mb-10">
           <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full bg-gradient-to-b from-primary via-primary/60 to-transparent" />
           <h2 className="font-serif text-[15px] text-primary mb-3">
             Literature{" "}
             <span className="font-sans text-[11px] text-muted-foreground font-normal ml-1.5">
-              {label.label_literature.length} items
+              {data.literature.length} items
             </span>
           </h2>
-          <LiteratureTable items={label.label_literature} />
+          <LiteratureTable items={data.literature} />
         </div>
       )}
 
       {/* Persons */}
-      {label.persons.length > 0 && (
+      {data.persons.length > 0 && (
         <div className="relative pl-4 mb-10">
           <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full bg-gradient-to-b from-primary via-primary/60 to-transparent" />
           <h2 className="font-serif text-[15px] text-primary mb-3">People</h2>
           <div className="flex flex-wrap gap-2">
-            {label.persons.map((person, i) => (
+            {data.persons.map((person, i) => (
               <span
                 key={i}
                 className="relative text-xs py-1.5 pl-3.5 pr-3 rounded border border-white/10 bg-secondary/50"
@@ -354,14 +362,14 @@ export default async function LabelPage({
       )}
 
       {/* Artists on this label */}
-      {label.artists.length > 0 && (
+      {data.artists.length > 0 && (
         <div className="relative pl-4 mb-10">
           <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full bg-gradient-to-b from-primary via-primary/60 to-transparent" />
           <h2 className="font-serif text-[15px] text-primary mb-3">
             Artists on this Label
           </h2>
           <div className="flex flex-wrap gap-2">
-            {label.artists.map((artist) => (
+            {data.artists.map((artist) => (
               <Link
                 key={artist.slug}
                 href={`/band/${artist.slug}`}
@@ -379,16 +387,16 @@ export default async function LabelPage({
       )}
 
       {/* External Links */}
-      {label.external_links && Object.keys(label.external_links).length > 0 && (
+      {external_links && Object.keys(external_links).length > 0 && (
         <div className="relative pl-4 mb-10">
           <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full bg-gradient-to-b from-primary via-primary/60 to-transparent" />
           <h2 className="font-serif text-[15px] text-primary mb-3">
             External Links
           </h2>
           <div className="flex flex-wrap gap-3">
-            {label.external_links.discogs && (
+            {external_links.discogs && (
               <a
-                href={label.external_links.discogs}
+                href={external_links.discogs}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs text-primary hover:underline"
@@ -396,9 +404,9 @@ export default async function LabelPage({
                 Discogs &rarr;
               </a>
             )}
-            {label.external_links.wikipedia && (
+            {external_links.wikipedia && (
               <a
-                href={label.external_links.wikipedia}
+                href={external_links.wikipedia}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs text-primary hover:underline"

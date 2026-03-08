@@ -15,22 +15,25 @@ type PressPublication = {
   legacy_price: number | null
 }
 
-type PressOrgaDetail = {
-  id: string
-  slug: string
-  name: string
-  country: string | null
-  year: string | null
-  short_description: string | null
-  description: string | null
-  press_literature: PressPublication[]
-  external_links: { discogs?: string; wikipedia?: string }
+type PressData = {
+  press_orga: {
+    id: string
+    slug: string
+    name: string
+    country: string | null
+    year: string | null
+  }
+  content: {
+    short_description: string | null
+    description: string | null
+    external_links: { discogs?: string; wikipedia?: string } | null
+  } | null
+  publications: PressPublication[]
+  publication_count: number
 }
 
-async function getPressOrga(
-  slug: string
-): Promise<{ press: PressOrgaDetail } | null> {
-  return medusaFetch<{ press: PressOrgaDetail }>(
+async function getPressOrga(slug: string): Promise<PressData | null> {
+  return medusaFetch<PressData>(
     `/store/press/${slug}`,
     { revalidate: 300 }
   )
@@ -45,17 +48,17 @@ export async function generateMetadata({
   const data = await getPressOrga(slug)
   if (!data) return { title: "Press Organization Not Found" }
 
-  const p = data.press
-  const description =
-    p.short_description ||
-    `Explore publications by ${p.name}${p.country ? ` (${p.country})` : ""}. ${p.press_literature.length} items available on VOD Auctions.`
+  const p = data.press_orga
+  const metaDesc =
+    data.content?.short_description ||
+    `Explore publications by ${p.name}${p.country ? ` (${p.country})` : ""}. ${data.publications.length} items available on VOD Auctions.`
 
   return {
     title: `${p.name} — Publications`,
-    description,
+    description: metaDesc,
     openGraph: {
       title: `${p.name} — Publications — VOD Auctions`,
-      description,
+      description: metaDesc,
     },
   }
 }
@@ -140,7 +143,10 @@ export default async function PressPage({
   const data = await getPressOrga(slug)
   if (!data) notFound()
 
-  const press = data.press
+  const press = data.press_orga
+  const content = data.content
+  const description = content?.description || null
+  const external_links = content?.external_links || null
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -150,8 +156,8 @@ export default async function PressPage({
       address: { "@type": "PostalAddress", addressCountry: press.country },
     }),
     ...(press.year && { foundingDate: press.year }),
-    ...(press.description && {
-      description: press.description.replace(/<[^>]*>/g, "").slice(0, 300),
+    ...(description && {
+      description: description.replace(/<[^>]*>/g, "").slice(0, 300),
     }),
     url: `https://vod-auctions.com/press/${press.slug}`,
   }
@@ -195,18 +201,18 @@ export default async function PressPage({
       </div>
 
       {/* Description */}
-      {press.description && (
+      {description && (
         <div className="relative pl-4 mb-10">
           <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full bg-gradient-to-b from-primary via-primary/60 to-transparent" />
           <h2 className="font-serif text-[15px] text-primary mb-3">About</h2>
-          {isHtml(press.description) ? (
+          {isHtml(description) ? (
             <div
               className="prose prose-invert prose-sm max-w-none text-muted-foreground"
-              dangerouslySetInnerHTML={{ __html: press.description }}
+              dangerouslySetInnerHTML={{ __html: description }}
             />
           ) : (
             <div className="space-y-2 text-sm text-muted-foreground">
-              {press.description
+              {description
                 .split("\n")
                 .filter(Boolean)
                 .map((p, i) => (
@@ -218,51 +224,50 @@ export default async function PressPage({
       )}
 
       {/* Publications */}
-      {press.press_literature.length > 0 && (
+      {data.publications.length > 0 && (
         <div className="relative pl-4 mb-10">
           <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full bg-gradient-to-b from-primary via-primary/60 to-transparent" />
           <h2 className="font-serif text-[15px] text-primary mb-3">
             Publications{" "}
             <span className="font-sans text-[11px] text-muted-foreground font-normal ml-1.5">
-              {press.press_literature.length} items
+              {data.publications.length} items
             </span>
           </h2>
-          <PublicationTable items={press.press_literature} />
+          <PublicationTable items={data.publications} />
         </div>
       )}
 
       {/* External Links */}
-      {press.external_links &&
-        Object.keys(press.external_links).length > 0 && (
-          <div className="relative pl-4 mb-10">
-            <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full bg-gradient-to-b from-primary via-primary/60 to-transparent" />
-            <h2 className="font-serif text-[15px] text-primary mb-3">
-              External Links
-            </h2>
-            <div className="flex flex-wrap gap-3">
-              {press.external_links.discogs && (
-                <a
-                  href={press.external_links.discogs}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-primary hover:underline"
-                >
-                  Discogs &rarr;
-                </a>
-              )}
-              {press.external_links.wikipedia && (
-                <a
-                  href={press.external_links.wikipedia}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-primary hover:underline"
-                >
-                  Wikipedia &rarr;
-                </a>
-              )}
-            </div>
+      {external_links && Object.keys(external_links).length > 0 && (
+        <div className="relative pl-4 mb-10">
+          <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full bg-gradient-to-b from-primary via-primary/60 to-transparent" />
+          <h2 className="font-serif text-[15px] text-primary mb-3">
+            External Links
+          </h2>
+          <div className="flex flex-wrap gap-3">
+            {external_links.discogs && (
+              <a
+                href={external_links.discogs}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-primary hover:underline"
+              >
+                Discogs &rarr;
+              </a>
+            )}
+            {external_links.wikipedia && (
+              <a
+                href={external_links.wikipedia}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-primary hover:underline"
+              >
+                Wikipedia &rarr;
+              </a>
+            )}
           </div>
-        )}
+        </div>
+      )}
     </main>
   )
 }

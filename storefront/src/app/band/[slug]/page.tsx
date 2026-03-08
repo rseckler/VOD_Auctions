@@ -32,23 +32,28 @@ type BandLabel = {
   release_count: number
 }
 
-type BandDetail = {
-  id: string
-  slug: string
-  name: string
-  country: string | null
-  year: string | null
-  short_description: string | null
-  description: string | null
-  genres: string[]
+type BandData = {
+  artist: {
+    id: string
+    slug: string
+    name: string
+    country: string | null
+    year: string | null
+  }
+  content: {
+    short_description: string | null
+    description: string | null
+    genre_tags: string[] | null
+    external_links: { discogs?: string; wikipedia?: string; bandcamp?: string } | null
+  } | null
   releases: BandRelease[]
-  band_literature: BandLiterature[]
+  literature: BandLiterature[]
   labels: BandLabel[]
-  external_links: { discogs?: string; wikipedia?: string; bandcamp?: string }
+  release_count: number
 }
 
-async function getBand(slug: string): Promise<{ band: BandDetail } | null> {
-  return medusaFetch<{ band: BandDetail }>(
+async function getBand(slug: string): Promise<BandData | null> {
+  return medusaFetch<BandData>(
     `/store/band/${slug}`,
     { revalidate: 300 }
   )
@@ -63,17 +68,17 @@ export async function generateMetadata({
   const data = await getBand(slug)
   if (!data) return { title: "Band Not Found" }
 
-  const b = data.band
-  const description =
-    b.short_description ||
-    `Explore the discography of ${b.name}${b.country ? ` (${b.country})` : ""}. ${b.releases.length} releases available on VOD Auctions.`
+  const b = data.artist
+  const metaDesc =
+    data.content?.short_description ||
+    `Explore the discography of ${b.name}${b.country ? ` (${b.country})` : ""}. ${data.releases.length} releases available on VOD Auctions.`
 
   return {
     title: `${b.name} — Discography & Releases`,
-    description,
+    description: metaDesc,
     openGraph: {
       title: `${b.name} — Discography & Releases — VOD Auctions`,
-      description,
+      description: metaDesc,
     },
   }
 }
@@ -235,7 +240,11 @@ export default async function BandPage({
   const data = await getBand(slug)
   if (!data) notFound()
 
-  const band = data.band
+  const band = data.artist
+  const content = data.content
+  const description = content?.description || null
+  const genres = content?.genre_tags || []
+  const external_links = content?.external_links || null
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -243,8 +252,8 @@ export default async function BandPage({
     name: band.name,
     ...(band.country && { location: { "@type": "Country", name: band.country } }),
     ...(band.year && { foundingDate: band.year }),
-    ...(band.genres.length && { genre: band.genres }),
-    ...(band.description && { description: band.description.replace(/<[^>]*>/g, "").slice(0, 300) }),
+    ...(genres.length && { genre: genres }),
+    ...(description && { description: description.replace(/<[^>]*>/g, "").slice(0, 300) }),
     url: `https://vod-auctions.com/band/${band.slug}`,
   }
 
@@ -280,7 +289,7 @@ export default async function BandPage({
           {band.year && (
             <Badge variant="secondary">Est. {band.year}</Badge>
           )}
-          {band.genres.map((genre) => (
+          {genres.map((genre) => (
             <Badge
               key={genre}
               variant="outline"
@@ -293,18 +302,18 @@ export default async function BandPage({
       </div>
 
       {/* Description */}
-      {band.description && (
+      {description && (
         <div className="relative pl-4 mb-10">
           <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full bg-gradient-to-b from-primary via-primary/60 to-transparent" />
           <h2 className="font-serif text-[15px] text-primary mb-3">About</h2>
-          {isHtml(band.description) ? (
+          {isHtml(description) ? (
             <div
               className="prose prose-invert prose-sm max-w-none text-muted-foreground"
-              dangerouslySetInnerHTML={{ __html: band.description }}
+              dangerouslySetInnerHTML={{ __html: description }}
             />
           ) : (
             <div className="space-y-2 text-sm text-muted-foreground">
-              {band.description.split("\n").filter(Boolean).map((p, i) => (
+              {description.split("\n").filter(Boolean).map((p, i) => (
                 <p key={i}>{p}</p>
               ))}
             </div>
@@ -313,40 +322,40 @@ export default async function BandPage({
       )}
 
       {/* Discography */}
-      {band.releases.length > 0 && (
+      {data.releases.length > 0 && (
         <div className="relative pl-4 mb-10">
           <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full bg-gradient-to-b from-primary via-primary/60 to-transparent" />
           <h2 className="font-serif text-[15px] text-primary mb-3">
             Discography{" "}
             <span className="font-sans text-[11px] text-muted-foreground font-normal ml-1.5">
-              {band.releases.length} releases
+              {data.releases.length} releases
             </span>
           </h2>
-          <ReleaseTable releases={band.releases} />
+          <ReleaseTable releases={data.releases} />
         </div>
       )}
 
       {/* Literature */}
-      {band.band_literature.length > 0 && (
+      {data.literature.length > 0 && (
         <div className="relative pl-4 mb-10">
           <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full bg-gradient-to-b from-primary via-primary/60 to-transparent" />
           <h2 className="font-serif text-[15px] text-primary mb-3">
             Literature{" "}
             <span className="font-sans text-[11px] text-muted-foreground font-normal ml-1.5">
-              {band.band_literature.length} items
+              {data.literature.length} items
             </span>
           </h2>
-          <LiteratureTable items={band.band_literature} />
+          <LiteratureTable items={data.literature} />
         </div>
       )}
 
       {/* Labels */}
-      {band.labels.length > 0 && (
+      {data.labels.length > 0 && (
         <div className="relative pl-4 mb-10">
           <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full bg-gradient-to-b from-primary via-primary/60 to-transparent" />
           <h2 className="font-serif text-[15px] text-primary mb-3">Labels</h2>
           <div className="flex flex-wrap gap-2">
-            {band.labels.map((label) => (
+            {data.labels.map((label) => (
               <Link
                 key={label.slug}
                 href={`/label/${label.slug}`}
@@ -364,16 +373,16 @@ export default async function BandPage({
       )}
 
       {/* External Links */}
-      {band.external_links && Object.keys(band.external_links).length > 0 && (
+      {external_links && Object.keys(external_links).length > 0 && (
         <div className="relative pl-4 mb-10">
           <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full bg-gradient-to-b from-primary via-primary/60 to-transparent" />
           <h2 className="font-serif text-[15px] text-primary mb-3">
             External Links
           </h2>
           <div className="flex flex-wrap gap-3">
-            {band.external_links.discogs && (
+            {external_links.discogs && (
               <a
-                href={band.external_links.discogs}
+                href={external_links.discogs}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs text-primary hover:underline"
@@ -381,9 +390,9 @@ export default async function BandPage({
                 Discogs &rarr;
               </a>
             )}
-            {band.external_links.wikipedia && (
+            {external_links.wikipedia && (
               <a
-                href={band.external_links.wikipedia}
+                href={external_links.wikipedia}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs text-primary hover:underline"
@@ -391,9 +400,9 @@ export default async function BandPage({
                 Wikipedia &rarr;
               </a>
             )}
-            {band.external_links.bandcamp && (
+            {external_links.bandcamp && (
               <a
-                href={band.external_links.bandcamp}
+                href={external_links.bandcamp}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs text-primary hover:underline"
