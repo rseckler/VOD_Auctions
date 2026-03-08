@@ -82,10 +82,6 @@ const TABS = [
   { key: "press_orga", label: "Press", entityLabel: "Press Orgs" },
 ] as const
 
-const BACKEND_URL =
-  // @ts-ignore
-  __BACKEND_URL__ ?? "/api"
-
 const PAGE_SIZE = 25
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -147,7 +143,7 @@ function EntityContentInner() {
       if (isPublished) params.set("is_published", isPublished)
 
       const resp = await fetch(
-        `${BACKEND_URL}/admin/entity-content?${params}`,
+        `/admin/entity-content?${params}`,
         { credentials: "include" }
       )
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
@@ -207,7 +203,7 @@ function EntityContentInner() {
           .filter(Boolean)
 
         const resp = await fetch(
-          `${BACKEND_URL}/admin/entity-content/${item.entity_type}/${item.entity_id}`,
+          `/admin/entity-content/${item.entity_type}/${item.entity_id}`,
           {
             method: "POST",
             credentials: "include",
@@ -242,7 +238,7 @@ function EntityContentInner() {
       setGenerating(item.id)
       try {
         const resp = await fetch(
-          `${BACKEND_URL}/admin/entity-content/${item.entity_type}/${item.entity_id}`,
+          `/admin/entity-content/${item.entity_type}/${item.entity_id}`,
           {
             method: "POST",
             credentials: "include",
