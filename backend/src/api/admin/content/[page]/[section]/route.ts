@@ -80,5 +80,18 @@ export async function POST(
     .where({ page, section })
     .first()
 
+  // Trigger on-demand revalidation of the storefront page
+  const storefrontUrl = process.env.STOREFRONT_URL || "https://vod-auctions.com"
+  const revalidateSecret = process.env.REVALIDATE_SECRET
+  if (revalidateSecret) {
+    const pathMap: Record<string, string> = { home: "/", about: "/about", auctions: "/auctions" }
+    const revalidatePath = pathMap[page] || "/"
+    fetch(`${storefrontUrl}/api/revalidate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-revalidate-secret": revalidateSecret },
+      body: JSON.stringify({ path: revalidatePath }),
+    }).catch(() => {})
+  }
+
   res.json({ content_block: row })
 }
