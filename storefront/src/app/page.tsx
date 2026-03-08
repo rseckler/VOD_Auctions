@@ -49,7 +49,7 @@ export default async function Home() {
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(212,165,74,0.08)_0%,transparent_60%)]" />
         <div className="relative mx-auto max-w-6xl px-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center py-20 md:py-28">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center pt-20 pb-10 md:pt-28 md:pb-14">
             {/* Left: Text */}
             <div>
               {activeCount > 0 && (
@@ -121,7 +121,7 @@ export default async function Home() {
       <HomeContent blocks={blocks} />
 
       {/* Catalog Teaser */}
-      <section className="mx-auto max-w-6xl px-6 py-16">
+      <section className="mx-auto max-w-6xl px-6 pt-8 pb-16">
         <div className="rounded-2xl border border-[rgba(232,224,212,0.08)] bg-[rgba(232,224,212,0.02)] p-12 text-center">
           <Disc3 className="h-12 w-12 mx-auto text-primary/40 mb-4" />
           <h2 className="font-serif text-2xl md:text-3xl mb-3">
