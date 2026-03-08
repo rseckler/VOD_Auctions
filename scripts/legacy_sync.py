@@ -41,6 +41,64 @@ from shared import (
 )
 
 
+# German → English country name mapping (DB stores English since 2026-03-08)
+COUNTRY_DE_TO_EN = {
+    "Vereinigte Staaten von Amerika": "United States",
+    "Deutschland": "Germany",
+    "Vereinigtes Königreich von Großbritannien und Nordirland": "United Kingdom",
+    "--": None,
+    "Frankreich": "France",
+    "Niederlande": "Netherlands",
+    "Italien": "Italy",
+    "Belgien": "Belgium",
+    "Japan": "Japan",
+    "Kanada": "Canada",
+    "Schweiz": "Switzerland",
+    "Australien": "Australia",
+    "Spanien": "Spain",
+    "Österreich": "Austria",
+    "Schweden": "Sweden",
+    "Norwegen": "Norway",
+    "Polen": "Poland",
+    "Europäische Union": "European Union",
+    "Portugal": "Portugal",
+    "Dänemark": "Denmark",
+    "Deutsche Demokratische Republik": "East Germany (GDR)",
+    "Jugoslawien": "Yugoslavia",
+    "Slowenien": "Slovenia",
+    "Ungarn": "Hungary",
+    "Griechenland": "Greece",
+    "Mexiko": "Mexico",
+    "Neuseeland": "New Zealand",
+    "Finnland": "Finland",
+    "Südafrika, Republik": "South Africa",
+    "Russische Föderation": "Russia",
+    "Tschechische Republik": "Czech Republic",
+    "Serbien und Montenegro": "Serbia and Montenegro",
+    "Brasilien": "Brazil",
+    "Argentinien": "Argentina",
+    "Irland, Republik": "Ireland",
+    "Israel": "Israel",
+    "Island": "Iceland",
+    "Uruguay": "Uruguay",
+    "Indien": "India",
+    "Slowakei": "Slovakia",
+    "Hongkong": "Hong Kong",
+    "Chile": "Chile",
+    "Luxemburg": "Luxembourg",
+    "Rumänien": "Romania",
+    "Kroatien": "Croatia",
+}
+
+
+def translate_country(name):
+    """Translate German country name to English."""
+    if not name:
+        return None
+    decoded = decode_entities(name)
+    return COUNTRY_DE_TO_EN.get(decoded, decoded)
+
+
 def fetch_legacy_artist_ids(mysql_conn):
     """Fetch all artist IDs from legacy MySQL."""
     cursor = mysql_conn.cursor(dictionary=True)
@@ -213,7 +271,7 @@ def sync_releases(mysql_conn, pg_conn):
                 year = row["year"] if row["year"] and row["year"] > 0 else None
                 format_id = row["format"] if row["format"] and row["format"] > 0 else None
                 format_enum = map_format_by_id(format_id)
-                country = decode_entities(row["country_name"]) if row["country_name"] else None
+                country = translate_country(row["country_name"])
 
                 artist_name = decode_entities(row["band_name"]) if row["band_name"] else "unknown"
                 slug = slugify(f"{artist_name} {title} {row['id']}")
@@ -412,7 +470,7 @@ def sync_literature(mysql_conn, pg_conn, table, category, id_prefix, ref_field, 
 
                 format_id = r["format"] if r["format"] and r["format"] > 0 else None
                 format_enum = map_format_by_id(format_id)
-                country = decode_entities(r["country_name"]) if r["country_name"] else None
+                country = translate_country(r["country_name"])
                 format_detail = decode_entities(r["format_name"]) if r["format_name"] else None
                 price = parse_price(r.get("preis"))
 

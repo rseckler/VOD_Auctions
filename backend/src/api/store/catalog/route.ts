@@ -2,6 +2,93 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 
+// Map German (and other common) country names to English DB values
+const COUNTRY_ALIASES: Record<string, string> = {
+  // German → English
+  "deutschland": "Germany",
+  "vereinigte staaten": "United States",
+  "vereinigte staaten von amerika": "United States",
+  "usa": "United States",
+  "vereinigtes königreich": "United Kingdom",
+  "grossbritannien": "United Kingdom",
+  "großbritannien": "United Kingdom",
+  "england": "United Kingdom",
+  "uk": "United Kingdom",
+  "frankreich": "France",
+  "niederlande": "Netherlands",
+  "holland": "Netherlands",
+  "italien": "Italy",
+  "belgien": "Belgium",
+  "kanada": "Canada",
+  "schweiz": "Switzerland",
+  "australien": "Australia",
+  "spanien": "Spain",
+  "österreich": "Austria",
+  "oesterreich": "Austria",
+  "schweden": "Sweden",
+  "norwegen": "Norway",
+  "polen": "Poland",
+  "dänemark": "Denmark",
+  "daenemark": "Denmark",
+  "jugoslawien": "Yugoslavia",
+  "slowenien": "Slovenia",
+  "ungarn": "Hungary",
+  "griechenland": "Greece",
+  "mexiko": "Mexico",
+  "neuseeland": "New Zealand",
+  "finnland": "Finland",
+  "südafrika": "South Africa",
+  "suedafrika": "South Africa",
+  "russland": "Russia",
+  "russische föderation": "Russia",
+  "tschechien": "Czech Republic",
+  "tschechische republik": "Czech Republic",
+  "brasilien": "Brazil",
+  "argentinien": "Argentina",
+  "irland": "Ireland",
+  "island": "Iceland",
+  "indien": "India",
+  "slowakei": "Slovakia",
+  "hongkong": "Hong Kong",
+  "luxemburg": "Luxembourg",
+  "rumänien": "Romania",
+  "rumaenien": "Romania",
+  "kroatien": "Croatia",
+  // French → English
+  "états-unis": "United States",
+  "etats-unis": "United States",
+  "royaume-uni": "United Kingdom",
+  "pays-bas": "Netherlands",
+  "italie": "Italy",
+  "belgique": "Belgium",
+  "espagne": "Spain",
+  "autriche": "Austria",
+  "suède": "Sweden",
+  "norvège": "Norway",
+  "pologne": "Poland",
+  "danemark": "Denmark",
+  "hongrie": "Hungary",
+  "grèce": "Greece",
+  "mexique": "Mexico",
+  "nouvelle-zélande": "New Zealand",
+  "finlande": "Finland",
+  "russie": "Russia",
+  "brésil": "Brazil",
+  "argentine": "Argentina",
+  "irlande": "Ireland",
+  "islande": "Iceland",
+  "inde": "India",
+  "slovaquie": "Slovakia",
+  "roumanie": "Romania",
+  "croatie": "Croatia",
+}
+
+function resolveCountry(input: string): string {
+  const trimmed = input.trim()
+  const lower = trimmed.toLowerCase()
+  return COUNTRY_ALIASES[lower] || trimmed
+}
+
 // GET /store/catalog — Public: browse releases (paginated, searchable)
 export async function GET(
   req: MedusaRequest,
@@ -120,10 +207,11 @@ export async function GET(
     }
   }
 
-  // Country filter
+  // Country filter (accepts German, French, English names)
   if (country && typeof country === "string") {
-    query = query.where("Release.country", country)
-    countQuery = countQuery.where("Release.country", country)
+    const resolved = resolveCountry(country)
+    query = query.whereILike("Release.country", `%${resolved}%`)
+    countQuery = countQuery.whereILike("Release.country", `%${resolved}%`)
   }
 
   // Year filter (exact match when only year_from, range when both)
