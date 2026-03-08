@@ -284,6 +284,159 @@ function EntityContentInner() {
         </h1>
       </div>
 
+      {/* Generation Progress Overview */}
+      {Object.keys(stats).length > 0 && (
+        <div
+          style={{
+            background: COLORS.card,
+            borderRadius: 10,
+            padding: "16px 20px",
+            marginBottom: 20,
+            border: `1px solid ${COLORS.border}`,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 700,
+              color: COLORS.gold,
+              marginBottom: 12,
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+            }}
+          >
+            AI Content Generation Progress
+          </div>
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+            {TABS.map((tab) => {
+              const s = stats[tab.key]
+              if (!s) return null
+              const pct = s.total > 0 ? (s.with_content / s.total) * 100 : 0
+              const remaining = s.total - s.with_content
+              return (
+                <div
+                  key={tab.key}
+                  style={{
+                    flex: "1 1 200px",
+                    minWidth: 200,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "baseline",
+                      marginBottom: 6,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: COLORS.text,
+                      }}
+                    >
+                      {tab.entityLabel}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        color: COLORS.muted,
+                        fontVariantNumeric: "tabular-nums",
+                      }}
+                    >
+                      {s.with_content.toLocaleString()} /{" "}
+                      {s.total.toLocaleString()}
+                    </span>
+                  </div>
+                  {/* Progress bar */}
+                  <div
+                    style={{
+                      height: 8,
+                      borderRadius: 4,
+                      background: COLORS.border,
+                      overflow: "hidden",
+                      marginBottom: 4,
+                    }}
+                  >
+                    <div
+                      style={{
+                        height: "100%",
+                        borderRadius: 4,
+                        width: `${pct}%`,
+                        background:
+                          pct >= 100
+                            ? "#22c55e"
+                            : pct > 50
+                              ? COLORS.gold
+                              : "#ef8833",
+                        transition: "width 0.5s ease",
+                      }}
+                    />
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      fontSize: 11,
+                      color: COLORS.muted,
+                    }}
+                  >
+                    <span>{pct.toFixed(1)}%</span>
+                    <span>
+                      {remaining > 0
+                        ? `${remaining.toLocaleString()} remaining`
+                        : "Complete ✓"}
+                    </span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          {/* Total summary */}
+          {(() => {
+            const totalAll = Object.values(stats).reduce(
+              (sum, s) => sum + s.total,
+              0
+            )
+            const withAll = Object.values(stats).reduce(
+              (sum, s) => sum + s.with_content,
+              0
+            )
+            const pctAll = totalAll > 0 ? (withAll / totalAll) * 100 : 0
+            return (
+              <div
+                style={{
+                  marginTop: 12,
+                  paddingTop: 10,
+                  borderTop: `1px solid ${COLORS.border}`,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  fontSize: 12,
+                  color: COLORS.muted,
+                }}
+              >
+                <span>
+                  <span style={{ fontWeight: 600, color: COLORS.text }}>
+                    Total:
+                  </span>{" "}
+                  {withAll.toLocaleString()} / {totalAll.toLocaleString()}{" "}
+                  entities with AI content
+                </span>
+                <span
+                  style={{
+                    fontWeight: 600,
+                    color: pctAll >= 100 ? "#22c55e" : COLORS.gold,
+                  }}
+                >
+                  {pctAll.toFixed(1)}%
+                </span>
+              </div>
+            )
+          })()}
+        </div>
+      )}
+
       {/* Tabs */}
       <div style={{ display: "flex", gap: 4, marginBottom: 16 }}>
         {TABS.map((tab) => (
