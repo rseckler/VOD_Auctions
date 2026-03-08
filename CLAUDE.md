@@ -16,6 +16,17 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-08
 
 ### Letzte Änderungen (2026-03-08)
+- **Literature Image Regression Fix (bilder_typ Mapping):**
+  - **Problem:** Nightly `legacy_sync.py` verwendete falsche `bilder_1.typ`-Werte für label_literature (typ=15 statt 14) und press_literature (typ=14 statt 12), überschrieb jede Nacht die zuvor korrigierten Cover-Bilder
+  - **Symptome:** Labels Lit (visible) nur 2 statt 116 Ergebnisse, Press/Org Lit nur 255 statt 1.381, falsche Bilder durch Cross-Category-Zuordnung
+  - **Fix:** `legacy_sync.py` + `migrate_literature.py` korrigiert: label_lit bilder_typ=15→14, press_lit bilder_typ=14→12
+  - **Korrekte Mapping-Referenz:** typ=10 (releases), typ=12 (pressorga_lit), typ=13 (band_lit), typ=14 (labels_lit)
+  - **Re-Sync:** Alle 1.129 label_lit + 6.326 press_lit neu synchronisiert → 1.077 + 5.807 mit korrekten Covers
+  - **VPS:** Scripts deployed, Re-Sync ausgeführt
+- **Catalog Country Filter — ISO Codes:**
+  - 37 ISO 2-Letter Country Codes (DE, US, GB, FR, etc.) zu `COUNTRY_ALIASES` in Store Catalog API hinzugefügt
+  - Eingabe "DE" filtert jetzt korrekt nach "Germany"
+
 - **RSE-156: Discogs Daily Sync + Health Dashboard:**
   - **Problem:** Wöchentlicher Discogs-Sync (Sonntag, 16.500+ Releases auf einmal) führte zu 58% 429-Fehlerrate durch Discogs API Rate Limiting
   - **Fix:** `discogs_daily_sync.py` ersetzt `discogs_weekly_sync.py` — 5 tägliche Chunks (Mo-Fr, ~3.300/Tag), exponentieller Backoff (30s→60s→120s), Emergency Stop nach 20 konsekutiven 429s, Rate Limit 40 req/min
@@ -109,7 +120,7 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
   - **Storefront-Filter entfernt:** Leere Formate (Boxset/Zine/Book/Merchandise/Reel) + Year/Price Sort+Filter aus Katalog-UI entfernt
   - **VPS:** Backend + Admin deployed
 - **Literature Image Fix + Visibility Filter Removal + LabelPerson Import:**
-  - **CoverImage Fix:** label_literature 24→1.080 (95.7%), press_literature 1.001→5.956 (94.2%) — Migration hatte falschen bilder_1.typ (15 statt 14)
+  - **CoverImage Fix:** label_literature 24→1.080 (95.7%), press_literature 1.001→5.956 (94.2%) — Migration hatte falschen bilder_1.typ (15 statt 14). **Achtung:** `legacy_sync.py` hatte gleichen Bug → Regression-Fix am 2026-03-08 (siehe oben)
   - **Gallery-Bilder:** +15.098 neue Image-Einträge aus Legacy bilder_1 typ=12 (band/label/press literature)
   - **API-Filter entfernt:** `whereNotNull(coverImage/legacy_price)` aus allen 4 Store-APIs entfernt (Catalog list+detail, Auction block+item detail)
   - **Image-Limit:** 20→50 in Catalog-Detail + Auction-Item-Detail APIs
