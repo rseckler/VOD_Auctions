@@ -59,15 +59,14 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
   - **Neue Dateien:** `middleware.ts`, `gate/page.tsx`, `api/gate/route.ts`
   - **Geänderte Dateien:** `layout.tsx` (async, Cookie-basiertes Layout-Switching)
   - **VPS:** Storefront deployed
-- **Label Enrichment from Catalog Numbers:**
+- **Label Enrichment from Catalog Numbers (abgeschlossen):**
   - **Problem:** ~7.176 Releases ohne Label-Zuordnung, aber mit Katalognummer die den Label-Namen enthält (z.B. "Hot Records, HOT 1019" → Label: "Hot Records")
   - **Lösung:** 3-Phasen-Validierungs-Pipeline `validate_labels.py` (ersetzt `enrich_labels_from_catno.py` als primäres Tool):
-    - **Phase 1 (Discogs Release API):** Für Releases mit discogs_id → `GET /releases/{id}` → exakter Label-Name (~4.505 Releases, ~82 Min)
-    - **Phase 2 (Discogs Label Search):** Für Releases ohne discogs_id → Parse + `GET /database/search?type=label` → String-Similarity-Vergleich (~2.671 Releases, ~49 Min)
-    - **Phase 3 (AI Cleanup):** Für UNMATCHED aus Phase 2 → Claude Haiku Batch-Cleanup (50 pro API-Call, ~$0.05)
-  - **Output:** Review-CSV `data/label_validation_review.csv` (kein direkter DB-Write!) — manuell prüfen, dann `--commit`
-  - **Confidence:** CONFIRMED (>0.85 Similarity), LIKELY (0.6-0.85), UNMATCHED (<0.6), AI_CLEANED
-  - **Auto-Approve:** `discogs_release` → WRITE, `discogs_search` mit >0.85 → WRITE, Rest → REVIEW
+    - **Phase 1 (Discogs Release API):** Für Releases mit discogs_id → `GET /releases/{id}` → exakter Label-Name (4.461 Releases)
+    - **Phase 2 (Discogs Label Search):** Für Releases ohne discogs_id → Parse + `GET /database/search?type=label` → String-Similarity-Vergleich (2.177 Releases)
+    - **Phase 3 (AI Cleanup):** Für UNMATCHED aus Phase 2 → Claude Haiku Batch-Cleanup (519 Releases, ~$0.05)
+  - **Output:** Review-CSV `data/label_validation_review.csv` → manuell geprüft → `--commit` auf VPS ausgeführt
+  - **Ergebnis:** 7.002 Releases enriched, 2.829 neue Labels erstellt, Label-Abdeckung von 57% → 74% (30.739/41.534)
   - **Hilfscript:** `enrich_labels_from_catno.py` liefert Parsing-Funktionen (parse_label_from_catno, find_or_create_label, etc.)
   - **DB:** `label_enriched BOOLEAN DEFAULT FALSE` Spalte auf Release-Tabelle — markiert enriched Labels
   - **Sync-Schutz:** `legacy_sync.py` geändert — `labelId` wird NICHT überschrieben wenn `label_enriched = TRUE` (CASE-Statement in ON CONFLICT)
