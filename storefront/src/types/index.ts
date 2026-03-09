@@ -175,6 +175,7 @@ export type Transaction = {
   delivered_at: string | null
   tracking_number: string | null
   carrier: string | null
+  tracking_url_pattern: string | null
   created_at: string
   release_title: string | null
   release_artist: string | null

@@ -22,6 +22,24 @@ import {
 import { toast } from "sonner"
 import type { WinEntry, Transaction, CartItem } from "@/types"
 
+type ShippingMethod = {
+  id: string
+  carrier_name: string
+  method_name: string
+  delivery_days_min: number | null
+  delivery_days_max: number | null
+  has_tracking: boolean
+  tracking_url_pattern: string | null
+  is_default: boolean
+}
+
+type ShippingCountry = {
+  code: string
+  name: string
+  zone_slug: string
+  zone_name: string
+}
+
 type ShippingZoneInfo = {
   id: string
   name: string
@@ -42,8 +60,12 @@ export default function CheckoutPage() {
   const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [loading, setLoading] = useState(true)
   const [paying, setPaying] = useState(false)
-  const [shippingZone, setShippingZone] = useState("")
+  const [selectedCountry, setSelectedCountry] = useState("")
+  const [countries, setCountries] = useState<ShippingCountry[]>([])
   const [shippingZones, setShippingZones] = useState<ShippingZoneInfo[]>([])
+  const [hasCatchAll, setHasCatchAll] = useState(false)
+  const [shippingMethods, setShippingMethods] = useState<Record<string, ShippingMethod[]>>({})
+  const [selectedMethodId, setSelectedMethodId] = useState("")
   const [shippingCost, setShippingCost] = useState(0)
   const [shippingLabel, setShippingLabel] = useState("")
   const [estimating, setEstimating] = useState(false)
@@ -84,8 +106,11 @@ export default function CheckoutPage() {
       setWins(winsRes.wins || [])
       setCartItems(cartRes.items || [])
 
-      if (shippingRes?.zones) {
-        setShippingZones(shippingRes.zones)
+      if (shippingRes) {
+        if (shippingRes.zones) setShippingZones(shippingRes.zones)
+        if (shippingRes.countries) setCountries(shippingRes.countries)
+        if (shippingRes.has_catch_all) setHasCatchAll(true)
+        if (shippingRes.methods) setShippingMethods(shippingRes.methods)
         setFreeThreshold(shippingRes.free_shipping_threshold)
       }
 
@@ -113,9 +138,29 @@ export default function CheckoutPage() {
   const grandTotal = itemsTotal + shippingCost
   const hasItems = unpaidWins.length > 0 || cartItems.length > 0
 
-  // Estimate shipping when zone changes
+  // Resolve zone from selected country
+  const selectedZoneSlug = selectedCountry
+    ? countries.find((c) => c.code === selectedCountry)?.zone_slug || "world"
+    : ""
+
+  // Auto-select default shipping method when zone changes
   useEffect(() => {
-    if (!shippingZone || !hasItems) {
+    if (!selectedZoneSlug || !shippingMethods) {
+      setSelectedMethodId("")
+      return
+    }
+    // Find the zone_id that matches selectedZoneSlug
+    const zone = shippingZones.find((z) => z.slug === selectedZoneSlug)
+    if (!zone) return
+    const zoneMethods = shippingMethods[zone.id] || []
+    const defaultMethod = zoneMethods.find((m) => m.is_default) || zoneMethods[0]
+    if (defaultMethod) setSelectedMethodId(defaultMethod.id)
+    else setSelectedMethodId("")
+  }, [selectedZoneSlug, shippingMethods])
+
+  // Estimate shipping when country changes
+  useEffect(() => {
+    if (!selectedCountry || !hasItems) {
       setShippingCost(0)
       setShippingLabel("")
       return
@@ -128,11 +173,12 @@ export default function CheckoutPage() {
 
     if (releaseIds.length === 0) {
       // No release_ids available, use zone info to show minimum price
-      const zone = shippingZones.find((z) => z.slug === shippingZone)
+      const zone = shippingZones.find((z) => z.slug === selectedZoneSlug)
       if (zone && zone.rates.length > 0) {
         const minRate = zone.rates[0]
         setShippingCost(minRate.price_standard)
-        setShippingLabel(zone.name)
+        const countryName = countries.find((c) => c.code === selectedCountry)?.name || selectedCountry
+        setShippingLabel(`${countryName} (${zone.name})`)
       }
       return
     }
@@ -146,35 +192,34 @@ export default function CheckoutPage() {
         Authorization: `Bearer ${token || ""}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ release_ids: releaseIds, zone_slug: shippingZone }),
+      body: JSON.stringify({ release_ids: releaseIds, country_code: selectedCountry }),
     })
       .then((r) => r.json())
       .then((data) => {
         if (data.estimate) {
-          // Check free shipping
           if (freeThreshold && itemsTotal >= freeThreshold) {
             setShippingCost(0)
             setShippingLabel("Free Shipping")
           } else {
             setShippingCost(data.estimate.price)
+            const countryName = countries.find((c) => c.code === selectedCountry)?.name || selectedCountry
             setShippingLabel(
-              `${data.estimate.zone.name} — ${data.estimate.carrier} (${data.estimate.shipping_weight_grams}g)`
+              `${countryName} — ${data.estimate.carrier} (${data.estimate.shipping_weight_grams}g)`
             )
           }
         }
       })
       .catch(() => {
-        // Fallback
         const fallback: Record<string, number> = { de: 4.99, eu: 9.99, world: 14.99 }
-        setShippingCost(fallback[shippingZone] || 14.99)
-        setShippingLabel(shippingZone.toUpperCase())
+        setShippingCost(fallback[selectedZoneSlug] || 14.99)
+        setShippingLabel(selectedCountry)
       })
       .finally(() => setEstimating(false))
-  }, [shippingZone, unpaidWins.length, cartItems.length])
+  }, [selectedCountry, unpaidWins.length, cartItems.length])
 
   async function handleCheckout() {
     const token = getToken()
-    if (!token || !shippingZone) return
+    if (!token || !selectedCountry) return
 
     setPaying(true)
     try {
@@ -190,7 +235,7 @@ export default function CheckoutPage() {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ items, shipping_zone: shippingZone }),
+        body: JSON.stringify({ items, country_code: selectedCountry, shipping_method_id: selectedMethodId || undefined }),
       })
 
       const data = await res.json()
@@ -340,28 +385,83 @@ export default function CheckoutPage() {
           )}
 
           <div className="flex justify-between items-center pt-2">
-            <span className="text-muted-foreground">Shipping</span>
-            <Select value={shippingZone} onValueChange={setShippingZone}>
-              <SelectTrigger className="w-[200px] h-8 text-xs">
-                <SelectValue placeholder="Select destination..." />
+            <span className="text-muted-foreground">Ship to</span>
+            <Select value={selectedCountry} onValueChange={setSelectedCountry}>
+              <SelectTrigger className="w-[220px] h-8 text-xs">
+                <SelectValue placeholder="Select country..." />
               </SelectTrigger>
-              <SelectContent>
-                {shippingZones.length > 0
-                  ? shippingZones.map((z) => (
-                      <SelectItem key={z.slug} value={z.slug}>
-                        {z.name}
+              <SelectContent className="max-h-[300px]">
+                {countries.length > 0
+                  ? countries.map((c) => (
+                      <SelectItem key={c.code} value={c.code}>
+                        {c.name}
                       </SelectItem>
                     ))
-                  : ["de", "eu", "world"].map((key) => (
-                      <SelectItem key={key} value={key}>
-                        {key === "de" ? "Germany" : key === "eu" ? "Europe" : "Worldwide"}
-                      </SelectItem>
-                    ))}
+                  : ["DE", "AT", "FR", "NL", "US", "GB"].map((code) => {
+                      const names: Record<string, string> = {
+                        DE: "Germany", AT: "Austria", FR: "France",
+                        NL: "Netherlands", US: "United States", GB: "United Kingdom",
+                      }
+                      return (
+                        <SelectItem key={code} value={code}>
+                          {names[code]}
+                        </SelectItem>
+                      )
+                    })}
+                {hasCatchAll && (
+                  <SelectItem value="OTHER">Other country</SelectItem>
+                )}
               </SelectContent>
             </Select>
           </div>
 
-          {shippingZone && (
+          {selectedCountry && (() => {
+            const zone = shippingZones.find((z) => z.slug === selectedZoneSlug)
+            const zoneMethods = zone ? (shippingMethods[zone.id] || []) : []
+            if (zoneMethods.length <= 1) return null
+            return (
+              <div className="pt-2 space-y-1.5">
+                <span className="text-xs text-muted-foreground">Shipping method</span>
+                {zoneMethods.map((m) => (
+                  <label
+                    key={m.id}
+                    className={`flex items-center gap-2 p-2 rounded border cursor-pointer text-xs transition-colors ${
+                      selectedMethodId === m.id
+                        ? "border-primary/50 bg-primary/5"
+                        : "border-border hover:border-border/80"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="shipping_method"
+                      value={m.id}
+                      checked={selectedMethodId === m.id}
+                      onChange={() => setSelectedMethodId(m.id)}
+                      className="accent-primary"
+                    />
+                    <div className="flex-1">
+                      <span className="font-medium">{m.carrier_name}</span>
+                      <span className="text-muted-foreground"> — {m.method_name}</span>
+                      {(m.delivery_days_min || m.delivery_days_max) && (
+                        <span className="text-muted-foreground ml-1">
+                          ({m.delivery_days_min && m.delivery_days_max
+                            ? `${m.delivery_days_min}-${m.delivery_days_max} days`
+                            : m.delivery_days_max
+                              ? `up to ${m.delivery_days_max} days`
+                              : `${m.delivery_days_min}+ days`})
+                        </span>
+                      )}
+                    </div>
+                    {m.has_tracking && (
+                      <span className="text-[10px] text-primary">Tracked</span>
+                    )}
+                  </label>
+                ))}
+              </div>
+            )
+          })()}
+
+          {selectedCountry && (
             <div className="flex justify-between">
               <span className="text-xs text-muted-foreground">
                 {estimating ? "Calculating..." : shippingLabel}
@@ -390,7 +490,7 @@ export default function CheckoutPage() {
 
         <Button
           onClick={handleCheckout}
-          disabled={!shippingZone || paying}
+          disabled={!selectedCountry || paying}
           className="w-full mt-4 bg-primary hover:bg-primary/90 text-[#1c1915] h-11"
         >
           <CreditCard className="w-4 h-4 mr-2" />

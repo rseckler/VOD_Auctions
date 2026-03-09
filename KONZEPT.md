@@ -2615,6 +2615,330 @@ Der Cookie-Consent-Banner (`CookieConsent.tsx`) muss um die Kategorie "Marketing
 
 ---
 
+## 13. Purchase & Shipping Erweiterung
+
+**Stand:** 2026-03-08
+**Priorität:** P1 (Order History) → P2 (Per-Land Shipping) → P3 (Versandanbieter-Verwaltung)
+
+### 13.1 Ist-Zustand
+
+#### Was existiert:
+- **Shipping Backend (RSE-103):** Gewichtsbasierte Berechnung mit 13 Artikeltypen, 3 Versandzonen (DE/EU/World), 15 Gewichtsstufen, Oversized-Erkennung (Vinyl → DHL Paket), Admin-UI mit 4 Tabs, Store-APIs für dynamische Berechnung
+- **Checkout (RSE-111):** Combined Checkout (Auktions-Gewinne + Direktkäufe), Stripe-Integration, Zone-Dropdown
+- **Order Tracking (RSE-101):** 3-Step Progress Bar (Paid → Shipped → Delivered), Tracking-Nummer + Carrier auf Wins-Page
+- **Transactional Emails (RSE-102):** 6 Templates inkl. Shipping-Notification
+
+#### Was fehlt:
+- **Bestellhistorie** — Kein einheitlicher Bereich für vergangene Bestellungen im User-Profil
+- **Per-Land Versandkosten** — Nur 3 Zonen (DE/EU/World), nicht pro Land individuell
+- **Versandanbieter-Verwaltung** — Nur 2 hardcoded Carrier (Deutsche Post + DHL), keine Admin-Konfiguration für verschiedene Anbieter mit Konditionen
+
+### 13.2 Feature A: Bestellhistorie (Order History)
+
+**Aufwand:** ~4h | **Priorität:** P1 — Sofort
+
+**Problem:** Kunden haben keinen Überblick über ihre vergangenen Bestellungen. Wins-Page zeigt nur Auktions-Gewinne, Direktkäufe sind nach Bezahlung "unsichtbar".
+
+#### 13.2.1 Backend — Orders API
+
+**Neuer Endpoint:** `GET /store/account/orders`
+
+```
+Response pro Bestellgruppe:
+{
+  order_group_id,          -- ULID, gruppiert Items aus einem Checkout
+  order_date,              -- Zeitpunkt der Zahlung (paid_at)
+  items_count,             -- Anzahl Artikel in dieser Bestellung
+  items: [{
+    title, artist_name, cover_image,
+    amount, item_type (auction | direct_purchase),
+    article_number
+  }],
+  subtotal,                -- Summe aller Artikel
+  shipping_cost,           -- Versandkosten der Bestellung
+  total,                   -- Gesamtbetrag
+  shipping_status,         -- Aggregiert: pending | shipped | delivered
+  tracking_number, carrier,
+  shipping_country         -- Zielland (ISO-Code)
+}
+```
+
+**Logik:**
+- Alle Transactions mit `status = 'paid'` des eingeloggten Users
+- Gruppierung nach `order_group_id` (eine Bestellung = N Items)
+- `shipping_status` aggregiert: `pending` wenn mindestens 1 Item pending, `shipped` wenn alle shipped, `delivered` wenn alle delivered
+- Sortierung: neueste zuerst
+- Pagination: `?page=1&limit=20`
+
+**Datei:** `backend/src/api/store/account/orders/route.ts`
+
+#### 13.2.2 Frontend — Orders-Seite
+
+**Route:** `/account/orders`
+
+**Navigation:** Neuer Link "My Orders" in Account-Sidebar (zwischen "Won Auctions" und "Settings")
+
+**Design (Vinyl Groove Style):**
+```
+┌─────────────────────────────────────────────────────┐
+│ Order #A7B3C · March 5, 2026                        │
+│                                                      │
+│ [img1] [img2] [img3] +2 more                        │
+│                                                      │
+│ Items: 5 · Total: €127.95                           │
+│ ● Shipped — DHL Paket: 1234567890                   │
+│                                                      │
+│ [▾ Show Details]                                     │
+└─────────────────────────────────────────────────────┘
+```
+
+**Expandable Detail-View:**
+- Alle Items mit Einzelpreisen + Cover-Thumbnails
+- Versandadresse (Stadt, Land)
+- Versandkosten + Carrier
+- Bestelldatum + Zahlungsdatum
+
+**Account Overview:** Neue Summary-Karte "Past Orders" mit Count + Link
+
+**Dateien:**
+- `storefront/src/app/account/orders/page.tsx` (neu)
+- `storefront/src/app/account/layout.tsx` (Nav-Link hinzufügen)
+- `storefront/src/app/account/page.tsx` (Summary-Karte)
+
+### 13.3 Feature B: Per-Land Versandkosten (Shipping Zone Erweiterung)
+
+**Aufwand:** ~8h | **Priorität:** P2 — Wichtig
+
+**Problem:** Versandkosten nach UK, Schweiz, USA, Japan etc. sind sehr unterschiedlich, werden aber alle gleich berechnet (3 Pauschalzonen).
+
+**Best Practice (Shopify/Discogs-Modell):**
+- Zonen bleiben das Grundprinzip (kein Dropdown mit 200+ Ländern)
+- Aber **mehr Zonen** mit spezifischen Ländergruppen + eigenen Tarifen
+- User wählt sein Land → System resolved automatisch die richtige Zone
+
+#### 13.3.1 Erweiterte Zonen-Struktur
+
+**Von 3 auf 6-8 Zonen:**
+
+| Zone | Slug | Länder | Rationale |
+|------|------|--------|-----------|
+| **Germany** | `de` | DE | Inland — günstigster Versand |
+| **EU Neighbors** | `eu-neighbor` | AT, NL, BE, LU, FR, PL, CZ, DK | Angrenzende EU — ähnliche Kosten |
+| **EU Rest** | `eu-rest` | ES, IT, PT, GR, SE, FI, IE, ... | Entferntere EU — etwas teurer |
+| **Non-EU Europe** | `europe-noneu` | CH, UK, NO | Zoll möglich |
+| **North America** | `us-ca` | US, CA | Nordamerika |
+| **Asia/Pacific** | `asia-pacific` | JP, AU, NZ, KR | Teuer |
+| **Worldwide** | `world` | (Catch-all) | Rest der Welt |
+
+Admin kann Zonen frei anlegen, umbenennen und Länder zuweisen.
+
+#### 13.3.2 Backend — Zone-Resolution per Land
+
+**Neue Logik in `calculateShipping()`:**
+
+```typescript
+// 1. User gibt country_code an (z.B. "GB")
+// 2. System findet Zone, deren countries[] diesen Code enthält
+// 3. Kein Match → Fallback auf "world"-Zone
+function resolveZone(countryCode: string): ShippingZone {
+  const zone = zones.find(z => z.countries?.includes(countryCode));
+  return zone || zones.find(z => z.slug === 'world');
+}
+```
+
+**API-Erweiterung:**
+- `POST /store/shipping` akzeptiert `country_code` (neu) ODER `zone_slug` (Backward-compat)
+- `GET /store/shipping` liefert Zonen mit `countries[]` — Frontend kann Land→Zone-Mapping cachen
+
+**Datei:** `backend/src/lib/shipping.ts` (Zone-Resolution ergänzen)
+
+#### 13.3.3 Admin — Zone-Editor erweitern
+
+**Zones & Rates Tab erweitern:**
+- **Zonen frei anlegen:** Name + Slug + Länder-Multiselect
+- **Länder-Picker:** Checkbox-Liste aller Länder (ISO 3166-1), gruppiert nach Kontinent (Europe, Americas, Asia, Africa, Oceania)
+- **Validierung:** Ein Land kann nur einer Zone zugehören (Shopify-Prinzip)
+- **Reihenfolge:** Drag & Drop für Sortierung (bestimmt Anzeige im Checkout)
+- **"World"-Zone:** Catch-all, kann nicht gelöscht werden
+
+**Dateien:**
+- `backend/src/api/admin/shipping/zones/route.ts` (erweitern)
+- `backend/src/admin/routes/shipping/page.tsx` (Länder-Picker)
+
+#### 13.3.4 Frontend — Land-Dropdown im Checkout
+
+**Statt Zone-Dropdown → Land-Dropdown:**
+
+```
+Shipping Destination
+┌──────────────────────────────┐
+│ 🇬🇧 United Kingdom        ▾ │
+└──────────────────────────────┘
+Shipping: €12.99 — DHL Paket (720g)
+```
+
+- User wählt sein Land aus einer alphabetischen Liste
+- Nur Länder anzeigen, die in einer Zone konfiguriert sind
+- System resolved Zone automatisch im Backend
+- Zeigt: Carrier + Kosten + Gewicht
+- Auto-Detection: Wenn User eingeloggt und Adresse hinterlegt → Land vorausgewählt
+
+**Dateien:**
+- `storefront/src/app/account/checkout/page.tsx` (Land-Dropdown)
+- `storefront/src/app/account/wins/page.tsx` (Land-Dropdown)
+
+#### 13.3.5 Daten-Migration
+
+```sql
+-- Bestehende Zonen behalten, countries korrekt befüllen
+UPDATE shipping_zone SET countries = '["DE"]' WHERE slug = 'de';
+UPDATE shipping_zone SET countries = '["AT","BE","BG","HR","CY","CZ","DK","EE","FI","FR","GR","HU","IE","IT","LV","LT","LU","MT","NL","PL","PT","RO","SK","SI","ES","SE"]' WHERE slug = 'eu';
+-- World: countries = NULL (Catch-all)
+
+-- Danach kann Admin granularer aufteilen (EU → EU-Nachbar + EU-Rest + Non-EU Europe)
+```
+
+### 13.4 Feature C: Versandanbieter-Verwaltung (Carrier Configuration)
+
+**Aufwand:** ~6h | **Priorität:** P3 — Nice-to-have
+
+**Problem:** Aktuell nur 2 hardcoded Carrier (Deutsche Post + DHL). Keine Möglichkeit, Konditionen, Lieferzeiten oder alternative Anbieter zu hinterlegen.
+
+**Best Practice (Shopify-Modell):** Shipping Methods pro Zone — jede Zone kann mehrere Versandoptionen mit eigenem Carrier, Preis und Lieferzeit haben.
+
+#### 13.4.1 Neues Datenmodell: `shipping_method`
+
+```sql
+CREATE TABLE shipping_method (
+  id TEXT PRIMARY KEY,
+  zone_id TEXT REFERENCES shipping_zone(id) ON DELETE CASCADE,
+  carrier_name TEXT NOT NULL,         -- "Deutsche Post", "DHL Paket", "DPD", "Hermes"
+  method_name TEXT NOT NULL,          -- "Standard", "Express", "Economy"
+  delivery_days_min INTEGER,          -- z.B. 2
+  delivery_days_max INTEGER,          -- z.B. 5
+  has_tracking BOOLEAN DEFAULT true,
+  tracking_url_pattern TEXT,          -- "https://tracking.dhl.de/?code={tracking}"
+  is_default BOOLEAN DEFAULT false,   -- Standard-Auswahl im Checkout
+  is_active BOOLEAN DEFAULT true,
+  sort_order INTEGER DEFAULT 0,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Rate-Tabelle erweitern
+ALTER TABLE shipping_rate ADD COLUMN shipping_method_id TEXT REFERENCES shipping_method(id);
+```
+
+**Vorkonfigurierte Carrier-Templates:**
+
+| Carrier | Tracking-URL-Pattern | Typische Methods |
+|---------|---------------------|-----------------|
+| Deutsche Post | `https://www.deutschepost.de/de/s/sendungsverfolgung.html?piececode={tracking}` | Brief, Großbrief, Maxibrief, Warenpost |
+| DHL Paket | `https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={tracking}` | Standard, Express |
+| DPD | `https://tracking.dpd.de/parcelstatus?query={tracking}` | Standard |
+| Hermes | `https://www.myhermes.de/empfangen/sendungsverfolgung/sendungsinformation#{tracking}` | Standard |
+| GLS | `https://gls-group.eu/DE/de/paketverfolgung?match={tracking}` | Standard |
+| Royal Mail | `https://www.royalmail.com/track-your-item#/tracking-results/{tracking}` | International Standard |
+| USPS | `https://tools.usps.com/go/TrackConfirmAction?tLabels={tracking}` | Priority Mail International |
+
+#### 13.4.2 Rate-Tabelle pro Method
+
+Statt `price_standard` + `price_oversized` in einer Rate → **eine Rate-Tabelle pro Shipping Method:**
+
+```
+Zone: Germany
+├── Deutsche Post Warenpost (Standard, 3-5 Tage, kein Tracking)
+│   ├── 0-500g: €1.99
+│   ├── 501-1000g: €3.99
+│   └── 1001-2000g: €5.99
+├── DHL Paket Standard (1-2 Tage, mit Tracking)
+│   ├── 0-2000g: €4.99
+│   ├── 2001-5000g: €7.99
+│   └── 5001-10000g: €9.99
+└── DHL Express (nächster Werktag, mit Tracking)
+    └── 0-10000g: €14.99
+```
+
+#### 13.4.3 Admin UI — Shipping Methods Tab
+
+**Neuer Tab 5 "Methods" in `/admin/shipping`:**
+
+- Pro Zone: Liste der konfigurierten Methods
+- Pro Method:
+  - Carrier-Name (Dropdown mit vorkonfigurierten Templates + Freitext)
+  - Method-Name (Standard/Express/Economy)
+  - Liefertage (min-max Range)
+  - Tracking verfügbar (Checkbox)
+  - Tracking-URL-Pattern (mit `{tracking}` Platzhalter)
+  - Gewichtstarife (inline Rate-Editor)
+  - Aktiv/Inaktiv Toggle
+  - Default-Markierung (pro Zone nur eine)
+- "Add Method" Button pro Zone
+- Carrier-Template-Auswahl: Vorausgefüllte Felder bei bekannten Carriern
+
+**Datei:** `backend/src/admin/routes/shipping/page.tsx` (Tab 5 hinzufügen)
+
+#### 13.4.4 Frontend — Method-Auswahl im Checkout
+
+Statt nur Versandkosten-Anzeige → **Versandoptionen als Radio Buttons:**
+
+```
+Shipping Method
+○ Deutsche Post Warenpost — €3.99
+  3-5 business days · No tracking
+
+● DHL Paket Standard — €7.99           ← recommended
+  1-2 business days · Tracking included
+
+○ DHL Express — €14.99
+  Next business day · Tracking included
+```
+
+- Default-Auswahl: `is_default = true` Method
+- Versandkosten-Anzeige aktualisiert sich bei Method-Wechsel
+- Tracking-Verfügbarkeit wird angezeigt
+- Lieferzeitangabe pro Method
+
+**Dateien:**
+- `storefront/src/app/account/checkout/page.tsx` (Radio Buttons)
+- `storefront/src/app/account/orders/page.tsx` (klickbare Tracking-Links via URL-Pattern)
+
+#### 13.4.5 Transaction erweitern
+
+```sql
+ALTER TABLE transaction ADD COLUMN shipping_method_id TEXT;
+```
+
+- Speichert die gewählte Versandmethode pro Bestellung
+- Tracking-URL kann aus `shipping_method.tracking_url_pattern` + `transaction.tracking_number` generiert werden
+- Wins-Page + Orders-Page zeigen klickbaren Tracking-Link
+
+### 13.5 Implementierungsreihenfolge
+
+```
+Phase 1 (sofort):   A — Order History                   (~4h)
+Phase 2 (danach):   B — Per-Land Shipping                (~8h)
+Phase 3 (optional): C — Versandanbieter-Verwaltung       (~6h)
+                                                    Total: ~18h
+```
+
+**Abhängigkeiten:**
+- A ist komplett unabhängig und sofort umsetzbar
+- B ist die wichtigste Shipping-Verbesserung für internationalen Versand
+- C baut auf B auf (Methods gehören zu Zones) und ist optional für den Launch
+
+**Betroffene Dateien (Gesamt):**
+
+| Bereich | Neue Dateien | Geänderte Dateien |
+|---------|-------------|-------------------|
+| **Backend API** | `store/account/orders/route.ts`, `admin/shipping/methods/route.ts` | `lib/shipping.ts`, `store/shipping/route.ts`, `admin/shipping/zones/route.ts`, `store/account/checkout/route.ts` |
+| **Backend Model** | `models/shipping-method.ts` | `models/transaction.ts` |
+| **Admin UI** | — | `admin/routes/shipping/page.tsx` |
+| **Storefront** | `account/orders/page.tsx` | `account/layout.tsx`, `account/page.tsx`, `account/checkout/page.tsx`, `account/wins/page.tsx` |
+| **DB Migration** | `shipping_method` Tabelle, `transaction.shipping_method_id` | `shipping_rate.shipping_method_id` |
+
+---
+
 **Ende des Konzeptdokuments**
 
-*Nächster Schritt: Phase 1 abschließen (RSE-77 Testlauf) → Phase 2 mit CRM + Newsletter starten*
+*Nächster Schritt: Phase 1 abschließen (RSE-77 Testlauf) → Phase 2 mit CRM + Newsletter starten → Purchase & Shipping Erweiterung (Kapitel 13)*

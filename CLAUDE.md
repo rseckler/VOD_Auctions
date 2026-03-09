@@ -16,6 +16,14 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-08
 
 ### Letzte Änderungen (2026-03-08)
+- **Direct Purchase für alle User geöffnet + 13.571 Artikel aktiviert:**
+  - **hasWonAuction-Gate entfernt:** Warenkorb und Direktkauf stehen jetzt allen eingeloggten Usern zur Verfügung (vorher nur nach gewonnener Auktion)
+  - **Backend:** `hasWonAuction`-Check aus Cart POST API entfernt, Status API liefert nur noch `cart_count` (kein `has_won_auction` mehr)
+  - **Frontend:** `hasWonAuction`-State aus AuthProvider entfernt, Header zeigt Cart-Icon für alle authentifizierten User, DirectPurchaseButton prüft nur noch `isAuthenticated`
+  - **13.571 Releases aktiviert:** Alle Artikel mit `legacy_price > 0` auf `sale_mode = 'direct_purchase'` gesetzt, `direct_price = legacy_price`
+  - **Dateien:** `cart/route.ts`, `status/route.ts`, `AuthProvider.tsx`, `Header.tsx`, `DirectPurchaseButton.tsx`, `CLAUDE.md`
+  - **VPS:** Backend + Storefront deployed
+
 - **Image Ordering Fix (rang-basiert):**
   - **Problem:** Gallery-Bilder und coverImage in falscher Reihenfolge — `legacy_sync.py` verwendete `GROUP BY r.id` (willkürliches Bild), Image-Tabelle hatte kein Ordering-Feld
   - **Fix:** `rang` INTEGER Spalte auf Image-Tabelle hinzugefügt, aus Legacy MySQL `bilder_1.rang` befüllt (17.787 Images)

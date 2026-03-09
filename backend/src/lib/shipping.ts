@@ -83,8 +83,85 @@ async function resolveItemType(
   return itemTypeCache.get("sit-other") || (await pg("shipping_item_type").where("slug", "other").first())
 }
 
+// ISO 3166-1 alpha-2 country names for display
+export const COUNTRY_NAMES: Record<string, string> = {
+  DE: "Germany", AT: "Austria", BE: "Belgium", BG: "Bulgaria", HR: "Croatia",
+  CY: "Cyprus", CZ: "Czech Republic", DK: "Denmark", EE: "Estonia", FI: "Finland",
+  FR: "France", GR: "Greece", HU: "Hungary", IE: "Ireland", IT: "Italy",
+  LV: "Latvia", LT: "Lithuania", LU: "Luxembourg", MT: "Malta", NL: "Netherlands",
+  PL: "Poland", PT: "Portugal", RO: "Romania", SK: "Slovakia", SI: "Slovenia",
+  ES: "Spain", SE: "Sweden",
+  GB: "United Kingdom", CH: "Switzerland", NO: "Norway", IS: "Iceland",
+  LI: "Liechtenstein", AD: "Andorra", MC: "Monaco", SM: "San Marino",
+  VA: "Vatican City", AL: "Albania", BA: "Bosnia and Herzegovina",
+  ME: "Montenegro", MK: "North Macedonia", RS: "Serbia", MD: "Moldova",
+  UA: "Ukraine", BY: "Belarus", TR: "Turkey", GE: "Georgia",
+  US: "United States", CA: "Canada", MX: "Mexico", BR: "Brazil", AR: "Argentina",
+  CL: "Chile", CO: "Colombia",
+  JP: "Japan", CN: "China", KR: "South Korea", AU: "Australia", NZ: "New Zealand",
+  IN: "India", SG: "Singapore", HK: "Hong Kong", TW: "Taiwan", TH: "Thailand",
+  ZA: "South Africa", IL: "Israel", AE: "United Arab Emirates",
+  SA: "Saudi Arabia", EG: "Egypt",
+}
+
+/**
+ * Resolve shipping zone from a 2-letter country code.
+ * Checks shipping_zone.countries arrays; falls back to "world" catch-all.
+ */
+export async function resolveZoneByCountry(
+  pg: Knex,
+  countryCode: string
+): Promise<{ zone: any; country_code: string; country_name: string }> {
+  const code = countryCode.toUpperCase()
+
+  const zone = await pg("shipping_zone")
+    .whereRaw("? = ANY(countries)", [code])
+    .first()
+
+  if (zone) {
+    return {
+      zone,
+      country_code: code,
+      country_name: COUNTRY_NAMES[code] || code,
+    }
+  }
+
+  const worldZone = await pg("shipping_zone")
+    .where("slug", "world")
+    .first()
+
+  if (!worldZone) {
+    throw new Error(`No shipping zone found for country: ${code}`)
+  }
+
+  return {
+    zone: worldZone,
+    country_code: code,
+    country_name: COUNTRY_NAMES[code] || code,
+  }
+}
+
+/**
+ * Get all supported countries grouped by zone for frontend display.
+ */
+export async function getCountriesByZone(pg: Knex) {
+  const zones = await pg("shipping_zone").orderBy("sort_order", "asc")
+
+  return zones.map((z: any) => ({
+    zone_id: z.id,
+    zone_name: z.name,
+    zone_slug: z.slug,
+    countries: (z.countries || []).map((code: string) => ({
+      code,
+      name: COUNTRY_NAMES[code] || code,
+    })),
+    is_catch_all: !z.countries || z.countries.length === 0,
+  }))
+}
+
 /**
  * Calculate shipping cost for a list of items to a given zone.
+ * Accepts zone_slug directly. Use resolveZoneByCountry() first if you have a country_code.
  */
 export async function calculateShipping(
   pg: Knex,

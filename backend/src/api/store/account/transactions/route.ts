@@ -24,10 +24,12 @@ export async function GET(
         pgConnection.raw("COALESCE(block_item.release_id, transaction.release_id) as release_id"),
         "block_item.lot_number",
         "auction_block.title as block_title",
-        "auction_block.slug as block_slug"
+        "auction_block.slug as block_slug",
+        "shipping_method.tracking_url_pattern"
       )
       .leftJoin("block_item", "block_item.id", "transaction.block_item_id")
       .leftJoin("auction_block", "auction_block.id", "block_item.auction_block_id")
+      .leftJoin("shipping_method", "shipping_method.id", "transaction.shipping_method_id")
       .where("transaction.user_id", customerId)
       .orderBy("transaction.created_at", "desc")
 
@@ -65,6 +67,9 @@ export async function GET(
         created_at: t.created_at,
         release_title: rel?.title || null,
         release_artist: rel?.artist_name || null,
+        tracking_number: t.tracking_number || null,
+        carrier: t.carrier || null,
+        tracking_url_pattern: t.tracking_url_pattern || null,
         block_title: t.block_title || null,
         block_slug: t.block_slug || null,
         lot_number: t.lot_number || null,

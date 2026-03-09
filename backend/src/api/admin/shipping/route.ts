@@ -11,16 +11,18 @@ export async function GET(
   const pg: Knex = req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
 
   try {
-    const [config, itemTypes, zonesWithRates] = await Promise.all([
+    const [config, itemTypes, zonesWithRates, methods] = await Promise.all([
       pg("shipping_config").where("id", "default").first(),
       pg("shipping_item_type").orderBy("sort_order", "asc"),
       getShippingZonesWithRates(pg),
+      pg("shipping_method").orderBy(["zone_id", "sort_order"]),
     ])
 
     res.json({
       config: config || {},
       item_types: itemTypes,
       zones: zonesWithRates,
+      methods,
     })
   } catch (error: any) {
     console.error("[admin/shipping] Error:", error)

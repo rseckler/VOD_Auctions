@@ -54,6 +54,20 @@ type ShippingRate = {
   sort_order: number
 }
 
+type ShippingMethod = {
+  id: string
+  zone_id: string
+  carrier_name: string
+  method_name: string
+  delivery_days_min: number | null
+  delivery_days_max: number | null
+  has_tracking: boolean
+  tracking_url_pattern: string | null
+  is_default: boolean
+  is_active: boolean
+  sort_order: number
+}
+
 type EstimateResult = {
   items_weight_grams: number
   packaging_weight_grams: number
@@ -74,7 +88,38 @@ type EstimateResult = {
   }>
 }
 
-const TABS = ["Settings", "Item Types", "Zones & Rates", "Calculator"] as const
+const CARRIER_TEMPLATES: Record<string, { tracking_url: string; methods: string[] }> = {
+  "Deutsche Post": {
+    tracking_url: "https://www.deutschepost.de/de/s/sendungsverfolgung.html?piececode={tracking}",
+    methods: ["Brief", "Großbrief", "Maxibrief", "Warenpost"],
+  },
+  "DHL Paket": {
+    tracking_url: "https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={tracking}",
+    methods: ["Standard", "Express"],
+  },
+  "DPD": {
+    tracking_url: "https://tracking.dpd.de/status/de_DE/parcel/{tracking}",
+    methods: ["Classic", "Express"],
+  },
+  "Hermes": {
+    tracking_url: "https://www.myhermes.de/empfangen/sendungsverfolgung/sendungsinformation#{tracking}",
+    methods: ["Standard", "Express"],
+  },
+  "GLS": {
+    tracking_url: "https://gls-group.eu/DE/de/paketverfolgung?match={tracking}",
+    methods: ["Standard", "Express"],
+  },
+  "Royal Mail": {
+    tracking_url: "https://www.royalmail.com/track-your-item#/tracking-results/{tracking}",
+    methods: ["International Standard", "International Tracked"],
+  },
+  "USPS": {
+    tracking_url: "https://tools.usps.com/go/TrackConfirmAction?tLabels={tracking}",
+    methods: ["Priority Mail International", "First Class International"],
+  },
+}
+
+const TABS = ["Settings", "Item Types", "Zones & Rates", "Methods", "Calculator"] as const
 type Tab = (typeof TABS)[number]
 
 const ShippingPage = () => {
@@ -98,6 +143,77 @@ const ShippingPage = () => {
   // Edit state for rates
   const [editingRate, setEditingRate] = useState<ShippingRate | null>(null)
 
+  // Edit state for zone countries
+  const [editingZoneCountries, setEditingZoneCountries] = useState<string | null>(null)
+  const [zoneCountryDraft, setZoneCountryDraft] = useState<string[]>([])
+  const [countryFilter, setCountryFilter] = useState("")
+
+  // Methods state
+  const [methods, setMethods] = useState<ShippingMethod[]>([])
+  const [editingMethod, setEditingMethod] = useState<ShippingMethod | null>(null)
+  const [selectedCarrierTemplate, setSelectedCarrierTemplate] = useState("")
+
+  // All available country codes for the picker
+  const ALL_COUNTRIES: Record<string, string> = {
+    DE: "Germany", AT: "Austria", BE: "Belgium", BG: "Bulgaria", HR: "Croatia",
+    CY: "Cyprus", CZ: "Czech Republic", DK: "Denmark", EE: "Estonia", FI: "Finland",
+    FR: "France", GR: "Greece", HU: "Hungary", IE: "Ireland", IT: "Italy",
+    LV: "Latvia", LT: "Lithuania", LU: "Luxembourg", MT: "Malta", NL: "Netherlands",
+    PL: "Poland", PT: "Portugal", RO: "Romania", SK: "Slovakia", SI: "Slovenia",
+    ES: "Spain", SE: "Sweden",
+    GB: "United Kingdom", CH: "Switzerland", NO: "Norway", IS: "Iceland",
+    LI: "Liechtenstein", AD: "Andorra", MC: "Monaco", SM: "San Marino",
+    VA: "Vatican City", AL: "Albania", BA: "Bosnia and Herzegovina",
+    ME: "Montenegro", MK: "North Macedonia", RS: "Serbia", MD: "Moldova",
+    UA: "Ukraine", BY: "Belarus", TR: "Turkey", GE: "Georgia",
+    US: "United States", CA: "Canada", MX: "Mexico", BR: "Brazil", AR: "Argentina",
+    CL: "Chile", CO: "Colombia",
+    JP: "Japan", CN: "China", KR: "South Korea", AU: "Australia", NZ: "New Zealand",
+    IN: "India", SG: "Singapore", HK: "Hong Kong", TW: "Taiwan", TH: "Thailand",
+    ZA: "South Africa", IL: "Israel", AE: "United Arab Emirates",
+    SA: "Saudi Arabia", EG: "Egypt",
+  }
+
+  // Countries already assigned to other zones
+  const getAssignedCountries = (excludeZoneId?: string) => {
+    const assigned = new Set<string>()
+    for (const z of zones) {
+      if (z.id === excludeZoneId) continue
+      for (const c of z.countries || []) {
+        assigned.add(c)
+      }
+    }
+    return assigned
+  }
+
+  // Save zone countries
+  const saveZoneCountries = async (zoneId: string, countries: string[]) => {
+    setSaving(true)
+    try {
+      const zone = zones.find((z) => z.id === zoneId)
+      if (!zone) return
+      await fetch("/admin/shipping/zones", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: zone.id,
+          name: zone.name,
+          slug: zone.slug,
+          countries,
+          sort_order: zone.sort_order,
+        }),
+      })
+      setEditingZoneCountries(null)
+      setCountryFilter("")
+      await fetchAll()
+    } catch (err) {
+      console.error("Failed to save zone countries:", err)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const fetchAll = async () => {
     try {
       const res = await fetch("/admin/shipping", { credentials: "include" })
@@ -105,6 +221,7 @@ const ShippingPage = () => {
       setConfig(data.config)
       setItemTypes(data.item_types || [])
       setZones(data.zones || [])
+      setMethods(data.methods || [])
     } catch (err) {
       console.error("Failed to load shipping config:", err)
     } finally {
@@ -198,6 +315,55 @@ const ShippingPage = () => {
       await fetchAll()
     } catch (err) {
       console.error("Failed to delete rate:", err)
+    }
+  }
+
+  // Save shipping method
+  const saveMethod = async (method: Partial<ShippingMethod>) => {
+    setSaving(true)
+    try {
+      await fetch("/admin/shipping/methods", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(method),
+      })
+      setEditingMethod(null)
+      setSelectedCarrierTemplate("")
+      await fetchAll()
+    } catch (err) {
+      console.error("Failed to save method:", err)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Delete shipping method
+  const deleteMethod = async (id: string) => {
+    if (!confirm("Delete this shipping method?")) return
+    try {
+      await fetch(`/admin/shipping/methods?id=${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      })
+      await fetchAll()
+    } catch (err) {
+      console.error("Failed to delete method:", err)
+    }
+  }
+
+  // Apply carrier template
+  const applyCarrierTemplate = (carrierName: string) => {
+    setSelectedCarrierTemplate(carrierName)
+    const template = CARRIER_TEMPLATES[carrierName]
+    if (template && editingMethod) {
+      setEditingMethod({
+        ...editingMethod,
+        carrier_name: carrierName,
+        tracking_url_pattern: template.tracking_url,
+        has_tracking: true,
+        method_name: template.methods[0] || "Standard",
+      })
     }
   }
 
@@ -492,12 +658,142 @@ const ShippingPage = () => {
               <div className="flex items-center gap-3 mb-3">
                 <Heading level="h3">{zone.name}</Heading>
                 <Badge color="grey">{zone.slug}</Badge>
-                {zone.countries && (
+                {zone.countries && zone.countries.length > 0 ? (
                   <Text className="text-ui-fg-subtle text-xs">
                     {zone.countries.length} countries
                   </Text>
+                ) : (
+                  <Badge color="blue">Catch-all (all other countries)</Badge>
                 )}
+                <Button
+                  size="small"
+                  variant="secondary"
+                  onClick={() => {
+                    setEditingZoneCountries(zone.id)
+                    setZoneCountryDraft(zone.countries || [])
+                    setCountryFilter("")
+                  }}
+                >
+                  Edit Countries
+                </Button>
               </div>
+
+              {/* Country tags */}
+              {zone.countries && zone.countries.length > 0 && editingZoneCountries !== zone.id && (
+                <div className="flex flex-wrap gap-1 mb-3">
+                  {zone.countries.sort().map((code: string) => (
+                    <Badge key={code} color="grey" className="text-xs">
+                      {code} — {ALL_COUNTRIES[code] || code}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+
+              {/* Country picker (editing mode) */}
+              {editingZoneCountries === zone.id && (
+                <div className="bg-ui-bg-subtle border border-ui-border-base rounded p-4 mb-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Heading level="h3">Edit Countries — {zone.name}</Heading>
+                    <div className="flex gap-2">
+                      <Button
+                        size="small"
+                        onClick={() => saveZoneCountries(zone.id, zoneCountryDraft)}
+                        disabled={saving}
+                      >
+                        {saving ? "Saving..." : "Save Countries"}
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="secondary"
+                        onClick={() => {
+                          setEditingZoneCountries(null)
+                          setCountryFilter("")
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Selected countries */}
+                  <div>
+                    <Label size="xsmall">
+                      Selected ({zoneCountryDraft.length})
+                    </Label>
+                    <div className="flex flex-wrap gap-1 mt-1 min-h-[32px]">
+                      {zoneCountryDraft.length === 0 ? (
+                        <Text className="text-ui-fg-subtle text-xs italic">
+                          No countries — this zone will be a catch-all for unlisted countries
+                        </Text>
+                      ) : (
+                        zoneCountryDraft.sort().map((code) => (
+                          <button
+                            key={code}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-ui-bg-base border border-ui-border-base hover:border-ui-border-strong"
+                            onClick={() =>
+                              setZoneCountryDraft(zoneCountryDraft.filter((c) => c !== code))
+                            }
+                          >
+                            {code} — {ALL_COUNTRIES[code] || code}
+                            <span className="text-ui-fg-subtle">×</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Search + add */}
+                  <div>
+                    <Input
+                      size="small"
+                      placeholder="Search countries..."
+                      value={countryFilter}
+                      onChange={(e) => setCountryFilter(e.target.value)}
+                    />
+                  </div>
+                  <div className="max-h-[200px] overflow-y-auto border border-ui-border-base rounded p-2 space-y-0.5">
+                    {Object.entries(ALL_COUNTRIES)
+                      .filter(([code, name]) => {
+                        const q = countryFilter.toLowerCase()
+                        if (!q) return true
+                        return code.toLowerCase().includes(q) || name.toLowerCase().includes(q)
+                      })
+                      .filter(([code]) => {
+                        // Hide already assigned to other zones
+                        const assigned = getAssignedCountries(zone.id)
+                        return !assigned.has(code)
+                      })
+                      .sort(([, a], [, b]) => a.localeCompare(b))
+                      .map(([code, name]) => {
+                        const selected = zoneCountryDraft.includes(code)
+                        return (
+                          <button
+                            key={code}
+                            className={`w-full text-left px-2 py-1 rounded text-xs flex items-center gap-2 ${
+                              selected
+                                ? "bg-ui-bg-base-pressed font-medium"
+                                : "hover:bg-ui-bg-base-hover"
+                            }`}
+                            onClick={() => {
+                              if (selected) {
+                                setZoneCountryDraft(zoneCountryDraft.filter((c) => c !== code))
+                              } else {
+                                setZoneCountryDraft([...zoneCountryDraft, code])
+                              }
+                            }}
+                          >
+                            <span className={`w-4 h-4 rounded border flex items-center justify-center text-[10px] ${
+                              selected ? "bg-ui-button-inverted text-ui-fg-on-inverted border-ui-button-inverted" : "border-ui-border-base"
+                            }`}>
+                              {selected && "✓"}
+                            </span>
+                            {code} — {name}
+                          </button>
+                        )
+                      })}
+                  </div>
+                </div>
+              )}
 
               <Table>
                 <Table.Header>
@@ -636,7 +932,332 @@ const ShippingPage = () => {
         </div>
       )}
 
-      {/* Tab 4: Calculator */}
+      {/* Tab 4: Methods */}
+      {activeTab === "Methods" && (
+        <div className="space-y-8">
+          <div className="flex justify-between items-start">
+            <Text className="text-ui-fg-subtle">
+              Configure shipping methods per zone. Each zone can have multiple carriers with different delivery times and tracking options.
+            </Text>
+          </div>
+
+          {zones.map((zone) => {
+            const zoneMethods = methods.filter((m) => m.zone_id === zone.id)
+            return (
+              <div key={zone.id}>
+                <div className="flex items-center gap-3 mb-3">
+                  <Heading level="h3">{zone.name}</Heading>
+                  <Badge color="grey">{zone.slug}</Badge>
+                  <Text className="text-ui-fg-subtle text-xs">
+                    {zoneMethods.length} method{zoneMethods.length !== 1 ? "s" : ""}
+                  </Text>
+                </div>
+
+                {/* Method editor */}
+                {editingMethod && editingMethod.zone_id === zone.id && (
+                  <div className="bg-ui-bg-subtle p-4 rounded mb-4 space-y-3 border border-ui-border-base">
+                    <Heading level="h3">
+                      {editingMethod.id ? "Edit Method" : "New Method"}
+                    </Heading>
+
+                    {/* Carrier template selector */}
+                    {!editingMethod.id && (
+                      <div>
+                        <Label size="xsmall">Carrier Template</Label>
+                        <Select
+                          value={selectedCarrierTemplate}
+                          onValueChange={applyCarrierTemplate}
+                        >
+                          <Select.Trigger>
+                            <Select.Value placeholder="Select a carrier template..." />
+                          </Select.Trigger>
+                          <Select.Content>
+                            {Object.keys(CARRIER_TEMPLATES).map((name) => (
+                              <Select.Item key={name} value={name}>
+                                {name}
+                              </Select.Item>
+                            ))}
+                          </Select.Content>
+                        </Select>
+                        <Text className="text-ui-fg-subtle text-xs mt-1">
+                          Pre-fills carrier name, tracking URL, and method suggestions
+                        </Text>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label size="xsmall">Carrier Name</Label>
+                        <Input
+                          size="small"
+                          value={editingMethod.carrier_name}
+                          onChange={(e) =>
+                            setEditingMethod({ ...editingMethod, carrier_name: e.target.value })
+                          }
+                          placeholder="e.g. Deutsche Post"
+                        />
+                      </div>
+                      <div>
+                        <Label size="xsmall">Method Name</Label>
+                        {selectedCarrierTemplate && CARRIER_TEMPLATES[selectedCarrierTemplate] ? (
+                          <Select
+                            value={editingMethod.method_name}
+                            onValueChange={(v) =>
+                              setEditingMethod({ ...editingMethod, method_name: v })
+                            }
+                          >
+                            <Select.Trigger>
+                              <Select.Value />
+                            </Select.Trigger>
+                            <Select.Content>
+                              {CARRIER_TEMPLATES[selectedCarrierTemplate].methods.map((m) => (
+                                <Select.Item key={m} value={m}>
+                                  {m}
+                                </Select.Item>
+                              ))}
+                            </Select.Content>
+                          </Select>
+                        ) : (
+                          <Input
+                            size="small"
+                            value={editingMethod.method_name}
+                            onChange={(e) =>
+                              setEditingMethod({ ...editingMethod, method_name: e.target.value })
+                            }
+                            placeholder="e.g. Standard, Express"
+                          />
+                        )}
+                      </div>
+                      <div>
+                        <Label size="xsmall">Delivery Days (min)</Label>
+                        <Input
+                          size="small"
+                          type="number"
+                          value={editingMethod.delivery_days_min ?? ""}
+                          onChange={(e) =>
+                            setEditingMethod({
+                              ...editingMethod,
+                              delivery_days_min: e.target.value ? parseInt(e.target.value) : null,
+                            })
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label size="xsmall">Delivery Days (max)</Label>
+                        <Input
+                          size="small"
+                          type="number"
+                          value={editingMethod.delivery_days_max ?? ""}
+                          onChange={(e) =>
+                            setEditingMethod({
+                              ...editingMethod,
+                              delivery_days_max: e.target.value ? parseInt(e.target.value) : null,
+                            })
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label size="xsmall">Sort Order</Label>
+                        <Input
+                          size="small"
+                          type="number"
+                          value={editingMethod.sort_order}
+                          onChange={(e) =>
+                            setEditingMethod({
+                              ...editingMethod,
+                              sort_order: parseInt(e.target.value) || 0,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="flex items-end gap-4">
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="has-tracking"
+                            checked={editingMethod.has_tracking}
+                            onCheckedChange={(checked) =>
+                              setEditingMethod({ ...editingMethod, has_tracking: !!checked })
+                            }
+                          />
+                          <Label htmlFor="has-tracking" size="xsmall">
+                            Tracking
+                          </Label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="is-default"
+                            checked={editingMethod.is_default}
+                            onCheckedChange={(checked) =>
+                              setEditingMethod({ ...editingMethod, is_default: !!checked })
+                            }
+                          />
+                          <Label htmlFor="is-default" size="xsmall">
+                            Default
+                          </Label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="is-active"
+                            checked={editingMethod.is_active}
+                            onCheckedChange={(checked) =>
+                              setEditingMethod({ ...editingMethod, is_active: !!checked })
+                            }
+                          />
+                          <Label htmlFor="is-active" size="xsmall">
+                            Active
+                          </Label>
+                        </div>
+                      </div>
+                    </div>
+
+                    {editingMethod.has_tracking && (
+                      <div>
+                        <Label size="xsmall">Tracking URL Pattern</Label>
+                        <Input
+                          size="small"
+                          value={editingMethod.tracking_url_pattern || ""}
+                          onChange={(e) =>
+                            setEditingMethod({
+                              ...editingMethod,
+                              tracking_url_pattern: e.target.value || null,
+                            })
+                          }
+                          placeholder="https://...{tracking}..."
+                        />
+                        <Text className="text-ui-fg-subtle text-xs mt-1">
+                          Use {"{tracking}"} as placeholder for the tracking number
+                        </Text>
+                      </div>
+                    )}
+
+                    <div className="flex gap-2">
+                      <Button
+                        size="small"
+                        onClick={() => saveMethod(editingMethod)}
+                        disabled={saving || !editingMethod.carrier_name || !editingMethod.method_name}
+                      >
+                        {saving ? "Saving..." : "Save"}
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="secondary"
+                        onClick={() => {
+                          setEditingMethod(null)
+                          setSelectedCarrierTemplate("")
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Methods table */}
+                {zoneMethods.length > 0 && (
+                  <Table>
+                    <Table.Header>
+                      <Table.Row>
+                        <Table.HeaderCell>#</Table.HeaderCell>
+                        <Table.HeaderCell>Carrier</Table.HeaderCell>
+                        <Table.HeaderCell>Method</Table.HeaderCell>
+                        <Table.HeaderCell>Delivery</Table.HeaderCell>
+                        <Table.HeaderCell>Tracking</Table.HeaderCell>
+                        <Table.HeaderCell>Status</Table.HeaderCell>
+                        <Table.HeaderCell></Table.HeaderCell>
+                      </Table.Row>
+                    </Table.Header>
+                    <Table.Body>
+                      {zoneMethods.map((m) => (
+                        <Table.Row key={m.id}>
+                          <Table.Cell>
+                            <Text className="text-xs text-ui-fg-subtle">{m.sort_order}</Text>
+                          </Table.Cell>
+                          <Table.Cell>
+                            <Text className="font-medium text-sm">{m.carrier_name}</Text>
+                          </Table.Cell>
+                          <Table.Cell>
+                            <div className="flex items-center gap-1.5">
+                              <Text className="text-sm">{m.method_name}</Text>
+                              {m.is_default && <Badge color="green">Default</Badge>}
+                            </div>
+                          </Table.Cell>
+                          <Table.Cell>
+                            <Text className="text-xs text-ui-fg-subtle">
+                              {m.delivery_days_min && m.delivery_days_max
+                                ? `${m.delivery_days_min}–${m.delivery_days_max} days`
+                                : m.delivery_days_min
+                                  ? `${m.delivery_days_min}+ days`
+                                  : "—"}
+                            </Text>
+                          </Table.Cell>
+                          <Table.Cell>
+                            {m.has_tracking ? (
+                              <Badge color="blue">Yes</Badge>
+                            ) : (
+                              <Text className="text-ui-fg-subtle text-xs">No</Text>
+                            )}
+                          </Table.Cell>
+                          <Table.Cell>
+                            {m.is_active ? (
+                              <Badge color="green">Active</Badge>
+                            ) : (
+                              <Badge color="grey">Inactive</Badge>
+                            )}
+                          </Table.Cell>
+                          <Table.Cell>
+                            <div className="flex gap-1">
+                              <Button
+                                size="small"
+                                variant="secondary"
+                                onClick={() => setEditingMethod({ ...m })}
+                              >
+                                Edit
+                              </Button>
+                              <Button
+                                size="small"
+                                variant="secondary"
+                                onClick={() => deleteMethod(m.id)}
+                              >
+                                Del
+                              </Button>
+                            </div>
+                          </Table.Cell>
+                        </Table.Row>
+                      ))}
+                    </Table.Body>
+                  </Table>
+                )}
+
+                <Button
+                  size="small"
+                  variant="secondary"
+                  className="mt-2"
+                  onClick={() => {
+                    setEditingMethod({
+                      id: "",
+                      zone_id: zone.id,
+                      carrier_name: "",
+                      method_name: "",
+                      delivery_days_min: null,
+                      delivery_days_max: null,
+                      has_tracking: false,
+                      tracking_url_pattern: null,
+                      is_default: zoneMethods.length === 0,
+                      is_active: true,
+                      sort_order: (zoneMethods[zoneMethods.length - 1]?.sort_order || 0) + 1,
+                    })
+                    setSelectedCarrierTemplate("")
+                  }}
+                >
+                  + Add Method
+                </Button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Tab 5: Calculator */}
       {activeTab === "Calculator" && (
         <div className="max-w-lg space-y-4">
           <Text className="text-ui-fg-subtle">

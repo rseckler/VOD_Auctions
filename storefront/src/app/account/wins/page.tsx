@@ -21,10 +21,11 @@ import {
 import { toast } from "sonner"
 import type { WinEntry, Transaction } from "@/types"
 
-const SHIPPING_RATES = {
-  de: { label: "Germany — €4.99", price: 4.99 },
-  eu: { label: "Europe — €9.99", price: 9.99 },
-  world: { label: "Worldwide — €14.99", price: 14.99 },
+type ShippingCountry = {
+  code: string
+  name: string
+  zone_slug: string
+  zone_name: string
 }
 
 export default function WinsPage() {
@@ -33,7 +34,9 @@ export default function WinsPage() {
   const [transactions, setTransactions] = useState<Record<string, Transaction>>({})
   const [loading, setLoading] = useState(true)
   const [payingItemId, setPayingItemId] = useState<string | null>(null)
-  const [shippingZones, setShippingZones] = useState<Record<string, string>>({})
+  const [shippingCountries, setShippingCountries] = useState<Record<string, string>>({})
+  const [countries, setCountries] = useState<ShippingCountry[]>([])
+  const [hasCatchAll, setHasCatchAll] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -59,12 +62,18 @@ export default function WinsPage() {
         Authorization: `Bearer ${token}`,
       }
 
-      const [winsRes, txRes] = await Promise.all([
+      const [winsRes, txRes, shippingRes] = await Promise.all([
         fetch(`${MEDUSA_URL}/store/account/wins`, { headers }).then((r) => r.json()),
         fetch(`${MEDUSA_URL}/store/account/transactions`, { headers }).then((r) => r.json()),
+        fetch(`${MEDUSA_URL}/store/shipping`, { headers }).then((r) => r.json()).catch(() => null),
       ])
 
       setWins(winsRes.wins || [])
+
+      if (shippingRes) {
+        if (shippingRes.countries) setCountries(shippingRes.countries)
+        if (shippingRes.has_catch_all) setHasCatchAll(true)
+      }
 
       const txMap: Record<string, Transaction> = {}
       for (const tx of txRes.transactions || []) {
@@ -82,8 +91,8 @@ export default function WinsPage() {
     const token = getToken()
     if (!token) return
 
-    const zone = shippingZones[itemId]
-    if (!zone) {
+    const countryCode = shippingCountries[itemId]
+    if (!countryCode) {
       toast.error("Please select a shipping destination first.")
       return
     }
@@ -99,7 +108,7 @@ export default function WinsPage() {
         },
         body: JSON.stringify({
           block_item_id: itemId,
-          shipping_zone: zone,
+          country_code: countryCode,
         }),
       })
 
@@ -188,7 +197,18 @@ export default function WinsPage() {
         {tx.shipping_status === "shipped" && tx.tracking_number && (
           <p className="text-[10px] text-muted-foreground mt-1.5">
             {tx.carrier && <span>{tx.carrier}: </span>}
-            <span className="font-mono">{tx.tracking_number}</span>
+            {tx.tracking_url_pattern ? (
+              <a
+                href={tx.tracking_url_pattern.replace("{tracking}", tx.tracking_number)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-mono text-primary hover:underline"
+              >
+                {tx.tracking_number}
+              </a>
+            ) : (
+              <span className="font-mono">{tx.tracking_number}</span>
+            )}
           </p>
         )}
       </div>
@@ -316,26 +336,41 @@ export default function WinsPage() {
                   {needsPayment && (
                     <div className="flex flex-col gap-1.5 items-end">
                       <Select
-                        value={shippingZones[win.item.id] || ""}
+                        value={shippingCountries[win.item.id] || ""}
                         onValueChange={(v) =>
-                          setShippingZones((prev) => ({ ...prev, [win.item.id]: v }))
+                          setShippingCountries((prev) => ({ ...prev, [win.item.id]: v }))
                         }
                       >
-                        <SelectTrigger className="w-[170px] h-8 text-xs">
+                        <SelectTrigger className="w-[180px] h-8 text-xs">
                           <SelectValue placeholder="Ship to..." />
                         </SelectTrigger>
-                        <SelectContent>
-                          {Object.entries(SHIPPING_RATES).map(([key, rate]) => (
-                            <SelectItem key={key} value={key}>
-                              {rate.label}
-                            </SelectItem>
-                          ))}
+                        <SelectContent className="max-h-[300px]">
+                          {countries.length > 0
+                            ? countries.map((c) => (
+                                <SelectItem key={c.code} value={c.code}>
+                                  {c.name}
+                                </SelectItem>
+                              ))
+                            : ["DE", "AT", "FR", "NL", "US", "GB"].map((code) => {
+                                const names: Record<string, string> = {
+                                  DE: "Germany", AT: "Austria", FR: "France",
+                                  NL: "Netherlands", US: "United States", GB: "United Kingdom",
+                                }
+                                return (
+                                  <SelectItem key={code} value={code}>
+                                    {names[code]}
+                                  </SelectItem>
+                                )
+                              })}
+                          {hasCatchAll && (
+                            <SelectItem value="OTHER">Other country</SelectItem>
+                          )}
                         </SelectContent>
                       </Select>
                       <Button
                         size="sm"
                         onClick={() => handlePay(win.item.id)}
-                        disabled={!shippingZones[win.item.id] || payingItemId === win.item.id}
+                        disabled={!shippingCountries[win.item.id] || payingItemId === win.item.id}
                         className="bg-[#d4a54a] hover:bg-[#c49a3a] text-black h-8"
                       >
                         <CreditCard className="w-3.5 h-3.5 mr-1.5" />

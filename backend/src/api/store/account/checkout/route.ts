@@ -3,7 +3,7 @@ import { ContainerRegistrationKeys, generateEntityId } from "@medusajs/framework
 import { Knex } from "knex"
 import { stripe } from "../../../../lib/stripe"
 import { isAvailableForDirectPurchase } from "../../../../lib/auction-helpers"
-import { calculateShipping, getShippingConfig } from "../../../../lib/shipping"
+import { calculateShipping, getShippingConfig, resolveZoneByCountry } from "../../../../lib/shipping"
 
 const APP_URL = process.env.STOREFRONT_URL || "http://localhost:3000"
 
@@ -41,6 +41,7 @@ export async function POST(
   // Backward compatibility: old format { block_item_id, shipping_zone }
   let items: CheckoutItem[]
   let shipping_zone: string
+  let shipping_country: string | null = null
 
   const body = req.body as any
   if (body.block_item_id && !body.items) {
@@ -51,15 +52,27 @@ export async function POST(
     shipping_zone = body.shipping_zone
   }
 
+  // Support country_code: resolve to zone_slug
+  if (body.country_code && !shipping_zone) {
+    try {
+      const resolved = await resolveZoneByCountry(pgConnection, body.country_code)
+      shipping_zone = resolved.zone.slug
+      shipping_country = resolved.country_code
+    } catch {
+      res.status(400).json({ message: `Invalid country_code: ${body.country_code}` })
+      return
+    }
+  }
+
   if (!items || items.length === 0 || !shipping_zone) {
-    res.status(400).json({ message: "items and shipping_zone are required" })
+    res.status(400).json({ message: "items and shipping_zone (or country_code) are required" })
     return
   }
 
   // Validate zone exists
   const zoneCheck = await pgConnection("shipping_zone").where("slug", shipping_zone).first()
   if (!zoneCheck) {
-    res.status(400).json({ message: "Invalid shipping_zone. Must be: de, eu, or world" })
+    res.status(400).json({ message: `Invalid shipping zone: ${shipping_zone}` })
     return
   }
 
@@ -247,6 +260,19 @@ export async function POST(
       })
     }
 
+    // Store shipping country and method on transactions BEFORE insert
+    if (shipping_country) {
+      for (const tx of transactionInserts) {
+        tx.shipping_country = shipping_country
+      }
+    }
+    const shipping_method_id = body.shipping_method_id
+    if (shipping_method_id) {
+      for (const tx of transactionInserts) {
+        tx.shipping_method_id = shipping_method_id
+      }
+    }
+
     // Delete existing pending transactions for these auction items (avoid duplicates on retry)
     const auctionBlockItemIds = transactionInserts.filter(t => t.block_item_id).map(t => t.block_item_id)
     if (auctionBlockItemIds.length > 0) {
@@ -265,12 +291,14 @@ export async function POST(
       .where("id", customerId)
       .first()
 
-    // Build Stripe session
-    const allowedCountries = shipping_zone === "de"
-      ? (["DE"] as const)
-      : shipping_zone === "eu"
-        ? EU_COUNTRIES
-        : undefined
+    // Build Stripe session — restrict to selected country if known
+    const allowedCountries = shipping_country
+      ? ([shipping_country] as any)
+      : shipping_zone === "de"
+        ? (["DE"] as const)
+        : shipping_zone === "eu"
+          ? EU_COUNTRIES
+          : undefined
 
     const sessionConfig: any = {
       mode: "payment",
