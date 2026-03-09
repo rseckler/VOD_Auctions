@@ -13,9 +13,35 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Sprache:** Storefront und Admin-UI komplett auf Englisch (seit 2026-03-03)
 
 **Created:** 2026-02-10
-**Last Updated:** 2026-03-08
+**Last Updated:** 2026-03-09
 
-### Letzte Änderungen (2026-03-08)
+### Letzte Änderungen (2026-03-09)
+- **Brevo Behavior Tracking Integration:**
+  - **BrevoTracker.tsx:** Consent-gated (Marketing-Cookie) Brevo JS Tracker, auto-identifiziert eingeloggte User (Email, Name, Medusa-ID), trackt Page Views bei Route-Wechsel
+  - **brevo-tracking.ts:** 8 Event-Helper: `productViewed`, `addToCart`, `cartAbandoned`, `checkoutStarted`, `orderCompleted`, `bidPlaced`, `auctionViewed`, `catalogSearch`
+  - **Tracking-Hooks:** `DirectPurchaseButton` (add_to_cart), `ItemBidSection` (bid_placed), `checkout/page.tsx` (checkout_started + order_completed)
+  - **Cookie Consent:** Marketing-Text aktualisiert ("Behavior tracking and personalized recommendations")
+  - **Datenschutz:** Brevo-Sektion um Behavior-Tracking-Daten erweitert
+  - **Cookies-Seite:** Brevo Cookies (sib_cuid, sib_sesn) dokumentiert, Marketing-Sektion aktiviert
+  - **Env:** `NEXT_PUBLIC_BREVO_CLIENT_KEY` in Storefront `.env.local` auf VPS
+  - **VPS:** Storefront deployed
+- **CRM Import tape-mag.com:** 3.580 Legacy-User aus tape-mag.com erfolgreich in Brevo importiert (List ID 5, NEWSLETTER_OPTIN=false, GDPR-konform)
+- **Feature B+C: Per-Country Shipping, Carrier Management, Order History:**
+  - **shipping_method Tabelle:** Per-Zone Carriers mit Tracking-URL-Patterns, Delivery Days, Default/Active Flags
+  - **Admin Shipping Methods Tab:** CRUD für Carrier/Methods pro Zone, 7 Carrier-Templates (Deutsche Post, DHL, DPD, Hermes, GLS, Royal Mail, USPS) mit vorkonfigurierten Tracking-URLs
+  - **Admin API:** `GET/POST/DELETE /admin/shipping/methods` — Erstellen, Aktualisieren, Löschen von Versandmethoden
+  - **Store Shipping API:** Liefert jetzt `methods` gruppiert nach Zone-ID für Frontend-Auswahl
+  - **Checkout Method Selection:** Radio-Buttons für Versandmethoden wenn Zone mehrere Carrier hat, Auto-Selection der Default-Methode
+  - **shipping_method_id:** Wird auf Transaction gespeichert, Checkout akzeptiert `shipping_method_id` im Request Body
+  - **shipping_country Bug Fix:** War nach DB-Insert gesetzt (nie gespeichert), jetzt korrekt VOR dem Insert
+  - **Order History Page:** `/account/orders` — Bestellungen gruppiert nach `order_group_id`, Cover-Thumbnails, expandable Detail, Progress Bar (Paid→Shipped→Delivered), Status-Badges
+  - **Clickable Tracking Links:** Tracking-Nummern auf Orders + Wins Pages sind jetzt klickbare Links (via `tracking_url_pattern` aus shipping_method)
+  - **Neue Dateien:** `shipping/methods/route.ts`, `account/orders/route.ts`, `account/orders/page.tsx`, `20260308_shipping_methods.sql`
+  - **Geänderte Dateien:** `store/shipping/route.ts`, `checkout/route.ts`, `transactions/route.ts`, `orders/route.ts`, `checkout/page.tsx`, `wins/page.tsx`, `types/index.ts`, `admin/shipping/page.tsx`
+  - **DB Migration:** `shipping_method` Tabelle + FK auf `shipping_rate` + `transaction`, 6 Default-Methods geseeded
+  - **VPS:** Backend + Storefront deployed
+
+### Frühere Änderungen (2026-03-08)
 - **Direct Purchase für alle User geöffnet + 13.571 Artikel aktiviert:**
   - **hasWonAuction-Gate entfernt:** Warenkorb und Direktkauf stehen jetzt allen eingeloggten Usern zur Verfügung (vorher nur nach gewonnener Auktion)
   - **Backend:** `hasWonAuction`-Check aus Cart POST API entfernt, Status API liefert nur noch `cart_count` (kein `has_won_auction` mehr)
@@ -126,7 +152,8 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
     - Payment completed → update TOTAL_PURCHASES, TOTAL_SPENT
     - Shipping update → update LAST_SHIPMENT_DATE / LAST_DELIVERY_DATE
   - **Route Hooks:** 1-line async CRM hooks in 5 routes (send-welcome, bids, auction-lifecycle, stripe webhook, admin transactions)
-  - **Batch Import:** `scripts/crm_import.py` — Phase 1: vod-auctions (3 customers synced), Phase 2: tape-mag (3,577 ready), Phase 3: vod-records (manual CSV)
+  - **Batch Import:** `scripts/crm_import.py` — Phase 1: vod-auctions (3 customers synced), Phase 2: tape-mag (3,580 synced ✅), Phase 3: vod-records (manual CSV)
+  - **Behavior Tracking:** `BrevoTracker.tsx` — Consent-gated JS Tracker für Page Views, User Identification, E-Commerce Events (add_to_cart, bid_placed, checkout_started, order_completed)
   - **Brevo Account:** VOD Records (free plan, 300 emails/day)
   - **Lists:** VOD Auctions Customers (id=4), TAPE-MAG Customers (id=5)
   - **17 Custom Attributes:** PLATFORM_ORIGIN, MEDUSA_CUSTOMER_ID, TOTAL_PURCHASES, TOTAL_SPENT, TOTAL_BIDS_PLACED, TOTAL_AUCTIONS_WON, CUSTOMER_SEGMENT, etc.
@@ -246,7 +273,7 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
   - **Oversized-Erkennung:** Vinyl LPs (>25cm) automatisch als "oversized" → DHL Paket statt Deutsche Post
   - **Format-Auto-Mapping:** Release.format_group → shipping_item_type (z.B. LP→260g, CASSETTE→80g, CD→110g)
   - **Admin UI:** 4-Tab Shipping-Seite (Settings, Item Types, Zones & Rates, Calculator) unter `/admin/shipping`
-  - **Admin APIs:** `/admin/shipping` (overview), `/admin/shipping/config`, `/admin/shipping/item-types`, `/admin/shipping/zones`, `/admin/shipping/rates`, `/admin/shipping/estimate`
+  - **Admin APIs:** `/admin/shipping` (overview), `/admin/shipping/config`, `/admin/shipping/item-types`, `/admin/shipping/zones`, `/admin/shipping/rates`, `/admin/shipping/methods`, `/admin/shipping/estimate`
   - **Store API:** `GET /store/shipping` (Zonen für Frontend), `POST /store/shipping` (Schätzung mit release_ids)
   - **Checkout:** Dynamische Berechnung mit Fallback auf Flat-Rates, Free-Shipping-Threshold Support
   - **Margin:** Konfigurierbare Marge auf berechnete Versandkosten
@@ -469,13 +496,14 @@ Shared DB für tape-mag-mvp + VOD_Auctions. Schema enthält 24 Tabellen (14 Basi
 - `auction_block` — Themen-Auktionsblöcke (status, timing, content, settings, results)
 - `block_item` — Zuordnung Release → Block (Startpreis, current_price, bid_count, lot_end_time, Status)
 - `bid` — Alle Gebote (amount, max_amount, is_winning, is_outbid)
-- `transaction` — Zahlungen & Versand (RSE-76: Stripe, status, shipping_status, Adresse; RSE-111: +release_id, +item_type, +order_group_id, block_item_id nullable)
+- `transaction` — Zahlungen & Versand (RSE-76: Stripe, status, shipping_status, Adresse; RSE-111: +release_id, +item_type, +order_group_id, block_item_id nullable; +shipping_method_id, +shipping_country)
 - `cart_item` — Warenkorb für Direktkäufe (RSE-111: user_id, release_id, price-Snapshot)
 - `related_blocks` — Verwandte Blöcke
 - `shipping_item_type` — 13 Artikeltypen mit Gewichten (RSE-103)
 - `shipping_zone` — 3 Versandzonen DE/EU/World (RSE-103)
 - `shipping_rate` — 15 Gewichtsstufen-Tarife (RSE-103)
 - `shipping_config` — Globale Versand-Einstellungen (RSE-103)
+- `shipping_method` — Per-Zone Carrier/Methoden mit Tracking-URL-Patterns (carrier_name, method_name, delivery_days, has_tracking, tracking_url_pattern, is_default, is_active)
 - `site_config` — Globale Site-Einstellungen (catalog_visibility: all/visible)
 - `entity_content` — CMS-Content für Entity-Seiten (RSE-147: description, short_description, genre_tags TEXT[], external_links JSONB, is_published, ai_generated)
 
@@ -622,6 +650,7 @@ VOD_Auctions/
 │   │   │           ├── status/route.ts       # GET: cart_count (RSE-111)
 │   │   │           ├── checkout/route.ts     # POST: Combined Checkout (RSE-111, multi-item Stripe)
 │   │   │           ├── newsletter/route.ts   # GET/POST: Newsletter opt-in/opt-out (RSE-128)
+│   │   │           ├── orders/route.ts        # GET: Order History (grouped by order_group_id)
 │   │   │           └── transactions/route.ts # GET: Meine Transactions (RSE-76)
 │   │   │   ├── webhooks/
 │   │   │   │   ├── stripe/route.ts  # POST: Stripe Webhook (RSE-76)
@@ -676,7 +705,8 @@ VOD_Auctions/
 │   │   │       ├── bids/page.tsx    # Meine Gebote (gruppiert, Status-Badges)
 │   │   │       ├── wins/page.tsx    # Gewonnene Items + Pay + Combined Checkout Banner
 │   │   │       ├── cart/page.tsx    # Warenkorb (RSE-111)
-│   │   │       ├── checkout/page.tsx # Combined Checkout (RSE-111)
+│   │   │       ├── checkout/page.tsx # Combined Checkout (RSE-111) + method selection
+│   │   │       ├── orders/page.tsx  # Order History (grouped, expandable, tracking links)
 │   │   │       ├── settings/page.tsx # Profil-Informationen + Newsletter Toggle
 │   │   │       └── feedback/page.tsx # Post-Delivery Feedback
 │   │   ├── components/
@@ -699,12 +729,14 @@ VOD_Auctions/
 │   │   │   ├── CatalogRelatedSection.tsx # Related-Tabs (by Artist/Label) — Katalog
 │   │   │   ├── CookieConsent.tsx      # GDPR Cookie Consent Banner (RSE-78)
 │   │   │   ├── GoogleAnalytics.tsx    # GA4 Script Loader, consent-gated (RSE-106/78)
+│   │   │   ├── BrevoTracker.tsx       # Brevo Behavior Tracker, consent-gated (Marketing Cookie)
 │   │   │   └── EmptyState.tsx        # Reusable Empty State
 │   │   └── lib/
 │   │       ├── api.ts           # medusaFetch Helper
 │   │       ├── auth.ts          # Medusa Auth Helpers
 │   │       ├── motion.ts        # Framer Motion Variants
 │   │       ├── analytics.ts     # Google Analytics event tracking helpers (RSE-106)
+│   │       ├── brevo-tracking.ts # Brevo behavior tracking helpers (8 events)
 │   │       ├── utils.ts         # cn() Helper + cleanCredits() for legacy data cleanup
 │   │       └── supabase.ts      # Supabase Client (Realtime)
 │   └── node_modules/
@@ -1000,9 +1032,13 @@ psycopg2-binary, python-dotenv, requests, mysql-connector-python
 - **Zones:** Germany (DE), EU (26 countries), Worldwide
 - **Free Shipping:** Configurable threshold (admin setting)
 - **Margin:** Configurable percentage added to calculated cost
-- **Admin:** `/admin/shipping` — 4-tab config page (Settings, Item Types, Zones & Rates, Calculator)
+- **Admin:** `/admin/shipping` — 5-tab config page (Settings, Item Types, Zones & Rates, Methods, Calculator)
+- **Methods:** Per-zone carrier management with tracking URL patterns, 7 carrier templates (Deutsche Post, DHL, DPD, Hermes, GLS, Royal Mail, USPS)
+- **Checkout:** Country dropdown → zone resolution → method selection (radio buttons if multiple) → shipping cost estimate
+- **Tracking:** Clickable tracking links on orders/wins pages using `tracking_url_pattern.replace("{tracking}", tracking_number)`
 - **Fallback:** Flat rates (DE €4.99, EU €9.99, World €14.99) if shipping tables not configured
-- **DB Tables:** `shipping_item_type`, `shipping_zone`, `shipping_rate`, `shipping_config`
+- **DB Tables:** `shipping_item_type`, `shipping_zone`, `shipping_rate`, `shipping_config`, `shipping_method`
+- **Order History:** `/account/orders` — grouped by order_group_id, cover thumbnails, expandable detail, progress bar
 
 ### Transaction Status
 - `status`: pending → paid → refunded (oder failed)
@@ -1124,6 +1160,7 @@ Store in `.env` (git-ignored), manage via `Passwords/` directory:
 - `BREVO_API_KEY` — Brevo CRM/Newsletter API Key (Account: VOD Records, free plan)
 - `BREVO_LIST_VOD_AUCTIONS` — Brevo list ID for VOD Auctions customers (4)
 - `BREVO_LIST_TAPE_MAG` — Brevo list ID for TAPE-MAG customers (5)
+- `NEXT_PUBLIC_BREVO_CLIENT_KEY` — Brevo Tracker Client Key (Storefront, Automation > Settings)
 
 ## VPS Deployment
 
