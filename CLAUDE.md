@@ -16,6 +16,19 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-09
 
 ### Letzte Änderungen (2026-03-09)
+- **ReleaseArtist-Bereinigung + Discogs Extraartists Import:**
+  - **Problem:** ~50% der ReleaseArtist-Einträge (20.938 von 42.174) waren Garbage — generische Wörter (FROM, NO, Tape, A4, Logo...) aus Legacy-System als Band-Einträge gespeichert
+  - **Schritt 1 — Garbage Cleanup:** 60 Fake-Artists identifiziert, Smart-Heuristik: nur löschen wenn Artist-Name im Credits-Text des jeweiligen Releases vorkommt. 10.170 Garbage-Links entfernt, 10.765 legitimate Links behalten
+  - **Schritt 2 — Discogs Extraartists Import:** Für 16.590 Releases mit discogs_id: Discogs API `/releases/{id}` → `extraartists` Array parsen → Artist matchen/erstellen → ReleaseArtist mit korrekten Rollen (Design, Mastering, Producer, etc.) befüllen
+  - **Script:** `scripts/import_discogs_extraartists.py` — resumable, signal handling, exponential backoff, 25 req/min, ~9h Laufzeit
+  - **Admin Monitoring:** Neuer "Discogs Extraartists Import" Card auf Sync Dashboard — Progress Bar, Stats (With Extras, No Extras, New Artists, Links Created/Deleted, Errors), Recent Log, auto-refresh 15s
+  - **API:** `GET /admin/sync/extraartists-progress` — liest Progress-JSON + prüft ob Script läuft (pgrep)
+  - **Blacklist:** `scripts/garbage_artists_blacklist.json` — 60 Artists mit smart remove/keep Counts
+  - **Cleanup Script:** `scripts/cleanup_release_artists.py` — löscht ReleaseArtist-Links wo Artist-Name in Release-Credits vorkommt
+  - **Plan:** `PLAN_ReleaseArtist_Bereinigung.md` — 5-Schritte-Plan (Blacklist → Discogs Import → Garbage Cleanup → Frontend → Daily Sync)
+  - **Neue Dateien:** `import_discogs_extraartists.py`, `cleanup_release_artists.py`, `garbage_artists_blacklist.json`, `PLAN_ReleaseArtist_Bereinigung.md`, `extraartists-progress/route.ts`
+  - **Geänderte Dateien:** `sync/page.tsx` (Extraartists Progress Card)
+  - **VPS:** Script läuft, Backend deployed
 - **Discogs Preise & Links auf Storefront ausgeblendet (temporär):**
   - **Grund:** `/marketplace/price_suggestions` API liefert empfohlene Preise pro Zustand (Mint, NM, VG+…), NICHT die tatsächlichen Verkaufsstatistiken (Sale History) die auf der Discogs-Seite angezeigt werden — Preise stimmten daher nicht mit Discogs überein
   - **Ausgeblendet:** Discogs Prices Section (Low/Median/High) + "View on Discogs" Link auf Catalog-Detail + Auction-Detail, Discogs-Links auf Band/Label/Press Entity-Pages
