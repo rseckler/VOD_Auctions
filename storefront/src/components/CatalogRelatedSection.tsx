@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import Link from "next/link"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 
@@ -91,7 +92,8 @@ function ReleaseTable({ releases }: { releases: RelatedRelease[] }) {
   return (
     <div className="border border-[rgba(232,224,212,0.08)] rounded-lg overflow-hidden">
       {/* Header */}
-      <div className="grid grid-cols-[1fr_4.5rem_3rem_3.5rem] sm:grid-cols-[2fr_1fr_4.5rem_4rem_5rem] gap-x-2 sm:gap-x-3 px-3 py-2 bg-[rgba(232,224,212,0.04)] border-b border-[rgba(232,224,212,0.08)] text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">
+      <div className="grid grid-cols-[2rem_1fr_4.5rem_3rem_3.5rem] sm:grid-cols-[2.5rem_2fr_1fr_4.5rem_4rem_5rem] gap-x-2 sm:gap-x-3 px-3 py-2 bg-[rgba(232,224,212,0.04)] border-b border-[rgba(232,224,212,0.08)] text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">
+        <span></span>
         <span>Title</span>
         <span className="hidden sm:block">Label</span>
         <span>Format</span>
@@ -104,8 +106,22 @@ function ReleaseTable({ releases }: { releases: RelatedRelease[] }) {
           <Link
             key={r.id}
             href={`/catalog/${r.id}`}
-            className="grid grid-cols-[1fr_4.5rem_3rem_3.5rem] sm:grid-cols-[2fr_1fr_4.5rem_4rem_5rem] gap-x-2 sm:gap-x-3 px-3 py-2.5 hover:bg-[rgba(212,165,74,0.06)] transition-colors group items-center"
+            className="grid grid-cols-[2rem_1fr_4.5rem_3rem_3.5rem] sm:grid-cols-[2.5rem_2fr_1fr_4.5rem_4rem_5rem] gap-x-2 sm:gap-x-3 px-3 py-2.5 hover:bg-[rgba(212,165,74,0.06)] transition-colors group items-center"
           >
+            {/* Cover */}
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded overflow-hidden bg-[rgba(232,224,212,0.06)] flex-shrink-0">
+              {r.coverImage ? (
+                <Image
+                  src={r.coverImage}
+                  alt=""
+                  width={40}
+                  height={40}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-muted-foreground/30 text-[10px]">♪</div>
+              )}
+            </div>
             {/* Artist — Title */}
             <div className="min-w-0">
               <span className="text-sm truncate block group-hover:text-primary transition-colors">

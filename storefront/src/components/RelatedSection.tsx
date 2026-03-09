@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import Link from "next/link"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import type { BlockItem } from "@/types"
@@ -175,7 +176,8 @@ function ItemTable({
   return (
     <div className="border border-[rgba(232,224,212,0.08)] rounded-lg overflow-hidden">
       {/* Header */}
-      <div className="grid grid-cols-[2.5rem_1fr_4.5rem_3rem_3.5rem] sm:grid-cols-[3rem_2fr_1fr_4.5rem_4rem_5rem] gap-x-2 sm:gap-x-3 px-3 py-2 bg-[rgba(232,224,212,0.04)] border-b border-[rgba(232,224,212,0.08)] text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">
+      <div className="grid grid-cols-[2rem_2rem_1fr_4.5rem_3rem_3.5rem] sm:grid-cols-[2.5rem_3rem_2fr_1fr_4.5rem_4rem_5rem] gap-x-2 sm:gap-x-3 px-3 py-2 bg-[rgba(232,224,212,0.04)] border-b border-[rgba(232,224,212,0.08)] text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">
+        <span></span>
         <span>Lot</span>
         <span>Title</span>
         <span className="hidden sm:block">Label</span>
@@ -189,8 +191,22 @@ function ItemTable({
           <Link
             key={item.id}
             href={`/auctions/${blockSlug}/${item.id}`}
-            className="grid grid-cols-[2.5rem_1fr_4.5rem_3rem_3.5rem] sm:grid-cols-[3rem_2fr_1fr_4.5rem_4rem_5rem] gap-x-2 sm:gap-x-3 px-3 py-2.5 hover:bg-[rgba(212,165,74,0.06)] transition-colors group items-center"
+            className="grid grid-cols-[2rem_2rem_1fr_4.5rem_3rem_3.5rem] sm:grid-cols-[2.5rem_3rem_2fr_1fr_4.5rem_4rem_5rem] gap-x-2 sm:gap-x-3 px-3 py-2.5 hover:bg-[rgba(212,165,74,0.06)] transition-colors group items-center"
           >
+            {/* Cover */}
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded overflow-hidden bg-[rgba(232,224,212,0.06)] flex-shrink-0">
+              {item.release?.coverImage ? (
+                <Image
+                  src={item.release.coverImage}
+                  alt=""
+                  width={40}
+                  height={40}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-muted-foreground/30 text-[10px]">♪</div>
+              )}
+            </div>
             {/* Lot */}
             <span className="text-xs font-mono text-muted-foreground/60">
               {item.lot_number
