@@ -100,14 +100,15 @@ export default async function CatalogDetailPage({
 
   const release = data.release
 
-  // If tracklist is empty, try to extract from credits field (legacy data issue)
+  // Handle tracklist/credits separation from legacy data
   const hasTracklist = release.tracklist && release.tracklist.length > 0
-  const extracted = !hasTracklist && release.credits
+  const extracted = release.credits
     ? extractTracklistFromText(release.credits)
     : null
   const effectiveTracklist = hasTracklist
     ? release.tracklist!
     : extracted?.tracks.length ? extracted.tracks : null
+  // Always strip tracklist data from credits, even when tracklist JSONB exists
   const effectiveCredits = extracted?.tracks.length
     ? extracted.remainingCredits
     : release.credits
