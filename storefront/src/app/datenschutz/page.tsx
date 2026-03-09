@@ -313,6 +313,11 @@ export default function DatenschutzPage() {
               Aggregated purchase and bidding activity (e.g. total
               purchases, total bids placed)
             </li>
+            <li>
+              Website behavior data (page views, product views,
+              cart activity, checkout events) — only with your
+              explicit marketing cookie consent
+            </li>
           </ul>
           <p>
             Newsletter emails are only sent if you have explicitly

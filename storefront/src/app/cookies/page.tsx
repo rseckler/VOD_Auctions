@@ -95,12 +95,13 @@ export default function CookiesPage() {
           </div>
 
           <h3 className="text-base font-medium text-foreground mt-6">
-            Marketing Cookies (optional — not currently active)
+            Marketing Cookies (optional)
           </h3>
           <p>
-            These cookies may be used in the future for advertising and
-            remarketing purposes. They will only be set if you explicitly
-            consent to marketing cookies in our cookie consent banner.
+            These cookies are used for behavior tracking, personalized
+            recommendations, and potential future advertising. They are only
+            set if you explicitly consent to marketing cookies in our cookie
+            consent banner.
           </p>
           <div className="mt-4 overflow-x-auto">
             <table className="w-full text-sm border border-[rgba(232,224,212,0.12)]">
@@ -113,27 +114,28 @@ export default function CookiesPage() {
               </thead>
               <tbody>
                 <tr className="border-b border-[rgba(232,224,212,0.06)]">
-                  <td className="p-3 font-mono text-xs">_fbp</td>
-                  <td className="p-3">Facebook Pixel — tracks visits for ad targeting</td>
-                  <td className="p-3">3 months</td>
+                  <td className="p-3 font-mono text-xs">sib_cuid</td>
+                  <td className="p-3">Brevo — unique visitor identifier for behavior tracking</td>
+                  <td className="p-3">13 months</td>
                 </tr>
                 <tr className="border-b border-[rgba(232,224,212,0.06)]">
-                  <td className="p-3 font-mono text-xs">_fbc</td>
-                  <td className="p-3">Facebook Pixel — stores click identifier from ads</td>
+                  <td className="p-3 font-mono text-xs">sib_sesn</td>
+                  <td className="p-3">Brevo — session tracking for page view counting</td>
+                  <td className="p-3">Session</td>
+                </tr>
+                <tr className="border-b border-[rgba(232,224,212,0.06)]">
+                  <td className="p-3 font-mono text-xs">_fbp</td>
+                  <td className="p-3">Facebook Pixel — tracks visits for ad targeting (future)</td>
                   <td className="p-3">3 months</td>
                 </tr>
                 <tr className="border-b border-[rgba(232,224,212,0.06)]">
                   <td className="p-3 font-mono text-xs">_gcl_*</td>
-                  <td className="p-3">Google Ads — conversion tracking and remarketing</td>
+                  <td className="p-3">Google Ads — conversion tracking and remarketing (future)</td>
                   <td className="p-3">90 days</td>
                 </tr>
               </tbody>
             </table>
           </div>
-          <p className="mt-2 text-xs text-muted-foreground/60">
-            Note: Marketing cookies are not currently in use. This section is included
-            for transparency about potential future implementations.
-          </p>
         </section>
 
         <section>

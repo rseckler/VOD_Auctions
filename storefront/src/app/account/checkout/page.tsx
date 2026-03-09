@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { toast } from "sonner"
+import { brevoCheckoutStarted, brevoOrderCompleted } from "@/lib/brevo-tracking"
 import type { WinEntry, Transaction, CartItem } from "@/types"
 
 type ShippingMethod = {
@@ -77,6 +78,7 @@ export default function CheckoutPage() {
     const payment = searchParams.get("payment")
     if (payment === "success") {
       toast.success("Payment successful! You will receive a confirmation email.")
+      brevoOrderCompleted("checkout", 0, 0)
       refreshStatus()
     } else if (payment === "cancelled") {
       toast.info("Payment cancelled. You can try again anytime.")
@@ -137,6 +139,16 @@ export default function CheckoutPage() {
   const itemsTotal = winsSubtotal + cartSubtotal
   const grandTotal = itemsTotal + shippingCost
   const hasItems = unpaidWins.length > 0 || cartItems.length > 0
+
+  // Brevo tracking: fire once when checkout items are loaded
+  const [checkoutTracked, setCheckoutTracked] = useState(false)
+  useEffect(() => {
+    if (!loading && hasItems && !checkoutTracked) {
+      const totalItems = unpaidWins.length + cartItems.length
+      brevoCheckoutStarted(totalItems, itemsTotal)
+      setCheckoutTracked(true)
+    }
+  }, [loading, hasItems, checkoutTracked, unpaidWins.length, cartItems.length, itemsTotal])
 
   // Resolve zone from selected country
   const selectedZoneSlug = selectedCountry

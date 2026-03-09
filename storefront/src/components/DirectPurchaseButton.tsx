@@ -7,6 +7,7 @@ import { useAuth } from "@/components/AuthProvider"
 import { getToken } from "@/lib/auth"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
 import { toast } from "sonner"
+import { brevoAddToCart } from "@/lib/brevo-tracking"
 
 type Props = {
   releaseId: string
@@ -53,6 +54,7 @@ export function DirectPurchaseButton({ releaseId, saleMode, directPrice, auction
 
       setAdded(true)
       await refreshStatus()
+      brevoAddToCart(releaseId, data.title || releaseId, directPrice!)
       toast.success("Added to cart!")
     } catch {
       toast.error("Failed to add to cart")

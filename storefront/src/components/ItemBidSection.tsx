@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
+import { brevoBidPlaced } from "@/lib/brevo-tracking"
 
 type BidRecord = {
   id: string
@@ -342,6 +343,7 @@ function BidForm({
         toast.warning(data.message || "Outbid")
       } else {
         toast.success(`Bid of €${data.amount.toFixed(2)} placed successfully!`)
+        brevoBidPlaced(itemId, data.amount, slug)
         onBidPlaced()
       }
     } catch {

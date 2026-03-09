@@ -114,7 +114,7 @@ export function CookieConsent() {
                 className="accent-primary"
               />
               <span className="text-sm text-muted-foreground">
-                <strong className="text-foreground">Marketing</strong> — Advertising and remarketing (not currently active)
+                <strong className="text-foreground">Marketing</strong> — Behavior tracking and personalized recommendations (Brevo)
               </span>
             </label>
           </div>
