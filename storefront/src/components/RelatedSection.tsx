@@ -175,7 +175,7 @@ function ItemTable({
   return (
     <div className="border border-[rgba(232,224,212,0.08)] rounded-lg overflow-hidden">
       {/* Header */}
-      <div className="grid grid-cols-[3rem_2fr_1fr_4.5rem_4rem_5rem] sm:grid-cols-[3rem_2fr_1fr_4.5rem_4rem_5rem] gap-x-3 px-3 py-2 bg-[rgba(232,224,212,0.04)] border-b border-[rgba(232,224,212,0.08)] text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">
+      <div className="grid grid-cols-[2.5rem_1fr_4.5rem_3rem_3.5rem] sm:grid-cols-[3rem_2fr_1fr_4.5rem_4rem_5rem] gap-x-2 sm:gap-x-3 px-3 py-2 bg-[rgba(232,224,212,0.04)] border-b border-[rgba(232,224,212,0.08)] text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">
         <span>Lot</span>
         <span>Title</span>
         <span className="hidden sm:block">Label</span>
@@ -189,7 +189,7 @@ function ItemTable({
           <Link
             key={item.id}
             href={`/auctions/${blockSlug}/${item.id}`}
-            className="grid grid-cols-[3rem_2fr_1fr_4.5rem_4rem_5rem] sm:grid-cols-[3rem_2fr_1fr_4.5rem_4rem_5rem] gap-x-3 px-3 py-2.5 hover:bg-[rgba(212,165,74,0.06)] transition-colors group items-center"
+            className="grid grid-cols-[2.5rem_1fr_4.5rem_3rem_3.5rem] sm:grid-cols-[3rem_2fr_1fr_4.5rem_4rem_5rem] gap-x-2 sm:gap-x-3 px-3 py-2.5 hover:bg-[rgba(212,165,74,0.06)] transition-colors group items-center"
           >
             {/* Lot */}
             <span className="text-xs font-mono text-muted-foreground/60">
