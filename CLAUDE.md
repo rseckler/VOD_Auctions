@@ -16,6 +16,12 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-09
 
 ### Letzte Änderungen (2026-03-09)
+- **Credits/Tracklist Separation Fix:**
+  - **Problem:** ~3.900 Releases zeigten Tracklist-Daten im Credits-Bereich, obwohl die Tracklist bereits als JSONB existierte
+  - **Ursache:** `extractTracklistFromText()` wurde nur aufgerufen wenn `tracklist` JSONB leer war — bei gefülltem JSONB blieben die Tracklist-Zeilen im Credits-Text stehen
+  - **Fix:** `extractTracklistFromText()` wird jetzt IMMER auf credits angewendet, unabhängig ob tracklist JSONB existiert
+  - **Dateien:** `catalog/[id]/page.tsx`, `auctions/[slug]/[itemId]/page.tsx`
+  - **VPS:** Storefront deployed
 - **Admin User Fix (frank@vinyl-on-demand.com):**
   - **Problem:** Login nach Invite-Annahme schlug fehl — `auth_identity.app_metadata` war NULL, Medusa konnte Login keinem User zuordnen
   - **Fix:** `app_metadata` manuell auf `{"user_id": "user_01KK9D34HRWG5SB3MWR5ZWY2XC"}` gesetzt
@@ -48,15 +54,17 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
   - **VPS:** Storefront deployed
 - **Label Enrichment from Catalog Numbers:**
   - **Problem:** ~7.176 Releases ohne Label-Zuordnung, aber mit Katalognummer die den Label-Namen enthält (z.B. "Hot Records, HOT 1019" → Label: "Hot Records")
-  - **Lösung:** Zwei-Phasen-Script `enrich_labels_from_catno.py`:
-    - **Phase 1 (Discogs):** Für Releases mit discogs_id — Label direkt von Discogs API abrufen (~4.505 Releases)
-    - **Phase 2 (Parse):** Für restliche Releases — Label-Name aus catalogNumber parsen, gegen bestehende Label-Tabelle matchen oder neues Label anlegen
+  - **Lösung:** 3-Phasen-Validierungs-Pipeline `validate_labels.py` (ersetzt `enrich_labels_from_catno.py` als primäres Tool):
+    - **Phase 1 (Discogs Release API):** Für Releases mit discogs_id → `GET /releases/{id}` → exakter Label-Name (~4.505 Releases, ~82 Min)
+    - **Phase 2 (Discogs Label Search):** Für Releases ohne discogs_id → Parse + `GET /database/search?type=label` → String-Similarity-Vergleich (~2.671 Releases, ~49 Min)
+    - **Phase 3 (AI Cleanup):** Für UNMATCHED aus Phase 2 → Claude Haiku Batch-Cleanup (50 pro API-Call, ~$0.05)
+  - **Output:** Review-CSV `data/label_validation_review.csv` (kein direkter DB-Write!) — manuell prüfen, dann `--commit`
+  - **Confidence:** CONFIRMED (>0.85 Similarity), LIKELY (0.6-0.85), UNMATCHED (<0.6), AI_CLEANED
+  - **Auto-Approve:** `discogs_release` → WRITE, `discogs_search` mit >0.85 → WRITE, Rest → REVIEW
+  - **Hilfscript:** `enrich_labels_from_catno.py` liefert Parsing-Funktionen (parse_label_from_catno, find_or_create_label, etc.)
   - **DB:** `label_enriched BOOLEAN DEFAULT FALSE` Spalte auf Release-Tabelle — markiert enriched Labels
   - **Sync-Schutz:** `legacy_sync.py` geändert — `labelId` wird NICHT überschrieben wenn `label_enriched = TRUE` (CASE-Statement in ON CONFLICT)
-  - **Label-Matching:** Case-insensitive Match gegen bestehende 3.077 Labels + Suffix-Varianten ("Records", "Recordings", etc.)
-  - **Neue Labels:** IDs mit `enriched-label-{slug}` Prefix (unterscheidbar von `legacy-label-{id}`)
-  - **Discogs-Filter:** "Not On Label" Einträge werden übersprungen
-  - **Neue Dateien:** `scripts/enrich_labels_from_catno.py`
+  - **Neue Dateien:** `scripts/validate_labels.py`, `scripts/enrich_labels_from_catno.py`
   - **Geänderte Dateien:** `scripts/legacy_sync.py` (labelId-Schutz in sync_releases + sync_literature)
 - **E-Mail Sender & Brevo Domain-Authentifizierung:**
   - **Brevo Sender:** `newsletter@vod-auctions.com` (ID: 3) verifiziert und aktiv, ersetzt `admin@vod-auctions.com` für Newsletter
@@ -1037,11 +1045,19 @@ python3 generate_entity_content.py --type press_orga --priority P1 # Top press o
 python3 generate_entity_content.py --dry-run --limit 5            # Preview without writing
 
 # Label Enrichment from Catalog Numbers
-python3 enrich_labels_from_catno.py                  # Both phases (Discogs + Parse)
+python3 enrich_labels_from_catno.py                  # Both phases (Discogs + Parse) — direct DB write
 python3 enrich_labels_from_catno.py --phase 1        # Discogs API only (~4.5k releases)
 python3 enrich_labels_from_catno.py --phase 2        # Parse from catalogNumber only
 python3 enrich_labels_from_catno.py --dry-run        # Preview without writing
 python3 enrich_labels_from_catno.py --limit 100      # Limit per phase
+
+# Label Validation (3-Phase Pipeline — preferred over enrich_labels_from_catno.py)
+python3 validate_labels.py                           # All 3 phases → review CSV
+python3 validate_labels.py --phase 1                 # Phase 1: Discogs Release API (~4.5k with discogs_id)
+python3 validate_labels.py --phase 2                 # Phase 2: Discogs Label Search (~2.7k without discogs_id)
+python3 validate_labels.py --phase 3                 # Phase 3: AI Cleanup (Claude Haiku, UNMATCHED only)
+python3 validate_labels.py --limit 100               # Limit per phase
+python3 validate_labels.py --commit data/label_validation_review.csv  # Apply reviewed CSV to DB
 ```
 
 **Cronjobs (VPS — verifiziert 2026-03-03, alle Dependencies installiert):**
