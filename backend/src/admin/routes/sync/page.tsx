@@ -85,6 +85,24 @@ type BatchProgress = {
   } | null
 }
 
+type ExtraartistsProgress = {
+  progress: {
+    processed: number
+    updated: number
+    skipped: number
+    errors: number
+    artists_created: number
+    links_created: number
+    links_deleted: number
+    last_release_id: string | null
+    started_at: string
+    finished_at?: string
+  } | null
+  is_running: boolean
+  total_releases: number
+  recent_log: string[]
+}
+
 type DiscogsHealthAction = {
   id: string
   label: string
@@ -152,6 +170,7 @@ const SyncDashboardPage = () => {
   const [discogsData, setDiscogsData] = useState<DiscogsData | null>(null)
   const [batchProgress, setBatchProgress] = useState<BatchProgress | null>(null)
   const [discogsHealth, setDiscogsHealth] = useState<DiscogsHealth | null>(null)
+  const [extraartistsProgress, setExtraartistsProgress] = useState<ExtraartistsProgress | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [actionResult, setActionResult] = useState<{ success: boolean; message: string } | null>(null)
   const [loading, setLoading] = useState(true)
@@ -200,6 +219,20 @@ const SyncDashboardPage = () => {
     const interval = setInterval(fetchDiscogsHealth, 30000)
     return () => clearInterval(interval)
   }, [fetchDiscogsHealth])
+
+  // Fetch Extraartists import progress (with auto-refresh every 15s)
+  const fetchExtraartistsProgress = useCallback(() => {
+    fetch("/admin/sync/extraartists-progress", { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => setExtraartistsProgress(d))
+      .catch((err) => console.error("Extraartists progress error:", err))
+  }, [])
+
+  useEffect(() => {
+    fetchExtraartistsProgress()
+    const interval = setInterval(fetchExtraartistsProgress, 15000)
+    return () => clearInterval(interval)
+  }, [fetchExtraartistsProgress])
 
   // Execute a Discogs sync action
   const executeAction = useCallback(async (actionId: string, params?: Record<string, unknown>) => {
@@ -653,6 +686,133 @@ const SyncDashboardPage = () => {
                   {actionResult.success ? "\u2713" : "\u2717"} {actionResult.message}
                 </div>
               )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Extraartists Import Progress Card */}
+      {extraartistsProgress?.progress && (
+        <div
+          style={{
+            ...cardStyle,
+            marginBottom: "20px",
+            borderColor: extraartistsProgress.is_running ? COLORS.blue + "50" : COLORS.border,
+          }}
+        >
+          {/* Header */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <span
+                style={{
+                  padding: "2px 8px",
+                  borderRadius: "4px",
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  background: extraartistsProgress.is_running
+                    ? "#22c55e20"
+                    : extraartistsProgress.progress.finished_at
+                    ? "#22c55e20"
+                    : "#a0908020",
+                  color: extraartistsProgress.is_running
+                    ? COLORS.success
+                    : extraartistsProgress.progress.finished_at
+                    ? COLORS.success
+                    : COLORS.muted,
+                }}
+              >
+                {extraartistsProgress.is_running ? "RUNNING" : extraartistsProgress.progress.finished_at ? "COMPLETED" : "PAUSED"}
+              </span>
+              <h2 style={{ fontSize: "16px", fontWeight: 600 }}>Discogs Extraartists Import</h2>
+            </div>
+            {extraartistsProgress.progress.started_at && (
+              <span style={{ fontSize: "11px", color: COLORS.muted }}>
+                Started: {formatDate(extraartistsProgress.progress.started_at)}
+              </span>
+            )}
+          </div>
+
+          {/* Progress bar */}
+          <div style={{ marginBottom: "16px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+              <span style={{ fontSize: "12px", color: COLORS.muted }}>
+                {extraartistsProgress.progress.processed.toLocaleString("en-US")} / {extraartistsProgress.total_releases.toLocaleString("en-US")} releases
+              </span>
+              <span style={{ fontSize: "12px", color: COLORS.gold, fontWeight: 600 }}>
+                {Math.round((extraartistsProgress.progress.processed / extraartistsProgress.total_releases) * 100)}%
+              </span>
+            </div>
+            <div style={{ height: "6px", borderRadius: "3px", background: COLORS.border, overflow: "hidden" }}>
+              <div
+                style={{
+                  height: "100%",
+                  width: `${Math.min(100, Math.round((extraartistsProgress.progress.processed / extraartistsProgress.total_releases) * 100))}%`,
+                  background: `linear-gradient(90deg, ${COLORS.blue}, ${COLORS.success})`,
+                  borderRadius: "3px",
+                  transition: "width 0.5s ease",
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Stats row */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "12px", marginBottom: "16px" }}>
+            <div>
+              <div style={labelStyle}>With Extras</div>
+              <div style={{ ...valueStyle, color: COLORS.success }}>{extraartistsProgress.progress.updated.toLocaleString("en-US")}</div>
+            </div>
+            <div>
+              <div style={labelStyle}>No Extras</div>
+              <div style={valueStyle}>{extraartistsProgress.progress.skipped.toLocaleString("en-US")}</div>
+            </div>
+            <div>
+              <div style={labelStyle}>New Artists</div>
+              <div style={{ ...valueStyle, color: COLORS.blue }}>{extraartistsProgress.progress.artists_created.toLocaleString("en-US")}</div>
+            </div>
+            <div>
+              <div style={labelStyle}>Links Created</div>
+              <div style={{ ...valueStyle, color: COLORS.success }}>+{extraartistsProgress.progress.links_created.toLocaleString("en-US")}</div>
+            </div>
+            <div>
+              <div style={labelStyle}>Links Deleted</div>
+              <div style={{ ...valueStyle, color: COLORS.error }}>-{extraartistsProgress.progress.links_deleted.toLocaleString("en-US")}</div>
+            </div>
+            <div>
+              <div style={labelStyle}>Errors</div>
+              <div style={{ ...valueStyle, color: extraartistsProgress.progress.errors > 0 ? COLORS.error : COLORS.success }}>
+                {extraartistsProgress.progress.errors}
+              </div>
+            </div>
+          </div>
+
+          {/* Recent log lines */}
+          {extraartistsProgress.recent_log.length > 0 && (
+            <div>
+              <div style={{ ...labelStyle, marginBottom: "6px" }}>Recent Log</div>
+              <div
+                style={{
+                  background: "#1a1714",
+                  borderRadius: "6px",
+                  padding: "10px 12px",
+                  fontFamily: "monospace",
+                  fontSize: "11px",
+                  color: COLORS.muted,
+                  lineHeight: "1.6",
+                  maxHeight: "120px",
+                  overflow: "auto",
+                }}
+              >
+                {extraartistsProgress.recent_log.map((line, i) => (
+                  <div key={i}>{line}</div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Finished timestamp */}
+          {extraartistsProgress.progress.finished_at && (
+            <div style={{ marginTop: "12px", fontSize: "12px", color: COLORS.success }}>
+              Finished: {formatDate(extraartistsProgress.progress.finished_at)}
             </div>
           )}
         </div>
