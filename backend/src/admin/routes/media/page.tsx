@@ -285,7 +285,7 @@ const ImageGalleryOverlay = ({ onClose }: { onClose: () => void }) => {
                   <div style={{ display: "flex", justifyContent: "space-between", marginTop: "4px" }}>
                     <span style={{ fontSize: "10px", color: COLORS.muted }}>{r.format_name || r.format}{r.year ? ` \u00B7 ${r.year}` : ""}</span>
                     {r.legacy_price != null && (
-                      <span style={{ fontSize: "10px", color: COLORS.gold, fontWeight: 600 }}>\u20AC{r.legacy_price.toFixed(2)}</span>
+                      <span style={{ fontSize: "10px", color: COLORS.gold, fontWeight: 600 }}>\u20AC{Number(r.legacy_price).toFixed(2)}</span>
                     )}
                   </div>
                 </div>
