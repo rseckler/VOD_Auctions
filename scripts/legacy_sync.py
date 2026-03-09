@@ -337,7 +337,10 @@ def sync_releases(mysql_conn, pg_conn):
                     "catalogNumber" = EXCLUDED."catalogNumber",
                     country = EXCLUDED.country,
                     "artistId" = EXCLUDED."artistId",
-                    "labelId" = EXCLUDED."labelId",
+                    "labelId" = CASE
+                        WHEN "Release".label_enriched = TRUE THEN "Release"."labelId"
+                        ELSE EXCLUDED."labelId"
+                    END,
                     "coverImage" = EXCLUDED."coverImage",
                     legacy_price = EXCLUDED.legacy_price,
                     legacy_condition = EXCLUDED.legacy_condition,
@@ -523,7 +526,10 @@ def sync_literature(mysql_conn, pg_conn, table, category, id_prefix, ref_field, 
                     format_id = EXCLUDED.format_id,
                     country = EXCLUDED.country,
                     "artistId" = EXCLUDED."artistId",
-                    "labelId" = EXCLUDED."labelId",
+                    "labelId" = CASE
+                        WHEN "Release".label_enriched = TRUE THEN "Release"."labelId"
+                        ELSE EXCLUDED."labelId"
+                    END,
                     "pressOrgaId" = EXCLUDED."pressOrgaId",
                     "coverImage" = EXCLUDED."coverImage",
                     legacy_price = EXCLUDED.legacy_price,

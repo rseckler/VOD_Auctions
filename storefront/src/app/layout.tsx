@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { cookies } from "next/headers"
 import { DM_Sans, DM_Serif_Display } from "next/font/google"
 import { AuthProvider } from "@/components/AuthProvider"
 import { Header } from "@/components/layout/Header"
@@ -66,11 +67,26 @@ export const metadata: Metadata = {
   },
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const cookieStore = await cookies()
+  const hasAccess = cookieStore.get("vod_access")?.value === "granted"
+
+  if (!hasAccess) {
+    return (
+      <html lang="en">
+        <body
+          className={`${dmSans.variable} ${dmSerif.variable} antialiased`}
+        >
+          {children}
+        </body>
+      </html>
+    )
+  }
+
   return (
     <html lang="en">
       <GoogleAnalytics />

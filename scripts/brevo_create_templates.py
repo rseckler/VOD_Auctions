@@ -75,7 +75,7 @@ def create_template(name: str, subject: str, html_content: str, dry_run: bool = 
             "htmlContent": html_content,
             "sender": {
                 "name": "VOD Auctions",
-                "email": "admin@vod-auctions.com",
+                "email": "newsletter@vod-auctions.com",
             },
             "isActive": True,
         },

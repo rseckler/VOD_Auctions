@@ -25,5 +25,21 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/auction",
     },
+    {
+      resolve: "@medusajs/medusa/notification",
+      options: {
+        providers: [
+          {
+            resolve: "./src/modules/resend",
+            id: "resend",
+            options: {
+              channels: ["email"],
+              api_key: process.env.RESEND_API_KEY,
+              from: process.env.EMAIL_FROM || "VOD Auctions <noreply@vod-auctions.com>",
+            },
+          },
+        ],
+      },
+    },
   ],
 })

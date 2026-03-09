@@ -228,7 +228,7 @@ export async function listContacts(opts?: {
 
 export const BREVO_LIST_VOD_AUCTIONS = Number(process.env.BREVO_LIST_VOD_AUCTIONS) || 0
 export const BREVO_LIST_TAPE_MAG = Number(process.env.BREVO_LIST_TAPE_MAG) || 0
-export const BREVO_SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || "admin@vod-auctions.com"
+export const BREVO_SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || "newsletter@vod-auctions.com"
 export const BREVO_SENDER_NAME = process.env.BREVO_SENDER_NAME || "VOD Auctions"
 
 /**

@@ -16,6 +16,59 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-09
 
 ### Letzte Änderungen (2026-03-09)
+- **Admin User Fix (frank@vinyl-on-demand.com):**
+  - **Problem:** Login nach Invite-Annahme schlug fehl — `auth_identity.app_metadata` war NULL, Medusa konnte Login keinem User zuordnen
+  - **Fix:** `app_metadata` manuell auf `{"user_id": "user_01KK9D34HRWG5SB3MWR5ZWY2XC"}` gesetzt
+  - **Bekanntes Issue:** `frank@vod-records.com` kann nicht als Admin eingeladen werden — E-Mail bereits als Store-Customer registriert (Medusa erlaubt keine doppelte E-Mail über Actor-Typen hinweg)
+  - **Admin-User:** `admin@vod.de`, `rseckler@gmail.com`, `frank@vinyl-on-demand.com`
+- **Admin-Subdomain `admin.vod-auctions.com`:**
+  - **Nginx:** Neue Config `vodauction-admin.conf` — Proxy zu Port 9000, Root `/` redirected auf `/app`
+  - **SSL:** Certbot Let's Encrypt Zertifikat (gültig bis 2026-06-07, auto-renewal)
+  - **DNS:** A-Record `admin.vod-auctions.com` → `72.62.148.205` (war bereits vorhanden)
+  - **Zugang:** `https://admin.vod-auctions.com` → Medusa Admin Dashboard
+  - **Neue Dateien:** `nginx/vodauction-admin.conf`
+- **Medusa Invite-E-Mails (Notification Provider):**
+  - **Resend Notification Module:** `src/modules/resend/` — Medusa-kompatibler Notification Provider mit Resend
+  - **Invite Subscriber:** `src/subscribers/invite-created.ts` — hört auf `invite.created` + `invite.resent` Events, sendet Invite-E-Mail im VOD Auctions Design
+  - **medusa-config.ts:** `@medusajs/medusa/notification` Modul mit Resend Provider registriert
+  - **E-Mail-Template:** Gold/Dark Header, "Accept Invitation" Button, Fallback-Link
+  - **Neue Dateien:** `src/modules/resend/service.ts`, `src/modules/resend/index.ts`, `src/subscribers/invite-created.ts`
+  - **Geänderte Dateien:** `medusa-config.ts`
+  - **VPS:** Backend deployed + neugestartet
+- **Pre-Launch Password Gate:**
+  - **Middleware:** `storefront/src/middleware.ts` — prüft `vod_access` Cookie, leitet auf `/gate` wenn nicht gesetzt
+  - **Gate Page:** `storefront/src/app/gate/page.tsx` — Coming Soon Seite im VOD Auctions Design (Logo, Passwort-Eingabe, Gold-Button)
+  - **Gate API:** `storefront/src/app/api/gate/route.ts` — prüft Passwort, setzt httpOnly Cookie (30 Tage)
+  - **Layout:** Root-Layout rendert Header/Footer nur wenn `vod_access` Cookie gesetzt (Gate-Seite ohne Chrome)
+  - **Passwort:** `vod2026` (änderbar via `GATE_PASSWORD` in `.env.local`)
+  - **Bypass:** Gate erlaubt: `/gate`, `/api/gate`, `/_next`, `/api/revalidate`, `/favicon.ico`, `/robots.txt`, `/sitemap.xml`
+  - **Entfernen beim Launch:** `middleware.ts` löschen + `layout.tsx` Cookie-Check entfernen + neu deployen
+  - **Neue Dateien:** `middleware.ts`, `gate/page.tsx`, `api/gate/route.ts`
+  - **Geänderte Dateien:** `layout.tsx` (async, Cookie-basiertes Layout-Switching)
+  - **VPS:** Storefront deployed
+- **Label Enrichment from Catalog Numbers:**
+  - **Problem:** ~7.176 Releases ohne Label-Zuordnung, aber mit Katalognummer die den Label-Namen enthält (z.B. "Hot Records, HOT 1019" → Label: "Hot Records")
+  - **Lösung:** Zwei-Phasen-Script `enrich_labels_from_catno.py`:
+    - **Phase 1 (Discogs):** Für Releases mit discogs_id — Label direkt von Discogs API abrufen (~4.505 Releases)
+    - **Phase 2 (Parse):** Für restliche Releases — Label-Name aus catalogNumber parsen, gegen bestehende Label-Tabelle matchen oder neues Label anlegen
+  - **DB:** `label_enriched BOOLEAN DEFAULT FALSE` Spalte auf Release-Tabelle — markiert enriched Labels
+  - **Sync-Schutz:** `legacy_sync.py` geändert — `labelId` wird NICHT überschrieben wenn `label_enriched = TRUE` (CASE-Statement in ON CONFLICT)
+  - **Label-Matching:** Case-insensitive Match gegen bestehende 3.077 Labels + Suffix-Varianten ("Records", "Recordings", etc.)
+  - **Neue Labels:** IDs mit `enriched-label-{slug}` Prefix (unterscheidbar von `legacy-label-{id}`)
+  - **Discogs-Filter:** "Not On Label" Einträge werden übersprungen
+  - **Neue Dateien:** `scripts/enrich_labels_from_catno.py`
+  - **Geänderte Dateien:** `scripts/legacy_sync.py` (labelId-Schutz in sync_releases + sync_literature)
+- **E-Mail Sender & Brevo Domain-Authentifizierung:**
+  - **Brevo Sender:** `newsletter@vod-auctions.com` (ID: 3) verifiziert und aktiv, ersetzt `admin@vod-auctions.com` für Newsletter
+  - **Brevo Domain:** `vod-auctions.com` vollständig authentifiziert (DKIM, DMARC, SPF mit `include:sendinblue.com`, Brevo-Code)
+  - **4 Newsletter-Templates** (IDs 2-5) auf neuen Sender umgestellt
+  - **Code:** `brevo.ts` Default → `newsletter@vod-auctions.com`, `brevo_create_templates.py` Sender aktualisiert
+  - **DNS-Records hinzugefügt:** 2× CNAME (brevo1/brevo2._domainkey), TXT (brevo-code), TXT (_dmarc mit rua), SPF um sendinblue.com ergänzt
+  - **E-Mail-Architektur:** Resend (`noreply@`) für 6 transaktionale E-Mails, Brevo (`newsletter@`) für 4 Newsletter-Templates
+  - **Dokumentation:** `Email-Content.md` — alle 10 E-Mail-Inhalte, Customer Journey, Testplan
+  - **Test-Scripts:** `scripts/send_test_emails.py` (alle 10 E-Mails an Testadresse), `scripts/brevo_verify_sender.py` (Sender-Management)
+  - **Neue Dateien:** `Email-Content.md`, `scripts/send_test_emails.py`, `scripts/brevo_verify_sender.py`
+  - **Geänderte Dateien:** `brevo.ts`, `brevo_create_templates.py`
 - **Brevo Behavior Tracking Integration:**
   - **BrevoTracker.tsx:** Consent-gated (Marketing-Cookie) Brevo JS Tracker, auto-identifiziert eingeloggte User (Email, Name, Medusa-ID), trackt Page Views bei Route-Wechsel
   - **brevo-tracking.ts:** 8 Event-Helper: `productViewed`, `addToCart`, `cartAbandoned`, `checkoutStarted`, `orderCompleted`, `bidPlaced`, `auctionViewed`, `catalogSearch`
@@ -129,13 +182,13 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 - **RSE-128-131,133,138: Newsletter + CRM Dashboard + GDPR:**
   - **RSE-129: Newsletter Admin API + UI:** `/admin/newsletter` page — campaigns list with open/click rates, subscriber counts per list, send campaign endpoint (generic + block announcement), Brevo dashboard link
   - **RSE-128: Newsletter Opt-in Flow:** Registration checkbox (unchecked by default), account settings toggle with live Brevo status, `GET/POST /store/account/newsletter` API
-  - **RSE-130: Brevo Email Templates:** 4 HTML templates (block_announcement, weekly_highlights, auction_results, monthly_digest) + `scripts/brevo_create_templates.py` upload script, sender fixed to `admin@vod-auctions.com`
+  - **RSE-130: Brevo Email Templates:** 4 HTML templates (block_announcement, weekly_highlights, auction_results, monthly_digest) + `scripts/brevo_create_templates.py` upload script, sender: `newsletter@vod-auctions.com`
   - **RSE-131: Brevo Webhook Handler:** `POST /webhooks/brevo` — handles unsubscribed, hardBounce, softBounce, complaint/spam, delivered/opened/click events
   - **RSE-133: Datenschutz-Erweiterung:** New sections for Brevo (CRM/Newsletter) + Google Analytics (GA4, consent-gated), 3-category cookie consent (Essential/Analytics/Marketing), marketing cookies table (FB Pixel, Google Ads — prepared for future)
   - **RSE-138: CRM Dashboard:** `/admin/customers` — 5 overview cards (total contacts, per-list, newsletter opt-ins, Medusa customers), segment distribution bars, recent CRM contacts table, top customers by spend, campaign performance table
   - **Brevo Lib:** +`listContacts()` for contact listing with attributes
   - **Templates:** Brevo IDs: Block Announcement (2), Weekly Highlights (3), Auction Results (4), Monthly Digest (5)
-  - **Brevo Sender:** Only `admin@vod-auctions.com` (id: 1, name: "VOD Records") is verified
+  - **Brevo Senders:** `newsletter@vod-auctions.com` (id: 3, active, for newsletters) + `admin@vod-auctions.com` (id: 1, legacy). Domain `vod-auctions.com` fully authenticated (DKIM, DMARC, SPF, Brevo-Code)
 - **Comprehensive Moreinfo Parser** — `scripts/fix_moreinfo_comprehensive.py`:
   - Fills gaps left by `fix_description_parser.py` and `fix_reparse_descriptions.py`
   - Handles 6 format variants: Discogs V1 playlist tables (schema.org), V2/V3 MUI tables (hashed CSS classes), section text with `<h3 class="group">` headers, simple div wraps, colon format (`A1 : Artist - Title`), plain text (no HTML)
@@ -593,8 +646,12 @@ VOD_Auctions/
 ├── CLAUDE.md                    # Claude Code Guidance
 ├── KONZEPT.md                   # Vollständiges Konzeptdokument
 ├── README.md                    # Kurzübersicht
+├── nginx/                       # Nginx Config Templates
+│   ├── vodauction-api.conf      # api.vod-auctions.com → Port 9000
+│   ├── vodauction-store.conf    # vod-auctions.com → Port 3006
+│   └── vodauction-admin.conf    # admin.vod-auctions.com → Port 9000 (/ → /app redirect)
 ├── backend/                     # Medusa.js 2.x Backend (Port 9000)
-│   ├── medusa-config.ts         # Medusa Config (DB, CORS, Modules)
+│   ├── medusa-config.ts         # Medusa Config (DB, CORS, Modules, Notification Provider)
 │   ├── .env                     # Backend Env (DATABASE_URL, JWT, CORS)
 │   ├── src/
 │   │   ├── modules/auction/     # Custom Auction Module
@@ -606,6 +663,11 @@ VOD_Auctions/
 │   │   │   │   └── cart-item.ts      # CartItem Entity (DML, RSE-111)
 │   │   │   ├── service.ts       # AuctionModuleService (auto-CRUD, 5 models)
 │   │   │   └── index.ts         # Module Registration
+│   │   ├── modules/resend/      # Resend Notification Provider (Medusa Module)
+│   │   │   ├── service.ts       # ResendNotificationProviderService (invite email template)
+│   │   │   └── index.ts         # ModuleProvider Registration
+│   │   ├── subscribers/
+│   │   │   └── invite-created.ts # Subscriber: invite.created + invite.resent → send invite email
 │   │   ├── api/
 │   │   │   ├── admin/           # Admin API (Auth required)
 │   │   │   │   ├── auction-blocks/   # CRUD: list, create, update, delete
@@ -684,9 +746,12 @@ VOD_Auctions/
 ├── storefront/                  # Next.js 16 Storefront (Port 3000)
 │   ├── .env.local               # MEDUSA_URL + Publishable API Key
 │   ├── src/
+│   │   ├── middleware.ts        # Pre-launch password gate (checks vod_access cookie)
 │   │   ├── app/
-│   │   │   ├── layout.tsx       # Layout: Header, Footer, Dark Theme, AuthProvider (lang="en")
+│   │   │   ├── layout.tsx       # Layout: Header, Footer, Dark Theme, AuthProvider (cookie-gated)
 │   │   │   ├── page.tsx         # Homepage: Hero, aktive/demnächst Blöcke
+│   │   │   ├── gate/page.tsx    # Pre-launch password page (Coming Soon)
+│   │   │   ├── api/gate/route.ts # Password verification + cookie setter
 │   │   │   ├── auctions/
 │   │   │   │   ├── page.tsx     # Auktionsübersicht + AuctionListFilter
 │   │   │   │   └── [slug]/
@@ -970,6 +1035,13 @@ python3 generate_entity_content.py --type artist --priority P1    # Top artists 
 python3 generate_entity_content.py --type label --priority P1     # Top labels
 python3 generate_entity_content.py --type press_orga --priority P1 # Top press orgs
 python3 generate_entity_content.py --dry-run --limit 5            # Preview without writing
+
+# Label Enrichment from Catalog Numbers
+python3 enrich_labels_from_catno.py                  # Both phases (Discogs + Parse)
+python3 enrich_labels_from_catno.py --phase 1        # Discogs API only (~4.5k releases)
+python3 enrich_labels_from_catno.py --phase 2        # Parse from catalogNumber only
+python3 enrich_labels_from_catno.py --dry-run        # Preview without writing
+python3 enrich_labels_from_catno.py --limit 100      # Limit per phase
 ```
 
 **Cronjobs (VPS — verifiziert 2026-03-03, alle Dependencies installiert):**
@@ -983,7 +1055,7 @@ python3 generate_entity_content.py --dry-run --limit 5            # Preview with
 **VPS Python Dependencies (venv at `scripts/venv/`):**
 psycopg2-binary, python-dotenv, requests, mysql-connector-python
 
-**New DB columns:** discogs_id, discogs_lowest_price, discogs_median_price, discogs_highest_price, discogs_num_for_sale, discogs_have, discogs_want, discogs_last_synced, legacy_last_synced, article_number, product_category, format_id, pressOrgaId
+**New DB columns:** discogs_id, discogs_lowest_price, discogs_median_price, discogs_highest_price, discogs_num_for_sale, discogs_have, discogs_want, discogs_last_synced, legacy_last_synced, article_number, product_category, format_id, pressOrgaId, label_enriched
 **New DB tables:** sync_log, Format (39 entries), PressOrga (1.983 entries)
 
 ## Admin Panel Extensions
@@ -1168,7 +1240,8 @@ Store in `.env` (git-ignored), manage via `Passwords/` directory:
 **SSH:** `ssh root@72.62.148.205`
 
 **URLs:**
-- Backend/Admin: https://api.vod-auctions.com (Port 9000, nginx reverse proxy)
+- Backend API: https://api.vod-auctions.com (Port 9000, nginx reverse proxy)
+- Admin Dashboard: https://admin.vod-auctions.com (Port 9000, nginx reverse proxy, redirects / → /app)
 - Storefront: https://vod-auctions.com (Port 3006, nginx reverse proxy)
 - Clickdummy: https://vodauction.thehotshit.de (Port 3005, nginx reverse proxy)
 
