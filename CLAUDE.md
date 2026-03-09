@@ -16,6 +16,13 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-09
 
 ### Letzte Änderungen (2026-03-09)
+- **Discogs Preise & Links auf Storefront ausgeblendet (temporär):**
+  - **Grund:** `/marketplace/price_suggestions` API liefert empfohlene Preise pro Zustand (Mint, NM, VG+…), NICHT die tatsächlichen Verkaufsstatistiken (Sale History) die auf der Discogs-Seite angezeigt werden — Preise stimmten daher nicht mit Discogs überein
+  - **Ausgeblendet:** Discogs Prices Section (Low/Median/High) + "View on Discogs" Link auf Catalog-Detail + Auction-Detail, Discogs-Links auf Band/Label/Press Entity-Pages
+  - **Nicht geändert:** Backend-APIs, DB-Spalten, Discogs Daily Sync Cronjob, Admin-Panel (zeigt Discogs-Daten weiterhin), Datenschutz-Seite (rechtlich nötig da API weiter genutzt)
+  - **Wiederherstellen:** JSX-Comment-Marker (`{/* HIDDEN: ... */}`) in 5 Dateien entfernen
+  - **Dateien:** `catalog/[id]/page.tsx`, `auctions/[slug]/[itemId]/page.tsx`, `band/[slug]/page.tsx`, `label/[slug]/page.tsx`, `press/[slug]/page.tsx`
+  - **VPS:** Storefront deployed
 - **Credits/Tracklist Separation Fix:**
   - **Problem:** ~3.900 Releases zeigten Tracklist-Daten im Credits-Bereich, obwohl die Tracklist bereits als JSONB existierte
   - **Ursache:** `extractTracklistFromText()` wurde nur aufgerufen wenn `tracklist` JSONB leer war — bei gefülltem JSONB blieben die Tracklist-Zeilen im Credits-Text stehen
