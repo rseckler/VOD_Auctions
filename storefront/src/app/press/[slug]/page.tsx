@@ -245,6 +245,7 @@ export default async function PressPage({
             External Links
           </h2>
           <div className="flex flex-wrap gap-3">
+            {/* HIDDEN: Discogs link temporarily disabled
             {external_links.discogs && (
               <a
                 href={external_links.discogs}
@@ -255,6 +256,7 @@ export default async function PressPage({
                 Discogs &rarr;
               </a>
             )}
+            */}
             {external_links.wikipedia && (
               <a
                 href={external_links.wikipedia}

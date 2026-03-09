@@ -185,6 +185,7 @@ export default async function CatalogDetailPage({
                 </span>
               </div>
             )}
+            {/* HIDDEN: Discogs prices temporarily disabled — data still in DB, re-enable later
             {(release.discogs_lowest_price || release.discogs_median_price || release.discogs_highest_price || release.discogs_id) && (
               <div className="space-y-1">
                 <div className="flex justify-between items-center">
@@ -227,6 +228,7 @@ export default async function CatalogDetailPage({
                 )}
               </div>
             )}
+            */}
             {release.estimated_value && (
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground text-sm">Estimated Value</span>

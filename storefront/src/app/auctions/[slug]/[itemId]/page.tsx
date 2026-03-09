@@ -258,7 +258,7 @@ export default async function ItemDetailPage({
             </div>
           </div>
 
-          {/* Discogs Prices */}
+          {/* HIDDEN: Discogs prices temporarily disabled — data still in DB, re-enable later
           {(release?.discogs_lowest_price || release?.discogs_median_price || release?.discogs_highest_price) && (
             <div className="relative pl-4 mb-7">
               <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full bg-gradient-to-b from-primary via-primary/60 to-transparent" />
@@ -295,6 +295,7 @@ export default async function ItemDetailPage({
                 )}
             </div>
           )}
+          */}
 
           {/* Contributing Artists */}
           {release?.various_artists && release.various_artists.length > 0 && (
