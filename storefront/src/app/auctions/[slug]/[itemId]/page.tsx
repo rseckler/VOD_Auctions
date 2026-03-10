@@ -10,6 +10,7 @@ import { ItemBidSection } from "@/components/ItemBidSection"
 import { RelatedSection } from "@/components/RelatedSection"
 import { medusaFetch } from "@/lib/api"
 import { CreditsTable } from "@/components/CreditsTable"
+import { SaveForLaterButton } from "@/components/SaveForLaterButton"
 import { extractTracklistFromText } from "@/lib/utils"
 import type { AuctionBlock, BlockItem, ReleaseImage, TracklistEntry, VariousArtist, ReleaseComment } from "@/types"
 
@@ -182,9 +183,12 @@ export default async function ItemDetailPage({
               release?.artist_name || release?.label_name || "Unknown Artist"
             )}
           </p>
-          <h1 className="text-3xl md:text-4xl font-bold tracking-tight mt-1">
-            {release?.title || item.release_id}
-          </h1>
+          <div className="flex items-start gap-3 mt-1">
+            <h1 className="text-3xl md:text-4xl font-bold tracking-tight flex-1">
+              {release?.title || item.release_id}
+            </h1>
+            {release && <SaveForLaterButton releaseId={release.id || item.release_id} />}
+          </div>
 
           <div className="flex flex-wrap items-center gap-2 mt-4">
             {release?.format && (

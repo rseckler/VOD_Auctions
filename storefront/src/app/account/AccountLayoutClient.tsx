@@ -4,7 +4,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useAuth } from "@/components/AuthProvider"
 import { useEffect } from "react"
-import { LayoutDashboard, Gavel, Trophy, Settings, ShoppingCart, CreditCard, MessageSquare, Package } from "lucide-react"
+import { LayoutDashboard, Gavel, Trophy, Settings, ShoppingCart, CreditCard, MessageSquare, Package, Heart } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { href: "/account", label: "Overview", icon: LayoutDashboard },
   { href: "/account/bids", label: "My Bids", icon: Gavel },
   { href: "/account/wins", label: "Won", icon: Trophy },
+  { href: "/account/saved", label: "Saved", icon: Heart },
   { href: "/account/cart", label: "Cart", icon: ShoppingCart },
   { href: "/account/checkout", label: "Checkout", icon: CreditCard },
   { href: "/account/orders", label: "My Orders", icon: Package },

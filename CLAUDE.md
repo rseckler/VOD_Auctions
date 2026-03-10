@@ -13,9 +13,23 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Sprache:** Storefront und Admin-UI komplett auf Englisch (seit 2026-03-03)
 
 **Created:** 2026-02-10
-**Last Updated:** 2026-03-09
+**Last Updated:** 2026-03-10
 
-### Letzte Änderungen (2026-03-09)
+### Letzte Änderungen (2026-03-10)
+- **Homepage: Dynamischer Release-Count im Catalog Teaser:**
+  - **Problem:** Hardcoded "40,000+" im Teaser-Titel, CMS-Wert überschrieb Fallback
+  - **Fix:** `getTotalReleaseCount()` fetcht `/store/catalog?limit=0&visibility=all` (revalidate 3600s), Titel wird immer dynamisch generiert (z.B. "41,534 Releases in Catalog")
+  - **Dateien:** `storefront/src/app/page.tsx`
+  - **VPS:** Storefront deployed
+- **AI Content Generation für neue Labels (abgeschlossen):**
+  - **Kontext:** Nach Label Enrichment (2.829 neue Labels aus Katalognummern-Parsing) fehlte AI-Content für die neuen Label-Seiten
+  - **Prozess:** `generate_entity_content.py --type label` auf VPS ausgeführt (identischer Prozess wie für bisherige Entities)
+  - **Ergebnis:** 2.829 Labels generiert (P1: 54, P2: 411, P3: 2.364), 1 Fehler (Duplikat-Constraint)
+  - **Laufzeit:** ~60 Minuten (50 req/min Rate Limit, Claude Haiku 4.5)
+  - **Fix:** `anthropic` Python-Paket musste auf VPS nachinstalliert werden (`pip3 install --break-system-packages --ignore-installed anthropic`)
+  - **Seiten live:** Alle neuen Labels unter `vod-auctions.com/label/[slug]` erreichbar (ISR 300s)
+
+### Frühere Änderungen (2026-03-09)
 - **ReleaseArtist-Bereinigung + Discogs Extraartists Import:**
   - **Problem:** ~50% der ReleaseArtist-Einträge (20.938 von 42.174) waren Garbage — generische Wörter (FROM, NO, Tape, A4, Logo...) aus Legacy-System als Band-Einträge gespeichert
   - **Schritt 1 — Garbage Cleanup:** 60 Fake-Artists identifiziert, Smart-Heuristik: nur löschen wenn Artist-Name im Credits-Text des jeweiligen Releases vorkommt. 10.170 Garbage-Links entfernt, 10.765 legitimate Links behalten

@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Menu, Disc3, ShoppingCart } from "lucide-react"
+import { Menu, Disc3, ShoppingCart, Heart } from "lucide-react"
 import { useState } from "react"
 import { HeaderAuth } from "@/components/HeaderAuth"
 import { MobileNav } from "./MobileNav"
@@ -15,7 +15,7 @@ const NAV_LINKS = [
 
 export function Header() {
   const [mobileOpen, setMobileOpen] = useState(false)
-  const { isAuthenticated, cartCount } = useAuth()
+  const { isAuthenticated, cartCount, savedCount } = useAuth()
 
   return (
     <header className="sticky top-0 z-50 bg-[rgba(28,25,21,0.95)] backdrop-blur-xl border-b border-[rgba(232,224,212,0.1)]">
@@ -39,17 +39,30 @@ export function Header() {
             </Link>
           ))}
           {isAuthenticated && (
-            <Link
-              href="/account/cart"
-              className="relative text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ShoppingCart className="h-5 w-5" />
-              {cartCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-primary text-[#1c1915] text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
-                  {cartCount}
-                </span>
-              )}
-            </Link>
+            <>
+              <Link
+                href="/account/saved"
+                className="relative text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Heart className="h-5 w-5" />
+                {savedCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                    {savedCount}
+                  </span>
+                )}
+              </Link>
+              <Link
+                href="/account/cart"
+                className="relative text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ShoppingCart className="h-5 w-5" />
+                {cartCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-primary text-[#1c1915] text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                    {cartCount}
+                  </span>
+                )}
+              </Link>
+            </>
           )}
           <HeaderAuth />
         </nav>

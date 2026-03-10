@@ -30,6 +30,7 @@ type AuthContextType = {
   customer: Customer | null
   loading: boolean
   cartCount: number
+  savedCount: number
   login: (email: string, password: string) => Promise<void>
   register: (
     email: string,
@@ -47,6 +48,7 @@ const AuthContext = createContext<AuthContextType>({
   customer: null,
   loading: true,
   cartCount: 0,
+  savedCount: 0,
   login: async () => {},
   register: async () => {},
   logout: () => {},
@@ -61,6 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [loading, setLoading] = useState(true)
   const [cartCount, setCartCount] = useState(0)
+  const [savedCount, setSavedCount] = useState(0)
 
   const fetchStatus = useCallback(async (token: string) => {
     try {
@@ -73,6 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (res.ok) {
         const data = await res.json()
         setCartCount(data.cart_count || 0)
+        setSavedCount(data.saved_count || 0)
       }
     } catch {
       // silently fail
@@ -153,6 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearToken()
     setCustomer(null)
     setCartCount(0)
+    setSavedCount(0)
   }, [])
 
   return (
@@ -162,6 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         customer,
         loading,
         cartCount,
+        savedCount,
         login,
         register,
         logout,

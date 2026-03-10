@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator"
 import { ImageGallery } from "@/components/ImageGallery"
 import { CatalogRelatedSection } from "@/components/CatalogRelatedSection"
 import { DirectPurchaseButton } from "@/components/DirectPurchaseButton"
+import { SaveForLaterButton } from "@/components/SaveForLaterButton"
 import { medusaFetch } from "@/lib/api"
 import { CreditsTable } from "@/components/CreditsTable"
 import { extractTracklistFromText } from "@/lib/utils"
@@ -154,9 +155,12 @@ export default async function CatalogDetailPage({
               release.artist_name || release.label_name || "Unknown Artist"
             )}
           </p>
-          <h1 className="text-3xl md:text-4xl font-bold tracking-tight mt-1">
-            {release.title}
-          </h1>
+          <div className="flex items-start gap-3 mt-1">
+            <h1 className="text-3xl md:text-4xl font-bold tracking-tight flex-1">
+              {release.title}
+            </h1>
+            <SaveForLaterButton releaseId={release.id} />
+          </div>
 
           <div className="flex flex-wrap items-center gap-2 mt-4">
             {(release.format_name || release.format) && (
