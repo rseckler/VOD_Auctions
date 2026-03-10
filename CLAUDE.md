@@ -16,6 +16,22 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-10
 
 ### Letzte Änderungen (2026-03-10)
+- **Save for Later (Merken) Feature:**
+  - **Backend:** `saved_item` Medusa DML Model (soft-delete Pattern), registriert als 6. Model in AuctionModuleService
+  - **APIs:** `GET/POST /store/account/saved` (List mit Release+Artist JOIN, Save mit Duplikat-Check), `DELETE /store/account/saved/:id` (Soft-Delete)
+  - **Status API:** Erweitert um `saved_count` neben `cart_count`
+  - **Auth Middleware:** Bereits abgedeckt durch `/store/account/*` Wildcard (GET/POST/DELETE)
+  - **SaveForLaterButton:** Client-Komponente mit 2 Varianten — "icon" (44×44px Heart, neben Titel) und "button" (Text + Heart)
+  - **AuthProvider:** `savedCount` State, wird bei Login/Logout/Save/Unsave aktualisiert
+  - **Header:** Heart-Icon mit Rose-Badge-Counter neben Cart-Icon (Desktop)
+  - **Account Saved Page:** `/account/saved` — Liste aller gemerkten Artikel mit Cover, Artist, Titel, Preis, Remove-Button
+  - **Account Sidebar:** "Saved" Nav-Item mit Heart-Icon zwischen Won und Cart
+  - **Account Overview:** 5. Summary-Card (Saved, rose-500 Farbe)
+  - **Detail-Seiten:** Heart-Icon neben Titel auf Catalog-Detail + Auction-Item-Detail
+  - **DB Migration:** `saved_item` Tabelle (Migration20260310132158)
+  - **Neue Dateien:** `saved-item.ts`, `saved/route.ts`, `saved/[id]/route.ts`, `SaveForLaterButton.tsx`, `saved/page.tsx`, `save-for-later-mockup.html`
+  - **Geänderte Dateien:** `service.ts`, `status/route.ts`, `AuthProvider.tsx`, `Header.tsx`, `AccountLayoutClient.tsx`, `account/page.tsx`, `catalog/[id]/page.tsx`, `auctions/[slug]/[itemId]/page.tsx`
+  - **VPS:** Backend + Storefront deployed
 - **Homepage: Dynamischer Release-Count im Catalog Teaser:**
   - **Problem:** Hardcoded "40,000+" im Teaser-Titel, CMS-Wert überschrieb Fallback
   - **Fix:** `getTotalReleaseCount()` fetcht `/store/catalog?limit=0&visibility=all` (revalidate 3600s), Titel wird immer dynamisch generiert (z.B. "41,534 Releases in Catalog")
@@ -592,6 +608,7 @@ Shared DB für tape-mag-mvp + VOD_Auctions. Schema enthält 24 Tabellen (14 Basi
 - `bid` — Alle Gebote (amount, max_amount, is_winning, is_outbid)
 - `transaction` — Zahlungen & Versand (RSE-76: Stripe, status, shipping_status, Adresse; RSE-111: +release_id, +item_type, +order_group_id, block_item_id nullable; +shipping_method_id, +shipping_country)
 - `cart_item` — Warenkorb für Direktkäufe (RSE-111: user_id, release_id, price-Snapshot)
+- `saved_item` — Merkliste / Save for Later (user_id, release_id, soft-delete via deleted_at)
 - `related_blocks` — Verwandte Blöcke
 - `shipping_item_type` — 13 Artikeltypen mit Gewichten (RSE-103)
 - `shipping_zone` — 3 Versandzonen DE/EU/World (RSE-103)
@@ -701,8 +718,9 @@ VOD_Auctions/
 │   │   │   │   ├── block-item.ts     # BlockItem Entity (DML)
 │   │   │   │   ├── bid.ts            # Bid Entity (DML, RSE-75)
 │   │   │   │   ├── transaction.ts    # Transaction Entity (DML, RSE-76/110)
-│   │   │   │   └── cart-item.ts      # CartItem Entity (DML, RSE-111)
-│   │   │   ├── service.ts       # AuctionModuleService (auto-CRUD, 5 models)
+│   │   │   │   ├── cart-item.ts      # CartItem Entity (DML, RSE-111)
+│   │   │   │   └── saved-item.ts    # SavedItem Entity (DML, Save for Later)
+│   │   │   ├── service.ts       # AuctionModuleService (auto-CRUD, 6 models)
 │   │   │   └── index.ts         # Module Registration
 │   │   ├── modules/resend/      # Resend Notification Provider (Medusa Module)
 │   │   │   ├── service.ts       # ResendNotificationProviderService (invite email template)
@@ -750,7 +768,9 @@ VOD_Auctions/
 │   │   │           ├── wins/route.ts         # GET: Gewonnene Items
 │   │   │           ├── cart/route.ts         # GET + POST: Warenkorb (RSE-111)
 │   │   │           ├── cart/[id]/route.ts    # DELETE: Cart-Item entfernen (RSE-111)
-│   │   │           ├── status/route.ts       # GET: cart_count (RSE-111)
+│   │   │           ├── saved/route.ts         # GET + POST: Saved items (Save for Later)
+│   │   │           ├── saved/[id]/route.ts   # DELETE: Remove saved item
+│   │   │           ├── status/route.ts       # GET: cart_count + saved_count
 │   │   │           ├── checkout/route.ts     # POST: Combined Checkout (RSE-111, multi-item Stripe)
 │   │   │           ├── newsletter/route.ts   # GET/POST: Newsletter opt-in/opt-out (RSE-128)
 │   │   │           ├── orders/route.ts        # GET: Order History (grouped by order_group_id)
@@ -814,6 +834,7 @@ VOD_Auctions/
 │   │   │       ├── checkout/page.tsx # Combined Checkout (RSE-111) + method selection
 │   │   │       ├── orders/page.tsx  # Order History (grouped, expandable, tracking links)
 │   │   │       ├── settings/page.tsx # Profil-Informationen + Newsletter Toggle
+│   │   │       ├── saved/page.tsx     # Saved Items (Save for Later)
 │   │   │       └── feedback/page.tsx # Post-Delivery Feedback
 │   │   ├── components/
 │   │   │   ├── layout/
@@ -821,10 +842,11 @@ VOD_Auctions/
 │   │   │   │   ├── Footer.tsx        # Warm footer mit Disc3 icon
 │   │   │   │   └── MobileNav.tsx     # Sheet-based mobile nav
 │   │   │   ├── ui/                   # shadcn/ui Komponenten (17 installiert)
-│   │   │   ├── AuthProvider.tsx      # Auth Context (JWT, Customer, cartCount)
+│   │   │   ├── AuthProvider.tsx      # Auth Context (JWT, Customer, cartCount, savedCount)
 │   │   │   ├── AuthModal.tsx         # Login/Register Modal
 │   │   │   ├── HeaderAuth.tsx        # Login/Logout/My Account im Header
 │   │   │   ├── DirectPurchaseButton.tsx # "Add to Cart" (RSE-111, für alle eingeloggten User)
+│   │   │   ├── SaveForLaterButton.tsx  # Heart icon — Save for Later (icon/button variants)
 │   │   │   ├── HomeContent.tsx       # Homepage Sections (Running/Upcoming)
 │   │   │   ├── BlockCard.tsx         # BlockCardVertical + BlockCardHorizontal
 │   │   │   ├── ItemBidSection.tsx    # BidForm + BidHistory + Countdown + Realtime
