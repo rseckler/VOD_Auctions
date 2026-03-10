@@ -174,7 +174,7 @@ export default function CatalogPage() {
 
   return (
     <main className="mx-auto max-w-7xl px-6 py-8">
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl md:text-4xl font-bold font-[family-name:var(--font-dm-serif)]">
             Catalog
@@ -184,7 +184,7 @@ export default function CatalogPage() {
           </p>
         </div>
         {/* Visibility Toggle */}
-        <div className="flex items-center gap-1 rounded-lg border border-[rgba(232,224,212,0.12)] p-1">
+        <div className="flex items-center gap-1 rounded-lg border border-[rgba(232,224,212,0.12)] p-1 self-start sm:self-auto flex-shrink-0">
           <button
             onClick={() => { setVisibility("all"); setPage(1) }}
             className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
