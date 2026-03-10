@@ -11,6 +11,7 @@ import { RelatedSection } from "@/components/RelatedSection"
 import { medusaFetch } from "@/lib/api"
 import { CreditsTable } from "@/components/CreditsTable"
 import { SaveForLaterButton } from "@/components/SaveForLaterButton"
+import { ShareButton } from "@/components/ShareButton"
 import { extractTracklistFromText } from "@/lib/utils"
 import type { AuctionBlock, BlockItem, ReleaseImage, TracklistEntry, VariousArtist, ReleaseComment } from "@/types"
 
@@ -188,6 +189,10 @@ export default async function ItemDetailPage({
               {release?.title || item.release_id}
             </h1>
             {release && <SaveForLaterButton releaseId={release.id || item.release_id} />}
+            <ShareButton
+              url={`https://vod-auctions.com/auctions/${slug}/${itemId}`}
+              title={release?.artist_name ? `${release.artist_name} — ${release.title}` : release?.title || `Lot ${item.lot_number}`}
+            />
           </div>
 
           <div className="flex flex-wrap items-center gap-2 mt-4">

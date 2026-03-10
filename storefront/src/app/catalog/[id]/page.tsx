@@ -9,6 +9,7 @@ import { ImageGallery } from "@/components/ImageGallery"
 import { CatalogRelatedSection } from "@/components/CatalogRelatedSection"
 import { DirectPurchaseButton } from "@/components/DirectPurchaseButton"
 import { SaveForLaterButton } from "@/components/SaveForLaterButton"
+import { ShareButton } from "@/components/ShareButton"
 import { medusaFetch } from "@/lib/api"
 import { CreditsTable } from "@/components/CreditsTable"
 import { extractTracklistFromText } from "@/lib/utils"
@@ -160,6 +161,10 @@ export default async function CatalogDetailPage({
               {release.title}
             </h1>
             <SaveForLaterButton releaseId={release.id} />
+            <ShareButton
+              url={`https://vod-auctions.com/catalog/${release.id}`}
+              title={release.artist_name ? `${release.artist_name} — ${release.title}` : release.title}
+            />
           </div>
 
           <div className="flex flex-wrap items-center gap-2 mt-4">
