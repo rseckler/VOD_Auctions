@@ -22,8 +22,16 @@ async function getHomeContent(): Promise<CmsContent> {
   return data?.sections || {}
 }
 
+async function getTotalReleaseCount(): Promise<number> {
+  const data = await medusaFetch<{ total: number }>(
+    "/store/catalog?limit=0&visibility=all",
+    { revalidate: 3600 }
+  )
+  return data?.total || 0
+}
+
 export default async function Home() {
-  const [blocks, cms] = await Promise.all([getBlocks(), getHomeContent()])
+  const [blocks, cms, totalCount] = await Promise.all([getBlocks(), getHomeContent(), getTotalReleaseCount()])
   const activeCount = blocks.filter((b) => b.status === "active").length
 
   const hero = cms.hero as Record<string, unknown> | undefined
@@ -35,8 +43,11 @@ export default async function Home() {
   const heroCtaLink = (hero?.cta_link as string) || "/auctions"
 
   const teaser = cms.catalog_teaser as Record<string, unknown> | undefined
+  const formattedCount = totalCount > 0
+    ? totalCount.toLocaleString("en-US", { useGrouping: true })
+    : "40,000+"
   const teaserTitle =
-    (teaser?.title as string) || "40,000+ Releases in complete Catalog"
+    (teaser?.title as string) || `${formattedCount} Releases in complete Catalog`
   const teaserBody =
     (teaser?.body as string) ||
     "Browse our complete archive — Industrial, EBM, Dark Ambient, Noise, Experimental and more."
