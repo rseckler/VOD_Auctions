@@ -16,6 +16,22 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-10
 
 ### Letzte Änderungen (2026-03-10)
+- **Sharing-Funktionen (Catalog + Auction Detail Pages):**
+  - **Hybrid-Ansatz:** Mobile → natives OS Share Sheet (`navigator.share`), Desktop → Dropdown mit 6 Optionen
+  - **Share-Optionen (Desktop):** Copy Link (mit Toast-Feedback), WhatsApp, X (Twitter), Facebook, Telegram, Email
+  - **ShareButton:** Client-Komponente (44×44px, `Share2` Lucide Icon), gleicher Stil wie SaveForLaterButton
+  - **Platzierung:** Rechts neben Heart-Icon am Titel (beide Detail-Seiten)
+  - **OG-Tags:** Bereits vorhanden (title, description, image) — Link-Previews funktionieren out-of-the-box
+  - **Keine neuen Dependencies** — Lucide Icons + native Browser APIs
+  - **Neue Dateien:** `ShareButton.tsx`
+  - **Geänderte Dateien:** `catalog/[id]/page.tsx`, `auctions/[slug]/[itemId]/page.tsx`
+  - **Docs:** `PLAN_Sharing.md`, `sharing-mockup.html`
+  - **VPS:** Storefront deployed
+- **Catalog Mobile Fix — Text/Button Overlap:**
+  - **Problem:** "41,534 releases from the..." Text wurde vom "Complete Catalog" Toggle-Button überdeckt auf kleinen Screens
+  - **Fix:** `flex items-center justify-between` → `flex flex-col sm:flex-row sm:items-center justify-between gap-4` — Titel und Toggle stacken vertikal auf Mobile, horizontal ab 640px
+  - **Geänderte Dateien:** `catalog/page.tsx`
+  - **VPS:** Storefront deployed
 - **Save for Later (Merken) Feature:**
   - **Backend:** `saved_item` Medusa DML Model (soft-delete Pattern), registriert als 6. Model in AuctionModuleService
   - **APIs:** `GET/POST /store/account/saved` (List mit Release+Artist JOIN, Save mit Duplikat-Check), `DELETE /store/account/saved/:id` (Soft-Delete)
