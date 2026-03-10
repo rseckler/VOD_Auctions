@@ -46,8 +46,7 @@ export default async function Home() {
   const formattedCount = totalCount > 0
     ? totalCount.toLocaleString("en-US", { useGrouping: true })
     : "40,000+"
-  const teaserTitle =
-    (teaser?.title as string) || `${formattedCount} Releases in complete Catalog`
+  const teaserTitle = `${formattedCount} Releases in Catalog`
   const teaserBody =
     (teaser?.body as string) ||
     "Browse our complete archive — Industrial, EBM, Dark Ambient, Noise, Experimental and more."
