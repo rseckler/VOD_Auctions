@@ -25,6 +25,7 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
   - **Storefront Catalog Detail:** Preis-Box zeigt "This item is currently not available for purchase or in a planned auction." bei `!is_purchasable`, DirectPurchaseButton nur bei `is_purchasable`
   - **Storefront Homepage:** 2 Catalog-Buttons → 1 "Browse Catalog", Count zeigt nur Artikel mit Bild
   - **Release Type:** `is_purchasable?: boolean` zu `storefront/src/types/index.ts` hinzugefügt
+  - **"For Sale" Filter-Toggle:** "All Items" / "For Sale" Segmented Control rechts neben Kategorie-Pills — filtert auf Artikel mit Preis (`for_sale=true` Query-Parameter), URL-persistent, mobile-responsive
   - **Geänderte Dateien:** `store/catalog/route.ts`, `store/catalog/[id]/route.ts`, `catalog/page.tsx`, `catalog/[id]/page.tsx`, `page.tsx`, `types/index.ts`
   - **VPS:** Backend + Storefront deployed
 
