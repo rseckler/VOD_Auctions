@@ -60,6 +60,7 @@ export async function GET(
     .leftJoin("Format", "Release.format_id", "Format.id")
     .leftJoin("PressOrga", "Release.pressOrgaId", "PressOrga.id")
     .where("Release.id", id)
+    .whereNotNull("Release.coverImage")
     .first()
 
   if (!release) {
@@ -136,9 +137,12 @@ export async function GET(
         .limit(50)
     : []
 
+  const is_purchasable = release.legacy_price != null && Number(release.legacy_price) > 0
+
   res.json({
     release: {
       ...release,
+      is_purchasable,
       images,
       various_artists,
       comments,

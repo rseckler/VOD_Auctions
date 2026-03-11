@@ -149,7 +149,6 @@ export async function GET(
     label,
     artist,
     condition,
-    visibility,
     sort = "artist",
     order = "asc",
   } = req.query as Record<string, string>
@@ -298,27 +297,9 @@ export async function GET(
     countQuery = countQuery.whereILike("Release.legacy_condition", `%${condition.trim()}%`)
   }
 
-  // Visibility filter — read from site_config if not explicitly passed
-  const siteConfig = await pgConnection("site_config").where("id", "default").first()
-  const effectiveVisibility = visibility || siteConfig?.catalog_visibility || "all"
-
-  if (effectiveVisibility === "visible") {
-    query = query
-      .whereNotNull("Release.coverImage")
-      .whereNotNull("Release.legacy_price")
-    countQuery = countQuery
-      .whereNotNull("Release.coverImage")
-      .whereNotNull("Release.legacy_price")
-  } else if (effectiveVisibility === "hidden") {
-    query = query.where(function () {
-      this.whereNull("Release.coverImage")
-        .orWhereNull("Release.legacy_price")
-    })
-    countQuery = countQuery.where(function () {
-      this.whereNull("Release.coverImage")
-        .orWhereNull("Release.legacy_price")
-    })
-  }
+  // Only show releases that have at least one image (coverImage set)
+  query = query.whereNotNull("Release.coverImage")
+  countQuery = countQuery.whereNotNull("Release.coverImage")
 
   // Count total
   const [{ count: total }] = await countQuery.count("Release.id as count")
@@ -344,8 +325,14 @@ export async function GET(
 
   const releases = await query
 
+  // Add is_purchasable flag to each release
+  const enrichedReleases = releases.map((r: any) => ({
+    ...r,
+    is_purchasable: r.legacy_price != null && Number(r.legacy_price) > 0,
+  }))
+
   res.json({
-    releases,
+    releases: enrichedReleases,
     total: parseInt(String(total)),
     page: parseInt(page),
     limit: pageSize,

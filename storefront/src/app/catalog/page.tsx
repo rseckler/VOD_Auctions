@@ -30,6 +30,7 @@ type CatalogRelease = {
   legacy_format_detail: string | null
   artist_name: string | null
   label_name: string | null
+  is_purchasable: boolean
 }
 
 type CatalogResponse = {
@@ -75,7 +76,6 @@ export default function CatalogPage() {
   const [country, setCountry] = useState(() => searchParams.get("country") || "")
   const [label, setLabel] = useState(() => searchParams.get("label") || "")
   const [yearFrom, setYearFrom] = useState(() => searchParams.get("year_from") || "")
-  const [visibility, setVisibility] = useState(() => searchParams.get("visibility") || "all")
   const [showFilters, setShowFilters] = useState(() => !!(searchParams.get("country") || searchParams.get("label") || searchParams.get("year_from")))
   const [loading, setLoading] = useState(true)
 
@@ -93,11 +93,10 @@ export default function CatalogPage() {
     if (country) params.set("country", country)
     if (label) params.set("label", label)
     if (yearFrom) params.set("year_from", yearFrom)
-    if (visibility && visibility !== "all") params.set("visibility", visibility)
     const qs = params.toString()
     const newUrl = qs ? `/catalog?${qs}` : "/catalog"
     window.history.replaceState(null, "", newUrl)
-  }, [page, search, category, format, country, label, yearFrom, visibility])
+  }, [page, search, category, format, country, label, yearFrom])
 
   // Restore state when navigating back (popstate)
   useEffect(() => {
@@ -111,7 +110,6 @@ export default function CatalogPage() {
       setCountry(sp.get("country") || "")
       setLabel(sp.get("label") || "")
       setYearFrom(sp.get("year_from") || "")
-      setVisibility(sp.get("visibility") || "all")
       if (sp.get("country") || sp.get("label") || sp.get("year_from")) setShowFilters(true)
     }
     window.addEventListener("popstate", handlePopState)
@@ -129,7 +127,6 @@ export default function CatalogPage() {
     if (country) params.set("country", country)
     if (label) params.set("label", label)
     if (yearFrom) params.set("year_from", yearFrom)
-    if (visibility) params.set("visibility", visibility)
     params.set("sort", "artist")
 
     const data = await medusaFetch<CatalogResponse>(
@@ -141,7 +138,7 @@ export default function CatalogPage() {
       setPages(data.pages)
     }
     setLoading(false)
-  }, [page, search, category, format, country, label, yearFrom, visibility])
+  }, [page, search, category, format, country, label, yearFrom])
 
   useEffect(() => {
     fetchReleases()
@@ -174,38 +171,13 @@ export default function CatalogPage() {
 
   return (
     <main className="mx-auto max-w-7xl px-6 py-8">
-      <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl md:text-4xl font-bold font-[family-name:var(--font-dm-serif)]">
-            Catalog
-          </h1>
-          <p className="text-muted-foreground mt-2">
-            {total.toLocaleString("en-US")} releases from the archive
-          </p>
-        </div>
-        {/* Visibility Toggle */}
-        <div className="flex items-center gap-1 rounded-lg border border-[rgba(232,224,212,0.12)] p-1 self-start sm:self-auto flex-shrink-0">
-          <button
-            onClick={() => { setVisibility("all"); setPage(1) }}
-            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-              visibility === "all"
-                ? "bg-gradient-to-r from-primary to-[#b8860b] text-[#1c1915]"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Complete Catalog
-          </button>
-          <button
-            onClick={() => { setVisibility("visible"); setPage(1) }}
-            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-              visibility === "visible"
-                ? "bg-gradient-to-r from-primary to-[#b8860b] text-[#1c1915]"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Sales Catalog
-          </button>
-        </div>
+      <div className="mb-8">
+        <h1 className="text-3xl md:text-4xl font-bold font-[family-name:var(--font-dm-serif)]">
+          Catalog
+        </h1>
+        <p className="text-muted-foreground mt-2">
+          {total.toLocaleString("en-US")} releases from the archive
+        </p>
       </div>
 
       {/* Search */}
@@ -348,7 +320,7 @@ export default function CatalogPage() {
       ) : (
         <AnimatePresence mode="wait">
           <motion.div
-            key={`${page}-${search}-${category}-${format}-${country}-${label}-${yearFrom}-${visibility}`}
+            key={`${page}-${search}-${category}-${format}-${country}-${label}-${yearFrom}`}
             variants={staggerContainer}
             initial="hidden"
             animate="visible"
@@ -396,12 +368,14 @@ export default function CatalogPage() {
                     {release.title}
                   </p>
                   <div className="flex items-center justify-between mt-0.5">
-                    {release.legacy_price ? (
+                    {release.is_purchasable ? (
                       <span className="text-xs font-mono text-primary">
                         &euro;{Number(release.legacy_price).toFixed(2)}
                       </span>
                     ) : (
-                      <span />
+                      <span className="text-[10px] text-muted-foreground/70 italic">
+                        Not for sale
+                      </span>
                     )}
                     {release.year && (
                       <span className="text-[10px] text-muted-foreground">

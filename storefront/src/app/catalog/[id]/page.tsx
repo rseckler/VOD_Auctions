@@ -186,13 +186,17 @@ export default async function CatalogDetailPage({
 
           {/* Price info */}
           <div className="mt-6 bg-card border border-border/50 rounded-lg p-4 space-y-2">
-            {release.legacy_price && (
+            {release.is_purchasable ? (
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground text-sm">Catalog Price</span>
                 <span className="text-xl font-mono font-bold text-primary">
                   &euro;{Number(release.legacy_price).toFixed(2)}
                 </span>
               </div>
+            ) : (
+              <p className="text-sm text-muted-foreground italic">
+                This item is currently not available for purchase or in a planned auction.
+              </p>
             )}
             {/* HIDDEN: Discogs prices temporarily disabled — data still in DB, re-enable later
             {(release.discogs_lowest_price || release.discogs_median_price || release.discogs_highest_price || release.discogs_id) && (
@@ -248,12 +252,14 @@ export default async function CatalogDetailPage({
             )}
           </div>
 
-          <DirectPurchaseButton
-            releaseId={release.id}
-            saleMode={release.sale_mode || null}
-            directPrice={release.direct_price || null}
-            auctionStatus={release.auction_status || null}
-          />
+          {release.is_purchasable && (
+            <DirectPurchaseButton
+              releaseId={release.id}
+              saleMode={release.sale_mode || null}
+              directPrice={release.direct_price || null}
+              auctionStatus={release.auction_status || null}
+            />
+          )}
 
           {/* Details — Concept C "Vinyl Groove" */}
           <div className="relative pl-4 mt-8 mb-7">

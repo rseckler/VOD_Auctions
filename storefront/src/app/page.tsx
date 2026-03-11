@@ -24,7 +24,7 @@ async function getHomeContent(): Promise<CmsContent> {
 
 async function getTotalReleaseCount(): Promise<number> {
   const data = await medusaFetch<{ total: number }>(
-    "/store/catalog?limit=0&visibility=all",
+    "/store/catalog?limit=0",
     { revalidate: 3600 }
   )
   return data?.total || 0
@@ -91,10 +91,7 @@ export default async function Home() {
                   <Link href={heroCtaLink}>{heroCta}</Link>
                 </Button>
                 <Button size="lg" variant="ghost" asChild className="text-muted-foreground border border-[rgba(232,224,212,0.12)]">
-                  <Link href="/catalog?visibility=all">Browse Complete Catalog</Link>
-                </Button>
-                <Button size="lg" variant="ghost" asChild className="text-muted-foreground border border-[rgba(232,224,212,0.12)]">
-                  <Link href="/catalog?visibility=visible">Browse Sales Catalog</Link>
+                  <Link href="/catalog">Browse Catalog</Link>
                 </Button>
               </div>
             </div>
