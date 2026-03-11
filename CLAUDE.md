@@ -13,9 +13,29 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Sprache:** Storefront und Admin-UI komplett auf Englisch (seit 2026-03-03)
 
 **Created:** 2026-02-10
-**Last Updated:** 2026-03-10
+**Last Updated:** 2026-03-11
 
-### Letzte Änderungen (2026-03-10)
+### Letzte Änderungen (2026-03-11)
+- **Catalog Visibility Redesign — Image-basierte Filterung:**
+  - **Neue Logik:** Artikel mit mindestens 1 Bild = im Katalog sichtbar. Ohne Bild = unsichtbar + nicht gezählt. Preis bestimmt nur Kaufbarkeit, nicht Sichtbarkeit.
+  - **is_purchasable Flag:** Neues Boolean-Feld in API-Responses (List + Detail) — `true` wenn `legacy_price > 0`
+  - **Backend Catalog List API:** `visibility` Query-Parameter + `site_config` Lookup entfernt, stattdessen hartes `WHERE coverImage IS NOT NULL`
+  - **Backend Catalog Detail API:** `whereNotNull("Release.coverImage")` — Releases ohne Bild = 404
+  - **Storefront Catalog Page:** "Complete Catalog" / "Sales Catalog" Toggle entfernt, nur noch ein Katalog. Artikel ohne Preis zeigen "Not for sale" Hinweis
+  - **Storefront Catalog Detail:** Preis-Box zeigt "This item is currently not available for purchase or in a planned auction." bei `!is_purchasable`, DirectPurchaseButton nur bei `is_purchasable`
+  - **Storefront Homepage:** 2 Catalog-Buttons → 1 "Browse Catalog", Count zeigt nur Artikel mit Bild
+  - **Release Type:** `is_purchasable?: boolean` zu `storefront/src/types/index.ts` hinzugefügt
+  - **Geänderte Dateien:** `store/catalog/route.ts`, `store/catalog/[id]/route.ts`, `catalog/page.tsx`, `catalog/[id]/page.tsx`, `page.tsx`, `types/index.ts`
+  - **VPS:** Backend + Storefront deployed
+
+### Frühere Änderungen (2026-03-10)
+- **GitHub Releases eingerichtet:**
+  - **9 historische Releases** erstellt (v0.1.0 bis v0.9.0), jeweils pro Entwicklungstag mit SemVer-Tags
+  - **Versionierung:** SemVer (MAJOR.MINOR.PATCH), aktuell v0.9.0
+  - **Helper-Script:** `scripts/create-release.sh` — interaktive Release-Erstellung mit Auto-Version-Vorschlag, Git-Commit-Anzeige, Editor-Modus
+  - **Nutzung:** `./scripts/create-release.sh` (interaktiv), `--today` (Commits anzeigen), `--list` (Releases auflisten)
+  - **Releases sichtbar unter:** https://github.com/rseckler/VOD_Auctions/releases
+  - **Neue Dateien:** `scripts/create-release.sh`
 - **Sharing-Funktionen (Catalog + Auction Detail Pages):**
   - **Hybrid-Ansatz:** Mobile → natives OS Share Sheet (`navigator.share`), Desktop → Dropdown mit 6 Optionen
   - **Share-Optionen (Desktop):** Copy Link (mit Toast-Feedback), WhatsApp, X (Twitter), Facebook, Telegram, Email
@@ -50,7 +70,7 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
   - **VPS:** Backend + Storefront deployed
 - **Homepage: Dynamischer Release-Count im Catalog Teaser:**
   - **Problem:** Hardcoded "40,000+" im Teaser-Titel, CMS-Wert überschrieb Fallback
-  - **Fix:** `getTotalReleaseCount()` fetcht `/store/catalog?limit=0&visibility=all` (revalidate 3600s), Titel wird immer dynamisch generiert (z.B. "41,534 Releases in Catalog")
+  - **Fix:** `getTotalReleaseCount()` fetcht `/store/catalog?limit=0` (revalidate 3600s), Titel wird immer dynamisch generiert (z.B. "41,534 Releases in Catalog")
   - **Dateien:** `storefront/src/app/page.tsx`
   - **VPS:** Storefront deployed
 - **AI Content Generation für neue Labels (abgeschlossen):**
