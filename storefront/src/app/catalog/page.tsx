@@ -76,6 +76,7 @@ export default function CatalogPage() {
   const [country, setCountry] = useState(() => searchParams.get("country") || "")
   const [label, setLabel] = useState(() => searchParams.get("label") || "")
   const [yearFrom, setYearFrom] = useState(() => searchParams.get("year_from") || "")
+  const [forSale, setForSale] = useState(() => searchParams.get("for_sale") === "true")
   const [showFilters, setShowFilters] = useState(() => !!(searchParams.get("country") || searchParams.get("label") || searchParams.get("year_from")))
   const [loading, setLoading] = useState(true)
 
@@ -93,10 +94,11 @@ export default function CatalogPage() {
     if (country) params.set("country", country)
     if (label) params.set("label", label)
     if (yearFrom) params.set("year_from", yearFrom)
+    if (forSale) params.set("for_sale", "true")
     const qs = params.toString()
     const newUrl = qs ? `/catalog?${qs}` : "/catalog"
     window.history.replaceState(null, "", newUrl)
-  }, [page, search, category, format, country, label, yearFrom])
+  }, [page, search, category, format, country, label, yearFrom, forSale])
 
   // Restore state when navigating back (popstate)
   useEffect(() => {
@@ -110,6 +112,7 @@ export default function CatalogPage() {
       setCountry(sp.get("country") || "")
       setLabel(sp.get("label") || "")
       setYearFrom(sp.get("year_from") || "")
+      setForSale(sp.get("for_sale") === "true")
       if (sp.get("country") || sp.get("label") || sp.get("year_from")) setShowFilters(true)
     }
     window.addEventListener("popstate", handlePopState)
@@ -127,6 +130,7 @@ export default function CatalogPage() {
     if (country) params.set("country", country)
     if (label) params.set("label", label)
     if (yearFrom) params.set("year_from", yearFrom)
+    if (forSale) params.set("for_sale", "true")
     params.set("sort", "artist")
 
     const data = await medusaFetch<CatalogResponse>(
@@ -138,7 +142,7 @@ export default function CatalogPage() {
       setPages(data.pages)
     }
     setLoading(false)
-  }, [page, search, category, format, country, label, yearFrom])
+  }, [page, search, category, format, country, label, yearFrom, forSale])
 
   useEffect(() => {
     fetchReleases()
@@ -164,10 +168,11 @@ export default function CatalogPage() {
     setCountry("")
     setLabel("")
     setYearFrom("")
+    setForSale(false)
     setPage(1)
   }
 
-  const hasActiveFilters = category || format || country || label || yearFrom
+  const hasActiveFilters = category || format || country || label || yearFrom || forSale
 
   return (
     <main className="mx-auto max-w-7xl px-6 py-8">
@@ -196,8 +201,8 @@ export default function CatalogPage() {
         </form>
       </div>
 
-      {/* Category filter pills */}
-      <div className="flex gap-1.5 flex-wrap mb-3">
+      {/* Category filter pills + For Sale toggle */}
+      <div className="flex flex-wrap items-center gap-1.5 mb-3">
         <Button
           size="sm"
           variant={category === "" ? "default" : "outline"}
@@ -217,6 +222,29 @@ export default function CatalogPage() {
             {c.label}
           </Button>
         ))}
+        <span className="hidden sm:block w-px h-5 bg-border/50 mx-1" />
+        <div className="flex items-center gap-1 rounded-lg border border-[rgba(232,224,212,0.12)] p-0.5 ml-auto sm:ml-0">
+          <button
+            onClick={() => { setForSale(false); setPage(1) }}
+            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+              !forSale
+                ? "bg-gradient-to-r from-primary to-[#b8860b] text-[#1c1915]"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            All Items
+          </button>
+          <button
+            onClick={() => { setForSale(true); setPage(1) }}
+            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+              forSale
+                ? "bg-gradient-to-r from-primary to-[#b8860b] text-[#1c1915]"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            For Sale
+          </button>
+        </div>
       </div>
 
       {/* Literature subfilter pills — only shown for literature categories */}
@@ -320,7 +348,7 @@ export default function CatalogPage() {
       ) : (
         <AnimatePresence mode="wait">
           <motion.div
-            key={`${page}-${search}-${category}-${format}-${country}-${label}-${yearFrom}`}
+            key={`${page}-${search}-${category}-${format}-${country}-${label}-${yearFrom}-${forSale}`}
             variants={staggerContainer}
             initial="hidden"
             animate="visible"

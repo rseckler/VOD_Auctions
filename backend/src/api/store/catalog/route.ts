@@ -301,6 +301,13 @@ export async function GET(
   query = query.whereNotNull("Release.coverImage")
   countQuery = countQuery.whereNotNull("Release.coverImage")
 
+  // For-sale filter: only show purchasable items (with price)
+  const { for_sale } = req.query as Record<string, string>
+  if (for_sale === "true") {
+    query = query.whereNotNull("Release.legacy_price").where("Release.legacy_price", ">", 0)
+    countQuery = countQuery.whereNotNull("Release.legacy_price").where("Release.legacy_price", ">", 0)
+  }
+
   // Count total
   const [{ count: total }] = await countQuery.count("Release.id as count")
 
