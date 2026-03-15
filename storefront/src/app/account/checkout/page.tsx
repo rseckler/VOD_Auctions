@@ -9,7 +9,7 @@ import { getToken } from "@/lib/auth"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
 import { useAuth } from "@/components/AuthProvider"
 import { stripePromise } from "@/lib/stripe-client"
-import { CreditCard, Disc3, Trophy, ShoppingCart, Package, MapPin, Truck, CheckCircle2 } from "lucide-react"
+import { CreditCard, Disc3, Trophy, ShoppingCart, Package, MapPin, Truck, CheckCircle2, ClipboardList, Mail } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -66,6 +66,29 @@ type ShippingAddress = {
   country: string
 }
 
+// Data preserved for the success page
+type CompletedOrderData = {
+  orderGroupId: string
+  items: Array<{ artist: string | null; title: string; price: number; type: "auction" | "cart" }>
+  grandTotal: number
+  shippingCost: number
+  shippingAddress: ShippingAddress
+  email: string
+}
+
+const REQUIRED_ADDRESS_FIELDS: Array<keyof ShippingAddress> = [
+  "first_name", "last_name", "line1", "city", "postal_code", "country",
+]
+
+const FIELD_LABELS: Record<string, string> = {
+  first_name: "First Name",
+  last_name: "Last Name",
+  line1: "Address",
+  city: "City",
+  postal_code: "Postal Code",
+  country: "Country",
+}
+
 // ── Payment Form (inside Elements provider) ──
 function PaymentForm({
   amount,
@@ -73,12 +96,14 @@ function PaymentForm({
   paying,
   setPaying,
   onPaymentMethodChange,
+  agbAccepted,
 }: {
   amount: number
   onSuccess: () => void
   paying: boolean
   setPaying: (v: boolean) => void
   onPaymentMethodChange?: (type: string) => void
+  agbAccepted: boolean
 }) {
   const stripe = useStripe()
   const elements = useElements()
@@ -134,18 +159,143 @@ function PaymentForm({
         <p className="text-sm text-destructive">{errorMessage}</p>
       )}
 
+      {!agbAccepted && (
+        <p className="text-xs text-amber-400">Please accept the Terms &amp; Conditions above to proceed.</p>
+      )}
+
       <Button
         onClick={handlePay}
-        disabled={!stripe || !paymentReady || paying}
+        disabled={!stripe || !paymentReady || paying || !agbAccepted}
         className="w-full bg-primary hover:bg-primary/90 text-[#1c1915] h-12 text-base font-semibold"
       >
         <CreditCard className="w-5 h-5 mr-2" />
-        {paying ? "Processing..." : `Pay €${amount.toFixed(2)}`}
+        {paying ? "Processing..." : `Pay \u20AC${amount.toFixed(2)}`}
       </Button>
 
       <p className="text-xs text-muted-foreground text-center">
         Your payment is processed securely by Stripe. Card details never touch our server.
       </p>
+    </div>
+  )
+}
+
+// ── Reusable Address Form ──
+function AddressForm({
+  address,
+  onChange,
+  errors,
+  onBlur,
+  countries,
+  hasCatchAll,
+  idPrefix,
+}: {
+  address: ShippingAddress
+  onChange: (field: keyof ShippingAddress, value: string) => void
+  errors: Record<string, string>
+  onBlur: (field: keyof ShippingAddress) => void
+  countries: ShippingCountry[]
+  hasCatchAll: boolean
+  idPrefix: string
+}) {
+  const fieldClass = (field: string) =>
+    `mt-1 ${errors[field] ? "border-destructive focus-visible:ring-destructive" : ""}`
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label htmlFor={`${idPrefix}_first_name`}>First Name *</Label>
+          <Input
+            id={`${idPrefix}_first_name`}
+            value={address.first_name}
+            onChange={(e) => onChange("first_name", e.target.value)}
+            onBlur={() => onBlur("first_name")}
+            placeholder="John"
+            className={fieldClass("first_name")}
+          />
+          {errors.first_name && <p className="text-xs text-destructive mt-1">{errors.first_name}</p>}
+        </div>
+        <div>
+          <Label htmlFor={`${idPrefix}_last_name`}>Last Name *</Label>
+          <Input
+            id={`${idPrefix}_last_name`}
+            value={address.last_name}
+            onChange={(e) => onChange("last_name", e.target.value)}
+            onBlur={() => onBlur("last_name")}
+            placeholder="Doe"
+            className={fieldClass("last_name")}
+          />
+          {errors.last_name && <p className="text-xs text-destructive mt-1">{errors.last_name}</p>}
+        </div>
+      </div>
+      <div>
+        <Label htmlFor={`${idPrefix}_line1`}>Address *</Label>
+        <Input
+          id={`${idPrefix}_line1`}
+          value={address.line1}
+          onChange={(e) => onChange("line1", e.target.value)}
+          onBlur={() => onBlur("line1")}
+          placeholder="Street and house number"
+          className={fieldClass("line1")}
+        />
+        {errors.line1 && <p className="text-xs text-destructive mt-1">{errors.line1}</p>}
+      </div>
+      <div>
+        <Label htmlFor={`${idPrefix}_line2`}>Apartment, suite, etc. (optional)</Label>
+        <Input
+          id={`${idPrefix}_line2`}
+          value={address.line2}
+          onChange={(e) => onChange("line2", e.target.value)}
+          className="mt-1"
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label htmlFor={`${idPrefix}_postal_code`}>Postal Code *</Label>
+          <Input
+            id={`${idPrefix}_postal_code`}
+            value={address.postal_code}
+            onChange={(e) => onChange("postal_code", e.target.value)}
+            onBlur={() => onBlur("postal_code")}
+            className={fieldClass("postal_code")}
+          />
+          {errors.postal_code && <p className="text-xs text-destructive mt-1">{errors.postal_code}</p>}
+        </div>
+        <div>
+          <Label htmlFor={`${idPrefix}_city`}>City *</Label>
+          <Input
+            id={`${idPrefix}_city`}
+            value={address.city}
+            onChange={(e) => onChange("city", e.target.value)}
+            onBlur={() => onBlur("city")}
+            className={fieldClass("city")}
+          />
+          {errors.city && <p className="text-xs text-destructive mt-1">{errors.city}</p>}
+        </div>
+      </div>
+      <div>
+        <Label htmlFor={`${idPrefix}_country`}>Country *</Label>
+        <Select value={address.country} onValueChange={(v) => { onChange("country", v); onBlur("country") }}>
+          <SelectTrigger className={fieldClass("country")}>
+            <SelectValue placeholder="Select your country..." />
+          </SelectTrigger>
+          <SelectContent className="max-h-[300px]">
+            {countries.length > 0
+              ? countries.map((c) => (
+                  <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>
+                ))
+              : ["DE", "AT", "CH", "FR", "NL", "BE", "US", "GB"].map((code) => {
+                  const names: Record<string, string> = {
+                    DE: "Germany", AT: "Austria", CH: "Switzerland", FR: "France",
+                    NL: "Netherlands", BE: "Belgium", US: "United States", GB: "United Kingdom",
+                  }
+                  return <SelectItem key={code} value={code}>{names[code]}</SelectItem>
+                })}
+            {hasCatchAll && <SelectItem value="OTHER">Other country</SelectItem>}
+          </SelectContent>
+        </Select>
+        {errors.country && <p className="text-xs text-destructive mt-1">{errors.country}</p>}
+      </div>
     </div>
   )
 }
@@ -172,7 +322,7 @@ export default function CheckoutPage() {
   const [estimating, setEstimating] = useState(false)
   const [freeThreshold, setFreeThreshold] = useState<number | null>(null)
 
-  // Address
+  // Shipping Address
   const [address, setAddress] = useState<ShippingAddress>({
     first_name: "",
     last_name: "",
@@ -183,6 +333,25 @@ export default function CheckoutPage() {
     country: "",
   })
 
+  // Billing Address
+  const [billingSameAsShipping, setBillingSameAsShipping] = useState(true)
+  const [billingAddress, setBillingAddress] = useState<ShippingAddress>({
+    first_name: "",
+    last_name: "",
+    line1: "",
+    line2: "",
+    city: "",
+    postal_code: "",
+    country: "",
+  })
+
+  // Form validation
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({})
+  const [billingFormErrors, setBillingFormErrors] = useState<Record<string, string>>({})
+
+  // AGB acceptance
+  const [agbAccepted, setAgbAccepted] = useState(false)
+
   // Payment
   const [clientSecret, setClientSecret] = useState("")
   const [paymentIntentId, setPaymentIntentId] = useState("")
@@ -191,6 +360,9 @@ export default function CheckoutPage() {
   const [paymentSuccess, setPaymentSuccess] = useState(false)
   const [creatingIntent, setCreatingIntent] = useState(false)
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("")
+
+  // Completed order data (preserved for success page)
+  const [completedOrder, setCompletedOrder] = useState<CompletedOrderData | null>(null)
 
   // Pre-fill name from customer
   useEffect(() => {
@@ -202,6 +374,22 @@ export default function CheckoutPage() {
       }))
     }
   }, [customer])
+
+  // ── Validation ──
+  function validateField(field: keyof ShippingAddress, value: string, isBilling = false) {
+    const setter = isBilling ? setBillingFormErrors : setFormErrors
+    if (REQUIRED_ADDRESS_FIELDS.includes(field)) {
+      if (!value.trim()) {
+        setter((prev) => ({ ...prev, [field]: `${FIELD_LABELS[field] || field} is required` }))
+      } else {
+        setter((prev) => {
+          const next = { ...prev }
+          delete next[field]
+          return next
+        })
+      }
+    }
+  }
 
   // ── Load items + shipping data ──
   useEffect(() => {
@@ -365,6 +553,21 @@ export default function CheckoutPage() {
     if (!address.country || !address.first_name || !address.last_name || !address.line1 || !address.city || !address.postal_code) return
     if (!hasItems || creatingIntent) return
 
+    // Validate billing address if different
+    if (!billingSameAsShipping) {
+      const billingErrors: Record<string, string> = {}
+      for (const field of REQUIRED_ADDRESS_FIELDS) {
+        if (!billingAddress[field].trim()) {
+          billingErrors[field] = `${FIELD_LABELS[field] || field} is required`
+        }
+      }
+      if (Object.keys(billingErrors).length > 0) {
+        setBillingFormErrors(billingErrors)
+        toast.error("Please complete the billing address.")
+        return
+      }
+    }
+
     const token = getToken()
     if (!token) return
 
@@ -375,6 +578,17 @@ export default function CheckoutPage() {
         ...cartItems.map((c) => ({ type: "cart", cart_item_id: c.id })),
       ]
 
+      const body: any = {
+        items,
+        country_code: address.country,
+        shipping_address: address,
+        shipping_method_id: selectedMethodId || undefined,
+      }
+
+      if (!billingSameAsShipping) {
+        body.billing_address = billingAddress
+      }
+
       const res = await fetch(`${MEDUSA_URL}/store/account/create-payment-intent`, {
         method: "POST",
         headers: {
@@ -382,12 +596,7 @@ export default function CheckoutPage() {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          items,
-          country_code: address.country,
-          shipping_address: address,
-          shipping_method_id: selectedMethodId || undefined,
-        }),
+        body: JSON.stringify(body),
       })
 
       const data = await res.json()
@@ -405,17 +614,36 @@ export default function CheckoutPage() {
     } finally {
       setCreatingIntent(false)
     }
-  }, [address, hasItems, unpaidWins, cartItems, selectedMethodId, creatingIntent])
+  }, [address, billingAddress, billingSameAsShipping, hasItems, unpaidWins, cartItems, selectedMethodId, creatingIntent])
 
   // Address is complete?
   const addressComplete = !!(address.first_name && address.last_name && address.line1 && address.city && address.postal_code && address.country)
 
   function handleAddressField(field: keyof ShippingAddress, value: string) {
     setAddress((a) => ({ ...a, [field]: value }))
+    // Clear error when user types
+    if (formErrors[field]) {
+      setFormErrors((prev) => {
+        const next = { ...prev }
+        delete next[field]
+        return next
+      })
+    }
     // Reset payment intent when address changes (need new amount)
     if (field === "country" && clientSecret) {
       setClientSecret("")
       setPaymentIntentId("")
+    }
+  }
+
+  function handleBillingField(field: keyof ShippingAddress, value: string) {
+    setBillingAddress((a) => ({ ...a, [field]: value }))
+    if (billingFormErrors[field]) {
+      setBillingFormErrors((prev) => {
+        const next = { ...prev }
+        delete next[field]
+        return next
+      })
     }
   }
 
@@ -438,6 +666,29 @@ export default function CheckoutPage() {
   const requiresTrackedShipping = selectedPaymentMethod === "paypal"
 
   function handlePaymentSuccess() {
+    // Preserve order data for success page BEFORE clearing
+    setCompletedOrder({
+      orderGroupId: orderGroupId,
+      items: [
+        ...unpaidWins.map((w) => ({
+          artist: w.item.release_artist,
+          title: w.item.release_title || "Unknown",
+          price: w.final_price,
+          type: "auction" as const,
+        })),
+        ...cartItems.map((c) => ({
+          artist: c.artist_name,
+          title: c.title,
+          price: c.price,
+          type: "cart" as const,
+        })),
+      ],
+      grandTotal,
+      shippingCost,
+      shippingAddress: { ...address },
+      email: customer?.email || "",
+    })
+
     setPaymentSuccess(true)
     toast.success("Payment successful!")
     brevoOrderCompleted("checkout", grandTotal, unpaidWins.length + cartItems.length)
@@ -445,6 +696,20 @@ export default function CheckoutPage() {
     setWins([])
     refreshStatus()
   }
+
+  // Country name helper
+  const countryName = (code: string) =>
+    countries.find((c) => c.code === code)?.name || code
+
+  // Shipping method name helper
+  const selectedMethodName = (() => {
+    if (!selectedZoneSlug) return ""
+    const zone = shippingZones.find((z) => z.slug === selectedZoneSlug)
+    if (!zone) return ""
+    const methods = shippingMethods[zone.id] || []
+    const m = methods.find((m) => m.id === selectedMethodId)
+    return m ? `${m.carrier_name} — ${m.method_name}` : ""
+  })()
 
   // ── RENDER ──
 
@@ -458,15 +723,83 @@ export default function CheckoutPage() {
     )
   }
 
-  // Success state
+  // ── Success state (enhanced with order details) ──
   if (paymentSuccess) {
+    const order = completedOrder
+    const orderRef = order?.orderGroupId
+      ? `VOD-${order.orderGroupId.slice(-6).toUpperCase()}`
+      : null
+
     return (
-      <div className="text-center py-16">
-        <div className="h-14 w-14 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4">
-          <CheckCircle2 className="h-7 w-7 text-green-500" />
+      <div className="max-w-xl mx-auto py-12">
+        <div className="text-center mb-8">
+          <div className="h-14 w-14 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4">
+            <CheckCircle2 className="h-7 w-7 text-green-500" />
+          </div>
+          <h3 className="text-xl font-semibold mb-1">Payment Successful!</h3>
+          {orderRef && (
+            <p className="text-sm text-primary font-mono font-semibold">Order #{orderRef}</p>
+          )}
         </div>
-        <h3 className="text-xl font-semibold mb-2">Payment Successful!</h3>
-        <p className="text-muted-foreground mb-6">Your order has been placed. You will receive a confirmation email shortly.</p>
+
+        {order && (
+          <Card className="p-5 mb-6 space-y-4">
+            {/* Items */}
+            <div>
+              <h4 className="text-sm font-semibold text-muted-foreground mb-2">Items Ordered</h4>
+              <div className="space-y-1.5">
+                {order.items.map((item, i) => (
+                  <div key={i} className="flex justify-between text-sm">
+                    <span className="truncate mr-4">
+                      {item.artist && <span className="text-muted-foreground">{item.artist} — </span>}
+                      {item.title}
+                    </span>
+                    <span className="font-mono flex-shrink-0">{"\u20AC"}{Number(item.price).toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Shipping Address */}
+            <div className="border-t border-border pt-3">
+              <h4 className="text-sm font-semibold text-muted-foreground mb-1">Shipping To</h4>
+              <p className="text-sm">
+                {order.shippingAddress.first_name} {order.shippingAddress.last_name},{" "}
+                {order.shippingAddress.line1}
+                {order.shippingAddress.line2 ? `, ${order.shippingAddress.line2}` : ""},{" "}
+                {order.shippingAddress.postal_code} {order.shippingAddress.city},{" "}
+                {countryName(order.shippingAddress.country)}
+              </p>
+            </div>
+
+            {/* Total */}
+            <div className="border-t border-border pt-3 space-y-1">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Shipping</span>
+                <span className="font-mono">
+                  {order.shippingCost === 0 ? <span className="text-green-500">FREE</span> : `\u20AC${order.shippingCost.toFixed(2)}`}
+                </span>
+              </div>
+              <div className="flex justify-between font-semibold">
+                <span>Total Paid</span>
+                <span className="text-primary font-mono text-lg">{"\u20AC"}{order.grandTotal.toFixed(2)}</span>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {/* Confirmation email note */}
+        {order?.email && (
+          <div className="flex items-center gap-2 justify-center text-sm text-muted-foreground mb-6">
+            <Mail className="h-4 w-4" />
+            <span>A confirmation email has been sent to <span className="text-foreground">{order.email}</span></span>
+          </div>
+        )}
+
+        <p className="text-muted-foreground text-center text-sm mb-6">
+          You will receive a confirmation email shortly.
+        </p>
+
         <div className="flex gap-3 justify-center">
           <Button asChild className="bg-primary hover:bg-primary/90 text-[#1c1915]">
             <Link href="/account/orders">View Orders</Link>
@@ -512,92 +845,46 @@ export default function CheckoutPage() {
             </h3>
             <Badge variant="outline" className="text-xs text-muted-foreground">Step 1 of 3</Badge>
           </div>
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label htmlFor="first_name">First Name</Label>
-                <Input
-                  id="first_name"
-                  value={address.first_name}
-                  onChange={(e) => handleAddressField("first_name", e.target.value)}
-                  placeholder="John"
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="last_name">Last Name</Label>
-                <Input
-                  id="last_name"
-                  value={address.last_name}
-                  onChange={(e) => handleAddressField("last_name", e.target.value)}
-                  placeholder="Doe"
-                  className="mt-1"
-                />
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="line1">Address</Label>
-              <Input
-                id="line1"
-                value={address.line1}
-                onChange={(e) => handleAddressField("line1", e.target.value)}
-                placeholder="Street and house number"
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label htmlFor="line2">Apartment, suite, etc. (optional)</Label>
-              <Input
-                id="line2"
-                value={address.line2}
-                onChange={(e) => handleAddressField("line2", e.target.value)}
-                className="mt-1"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label htmlFor="postal_code">Postal Code</Label>
-                <Input
-                  id="postal_code"
-                  value={address.postal_code}
-                  onChange={(e) => handleAddressField("postal_code", e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="city">City</Label>
-                <Input
-                  id="city"
-                  value={address.city}
-                  onChange={(e) => handleAddressField("city", e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="country">Country</Label>
-              <Select value={address.country} onValueChange={(v) => handleAddressField("country", v)}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Select your country..." />
-                </SelectTrigger>
-                <SelectContent className="max-h-[300px]">
-                  {countries.length > 0
-                    ? countries.map((c) => (
-                        <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>
-                      ))
-                    : ["DE", "AT", "CH", "FR", "NL", "BE", "US", "GB"].map((code) => {
-                        const names: Record<string, string> = {
-                          DE: "Germany", AT: "Austria", CH: "Switzerland", FR: "France",
-                          NL: "Netherlands", BE: "Belgium", US: "United States", GB: "United Kingdom",
-                        }
-                        return <SelectItem key={code} value={code}>{names[code]}</SelectItem>
-                      })}
-                  {hasCatchAll && <SelectItem value="OTHER">Other country</SelectItem>}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          <AddressForm
+            address={address}
+            onChange={handleAddressField}
+            errors={formErrors}
+            onBlur={(field) => validateField(field, address[field])}
+            countries={countries}
+            hasCatchAll={hasCatchAll}
+            idPrefix="shipping"
+          />
         </Card>
+
+        {/* ── Billing Address Toggle ── */}
+        {addressComplete && (
+          <Card className="p-5">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={billingSameAsShipping}
+                onChange={(e) => setBillingSameAsShipping(e.target.checked)}
+                className="accent-primary"
+              />
+              <span className="text-sm font-medium">Billing address same as shipping</span>
+            </label>
+
+            {!billingSameAsShipping && (
+              <div className="mt-4">
+                <h4 className="text-sm font-semibold text-muted-foreground mb-3">Billing Address</h4>
+                <AddressForm
+                  address={billingAddress}
+                  onChange={handleBillingField}
+                  errors={billingFormErrors}
+                  onBlur={(field) => validateField(field, billingAddress[field], true)}
+                  countries={countries}
+                  hasCatchAll={hasCatchAll}
+                  idPrefix="billing"
+                />
+              </div>
+            )}
+          </Card>
+        )}
 
         {/* ── Section 2: Shipping Method ── */}
         {address.country && (
@@ -681,16 +968,98 @@ export default function CheckoutPage() {
               <span className="text-base font-bold font-mono">
                 {shippingCost === 0 && freeThreshold
                   ? <span className="text-green-500">FREE</span>
-                  : `€${shippingCost.toFixed(2)}`}
+                  : `\u20AC${shippingCost.toFixed(2)}`}
               </span>
             </div>
 
             {freeThreshold && itemsTotal < freeThreshold && (
               <p className="text-xs text-muted-foreground mt-2">
-                Free shipping on orders over €{freeThreshold.toFixed(2)}
+                Free shipping on orders over {"\u20AC"}{freeThreshold.toFixed(2)}
               </p>
             )}
           </Card>
+        )}
+
+        {/* ── Order Review Summary ── */}
+        {addressComplete && address.country && (
+          <Card className="p-5">
+            <h3 className="font-semibold flex items-center gap-2 mb-4">
+              <ClipboardList className="h-4 w-4 text-primary" />
+              Review Your Order
+            </h3>
+
+            {/* Compact items list */}
+            <div className="space-y-1.5 mb-3">
+              {unpaidWins.map((win) => (
+                <div key={win.bid_id} className="flex justify-between text-sm">
+                  <span className="truncate mr-3">
+                    {win.item.release_artist && (
+                      <span className="text-muted-foreground">{win.item.release_artist} — </span>
+                    )}
+                    {win.item.release_title || "Unknown"}
+                  </span>
+                  <span className="font-mono flex-shrink-0">{"\u20AC"}{win.final_price.toFixed(2)}</span>
+                </div>
+              ))}
+              {cartItems.map((item) => (
+                <div key={item.id} className="flex justify-between text-sm">
+                  <span className="truncate mr-3">
+                    {item.artist_name && (
+                      <span className="text-muted-foreground">{item.artist_name} — </span>
+                    )}
+                    {item.title}
+                  </span>
+                  <span className="font-mono flex-shrink-0">{"\u20AC"}{Number(item.price).toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="border-t border-border pt-3 space-y-2 text-sm">
+              {/* Shipping address summary */}
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Ship to</span>
+                <span className="text-right max-w-[60%] truncate">
+                  {address.first_name} {address.last_name}, {address.line1}, {address.postal_code} {address.city}, {countryName(address.country)}
+                </span>
+              </div>
+
+              {/* Shipping method + cost */}
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Shipping{selectedMethodName ? ` (${selectedMethodName})` : ""}</span>
+                <span className="font-mono">
+                  {estimating
+                    ? "..."
+                    : shippingCost === 0 && freeThreshold
+                      ? <span className="text-green-500">FREE</span>
+                      : `\u20AC${shippingCost.toFixed(2)}`}
+                </span>
+              </div>
+
+              {/* Total */}
+              <div className="border-t border-border pt-2 flex justify-between font-semibold">
+                <span>Total</span>
+                <span className="text-primary font-mono">{"\u20AC"}{grandTotal.toFixed(2)}</span>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {/* ── AGB / Widerruf Checkbox ── */}
+        {addressComplete && address.country && (
+          <label className="flex items-start gap-2 cursor-pointer px-1">
+            <input
+              type="checkbox"
+              checked={agbAccepted}
+              onChange={(e) => setAgbAccepted(e.target.checked)}
+              className="mt-1 accent-primary"
+            />
+            <span className="text-xs text-muted-foreground leading-tight">
+              I have read and accept the{" "}
+              <a href="/agb" target="_blank" className="text-primary underline">Terms &amp; Conditions</a>{" "}
+              and the{" "}
+              <a href="/widerruf" target="_blank" className="text-primary underline">Right of Withdrawal</a>. *
+            </span>
+          </label>
         )}
 
         {/* ── Section 3: Payment ── */}
@@ -706,9 +1075,12 @@ export default function CheckoutPage() {
 
             {!clientSecret ? (
               <div className="text-center py-6">
+                {!agbAccepted && (
+                  <p className="text-xs text-amber-400 mb-3">Please accept the Terms &amp; Conditions above to continue.</p>
+                )}
                 <Button
                   onClick={createPaymentIntent}
-                  disabled={creatingIntent || estimating}
+                  disabled={creatingIntent || estimating || !agbAccepted}
                   className="bg-primary hover:bg-primary/90 text-[#1c1915]"
                 >
                   {creatingIntent ? "Initializing payment..." : "Continue to Payment"}
@@ -759,6 +1131,7 @@ export default function CheckoutPage() {
                   paying={paying}
                   setPaying={setPaying}
                   onPaymentMethodChange={handlePaymentMethodChange}
+                  agbAccepted={agbAccepted}
                 />
               </Elements>
             ) : (
@@ -799,7 +1172,7 @@ export default function CheckoutPage() {
                     </p>
                   </div>
                   <p className="text-sm font-bold font-mono text-primary flex-shrink-0">
-                    €{win.final_price.toFixed(2)}
+                    {"\u20AC"}{win.final_price.toFixed(2)}
                   </p>
                 </div>
               ))}
@@ -827,7 +1200,7 @@ export default function CheckoutPage() {
                     </p>
                   </div>
                   <p className="text-sm font-bold font-mono text-primary flex-shrink-0">
-                    €{Number(item.price).toFixed(2)}
+                    {"\u20AC"}{Number(item.price).toFixed(2)}
                   </p>
                 </div>
               ))}
@@ -839,7 +1212,7 @@ export default function CheckoutPage() {
                 <span className="text-muted-foreground">
                   Subtotal ({unpaidWins.length + cartItems.length} item{unpaidWins.length + cartItems.length !== 1 ? "s" : ""})
                 </span>
-                <span className="font-mono">€{itemsTotal.toFixed(2)}</span>
+                <span className="font-mono">{"\u20AC"}{itemsTotal.toFixed(2)}</span>
               </div>
 
               <div className="flex justify-between">
@@ -851,14 +1224,14 @@ export default function CheckoutPage() {
                       ? "..."
                       : shippingCost === 0 && freeThreshold
                         ? <span className="text-green-500">FREE</span>
-                        : `€${shippingCost.toFixed(2)}`}
+                        : `\u20AC${shippingCost.toFixed(2)}`}
                 </span>
               </div>
 
               <div className="border-t border-border pt-3 flex justify-between items-center">
                 <span className="font-semibold text-base">Total</span>
                 <span className="text-xl font-bold font-mono text-primary">
-                  €{grandTotal.toFixed(2)}
+                  {"\u20AC"}{grandTotal.toFixed(2)}
                 </span>
               </div>
             </div>

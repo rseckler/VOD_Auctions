@@ -126,7 +126,7 @@ function OrderProgressBar({ status }: { status: string }) {
 
 function OrderCard({ order }: { order: Order }) {
   const [expanded, setExpanded] = useState(false)
-  const shortId = order.order_group_id.slice(-6).toUpperCase()
+  const shortId = `VOD-${order.order_group_id.slice(-6).toUpperCase()}`
   const date = new Date(order.order_date).toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",

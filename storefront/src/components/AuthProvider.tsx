@@ -44,6 +44,7 @@ type AuthContextType = {
   ) => Promise<void>
   logout: () => void
   refreshStatus: () => Promise<void>
+  refreshCustomer: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -58,6 +59,7 @@ const AuthContext = createContext<AuthContextType>({
   register: async () => {},
   logout: () => {},
   refreshStatus: async () => {},
+  refreshCustomer: async () => {},
 })
 
 export function useAuth() {
@@ -116,6 +118,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const token = getToken()
     if (token) await fetchStatus(token)
   }, [fetchStatus])
+
+  const refreshCustomer = useCallback(async () => {
+    const token = getToken()
+    if (token) {
+      const c = await getCustomer(token)
+      if (c) setCustomer(c)
+    }
+  }, [])
 
   // Load customer from token on mount
   useEffect(() => {
@@ -215,6 +225,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         register,
         logout,
         refreshStatus,
+        refreshCustomer,
       }}
     >
       {children}

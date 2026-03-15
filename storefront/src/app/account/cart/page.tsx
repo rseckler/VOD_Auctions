@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { getToken } from "@/lib/auth"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
 import { useAuth } from "@/components/AuthProvider"
-import { ShoppingCart, Trash2, Disc3 } from "lucide-react"
+import { ShoppingCart, Trash2, Disc3, AlertCircle } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -16,6 +17,7 @@ export default function CartPage() {
   const { refreshStatus } = useAuth()
   const [items, setItems] = useState<CartItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
   const [removingId, setRemovingId] = useState<string | null>(null)
 
   useEffect(() => {
@@ -29,6 +31,7 @@ export default function CartPage() {
       return
     }
 
+    setError(false)
     try {
       const res = await fetch(`${MEDUSA_URL}/store/account/cart`, {
         headers: {
@@ -39,9 +42,11 @@ export default function CartPage() {
       if (res.ok) {
         const data = await res.json()
         setItems(data.items || [])
+      } else {
+        setError(true)
       }
     } catch {
-      // silently fail
+      setError(true)
     } finally {
       setLoading(false)
     }
@@ -87,6 +92,25 @@ export default function CartPage() {
     )
   }
 
+  if (error) {
+    return (
+      <div className="text-center py-16">
+        <AlertCircle className="h-12 w-12 text-destructive/40 mx-auto mb-4" />
+        <p className="text-muted-foreground mb-2">Failed to load cart. Please try again.</p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setLoading(true)
+            fetchCart()
+          }}
+        >
+          Retry
+        </Button>
+      </div>
+    )
+  }
+
   if (items.length === 0) {
     return (
       <div className="text-center py-16">
@@ -114,13 +138,15 @@ export default function CartPage() {
             <div className="flex gap-4">
               <Link
                 href={`/catalog/${item.release_id}`}
-                className="w-16 h-16 flex-shrink-0 rounded overflow-hidden bg-card"
+                className="relative w-16 h-16 flex-shrink-0 rounded overflow-hidden bg-card"
               >
                 {item.coverImage ? (
-                  <img
+                  <Image
                     src={item.coverImage}
                     alt=""
-                    className="w-full h-full object-cover"
+                    fill
+                    sizes="64px"
+                    className="object-cover"
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
@@ -169,12 +195,23 @@ export default function CartPage() {
             &euro;{subtotal.toFixed(2)}
           </span>
         </div>
-        <p className="text-xs text-muted-foreground mt-1">
-          Shipping calculated at checkout based on weight and destination.
-        </p>
+        <div className="flex justify-between items-center mt-2">
+          <span className="text-sm text-muted-foreground">Shipping</span>
+          <span className="text-sm text-muted-foreground">
+            from &euro;4.99 (based on weight and destination)
+          </span>
+        </div>
         <Button asChild className="w-full mt-4 bg-primary hover:bg-primary/90 text-[#1c1915]">
           <Link href="/account/checkout">Proceed to Checkout</Link>
         </Button>
+        <div className="text-center mt-3">
+          <Link
+            href="/catalog"
+            className="text-sm text-muted-foreground hover:text-primary transition-colors"
+          >
+            Continue Shopping
+          </Link>
+        </div>
       </Card>
     </div>
   )

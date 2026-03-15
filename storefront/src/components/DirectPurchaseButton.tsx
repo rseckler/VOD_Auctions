@@ -26,10 +26,12 @@ export function DirectPurchaseButton({ releaseId, saleMode, directPrice, auction
   if (!directPrice || directPrice <= 0) return null
   if (auctionStatus !== "available") return null
 
-  // Only show for authenticated users
-  if (!isAuthenticated) return null
-
   async function handleAddToCart() {
+    if (!isAuthenticated) {
+      toast.error("Please log in to add items to your cart")
+      return
+    }
+
     const token = getToken()
     if (!token) return
 
