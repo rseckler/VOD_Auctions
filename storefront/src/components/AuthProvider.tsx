@@ -37,6 +37,7 @@ type AuthContextType = {
   loading: boolean
   cartCount: number
   savedCount: number
+  ordersCount: number
   sessionExpiredMessage: string | null
   intendedAction: IntendedAction | null
   dismissSessionExpired: () => void
@@ -61,6 +62,7 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   cartCount: 0,
   savedCount: 0,
+  ordersCount: 0,
   sessionExpiredMessage: null,
   intendedAction: null,
   dismissSessionExpired: () => {},
@@ -84,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [cartCount, setCartCount] = useState(0)
   const [savedCount, setSavedCount] = useState(0)
+  const [ordersCount, setOrdersCount] = useState(0)
   const [sessionExpiredMessage, setSessionExpiredMessage] = useState<string | null>(null)
   const [intendedAction, setIntendedActionState] = useState<IntendedAction | null>(null)
   const logoutTriggeredRef = useRef(false)
@@ -128,6 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const data = await res.json()
         setCartCount(data.cart_count || 0)
         setSavedCount(data.saved_count || 0)
+        setOrdersCount(data.orders_count || 0)
       }
     } catch {
       // silently fail on network errors
@@ -260,6 +264,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         cartCount,
         savedCount,
+        ordersCount,
         sessionExpiredMessage,
         intendedAction,
         dismissSessionExpired,

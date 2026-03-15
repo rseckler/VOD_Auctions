@@ -17,7 +17,7 @@ export async function GET(
     ContainerRegistrationKeys.PG_CONNECTION
   )
 
-  const [cartResult, savedResult, defaultAddress, customerResult] = await Promise.all([
+  const [cartResult, savedResult, ordersResult, defaultAddress, customerResult] = await Promise.all([
     pgConnection("cart_item")
       .where("user_id", customerId)
       .whereNull("deleted_at")
@@ -27,6 +27,11 @@ export async function GET(
       .where("user_id", customerId)
       .whereNull("deleted_at")
       .count("id as count")
+      .first(),
+    pgConnection("transaction")
+      .where("user_id", customerId)
+      .where("status", "paid")
+      .countDistinct("order_group_id as count")
       .first(),
     pgConnection("customer_address")
       .where({ customer_id: customerId, is_default_shipping: true })
@@ -42,6 +47,7 @@ export async function GET(
   res.json({
     cart_count: Number(cartResult?.count || 0),
     saved_count: Number(savedResult?.count || 0),
+    orders_count: Number(ordersResult?.count || 0),
     email_verified: customerResult?.email_verified || false,
     default_shipping_address: defaultAddress ? {
       first_name: defaultAddress.first_name || "",
