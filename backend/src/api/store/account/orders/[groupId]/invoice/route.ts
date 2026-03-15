@@ -1,7 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
-import { generateInvoicePDF, InvoiceData } from "../../../../../lib/invoice-template"
+import { generateInvoicePDF, InvoiceData } from "../../../../../../lib/invoice-template"
 
 // GET /store/account/orders/:groupId/invoice
 // Auth required (covered by /store/account/* middleware)
