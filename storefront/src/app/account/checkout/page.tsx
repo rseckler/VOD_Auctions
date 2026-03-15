@@ -443,6 +443,7 @@ export default function CheckoutPage() {
 
     if (payment === "success" || redirectStatus === "succeeded") {
       setPaymentSuccess(true)
+      setLoading(false)
       toast.success("Payment successful! You will receive a confirmation email.")
       brevoOrderCompleted("checkout", 0, 0)
       setCartItems([])
