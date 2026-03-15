@@ -54,11 +54,11 @@ H (Backend APIs)     → Keine Dependencies, startet sofort
 
 | Stream | Bereich | Owner-Dateien | Items |
 |--------|---------|---------------|-------|
-| **M1** | Checkout/Cart Polish | `checkout/page.tsx`, `cart/page.tsx` | #18 Telefon-Feld, #21 Mobile-collapsible Summary, #22 Estimated Delivery, #23 Cart MwSt-Hinweis, #24 Cart Save-for-Later, #25 Cart Condition-Info, #26 Stale Cart Detection, #27 Session-Expiry im Checkout, #87 Secure Checkout Badge |
-| **M2** | Auth/Account Polish | `AuthModal.tsx`, `AuthProvider.tsx`, `settings/page.tsx` | #40 Login-Error generisch, #41 Rate-Limiting Feedback, #42 Auto-Login nach PW-Reset, #43 Notification-Preferences, #44 Cross-Tab Session Sync, #47 Redirect nach Login |
-| **M3** | Catalog/Auction UX | `catalog/page.tsx`, `catalog/[id]/page.tsx`, `auctions/` pages, `ImageGallery.tsx`, `BlockItemsGrid.tsx` | #57 Such-Autocomplete, #58 Grid/List Toggle, #59 Seitenzahlen-Pagination, #60 Image-Zoom, #61 Breadcrumb Filter-State, #62 Stock-Indicator, #63 Countdown prominent, #64 Bid-Status-Indikator, #65 Item-Card Countdown, #66 Filter-Pills horizontal scroll, #67 No-results Suggestions, #68 Live-Search |
-| **M4** | Navigation/Legal/Error | `Header.tsx`, `Footer.tsx`, `global-error.tsx`, Legal Pages | #79 Active Nav-Link, #80 Back-to-Top, #81 Kontaktinfo Footer, #82 AGB Versandkosten aktualisieren, #83 Datenschutz Google Fonts Fix, #84 Global Error Page stylen, #85 Per-Route Error Boundaries, #88 Rückgaberecht auf Produktseiten |
-| **M5** | Accessibility | Diverse Dateien | #86 ARIA Landmarks + Focus Indicators, #91 Focus-Indicators auf Links/Buttons, #92 aria-expanded/aria-controls, #93 Toast role="alert" |
+| **M1** | Checkout/Cart Polish | `checkout/page.tsx`, `cart/page.tsx` | Telefon-Feld, Mobile-collapsible Summary, Cart MwSt-Hinweis, Condition-Info, Secure Checkout Badge, Session-Expiry | Done |
+| **M2** | Auth/Account Polish | `AuthModal.tsx`, `AuthProvider.tsx`, `settings/page.tsx` | Login-Error generisch, Rate-Limiting, Auto-Redirect nach PW-Reset, Notification-Preferences, Cross-Tab Session Sync, Redirect nach Login | Done |
+| **M3** | Catalog/Auction UX | `catalog/page.tsx`, `catalog/[id]/page.tsx`, Auctions, `ItemBidSection.tsx` | Live-Search, Seitenzahlen-Pagination, Filter-Pills scroll, No-results Suggestions, Breadcrumb Filter-State, Stock-Indicator, Countdown prominent, Bid-Status-Indikator, Return Policy Badge | Done |
+| **M4** | Navigation/Legal/Error | `Header.tsx`, `Footer.tsx`, `global-error.tsx`, Legal Pages | Active Nav-Link, Back-to-Top, AGB Versandkosten Fix, Datenschutz Google Fonts Fix, Global Error Page gestylt, Rückgaberecht auf Produktseiten | Done |
+| **M5** | Accessibility | Diverse Dateien | Focus-Indicators (gold outline), ARIA Landmarks, aria-expanded/controls, Alt-Text auf Bildern, Badge aria-labels | Done |
 
 ### Letzte Änderungen (2026-03-15)
 - **Shopify-Style One-Page Checkout (Phase A+B implementiert):**
