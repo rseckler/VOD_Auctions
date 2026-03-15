@@ -60,6 +60,50 @@ H (Backend APIs)     → Keine Dependencies, startet sofort
 | **M4** | Navigation/Legal/Error | `Header.tsx`, `Footer.tsx`, `global-error.tsx`, Legal Pages | Active Nav-Link, Back-to-Top, AGB Versandkosten Fix, Datenschutz Google Fonts Fix, Global Error Page gestylt, Rückgaberecht auf Produktseiten | Done |
 | **M5** | Accessibility | Diverse Dateien | Focus-Indicators (gold outline), ARIA Landmarks, aria-expanded/controls, Alt-Text auf Bildern, Badge aria-labels | Done |
 
+### LOW UX/UI Items — Multi-Agent Plan (21 offene Items, wartet auf Freigabe)
+
+**Status:** Geplant — Umsetzung startet nach Freigabe
+
+#### 4 Parallel Streams
+
+| Stream | Bereich | Owner-Dateien | Items | Aufwand |
+|--------|---------|---------------|-------|---------|
+| **L1** | Mobile UX | `ImageGallery.tsx`, `catalog/[id]/page.tsx`, `auctions/[slug]/[itemId]/page.tsx` | Swipe-Gesten Bildergalerie (#52), Sticky Mobile Add-to-Cart/Bid (#53), Image-Zoom on Hover (#60) | Mittel |
+| **L2** | Checkout/Cart Polish | `checkout/page.tsx`, `cart/page.tsx`, `orders/page.tsx` | E-Mail-Feld im Checkout (#19), Print/E-Mail Receipt (#20), Estimated Delivery Date (#22), Cart Save-for-Later (#24), Per-Route Error Boundaries (#85) | Mittel |
+| **L3** | Catalog/Auction Features | `catalog/page.tsx`, `BlockItemsGrid.tsx`, `MobileNav.tsx` | Grid/List View Toggle (#58), Item-Card Countdown auf Auktionen (#65), Mobile Nav Account-Unterseiten (#45), Preisänderungs-Benachrichtigung (#48) | Mittel |
+| **L4** | SEO + Polish | `catalog/page.tsx`, diverse | Catalog SSR für SEO (Top-10 #8), Social Login (LOW), Remember Me (LOW), Mega Menu (LOW), Page Transitions (LOW), Logout Confirmation (LOW), No-edit canonical URLs (LOW) | Groß (SSR) |
+
+#### Item-Details
+
+**L1 — Mobile UX (3 Items):**
+- **#52 Swipe-Gesten:** Touch-Swipe auf Hauptbild in ImageGallery + Lightbox. Bibliothek: `use-gesture` oder native Touch-Events
+- **#53 Sticky Mobile CTA:** Fixed bottom bar auf Detailseiten (Mobile only) mit Preis + "Add to Cart" / "Place Bid"
+- **#60 Image-Zoom:** CSS `transform: scale()` on hover für Desktop, Pinch-to-Zoom für Mobile
+
+**L2 — Checkout/Cart Polish (5 Items):**
+- **#19 E-Mail-Feld:** Optionales E-Mail-Feld im Checkout für abweichende Bestätigungs-E-Mail
+- **#20 Print Receipt:** "Print" Button auf Success-Seite (`window.print()`) + "Email Receipt" Button
+- **#22 Delivery Date:** Geschätzte Lieferzeit basierend auf Shipping-Method `delivery_days_min/max`
+- **#24 Cart Save-for-Later:** "Save for Later" Button pro Cart-Item (verschiebt in Saved statt löscht)
+- **#85 Error Boundaries:** `error.tsx` Dateien für `/catalog`, `/auctions`, `/account` Routes
+
+**L3 — Catalog/Auction Features (4 Items):**
+- **#58 Grid/List Toggle:** Umschaltbar zwischen Grid (aktuell) und Listenansicht (kompakte Tabelle mit mehr Metadaten)
+- **#65 Item-Card Countdown:** Kleine Countdown-Anzeige auf jeder Auktions-Item-Card im BlockItemsGrid
+- **#45 Mobile Nav:** Account-Unterseiten (Bids, Won, Orders, Settings) direkt im Hamburger-Menü
+- **#48 Preisänderung:** Notification wenn gespeicherter Artikel günstiger wird (braucht Backend-Job)
+
+**L4 — SEO + Polish (9 Items):**
+- **Catalog SSR:** Umstellung von `"use client"` auf Server Component mit `searchParams` für Google-Indexierung (größte Änderung)
+- **Social Login:** Google/Apple Sign-In (Medusa unterstützt es, braucht OAuth-Setup)
+- **Remember Me:** Toggle zwischen session/persistent Token-Speicherung
+- **Mega Menu:** Dropdown auf "Catalog" Header-Link mit Kategorien
+- **Page Transitions:** Framer Motion Route-Animationen
+- **Logout Confirmation:** Dialog vor Logout ("Are you sure?")
+- **Breadcrumbs auf Legal Pages:** Einfache "Home > Impressum" Breadcrumbs
+- **No search clear button:** X-Button im Suchfeld zum schnellen Leeren
+- **Items per page selector:** 24/48/96 Items pro Seite
+
 ### Letzte Änderungen (2026-03-15)
 - **Shopify-Style One-Page Checkout (Phase A+B implementiert):**
   - **Architektur-Wechsel:** Stripe Hosted Checkout (Redirect) → Stripe Payment Element (eingebettet, kein Redirect)
