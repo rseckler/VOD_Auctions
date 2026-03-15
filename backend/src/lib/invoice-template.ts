@@ -50,10 +50,10 @@ export function generateInvoicePDF(data: InvoiceData): typeof PDFDocument.protot
   doc.fontSize(28).font("Helvetica-Bold").fillColor("#ffffff")
     .text("INVOICE", 0, 28, { align: "right", width: rightEdge })
 
-  // Invoice meta below header
-  doc.fontSize(9).font("Helvetica").fillColor(GRAY)
-    .text(`Invoice No: ${data.invoiceNumber}`, 0, 65, { align: "right", width: rightEdge })
-    .text(`Date: ${data.invoiceDate}`, 0, 77, { align: "right", width: rightEdge })
+  // Invoice meta below header in dark bar
+  doc.fontSize(9).font("Helvetica").fillColor("#cccccc")
+    .text(`No: ${data.invoiceNumber}`, 0, 62, { align: "right", width: rightEdge })
+    .text(`Date: ${data.invoiceDate}`, 0, 74, { align: "right", width: rightEdge })
 
   // ── SELLER + CUSTOMER (two columns) ──
   let y = 110
@@ -61,14 +61,19 @@ export function generateInvoicePDF(data: InvoiceData): typeof PDFDocument.protot
   // Seller (left)
   doc.fontSize(8).font("Helvetica-Bold").fillColor(GOLD).text("FROM", leftMargin, y)
   y += 14
-  doc.fontSize(10).font("Helvetica-Bold").fillColor(DARK).text("VOD Records", leftMargin, y)
+  doc.fontSize(10).font("Helvetica-Bold").fillColor(DARK).text("VOD-Records", leftMargin, y)
   y += 14
   doc.fontSize(9).font("Helvetica").fillColor(GRAY)
     .text("Frank Bull", leftMargin, y)
     .text("Alpenstrasse 25/1", leftMargin, y + 12)
-    .text("4020 Linz, Austria", leftMargin, y + 24)
-    .text("info@vod-records.com", leftMargin, y + 36)
-    .text("www.vod-auctions.com", leftMargin, y + 48)
+    .text("88045 Friedrichshafen", leftMargin, y + 24)
+    .text("Germany", leftMargin, y + 36)
+  y += 54
+  doc.fontSize(8).font("Helvetica").fillColor(GRAY)
+    .text("Phone: +49 7541 34412", leftMargin, y)
+    .text("Email: frank@vinyl-on-demand.com", leftMargin, y + 11)
+    .text("Web: www.vod-auctions.com", leftMargin, y + 22)
+    .text("VAT ID: DE232493058", leftMargin, y + 33)
 
   // Customer (right)
   const custX = 320
@@ -85,7 +90,7 @@ export function generateInvoicePDF(data: InvoiceData): typeof PDFDocument.protot
   if (data.customer.country) { doc.text(data.customer.country, custX, cy) }
 
   // ── ITEMS TABLE ──
-  y = 230
+  y = 250
   const colArt = leftMargin
   const colDesc = 120
   const colType = 400
@@ -103,7 +108,6 @@ export function generateInvoicePDF(data: InvoiceData): typeof PDFDocument.protot
   // Table rows
   let isAlternate = false
   for (const item of data.items) {
-    // Alternating row background
     if (isAlternate) {
       doc.rect(leftMargin - 5, y - 3, rightEdge - leftMargin + 10, 20).fill(LIGHT_GRAY)
     }
@@ -135,8 +139,13 @@ export function generateInvoicePDF(data: InvoiceData): typeof PDFDocument.protot
   const summaryLabelX = 340
   const summaryValueX = rightEdge - 80
 
+  // Net amount (Nettobetrag)
+  const vatRate = 0.19
+  const netAmount = data.subtotal / (1 + vatRate)
+  const vatAmount = data.subtotal - netAmount
+
   doc.fontSize(9).font("Helvetica").fillColor(GRAY)
-    .text("Subtotal", summaryLabelX, y)
+    .text("Subtotal (incl. VAT)", summaryLabelX, y)
   doc.fontSize(9).font("Helvetica").fillColor(DARK)
     .text(`\u20AC${data.subtotal.toFixed(2)}`, summaryValueX, y, { width: 80, align: "right" })
   y += 16
@@ -155,6 +164,18 @@ export function generateInvoicePDF(data: InvoiceData): typeof PDFDocument.protot
     y += 16
   }
 
+  // VAT breakdown
+  doc.fontSize(8).font("Helvetica").fillColor(GRAY)
+    .text(`Net amount`, summaryLabelX, y)
+  doc.fontSize(8).font("Helvetica").fillColor(GRAY)
+    .text(`\u20AC${netAmount.toFixed(2)}`, summaryValueX, y, { width: 80, align: "right" })
+  y += 13
+  doc.fontSize(8).font("Helvetica").fillColor(GRAY)
+    .text(`VAT 19%`, summaryLabelX, y)
+  doc.fontSize(8).font("Helvetica").fillColor(GRAY)
+    .text(`\u20AC${vatAmount.toFixed(2)}`, summaryValueX, y, { width: 80, align: "right" })
+  y += 16
+
   // Total row with gold background
   y += 4
   doc.rect(320, y - 4, rightEdge - 320 + 5, 26).fill(GOLD)
@@ -163,21 +184,25 @@ export function generateInvoicePDF(data: InvoiceData): typeof PDFDocument.protot
     .text(`\u20AC${data.total.toFixed(2)}`, summaryValueX, y + 2, { width: 80, align: "right" })
 
   // ── FOOTER ──
-  const footerY = 740
+  const footerY = 730
   drawLine(doc, leftMargin, footerY, rightEdge, LINE_COLOR)
 
   doc.fontSize(7.5).font("Helvetica").fillColor(GRAY)
     .text(
-      "Kleinunternehmer gem\u00E4\u00DF \u00A7 19 UStG \u2014 keine Umsatzsteuer ausgewiesen.",
+      "All prices include 19% VAT (USt-IdNr: DE232493058).",
       leftMargin, footerY + 8
     )
     .text(
-      "Payment processed securely by Stripe. | VOD Records \u2022 Frank Bull \u2022 Alpenstrasse 25/1, 4020 Linz, Austria",
+      "Payment processed securely by Stripe.",
       leftMargin, footerY + 20
     )
     .text(
-      "www.vod-auctions.com \u2022 info@vod-records.com",
+      "VOD-Records \u2022 Frank Bull \u2022 Alpenstrasse 25/1 \u2022 88045 Friedrichshafen \u2022 Germany",
       leftMargin, footerY + 32
+    )
+    .text(
+      "Phone: +49 7541 34412 \u2022 frank@vinyl-on-demand.com \u2022 www.vod-auctions.com",
+      leftMargin, footerY + 44
     )
 
   return doc
