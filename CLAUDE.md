@@ -16,6 +16,41 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Last Updated:** 2026-03-15
 
 ### Letzte Änderungen (2026-03-15)
+- **Shopify-Style One-Page Checkout (Phase A+B implementiert):**
+  - **Architektur-Wechsel:** Stripe Hosted Checkout (Redirect) → Stripe Payment Element (eingebettet, kein Redirect)
+  - **Phase A — Backend:**
+    - Neuer Endpoint `POST /store/account/create-payment-intent` — erstellt Stripe PaymentIntent, gibt `client_secret` zurück
+    - Neuer Endpoint `POST /store/account/update-payment-intent` — aktualisiert Betrag bei Shipping-Änderung
+    - Webhook: `payment_intent.succeeded` + `payment_intent.payment_failed` Handler hinzugefügt (neben bestehendem `checkout.session.completed`)
+    - Stripe Dashboard: 4 Events aktiv (checkout.session.completed/expired + payment_intent.succeeded/payment_failed)
+    - Adresse wird auf Transaction bei Erstellung gespeichert (nicht mehr via Webhook)
+    - Idempotency via `orderGroupId` als Idempotency-Key
+  - **Phase B — Frontend:**
+    - Checkout-Seite komplett umgeschrieben: Two-Column Layout (Form links 60%, Order Summary rechts 40%)
+    - Section 1: **Shipping Address** — Name, Adresse, Stadt, PLZ, Land (pre-filled aus Kundenprofil)
+    - Section 2: **Shipping Method** — Radio-Buttons mit Carrier, Lieferzeit, Tracking-Badge (dynamisch nach Adresse)
+    - Section 3: **Payment** — Stripe `<PaymentElement />` inline (Card, PayPal, Klarna, Bancontact, EPS, Link)
+    - **Order Summary Sidebar** — sticky auf Desktop, mit Item-Covers, Subtotal, Shipping, Total
+    - VOD Dark Theme für Stripe Elements (Gold #d4a54a, Dark #1c1915, DM Sans)
+    - "Continue to Payment" Button erstellt PaymentIntent, dann erscheint Payment Element
+    - "Pay Now" Button → `stripe.confirmPayment()` — kein Redirect für Karten, Redirect nur für PayPal/Klarna
+    - Success State mit grünem Checkmark + "View Orders" Link
+    - Handles redirect-basierte Methoden via `redirect_status=succeeded` URL-Parameter
+    - `@stripe/stripe-js` + `@stripe/react-stripe-js` installiert
+    - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` in `.env.local` auf VPS gesetzt
+  - **Phase C (offen):** Express Checkout (Apple Pay/Google Pay Buttons), Google Places Autocomplete, gespeicherte Adressen
+  - **Alter Checkout:** Route + Webhook bleiben bestehen (Rollback-Option)
+  - **Neue Dateien:** `create-payment-intent/route.ts`, `update-payment-intent/route.ts`, `stripe-client.ts`
+  - **Geänderte Dateien:** `webhooks/stripe/route.ts`, `checkout/page.tsx`
+  - **VPS:** Backend + Storefront deployed
+- **Password Reset ("Passwort vergessen"):**
+  - **Login-Modal:** "Forgot password?" Link unter Passwort-Feld → E-Mail eingeben → Reset-Link (15 Min.)
+  - **Backend:** `password-reset` Subscriber hört auf `auth.password_reset` Event → Resend E-Mail
+  - **Frontend:** `/reset-password?token=...` Seite mit neuem Passwort-Formular
+  - **Middleware:** `/reset-password` durch Password Gate erlaubt
+  - **Neue Dateien:** `emails/password-reset.ts`, `subscribers/password-reset.ts`, `reset-password/page.tsx`
+  - **Geänderte Dateien:** `AuthModal.tsx`, `auth.ts`, `middleware.ts`
+  - **VPS:** Backend + Storefront deployed
 - **Checkout-Flow Bugfixes (10 Issues aus PayPal-Testtransaktion):**
   - **Stripe Webhook Raw Body Fix (ROOT CAUSE für Issues #2, #4, #5, #6, #8):**
     - **Problem:** ALLE Stripe Webhooks scheiterten seit Go-Live mit "No webhook payload was provided" — `req.body` war leer weil Medusa.js 2.x mit `bodyParser: false` den Raw Body nicht als Buffer bereitstellt
@@ -1215,7 +1250,7 @@ psycopg2-binary, python-dotenv, requests, mysql-connector-python
 - API: GET /admin/transactions (filter: status, shipping_status)
 - API: GET /admin/transactions/:id, POST /admin/transactions/:id (shipping_status update)
 
-## Checkout Redesign — Shopify-Style One-Page Checkout (GEPLANT)
+## Checkout Redesign — Shopify-Style One-Page Checkout (Phase A+B LIVE, Phase C offen)
 
 **Ziel:** Migration von Stripe Hosted Checkout (Redirect) zu Shopify-ähnlichem One-Page Checkout mit Stripe Elements (eingebettet). Login bleibt Pflicht (kein Guest-Checkout).
 
