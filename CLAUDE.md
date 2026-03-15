@@ -8,7 +8,7 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 
 **Goal:** Eigene Plattform mit voller Kontrolle über Marke, Kundendaten, Preisgestaltung — statt 8-13% Gebühren an eBay/Discogs
 
-**Status:** Phase 1 — RSE-72 bis RSE-97 + RSE-76 + RSE-101 + RSE-102 + RSE-103 + RSE-104 + RSE-105 + RSE-109 + RSE-111 + RSE-112 + RSE-113 + RSE-114 + RSE-115 + RSE-116 + RSE-117 + RSE-78 (teilweise) + RSE-147 bis RSE-152 (SEO Entity Pages) + RSE-156 (Discogs Daily Sync + Health Dashboard) erledigt. Nächstes: RSE-77 (Testlauf)
+**Status:** Phase 1 — RSE-72 bis RSE-97 + RSE-76 + RSE-101 + RSE-102 + RSE-103 + RSE-104 + RSE-105 + RSE-109 + RSE-111 + RSE-112 + RSE-113 + RSE-114 + RSE-115 + RSE-116 + RSE-117 + RSE-78 (teilweise) + RSE-147 bis RSE-152 (SEO Entity Pages) + RSE-156 (Discogs Daily Sync + Health Dashboard) + RSE-211 (Checkout Bugfixes) + RSE-212 (Shopify-Style Checkout) + UX/UI Overhaul (92/95 Items) erledigt. Nächstes: RSE-77 (Testlauf)
 
 **Sprache:** Storefront und Admin-UI komplett auf Englisch (seit 2026-03-03)
 
@@ -62,7 +62,7 @@ H (Backend APIs)     → Keine Dependencies, startet sofort
 
 ### LOW UX/UI Items — Multi-Agent Plan (18 Items, Social Login + Mega Menu + Page Transitions entfernt)
 
-**Status:** In Progress
+**Status:** Done
 
 #### 4 Parallel Streams
 
@@ -103,6 +103,50 @@ H (Backend APIs)     → Keine Dependencies, startet sofort
 - **Breadcrumbs auf Legal Pages:** Einfache "Home > Impressum" Breadcrumbs
 - **No search clear button:** X-Button im Suchfeld zum schnellen Leeren
 - **Items per page selector:** 24/48/96 Items pro Seite
+
+### Verbleibende Architektur-Themen — 3 Parallel Streams (wartet auf Freigabe)
+
+**Status:** Geplant
+
+| Stream | Thema | Dateien | DB | Dependencies | Aufwand |
+|--------|-------|---------|-----|-------------|---------|
+| **ARCH-1** | Catalog SSR (SEO) | `catalog/page.tsx` → Server Component + `CatalogClient.tsx` Client Component | Keine | Keine | Mittel |
+| **ARCH-2** | Promo-Code System | `create-payment-intent/route.ts`, `checkout/page.tsx`, neue `validate-promo/route.ts`, `webhooks/stripe/route.ts` | Neue `promo_code` Tabelle + 2 Spalten auf `transaction` | Keine | Mittel |
+| **ARCH-3** | Invoice PDF | Neue `orders/[groupId]/invoice/route.ts`, `orders/page.tsx`, neue `invoice-template.ts` | Keine | `pdfkit` + `@types/pdfkit` | Mittel |
+
+**Alle 3 können parallel laufen — keine File-Konflikte.**
+
+#### ARCH-1: Catalog SSR
+- **Problem:** `catalog/page.tsx` ist `"use client"` — Google sieht leere Seite für 41k Produkte
+- **Lösung:** Server Component + Client Shell Pattern
+  1. Aktuelle Seite → `CatalogClient.tsx` (Client Component, behält alle Interaktivität)
+  2. Neue `catalog/page.tsx` als `async` Server Component: empfängt `searchParams`, fetcht initial via `medusaFetch`, rendert `<CatalogClient initialData={...} />`
+  3. Erster Paint = server-gerendertes HTML mit echten Daten (SEO)
+  4. Folge-Interaktionen (Filter, Search, Pagination) bleiben client-seitig
+  5. `generateMetadata()` mit dynamischen Titeln basierend auf searchParams
+
+#### ARCH-2: Promo-Code System
+- **DB Migration:**
+  ```sql
+  CREATE TABLE promo_code (code UNIQUE, discount_type, discount_value, min_order, max_uses, used_count, valid_from/to, is_active)
+  ALTER TABLE transaction ADD COLUMN promo_code_id, discount_amount
+  ```
+- **Backend:**
+  - `POST /store/account/validate-promo` — validiert Code, berechnet Rabatt
+  - `create-payment-intent` — akzeptiert `promo_code`, subtrahiert Rabatt von grandTotal
+  - Webhook — inkrementiert `used_count` nach Zahlung
+- **Frontend:** Promo-Code-Eingabefeld im Checkout Order Summary, Rabatt-Zeile in Zusammenfassung
+
+#### ARCH-3: Invoice PDF
+- **Backend:** `GET /store/account/orders/:groupId/invoice` — generiert PDF mit `pdfkit`
+  - Header: VOD Records, "INVOICE"
+  - Seller-Info aus Impressum (Frank Bull, Alpenstrasse 25/1)
+  - Kunden-Adresse aus Transaction
+  - Artikel-Tabelle (Art.Nr, Beschreibung, Preis)
+  - Summary: Subtotal, Shipping, Discount, Total
+  - Footer: "Kleinunternehmer nach § 19 UStG"
+- **Frontend Proxy:** `storefront/src/app/api/invoice/[groupId]/route.ts` (Auth-Proxy)
+- **Frontend:** "Download Invoice" Button auf Orders-Seite
 
 ### Letzte Änderungen (2026-03-15)
 - **Shopify-Style One-Page Checkout (Phase A+B implementiert):**
