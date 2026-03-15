@@ -80,6 +80,42 @@ export async function getCustomer(token: string) {
   return data.customer
 }
 
+export async function requestPasswordReset(email: string): Promise<void> {
+  const res = await fetch(
+    `${MEDUSA_URL}/auth/customer/emailpass/reset-password`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ identifier: email }),
+    }
+  )
+  // Medusa always returns 201 to avoid leaking whether email exists
+  if (!res.ok) {
+    throw new Error("Request failed")
+  }
+}
+
+export async function resetPassword(
+  token: string,
+  newPassword: string
+): Promise<void> {
+  const res = await fetch(
+    `${MEDUSA_URL}/auth/customer/emailpass/update`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ password: newPassword }),
+    }
+  )
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.message || "Password reset failed")
+  }
+}
+
 export function getToken(): string | null {
   if (typeof window === "undefined") return null
   return localStorage.getItem("medusa_token")

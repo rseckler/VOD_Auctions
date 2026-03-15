@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useAuth } from "./AuthProvider"
+import { requestPasswordReset } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -20,7 +21,7 @@ type AuthModalProps = {
 
 export function AuthModal({ open, onClose }: AuthModalProps) {
   const { login, register } = useAuth()
-  const [mode, setMode] = useState<"login" | "register">("login")
+  const [mode, setMode] = useState<"login" | "register" | "forgot">("login")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [firstName, setFirstName] = useState("")
@@ -28,6 +29,7 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
   const [newsletterOptin, setNewsletterOptin] = useState(false)
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  const [resetSent, setResetSent] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -35,12 +37,16 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
     setLoading(true)
 
     try {
-      if (mode === "login") {
+      if (mode === "forgot") {
+        await requestPasswordReset(email)
+        setResetSent(true)
+      } else if (mode === "login") {
         await login(email, password)
+        onClose()
       } else {
         await register(email, password, firstName, lastName, newsletterOptin)
+        onClose()
       }
-      onClose()
     } catch (err: any) {
       setError(err.message || "Error")
     } finally {
@@ -53,15 +59,32 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {mode === "login" ? "Login" : "Register"}
+            {mode === "login" ? "Login" : mode === "register" ? "Register" : "Reset Password"}
           </DialogTitle>
           <DialogDescription>
             {mode === "login"
               ? "Log in to place bids."
-              : "Create an account to bid."}
+              : mode === "register"
+                ? "Create an account to bid."
+                : "Enter your email to receive a password reset link."}
           </DialogDescription>
         </DialogHeader>
 
+        {mode === "forgot" && resetSent ? (
+          <div className="space-y-4">
+            <div className="rounded-lg bg-green-500/10 border border-green-500/20 p-4">
+              <p className="text-sm text-green-400">
+                If an account exists for <strong>{email}</strong>, you will receive a password reset email shortly. Please check your inbox.
+              </p>
+            </div>
+            <Button
+              onClick={() => { setMode("login"); setResetSent(false); setError("") }}
+              className="w-full"
+            >
+              Back to Login
+            </Button>
+          </div>
+        ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
           {mode === "register" && (
             <div className="grid grid-cols-2 gap-3">
@@ -99,6 +122,7 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
             />
           </div>
 
+          {mode !== "forgot" && (
           <div className="space-y-1.5">
             <Label htmlFor="password">Password</Label>
             <Input
@@ -110,6 +134,19 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
               onChange={(e) => setPassword(e.target.value)}
             />
           </div>
+          )}
+
+          {mode === "login" && (
+            <div className="text-right">
+              <button
+                type="button"
+                onClick={() => { setMode("forgot"); setError("") }}
+                className="text-xs text-muted-foreground hover:text-primary hover:underline"
+              >
+                Forgot password?
+              </button>
+            </div>
+          )}
 
           {mode === "register" && (
             <label className="flex items-start gap-2 cursor-pointer">
@@ -134,9 +171,12 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
               ? "Please wait…"
               : mode === "login"
                 ? "Login"
-                : "Create Account"}
+                : mode === "register"
+                  ? "Create Account"
+                  : "Send Reset Link"}
           </Button>
         </form>
+        )}
 
         <p className="text-center text-xs text-muted-foreground mt-2">
           {mode === "login" ? (
@@ -153,7 +193,7 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
             <>
               Already registered?{" "}
               <button
-                onClick={() => { setMode("login"); setError("") }}
+                onClick={() => { setMode("login"); setError(""); setResetSent(false) }}
                 className="text-primary hover:underline"
               >
                 Login
