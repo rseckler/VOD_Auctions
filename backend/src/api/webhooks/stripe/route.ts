@@ -138,6 +138,101 @@ export async function POST(
         break
       }
 
+      // ── PaymentIntent succeeded (new embedded checkout flow) ──
+      case "payment_intent.succeeded": {
+        const paymentIntent = event.data.object as any
+        const orderGroupId = paymentIntent.metadata?.order_group_id
+
+        if (!orderGroupId) {
+          console.error("[stripe-webhook] payment_intent.succeeded: No order_group_id in metadata")
+          break
+        }
+
+        // Check if already processed (idempotency)
+        const alreadyPaid = await pgConnection("transaction")
+          .where("order_group_id", orderGroupId)
+          .where("status", "paid")
+          .first()
+        if (alreadyPaid) {
+          console.log(`[stripe-webhook] Order group ${orderGroupId} already paid — skipping`)
+          break
+        }
+
+        const updateData: Record<string, any> = {
+          status: "paid",
+          stripe_payment_intent_id: paymentIntent.id,
+          paid_at: new Date(),
+          updated_at: new Date(),
+        }
+
+        // Shipping address from PaymentIntent (already saved at create time for embedded flow,
+        // but update from Stripe in case it was collected via PayPal/redirect)
+        const shipping = paymentIntent.shipping
+        if (shipping?.address) {
+          updateData.shipping_name = shipping.name || null
+          updateData.shipping_address_line1 = shipping.address.line1 || null
+          updateData.shipping_address_line2 = shipping.address.line2 || null
+          updateData.shipping_city = shipping.address.city || null
+          updateData.shipping_postal_code = shipping.address.postal_code || null
+          updateData.shipping_country = shipping.address.country || null
+        }
+
+        // Fallback name from metadata
+        if (!updateData.shipping_name && paymentIntent.metadata?.customer_name) {
+          updateData.shipping_name = paymentIntent.metadata.customer_name
+        }
+
+        // Update all transactions in the group
+        await pgConnection("transaction")
+          .where("order_group_id", orderGroupId)
+          .where("status", "pending")
+          .update(updateData)
+
+        // Handle direct purchase items: update Release status + clean cart
+        const directPurchaseTxs = await pgConnection("transaction")
+          .where("order_group_id", orderGroupId)
+          .where("item_type", "direct_purchase")
+          .select("release_id", "user_id")
+
+        for (const tx of directPurchaseTxs) {
+          await pgConnection("Release")
+            .where("id", tx.release_id)
+            .update({ auction_status: "sold_direct", updatedAt: new Date() })
+
+          await pgConnection("cart_item")
+            .where({ user_id: tx.user_id, release_id: tx.release_id })
+            .whereNull("deleted_at")
+            .update({ deleted_at: new Date(), updated_at: new Date() })
+        }
+
+        console.log(`[stripe-webhook] PaymentIntent ${paymentIntent.id} — Order ${orderGroupId} marked as paid (${directPurchaseTxs.length} direct purchases)`)
+
+        // Send payment confirmation email
+        sendPaymentConfirmationEmail(pgConnection, orderGroupId).catch((err) => {
+          console.error("[stripe-webhook] Failed to send payment email:", err)
+        })
+
+        // Sync payment to Brevo CRM
+        crmSyncPaymentCompleted(pgConnection, orderGroupId).catch(() => {})
+
+        break
+      }
+
+      // ── PaymentIntent failed (new embedded checkout flow) ──
+      case "payment_intent.payment_failed": {
+        const paymentIntent = event.data.object as any
+        const orderGroupId = paymentIntent.metadata?.order_group_id
+
+        if (orderGroupId) {
+          const lastError = paymentIntent.last_payment_error
+          console.error(`[stripe-webhook] PaymentIntent ${paymentIntent.id} failed — ${lastError?.message || "unknown error"}`)
+
+          // Don't mark as failed immediately — user can retry on the same page
+          // Only log for now. Transactions stay "pending" until they expire or succeed.
+        }
+        break
+      }
+
       case "checkout.session.expired": {
         const session = event.data.object
         const orderGroupId = session.metadata?.order_group_id
