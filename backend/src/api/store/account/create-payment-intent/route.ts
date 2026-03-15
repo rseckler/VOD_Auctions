@@ -317,6 +317,40 @@ export async function POST(
         updated_at: new Date(),
       })
 
+    // ── Save/update default shipping address on customer ──
+    if (shippingAddress) {
+      const addressData = {
+        first_name: shippingAddress.first_name || customer?.first_name || null,
+        last_name: shippingAddress.last_name || customer?.last_name || null,
+        address_1: shippingAddress.line1 || null,
+        address_2: shippingAddress.line2 || null,
+        city: shippingAddress.city || null,
+        postal_code: shippingAddress.postal_code || null,
+        country_code: shipping_country,
+        updated_at: new Date(),
+      }
+
+      const existingAddress = await pgConnection("customer_address")
+        .where({ customer_id: customerId, is_default_shipping: true })
+        .whereNull("deleted_at")
+        .first()
+
+      if (existingAddress) {
+        await pgConnection("customer_address")
+          .where("id", existingAddress.id)
+          .update(addressData)
+      } else {
+        await pgConnection("customer_address").insert({
+          id: generateEntityId(),
+          customer_id: customerId,
+          is_default_shipping: true,
+          is_default_billing: true,
+          ...addressData,
+          created_at: new Date(),
+        })
+      }
+    }
+
     res.json({
       client_secret: paymentIntent.client_secret,
       payment_intent_id: paymentIntent.id,

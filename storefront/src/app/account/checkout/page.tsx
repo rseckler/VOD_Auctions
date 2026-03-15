@@ -229,14 +229,29 @@ export default function CheckoutPage() {
         "x-publishable-api-key": PUBLISHABLE_KEY,
         Authorization: `Bearer ${token}`,
       }
-      const [winsRes, txRes, cartRes, shippingRes] = await Promise.all([
+      const [winsRes, txRes, cartRes, shippingRes, statusRes] = await Promise.all([
         fetch(`${MEDUSA_URL}/store/account/wins`, { headers }).then((r) => r.json()),
         fetch(`${MEDUSA_URL}/store/account/transactions`, { headers }).then((r) => r.json()),
         fetch(`${MEDUSA_URL}/store/account/cart`, { headers }).then((r) => r.json()),
         fetch(`${MEDUSA_URL}/store/shipping`, { headers }).then((r) => r.json()).catch(() => null),
+        fetch(`${MEDUSA_URL}/store/account/status`, { headers }).then((r) => r.json()).catch(() => null),
       ])
       setWins(winsRes.wins || [])
       setCartItems(cartRes.items || [])
+
+      // Pre-fill saved shipping address
+      const savedAddr = statusRes?.default_shipping_address
+      if (savedAddr && savedAddr.line1) {
+        setAddress((prev) => ({
+          first_name: savedAddr.first_name || prev.first_name,
+          last_name: savedAddr.last_name || prev.last_name,
+          line1: savedAddr.line1 || prev.line1,
+          line2: savedAddr.line2 || prev.line2,
+          city: savedAddr.city || prev.city,
+          postal_code: savedAddr.postal_code || prev.postal_code,
+          country: savedAddr.country || prev.country,
+        }))
+      }
       if (shippingRes) {
         if (shippingRes.zones) setShippingZones(shippingRes.zones)
         if (shippingRes.countries) setCountries(shippingRes.countries)

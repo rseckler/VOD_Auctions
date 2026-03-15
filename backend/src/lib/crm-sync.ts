@@ -141,11 +141,27 @@ export async function crmSyncPaymentCompleted(
     )
     .first()
 
+  // Get shipping address from latest transaction
+  const latestTx = await pg("transaction")
+    .where("order_group_id", orderGroupId)
+    .whereNotNull("shipping_address_line1")
+    .first()
+
+  const addressAttributes: Record<string, any> = {}
+  if (latestTx) {
+    if (latestTx.shipping_address_line1) addressAttributes.SHIPPING_ADDRESS = latestTx.shipping_address_line1
+    if (latestTx.shipping_city) addressAttributes.SHIPPING_CITY = latestTx.shipping_city
+    if (latestTx.shipping_postal_code) addressAttributes.SHIPPING_POSTAL_CODE = latestTx.shipping_postal_code
+    if (latestTx.shipping_country) addressAttributes.SHIPPING_COUNTRY = latestTx.shipping_country
+    if (latestTx.shipping_name) addressAttributes.SHIPPING_NAME = latestTx.shipping_name
+  }
+
   await upsertContact(customer.email, {
     TOTAL_PURCHASES: Number(lifetimeStats?.total_purchases || 0),
     TOTAL_SPENT: Number(parseFloat(lifetimeStats?.total_spent || "0").toFixed(2)),
     LAST_PURCHASE_DATE: new Date().toISOString().split("T")[0],
     CUSTOMER_SEGMENT: "buyer",
+    ...addressAttributes,
   })
 
   console.log(`[crm-sync] Payment synced: ${customer.email}, group ${orderGroupId}`)
