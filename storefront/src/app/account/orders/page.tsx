@@ -13,6 +13,7 @@ import {
   ChevronDown,
   ChevronUp,
   Disc3,
+  FileText,
 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -122,6 +123,30 @@ function OrderProgressBar({ status }: { status: string }) {
       })}
     </div>
   )
+}
+
+async function downloadInvoice(groupId: string) {
+  const token = getToken()
+  if (!token) return
+
+  try {
+    const res = await fetch(`/api/invoice/${groupId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) {
+      console.error("Failed to download invoice:", res.status)
+      return
+    }
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `VOD-Invoice-${groupId.slice(-6).toUpperCase()}.pdf`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (err) {
+    console.error("Invoice download error:", err)
+  }
 }
 
 function OrderCard({ order }: { order: Order }) {
@@ -286,6 +311,19 @@ function OrderCard({ order }: { order: Order }) {
                 &euro;{order.total.toFixed(2)}
               </span>
             </div>
+          </div>
+
+          {/* Download Invoice */}
+          <div className="mt-4 pt-3 border-t border-border">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => downloadInvoice(order.order_group_id)}
+              className="gap-2"
+            >
+              <FileText className="w-4 h-4" />
+              Download Invoice
+            </Button>
           </div>
         </div>
       )}

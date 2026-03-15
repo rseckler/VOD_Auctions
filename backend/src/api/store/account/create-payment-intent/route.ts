@@ -56,6 +56,7 @@ export async function POST(
   const items: CheckoutItem[] = body.items
   const shippingAddress: ShippingAddress | undefined = body.shipping_address
   const shipping_method_id: string | undefined = body.shipping_method_id
+  const promoCode: string | undefined = body.promo_code
 
   // Resolve shipping zone from address country
   let shipping_zone: string
@@ -220,18 +221,73 @@ export async function POST(
       shippingCost = 0
     }
 
+    // ── Validate and apply promo code ──
+    let discountAmount = 0
+    let promoCodeId: string | null = null
+    if (promoCode && typeof promoCode === "string") {
+      const promo = await pgConnection("promo_code")
+        .where("code", promoCode.trim().toUpperCase())
+        .where("is_active", true)
+        .first()
+
+      if (!promo) {
+        res.status(400).json({ message: "Invalid promo code." })
+        return
+      }
+
+      const now = new Date()
+      if (promo.valid_from && new Date(promo.valid_from) > now) {
+        res.status(400).json({ message: "This promo code is not yet active." })
+        return
+      }
+      if (promo.valid_to && new Date(promo.valid_to) < now) {
+        res.status(400).json({ message: "This promo code has expired." })
+        return
+      }
+      if (promo.max_uses !== null && Number(promo.used_count) >= Number(promo.max_uses)) {
+        res.status(400).json({ message: "This promo code has reached its usage limit." })
+        return
+      }
+      const minOrder = Number(promo.min_order_amount) || 0
+      if (itemsTotal < minOrder) {
+        res.status(400).json({ message: `Minimum order amount of \u20AC${minOrder.toFixed(2)} required.` })
+        return
+      }
+
+      if (promo.discount_type === "percentage") {
+        discountAmount = itemsTotal * Number(promo.discount_value) / 100
+        if (promo.max_discount_amount !== null) {
+          discountAmount = Math.min(discountAmount, Number(promo.max_discount_amount))
+        }
+      } else {
+        discountAmount = Math.min(Number(promo.discount_value), itemsTotal)
+      }
+      discountAmount = Math.round(discountAmount * 100) / 100
+      promoCodeId = promo.id
+    }
+
     // Distribute shipping cost proportionally
     let shippingDistributed = 0
+    let discountDistributed = 0
     for (let i = 0; i < transactionInserts.length; i++) {
       const share = i === transactionInserts.length - 1
         ? Math.round((shippingCost - shippingDistributed) * 100) / 100
         : Math.round((transactionInserts[i].amount / itemsTotal) * shippingCost * 100) / 100
       transactionInserts[i].shipping_cost = share
-      transactionInserts[i].total_amount = transactionInserts[i].amount + share
       shippingDistributed += share
+
+      // Distribute discount proportionally
+      const discountShare = i === transactionInserts.length - 1
+        ? Math.round((discountAmount - discountDistributed) * 100) / 100
+        : Math.round((transactionInserts[i].amount / itemsTotal) * discountAmount * 100) / 100
+      transactionInserts[i].discount_amount = discountShare
+      transactionInserts[i].promo_code_id = promoCodeId
+      discountDistributed += discountShare
+
+      transactionInserts[i].total_amount = transactionInserts[i].amount + share - discountShare
     }
 
-    const grandTotal = itemsTotal + shippingCost
+    const grandTotal = Math.max(itemsTotal + shippingCost - discountAmount, 0.50)
 
     // ── Store shipping address + method on transactions ──
     for (const tx of transactionInserts) {
@@ -297,6 +353,7 @@ export async function POST(
         user_id: customerId,
         customer_name: customerName || "",
         customer_email: customer?.email || "",
+        ...(promoCodeId ? { promo_code_id: promoCodeId, discount_amount: String(discountAmount) } : {}),
       },
       ...(shippingAddress ? {
         shipping: {
@@ -365,6 +422,7 @@ export async function POST(
       order_group_id: orderGroupId,
       amount: grandTotal,
       shipping_cost: shippingCost,
+      discount_amount: discountAmount,
     })
   } catch (error: any) {
     console.error("[create-payment-intent] Error:", error)

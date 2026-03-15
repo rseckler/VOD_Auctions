@@ -9,7 +9,7 @@ import { getToken } from "@/lib/auth"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
 import { useAuth } from "@/components/AuthProvider"
 import { stripePromise } from "@/lib/stripe-client"
-import { CreditCard, Disc3, Trophy, ShoppingCart, Package, MapPin, Truck, CheckCircle2, ClipboardList, Mail, Lock, ChevronDown, Printer } from "lucide-react"
+import { CreditCard, Disc3, Trophy, ShoppingCart, Package, MapPin, Truck, CheckCircle2, ClipboardList, Mail, Lock, ChevronDown, Printer, Tag, X } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -394,6 +394,18 @@ export default function CheckoutPage() {
   // Completed order data (preserved for success page)
   const [completedOrder, setCompletedOrder] = useState<CompletedOrderData | null>(null)
 
+  // Promo code
+  const [promoInput, setPromoInput] = useState("")
+  const [promoValidating, setPromoValidating] = useState(false)
+  const [promoError, setPromoError] = useState("")
+  const [promoDiscount, setPromoDiscount] = useState<{
+    code: string
+    discount_amount: number
+    discount_type: string
+    discount_value: number
+    description: string | null
+  } | null>(null)
+
   // Mobile order summary collapsible
   const [summaryOpen, setSummaryOpen] = useState(false)
 
@@ -503,7 +515,8 @@ export default function CheckoutPage() {
   const winsSubtotal = unpaidWins.reduce((sum, w) => sum + w.final_price, 0)
   const cartSubtotal = cartItems.reduce((sum, item) => sum + item.price, 0)
   const itemsTotal = winsSubtotal + cartSubtotal
-  const grandTotal = itemsTotal + shippingCost
+  const discountAmount = promoDiscount?.discount_amount || 0
+  const grandTotal = Math.max(itemsTotal + shippingCost - discountAmount, 0)
   const hasItems = unpaidWins.length > 0 || cartItems.length > 0
 
   // Resolve zone from country
@@ -582,6 +595,60 @@ export default function CheckoutPage() {
     }
   }, [loading, hasItems, checkoutTracked])
 
+  // ── Promo code handlers ──
+  async function applyPromoCode() {
+    if (!promoInput.trim()) return
+    setPromoValidating(true)
+    setPromoError("")
+    try {
+      const token = getToken()
+      if (!token) return
+      const res = await fetch(`${MEDUSA_URL}/store/account/validate-promo`, {
+        method: "POST",
+        headers: {
+          "x-publishable-api-key": PUBLISHABLE_KEY,
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ code: promoInput.trim(), subtotal: itemsTotal }),
+      })
+      const data = await res.json()
+      if (data.valid) {
+        setPromoDiscount({
+          code: data.code,
+          discount_amount: data.discount_amount,
+          discount_type: data.discount_type,
+          discount_value: data.discount_value,
+          description: data.description,
+        })
+        setPromoError("")
+        // Reset payment intent since total changed
+        if (clientSecret) {
+          setClientSecret("")
+          setPaymentIntentId("")
+        }
+        toast.success(`Promo code "${data.code}" applied!`)
+      } else {
+        setPromoError(data.message || "Invalid promo code.")
+      }
+    } catch {
+      setPromoError("Failed to validate promo code.")
+    } finally {
+      setPromoValidating(false)
+    }
+  }
+
+  function removePromoCode() {
+    setPromoDiscount(null)
+    setPromoInput("")
+    setPromoError("")
+    // Reset payment intent since total changed
+    if (clientSecret) {
+      setClientSecret("")
+      setPaymentIntentId("")
+    }
+  }
+
   // ── Create PaymentIntent when address + shipping are ready ──
   const createPaymentIntent = useCallback(async () => {
     if (!address.country || !address.first_name || !address.last_name || !address.line1 || !address.city || !address.postal_code) return
@@ -617,6 +684,7 @@ export default function CheckoutPage() {
         country_code: address.country,
         shipping_address: address,
         shipping_method_id: selectedMethodId || undefined,
+        ...(promoDiscount ? { promo_code: promoDiscount.code } : {}),
       }
 
       if (!billingSameAsShipping) {
@@ -653,7 +721,7 @@ export default function CheckoutPage() {
     } finally {
       setCreatingIntent(false)
     }
-  }, [address, billingAddress, billingSameAsShipping, hasItems, unpaidWins, cartItems, selectedMethodId, creatingIntent])
+  }, [address, billingAddress, billingSameAsShipping, hasItems, unpaidWins, cartItems, selectedMethodId, creatingIntent, promoDiscount])
 
   // Address is complete?
   const addressComplete = !!(address.first_name && address.last_name && address.line1 && address.city && address.postal_code && address.country)
@@ -1120,6 +1188,14 @@ export default function CheckoutPage() {
                 </div>
               )}
 
+              {/* Discount */}
+              {discountAmount > 0 && promoDiscount && (
+                <div className="flex justify-between text-green-500">
+                  <span>Discount ({promoDiscount.code})</span>
+                  <span className="font-mono">-{"\u20AC"}{discountAmount.toFixed(2)}</span>
+                </div>
+              )}
+
               {/* Total */}
               <div className="border-t border-border pt-2 flex justify-between font-semibold">
                 <span>Total</span>
@@ -1303,6 +1379,55 @@ export default function CheckoutPage() {
               ))}
             </div>
 
+            {/* Promo Code */}
+            <div className="border-t border-border pt-3 mb-3">
+              {promoDiscount ? (
+                <div className="flex items-center justify-between bg-primary/10 border border-primary/30 rounded-lg px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <Tag className="h-4 w-4 text-primary" />
+                    <div>
+                      <span className="text-sm font-semibold text-primary">{promoDiscount.code}</span>
+                      {promoDiscount.description && (
+                        <p className="text-xs text-muted-foreground">{promoDiscount.description}</p>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={removePromoCode}
+                    className="text-muted-foreground hover:text-foreground p-1"
+                    aria-label="Remove promo code"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Promo code"
+                      value={promoInput}
+                      onChange={(e) => { setPromoInput(e.target.value); setPromoError("") }}
+                      onKeyDown={(e) => { if (e.key === "Enter") applyPromoCode() }}
+                      className="flex-1 h-9 text-sm uppercase"
+                      disabled={promoValidating}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={applyPromoCode}
+                      disabled={promoValidating || !promoInput.trim()}
+                      className="h-9 px-4"
+                    >
+                      {promoValidating ? "..." : "Apply"}
+                    </Button>
+                  </div>
+                  {promoError && (
+                    <p className="text-xs text-destructive mt-1.5">{promoError}</p>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* Totals */}
             <div className="space-y-2 text-sm border-t border-border pt-3">
               <div className="flex justify-between">
@@ -1324,6 +1449,13 @@ export default function CheckoutPage() {
                         : `\u20AC${shippingCost.toFixed(2)}`}
                 </span>
               </div>
+
+              {discountAmount > 0 && promoDiscount && (
+                <div className="flex justify-between text-green-500">
+                  <span>Discount ({promoDiscount.code})</span>
+                  <span className="font-mono">-{"\u20AC"}{discountAmount.toFixed(2)}</span>
+                </div>
+              )}
 
               <div className="border-t border-border pt-3 flex justify-between items-center">
                 <span className="font-semibold text-base">Total</span>

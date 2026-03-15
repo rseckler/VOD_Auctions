@@ -111,6 +111,20 @@ export async function POST(
 
           console.log(`[stripe-webhook] Order group ${orderGroupId} marked as paid (${directPurchaseTxs.length} direct purchases)`)
 
+          // Increment promo code used_count if applicable
+          const promoTxLegacy = await pgConnection("transaction")
+            .where("order_group_id", orderGroupId)
+            .whereNotNull("promo_code_id")
+            .first()
+          if (promoTxLegacy?.promo_code_id) {
+            await pgConnection("promo_code")
+              .where("id", promoTxLegacy.promo_code_id)
+              .update({
+                used_count: pgConnection.raw("used_count + 1"),
+                updated_at: new Date(),
+              })
+          }
+
           // Send payment confirmation email (async, non-blocking)
           sendPaymentConfirmationEmail(pgConnection, orderGroupId).catch((err) => {
             console.error("[stripe-webhook] Failed to send payment email:", err)
@@ -206,6 +220,19 @@ export async function POST(
         }
 
         console.log(`[stripe-webhook] PaymentIntent ${paymentIntent.id} — Order ${orderGroupId} marked as paid (${directPurchaseTxs.length} direct purchases)`)
+
+        // Increment promo code used_count if applicable
+        const promoTx = await pgConnection("transaction")
+          .where("order_group_id", orderGroupId)
+          .whereNotNull("promo_code_id")
+          .first()
+        if (promoTx?.promo_code_id) {
+          await pgConnection("promo_code")
+            .where("id", promoTx.promo_code_id)
+            .increment("used_count", 1)
+            .update({ updated_at: new Date() })
+          console.log(`[stripe-webhook] Promo code ${promoTx.promo_code_id} used_count incremented`)
+        }
 
         // Send payment confirmation email
         sendPaymentConfirmationEmail(pgConnection, orderGroupId).catch((err) => {
