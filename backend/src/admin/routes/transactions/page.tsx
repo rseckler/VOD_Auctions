@@ -38,6 +38,8 @@ type Transaction = {
   shipping_name: string | null
   shipping_city: string | null
   shipping_country: string | null
+  customer_name: string | null
+  customer_email: string | null
 }
 
 const CARRIERS = ["DHL", "DPD", "Hermes", "GLS", "UPS", "FedEx", "Deutsche Post"]
@@ -193,7 +195,10 @@ const TransactionsPage = () => {
                 </Table.Cell>
                 <Table.Cell>
                   <div>
-                    <Text className="text-sm">{tx.shipping_name || "—"}</Text>
+                    <Text className="text-sm">{tx.customer_name || tx.shipping_name || "—"}</Text>
+                    {tx.customer_email && (
+                      <Text className="text-xs text-ui-fg-muted">{tx.customer_email}</Text>
+                    )}
                     {tx.shipping_city && (
                       <Text className="text-ui-fg-subtle text-xs">
                         {tx.shipping_city}, {tx.shipping_country}

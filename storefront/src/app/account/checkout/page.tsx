@@ -72,16 +72,42 @@ export default function CheckoutPage() {
   const [estimating, setEstimating] = useState(false)
   const [freeThreshold, setFreeThreshold] = useState<number | null>(null)
 
-  useEffect(() => {
-    fetchData()
+  const [paymentSuccess, setPaymentSuccess] = useState(false)
 
+  useEffect(() => {
     const payment = searchParams.get("payment")
     if (payment === "success") {
+      setPaymentSuccess(true)
       toast.success("Payment successful! You will receive a confirmation email.")
       brevoOrderCompleted("checkout", 0, 0)
+      // Optimistically clear local state
+      setCartItems([])
+      setWins([])
       refreshStatus()
+      // Poll for webhook completion — orders page needs status=paid
+      let attempts = 0
+      const poll = setInterval(async () => {
+        attempts++
+        if (attempts > 12) { clearInterval(poll); return }
+        try {
+          const token = getToken()
+          if (!token) { clearInterval(poll); return }
+          const r = await fetch(`${MEDUSA_URL}/store/account/orders`, {
+            headers: { "x-publishable-api-key": PUBLISHABLE_KEY, Authorization: `Bearer ${token}` },
+          })
+          const data = await r.json()
+          if (data.orders?.length > 0) {
+            clearInterval(poll)
+            refreshStatus()
+          }
+        } catch { /* ignore */ }
+      }, 3000)
+      return () => clearInterval(poll)
     } else if (payment === "cancelled") {
       toast.info("Payment cancelled. You can try again anytime.")
+      fetchData()
+    } else {
+      fetchData()
     }
   }, [searchParams])
 
@@ -278,6 +304,25 @@ export default function CheckoutPage() {
   }
 
   if (!hasItems) {
+    if (paymentSuccess) {
+      return (
+        <div className="text-center py-16">
+          <div className="h-12 w-12 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4">
+            <CreditCard className="h-6 w-6 text-green-500" />
+          </div>
+          <h3 className="text-lg font-semibold mb-2">Payment Successful!</h3>
+          <p className="text-muted-foreground mb-4">Your order has been placed. You will receive a confirmation email shortly.</p>
+          <div className="flex gap-2 justify-center">
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/account/orders">View Orders</Link>
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/catalog">Continue Shopping</Link>
+            </Button>
+          </div>
+        </div>
+      )
+    }
     return (
       <div className="text-center py-16">
         <Package className="h-12 w-12 text-muted-foreground/20 mx-auto mb-4" />
@@ -378,29 +423,18 @@ export default function CheckoutPage() {
         </div>
       )}
 
-      {/* Order Summary */}
-      <Card className="p-4 border-primary/30">
-        <h3 className="font-semibold mb-4">Order Summary</h3>
+      {/* Shipping */}
+      <Card className="p-4 mb-4 border-primary/30">
+        <h3 className="font-semibold mb-4 flex items-center gap-2">
+          <Package className="h-4 w-4 text-primary" /> Shipping
+        </h3>
 
-        <div className="space-y-2 text-sm">
-          {unpaidWins.length > 0 && (
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Auction Wins ({unpaidWins.length})</span>
-              <span className="font-mono">&euro;{winsSubtotal.toFixed(2)}</span>
-            </div>
-          )}
-          {cartItems.length > 0 && (
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Cart Items ({cartItems.length})</span>
-              <span className="font-mono">&euro;{cartSubtotal.toFixed(2)}</span>
-            </div>
-          )}
-
-          <div className="flex justify-between items-center pt-2">
-            <span className="text-muted-foreground">Ship to</span>
+        <div className="space-y-3">
+          <div>
+            <label className="text-sm text-muted-foreground block mb-1.5">Ship to</label>
             <Select value={selectedCountry} onValueChange={setSelectedCountry}>
-              <SelectTrigger className="w-[220px] h-8 text-xs">
-                <SelectValue placeholder="Select country..." />
+              <SelectTrigger className="w-full h-10">
+                <SelectValue placeholder="Select your country..." />
               </SelectTrigger>
               <SelectContent className="max-h-[300px]">
                 {countries.length > 0
@@ -432,12 +466,12 @@ export default function CheckoutPage() {
             const zoneMethods = zone ? (shippingMethods[zone.id] || []) : []
             if (zoneMethods.length <= 1) return null
             return (
-              <div className="pt-2 space-y-1.5">
-                <span className="text-xs text-muted-foreground">Shipping method</span>
+              <div className="space-y-1.5">
+                <label className="text-sm text-muted-foreground block">Shipping method</label>
                 {zoneMethods.map((m) => (
                   <label
                     key={m.id}
-                    className={`flex items-center gap-2 p-2 rounded border cursor-pointer text-xs transition-colors ${
+                    className={`flex items-center gap-2 p-3 rounded border cursor-pointer text-sm transition-colors ${
                       selectedMethodId === m.id
                         ? "border-primary/50 bg-primary/5"
                         : "border-border hover:border-border/80"
@@ -465,7 +499,7 @@ export default function CheckoutPage() {
                       )}
                     </div>
                     {m.has_tracking && (
-                      <span className="text-[10px] text-primary">Tracked</span>
+                      <Badge variant="outline" className="text-[10px] border-primary/50 text-primary">Tracked</Badge>
                     )}
                   </label>
                 ))}
@@ -474,13 +508,13 @@ export default function CheckoutPage() {
           })()}
 
           {selectedCountry && (
-            <div className="flex justify-between">
-              <span className="text-xs text-muted-foreground">
-                {estimating ? "Calculating..." : shippingLabel}
+            <div className="flex justify-between items-center p-3 rounded bg-muted/50">
+              <span className="text-sm font-medium">
+                {estimating ? "Calculating shipping..." : shippingLabel}
               </span>
-              <span className="font-mono">
+              <span className="text-base font-bold font-mono">
                 {shippingCost === 0 && freeThreshold
-                  ? "FREE"
+                  ? <span className="text-green-500">FREE</span>
                   : `\u20AC${shippingCost.toFixed(2)}`}
               </span>
             </div>
@@ -490,6 +524,37 @@ export default function CheckoutPage() {
             <p className="text-xs text-muted-foreground">
               Free shipping on orders over &euro;{freeThreshold.toFixed(2)}
             </p>
+          )}
+        </div>
+      </Card>
+
+      {/* Order Summary */}
+      <Card className="p-4 border-primary/30">
+        <h3 className="font-semibold mb-4">Order Summary</h3>
+
+        <div className="space-y-2 text-sm">
+          {unpaidWins.length > 0 && (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Auction Wins ({unpaidWins.length})</span>
+              <span className="font-mono">&euro;{winsSubtotal.toFixed(2)}</span>
+            </div>
+          )}
+          {cartItems.length > 0 && (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Cart Items ({cartItems.length})</span>
+              <span className="font-mono">&euro;{cartSubtotal.toFixed(2)}</span>
+            </div>
+          )}
+
+          {selectedCountry && (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Shipping</span>
+              <span className="font-mono">
+                {shippingCost === 0 && freeThreshold
+                  ? "FREE"
+                  : `\u20AC${shippingCost.toFixed(2)}`}
+              </span>
+            </div>
           )}
 
           <div className="border-t border-border pt-3 mt-3 flex justify-between items-center">
@@ -506,8 +571,12 @@ export default function CheckoutPage() {
           className="w-full mt-4 bg-primary hover:bg-primary/90 text-[#1c1915] h-11"
         >
           <CreditCard className="w-4 h-4 mr-2" />
-          {paying ? "Redirecting to Stripe..." : `Pay €${grandTotal.toFixed(2)}`}
+          {paying ? "Redirecting to payment..." : `Pay €${grandTotal.toFixed(2)}`}
         </Button>
+
+        <p className="text-xs text-muted-foreground text-center mt-3">
+          You will be redirected to our secure payment provider (Stripe) to complete your purchase.
+        </p>
       </Card>
     </div>
   )

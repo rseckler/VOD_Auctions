@@ -23,10 +23,14 @@ export async function GET(
         pgConnection.raw("COALESCE(block_item.release_id, transaction.release_id) as release_id"),
         "block_item.lot_number",
         "auction_block.title as block_title",
-        "auction_block.slug as block_slug"
+        "auction_block.slug as block_slug",
+        "customer.email as customer_email",
+        "customer.first_name as customer_first_name",
+        "customer.last_name as customer_last_name"
       )
       .leftJoin("block_item", "block_item.id", "transaction.block_item_id")
       .leftJoin("auction_block", "auction_block.id", "block_item.auction_block_id")
+      .leftJoin("customer", "customer.id", "transaction.user_id")
       .orderBy("transaction.created_at", "desc")
 
     if (status) query = query.where("transaction.status", status)
@@ -51,6 +55,7 @@ export async function GET(
 
     const result = transactions.map((t: any) => {
       const rel = releaseMap.get(t.release_id)
+      const customerName = [t.customer_first_name, t.customer_last_name].filter(Boolean).join(" ")
       return {
         ...t,
         amount: parseFloat(t.amount),
@@ -58,6 +63,8 @@ export async function GET(
         total_amount: parseFloat(t.total_amount),
         release_title: rel?.title || null,
         release_artist: rel?.artist_name || null,
+        customer_name: customerName || t.shipping_name || null,
+        customer_email: t.customer_email || null,
       }
     })
 

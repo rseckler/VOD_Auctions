@@ -60,6 +60,11 @@ export async function POST(
           updateData.shipping_country = shipping.address.country || null
         }
 
+        // Fallback: use customer name from metadata if no shipping name
+        if (!updateData.shipping_name && session.metadata?.customer_name) {
+          updateData.shipping_name = session.metadata.customer_name
+        }
+
         if (orderGroupId) {
           // Combined checkout: update all transactions in the group
           await pgConnection("transaction")
