@@ -57,7 +57,8 @@ type ShippingZoneInfo = {
 }
 
 type ShippingAddress = {
-  name: string
+  first_name: string
+  last_name: string
   line1: string
   line2: string
   city: string
@@ -71,11 +72,13 @@ function PaymentForm({
   onSuccess,
   paying,
   setPaying,
+  onPaymentMethodChange,
 }: {
   amount: number
   onSuccess: () => void
   paying: boolean
   setPaying: (v: boolean) => void
+  onPaymentMethodChange?: (type: string) => void
 }) {
   const stripe = useStripe()
   const elements = useElements()
@@ -113,6 +116,11 @@ function PaymentForm({
     <div className="space-y-4">
       <PaymentElement
         onReady={() => setPaymentReady(true)}
+        onChange={(event) => {
+          if (onPaymentMethodChange && event.value?.type) {
+            onPaymentMethodChange(event.value.type)
+          }
+        }}
         options={{
           layout: "tabs",
         }}
@@ -162,7 +170,8 @@ export default function CheckoutPage() {
 
   // Address
   const [address, setAddress] = useState<ShippingAddress>({
-    name: "",
+    first_name: "",
+    last_name: "",
     line1: "",
     line2: "",
     city: "",
@@ -177,12 +186,16 @@ export default function CheckoutPage() {
   const [paying, setPaying] = useState(false)
   const [paymentSuccess, setPaymentSuccess] = useState(false)
   const [creatingIntent, setCreatingIntent] = useState(false)
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("")
 
   // Pre-fill name from customer
   useEffect(() => {
-    if (customer && !address.name) {
-      const name = [customer.first_name, customer.last_name].filter(Boolean).join(" ")
-      if (name) setAddress((a) => ({ ...a, name }))
+    if (customer && !address.first_name && !address.last_name) {
+      setAddress((a) => ({
+        ...a,
+        first_name: customer.first_name || "",
+        last_name: customer.last_name || "",
+      }))
     }
   }, [customer])
 
@@ -376,7 +389,7 @@ export default function CheckoutPage() {
   }, [address, hasItems, unpaidWins, cartItems, selectedMethodId, creatingIntent])
 
   // Address is complete?
-  const addressComplete = !!(address.name && address.line1 && address.city && address.postal_code && address.country)
+  const addressComplete = !!(address.first_name && address.last_name && address.line1 && address.city && address.postal_code && address.country)
 
   function handleAddressField(field: keyof ShippingAddress, value: string) {
     setAddress((a) => ({ ...a, [field]: value }))
@@ -386,6 +399,24 @@ export default function CheckoutPage() {
       setPaymentIntentId("")
     }
   }
+
+  // When user selects PayPal, auto-switch to tracked shipping method
+  function handlePaymentMethodChange(type: string) {
+    setSelectedPaymentMethod(type)
+    if (type === "paypal" && selectedZoneSlug) {
+      const zone = shippingZones.find((z) => z.slug === selectedZoneSlug)
+      if (zone) {
+        const zoneMethods = shippingMethods[zone.id] || []
+        const trackedMethod = zoneMethods.find((m) => m.has_tracking)
+        if (trackedMethod && trackedMethod.id !== selectedMethodId) {
+          setSelectedMethodId(trackedMethod.id)
+          toast.info("Switched to tracked shipping (required for PayPal buyer protection).")
+        }
+      }
+    }
+  }
+
+  const requiresTrackedShipping = selectedPaymentMethod === "paypal"
 
   function handlePaymentSuccess() {
     setPaymentSuccess(true)
@@ -455,20 +486,35 @@ export default function CheckoutPage() {
 
         {/* ── Section 1: Shipping Address ── */}
         <Card className="p-5">
-          <h3 className="font-semibold mb-4 flex items-center gap-2">
-            <MapPin className="h-4 w-4 text-primary" />
-            Shipping Address
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-primary" />
+              Shipping Address
+            </h3>
+            <Badge variant="outline" className="text-xs text-muted-foreground">Step 1 of 3</Badge>
+          </div>
           <div className="space-y-3">
-            <div>
-              <Label htmlFor="name">Full Name</Label>
-              <Input
-                id="name"
-                value={address.name}
-                onChange={(e) => handleAddressField("name", e.target.value)}
-                placeholder="John Doe"
-                className="mt-1"
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="first_name">First Name</Label>
+                <Input
+                  id="first_name"
+                  value={address.first_name}
+                  onChange={(e) => handleAddressField("first_name", e.target.value)}
+                  placeholder="John"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="last_name">Last Name</Label>
+                <Input
+                  id="last_name"
+                  value={address.last_name}
+                  onChange={(e) => handleAddressField("last_name", e.target.value)}
+                  placeholder="Doe"
+                  className="mt-1"
+                />
+              </div>
             </div>
             <div>
               <Label htmlFor="line1">Address</Label>
@@ -537,10 +583,13 @@ export default function CheckoutPage() {
         {/* ── Section 2: Shipping Method ── */}
         {address.country && (
           <Card className="p-5">
-            <h3 className="font-semibold mb-4 flex items-center gap-2">
-              <Truck className="h-4 w-4 text-primary" />
-              Shipping Method
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold flex items-center gap-2">
+                <Truck className="h-4 w-4 text-primary" />
+                Shipping Method
+              </h3>
+              <Badge variant="outline" className="text-xs text-muted-foreground">Step 2 of 3</Badge>
+            </div>
 
             {(() => {
               const zone = shippingZones.find((z) => z.slug === selectedZoneSlug)
@@ -548,11 +597,22 @@ export default function CheckoutPage() {
 
               if (zoneMethods.length > 1) {
                 return (
+                  {requiresTrackedShipping && (
+                    <p className="text-xs text-amber-400 mb-2">
+                      PayPal buyer protection requires tracked shipping. Untracked options are disabled.
+                    </p>
+                  )}
                   <div className="space-y-2">
-                    {zoneMethods.map((m) => (
+                    {zoneMethods.map((m) => {
+                      const disabled = requiresTrackedShipping && !m.has_tracking
+                      return (
                       <label
                         key={m.id}
-                        className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                        className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+                          disabled
+                            ? "opacity-50 cursor-not-allowed"
+                            : "cursor-pointer"
+                        } ${
                           selectedMethodId === m.id
                             ? "border-primary/50 bg-primary/5"
                             : "border-border hover:border-border/80"
@@ -563,7 +623,8 @@ export default function CheckoutPage() {
                           name="shipping_method"
                           value={m.id}
                           checked={selectedMethodId === m.id}
-                          onChange={() => setSelectedMethodId(m.id)}
+                          onChange={() => !disabled && setSelectedMethodId(m.id)}
+                          disabled={disabled}
                           className="accent-primary"
                         />
                         <div className="flex-1">
@@ -583,7 +644,8 @@ export default function CheckoutPage() {
                           <Badge variant="outline" className="text-[10px] border-primary/50 text-primary">Tracked</Badge>
                         )}
                       </label>
-                    ))}
+                      )
+                    })}
                   </div>
                 )
               }
@@ -613,10 +675,13 @@ export default function CheckoutPage() {
         {/* ── Section 3: Payment ── */}
         {addressComplete && address.country && (
           <Card className="p-5">
-            <h3 className="font-semibold mb-4 flex items-center gap-2">
-              <CreditCard className="h-4 w-4 text-primary" />
-              Payment
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold flex items-center gap-2">
+                <CreditCard className="h-4 w-4 text-primary" />
+                Payment
+              </h3>
+              <Badge variant="outline" className="text-xs text-muted-foreground">Step 3 of 3</Badge>
+            </div>
 
             {!clientSecret ? (
               <div className="text-center py-6">
@@ -672,6 +737,7 @@ export default function CheckoutPage() {
                   onSuccess={handlePaymentSuccess}
                   paying={paying}
                   setPaying={setPaying}
+                  onPaymentMethodChange={handlePaymentMethodChange}
                 />
               </Elements>
             ) : (

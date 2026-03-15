@@ -10,7 +10,9 @@ type CheckoutItem =
   | { type: "cart"; cart_item_id: string }
 
 type ShippingAddress = {
-  name: string
+  name?: string
+  first_name?: string
+  last_name?: string
   line1: string
   line2?: string
   city: string
@@ -19,15 +21,8 @@ type ShippingAddress = {
   country: string
 }
 
-// Supported payment methods for PaymentIntent (Payment Element)
-const PAYMENT_METHOD_TYPES = [
-  "card",      // Card + Apple Pay + Google Pay (via wallets)
-  "paypal",
-  "klarna",
-  "bancontact",
-  "eps",
-  "link",
-] as const
+// Use automatic_payment_methods to let Stripe determine available methods
+// based on Dashboard configuration (Card, PayPal, Klarna, Bancontact, EPS, Link, etc.)
 
 // POST /store/account/create-payment-intent — Create Stripe PaymentIntent for embedded checkout
 export async function POST(
@@ -234,7 +229,10 @@ export async function POST(
     for (const tx of transactionInserts) {
       tx.shipping_country = shipping_country
       if (shippingAddress) {
-        tx.shipping_name = shippingAddress.name || null
+        const shippingName = shippingAddress.name
+          || [shippingAddress.first_name, shippingAddress.last_name].filter(Boolean).join(" ")
+          || null
+        tx.shipping_name = shippingName
         tx.shipping_address_line1 = shippingAddress.line1 || null
         tx.shipping_address_line2 = shippingAddress.line2 || null
         tx.shipping_city = shippingAddress.city || null
@@ -283,7 +281,7 @@ export async function POST(
     const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(grandTotal * 100),
       currency: "eur",
-      payment_method_types: [...PAYMENT_METHOD_TYPES],
+      automatic_payment_methods: { enabled: true },
       description: `VOD Auctions — ${description}`,
       receipt_email: customer?.email || undefined,
       metadata: {
@@ -294,7 +292,9 @@ export async function POST(
       },
       ...(shippingAddress ? {
         shipping: {
-          name: shippingAddress.name || customerName || "",
+          name: shippingAddress.name
+            || [shippingAddress.first_name, shippingAddress.last_name].filter(Boolean).join(" ")
+            || customerName || "",
           address: {
             line1: shippingAddress.line1 || "",
             line2: shippingAddress.line2 || "",
