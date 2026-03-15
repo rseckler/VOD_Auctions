@@ -26,6 +26,11 @@ type Customer = {
   email: string | null
 }
 
+type IntendedAction = {
+  type: string
+  payload?: Record<string, unknown>
+}
+
 type AuthContextType = {
   isAuthenticated: boolean
   customer: Customer | null
@@ -33,7 +38,10 @@ type AuthContextType = {
   cartCount: number
   savedCount: number
   sessionExpiredMessage: string | null
+  intendedAction: IntendedAction | null
   dismissSessionExpired: () => void
+  setIntendedAction: (action: IntendedAction) => void
+  clearIntendedAction: () => void
   login: (email: string, password: string) => Promise<void>
   register: (
     email: string,
@@ -54,7 +62,10 @@ const AuthContext = createContext<AuthContextType>({
   cartCount: 0,
   savedCount: 0,
   sessionExpiredMessage: null,
+  intendedAction: null,
   dismissSessionExpired: () => {},
+  setIntendedAction: () => {},
+  clearIntendedAction: () => {},
   login: async () => {},
   register: async () => {},
   logout: () => {},
@@ -74,7 +85,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [cartCount, setCartCount] = useState(0)
   const [savedCount, setSavedCount] = useState(0)
   const [sessionExpiredMessage, setSessionExpiredMessage] = useState<string | null>(null)
+  const [intendedAction, setIntendedActionState] = useState<IntendedAction | null>(null)
   const logoutTriggeredRef = useRef(false)
+
+  const setIntendedAction = useCallback((action: IntendedAction) => {
+    setIntendedActionState(action)
+  }, [])
+
+  const clearIntendedAction = useCallback(() => {
+    setIntendedActionState(null)
+  }, [])
 
   const handleSessionExpired = useCallback(() => {
     if (logoutTriggeredRef.current) return
@@ -155,6 +175,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(interval)
   }, [fetchStatus])
 
+  // Cross-tab session sync via storage event
+  useEffect(() => {
+    function handleStorageChange(e: StorageEvent) {
+      if (e.key !== "medusa_token") return
+      if (!e.newValue) {
+        // Token removed in another tab — logout here
+        setCustomer(null)
+        setCartCount(0)
+        setSavedCount(0)
+      } else if (e.newValue !== e.oldValue) {
+        // Token set/changed in another tab — refresh customer data
+        getCustomer(e.newValue).then((c) => {
+          if (c) setCustomer(c)
+        })
+        fetchStatus(e.newValue)
+      }
+    }
+    window.addEventListener("storage", handleStorageChange)
+    return () => window.removeEventListener("storage", handleStorageChange)
+  }, [fetchStatus])
+
   const login = useCallback(async (email: string, password: string) => {
     const token = await authLogin(email, password)
     setToken(token)
@@ -220,7 +261,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         cartCount,
         savedCount,
         sessionExpiredMessage,
+        intendedAction,
         dismissSessionExpired,
+        setIntendedAction,
+        clearIntendedAction,
         login,
         register,
         logout,

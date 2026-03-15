@@ -106,6 +106,22 @@ html {
   ::-webkit-scrollbar-thumb:hover { background: rgba(232, 224, 212, 0.2); }
 }
 
+/* Hide scrollbar utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Focus indicators for keyboard navigation (WCAG 2.1 AA) */
+a:focus-visible, button:focus-visible {
+  outline: 2px solid #d4a54a;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

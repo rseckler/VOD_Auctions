@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { Menu, Disc3, ShoppingCart, Heart, Search } from "lucide-react"
 import { useState } from "react"
 import { HeaderAuth } from "@/components/HeaderAuth"
@@ -15,6 +16,7 @@ const NAV_LINKS = [
 ]
 
 export function Header() {
+  const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [authModalOpen, setAuthModalOpen] = useState(false)
   const { isAuthenticated, cartCount, savedCount } = useAuth()
@@ -38,16 +40,19 @@ export function Header() {
           </Link>
 
           {/* Desktop Nav */}
-          <nav className="hidden md:flex items-center gap-6 text-sm">
-            {NAV_LINKS.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {link.label}
-              </Link>
-            ))}
+          <nav aria-label="Main navigation" className="hidden md:flex items-center gap-6 text-sm">
+            {NAV_LINKS.map((link) => {
+              const isActive = pathname.startsWith(link.href)
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`${isActive ? "text-foreground" : "text-muted-foreground"} hover:text-foreground transition-colors`}
+                >
+                  {link.label}
+                </Link>
+              )
+            })}
             <Link
               href="/catalog"
               className="text-muted-foreground hover:text-foreground transition-colors"
@@ -59,7 +64,7 @@ export function Header() {
               href={isAuthenticated ? "/account/saved" : "#"}
               onClick={handleAnonClick}
               className="relative text-muted-foreground hover:text-foreground transition-colors"
-              aria-label="Saved items"
+              aria-label={`Saved, ${savedCount} item${savedCount !== 1 ? "s" : ""}`}
             >
               <Heart className="h-5 w-5" />
               {isAuthenticated && savedCount > 0 && (
@@ -72,7 +77,7 @@ export function Header() {
               href={isAuthenticated ? "/account/cart" : "#"}
               onClick={handleAnonClick}
               className="relative text-muted-foreground hover:text-foreground transition-colors"
-              aria-label="Shopping cart"
+              aria-label={`Cart, ${cartCount} item${cartCount !== 1 ? "s" : ""}`}
             >
               <ShoppingCart className="h-5 w-5" />
               {isAuthenticated && cartCount > 0 && (

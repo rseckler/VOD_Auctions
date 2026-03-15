@@ -36,6 +36,30 @@ export default function SettingsPage() {
   const [newsletterLoading, setNewsletterLoading] = useState(true)
   const [newsletterSaving, setNewsletterSaving] = useState(false)
 
+  // Notification preferences (localStorage-only for now)
+  const [notifPrefs, setNotifPrefs] = useState({
+    outbid: true,
+    ending_soon: true,
+    new_blocks: false,
+    price_drops: false,
+  })
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("vod_notification_prefs")
+      if (saved) setNotifPrefs(JSON.parse(saved))
+    } catch { /* ignore */ }
+  }, [])
+
+  function toggleNotifPref(key: keyof typeof notifPrefs) {
+    setNotifPrefs((prev) => {
+      const updated = { ...prev, [key]: !prev[key] }
+      localStorage.setItem("vod_notification_prefs", JSON.stringify(updated))
+      toast.success("Notification preferences updated")
+      return updated
+    })
+  }
+
   // Sync profile fields when customer loads
   useEffect(() => {
     if (customer) {
@@ -330,6 +354,45 @@ export default function SettingsPage() {
               unsubscribe link in any newsletter email.
             </p>
           )}
+        </Card>
+
+        {/* Notification Preferences */}
+        <Card className="p-6">
+          <h3 className="text-sm font-medium text-muted-foreground mb-4">
+            Notification Preferences
+          </h3>
+          <div className="space-y-4">
+            {([
+              { key: "outbid" as const, label: "Outbid notifications", desc: "Get notified when someone outbids you" },
+              { key: "ending_soon" as const, label: "Auction ending soon", desc: "Reminder before auctions you bid on end" },
+              { key: "new_blocks" as const, label: "New auction blocks", desc: "Be the first to know about new auctions" },
+              { key: "price_drops" as const, label: "Price drop alerts", desc: "Get notified when saved items drop in price" },
+            ]).map((item) => (
+              <div key={item.key} className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">{item.label}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{item.desc}</p>
+                </div>
+                <button
+                  onClick={() => toggleNotifPref(item.key)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
+                    notifPrefs[item.key] ? "bg-primary" : "bg-muted"
+                  }`}
+                  role="switch"
+                  aria-checked={notifPrefs[item.key]}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-background shadow-lg ring-0 transition duration-200 ease-in-out ${
+                      notifPrefs[item.key] ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground mt-4">
+            Email notification delivery will be available soon. Your preferences are saved.
+          </p>
         </Card>
 
         {/* Change Password */}

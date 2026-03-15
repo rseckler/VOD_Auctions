@@ -7,6 +7,7 @@ import { Footer } from "@/components/layout/Footer"
 import { GoogleAnalytics } from "@/components/GoogleAnalytics"
 import { BrevoTracker } from "@/components/BrevoTracker"
 import { CookieConsent } from "@/components/CookieConsent"
+import { BackToTop } from "@/components/BackToTop"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import "./globals.css"
@@ -105,6 +106,7 @@ export default async function RootLayout({
             <main id="main-content" className="flex-1">{children}</main>
             <Footer />
             <Toaster richColors position="bottom-right" />
+            <BackToTop />
             <BrevoTracker />
             <CookieConsent />
           </TooltipProvider>

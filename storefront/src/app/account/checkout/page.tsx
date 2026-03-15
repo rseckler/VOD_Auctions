@@ -9,7 +9,7 @@ import { getToken } from "@/lib/auth"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
 import { useAuth } from "@/components/AuthProvider"
 import { stripePromise } from "@/lib/stripe-client"
-import { CreditCard, Disc3, Trophy, ShoppingCart, Package, MapPin, Truck, CheckCircle2, ClipboardList, Mail } from "lucide-react"
+import { CreditCard, Disc3, Trophy, ShoppingCart, Package, MapPin, Truck, CheckCircle2, ClipboardList, Mail, Lock, ChevronDown } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -64,6 +64,7 @@ type ShippingAddress = {
   city: string
   postal_code: string
   country: string
+  phone: string
 }
 
 // Data preserved for the success page
@@ -174,6 +175,9 @@ function PaymentForm({
 
       <p className="text-xs text-muted-foreground text-center">
         Your payment is processed securely by Stripe. Card details never touch our server.
+      </p>
+      <p className="text-xs text-muted-foreground/60 text-center flex items-center justify-center gap-1">
+        <Lock className="h-3 w-3" /> Powered by Stripe
       </p>
     </div>
   )
@@ -296,6 +300,17 @@ function AddressForm({
         </Select>
         {errors.country && <p className="text-xs text-destructive mt-1">{errors.country}</p>}
       </div>
+      <div>
+        <Label htmlFor={`${idPrefix}_phone`}>Phone (optional)</Label>
+        <Input
+          id={`${idPrefix}_phone`}
+          type="tel"
+          value={address.phone}
+          onChange={(e) => onChange("phone", e.target.value)}
+          placeholder="+49 123 456 7890"
+          className="mt-1"
+        />
+      </div>
     </div>
   )
 }
@@ -331,6 +346,7 @@ export default function CheckoutPage() {
     city: "",
     postal_code: "",
     country: "",
+    phone: "",
   })
 
   // Billing Address
@@ -343,6 +359,7 @@ export default function CheckoutPage() {
     city: "",
     postal_code: "",
     country: "",
+    phone: "",
   })
 
   // Form validation
@@ -363,6 +380,9 @@ export default function CheckoutPage() {
 
   // Completed order data (preserved for success page)
   const [completedOrder, setCompletedOrder] = useState<CompletedOrderData | null>(null)
+
+  // Mobile order summary collapsible
+  const [summaryOpen, setSummaryOpen] = useState(false)
 
   // Pre-fill name from customer
   useEffect(() => {
@@ -442,6 +462,7 @@ export default function CheckoutPage() {
           city: savedAddr.city || prev.city,
           postal_code: savedAddr.postal_code || prev.postal_code,
           country: savedAddr.country || prev.country,
+          phone: savedAddr.phone || prev.phone,
         }))
       }
       if (shippingRes) {
@@ -601,6 +622,11 @@ export default function CheckoutPage() {
 
       const data = await res.json()
       if (!res.ok) {
+        if (res.status === 401) {
+          toast.error("Your session has expired. Please log in again.")
+          window.location.href = "/?login=true"
+          return
+        }
         toast.error(data.message || "Failed to initialize payment")
         return
       }
@@ -834,7 +860,13 @@ export default function CheckoutPage() {
     <div className="flex flex-col lg:flex-row gap-8">
       {/* ── LEFT COLUMN: Form Sections ── */}
       <div className="flex-1 space-y-6">
-        <h2 className="text-xl font-semibold">Checkout</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold">Checkout</h2>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Lock className="h-3.5 w-3.5 text-green-500" />
+            <span>Secure Checkout</span>
+          </div>
+        </div>
 
         {/* ── Section 1: Shipping Address ── */}
         <Card className="p-5">
@@ -1145,15 +1177,27 @@ export default function CheckoutPage() {
       <div className="lg:w-[380px] flex-shrink-0">
         <div className="lg:sticky lg:top-24">
           <Card className="p-5 border-primary/30">
-            <h3 className="font-semibold mb-4">Order Summary</h3>
+            {/* Mobile: collapsible toggle */}
+            <button
+              onClick={() => setSummaryOpen((v) => !v)}
+              className="w-full flex items-center justify-between lg:hidden"
+            >
+              <h3 className="font-semibold">
+                Order Summary ({unpaidWins.length + cartItems.length} item{unpaidWins.length + cartItems.length !== 1 ? "s" : ""}) — {"\u20AC"}{grandTotal.toFixed(2)}
+              </h3>
+              <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${summaryOpen ? "rotate-180" : ""}`} />
+            </button>
+            {/* Desktop: always-visible heading */}
+            <h3 className="font-semibold mb-4 hidden lg:block">Order Summary</h3>
 
-            {/* Items */}
-            <div className="space-y-3 mb-4 max-h-[300px] overflow-y-auto">
+            {/* Items — hidden on mobile when collapsed, always visible on desktop */}
+            <div className={`${summaryOpen ? "block" : "hidden"} lg:block`}>
+            <div className="space-y-3 mb-4 max-h-[300px] overflow-y-auto mt-4 lg:mt-0">
               {unpaidWins.map((win) => (
                 <div key={win.bid_id} className="flex gap-3 items-center">
                   <div className="relative w-12 h-12 flex-shrink-0 rounded overflow-hidden bg-card">
                     {win.item.release_cover ? (
-                      <Image src={win.item.release_cover} alt="" fill sizes="48px" className="object-cover" />
+                      <Image src={win.item.release_cover} alt={win.item.release_artist ? `${win.item.release_artist} — ${win.item.release_title || "Unknown"}` : win.item.release_title || "Unknown"} fill sizes="48px" className="object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         <Disc3 className="h-5 w-5 text-muted-foreground/30" />
@@ -1181,7 +1225,7 @@ export default function CheckoutPage() {
                 <div key={item.id} className="flex gap-3 items-center">
                   <div className="relative w-12 h-12 flex-shrink-0 rounded overflow-hidden bg-card">
                     {item.coverImage ? (
-                      <Image src={item.coverImage} alt="" fill sizes="48px" className="object-cover" />
+                      <Image src={item.coverImage} alt={item.artist_name ? `${item.artist_name} — ${item.title}` : item.title} fill sizes="48px" className="object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         <Disc3 className="h-5 w-5 text-muted-foreground/30" />
@@ -1235,6 +1279,7 @@ export default function CheckoutPage() {
                 </span>
               </div>
             </div>
+            </div>{/* end collapsible wrapper */}
           </Card>
         </div>
       </div>

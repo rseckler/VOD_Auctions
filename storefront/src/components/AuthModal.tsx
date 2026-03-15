@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect, useRef, useCallback } from "react"
 import { useAuth } from "./AuthProvider"
 import { requestPasswordReset } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
@@ -37,6 +37,9 @@ const strengthConfig: Record<PasswordStrength, { label: string; color: string; w
   strong: { label: "Strong", color: "bg-green-500", width: "w-full" },
 }
 
+const RATE_LIMIT_THRESHOLD = 5
+const RATE_LIMIT_COOLDOWN = 30 // seconds
+
 export function AuthModal({ open, onClose }: AuthModalProps) {
   const { login, register } = useAuth()
   const [mode, setMode] = useState<"login" | "register" | "forgot">("login")
@@ -51,11 +54,47 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
   const [loading, setLoading] = useState(false)
   const [resetSent, setResetSent] = useState(false)
 
+  // Rate limiting state
+  const [failedAttempts, setFailedAttempts] = useState(0)
+  const [lockedUntil, setLockedUntil] = useState<number | null>(null)
+  const [countdown, setCountdown] = useState(0)
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const isLocked = lockedUntil !== null && Date.now() < lockedUntil
+
+  // Countdown timer for rate limiting
+  useEffect(() => {
+    if (lockedUntil === null) return
+    const tick = () => {
+      const remaining = Math.ceil((lockedUntil - Date.now()) / 1000)
+      if (remaining <= 0) {
+        setLockedUntil(null)
+        setCountdown(0)
+        if (countdownRef.current) clearInterval(countdownRef.current)
+      } else {
+        setCountdown(remaining)
+      }
+    }
+    tick()
+    countdownRef.current = setInterval(tick, 1000)
+    return () => { if (countdownRef.current) clearInterval(countdownRef.current) }
+  }, [lockedUntil])
+
+  // Reset rate limit state when switching modes
+  const handleModeSwitch = useCallback((newMode: "login" | "register" | "forgot") => {
+    setMode(newMode)
+    setError("")
+    setFailedAttempts(0)
+    setLockedUntil(null)
+  }, [])
+
   const passwordStrength = useMemo(() => getPasswordStrength(password), [password])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError("")
+
+    if (isLocked) return
 
     if (mode === "register") {
       if (!agbAccepted) {
@@ -76,13 +115,23 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
         setResetSent(true)
       } else if (mode === "login") {
         await login(email, password)
+        setFailedAttempts(0)
         onClose()
       } else {
         await register(email, password, firstName, lastName, newsletterOptin)
         onClose()
       }
     } catch (err: any) {
-      setError(err.message || "Error")
+      if (mode === "login") {
+        const newCount = failedAttempts + 1
+        setFailedAttempts(newCount)
+        setError("Invalid email or password.")
+        if (newCount >= RATE_LIMIT_THRESHOLD) {
+          setLockedUntil(Date.now() + RATE_LIMIT_COOLDOWN * 1000)
+        }
+      } else {
+        setError(err.message || "Error")
+      }
     } finally {
       setLoading(false)
     }
@@ -112,7 +161,7 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
               </p>
             </div>
             <Button
-              onClick={() => { setMode("login"); setResetSent(false); setError("") }}
+              onClick={() => { handleModeSwitch("login"); setResetSent(false) }}
               className="w-full"
             >
               Back to Login
@@ -204,7 +253,7 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
             <div className="text-right">
               <button
                 type="button"
-                onClick={() => { setMode("forgot"); setError("") }}
+                onClick={() => handleModeSwitch("forgot")}
                 className="text-xs text-muted-foreground hover:text-primary hover:underline"
               >
                 Forgot password?
@@ -243,14 +292,22 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
             <p className="text-sm text-destructive">{error}</p>
           )}
 
-          <Button type="submit" disabled={loading} className="w-full">
-            {loading
-              ? "Please wait…"
-              : mode === "login"
-                ? "Login"
-                : mode === "register"
-                  ? "Create Account"
-                  : "Send Reset Link"}
+          {mode === "login" && failedAttempts >= RATE_LIMIT_THRESHOLD && isLocked && (
+            <p className="text-sm text-yellow-500">
+              {failedAttempts} failed attempts. Please wait {countdown}s before trying again.
+            </p>
+          )}
+
+          <Button type="submit" disabled={loading || isLocked} className="w-full">
+            {isLocked
+              ? `Locked (${countdown}s)`
+              : loading
+                ? "Please wait…"
+                : mode === "login"
+                  ? "Login"
+                  : mode === "register"
+                    ? "Create Account"
+                    : "Send Reset Link"}
           </Button>
         </form>
         )}
@@ -260,7 +317,7 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
             <>
               Don&apos;t have an account?{" "}
               <button
-                onClick={() => { setMode("register"); setError("") }}
+                onClick={() => handleModeSwitch("register")}
                 className="text-primary hover:underline"
               >
                 Register
@@ -270,7 +327,7 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
             <>
               Already registered?{" "}
               <button
-                onClick={() => { setMode("login"); setError(""); setResetSent(false) }}
+                onClick={() => { handleModeSwitch("login"); setResetSent(false) }}
                 className="text-primary hover:underline"
               >
                 Login

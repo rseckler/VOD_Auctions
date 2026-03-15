@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { motion, AnimatePresence } from "framer-motion"
-import { Search, Disc3, ChevronLeft, ChevronRight, SlidersHorizontal } from "lucide-react"
+import { Search, Disc3, ChevronLeft, ChevronRight, SlidersHorizontal, MoreHorizontal } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -109,6 +109,8 @@ export default function CatalogPage() {
     const qs = params.toString()
     const newUrl = qs ? `/catalog?${qs}` : "/catalog"
     window.history.replaceState(null, "", newUrl)
+    // Store catalog URL for breadcrumb back-links on detail pages
+    try { sessionStorage.setItem("catalog_url", newUrl) } catch {}
   }, [page, search, category, format, country, label, yearFrom, sort, forSale])
 
   // Restore state when navigating back (popstate)
@@ -160,12 +162,6 @@ export default function CatalogPage() {
     fetchReleases()
   }, [fetchReleases])
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    setSearch(searchInput)
-    setPage(1)
-  }
-
   const handleCategoryChange = (value: string) => {
     setCategory(value)
     setFormat("")
@@ -185,6 +181,46 @@ export default function CatalogPage() {
     setPage(1)
   }
 
+  // Debounced live search (change 3)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const handleSearchInputChange = useCallback((value: string) => {
+    setSearchInput(value)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      setSearch(value)
+      setPage(1)
+    }, 500)
+  }, [])
+
+  // Cleanup debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [])
+
+  // Pagination helpers (change 1)
+  const paginationPages = useMemo(() => {
+    if (pages <= 1) return []
+    const items: (number | "ellipsis")[] = []
+    const range = 2 // show current +/- 2
+
+    // Always show first page
+    items.push(1)
+
+    const start = Math.max(2, page - range)
+    const end = Math.min(pages - 1, page + range)
+
+    if (start > 2) items.push("ellipsis")
+    for (let i = start; i <= end; i++) items.push(i)
+    if (end < pages - 1) items.push("ellipsis")
+
+    // Always show last page
+    if (pages > 1) items.push(pages)
+
+    return items
+  }, [page, pages])
+
   const hasActiveFilters = category || format || country || label || yearFrom || forSale
 
   return (
@@ -198,24 +234,21 @@ export default function CatalogPage() {
         </p>
       </div>
 
-      {/* Search */}
-      <div className="flex flex-col sm:flex-row gap-4 mb-6">
-        <form onSubmit={handleSearch} className="flex-1 flex gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search by title, artist, label, catalog number..."
-              className="pl-10"
-            />
-          </div>
-          <Button type="submit" variant="secondary">Search</Button>
-        </form>
+      {/* Search — live debounced (500ms) */}
+      <div className="mb-6">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            value={searchInput}
+            onChange={(e) => handleSearchInputChange(e.target.value)}
+            placeholder="Search by title, artist, label, catalog number..."
+            className="pl-10"
+          />
+        </div>
       </div>
 
       {/* Category filter pills + For Sale toggle */}
-      <div className="flex flex-wrap items-center gap-1.5 mb-3">
+      <div className="flex flex-nowrap overflow-x-auto scrollbar-hide lg:flex-wrap items-center gap-1.5 mb-3 pb-1">
         <Button
           size="sm"
           variant={category === "" ? "default" : "outline"}
@@ -442,39 +475,72 @@ export default function CatalogPage() {
         </AnimatePresence>
       )}
 
-      {/* Empty state */}
+      {/* Empty state — with suggestions */}
       {!loading && releases.length === 0 && (
         <div className="text-center py-16">
           <Disc3 className="h-16 w-16 text-muted-foreground/30 mx-auto mb-4" />
-          <p className="text-lg text-muted-foreground">
+          <p className="text-lg text-muted-foreground mb-2">
             No releases found.
           </p>
+          <p className="text-sm text-muted-foreground/70 mb-6">
+            {search ? "Try a different search term or adjust your filters." : "Try adjusting your filters."}
+          </p>
+          <div className="flex flex-wrap justify-center gap-2">
+            {(search || hasActiveFilters) && (
+              <Button size="sm" variant="outline" onClick={clearAllFilters}>
+                Browse All Releases
+              </Button>
+            )}
+            <Button size="sm" variant="outline" onClick={() => handleCategoryChange("tapes")}>
+              Tapes
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => handleCategoryChange("vinyl")}>
+              Vinyl
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => handleCategoryChange("cd")}>
+              CD
+            </Button>
+          </div>
         </div>
       )}
 
-      {/* Pagination */}
+      {/* Pagination with page numbers */}
       {pages > 1 && (
-        <div className="flex items-center justify-center gap-4 mt-8">
+        <div className="flex items-center justify-center gap-1.5 mt-8">
           <Button
             variant="outline"
-            size="sm"
+            size="icon"
+            className="h-8 w-8"
             onClick={() => setPage(Math.max(1, page - 1))}
             disabled={page <= 1}
           >
-            <ChevronLeft className="h-4 w-4 mr-1" />
-            Back
+            <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="text-sm text-muted-foreground">
-            Page {page} of {pages}
-          </span>
+          {paginationPages.map((p, i) =>
+            p === "ellipsis" ? (
+              <span key={`e-${i}`} className="flex items-center justify-center h-8 w-8 text-muted-foreground">
+                <MoreHorizontal className="h-4 w-4" />
+              </span>
+            ) : (
+              <Button
+                key={p}
+                variant={p === page ? "default" : "outline"}
+                size="icon"
+                className="h-8 w-8 text-xs"
+                onClick={() => setPage(p)}
+              >
+                {p}
+              </Button>
+            )
+          )}
           <Button
             variant="outline"
-            size="sm"
+            size="icon"
+            className="h-8 w-8"
             onClick={() => setPage(Math.min(pages, page + 1))}
             disabled={page >= pages}
           >
-            Next
-            <ChevronRight className="h-4 w-4 ml-1" />
+            <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
       )}

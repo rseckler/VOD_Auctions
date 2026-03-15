@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { useSearchParams } from "next/navigation"
+import { useState, useEffect } from "react"
+import { useSearchParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { resetPassword } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
@@ -9,15 +9,27 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { KeyRound, CheckCircle2 } from "lucide-react"
+import { toast } from "sonner"
 
 export default function ResetPasswordPage() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const token = searchParams.get("token")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
+
+  // Auto-redirect after successful reset
+  useEffect(() => {
+    if (!success) return
+    const timer = setTimeout(() => {
+      toast.success("Password reset. Please log in with your new password.")
+      router.push("/")
+    }, 3000)
+    return () => clearTimeout(timer)
+  }, [success, router])
 
   if (!token) {
     return (
@@ -42,7 +54,7 @@ export default function ResetPasswordPage() {
         </div>
         <h1 className="text-xl font-semibold mb-2">Password Reset Successful</h1>
         <p className="text-muted-foreground mb-4">
-          Your password has been updated. You can now log in with your new password.
+          Your password has been updated. Redirecting to homepage in a few seconds...
         </p>
         <Button asChild className="bg-primary hover:bg-primary/90 text-[#1c1915]">
           <Link href="/">Go to Homepage</Link>

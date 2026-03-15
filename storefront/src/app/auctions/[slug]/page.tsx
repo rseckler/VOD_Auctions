@@ -153,11 +153,13 @@ export default async function BlockDetailPage({
               </div>
             )}
             {block.status === "active" && (
-              <div>
+              <div className="ml-auto pl-6 border-l border-primary/20">
                 <div className="text-[11px] uppercase tracking-[1px] text-muted-foreground/60 font-medium mb-1">Time Left</div>
-                <div className="flex items-center gap-1.5 text-status-active font-semibold">
-                  <Clock className="h-3.5 w-3.5" />
-                  {timeRemaining(block.end_time)}
+                <div className="flex items-center gap-2 text-status-active font-bold">
+                  <Clock className="h-5 w-5" />
+                  <span className="font-serif text-3xl md:text-4xl leading-none">
+                    {timeRemaining(block.end_time)}
+                  </span>
                 </div>
               </div>
             )}

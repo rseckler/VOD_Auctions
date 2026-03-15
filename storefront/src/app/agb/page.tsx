@@ -125,13 +125,9 @@ export default function AGBPage() {
             service.
           </p>
           <p>
-            (2) Shipping costs:
+            (2) Shipping costs are calculated at checkout based on weight and
+            destination.
           </p>
-          <ul className="list-disc pl-5 space-y-1">
-            <li>Germany: €4.99</li>
-            <li>Europe: €9.99</li>
-            <li>Worldwide: €14.99</li>
-          </ul>
           <p>
             (3) For multiple items from the same auction or order,
             shipping is charged only once.

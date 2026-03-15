@@ -43,6 +43,7 @@ export async function GET(
       "Release.auction_status",
       "Release.sale_mode",
       "Release.direct_price",
+      "Release.inventory",
       "Release.artistId",
       "Release.labelId",
       "Release.pressOrgaId",

@@ -74,6 +74,7 @@ export type Release = {
   auction_status?: string | null
   sale_mode?: string | null
   direct_price?: number | null
+  inventory?: number | null
   is_purchasable?: boolean
   various_artists?: VariousArtist[]
   comments?: ReleaseComment[]

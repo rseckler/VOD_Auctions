@@ -137,11 +137,15 @@ function OrderCard({ order }: { order: Order }) {
   const coverItems = order.items.filter((i) => i.cover_image).slice(0, 4)
   const extraCount = order.items_count - coverItems.length
 
+  const panelId = `order-detail-${order.order_group_id}`
+
   return (
     <Card className="overflow-hidden">
       {/* Header */}
       <button
         onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
+        aria-controls={panelId}
         className="w-full p-4 text-left hover:bg-muted/30 transition-colors"
       >
         <div className="flex items-start justify-between gap-4">
@@ -163,7 +167,7 @@ function OrderCard({ order }: { order: Order }) {
                 >
                   <Image
                     src={item.cover_image!}
-                    alt=""
+                    alt={item.artist_name ? `${item.artist_name} — ${item.title || "Unknown"}` : item.title || "Unknown"}
                     fill
                     sizes="40px"
                     className="object-cover"
@@ -221,7 +225,7 @@ function OrderCard({ order }: { order: Order }) {
 
       {/* Expanded detail */}
       {expanded && (
-        <div className="border-t border-border px-4 pb-4">
+        <div id={panelId} className="border-t border-border px-4 pb-4">
           <div className="divide-y divide-dotted divide-border/50">
             {order.items.map((item) => (
               <div
@@ -232,7 +236,7 @@ function OrderCard({ order }: { order: Order }) {
                   {item.cover_image ? (
                     <Image
                       src={item.cover_image}
-                      alt=""
+                      alt={item.artist_name ? `${item.artist_name} — ${item.title || "Unknown"}` : item.title || "Unknown"}
                       fill
                       sizes="48px"
                       className="object-cover"

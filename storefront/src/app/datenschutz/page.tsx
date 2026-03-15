@@ -227,31 +227,15 @@ export default function DatenschutzPage() {
         {/* 9. Google Fonts */}
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            9. Google Fonts
+            9. Google Fonts (Self-Hosted)
           </h2>
           <p>
             This website uses the fonts &quot;DM Sans&quot; and &quot;DM
-            Serif Display&quot; from Google Fonts for display purposes.
-            When loading a page, the fonts are fetched from Google
-            servers. Your IP address may be transmitted to Google in the
-            process.
+            Serif Display&quot; from Google Fonts. The fonts are
+            self-hosted via next/font and served directly from our own
+            server. No data is transmitted to Google servers when you
+            visit our website.
           </p>
-          <p>
-            Provider: Google Ireland Limited, Gordon House, Barrow
-            Street, Dublin 4, Ireland.
-          </p>
-          <p>
-            Google Privacy Policy:{" "}
-            <a
-              href="https://policies.google.com/privacy"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-primary hover:underline"
-            >
-              https://policies.google.com/privacy
-            </a>
-          </p>
-          <p>Legal basis: Art. 6 (1)(f) GDPR.</p>
         </section>
 
         {/* 10. Discogs API */}

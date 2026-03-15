@@ -74,7 +74,7 @@ export function Footer() {
           </div>
 
           {/* Navigation + Legal columns */}
-          <div className="flex gap-12 text-sm">
+          <nav aria-label="Footer navigation" className="flex gap-12 text-sm">
             <div className="flex flex-col gap-2">
               <p className="text-foreground font-medium">Navigation</p>
               <Link
@@ -141,7 +141,7 @@ export function Footer() {
                 Cookie Settings
               </button>
             </div>
-          </div>
+          </nav>
         </div>
 
         {/* Social links + Payment methods */}

@@ -143,7 +143,7 @@ export default function CartPage() {
                 {item.coverImage ? (
                   <Image
                     src={item.coverImage}
-                    alt=""
+                    alt={item.artist_name ? `${item.artist_name} — ${item.title}` : item.title}
                     fill
                     sizes="64px"
                     className="object-cover"
@@ -173,6 +173,10 @@ export default function CartPage() {
                 <p className="text-lg font-bold font-mono text-primary">
                   &euro;{Number(item.price).toFixed(2)}
                 </p>
+                <p className="text-[10px] text-muted-foreground/60">
+                  Condition: see product page
+                </p>
+                {/* TODO: Stale cart detection — show warning badge when API returns error/unavailable flag per item */}
                 <Button
                   variant="ghost"
                   size="sm"
@@ -195,6 +199,7 @@ export default function CartPage() {
             &euro;{subtotal.toFixed(2)}
           </span>
         </div>
+        <p className="text-xs text-muted-foreground/60 text-right">All prices incl. VAT</p>
         <div className="flex justify-between items-center mt-2">
           <span className="text-sm text-muted-foreground">Shipping</span>
           <span className="text-sm text-muted-foreground">

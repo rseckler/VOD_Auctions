@@ -145,6 +145,26 @@ export function ItemBidSection({
   return (
     <>
       <Card className="p-5">
+        {/* Bid status indicator for authenticated user */}
+        {isAuthenticated && customer && bidsLoaded && bids.length > 0 && (() => {
+          const userBids = bids.filter(b => b.user_id === customer.id)
+          if (userBids.length === 0) return null
+          const isHighest = bids[0]?.user_id === customer.id && bids[0]?.is_winning
+          return (
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-lg mb-3 text-sm font-medium ${
+              isHighest
+                ? "bg-green-500/10 text-green-400 border border-green-500/20"
+                : "bg-red-500/10 text-red-400 border border-red-500/20"
+            }`}>
+              {isHighest ? (
+                <><Check className="h-4 w-4" /> You are the highest bidder</>
+              ) : (
+                <><AlertTriangle className="h-4 w-4" /> You have been outbid</>
+              )}
+            </div>
+          )
+        })()}
+
         {/* Current Price */}
         <div className="flex items-center justify-between mb-3">
           <span className="text-sm text-muted-foreground">

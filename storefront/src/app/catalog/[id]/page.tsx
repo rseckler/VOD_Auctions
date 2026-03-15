@@ -12,6 +12,7 @@ import { SaveForLaterButton } from "@/components/SaveForLaterButton"
 import { ShareButton } from "@/components/ShareButton"
 import { medusaFetch } from "@/lib/api"
 import { CreditsTable } from "@/components/CreditsTable"
+import { CatalogBackLink } from "@/components/CatalogBackLink"
 import { extractTracklistFromText } from "@/lib/utils"
 import type { Release } from "@/types"
 
@@ -128,11 +129,9 @@ export default async function CatalogDetailPage({
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
-      {/* Breadcrumb */}
+      {/* Breadcrumb — preserves catalog filter state via sessionStorage */}
       <nav className="text-sm text-muted-foreground mb-8 flex items-center gap-1 flex-wrap">
-        <Link href="/catalog" className="hover:text-foreground transition-colors">
-          Catalog
-        </Link>
+        <CatalogBackLink className="hover:text-foreground transition-colors" />
         <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" />
         <span className="text-foreground truncate">
           {release.artist_name
@@ -190,11 +189,25 @@ export default async function CatalogDetailPage({
               <div>
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground text-sm">Catalog Price</span>
-                  <span className="text-xl font-mono font-bold text-primary">
-                    &euro;{Number(release.legacy_price).toFixed(2)}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {/* Stock indicator */}
+                    {(release.auction_status === "sold" || release.auction_status === "sold_direct") ? (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-red-500/15 text-red-400">Sold</span>
+                    ) : release.inventory != null && release.inventory > 0 ? (
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                        release.inventory === 1
+                          ? "bg-amber-500/15 text-amber-400"
+                          : "bg-green-500/15 text-green-400"
+                      }`}>
+                        {release.inventory === 1 ? "Last copy" : "In Stock"}
+                      </span>
+                    ) : null}
+                    <span className="text-xl font-mono font-bold text-primary">
+                      &euro;{Number(release.legacy_price).toFixed(2)}
+                    </span>
+                  </div>
                 </div>
-                <p className="text-xs text-muted-foreground text-right">incl. VAT, plus <a href="/agb" className="underline">shipping</a></p>
+                <p className="text-xs text-muted-foreground text-right">incl. VAT, plus <a href="/agb" className="underline">shipping</a> &middot; <a href="/widerruf" className="underline">14-day return policy</a></p>
               </div>
             ) : (
               <p className="text-sm text-muted-foreground italic">
@@ -419,10 +432,10 @@ export default async function CatalogDetailPage({
 
       <Separator className="my-8" />
       <Button variant="ghost" asChild>
-        <Link href="/catalog">
+        <CatalogBackLink>
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Catalog
-        </Link>
+        </CatalogBackLink>
       </Button>
 
       {/* Product JSON-LD */}
