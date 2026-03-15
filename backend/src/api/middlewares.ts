@@ -1,4 +1,16 @@
 import { defineMiddlewares, authenticate } from "@medusajs/framework/http"
+import type { NextFunction, Request, Response } from "express"
+
+// Middleware to capture raw body before JSON parsing
+function rawBodyMiddleware(req: Request, _res: Response, next: NextFunction) {
+  const chunks: Buffer[] = []
+  req.on("data", (chunk: Buffer) => chunks.push(chunk))
+  req.on("end", () => {
+    ;(req as any).rawBody = Buffer.concat(chunks)
+    next()
+  })
+  req.on("error", next)
+}
 
 export default defineMiddlewares({
   routes: [
@@ -7,6 +19,7 @@ export default defineMiddlewares({
       matcher: "/webhooks/stripe",
       methods: ["POST"],
       bodyParser: false,
+      middlewares: [rawBodyMiddleware as any],
     },
     {
       // Protect bid submission — require authenticated customer

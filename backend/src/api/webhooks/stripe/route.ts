@@ -5,6 +5,19 @@ import { stripe } from "../../../lib/stripe"
 import { sendPaymentConfirmationEmail } from "../../../lib/email-helpers"
 import { crmSyncPaymentCompleted } from "../../../lib/crm-sync"
 
+// Get raw body: from rawBody middleware, Buffer body, or string body
+function getRawBody(req: any): Buffer | null {
+  // rawBody set by our middleware in middlewares.ts
+  if (Buffer.isBuffer(req.rawBody)) return req.rawBody
+  // If req.body is a Buffer (some frameworks)
+  if (Buffer.isBuffer(req.body)) return req.body
+  // If req.body is a string
+  if (typeof req.body === "string" && req.body.length > 0) return Buffer.from(req.body)
+  // If req.body is a parsed object, stringify it back (last resort — may break signature)
+  if (req.body && typeof req.body === "object") return Buffer.from(JSON.stringify(req.body))
+  return null
+}
+
 // POST /webhooks/stripe — Stripe Webhook Handler
 export async function POST(
   req: MedusaRequest,
@@ -20,8 +33,15 @@ export async function POST(
 
   let event
   try {
+    const rawBody = getRawBody(req)
+    if (!rawBody || rawBody.length === 0) {
+      console.error("[stripe-webhook] Empty raw body. req.body type:", typeof req.body, "rawBody:", typeof (req as any).rawBody)
+      res.status(400).json({ message: "No webhook payload was provided" })
+      return
+    }
+    console.log("[stripe-webhook] Raw body received, length:", rawBody.length)
     event = stripe.webhooks.constructEvent(
-      req.body as unknown as Buffer,
+      rawBody,
       sig,
       webhookSecret
     )
