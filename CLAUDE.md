@@ -13,9 +13,40 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Sprache:** Storefront und Admin-UI komplett auf Englisch (seit 2026-03-03)
 
 **Created:** 2026-02-10
-**Last Updated:** 2026-03-11
+**Last Updated:** 2026-03-15
 
-### Letzte Änderungen (2026-03-11)
+### Letzte Änderungen (2026-03-15)
+- **Checkout-Flow Bugfixes (10 Issues aus PayPal-Testtransaktion):**
+  - **Stripe Webhook Raw Body Fix (ROOT CAUSE für Issues #2, #4, #5, #6, #8):**
+    - **Problem:** ALLE Stripe Webhooks scheiterten seit Go-Live mit "No webhook payload was provided" — `req.body` war leer weil Medusa.js 2.x mit `bodyParser: false` den Raw Body nicht als Buffer bereitstellt
+    - **Fix:** Custom `rawBodyMiddleware` in `middlewares.ts` — liest Raw Stream VOR dem Parsing, speichert als `req.rawBody`. Webhook-Handler liest `req.rawBody` mit Fallback-Kette (rawBody → Buffer body → string body → JSON stringify)
+    - **Auswirkung:** Webhooks funktionieren jetzt → Transactions werden auf `paid` gesetzt, Cart wird geleert, E-Mails werden gesendet, Orders sind sichtbar
+  - **Kundenname an Stripe/PayPal übergeben (Issue #9):**
+    - **Problem:** PayPal zeigte kryptische Medusa-ULID statt Kundennamen
+    - **Fix:** Checkout-API holt `first_name` + `last_name` aus customer-Tabelle, übergibt an Stripe via `metadata.customer_name` + `payment_intent_data.description`
+  - **Admin-Transaktion mit Kundenname (Issue #7):**
+    - **Problem:** Admin Transactions-Seite zeigte nur `shipping_name` (erst nach Stripe-Adresseingabe verfügbar)
+    - **Fix:** Admin-API joined jetzt `customer`-Tabelle, zeigt `customer_name` (first + last) + `customer_email`. Webhook speichert `customer_name` aus Metadata als Fallback
+  - **Cart-Clearing Race Condition (Issues #2, #8):**
+    - **Problem:** Nach PayPal-Zahlung war Warenkorb noch voll (Webhook kam nach Frontend-Redirect)
+    - **Fix:** Optimistisches Leeren (`setCartItems([])`, `setWins([])`) bei `?payment=success`, Polling (max 36s, alle 3s) wartet auf Webhook-Completion
+  - **Checkout Success State:**
+    - Nach Zahlung: Grüner Success-Screen mit "Payment Successful!" + Links zu "View Orders" / "Continue Shopping" statt leerer "Nothing to check out" Seite
+  - **Shipping prominenter im Checkout (Issue #3):**
+    - **Vorher:** Shipping war eine kleine Zeile im Order Summary
+    - **Nachher:** Eigene "Shipping" Card mit Package-Icon, volle Breite Country-Dropdown, prominente Kostenzeile VOR dem Order Summary
+  - **PayPal Testtransaktion bereinigt:**
+    - Transaction manuell auf `refunded` gesetzt (Refund über Stripe/PayPal durchgeführt)
+    - Release zurück auf `available`, 4 alte pending Transactions → `failed`
+  - **Geänderte Dateien:** `middlewares.ts`, `webhooks/stripe/route.ts`, `store/account/checkout/route.ts`, `admin/transactions/route.ts`, `admin/routes/transactions/page.tsx`, `storefront checkout/page.tsx`
+  - **VPS:** Backend + Storefront deployed
+- **Stripe API-Zugriff via VPS:**
+  - Direkter API-Zugriff über `curl` mit `STRIPE_SECRET_KEY` vom VPS
+  - Getestete Endpoints: `charges`, `checkout/sessions`, `balance`, `refunds`
+  - **7 Zahlungsmethoden aktiv:** Card, PayPal, Klarna, Bancontact (BE), EPS (AT), Link (Stripe One-Click), Amazon Pay
+  - **Stripe Balance nach Refund:** 0,00 EUR available, -0,13 EUR pending (Gebühr)
+
+### Frühere Änderungen (2026-03-11)
 - **Catalog Visibility Redesign — Image-basierte Filterung:**
   - **Neue Logik:** Artikel mit mindestens 1 Bild = im Katalog sichtbar. Ohne Bild = unsichtbar + nicht gezählt. Preis bestimmt nur Kaufbarkeit, nicht Sichtbarkeit.
   - **is_purchasable Flag:** Neues Boolean-Feld in API-Responses (List + Detail) — `true` wenn `legacy_price > 0`
@@ -1186,11 +1217,45 @@ psycopg2-binary, python-dotenv, requests, mysql-connector-python
 
 ## Stripe Payment Integration (RSE-76)
 
-**Stripe Account:** VOD Records Sandbox (`acct_1T7WaYEyxqyK4DXF`)
+**Stripe Account:** VOD Records (`acct_1T7WaYEyxqyK4DXF`)
 **Dashboard:** https://dashboard.stripe.com (frank@vod-records.com)
-**Mode:** Test (sk_test_... / whsec_...)
+**Mode:** Live (sk_live_... / whsec_...)
 **Webhook URL:** https://api.vod-auctions.com/webhooks/stripe
 **Events:** checkout.session.completed, checkout.session.expired
+**Aktivierte Zahlungsmethoden:** Card, PayPal, Klarna, Bancontact (BE), EPS (AT), Link (Stripe One-Click), Amazon Pay
+
+### Stripe API-Zugriff (via VPS)
+```bash
+# Auf VPS: Stripe-Key aus .env lesen und API abfragen
+ssh root@72.62.148.205
+STRIPE_KEY=$(grep STRIPE_SECRET_KEY ~/VOD_Auctions/backend/.env | head -1 | cut -d= -f2-)
+
+# Letzte Zahlungen
+curl -s https://api.stripe.com/v1/charges?limit=5 -u $STRIPE_KEY:
+
+# Checkout Sessions
+curl -s https://api.stripe.com/v1/checkout/sessions?limit=5 -u $STRIPE_KEY:
+
+# Balance
+curl -s https://api.stripe.com/v1/balance -u $STRIPE_KEY:
+
+# Refunds
+curl -s https://api.stripe.com/v1/refunds?limit=5 -u $STRIPE_KEY:
+
+# Payment Intents
+curl -s https://api.stripe.com/v1/payment_intents?limit=5 -u $STRIPE_KEY:
+
+# Disputes/Chargebacks
+curl -s https://api.stripe.com/v1/disputes?limit=5 -u $STRIPE_KEY:
+
+# Payouts (Auszahlungen)
+curl -s https://api.stripe.com/v1/payouts?limit=5 -u $STRIPE_KEY:
+
+# Refund erstellen
+curl -s https://api.stripe.com/v1/refunds -u $STRIPE_KEY: -d payment_intent=pi_xxx
+
+# Tipp: | python3 -m json.tool  für lesbare Ausgabe
+```
 
 ### Payment Flow (Combined Checkout — RSE-111)
 1. Auktion endet → `auction-lifecycle.ts` markiert Items als `sold`
@@ -1235,8 +1300,9 @@ psycopg2-binary, python-dotenv, requests, mysql-connector-python
 - `backend/src/api/store/account/cart/route.ts` — Cart CRUD (GET + POST)
 - `backend/src/api/store/account/cart/[id]/route.ts` — Cart DELETE
 - `backend/src/api/store/account/status/route.ts` — Account Status (cart_count)
-- `backend/src/api/store/account/checkout/route.ts` — Combined Checkout (multi-item Stripe)
-- `backend/src/api/webhooks/stripe/route.ts` — Webhook Handler (order_group_id support)
+- `backend/src/api/store/account/checkout/route.ts` — Combined Checkout (multi-item Stripe, customer name to Stripe/PayPal)
+- `backend/src/api/webhooks/stripe/route.ts` — Webhook Handler (rawBody middleware, order_group_id, customer_name fallback)
+- `backend/src/api/middlewares.ts` — Auth middleware + rawBodyMiddleware für Stripe Webhook
 - `backend/src/api/store/account/transactions/route.ts` — Meine Transactions (LEFT JOIN)
 - `backend/src/api/admin/transactions/` — Admin Transaction Management
 - `storefront/src/components/DirectPurchaseButton.tsx` — "Add to Cart" Button
@@ -1274,7 +1340,8 @@ stripe listen --forward-to localhost:9000/webhooks/stripe
 - **CamelCase Spalten:** Legacy-Tabellen (`Release`, `Artist`, `ReleaseArtist`) verwenden camelCase (`artistId`, `releaseId`, `createdAt`). Medusa/Auction-Tabellen verwenden snake_case (`block_item_id`, `user_id`, `created_at`).
 - **ID-Generierung:** Medusa verwendet ULIDs als Text-IDs (kein auto-increment). Bei direktem Knex-Insert muss `id: generateEntityId()` mitgegeben werden.
 - **Transaction Insert:** `generateEntityId()` aus `@medusajs/framework/utils` importieren — ohne ID schlägt der Insert mit `NOT NULL violation` fehl.
-- **Webhook Raw Body:** Stripe-Signaturverifikation braucht den Raw Body. Middleware `bodyParser: false` ist konfiguriert in `middlewares.ts`.
+- **Webhook Raw Body:** Stripe-Signaturverifikation braucht den Raw Body. `bodyParser: false` allein reicht bei Medusa.js 2.x NICHT — Custom `rawBodyMiddleware` in `middlewares.ts` liest den Stream und speichert als `req.rawBody`. Webhook-Handler in `route.ts` liest `req.rawBody` mit Fallback-Kette. **NICHT ändern** — ohne diese Middleware scheitern ALLE Webhooks mit "No webhook payload was provided".
+- **Checkout Customer Name:** `checkout/route.ts` holt `first_name` + `last_name` aus customer-Tabelle und übergibt an Stripe via `metadata.customer_name` + `payment_intent_data.description`. Ohne das zeigt PayPal kryptische ULIDs statt Kundennamen.
 
 ## Direct Purchase / Cart System (RSE-111)
 
