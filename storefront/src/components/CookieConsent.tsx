@@ -47,6 +47,25 @@ export function CookieConsent() {
     if (!consent) {
       setVisible(true)
     }
+
+    function handleOpenSettings() {
+      setShowDetails(true)
+      setVisible(true)
+      // Pre-fill current preferences
+      try {
+        const stored = localStorage.getItem(CONSENT_KEY)
+        if (stored && stored !== "accepted" && stored !== "rejected") {
+          const prefs = JSON.parse(stored) as CookiePreferences
+          setAnalytics(prefs.analytics)
+          setMarketing(prefs.marketing)
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    window.addEventListener("open-cookie-settings", handleOpenSettings)
+    return () => window.removeEventListener("open-cookie-settings", handleOpenSettings)
   }, [])
 
   function savePreferences(prefs: CookiePreferences) {

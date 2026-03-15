@@ -60,6 +60,15 @@ const CATEGORIES = [
 const LITERATURE_CATEGORIES = ["band_literature", "label_literature", "press_literature"]
 const LITERATURE_FORMATS = ["MAGAZINE", "POSTER", "PHOTO", "POSTCARD"]
 
+const SORT_OPTIONS = [
+  { value: "artist:asc", label: "Artist A-Z" },
+  { value: "artist:desc", label: "Artist Z-A" },
+  { value: "legacy_price:asc", label: "Price: Low to High" },
+  { value: "legacy_price:desc", label: "Price: High to Low" },
+  { value: "year:desc", label: "Year: Newest" },
+  { value: "year:asc", label: "Year: Oldest" },
+]
+
 export default function CatalogPage() {
   const searchParams = useSearchParams()
   const isInitialMount = useRef(true)
@@ -76,6 +85,7 @@ export default function CatalogPage() {
   const [country, setCountry] = useState(() => searchParams.get("country") || "")
   const [label, setLabel] = useState(() => searchParams.get("label") || "")
   const [yearFrom, setYearFrom] = useState(() => searchParams.get("year_from") || "")
+  const [sort, setSort] = useState(() => searchParams.get("sort") || "artist:asc")
   const [forSale, setForSale] = useState(() => searchParams.get("for_sale") === "true")
   const [showFilters, setShowFilters] = useState(() => !!(searchParams.get("country") || searchParams.get("label") || searchParams.get("year_from")))
   const [loading, setLoading] = useState(true)
@@ -94,11 +104,12 @@ export default function CatalogPage() {
     if (country) params.set("country", country)
     if (label) params.set("label", label)
     if (yearFrom) params.set("year_from", yearFrom)
+    if (sort && sort !== "artist:asc") params.set("sort", sort)
     if (forSale) params.set("for_sale", "true")
     const qs = params.toString()
     const newUrl = qs ? `/catalog?${qs}` : "/catalog"
     window.history.replaceState(null, "", newUrl)
-  }, [page, search, category, format, country, label, yearFrom, forSale])
+  }, [page, search, category, format, country, label, yearFrom, sort, forSale])
 
   // Restore state when navigating back (popstate)
   useEffect(() => {
@@ -112,6 +123,7 @@ export default function CatalogPage() {
       setCountry(sp.get("country") || "")
       setLabel(sp.get("label") || "")
       setYearFrom(sp.get("year_from") || "")
+      setSort(sp.get("sort") || "artist:asc")
       setForSale(sp.get("for_sale") === "true")
       if (sp.get("country") || sp.get("label") || sp.get("year_from")) setShowFilters(true)
     }
@@ -131,7 +143,7 @@ export default function CatalogPage() {
     if (label) params.set("label", label)
     if (yearFrom) params.set("year_from", yearFrom)
     if (forSale) params.set("for_sale", "true")
-    params.set("sort", "artist")
+    params.set("sort", sort)
 
     const data = await medusaFetch<CatalogResponse>(
       `/store/catalog?${params.toString()}`
@@ -142,7 +154,7 @@ export default function CatalogPage() {
       setPages(data.pages)
     }
     setLoading(false)
-  }, [page, search, category, format, country, label, yearFrom, forSale])
+  }, [page, search, category, format, country, label, yearFrom, sort, forSale])
 
   useEffect(() => {
     fetchReleases()
@@ -168,6 +180,7 @@ export default function CatalogPage() {
     setCountry("")
     setLabel("")
     setYearFrom("")
+    setSort("artist:asc")
     setForSale(false)
     setPage(1)
   }
@@ -272,7 +285,7 @@ export default function CatalogPage() {
         </div>
       )}
 
-      {/* Advanced Filters Toggle */}
+      {/* Advanced Filters Toggle + Sort */}
       <div className="flex items-center gap-3 mb-4">
         <Button
           size="sm"
@@ -293,11 +306,22 @@ export default function CatalogPage() {
             Clear All
           </Button>
         )}
-        <span className="ml-auto inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/8 px-3 py-1 text-sm">
-          <Disc3 className="h-3.5 w-3.5 text-primary/70" />
-          <span className="tabular-nums font-semibold text-primary">{total.toLocaleString("en-US")}</span>
-          <span className="text-muted-foreground text-xs">{total === 1 ? "result" : "results"}</span>
-        </span>
+        <div className="ml-auto flex items-center gap-3">
+          <select
+            value={sort}
+            onChange={(e) => { setSort(e.target.value); setPage(1) }}
+            className="h-8 rounded-md border border-border/50 bg-secondary/30 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          >
+            {SORT_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+          <span className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/8 px-3 py-1 text-sm">
+            <Disc3 className="h-3.5 w-3.5 text-primary/70" />
+            <span className="tabular-nums font-semibold text-primary">{total.toLocaleString("en-US")}</span>
+            <span className="text-muted-foreground text-xs">{total === 1 ? "result" : "results"}</span>
+          </span>
+        </div>
       </div>
 
       {/* Advanced Filters */}
@@ -348,7 +372,7 @@ export default function CatalogPage() {
       ) : (
         <AnimatePresence mode="wait">
           <motion.div
-            key={`${page}-${search}-${category}-${format}-${country}-${label}-${yearFrom}-${forSale}`}
+            key={`${page}-${search}-${category}-${format}-${country}-${label}-${yearFrom}-${sort}-${forSale}`}
             variants={staggerContainer}
             initial="hidden"
             animate="visible"

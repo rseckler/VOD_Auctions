@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Clock, Gavel, AlertTriangle, Check } from "lucide-react"
+import { Clock, Gavel, AlertTriangle, Check, Info } from "lucide-react"
 import { toast } from "sonner"
 import { useAuth } from "./AuthProvider"
 import { AuthModal } from "./AuthModal"
@@ -410,6 +410,10 @@ function BidForm({
                     className="pl-7 font-mono"
                   />
                 </div>
+                <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground leading-snug mt-1.5">
+                  <Info className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
+                  Proxy bidding: The system will automatically bid on your behalf up to your maximum amount, using the minimum increment needed to stay ahead. Your maximum is kept private.
+                </p>
               </div>
             </motion.div>
           )}

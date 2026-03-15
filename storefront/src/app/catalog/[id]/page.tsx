@@ -187,11 +187,14 @@ export default async function CatalogDetailPage({
           {/* Price info */}
           <div className="mt-6 bg-card border border-border/50 rounded-lg p-4 space-y-2">
             {release.is_purchasable ? (
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground text-sm">Catalog Price</span>
-                <span className="text-xl font-mono font-bold text-primary">
-                  &euro;{Number(release.legacy_price).toFixed(2)}
-                </span>
+              <div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground text-sm">Catalog Price</span>
+                  <span className="text-xl font-mono font-bold text-primary">
+                    &euro;{Number(release.legacy_price).toFixed(2)}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground text-right">incl. VAT, plus <a href="/agb" className="underline">shipping</a></p>
               </div>
             ) : (
               <p className="text-sm text-muted-foreground italic">
@@ -421,6 +424,47 @@ export default async function CatalogDetailPage({
           Back to Catalog
         </Link>
       </Button>
+
+      {/* Product JSON-LD */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Product",
+            name: release.artist_name
+              ? `${release.artist_name} — ${release.title}`
+              : release.title,
+            ...(images[0] ? { image: images[0] } : {}),
+            description: [
+              release.format_name || release.format,
+              release.label_name,
+              release.year,
+              release.country,
+              release.legacy_condition,
+            ]
+              .filter(Boolean)
+              .join(" · "),
+            ...(release.label_name
+              ? { brand: { "@type": "Organization", name: release.label_name } }
+              : {}),
+            ...(release.is_purchasable && release.legacy_price
+              ? {
+                  offers: {
+                    "@type": "Offer",
+                    price: Number(release.legacy_price).toFixed(2),
+                    priceCurrency: "EUR",
+                    availability: "https://schema.org/InStock",
+                    seller: {
+                      "@type": "Organization",
+                      name: "VOD Records",
+                    },
+                  },
+                }
+              : {}),
+          }),
+        }}
+      />
     </main>
   )
 }

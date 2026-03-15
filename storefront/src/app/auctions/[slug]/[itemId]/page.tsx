@@ -224,6 +224,7 @@ export default async function ItemDetailPage({
               blockStatus={block.status}
               itemStatus={item.status}
             />
+            <p className="text-xs text-muted-foreground mt-2">incl. VAT, plus <a href="/agb" className="underline">shipping</a></p>
           </div>
 
           {item.estimated_value && (
@@ -448,6 +449,45 @@ export default async function ItemDetailPage({
           Back to &quot;{block.title}&quot;
         </Link>
       </Button>
+
+      {/* Product JSON-LD */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Product",
+            name: release?.artist_name
+              ? `${release.artist_name} — ${release.title}`
+              : release?.title || `Lot ${item.lot_number}`,
+            ...(images[0] ? { image: images[0] } : {}),
+            description: [
+              release?.format,
+              release?.label_name,
+              release?.year,
+              release?.country,
+            ]
+              .filter(Boolean)
+              .join(" · "),
+            ...(release?.label_name
+              ? { brand: { "@type": "Organization", name: release.label_name } }
+              : {}),
+            offers: {
+              "@type": "Offer",
+              price: Number(item.current_price || item.start_price).toFixed(2),
+              priceCurrency: "EUR",
+              availability:
+                block.status === "active"
+                  ? "https://schema.org/InStock"
+                  : "https://schema.org/SoldOut",
+              seller: {
+                "@type": "Organization",
+                name: "VOD Records",
+              },
+            },
+          }),
+        }}
+      />
     </main>
   )
 }

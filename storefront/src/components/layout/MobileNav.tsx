@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Gavel, User, LogOut, Disc3, Library, Info } from "lucide-react"
+import { Gavel, User, LogOut, Disc3, Library, Info, Search, ShoppingCart, Heart } from "lucide-react"
 import { useAuth } from "@/components/AuthProvider"
 import { Button } from "@/components/ui/button"
 import {
@@ -20,7 +20,7 @@ export function MobileNav({
   open: boolean
   onClose: () => void
 }) {
-  const { isAuthenticated, customer, logout } = useAuth()
+  const { isAuthenticated, customer, logout, cartCount, savedCount } = useAuth()
   const [authModalOpen, setAuthModalOpen] = useState(false)
 
   return (
@@ -59,10 +59,34 @@ export function MobileNav({
               <Info className="h-4 w-4" />
               About
             </Link>
+            <Link
+              href="/catalog"
+              onClick={onClose}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-[rgba(232,224,212,0.04)] transition-colors"
+            >
+              <Search className="h-4 w-4" />
+              Search Catalog
+            </Link>
 
             {isAuthenticated && customer && (
               <>
                 <div className="border-t border-[rgba(232,224,212,0.08)] my-2" />
+                <Link
+                  href="/account/saved"
+                  onClick={onClose}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-[rgba(232,224,212,0.04)] transition-colors"
+                >
+                  <Heart className="h-4 w-4" />
+                  Saved{savedCount > 0 && ` (${savedCount})`}
+                </Link>
+                <Link
+                  href="/account/cart"
+                  onClick={onClose}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-[rgba(232,224,212,0.04)] transition-colors"
+                >
+                  <ShoppingCart className="h-4 w-4" />
+                  Cart{cartCount > 0 && ` (${cartCount})`}
+                </Link>
                 <Link
                   href="/account"
                   onClick={onClose}

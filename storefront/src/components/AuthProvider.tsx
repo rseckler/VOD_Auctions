@@ -6,6 +6,7 @@ import {
   useState,
   useEffect,
   useCallback,
+  useRef,
   type ReactNode,
 } from "react"
 import {
@@ -31,6 +32,8 @@ type AuthContextType = {
   loading: boolean
   cartCount: number
   savedCount: number
+  sessionExpiredMessage: string | null
+  dismissSessionExpired: () => void
   login: (email: string, password: string) => Promise<void>
   register: (
     email: string,
@@ -49,6 +52,8 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   cartCount: 0,
   savedCount: 0,
+  sessionExpiredMessage: null,
+  dismissSessionExpired: () => {},
   login: async () => {},
   register: async () => {},
   logout: () => {},
@@ -59,11 +64,31 @@ export function useAuth() {
   return useContext(AuthContext)
 }
 
+const TOKEN_CHECK_INTERVAL = 5 * 60 * 1000 // 5 minutes
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [loading, setLoading] = useState(true)
   const [cartCount, setCartCount] = useState(0)
   const [savedCount, setSavedCount] = useState(0)
+  const [sessionExpiredMessage, setSessionExpiredMessage] = useState<string | null>(null)
+  const logoutTriggeredRef = useRef(false)
+
+  const handleSessionExpired = useCallback(() => {
+    if (logoutTriggeredRef.current) return
+    logoutTriggeredRef.current = true
+    clearToken()
+    setCustomer(null)
+    setCartCount(0)
+    setSavedCount(0)
+    setSessionExpiredMessage("Session expired. Please log in again.")
+    // Reset flag after a short delay so future expirations are caught
+    setTimeout(() => { logoutTriggeredRef.current = false }, 1000)
+  }, [])
+
+  const dismissSessionExpired = useCallback(() => {
+    setSessionExpiredMessage(null)
+  }, [])
 
   const fetchStatus = useCallback(async (token: string) => {
     try {
@@ -73,15 +98,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           Authorization: `Bearer ${token}`,
         },
       })
+      if (res.status === 401) {
+        handleSessionExpired()
+        return
+      }
       if (res.ok) {
         const data = await res.json()
         setCartCount(data.cart_count || 0)
         setSavedCount(data.saved_count || 0)
       }
     } catch {
-      // silently fail
+      // silently fail on network errors
     }
-  }, [])
+  }, [handleSessionExpired])
 
   const refreshStatus = useCallback(async () => {
     const token = getToken()
@@ -95,15 +124,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       Promise.all([
         getCustomer(token).then((c) => {
           if (c) setCustomer(c)
-          else clearToken()
+          else handleSessionExpired()
         }),
         fetchStatus(token),
       ])
-        .catch(() => clearToken())
+        .catch(() => handleSessionExpired())
         .finally(() => setLoading(false))
     } else {
       setLoading(false)
     }
+  }, [fetchStatus, handleSessionExpired])
+
+  // Periodic token validity check (every 5 minutes)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const token = getToken()
+      if (!token) return
+      fetchStatus(token)
+    }, TOKEN_CHECK_INTERVAL)
+    return () => clearInterval(interval)
   }, [fetchStatus])
 
   const login = useCallback(async (email: string, password: string) => {
@@ -111,6 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(token)
     const c = await getCustomer(token)
     setCustomer(c)
+    setSessionExpiredMessage(null)
     await fetchStatus(token)
   }, [fetchStatus])
 
@@ -126,6 +166,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(token)
       const c = await getCustomer(token)
       setCustomer(c)
+      setSessionExpiredMessage(null)
       await fetchStatus(token)
 
       // Send welcome email (fire-and-forget)
@@ -168,6 +209,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         cartCount,
         savedCount,
+        sessionExpiredMessage,
+        dismissSessionExpired,
         login,
         register,
         logout,
@@ -175,6 +218,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }}
     >
       {children}
+      {sessionExpiredMessage && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[100] animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="flex items-center gap-3 rounded-lg border border-yellow-500/30 bg-yellow-500/10 backdrop-blur-sm px-4 py-3 shadow-lg">
+            <p className="text-sm text-yellow-200">{sessionExpiredMessage}</p>
+            <button
+              onClick={dismissSessionExpired}
+              className="text-yellow-400 hover:text-yellow-200 text-lg leading-none"
+              aria-label="Dismiss"
+            >
+              &times;
+            </button>
+          </div>
+        </div>
+      )}
     </AuthContext.Provider>
   )
 }

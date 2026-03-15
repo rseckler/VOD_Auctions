@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { useAuth } from "./AuthProvider"
 import { requestPasswordReset } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
@@ -19,21 +19,55 @@ type AuthModalProps = {
   onClose: () => void
 }
 
+type PasswordStrength = "weak" | "medium" | "strong"
+
+function getPasswordStrength(pw: string): PasswordStrength | null {
+  if (!pw) return null
+  const hasLetters = /[a-zA-Z]/.test(pw)
+  const hasNumbers = /[0-9]/.test(pw)
+  const hasSpecial = /[^a-zA-Z0-9]/.test(pw)
+  if (pw.length >= 8 && hasLetters && hasNumbers && hasSpecial) return "strong"
+  if (pw.length >= 8 && hasLetters && hasNumbers) return "medium"
+  return "weak"
+}
+
+const strengthConfig: Record<PasswordStrength, { label: string; color: string; width: string }> = {
+  weak: { label: "Weak", color: "bg-red-500", width: "w-1/3" },
+  medium: { label: "Medium", color: "bg-yellow-500", width: "w-2/3" },
+  strong: { label: "Strong", color: "bg-green-500", width: "w-full" },
+}
+
 export function AuthModal({ open, onClose }: AuthModalProps) {
   const { login, register } = useAuth()
   const [mode, setMode] = useState<"login" | "register" | "forgot">("login")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
   const [firstName, setFirstName] = useState("")
   const [lastName, setLastName] = useState("")
   const [newsletterOptin, setNewsletterOptin] = useState(false)
+  const [agbAccepted, setAgbAccepted] = useState(false)
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const [resetSent, setResetSent] = useState(false)
 
+  const passwordStrength = useMemo(() => getPasswordStrength(password), [password])
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError("")
+
+    if (mode === "register") {
+      if (!agbAccepted) {
+        setError("Please accept the Terms & Conditions.")
+        return
+      }
+      if (password !== confirmPassword) {
+        setError("Passwords do not match.")
+        return
+      }
+    }
+
     setLoading(true)
 
     try {
@@ -133,7 +167,37 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
+            {mode === "register" && passwordStrength && (
+              <div className="space-y-1 pt-1">
+                <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-300 ${strengthConfig[passwordStrength].color} ${strengthConfig[passwordStrength].width}`}
+                  />
+                </div>
+                <p className={`text-xs ${
+                  passwordStrength === "weak" ? "text-red-500" :
+                  passwordStrength === "medium" ? "text-yellow-500" :
+                  "text-green-500"
+                }`}>
+                  {strengthConfig[passwordStrength].label}
+                </p>
+              </div>
+            )}
           </div>
+          )}
+
+          {mode === "register" && (
+            <div className="space-y-1.5">
+              <Label htmlFor="confirmPassword">Confirm Password</Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                required
+                minLength={6}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+              />
+            </div>
           )}
 
           {mode === "login" && (
@@ -149,17 +213,30 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
           )}
 
           {mode === "register" && (
-            <label className="flex items-start gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={newsletterOptin}
-                onChange={(e) => setNewsletterOptin(e.target.checked)}
-                className="mt-0.5 accent-primary"
-              />
-              <span className="text-xs text-muted-foreground leading-tight">
-                Subscribe to the VOD Auctions newsletter for auction updates, new arrivals, and exclusive offers. You can unsubscribe at any time.
-              </span>
-            </label>
+            <>
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={agbAccepted}
+                  onChange={(e) => setAgbAccepted(e.target.checked)}
+                  className="mt-1 accent-primary"
+                />
+                <span className="text-xs text-muted-foreground leading-tight">
+                  I have read and accept the <a href="/agb" target="_blank" className="text-primary underline">Terms &amp; Conditions</a> and <a href="/datenschutz" target="_blank" className="text-primary underline">Privacy Policy</a>. *
+                </span>
+              </label>
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={newsletterOptin}
+                  onChange={(e) => setNewsletterOptin(e.target.checked)}
+                  className="mt-0.5 accent-primary"
+                />
+                <span className="text-xs text-muted-foreground leading-tight">
+                  Subscribe to the VOD Auctions newsletter for auction updates, new arrivals, and exclusive offers. You can unsubscribe at any time.
+                </span>
+              </label>
+            </>
           )}
 
           {error && (

@@ -15,6 +15,36 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Created:** 2026-02-10
 **Last Updated:** 2026-03-15
 
+### UX/UI Overhaul — 37 CRITICAL+HIGH Findings (2026-03-15, IN PROGRESS)
+
+**Audit:** `docs/UX_UI_AUDIT_2026-03-15.md` — 95 Findings (9 CRITICAL, 28 HIGH, 35 MEDIUM, 31 LOW)
+**Scope:** Alle 37 CRITICAL + HIGH Items werden implementiert
+
+#### 8 Parallel Streams
+
+| Stream | Bereich | Owner-Dateien | Items | Status |
+|--------|---------|---------------|-------|--------|
+| **A** | Checkout Overhaul | `checkout/page.tsx` | AGB-Checkbox, Formvalidierung, Order Review, Billing-Adresse, Promo-Code, Success-Page, MwSt-Hinweis | Geplant |
+| **B** | Auth & Registration | `AuthModal.tsx`, `AuthProvider.tsx`, `auth.ts` | AGB-Checkbox Registration, Passwort-Stärke, Confirm-PW, E-Mail-Verifizierung, Token-Expiry | Geplant |
+| **C** | Header/Footer/Nav | `Header.tsx`, `MobileNav.tsx`, `Footer.tsx`, `CookieConsent.tsx`, `layout.tsx` | Suchleiste, Anon-Icons, Mobile Nav, Payment-Icons, Newsletter, Social, Cookie-Revoke, Skip-to-Content | Geplant |
+| **D** | Account Settings | `settings/page.tsx`, neue `addresses/page.tsx` | Profil editieren, PW ändern, E-Mail ändern, Adressverwaltung, Account löschen (DSGVO) | Geplant |
+| **E** | Cart/Wins/Orders/Saved | `cart/page.tsx`, `wins/page.tsx`, `orders/page.tsx`, `saved/page.tsx`, `DirectPurchaseButton.tsx` | Shipping-Preview, Anon-Button, Mini-Cart, Cart-Fixes, Wins-Cleanup, Invoice, Order-Nummern, Saved→Cart | Geplant |
+| **F** | Catalog/Product | `catalog/page.tsx`, `catalog/[id]/page.tsx`, `ItemBidSection.tsx` | Sort-Optionen, MwSt-Hinweis, Proxy-Bid-Erklärung, Sticky Mobile CTA, Product JSON-LD | Geplant |
+| **G** | Error Pages/Loading | Neue Dateien nur | Custom 404, Loading Skeletons | Geplant |
+| **H** | Backend APIs | Neue Routes | Promo-Code-API, Invoice-PDF, Order-Nummern, Adress-CRUD, Account-Deletion, PW-Change, Newsletter-Public | Geplant |
+
+#### Dependency Graph
+```
+G (404/Loading)      → Keine Dependencies, startet zuerst
+C (Header/Footer)    → Keine Dependencies
+F (Catalog/Product)  → Keine Dependencies
+B (Auth/Registration)→ Keine Dependencies
+D (Settings/Profile) → Backend H (Address/PW/Deletion APIs)
+A (Checkout)         → Backend H (Promo-Code API)
+E (Cart/Wins/Orders) → Backend H (Invoice/Order-Nummern)
+H (Backend APIs)     → Keine Dependencies, startet sofort
+```
+
 ### Letzte Änderungen (2026-03-15)
 - **Shopify-Style One-Page Checkout (Phase A+B implementiert):**
   - **Architektur-Wechsel:** Stripe Hosted Checkout (Redirect) → Stripe Payment Element (eingebettet, kein Redirect)
