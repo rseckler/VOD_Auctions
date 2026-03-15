@@ -148,6 +148,22 @@ H (Backend APIs)     → Keine Dependencies, startet sofort
 - **Frontend Proxy:** `storefront/src/app/api/invoice/[groupId]/route.ts` (Auth-Proxy)
 - **Frontend:** "Download Invoice" Button auf Orders-Seite
 
+### Letzte Änderungen (2026-03-15, Fortsetzung)
+- **Admin Refund-Funktion:**
+  - **Backend:** `POST /admin/transactions/:id` mit `action: "refund"` — Refund über Stripe API, setzt alle Releases auf `available`, markiert Transactions als `refunded`
+  - **Admin UI:** Roter "Refund" Button auf jeder bezahlten Transaktion mit Bestätigungs-Dialog
+  - **Stripe:** Refund wird an PayPal/Karte/Klarna weitergeleitet (je nach Original-Zahlungsmethode)
+  - **Geänderte Dateien:** `admin/transactions/[id]/route.ts`, `admin/routes/transactions/page.tsx`
+- **Invoice PDF korrigiert (aus Impressum):**
+  - **Adresse:** Alpenstrasse 25/1, 88045 Friedrichshafen, Germany
+  - **Telefon:** +49 7541 34412, **E-Mail:** frank@vinyl-on-demand.com
+  - **USt-IdNr:** DE232493058 — 19% MwSt aufgeschlüsselt (Netto + USt)
+  - **Kein** Kleinunternehmer §19 UStG (war falsch)
+  - **Geänderte Dateien:** `lib/invoice-template.ts`
+- **Orders Count Badge:** "My Orders" in Account-Sidebar zeigt Anzahl bezahlter Bestellungen (gold Badge)
+- **PayPal Redirect Fix:** `loading` State wurde nach PayPal-Redirect nicht auf `false` gesetzt → Skeleton-Loop. Eine Zeile Fix.
+- **Invoice Import-Pfad Fix:** 6 Verzeichnisse hoch statt 5 → Backend Crash-Loop behoben
+
 ### Letzte Änderungen (2026-03-15)
 - **Shopify-Style One-Page Checkout (Phase A+B implementiert):**
   - **Architektur-Wechsel:** Stripe Hosted Checkout (Redirect) → Stripe Payment Element (eingebettet, kein Redirect)
