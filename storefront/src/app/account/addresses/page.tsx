@@ -10,9 +10,10 @@ import { Separator } from "@/components/ui/separator"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
 import { getToken } from "@/lib/auth"
 import { toast } from "sonner"
-import { Pencil, Check, X, Loader2, MapPin, Plus } from "lucide-react"
+import { Pencil, Check, X, Loader2, MapPin, Plus, Trash2 } from "lucide-react"
 
 type Address = {
+  id?: string
   first_name: string
   last_name: string
   address_1: string
@@ -20,6 +21,7 @@ type Address = {
   city: string
   postal_code: string
   country_code: string
+  is_default_shipping?: boolean
 }
 
 const EMPTY_ADDRESS: Address = {
@@ -73,7 +75,7 @@ export default function AddressesPage() {
     const token = getToken()
     if (!token) return
     try {
-      const res = await fetch(`${MEDUSA_URL}/store/account/status`, {
+      const res = await fetch(`${MEDUSA_URL}/store/account/addresses`, {
         headers: {
           "x-publishable-api-key": PUBLISHABLE_KEY,
           Authorization: `Bearer ${token}`,
@@ -81,8 +83,9 @@ export default function AddressesPage() {
       })
       if (res.ok) {
         const data = await res.json()
-        if (data.default_shipping_address) {
-          setAddress(data.default_shipping_address)
+        // Use the first address (sorted by is_default_shipping desc)
+        if (data.addresses && data.addresses.length > 0) {
+          setAddress(data.addresses[0])
         }
       }
     } catch {
@@ -136,17 +139,80 @@ export default function AddressesPage() {
       return
     }
 
+    const token = getToken()
+    if (!token) {
+      toast.error("Authentication required")
+      return
+    }
+
     setSaving(true)
     try {
-      // For now, show success toast -- backend route will be added separately
+      const body: Record<string, unknown> = {
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        address_1: formData.address_1,
+        address_2: formData.address_2,
+        city: formData.city,
+        postal_code: formData.postal_code,
+        country_code: formData.country_code,
+        is_default_shipping: true,
+      }
+      // If editing an existing address, pass its id
+      if (isEditing && address?.id) {
+        body.id = address.id
+      }
+
+      const res = await fetch(`${MEDUSA_URL}/store/account/addresses`, {
+        method: "POST",
+        headers: {
+          "x-publishable-api-key": PUBLISHABLE_KEY,
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      })
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.message || "Failed to save address")
+      }
+
+      const data = await res.json()
       toast.success("Address saved")
-      setAddress({ ...formData })
+      setAddress(data.address)
       setIsEditing(false)
       setIsAdding(false)
-    } catch {
-      toast.error("Failed to save address")
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save address")
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleDelete() {
+    if (!address?.id) return
+    const token = getToken()
+    if (!token) return
+
+    try {
+      const res = await fetch(
+        `${MEDUSA_URL}/store/account/addresses/${address.id}`,
+        {
+          method: "DELETE",
+          headers: {
+            "x-publishable-api-key": PUBLISHABLE_KEY,
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      )
+      if (res.ok) {
+        toast.success("Address deleted")
+        setAddress(null)
+      } else {
+        toast.error("Failed to delete address")
+      }
+    } catch {
+      toast.error("Failed to delete address")
     }
   }
 
@@ -163,15 +229,25 @@ export default function AddressesPage() {
               Default Shipping Address
             </h3>
             {address && !showForm && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={startEdit}
-                className="gap-1.5 text-muted-foreground hover:text-foreground"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-                Edit
-              </Button>
+              <div className="flex gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={startEdit}
+                  className="gap-1.5 text-muted-foreground hover:text-foreground"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Edit
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleDelete}
+                  className="gap-1.5 text-muted-foreground hover:text-destructive"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             )}
           </div>
 

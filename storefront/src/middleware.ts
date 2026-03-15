@@ -16,7 +16,8 @@ export function middleware(request: NextRequest) {
     pathname === "/icon.svg" ||
     pathname === "/robots.txt" ||
     pathname === "/sitemap.xml" ||
-    pathname === "/reset-password"
+    pathname === "/reset-password" ||
+    pathname === "/verify"
   ) {
     return NextResponse.next()
   }

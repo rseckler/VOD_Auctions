@@ -4,6 +4,7 @@ import Link from "next/link"
 import { Disc3, Mail, Instagram, Facebook } from "lucide-react"
 import { useState, type FormEvent } from "react"
 import { toast } from "sonner"
+import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
 
 export function Footer() {
   const [email, setEmail] = useState("")
@@ -13,11 +14,26 @@ export function Footer() {
     e.preventDefault()
     if (!email) return
     setSubmitting(true)
-    // TODO: POST to backend newsletter endpoint when available
-    await new Promise((r) => setTimeout(r, 300))
-    toast.success("Thank you for subscribing!")
-    setEmail("")
-    setSubmitting(false)
+    try {
+      const res = await fetch(`${MEDUSA_URL}/store/newsletter`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-publishable-api-key": PUBLISHABLE_KEY,
+        },
+        body: JSON.stringify({ email }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        throw new Error(data?.message || "Subscription failed")
+      }
+      toast.success("Thank you for subscribing!")
+      setEmail("")
+    } catch (err: any) {
+      toast.error(err.message || "Failed to subscribe. Please try again.")
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
