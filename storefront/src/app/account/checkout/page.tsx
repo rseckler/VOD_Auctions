@@ -343,7 +343,7 @@ export default function CheckoutPage() {
 
   // ── Create PaymentIntent when address + shipping are ready ──
   const createPaymentIntent = useCallback(async () => {
-    if (!address.country || !address.name || !address.line1 || !address.city || !address.postal_code) return
+    if (!address.country || !address.first_name || !address.last_name || !address.line1 || !address.city || !address.postal_code) return
     if (!hasItems || creatingIntent) return
 
     const token = getToken()
@@ -597,6 +597,7 @@ export default function CheckoutPage() {
 
               if (zoneMethods.length > 1) {
                 return (
+                  <>
                   {requiresTrackedShipping && (
                     <p className="text-xs text-amber-400 mb-2">
                       PayPal buyer protection requires tracked shipping. Untracked options are disabled.
@@ -647,6 +648,7 @@ export default function CheckoutPage() {
                       )
                     })}
                   </div>
+                  </>
                 )
               }
 
