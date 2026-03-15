@@ -104,9 +104,9 @@ H (Backend APIs)     → Keine Dependencies, startet sofort
 - **No search clear button:** X-Button im Suchfeld zum schnellen Leeren
 - **Items per page selector:** 24/48/96 Items pro Seite
 
-### Verbleibende Architektur-Themen — 3 Parallel Streams (wartet auf Freigabe)
+### Verbleibende Architektur-Themen — 3 Parallel Streams
 
-**Status:** Geplant
+**Status:** Done
 
 | Stream | Thema | Dateien | DB | Dependencies | Aufwand |
 |--------|-------|---------|-----|-------------|---------|

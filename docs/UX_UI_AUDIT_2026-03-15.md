@@ -202,7 +202,7 @@
 | **5** | Zahlungsmethoden-Icons im Footer + "Secure Checkout" | Klein | Trust-Signal #1 | **DONE** ✅ |
 | **6** | Account löschen (DSGVO) + Profil editierbar + Passwort ändern | Mittel | Rechtspflicht + Basic Account | **DONE** ✅ |
 | **7** | Mobile: Swipe-Gallery + Sticky Add-to-Cart/Bid | Mittel | 60%+ Traffic ist Mobile | **OFFEN** — Swipe + Sticky CTA noch nicht implementiert |
-| **8** | Product JSON-LD + Catalog SSR für SEO | Groß | Google Rich Results + Indexierung | **TEILWEISE** — JSON-LD done, Catalog SSR noch offen |
+| **8** | Product JSON-LD + Catalog SSR für SEO | Groß | Google Rich Results + Indexierung | **DONE** ✅ |
 | **9** | Custom 404 + Loading Skeletons + Cookie Consent Widerruf | Klein | Professioneller Eindruck + DSGVO | **DONE** ✅ |
 | **10** | Newsletter-Signup im Footer + Social Links | Klein | Kundenbindung | **DONE** ✅ |
 
@@ -325,7 +325,9 @@
 
 Top 10: 9/10 erledigt. #8 Catalog SSR offen (große Architektur-Änderung).
 
-### Verbleibende Architektur-Themen (separat geplant)
-- [ ] **Catalog SSR** — Umstellung von `"use client"` auf Server Component für SEO-Indexierung
-- [ ] **Promo-Code System** — DB-Tabelle, Validierungs-API, Checkout-Integration
-- [ ] **Invoice PDF Generation** — PDF-Bibliothek, Template, Download-Endpoint
+### Architektur-Themen (erledigt)
+- [x] **Catalog SSR** — Server Component + CatalogClient.tsx, ISR 60s, generateMetadata()
+- [x] **Promo-Code System** — promo_code DB-Tabelle, validate-promo API, Checkout-Integration, Webhook used_count
+- [x] **Invoice PDF Generation** — pdfkit, A4 Template (VOD Records, §19 UStG), Download-Button auf Orders
+
+**95/95 Items abgeschlossen (92 implementiert, 3 bewusst entfernt).**
