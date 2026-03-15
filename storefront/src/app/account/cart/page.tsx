@@ -6,7 +6,7 @@ import Image from "next/image"
 import { getToken } from "@/lib/auth"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
 import { useAuth } from "@/components/AuthProvider"
-import { ShoppingCart, Trash2, Disc3, AlertCircle } from "lucide-react"
+import { ShoppingCart, Trash2, Disc3, AlertCircle, Heart } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -19,6 +19,7 @@ export default function CartPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [removingId, setRemovingId] = useState<string | null>(null)
+  const [savingId, setSavingId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchCart()
@@ -77,6 +78,51 @@ export default function CartPage() {
       toast.error("Failed to remove item")
     } finally {
       setRemovingId(null)
+    }
+  }
+
+  async function handleSaveForLater(item: CartItem) {
+    const token = getToken()
+    if (!token) return
+
+    setSavingId(item.id)
+    try {
+      // Save to saved items
+      const saveRes = await fetch(`${MEDUSA_URL}/store/account/saved`, {
+        method: "POST",
+        headers: {
+          "x-publishable-api-key": PUBLISHABLE_KEY,
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ release_id: item.release_id }),
+      })
+
+      if (!saveRes.ok) {
+        toast.error("Failed to save item")
+        return
+      }
+
+      // Remove from cart
+      const delRes = await fetch(`${MEDUSA_URL}/store/account/cart/${item.id}`, {
+        method: "DELETE",
+        headers: {
+          "x-publishable-api-key": PUBLISHABLE_KEY,
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      if (delRes.ok) {
+        setItems((prev) => prev.filter((i) => i.id !== item.id))
+        await refreshStatus()
+        toast.success("Moved to saved items")
+      } else {
+        toast.error("Failed to remove from cart")
+      }
+    } catch {
+      toast.error("Failed to save item")
+    } finally {
+      setSavingId(null)
     }
   }
 
@@ -177,15 +223,28 @@ export default function CartPage() {
                   Condition: see product page
                 </p>
                 {/* TODO: Stale cart detection — show warning badge when API returns error/unavailable flag per item */}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleRemove(item.id)}
-                  disabled={removingId === item.id}
-                  className="text-muted-foreground hover:text-destructive h-8"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                <div className="flex gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleSaveForLater(item)}
+                    disabled={savingId === item.id || removingId === item.id}
+                    className="text-muted-foreground hover:text-rose-500 h-8"
+                    title="Save for later"
+                  >
+                    <Heart className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleRemove(item.id)}
+                    disabled={removingId === item.id || savingId === item.id}
+                    className="text-muted-foreground hover:text-destructive h-8"
+                    title="Remove from cart"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </div>
           </Card>

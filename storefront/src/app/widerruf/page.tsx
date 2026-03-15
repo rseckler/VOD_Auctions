@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import Link from "next/link"
 
 export const metadata: Metadata = {
   title: "Right of Withdrawal",
@@ -8,6 +9,11 @@ export const metadata: Metadata = {
 export default function WiderrufPage() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-16">
+      <nav className="text-sm text-muted-foreground mb-4">
+        <Link href="/" className="hover:text-primary">Home</Link>
+        <span className="mx-2">/</span>
+        <span>Right of Withdrawal</span>
+      </nav>
       <h1 className="font-serif text-4xl mb-8">Right of Withdrawal</h1>
 
       <div className="prose prose-invert prose-sm max-w-none space-y-6 text-muted-foreground">

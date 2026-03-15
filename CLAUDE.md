@@ -60,9 +60,9 @@ H (Backend APIs)     → Keine Dependencies, startet sofort
 | **M4** | Navigation/Legal/Error | `Header.tsx`, `Footer.tsx`, `global-error.tsx`, Legal Pages | Active Nav-Link, Back-to-Top, AGB Versandkosten Fix, Datenschutz Google Fonts Fix, Global Error Page gestylt, Rückgaberecht auf Produktseiten | Done |
 | **M5** | Accessibility | Diverse Dateien | Focus-Indicators (gold outline), ARIA Landmarks, aria-expanded/controls, Alt-Text auf Bildern, Badge aria-labels | Done |
 
-### LOW UX/UI Items — Multi-Agent Plan (21 offene Items, wartet auf Freigabe)
+### LOW UX/UI Items — Multi-Agent Plan (18 Items, Social Login + Mega Menu + Page Transitions entfernt)
 
-**Status:** Geplant — Umsetzung startet nach Freigabe
+**Status:** In Progress
 
 #### 4 Parallel Streams
 

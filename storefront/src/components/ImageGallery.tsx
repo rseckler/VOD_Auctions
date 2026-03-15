@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import Image from "next/image"
 import { motion, AnimatePresence } from "framer-motion"
 import { Disc3, ZoomIn, Grid3X3, X, ChevronLeft, ChevronRight } from "lucide-react"
@@ -36,6 +36,38 @@ export function ImageGallery({
     [images.length]
   )
 
+  // Touch swipe support for lightbox
+  const touchStartX = useRef(0)
+  function handleTouchStart(e: React.TouchEvent) {
+    touchStartX.current = e.touches[0].clientX
+  }
+  function handleTouchEnd(e: React.TouchEvent) {
+    const diff = touchStartX.current - e.changedTouches[0].clientX
+    if (Math.abs(diff) > 50) goTo(diff > 0 ? "next" : "prev")
+  }
+
+  // Desktop zoom state for main image
+  const [zoomActive, setZoomActive] = useState(false)
+  const [zoomOrigin, setZoomOrigin] = useState({ x: 50, y: 50 })
+  const mainImageRef = useRef<HTMLButtonElement>(null)
+
+  function handleMouseMove(e: React.MouseEvent<HTMLButtonElement>) {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = ((e.clientX - rect.left) / rect.width) * 100
+    const y = ((e.clientY - rect.top) / rect.height) * 100
+    setZoomOrigin({ x, y })
+  }
+
+  // Only enable zoom on desktop (1024px+)
+  const [isDesktop, setIsDesktop] = useState(false)
+  useEffect(() => {
+    const mql = window.matchMedia("(min-width: 1024px)")
+    setIsDesktop(mql.matches)
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches)
+    mql.addEventListener("change", handler)
+    return () => mql.removeEventListener("change", handler)
+  }, [])
+
   // Keyboard navigation in lightbox
   useEffect(() => {
     if (!lightboxOpen) return
@@ -60,7 +92,11 @@ export function ImageGallery({
       <div className="space-y-3">
         {/* Main Image */}
         <button
+          ref={mainImageRef}
           onClick={() => setLightboxOpen(true)}
+          onMouseEnter={() => isDesktop && setZoomActive(true)}
+          onMouseLeave={() => { setZoomActive(false) }}
+          onMouseMove={isDesktop ? handleMouseMove : undefined}
           className="relative group w-full aspect-square rounded-xl overflow-hidden bg-[#2a2520] border border-[rgba(232,224,212,0.08)] cursor-zoom-in"
         >
           <AnimatePresence mode="wait">
@@ -71,6 +107,15 @@ export function ImageGallery({
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
               className="w-full h-full"
+              style={
+                zoomActive && isDesktop
+                  ? {
+                      transform: "scale(2)",
+                      transformOrigin: `${zoomOrigin.x}% ${zoomOrigin.y}%`,
+                      transition: "transform-origin 0.1s ease",
+                    }
+                  : { transform: "scale(1)", transition: "transform 0.2s ease" }
+              }
             >
               <Image
                 src={images[selected]}
@@ -82,8 +127,8 @@ export function ImageGallery({
               />
             </motion.div>
           </AnimatePresence>
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-            <ZoomIn className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+          <div className={`absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center ${zoomActive ? "!bg-transparent" : ""}`}>
+            <ZoomIn className={`h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity ${zoomActive ? "!opacity-0" : ""}`} />
           </div>
           {/* Image counter badge */}
           {images.length > 1 && (
@@ -134,7 +179,11 @@ export function ImageGallery({
       <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
         <DialogContent className="max-w-4xl p-2 bg-[rgba(28,25,21,0.95)] backdrop-blur-xl border-[rgba(232,224,212,0.1)]">
           <DialogTitle className="sr-only">{title}</DialogTitle>
-          <div className="relative w-full max-h-[85vh] aspect-square">
+          <div
+            className="relative w-full max-h-[85vh] aspect-square"
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
             <Image
               src={images[selected]}
               alt={title}

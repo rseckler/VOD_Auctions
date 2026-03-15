@@ -53,6 +53,7 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const [resetSent, setResetSent] = useState(false)
+  const [rememberMe, setRememberMe] = useState(true)
 
   // Rate limiting state
   const [failedAttempts, setFailedAttempts] = useState(0)
@@ -114,7 +115,7 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
         await requestPasswordReset(email)
         setResetSent(true)
       } else if (mode === "login") {
-        await login(email, password)
+        await login(email, password, rememberMe)
         setFailedAttempts(0)
         onClose()
       } else {
@@ -250,7 +251,16 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
           )}
 
           {mode === "login" && (
-            <div className="text-right">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="accent-primary"
+                />
+                <span className="text-xs text-muted-foreground">Remember me</span>
+              </label>
               <button
                 type="button"
                 onClick={() => handleModeSwitch("forgot")}

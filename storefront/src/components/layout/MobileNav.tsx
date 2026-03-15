@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Gavel, User, LogOut, Disc3, Library, Info, Search, ShoppingCart, Heart } from "lucide-react"
+import { Gavel, User, LogOut, Disc3, Library, Info, Search, ShoppingCart, Heart, Trophy, Package, MapPin, Settings } from "lucide-react"
 import { useAuth } from "@/components/AuthProvider"
 import { Button } from "@/components/ui/button"
 import {
@@ -95,10 +95,52 @@ export function MobileNav({
                   <User className="h-4 w-4" />
                   My Account
                 </Link>
+                <Link
+                  href="/account/bids"
+                  onClick={onClose}
+                  className="flex items-center gap-3 px-3 pl-7 py-2 rounded-md text-sm text-muted-foreground/80 hover:text-foreground hover:bg-[rgba(232,224,212,0.04)] transition-colors"
+                >
+                  <Gavel className="h-3.5 w-3.5" />
+                  My Bids
+                </Link>
+                <Link
+                  href="/account/wins"
+                  onClick={onClose}
+                  className="flex items-center gap-3 px-3 pl-7 py-2 rounded-md text-sm text-muted-foreground/80 hover:text-foreground hover:bg-[rgba(232,224,212,0.04)] transition-colors"
+                >
+                  <Trophy className="h-3.5 w-3.5" />
+                  Won
+                </Link>
+                <Link
+                  href="/account/orders"
+                  onClick={onClose}
+                  className="flex items-center gap-3 px-3 pl-7 py-2 rounded-md text-sm text-muted-foreground/80 hover:text-foreground hover:bg-[rgba(232,224,212,0.04)] transition-colors"
+                >
+                  <Package className="h-3.5 w-3.5" />
+                  Orders
+                </Link>
+                <Link
+                  href="/account/addresses"
+                  onClick={onClose}
+                  className="flex items-center gap-3 px-3 pl-7 py-2 rounded-md text-sm text-muted-foreground/80 hover:text-foreground hover:bg-[rgba(232,224,212,0.04)] transition-colors"
+                >
+                  <MapPin className="h-3.5 w-3.5" />
+                  Addresses
+                </Link>
+                <Link
+                  href="/account/settings"
+                  onClick={onClose}
+                  className="flex items-center gap-3 px-3 pl-7 py-2 rounded-md text-sm text-muted-foreground/80 hover:text-foreground hover:bg-[rgba(232,224,212,0.04)] transition-colors"
+                >
+                  <Settings className="h-3.5 w-3.5" />
+                  Settings
+                </Link>
                 <button
                   onClick={() => {
-                    logout()
-                    onClose()
+                    if (window.confirm("Are you sure you want to log out?")) {
+                      logout()
+                      onClose()
+                    }
                   }}
                   className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-[rgba(232,224,212,0.04)] transition-colors text-left"
                 >

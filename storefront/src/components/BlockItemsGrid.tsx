@@ -4,9 +4,20 @@ import { useState, useMemo } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { motion, AnimatePresence } from "framer-motion"
-import { Search, Disc3 } from "lucide-react"
+import { Search, Disc3, Clock } from "lucide-react"
 import { staggerContainer, staggerItem } from "@/lib/motion"
 import type { BlockItem } from "@/types"
+
+function formatTimeRemaining(endTime: string): string | null {
+  const diff = new Date(endTime).getTime() - Date.now()
+  if (diff <= 0) return null
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+  if (days > 0) return `${days}d ${hours}h left`
+  if (hours > 0) return `${hours}h ${minutes}m left`
+  return `${minutes}m left`
+}
 
 const FORMAT_COLORS: Record<string, string> = {
   LP: "text-format-vinyl",
@@ -190,6 +201,15 @@ export function BlockItemsGrid({
                           {item.bid_count} {item.bid_count !== 1 ? "bids" : "bid"}
                         </p>
                       )}
+                      {item.lot_end_time && (() => {
+                        const remaining = formatTimeRemaining(item.lot_end_time)
+                        return remaining ? (
+                          <p className="text-[10px] text-muted-foreground/50 mt-0.5 flex items-center gap-1">
+                            <Clock className="h-2.5 w-2.5" />
+                            {remaining}
+                          </p>
+                        ) : null
+                      })()}
                     </div>
                   </div>
                 </Link>

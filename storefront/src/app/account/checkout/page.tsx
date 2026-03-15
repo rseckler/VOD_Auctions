@@ -9,7 +9,7 @@ import { getToken } from "@/lib/auth"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
 import { useAuth } from "@/components/AuthProvider"
 import { stripePromise } from "@/lib/stripe-client"
-import { CreditCard, Disc3, Trophy, ShoppingCart, Package, MapPin, Truck, CheckCircle2, ClipboardList, Mail, Lock, ChevronDown } from "lucide-react"
+import { CreditCard, Disc3, Trophy, ShoppingCart, Package, MapPin, Truck, CheckCircle2, ClipboardList, Mail, Lock, ChevronDown, Printer } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -75,6 +75,19 @@ type CompletedOrderData = {
   shippingCost: number
   shippingAddress: ShippingAddress
   email: string
+  estimatedDelivery: string | null
+}
+
+// Format estimated delivery date range from shipping method
+function formatEstimatedDelivery(method: ShippingMethod | undefined): string | null {
+  if (!method) return null
+  const minDays = method.delivery_days_min || 3
+  const maxDays = method.delivery_days_max || 7
+  const today = new Date()
+  const estMin = new Date(today.getTime() + minDays * 86400000)
+  const estMax = new Date(today.getTime() + maxDays * 86400000)
+  const fmt = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+  return `${fmt(estMin)} - ${fmt(estMax)}`
 }
 
 const REQUIRED_ADDRESS_FIELDS: Array<keyof ShippingAddress> = [
@@ -713,6 +726,7 @@ export default function CheckoutPage() {
       shippingCost,
       shippingAddress: { ...address },
       email: customer?.email || "",
+      estimatedDelivery,
     })
 
     setPaymentSuccess(true)
@@ -728,14 +742,15 @@ export default function CheckoutPage() {
     countries.find((c) => c.code === code)?.name || code
 
   // Shipping method name helper
-  const selectedMethodName = (() => {
-    if (!selectedZoneSlug) return ""
+  const selectedMethod = (() => {
+    if (!selectedZoneSlug) return undefined
     const zone = shippingZones.find((z) => z.slug === selectedZoneSlug)
-    if (!zone) return ""
+    if (!zone) return undefined
     const methods = shippingMethods[zone.id] || []
-    const m = methods.find((m) => m.id === selectedMethodId)
-    return m ? `${m.carrier_name} — ${m.method_name}` : ""
+    return methods.find((m) => m.id === selectedMethodId)
   })()
+  const selectedMethodName = selectedMethod ? `${selectedMethod.carrier_name} — ${selectedMethod.method_name}` : ""
+  const estimatedDelivery = formatEstimatedDelivery(selectedMethod)
 
   // ── RENDER ──
 
@@ -798,6 +813,16 @@ export default function CheckoutPage() {
               </p>
             </div>
 
+            {/* Estimated Delivery */}
+            {order.estimatedDelivery && (
+              <div className="border-t border-border pt-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Estimated delivery</span>
+                  <span>{order.estimatedDelivery}</span>
+                </div>
+              </div>
+            )}
+
             {/* Total */}
             <div className="border-t border-border pt-3 space-y-1">
               <div className="flex justify-between text-sm">
@@ -826,9 +851,13 @@ export default function CheckoutPage() {
           You will receive a confirmation email shortly.
         </p>
 
-        <div className="flex gap-3 justify-center">
+        <div className="flex gap-3 justify-center flex-wrap">
           <Button asChild className="bg-primary hover:bg-primary/90 text-[#1c1915]">
             <Link href="/account/orders">View Orders</Link>
+          </Button>
+          <Button variant="outline" onClick={() => window.print()}>
+            <Printer className="h-4 w-4 mr-2" />
+            Print Receipt
           </Button>
           <Button variant="outline" asChild>
             <Link href="/catalog">Continue Shopping</Link>
@@ -886,6 +915,22 @@ export default function CheckoutPage() {
             hasCatchAll={hasCatchAll}
             idPrefix="shipping"
           />
+
+          {/* Optional confirmation email */}
+          <div className="mt-4">
+            <Label htmlFor="confirmation_email">Order confirmation email (optional)</Label>
+            <Input
+              id="confirmation_email"
+              type="email"
+              defaultValue={customer?.email || ""}
+              disabled
+              placeholder="your@email.com"
+              className="mt-1"
+            />
+            <p className="text-xs text-muted-foreground/60 mt-1">
+              Leave empty to use your account email
+            </p>
+          </div>
         </Card>
 
         {/* ── Billing Address Toggle ── */}
@@ -1066,6 +1111,14 @@ export default function CheckoutPage() {
                       : `\u20AC${shippingCost.toFixed(2)}`}
                 </span>
               </div>
+
+              {/* Estimated delivery */}
+              {estimatedDelivery && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Estimated delivery</span>
+                  <span>{estimatedDelivery}</span>
+                </div>
+              )}
 
               {/* Total */}
               <div className="border-t border-border pt-2 flex justify-between font-semibold">

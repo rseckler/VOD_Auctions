@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { motion, AnimatePresence } from "framer-motion"
-import { Search, Disc3, ChevronLeft, ChevronRight, SlidersHorizontal, MoreHorizontal } from "lucide-react"
+import { Search, Disc3, ChevronLeft, ChevronRight, SlidersHorizontal, MoreHorizontal, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -87,6 +87,10 @@ export default function CatalogPage() {
   const [yearFrom, setYearFrom] = useState(() => searchParams.get("year_from") || "")
   const [sort, setSort] = useState(() => searchParams.get("sort") || "artist:asc")
   const [forSale, setForSale] = useState(() => searchParams.get("for_sale") === "true")
+  const [limit, setLimit] = useState(() => {
+    const l = Number(searchParams.get("limit"))
+    return [24, 48, 96].includes(l) ? l : 24
+  })
   const [showFilters, setShowFilters] = useState(() => !!(searchParams.get("country") || searchParams.get("label") || searchParams.get("year_from")))
   const [loading, setLoading] = useState(true)
 
@@ -106,12 +110,13 @@ export default function CatalogPage() {
     if (yearFrom) params.set("year_from", yearFrom)
     if (sort && sort !== "artist:asc") params.set("sort", sort)
     if (forSale) params.set("for_sale", "true")
+    if (limit !== 24) params.set("limit", String(limit))
     const qs = params.toString()
     const newUrl = qs ? `/catalog?${qs}` : "/catalog"
     window.history.replaceState(null, "", newUrl)
     // Store catalog URL for breadcrumb back-links on detail pages
     try { sessionStorage.setItem("catalog_url", newUrl) } catch {}
-  }, [page, search, category, format, country, label, yearFrom, sort, forSale])
+  }, [page, search, category, format, country, label, yearFrom, sort, forSale, limit])
 
   // Restore state when navigating back (popstate)
   useEffect(() => {
@@ -127,6 +132,8 @@ export default function CatalogPage() {
       setYearFrom(sp.get("year_from") || "")
       setSort(sp.get("sort") || "artist:asc")
       setForSale(sp.get("for_sale") === "true")
+      const l = Number(sp.get("limit"))
+      setLimit([24, 48, 96].includes(l) ? l : 24)
       if (sp.get("country") || sp.get("label") || sp.get("year_from")) setShowFilters(true)
     }
     window.addEventListener("popstate", handlePopState)
@@ -137,7 +144,7 @@ export default function CatalogPage() {
     setLoading(true)
     const params = new URLSearchParams()
     params.set("page", String(page))
-    params.set("limit", "24")
+    params.set("limit", String(limit))
     if (search) params.set("search", search)
     if (category) params.set("category", category)
     if (format) params.set("format", format)
@@ -156,7 +163,7 @@ export default function CatalogPage() {
       setPages(data.pages)
     }
     setLoading(false)
-  }, [page, search, category, format, country, label, yearFrom, sort, forSale])
+  }, [page, search, category, format, country, label, yearFrom, sort, forSale, limit])
 
   useEffect(() => {
     fetchReleases()
@@ -242,8 +249,21 @@ export default function CatalogPage() {
             value={searchInput}
             onChange={(e) => handleSearchInputChange(e.target.value)}
             placeholder="Search by title, artist, label, catalog number..."
-            className="pl-10"
+            className="pl-10 pr-9"
           />
+          {searchInput && (
+            <button
+              onClick={() => {
+                setSearchInput("")
+                setSearch("")
+                setPage(1)
+                if (debounceRef.current) clearTimeout(debounceRef.current)
+              }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -394,7 +414,7 @@ export default function CatalogPage() {
       {/* Results */}
       {loading ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-          {Array.from({ length: 24 }).map((_, i) => (
+          {Array.from({ length: limit }).map((_, i) => (
             <div key={i} className="animate-pulse">
               <div className="aspect-square bg-secondary rounded-lg mb-2" />
               <div className="h-3 bg-secondary rounded w-3/4 mb-1" />
@@ -504,9 +524,18 @@ export default function CatalogPage() {
         </div>
       )}
 
-      {/* Pagination with page numbers */}
+      {/* Pagination with page numbers + items per page */}
       {pages > 1 && (
         <div className="flex items-center justify-center gap-1.5 mt-8">
+          <select
+            value={limit}
+            onChange={(e) => { setLimit(Number(e.target.value)); setPage(1) }}
+            className="h-8 rounded-md border border-border/50 bg-secondary/30 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary mr-2"
+          >
+            {[24, 48, 96].map((n) => (
+              <option key={n} value={n}>{n} / page</option>
+            ))}
+          </select>
           <Button
             variant="outline"
             size="icon"

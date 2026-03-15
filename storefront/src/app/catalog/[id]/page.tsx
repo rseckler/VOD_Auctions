@@ -128,7 +128,7 @@ export default async function CatalogDetailPage({
   }
 
   return (
-    <main className="mx-auto max-w-6xl px-6 py-8">
+    <main className="mx-auto max-w-6xl px-6 py-8 pb-20 lg:pb-8">
       {/* Breadcrumb — preserves catalog filter state via sessionStorage */}
       <nav className="text-sm text-muted-foreground mb-8 flex items-center gap-1 flex-wrap">
         <CatalogBackLink className="hover:text-foreground transition-colors" />
@@ -437,6 +437,25 @@ export default async function CatalogDetailPage({
           Back to Catalog
         </CatalogBackLink>
       </Button>
+
+      {/* Sticky Mobile CTA */}
+      {release.is_purchasable ? (
+        <div className="fixed bottom-0 left-0 right-0 z-40 lg:hidden bg-[#1c1915] border-t border-border px-4 py-3 flex items-center justify-between gap-3">
+          <span className="text-lg font-mono font-bold text-primary">
+            &euro;{Number(release.legacy_price).toFixed(2)}
+          </span>
+          <DirectPurchaseButton
+            releaseId={release.id}
+            saleMode={release.sale_mode || null}
+            directPrice={release.direct_price || null}
+            auctionStatus={release.auction_status || null}
+          />
+        </div>
+      ) : (
+        <div className="fixed bottom-0 left-0 right-0 z-40 lg:hidden bg-[#1c1915] border-t border-border px-4 py-3">
+          <p className="text-sm text-muted-foreground italic text-center">Not for sale</p>
+        </div>
+      )}
 
       {/* Product JSON-LD */}
       <script

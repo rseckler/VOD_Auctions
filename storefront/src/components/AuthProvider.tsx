@@ -42,7 +42,7 @@ type AuthContextType = {
   dismissSessionExpired: () => void
   setIntendedAction: (action: IntendedAction) => void
   clearIntendedAction: () => void
-  login: (email: string, password: string) => Promise<void>
+  login: (email: string, password: string, persistent?: boolean) => Promise<void>
   register: (
     email: string,
     password: string,
@@ -196,9 +196,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("storage", handleStorageChange)
   }, [fetchStatus])
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string, persistent: boolean = true) => {
     const token = await authLogin(email, password)
-    setToken(token)
+    setToken(token, persistent)
     const c = await getCustomer(token)
     setCustomer(c)
     setSessionExpiredMessage(null)

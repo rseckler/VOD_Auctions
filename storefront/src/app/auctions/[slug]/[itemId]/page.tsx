@@ -145,7 +145,7 @@ export default async function ItemDetailPage({
   }
 
   return (
-    <main className="mx-auto max-w-6xl px-6 py-8">
+    <main className="mx-auto max-w-6xl px-6 py-8 pb-20 lg:pb-8">
       {/* Breadcrumb */}
       <nav className="text-sm text-muted-foreground mb-8 flex items-center gap-1 flex-wrap">
         <Link href="/auctions" className="hover:text-foreground transition-colors">
@@ -213,7 +213,7 @@ export default async function ItemDetailPage({
           </div>
 
           {/* Bid Section */}
-          <div className="mt-6">
+          <div id="bid-section" className="mt-6 scroll-mt-20">
             <ItemBidSection
               slug={slug}
               itemId={item.id}
@@ -449,6 +449,28 @@ export default async function ItemDetailPage({
           Back to &quot;{block.title}&quot;
         </Link>
       </Button>
+
+      {/* Sticky Mobile CTA */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 lg:hidden bg-[#1c1915] border-t border-border px-4 py-3 flex items-center justify-between gap-3">
+        <div>
+          <span className="text-xs text-muted-foreground">Current Bid</span>
+          <span className="block text-lg font-mono font-bold text-primary">
+            &euro;{Number(item.current_price || item.start_price).toFixed(2)}
+          </span>
+        </div>
+        {block.status === "active" && item.status === "open" ? (
+          <a
+            href="#bid-section"
+            className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-6 py-2.5 text-sm font-semibold hover:bg-primary/90 transition-colors"
+          >
+            Place Bid
+          </a>
+        ) : (
+          <span className="text-sm text-muted-foreground italic">
+            {item.status === "sold" ? "Sold" : "Auction ended"}
+          </span>
+        )}
+      </div>
 
       {/* Product JSON-LD */}
       <script

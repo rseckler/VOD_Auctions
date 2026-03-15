@@ -118,13 +118,20 @@ export async function resetPassword(
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null
-  return localStorage.getItem("medusa_token")
+  return localStorage.getItem("medusa_token") || sessionStorage.getItem("medusa_token")
 }
 
-export function setToken(token: string) {
-  localStorage.setItem("medusa_token", token)
+export function setToken(token: string, persistent: boolean = true) {
+  if (persistent) {
+    sessionStorage.removeItem("medusa_token")
+    localStorage.setItem("medusa_token", token)
+  } else {
+    localStorage.removeItem("medusa_token")
+    sessionStorage.setItem("medusa_token", token)
+  }
 }
 
 export function clearToken() {
   localStorage.removeItem("medusa_token")
+  sessionStorage.removeItem("medusa_token")
 }
