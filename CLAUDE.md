@@ -1215,6 +1215,117 @@ psycopg2-binary, python-dotenv, requests, mysql-connector-python
 - API: GET /admin/transactions (filter: status, shipping_status)
 - API: GET /admin/transactions/:id, POST /admin/transactions/:id (shipping_status update)
 
+## Checkout Redesign — Shopify-Style One-Page Checkout (GEPLANT)
+
+**Ziel:** Migration von Stripe Hosted Checkout (Redirect) zu Shopify-ähnlichem One-Page Checkout mit Stripe Elements (eingebettet). Login bleibt Pflicht (kein Guest-Checkout).
+
+**Entscheidung:** 2026-03-15 — Shopify-Checkout ist De-facto-Standard, komfortabler für User (alles auf einer Seite, kein Redirect).
+
+### Architektur-Änderung
+- **Aktuell:** Frontend → Backend erstellt Checkout Session → Redirect zu Stripe → Webhook `checkout.session.completed`
+- **Neu:** Frontend sammelt Adresse + zeigt Stripe Payment Element inline → Backend erstellt PaymentIntent → Frontend bestätigt Payment via `stripe.confirmPayment()` → Webhook `payment_intent.succeeded`
+
+### Checkout-Layout (One-Page, Two-Column)
+
+```
+LEFT COLUMN (60%)                RIGHT COLUMN (40%, sticky)
+┌─────────────────────────┐      ┌──────────────────────┐
+│ EXPRESS CHECKOUT         │      │ ORDER SUMMARY        │
+│ [Apple Pay] [Google Pay] │      │ 🖼 Item 1    €12.00 │
+│ [PayPal Express]         │      │ 🖼 Item 2     €8.50 │
+│ ─── or ──────────        │      │                      │
+│                          │      │ Subtotal    €20.50   │
+│ SHIPPING ADDRESS         │      │ Shipping     €4.99   │
+│ Name, Address, City,     │      │ ────────────────     │
+│ ZIP, Country             │      │ TOTAL       €25.49   │
+│                          │      └──────────────────────┘
+│ SHIPPING METHOD          │
+│ ○ Standard  €4.99        │
+│ ○ Express   €9.99        │
+│                          │
+│ PAYMENT                  │
+│ [Stripe PaymentElement]  │
+│ (Card/PayPal/Klarna/...) │
+│                          │
+│ [═══ PAY NOW ═══]        │
+└─────────────────────────┘
+```
+
+### Implementierungsplan — 3 Phasen
+
+**Phase A: Backend (deploy zuerst, zero User-Impact)**
+1. Neuer Endpoint `POST /store/account/create-payment-intent` — erstellt Stripe PaymentIntent statt Checkout Session, gibt `client_secret` zurück
+2. Neuer Endpoint `POST /store/account/update-payment-intent` — aktualisiert Betrag bei Shipping-Änderung
+3. Webhook erweitern: `payment_intent.succeeded` + `payment_intent.payment_failed` Handler (neben bestehendem `checkout.session.completed`)
+4. Stripe Dashboard: Neue Events zum Webhook hinzufügen
+5. Adresse wird auf unserer Seite gesammelt → direkt auf Transaction gespeichert (nicht mehr via Stripe Webhook)
+
+**Phase B: Frontend (deploy nach Phase A Verifizierung)**
+1. `npm install @stripe/stripe-js @stripe/react-stripe-js` im Storefront
+2. Neues `storefront/src/lib/stripe.ts` — `loadStripe(publishableKey)`
+3. Checkout-Page komplett umschreiben:
+   - Shipping-Adresse-Formular (pre-filled aus Customer-Profil)
+   - Shipping-Method-Auswahl (bestehende Logik verschieben)
+   - `<PaymentElement />` — Stripe-Komponente, zeigt alle Zahlungsmethoden inline
+   - "Pay Now" Button → `stripe.confirmPayment()` (kein Redirect für Cards, Redirect für PayPal/Klarna)
+   - Order Summary als sticky Sidebar (Desktop) / collapsible (Mobile)
+4. Success-Handling für redirect-basierte Methoden (`?redirect_status=succeeded`)
+5. `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` als neue Env-Variable
+
+**Phase C: Optional / Follow-up**
+1. Express Checkout (Apple Pay / Google Pay Buttons oben)
+2. Google Places Autocomplete für Adresseingabe
+3. Letzte Lieferadresse speichern + pre-fill für Wiederkäufer
+4. Alten Checkout-Session-Code entfernen
+
+### Technische Details
+
+**PaymentIntent statt Checkout Session:**
+```typescript
+stripe.paymentIntents.create({
+  amount: Math.round(grandTotal * 100),
+  currency: "eur",
+  metadata: { order_group_id, user_id, customer_name, customer_email },
+  payment_method_types: ["card", "paypal", "klarna", "bancontact", "eps", "link"],
+  shipping: { name, address: { line1, city, postal_code, country } },
+  receipt_email: customer_email,
+})
+// Returns client_secret → Frontend initialisiert PaymentElement
+```
+
+**PaymentElement Theme (VOD Dark):**
+```typescript
+appearance: {
+  theme: "night",
+  variables: {
+    colorPrimary: "#d4a54a",
+    colorBackground: "#1c1915",
+    fontFamily: "DM Sans, sans-serif",
+  }
+}
+```
+
+### Bekannte Risiken & Gotchas
+- **Amazon Pay:** Nicht kompatibel mit Payment Element — fällt weg (oder Hybrid-Ansatz nötig)
+- **PayPal via Payment Element:** Erfordert PayPal Connect-Onboarding in Stripe — prüfen ob aktiv
+- **Redirect-Methoden (PayPal/Klarna/EPS/Bancontact):** User wird redirected, `return_url` muss HTTPS sein, Success-Page muss `redirect_status` URL-Parameter handlen
+- **PCI Compliance:** Bleibt SAQ-A — Stripe Elements rendert Kartenfelder in Iframes
+- **Race Condition:** Pay-Button disablen während Shipping-Estimation läuft
+- **Idempotency:** `idempotency_key` bei PaymentIntent-Erstellung verwenden (z.B. `order_group_id`)
+- **Webhook Deduplizierung:** `stripe_payment_intent_id` wird schon bei Erstellung auf Transaction gesetzt — Webhook muss prüfen ob schon `paid`
+
+### Dateien für Implementation
+- **Fork-Basis:** `backend/src/api/store/account/checkout/route.ts` (Validierung + Shipping-Logik übernehmen)
+- **Webhook:** `backend/src/api/webhooks/stripe/route.ts` (neue Event-Handler hinzufügen)
+- **Frontend:** `storefront/src/app/account/checkout/page.tsx` (komplett umschreiben)
+- **Stripe Client:** `backend/src/lib/stripe.ts` (ggf. Helpers erweitern)
+- **Transaction Model:** `backend/src/modules/auction/models/transaction.ts` (keine Schema-Änderungen nötig)
+
+### Rollback-Plan
+Alter Checkout-Endpoint + `checkout.session.completed` Webhook bleiben bestehen. Bei Problemen: Storefront auf alte Checkout-Page zurückrollen, Backend braucht keine Änderung.
+
+---
+
 ## Stripe Payment Integration (RSE-76)
 
 **Stripe Account:** VOD Records (`acct_1T7WaYEyxqyK4DXF`)
