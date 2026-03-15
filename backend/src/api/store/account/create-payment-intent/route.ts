@@ -21,8 +21,16 @@ type ShippingAddress = {
   country: string
 }
 
-// Use automatic_payment_methods to let Stripe determine available methods
-// based on Dashboard configuration (Card, PayPal, Klarna, Bancontact, EPS, Link, etc.)
+// Explicit payment method types — do NOT use automatic_payment_methods
+// (it causes Stripe Link to hijack the Payment Element and hide other methods)
+const PAYMENT_METHOD_TYPES = [
+  "card",         // Credit/Debit cards + Apple Pay + Google Pay (via wallets)
+  "paypal",       // PayPal
+  "klarna",       // Klarna (Pay Now / Pay Later)
+  "bancontact",   // Bancontact (Belgium)
+  "eps",          // EPS (Austria)
+  // "link" intentionally excluded — hijacks Payment Element UI
+] as const
 
 // POST /store/account/create-payment-intent — Create Stripe PaymentIntent for embedded checkout
 export async function POST(
@@ -281,7 +289,7 @@ export async function POST(
     const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(grandTotal * 100),
       currency: "eur",
-      automatic_payment_methods: { enabled: true },
+      payment_method_types: [...PAYMENT_METHOD_TYPES],
       description: `VOD Auctions — ${description}`,
       receipt_email: customer?.email || undefined,
       metadata: {

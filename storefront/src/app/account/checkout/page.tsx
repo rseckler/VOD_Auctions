@@ -122,7 +122,11 @@ function PaymentForm({
           }
         }}
         options={{
-          layout: "tabs",
+          layout: "accordion",
+          wallets: {
+            applePay: "auto",
+            googlePay: "auto",
+          },
         }}
       />
 
