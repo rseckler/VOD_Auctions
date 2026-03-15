@@ -24,14 +24,14 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 
 | Stream | Bereich | Owner-Dateien | Items | Status |
 |--------|---------|---------------|-------|--------|
-| **A** | Checkout Overhaul | `checkout/page.tsx` | AGB-Checkbox, Formvalidierung, Order Review, Billing-Adresse, Promo-Code, Success-Page, MwSt-Hinweis | Geplant |
-| **B** | Auth & Registration | `AuthModal.tsx`, `AuthProvider.tsx`, `auth.ts` | AGB-Checkbox Registration, Passwort-Stärke, Confirm-PW, E-Mail-Verifizierung, Token-Expiry | Geplant |
-| **C** | Header/Footer/Nav | `Header.tsx`, `MobileNav.tsx`, `Footer.tsx`, `CookieConsent.tsx`, `layout.tsx` | Suchleiste, Anon-Icons, Mobile Nav, Payment-Icons, Newsletter, Social, Cookie-Revoke, Skip-to-Content | Geplant |
-| **D** | Account Settings | `settings/page.tsx`, neue `addresses/page.tsx` | Profil editieren, PW ändern, E-Mail ändern, Adressverwaltung, Account löschen (DSGVO) | Geplant |
-| **E** | Cart/Wins/Orders/Saved | `cart/page.tsx`, `wins/page.tsx`, `orders/page.tsx`, `saved/page.tsx`, `DirectPurchaseButton.tsx` | Shipping-Preview, Anon-Button, Mini-Cart, Cart-Fixes, Wins-Cleanup, Invoice, Order-Nummern, Saved→Cart | Geplant |
-| **F** | Catalog/Product | `catalog/page.tsx`, `catalog/[id]/page.tsx`, `ItemBidSection.tsx` | Sort-Optionen, MwSt-Hinweis, Proxy-Bid-Erklärung, Sticky Mobile CTA, Product JSON-LD | Geplant |
-| **G** | Error Pages/Loading | Neue Dateien nur | Custom 404, Loading Skeletons | Geplant |
-| **H** | Backend APIs | Neue Routes | Promo-Code-API, Invoice-PDF, Order-Nummern, Adress-CRUD, Account-Deletion, PW-Change, Newsletter-Public | Geplant |
+| **A** | Checkout Overhaul | `checkout/page.tsx` | AGB-Checkbox, Formvalidierung, Order Review, Billing-Adresse, Success-Page, MwSt-Hinweis | Done |
+| **B** | Auth & Registration | `AuthModal.tsx`, `AuthProvider.tsx`, `auth.ts` | AGB-Checkbox Registration, Passwort-Stärke, Confirm-PW, Token-Expiry | Done |
+| **C** | Header/Footer/Nav | `Header.tsx`, `MobileNav.tsx`, `Footer.tsx`, `CookieConsent.tsx`, `layout.tsx` | Suchleiste, Anon-Icons, Mobile Nav, Payment-Icons, Newsletter, Social, Cookie-Revoke, Skip-to-Content | Done |
+| **D** | Account Settings | `settings/page.tsx`, neue `addresses/page.tsx` | Profil editieren, PW ändern, Adressverwaltung, Account löschen (DSGVO) | Done |
+| **E** | Cart/Wins/Orders/Saved | `cart/page.tsx`, `wins/page.tsx`, `orders/page.tsx`, `saved/page.tsx`, `DirectPurchaseButton.tsx` | Shipping-Preview, Anon-Button, Cart-Fixes, Wins-Deadline, Saved→Cart, Order-Nummern | Done |
+| **F** | Catalog/Product | `catalog/page.tsx`, `catalog/[id]/page.tsx`, `ItemBidSection.tsx` | Sort-Optionen, MwSt-Hinweis, Proxy-Bid-Erklärung, Product JSON-LD | Done |
+| **G** | Error Pages/Loading | Neue Dateien nur | Custom 404, Loading Skeletons | Done |
+| **H** | Backend APIs | Neue Routes | Adress-CRUD, Newsletter-Public, E-Mail-Verifizierung (DB-Migration + 8 Dateien) | Done |
 
 #### Dependency Graph
 ```
@@ -44,6 +44,21 @@ A (Checkout)         → Backend H (Promo-Code API)
 E (Cart/Wins/Orders) → Backend H (Invoice/Order-Nummern)
 H (Backend APIs)     → Keine Dependencies, startet sofort
 ```
+
+### MEDIUM UX/UI Items — Multi-Agent Plan (35 Items)
+
+**Status:** In Progress
+**Referenz:** `docs/UX_UI_AUDIT_2026-03-15.md` Items #18-27, #40-48, #57-68, #79-88, #91-93
+
+#### 5 Parallel Streams
+
+| Stream | Bereich | Owner-Dateien | Items |
+|--------|---------|---------------|-------|
+| **M1** | Checkout/Cart Polish | `checkout/page.tsx`, `cart/page.tsx` | #18 Telefon-Feld, #21 Mobile-collapsible Summary, #22 Estimated Delivery, #23 Cart MwSt-Hinweis, #24 Cart Save-for-Later, #25 Cart Condition-Info, #26 Stale Cart Detection, #27 Session-Expiry im Checkout, #87 Secure Checkout Badge |
+| **M2** | Auth/Account Polish | `AuthModal.tsx`, `AuthProvider.tsx`, `settings/page.tsx` | #40 Login-Error generisch, #41 Rate-Limiting Feedback, #42 Auto-Login nach PW-Reset, #43 Notification-Preferences, #44 Cross-Tab Session Sync, #47 Redirect nach Login |
+| **M3** | Catalog/Auction UX | `catalog/page.tsx`, `catalog/[id]/page.tsx`, `auctions/` pages, `ImageGallery.tsx`, `BlockItemsGrid.tsx` | #57 Such-Autocomplete, #58 Grid/List Toggle, #59 Seitenzahlen-Pagination, #60 Image-Zoom, #61 Breadcrumb Filter-State, #62 Stock-Indicator, #63 Countdown prominent, #64 Bid-Status-Indikator, #65 Item-Card Countdown, #66 Filter-Pills horizontal scroll, #67 No-results Suggestions, #68 Live-Search |
+| **M4** | Navigation/Legal/Error | `Header.tsx`, `Footer.tsx`, `global-error.tsx`, Legal Pages | #79 Active Nav-Link, #80 Back-to-Top, #81 Kontaktinfo Footer, #82 AGB Versandkosten aktualisieren, #83 Datenschutz Google Fonts Fix, #84 Global Error Page stylen, #85 Per-Route Error Boundaries, #88 Rückgaberecht auf Produktseiten |
+| **M5** | Accessibility | Diverse Dateien | #86 ARIA Landmarks + Focus Indicators, #91 Focus-Indicators auf Links/Buttons, #92 aria-expanded/aria-controls, #93 Toast role="alert" |
 
 ### Letzte Änderungen (2026-03-15)
 - **Shopify-Style One-Page Checkout (Phase A+B implementiert):**
