@@ -9,6 +9,7 @@ import { getToken } from "@/lib/auth"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
 import { useAuth } from "@/components/AuthProvider"
 import { stripePromise } from "@/lib/stripe-client"
+import PayPalButton from "@/components/PayPalButton"
 import { CreditCard, Disc3, Trophy, ShoppingCart, Package, MapPin, Truck, CheckCircle2, ClipboardList, Mail, Lock, ChevronDown, Printer, Tag, X } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -390,6 +391,7 @@ export default function CheckoutPage() {
   const [paymentSuccess, setPaymentSuccess] = useState(false)
   const [creatingIntent, setCreatingIntent] = useState(false)
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("")
+  const [selectedProvider, setSelectedProvider] = useState<"stripe" | "paypal">("stripe")
 
   // Completed order data (preserved for success page)
   const [completedOrder, setCompletedOrder] = useState<CompletedOrderData | null>(null)
@@ -442,9 +444,12 @@ export default function CheckoutPage() {
     const redirectStatus = searchParams.get("redirect_status")
 
     if (payment === "success" || redirectStatus === "succeeded") {
+      const provider = searchParams.get("provider")
       setPaymentSuccess(true)
       setLoading(false)
-      toast.success("Payment successful! You will receive a confirmation email.")
+      toast.success(provider === "paypal"
+        ? "PayPal payment successful! You will receive a confirmation email."
+        : "Payment successful! You will receive a confirmation email.")
       brevoOrderCompleted("checkout", 0, 0)
       setCartItems([])
       setWins([])
@@ -755,10 +760,14 @@ export default function CheckoutPage() {
     }
   }
 
-  // When user selects PayPal, auto-switch to tracked shipping method
+  // When user selects PayPal (via Stripe PaymentElement), auto-switch to tracked shipping method
   function handlePaymentMethodChange(type: string) {
     setSelectedPaymentMethod(type)
-    if (type === "paypal" && selectedZoneSlug) {
+  }
+
+  // When user selects PayPal as provider, auto-switch to tracked shipping
+  useEffect(() => {
+    if (selectedProvider === "paypal" && selectedZoneSlug) {
       const zone = shippingZones.find((z) => z.slug === selectedZoneSlug)
       if (zone) {
         const zoneMethods = shippingMethods[zone.id] || []
@@ -769,9 +778,42 @@ export default function CheckoutPage() {
         }
       }
     }
-  }
+  }, [selectedProvider])
 
-  const requiresTrackedShipping = selectedPaymentMethod === "paypal"
+  const requiresTrackedShipping = selectedProvider === "paypal"
+
+  // Handle PayPal payment success
+  function handlePayPalSuccess(data: { order_group_id: string; capture_id: string }) {
+    setCompletedOrder({
+      orderGroupId: data.order_group_id,
+      items: [
+        ...unpaidWins.map((w) => ({
+          artist: w.item.release_artist,
+          title: w.item.release_title || "Unknown",
+          price: w.final_price,
+          type: "auction" as const,
+        })),
+        ...cartItems.map((c) => ({
+          artist: c.artist_name,
+          title: c.title,
+          price: c.price,
+          type: "cart" as const,
+        })),
+      ],
+      grandTotal,
+      shippingCost,
+      shippingAddress: { ...address },
+      email: customer?.email || "",
+      estimatedDelivery,
+    })
+
+    setPaymentSuccess(true)
+    toast.success("PayPal payment successful!")
+    brevoOrderCompleted("checkout", grandTotal, unpaidWins.length + cartItems.length)
+    setCartItems([])
+    setWins([])
+    refreshStatus()
+  }
 
   function handlePaymentSuccess() {
     // Preserve order data for success page BEFORE clearing
@@ -1235,69 +1277,149 @@ export default function CheckoutPage() {
               <Badge variant="outline" className="text-xs text-muted-foreground">Step 3 of 3</Badge>
             </div>
 
-            {!clientSecret ? (
-              <div className="text-center py-6">
-                {!agbAccepted && (
-                  <p className="text-xs text-amber-400 mb-3">Please accept the Terms &amp; Conditions above to continue.</p>
+            {/* ── Payment Method Selector ── */}
+            <div className="space-y-2 mb-5">
+              <label
+                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                  selectedProvider === "stripe"
+                    ? "border-primary/50 bg-primary/5"
+                    : "border-border hover:border-border/80"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="payment_provider"
+                  value="stripe"
+                  checked={selectedProvider === "stripe"}
+                  onChange={() => { setSelectedProvider("stripe"); setClientSecret(""); setPaymentIntentId("") }}
+                  className="accent-primary"
+                />
+                <div className="flex-1">
+                  <span className="font-medium text-sm">Credit Card / Klarna / Other</span>
+                  <span className="text-xs text-muted-foreground block">Visa, Mastercard, Klarna, Bancontact, EPS</span>
+                </div>
+                <CreditCard className="h-5 w-5 text-muted-foreground" />
+              </label>
+
+              <label
+                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                  selectedProvider === "paypal"
+                    ? "border-primary/50 bg-primary/5"
+                    : "border-border hover:border-border/80"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="payment_provider"
+                  value="paypal"
+                  checked={selectedProvider === "paypal"}
+                  onChange={() => { setSelectedProvider("paypal"); setClientSecret(""); setPaymentIntentId("") }}
+                  className="accent-primary"
+                />
+                <div className="flex-1">
+                  <span className="font-medium text-sm">PayPal</span>
+                  <span className="text-xs text-muted-foreground block">Pay directly with your PayPal account</span>
+                </div>
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none">
+                  <path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944 3.72a.77.77 0 0 1 .757-.645h6.622c2.198 0 3.87.562 4.97 1.672.49.496.837 1.063 1.035 1.685.21.66.262 1.447.155 2.341l-.013.074v.648l.505.254a3.34 3.34 0 0 1 1.022.735c.386.44.638.972.75 1.577.116.62.088 1.357-.08 2.191-.194.954-.508 1.787-.934 2.47-.393.633-.894 1.15-1.489 1.537-.567.37-1.229.641-1.966.807-.715.16-1.522.243-2.398.243h-.57a1.72 1.72 0 0 0-1.7 1.453l-.043.223-.726 4.601-.033.162a.273.273 0 0 1-.067.146.26.26 0 0 1-.165.062z" fill="#253B80"/>
+                  <path d="M19.092 8.063c-.027.165-.06.334-.097.51-.988 5.07-4.37 6.82-8.687 6.82H8.11a1.07 1.07 0 0 0-1.057.904l-1.12 7.103-.317 2.012a.562.562 0 0 0 .555.65h3.896c.464 0 .858-.337.93-.793l.039-.198.737-4.67.047-.258a.936.936 0 0 1 .925-.793h.582c3.773 0 6.726-1.533 7.59-5.97.36-1.854.174-3.401-.78-4.489a3.73 3.73 0 0 0-1.066-.827z" fill="#179BD7"/>
+                  <path d="M18.152 7.683a7.5 7.5 0 0 0-.928-.204 11.81 11.81 0 0 0-1.88-.138h-5.69a.932.932 0 0 0-.925.793l-1.212 7.68-.035.223a1.07 1.07 0 0 1 1.057-.904h2.197c4.318 0 7.7-1.75 8.687-6.82.03-.15.054-.296.075-.44a4.65 4.65 0 0 0-1.346-.19z" fill="#222D65"/>
+                </svg>
+              </label>
+            </div>
+
+            {/* ── Stripe Payment Flow ── */}
+            {selectedProvider === "stripe" && (
+              <>
+                {!clientSecret ? (
+                  <div className="text-center py-6">
+                    {!agbAccepted && (
+                      <p className="text-xs text-amber-400 mb-3">Please accept the Terms &amp; Conditions above to continue.</p>
+                    )}
+                    <Button
+                      onClick={createPaymentIntent}
+                      disabled={creatingIntent || estimating || !agbAccepted}
+                      className="bg-primary hover:bg-primary/90 text-[#1c1915]"
+                    >
+                      {creatingIntent ? "Initializing payment..." : "Continue to Payment"}
+                    </Button>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Verify your shipping details, then continue.
+                    </p>
+                  </div>
+                ) : stripePromise ? (
+                  <Elements
+                    stripe={stripePromise}
+                    options={{
+                      clientSecret,
+                      appearance: {
+                        theme: "night",
+                        variables: {
+                          colorPrimary: "#d4a54a",
+                          colorBackground: "#1c1915",
+                          colorText: "#e5e5e5",
+                          colorDanger: "#ef4444",
+                          fontFamily: "DM Sans, system-ui, sans-serif",
+                          borderRadius: "8px",
+                        },
+                        rules: {
+                          ".Input": {
+                            border: "1px solid #333",
+                            backgroundColor: "#0a0908",
+                          },
+                          ".Input:focus": {
+                            borderColor: "#d4a54a",
+                            boxShadow: "0 0 0 1px #d4a54a",
+                          },
+                          ".Tab": {
+                            border: "1px solid #333",
+                            backgroundColor: "#0a0908",
+                          },
+                          ".Tab--selected": {
+                            borderColor: "#d4a54a",
+                            backgroundColor: "#1c1915",
+                          },
+                        },
+                      },
+                    }}
+                  >
+                    <PaymentForm
+                      amount={grandTotal}
+                      onSuccess={handlePaymentSuccess}
+                      paying={paying}
+                      setPaying={setPaying}
+                      onPaymentMethodChange={handlePaymentMethodChange}
+                      agbAccepted={agbAccepted}
+                    />
+                  </Elements>
+                ) : (
+                  <p className="text-sm text-destructive">Stripe is not configured. Please contact support.</p>
                 )}
-                <Button
-                  onClick={createPaymentIntent}
-                  disabled={creatingIntent || estimating || !agbAccepted}
-                  className="bg-primary hover:bg-primary/90 text-[#1c1915]"
-                >
-                  {creatingIntent ? "Initializing payment..." : "Continue to Payment"}
-                </Button>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Verify your shipping details, then continue.
+              </>
+            )}
+
+            {/* ── PayPal Payment Flow ── */}
+            {selectedProvider === "paypal" && (
+              <div className="space-y-4">
+                {!agbAccepted && (
+                  <p className="text-xs text-amber-400">Please accept the Terms &amp; Conditions above to proceed.</p>
+                )}
+                <PayPalButton
+                  items={[
+                    ...unpaidWins.map((w) => ({ type: "auction_win", block_item_id: w.item.id })),
+                    ...cartItems.map((c) => ({ type: "cart", cart_item_id: c.id })),
+                  ]}
+                  countryCode={address.country}
+                  shippingAddress={address}
+                  shippingMethodId={selectedMethodId || undefined}
+                  promoCode={promoDiscount?.code}
+                  onSuccess={handlePayPalSuccess}
+                  disabled={!agbAccepted || estimating}
+                />
+                <p className="text-xs text-muted-foreground text-center">
+                  You will be redirected to PayPal to complete your payment. Refunds are processed instantly.
                 </p>
               </div>
-            ) : stripePromise ? (
-              <Elements
-                stripe={stripePromise}
-                options={{
-                  clientSecret,
-                  appearance: {
-                    theme: "night",
-                    variables: {
-                      colorPrimary: "#d4a54a",
-                      colorBackground: "#1c1915",
-                      colorText: "#e5e5e5",
-                      colorDanger: "#ef4444",
-                      fontFamily: "DM Sans, system-ui, sans-serif",
-                      borderRadius: "8px",
-                    },
-                    rules: {
-                      ".Input": {
-                        border: "1px solid #333",
-                        backgroundColor: "#0a0908",
-                      },
-                      ".Input:focus": {
-                        borderColor: "#d4a54a",
-                        boxShadow: "0 0 0 1px #d4a54a",
-                      },
-                      ".Tab": {
-                        border: "1px solid #333",
-                        backgroundColor: "#0a0908",
-                      },
-                      ".Tab--selected": {
-                        borderColor: "#d4a54a",
-                        backgroundColor: "#1c1915",
-                      },
-                    },
-                  },
-                }}
-              >
-                <PaymentForm
-                  amount={grandTotal}
-                  onSuccess={handlePaymentSuccess}
-                  paying={paying}
-                  setPaying={setPaying}
-                  onPaymentMethodChange={handlePaymentMethodChange}
-                  agbAccepted={agbAccepted}
-                />
-              </Elements>
-            ) : (
-              <p className="text-sm text-destructive">Stripe is not configured. Please contact support.</p>
             )}
           </Card>
         )}

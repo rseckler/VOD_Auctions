@@ -2,6 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { stripe } from "../../../../lib/stripe"
+import { refundPayPalCapture } from "../../../../lib/paypal"
 import { sendShippingEmail, sendFeedbackRequestEmail } from "../../../../lib/email-helpers"
 import { crmSyncShippingUpdate } from "../../../../lib/crm-sync"
 
@@ -71,22 +72,40 @@ export async function POST(
         ? await pgConnection("transaction").where("order_group_id", orderGroupId).where("status", "paid")
         : [transaction]
 
-      // Find payment intent ID
-      const paymentIntentId = transaction.stripe_payment_intent_id
-      if (!paymentIntentId) {
-        res.status(400).json({ message: "No Stripe payment intent found for this transaction" })
-        return
-      }
+      const paymentProvider = transaction.payment_provider || "stripe"
+      let refundId: string
+      let refundStatus: string
 
-      if (!stripe) {
-        res.status(503).json({ message: "Stripe not configured" })
-        return
-      }
+      if (paymentProvider === "paypal") {
+        // ── PayPal Refund (instant!) ──
+        const captureId = transaction.paypal_capture_id
+        if (!captureId) {
+          res.status(400).json({ message: "No PayPal capture ID found for this transaction" })
+          return
+        }
 
-      // Issue refund via Stripe
-      const refund = await stripe.refunds.create({
-        payment_intent: paymentIntentId,
-      })
+        const refund = await refundPayPalCapture(captureId)
+        refundId = refund.id
+        refundStatus = refund.status
+      } else {
+        // ── Stripe Refund ──
+        const paymentIntentId = transaction.stripe_payment_intent_id
+        if (!paymentIntentId) {
+          res.status(400).json({ message: "No Stripe payment intent found for this transaction" })
+          return
+        }
+
+        if (!stripe) {
+          res.status(503).json({ message: "Stripe not configured" })
+          return
+        }
+
+        const refund = await stripe.refunds.create({
+          payment_intent: paymentIntentId,
+        })
+        refundId = refund.id
+        refundStatus = refund.status
+      }
 
       // Update all transactions in the order group
       for (const tx of transactions) {
@@ -102,12 +121,13 @@ export async function POST(
         }
       }
 
-      console.log(`[admin/refund] Refunded order ${orderGroupId}, Stripe refund: ${refund.id}, status: ${refund.status}`)
+      console.log(`[admin/refund] Refunded order ${orderGroupId} via ${paymentProvider}, refund: ${refundId}, status: ${refundStatus}`)
 
       res.json({
         success: true,
-        refund_id: refund.id,
-        refund_status: refund.status,
+        refund_id: refundId,
+        refund_status: refundStatus,
+        payment_provider: paymentProvider,
         transactions_refunded: transactions.length,
       })
     } catch (error: any) {

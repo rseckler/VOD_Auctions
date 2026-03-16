@@ -22,9 +22,16 @@ const Transaction = model.define("transaction", {
   total_amount: model.float(),
   currency: model.text().default("eur"),
 
+  // Payment provider: "stripe" | "paypal"
+  payment_provider: model.text().default("stripe"),
+
   // Stripe
   stripe_session_id: model.text().nullable(),
   stripe_payment_intent_id: model.text().nullable(),
+
+  // PayPal
+  paypal_order_id: model.text().nullable(),
+  paypal_capture_id: model.text().nullable(),
 
   // Status: pending | paid | failed | refunded
   status: model.text().default("pending"),

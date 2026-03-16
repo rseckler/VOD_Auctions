@@ -22,6 +22,13 @@ export default defineMiddlewares({
       middlewares: [rawBodyMiddleware as any],
     },
     {
+      // PayPal webhook — raw body for signature verification, no auth
+      matcher: "/webhooks/paypal",
+      methods: ["POST"],
+      bodyParser: false,
+      middlewares: [rawBodyMiddleware as any],
+    },
+    {
       // Protect bid submission — require authenticated customer
       matcher: "/store/auction-blocks/*/items/*/bids",
       methods: ["POST"],
