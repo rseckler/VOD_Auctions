@@ -79,27 +79,15 @@ export async function createPayPalOrder(params: {
           currency_code: params.currency.toUpperCase(),
           value: params.amount.toFixed(2),
         },
-        ...(params.shippingAddress
-          ? {
-              shipping: {
-                name: { full_name: params.shippingAddress.name },
-                address: {
-                  address_line_1: params.shippingAddress.line1,
-                  ...(params.shippingAddress.line2
-                    ? { address_line_2: params.shippingAddress.line2 }
-                    : {}),
-                  admin_area_2: params.shippingAddress.city,
-                  postal_code: params.shippingAddress.postalCode,
-                  country_code: params.shippingAddress.country,
-                },
-              },
-            }
-          : {}),
       },
     ],
     // No payment_source — the PayPal JS SDK handles the payment flow via popup.
-    // Adding payment_source with return_url/cancel_url is for redirect flows only
-    // and causes "international regulations" errors in the JS SDK popup flow.
+    // No shipping — we collect the address ourselves and store it on our transactions.
+    application_context: {
+      shipping_preference: "NO_SHIPPING",
+      brand_name: "VOD Auctions",
+      user_action: "PAY_NOW",
+    },
   }
 
   const res = await fetch(`${BASE_URL}/v2/checkout/orders`, {

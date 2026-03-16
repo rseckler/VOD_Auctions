@@ -22,7 +22,7 @@ export function loadPayPalSDK(): Promise<any> {
 
   loadPromise = new Promise((resolve, reject) => {
     const script = document.createElement("script")
-    script.src = `https://www.paypal.com/sdk/js?client-id=${PAYPAL_CLIENT_ID}&currency=EUR&intent=capture&locale=en_US`
+    script.src = `https://www.paypal.com/sdk/js?client-id=${PAYPAL_CLIENT_ID}&currency=EUR&intent=capture`
     script.async = true
     script.onload = () => {
       if ((window as any).paypal) {

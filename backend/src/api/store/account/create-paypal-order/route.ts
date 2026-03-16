@@ -44,7 +44,8 @@ export async function POST(
       : `${order.itemDescriptions.slice(0, 2).join(", ")} +${order.itemDescriptions.length - 2} more`
 
     // Create PayPal Order via REST API
-    const shippingAddress = body.shipping_address
+    // Shipping address is already stored on our transactions — don't send to PayPal
+    // (sending it can cause "international regulations" errors in sandbox)
     const paypalOrder = await createPayPalOrder({
       amount: order.grandTotal,
       currency: "eur",
@@ -53,18 +54,6 @@ export async function POST(
       userId: customerId,
       customerName: order.customerName,
       customerEmail: order.customerEmail,
-      ...(shippingAddress
-        ? {
-            shippingAddress: {
-              name: [shippingAddress.first_name, shippingAddress.last_name].filter(Boolean).join(" ") || order.customerName,
-              line1: shippingAddress.line1 || "",
-              line2: shippingAddress.line2 || undefined,
-              city: shippingAddress.city || "",
-              postalCode: shippingAddress.postal_code || "",
-              country: order.shippingCountry,
-            },
-          }
-        : {}),
     })
 
     // Save PayPal order ID on transactions
