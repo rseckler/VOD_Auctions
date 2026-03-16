@@ -13,7 +13,7 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Sprache:** Storefront und Admin-UI komplett auf Englisch (seit 2026-03-03)
 
 **Created:** 2026-02-10
-**Last Updated:** 2026-03-15
+**Last Updated:** 2026-03-16
 
 ### UX/UI Overhaul — 37 CRITICAL+HIGH Findings (2026-03-15, IN PROGRESS)
 
@@ -147,6 +147,33 @@ H (Backend APIs)     → Keine Dependencies, startet sofort
   - Footer: "Kleinunternehmer nach § 19 UStG"
 - **Frontend Proxy:** `storefront/src/app/api/invoice/[groupId]/route.ts` (Auth-Proxy)
 - **Frontend:** "Download Invoice" Button auf Orders-Seite
+
+### Letzte Änderungen (2026-03-16)
+- **PayPal Direkt-Integration (ohne Stripe):**
+  - **Motivation:** PayPal-Refunds über Stripe dauern 5-7 Tage, direkt über PayPal sind sie sofort
+  - **Architektur:** PayPal JS SDK (Hybrid-Ansatz) — Frontend rendert PayPal-Button im Checkout, Backend für Transaktions-Management
+  - **Stripe bleibt für:** Kreditkarte, Klarna, Bancontact, EPS
+  - **DB-Migration:** `payment_provider` (TEXT, default 'stripe'), `paypal_order_id`, `paypal_capture_id` auf transaction-Tabelle + Indexes
+  - **PayPal REST Client:** `backend/src/lib/paypal.ts` — OAuth2 Token-Management, `createOrder()`, `captureOrder()`, `refundCapture()`, Webhook-Signatur-Verifizierung
+  - **Shared Checkout-Logik:** `backend/src/lib/checkout-helpers.ts` — `prepareCheckoutOrder()` extrahiert aus `create-payment-intent`, wird von beiden Flows (Stripe + PayPal) genutzt
+  - **Backend Endpoints:**
+    - `POST /store/account/create-paypal-order` — bereitet Transaktionen vor (gleiche Validierung wie Stripe)
+    - `POST /store/account/capture-paypal-order` — markiert Transaktionen als bezahlt nach JS SDK Capture
+  - **PayPal Webhook:** `POST /webhooks/paypal` — `PAYMENT.CAPTURE.COMPLETED/DENIED/REFUNDED`, rawBodyMiddleware
+  - **Admin Refund:** Erkennt `payment_provider` und ruft `refundPayPalCapture()` für PayPal-Transaktionen auf (sofortiger Refund!)
+  - **Frontend:**
+    - Payment-Provider-Selector (Radio: "Credit Card / Klarna / Other" vs "PayPal") im Checkout
+    - `PayPalButton.tsx` — rendert `paypal.Buttons()`, erstellt Order via `actions.order.create()`, captured via `actions.order.capture()`
+    - `paypal-client.ts` — dynamischer PayPal JS SDK Loader
+    - "Download Invoice" Button statt "Print Receipt" auf Success-Seite
+  - **Stripe-Änderung:** `"paypal"` aus `PAYMENT_METHOD_TYPES` in `create-payment-intent` entfernt
+  - **JS SDK Ansatz (statt REST API Order-Erstellung):** PayPal-Sandbox hat bekannten Bug mit EUR + DE-Accounts ("internationale Vorschriften" Fehler). Order wird client-seitig via JS SDK erstellt. Production funktioniert einwandfrei.
+  - **PayPal Account:** frank@vod-records.com (Live), Client ID + Secret in Backend `.env`, `NEXT_PUBLIC_PAYPAL_CLIENT_ID` in Storefront `.env.local`
+  - **Live-Test erfolgreich:** €18.49 Zahlung via PayPal Live — Payment Successful, Invoice generiert, Refund durchgeführt
+  - **Neue Dateien:** `paypal.ts`, `checkout-helpers.ts`, `create-paypal-order/route.ts`, `capture-paypal-order/route.ts`, `webhooks/paypal/route.ts`, `PayPalButton.tsx`, `paypal-client.ts`, `20260316_paypal_integration.sql`
+  - **Geänderte Dateien:** `transaction.ts`, `create-payment-intent/route.ts`, `middlewares.ts`, `admin/transactions/[id]/route.ts`, `checkout/page.tsx`
+  - **VPS:** Backend + Storefront deployed, Live-Credentials gesetzt
+  - **TODO:** Betrags-Validierung im capture-paypal-order (client-seitige Order-Erstellung ermöglicht theoretisch Manipulation)
 
 ### Letzte Änderungen (2026-03-15, Fortsetzung)
 - **Admin Refund-Funktion:**
@@ -1517,7 +1544,28 @@ Alter Checkout-Endpoint + `checkout.session.completed` Webhook bleiben bestehen.
 **Mode:** Live (sk_live_... / whsec_...)
 **Webhook URL:** https://api.vod-auctions.com/webhooks/stripe
 **Events:** checkout.session.completed, checkout.session.expired
-**Aktivierte Zahlungsmethoden:** Card, PayPal, Klarna, Bancontact (BE), EPS (AT), Link (Stripe One-Click), Amazon Pay
+**Aktivierte Zahlungsmethoden:** Card, Klarna, Bancontact (BE), EPS (AT) — PayPal jetzt direkt (nicht mehr über Stripe)
+
+### PayPal Direkt-Integration (2026-03-16)
+
+**PayPal Account:** VOD Records (frank@vod-records.com)
+**Dashboard:** https://developer.paypal.com
+**Mode:** Live (`PAYPAL_MODE=live`)
+**Webhook URL:** https://api.vod-auctions.com/webhooks/paypal
+**Webhook ID:** `95847304EJ582074L`
+**Events:** PAYMENT.CAPTURE.COMPLETED, PAYMENT.CAPTURE.DENIED, PAYMENT.CAPTURE.REFUNDED
+**JS SDK:** Loaded client-side, Order-Erstellung via `actions.order.create()` (nicht REST API wegen Sandbox-Bug)
+
+**Architektur:**
+- Frontend: PayPal JS SDK rendert Button → Popup → `actions.order.create()` → `actions.order.capture()`
+- Backend: `create-paypal-order` bereitet Transaktionen vor, `capture-paypal-order` markiert als bezahlt
+- Refund: `refundPayPalCapture()` in `paypal.ts` (sofort, nicht 5-7 Tage wie über Stripe)
+
+**Env-Variablen:**
+- Backend: `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_MODE`, `PAYPAL_WEBHOOK_ID`
+- Storefront: `NEXT_PUBLIC_PAYPAL_CLIENT_ID`
+
+**Bekannter Sandbox-Bug:** EUR + DE-Accounts → "Gemäß internationalen Vorschriften wurde diese Transaktion abgelehnt". Betrifft NUR Sandbox, Production funktioniert einwandfrei. Workaround: Direkt in Production mit kleinen Beträgen testen.
 
 ### Stripe API-Zugriff (via VPS)
 ```bash
@@ -1587,22 +1635,29 @@ curl -s https://api.stripe.com/v1/refunds -u $STRIPE_KEY: -d payment_intent=pi_x
 ### Key Files
 - `backend/src/lib/shipping.ts` — Weight-based shipping calculator (RSE-103)
 - `backend/src/lib/stripe.ts` — Stripe Client + Legacy Shipping-Rates Config
+- `backend/src/lib/paypal.ts` — PayPal REST API Client (OAuth2, create/capture/refund orders, webhook verification)
+- `backend/src/lib/checkout-helpers.ts` — Shared checkout logic (`prepareCheckoutOrder()`, used by Stripe + PayPal flows)
 - `backend/src/lib/brevo.ts` — Brevo CRM REST API client (RSE-125)
 - `backend/src/lib/crm-sync.ts` — Fire-and-forget CRM event sync (RSE-126)
 - `backend/src/lib/auction-helpers.ts` — isAvailableForDirectPurchase()
-- `backend/src/modules/auction/models/transaction.ts` — Transaction Model (block_item_id nullable, +release_id, +item_type, +order_group_id)
+- `backend/src/modules/auction/models/transaction.ts` — Transaction Model (block_item_id nullable, +release_id, +item_type, +order_group_id, +payment_provider, +paypal_order_id, +paypal_capture_id)
 - `backend/src/modules/auction/models/cart-item.ts` — CartItem Model (user_id, release_id, price)
 - `backend/src/api/store/account/cart/route.ts` — Cart CRUD (GET + POST)
 - `backend/src/api/store/account/cart/[id]/route.ts` — Cart DELETE
 - `backend/src/api/store/account/status/route.ts` — Account Status (cart_count)
 - `backend/src/api/store/account/checkout/route.ts` — Combined Checkout (multi-item Stripe, customer name to Stripe/PayPal)
 - `backend/src/api/webhooks/stripe/route.ts` — Webhook Handler (rawBody middleware, order_group_id, customer_name fallback)
-- `backend/src/api/middlewares.ts` — Auth middleware + rawBodyMiddleware für Stripe Webhook
+- `backend/src/api/store/account/create-paypal-order/route.ts` — Prepare transactions for PayPal checkout
+- `backend/src/api/store/account/capture-paypal-order/route.ts` — Process PayPal payment after JS SDK capture
+- `backend/src/api/webhooks/paypal/route.ts` — PayPal Webhook Handler (capture completed/denied/refunded)
+- `backend/src/api/middlewares.ts` — Auth middleware + rawBodyMiddleware für Stripe + PayPal Webhooks
 - `backend/src/api/store/account/transactions/route.ts` — Meine Transactions (LEFT JOIN)
 - `backend/src/api/admin/transactions/` — Admin Transaction Management
 - `storefront/src/components/DirectPurchaseButton.tsx` — "Add to Cart" Button
 - `storefront/src/app/account/cart/page.tsx` — Warenkorb-Seite
-- `storefront/src/app/account/checkout/page.tsx` — Combined Checkout-Seite
+- `storefront/src/app/account/checkout/page.tsx` — Combined Checkout-Seite (Stripe + PayPal Provider-Selector)
+- `storefront/src/components/PayPalButton.tsx` — PayPal JS SDK Button (create/capture/cancel/error)
+- `storefront/src/lib/paypal-client.ts` — Dynamic PayPal JS SDK loader
 - `storefront/src/app/account/wins/page.tsx` — Pay-Button + Combined Checkout Banner
 
 ### Testing
