@@ -10,7 +10,7 @@ import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
 import { useAuth } from "@/components/AuthProvider"
 import { stripePromise } from "@/lib/stripe-client"
 import PayPalButton from "@/components/PayPalButton"
-import { CreditCard, Disc3, Trophy, ShoppingCart, Package, MapPin, Truck, CheckCircle2, ClipboardList, Mail, Lock, ChevronDown, Printer, Tag, X } from "lucide-react"
+import { CreditCard, Disc3, Trophy, ShoppingCart, Package, MapPin, Truck, CheckCircle2, ClipboardList, Mail, Lock, ChevronDown, FileText, Tag, X } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -966,9 +966,29 @@ export default function CheckoutPage() {
           <Button asChild className="bg-primary hover:bg-primary/90 text-[#1c1915]">
             <Link href="/account/orders">View Orders</Link>
           </Button>
-          <Button variant="outline" onClick={() => window.print()}>
-            <Printer className="h-4 w-4 mr-2" />
-            Print Receipt
+          <Button
+            variant="outline"
+            onClick={async () => {
+              if (!order?.orderGroupId) return
+              const token = (await import("@/lib/auth")).getToken()
+              if (!token) return
+              try {
+                const res = await fetch(`/api/invoice/${order.orderGroupId}`, {
+                  headers: { Authorization: `Bearer ${token}` },
+                })
+                if (!res.ok) return
+                const blob = await res.blob()
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement("a")
+                a.href = url
+                a.download = `VOD-Invoice-${order.orderGroupId.slice(-6).toUpperCase()}.pdf`
+                a.click()
+                URL.revokeObjectURL(url)
+              } catch {}
+            }}
+          >
+            <FileText className="h-4 w-4 mr-2" />
+            Download Invoice
           </Button>
           <Button variant="outline" asChild>
             <Link href="/catalog">Continue Shopping</Link>
