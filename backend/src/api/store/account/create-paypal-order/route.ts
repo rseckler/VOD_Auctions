@@ -2,7 +2,6 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { prepareCheckoutOrder, CheckoutError } from "../../../../lib/checkout-helpers"
-import { createPayPalOrder, paypalConfigured } from "../../../../lib/paypal"
 
 // POST /store/account/create-paypal-order — Create PayPal Order for checkout
 export async function POST(
@@ -12,11 +11,6 @@ export async function POST(
   const customerId = (req as any).auth_context?.actor_id
   if (!customerId) {
     res.status(401).json({ message: "Authentication required" })
-    return
-  }
-
-  if (!paypalConfigured) {
-    res.status(503).json({ message: "PayPal is not configured" })
     return
   }
 
@@ -38,36 +32,11 @@ export async function POST(
         updated_at: new Date(),
       })
 
-    // Build description
-    const description = order.itemDescriptions.length <= 3
-      ? order.itemDescriptions.join(", ")
-      : `${order.itemDescriptions.slice(0, 2).join(", ")} +${order.itemDescriptions.length - 2} more`
-
-    // Create PayPal Order via REST API
-    // Shipping address is already stored on our transactions — don't send to PayPal
-    // (sending it can cause "international regulations" errors in sandbox)
-    const paypalOrder = await createPayPalOrder({
-      amount: order.grandTotal,
-      currency: "eur",
-      description: `VOD Auctions — ${description}`,
-      orderGroupId: order.orderGroupId,
-      userId: customerId,
-      customerName: order.customerName,
-      customerEmail: order.customerEmail,
-    })
-
-    // Save PayPal order ID on transactions
-    await pgConnection("transaction")
-      .where("order_group_id", order.orderGroupId)
-      .update({
-        paypal_order_id: paypalOrder.id,
-        updated_at: new Date(),
-      })
-
-    console.log(`[create-paypal-order] Order ${order.orderGroupId} → PayPal order ${paypalOrder.id}`)
+    // PayPal order will be created client-side via JS SDK (avoids sandbox compliance issues)
+    // Backend only prepares transactions — JS SDK handles PayPal order creation
+    console.log(`[create-paypal-order] Transactions prepared for order ${order.orderGroupId}`)
 
     res.json({
-      paypal_order_id: paypalOrder.id,
       order_group_id: order.orderGroupId,
       amount: order.grandTotal,
       shipping_cost: order.shippingCost,

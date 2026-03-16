@@ -56,7 +56,8 @@ export default function PayPalButton({
               height: 48,
             },
 
-            createOrder: async () => {
+            createOrder: async (_data: any, actions: any) => {
+              // First, create order on our backend (validates items, creates transactions)
               const token = getToken()
               if (!token) throw new Error("Not authenticated")
 
@@ -81,19 +82,40 @@ export default function PayPalButton({
                 }
               )
 
-              const data = await res.json()
+              const apiData = await res.json()
               if (!res.ok) {
-                throw new Error(data.message || "Failed to create PayPal order")
+                throw new Error(apiData.message || "Failed to create PayPal order")
               }
 
-              return data.paypal_order_id
+              // Create PayPal order via JS SDK (instead of REST API)
+              // This avoids "international regulations" errors in sandbox
+              return actions.order.create({
+                purchase_units: [{
+                  amount: {
+                    value: apiData.amount.toFixed(2),
+                    currency_code: "EUR",
+                  },
+                  description: "VOD Auctions",
+                  custom_id: apiData.order_group_id,
+                }],
+                application_context: {
+                  shipping_preference: "NO_SHIPPING",
+                },
+              })
             },
 
-            onApprove: async (data: any) => {
+            onApprove: async (data: any, actions: any) => {
               const token = getToken()
               if (!token) throw new Error("Not authenticated")
 
               try {
+                // Capture via JS SDK
+                const captureResult = await actions.order.capture()
+
+                const captureId = captureResult.purchase_units?.[0]?.payments?.captures?.[0]?.id
+                const orderGroupId = captureResult.purchase_units?.[0]?.custom_id
+
+                // Notify our backend to mark transactions as paid
                 const res = await fetch(
                   `${MEDUSA_URL}/store/account/capture-paypal-order`,
                   {
@@ -105,18 +127,20 @@ export default function PayPalButton({
                     },
                     body: JSON.stringify({
                       paypal_order_id: data.orderID,
+                      paypal_capture_id: captureId,
+                      order_group_id: orderGroupId,
                     }),
                   }
                 )
 
                 const result = await res.json()
                 if (!res.ok) {
-                  throw new Error(result.message || "Failed to capture payment")
+                  throw new Error(result.message || "Failed to process payment")
                 }
 
                 onSuccess({
-                  order_group_id: result.order_group_id,
-                  capture_id: result.capture_id,
+                  order_group_id: result.order_group_id || orderGroupId,
+                  capture_id: captureId,
                 })
               } catch (err: any) {
                 toast.error(err.message || "Payment capture failed")

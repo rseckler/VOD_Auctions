@@ -1,11 +1,10 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
-import { capturePayPalOrder, paypalConfigured } from "../../../../lib/paypal"
 import { sendPaymentConfirmationEmail } from "../../../../lib/email-helpers"
 import { crmSyncPaymentCompleted } from "../../../../lib/crm-sync"
 
-// POST /store/account/capture-paypal-order — Capture after PayPal popup approval
+// POST /store/account/capture-paypal-order — Process PayPal payment after JS SDK capture
 export async function POST(
   req: MedusaRequest,
   res: MedusaResponse
@@ -16,30 +15,23 @@ export async function POST(
     return
   }
 
-  if (!paypalConfigured) {
-    res.status(503).json({ message: "PayPal is not configured" })
-    return
-  }
-
   const pgConnection: Knex = req.scope.resolve(
     ContainerRegistrationKeys.PG_CONNECTION
   )
 
-  const { paypal_order_id } = req.body as any
+  const { paypal_order_id, paypal_capture_id, order_group_id } = req.body as any
 
-  if (!paypal_order_id) {
-    res.status(400).json({ message: "paypal_order_id is required" })
+  if (!order_group_id) {
+    res.status(400).json({ message: "order_group_id is required" })
     return
   }
 
   try {
-    // Look up transaction by PayPal order ID and verify ownership
+    // Verify that this order belongs to the authenticated user
     const transaction = await pgConnection("transaction")
-      .where("paypal_order_id", paypal_order_id)
+      .where("order_group_id", order_group_id)
       .where("user_id", customerId)
       .first()
-
-    const order_group_id = transaction?.order_group_id
 
     if (!transaction) {
       res.status(403).json({ message: "Order not found or does not belong to you" })
@@ -49,23 +41,8 @@ export async function POST(
     // Check if already captured (idempotency)
     if (transaction.status === "paid") {
       console.log(`[capture-paypal-order] Order ${order_group_id} already paid — skipping`)
-      res.json({ success: true, already_captured: true })
+      res.json({ success: true, already_captured: true, order_group_id })
       return
-    }
-
-    // Capture the PayPal order
-    const captureResult = await capturePayPalOrder(paypal_order_id)
-
-    if (captureResult.status !== "COMPLETED") {
-      console.error(`[capture-paypal-order] Unexpected status: ${captureResult.status}`)
-      res.status(400).json({ message: `PayPal capture failed: ${captureResult.status}` })
-      return
-    }
-
-    // Extract capture ID from the response
-    const captureId = captureResult.purchase_units?.[0]?.payments?.captures?.[0]?.id
-    if (!captureId) {
-      console.error("[capture-paypal-order] No capture ID in response:", JSON.stringify(captureResult))
     }
 
     // Update all transactions in the order group
@@ -74,7 +51,8 @@ export async function POST(
       .where("status", "pending")
       .update({
         status: "paid",
-        paypal_capture_id: captureId || null,
+        paypal_order_id: paypal_order_id || null,
+        paypal_capture_id: paypal_capture_id || null,
         paid_at: new Date(),
         updated_at: new Date(),
       })
@@ -111,7 +89,7 @@ export async function POST(
       console.log(`[capture-paypal-order] Promo code ${promoTx.promo_code_id} used_count incremented`)
     }
 
-    console.log(`[capture-paypal-order] Order ${order_group_id} captured — PayPal capture ${captureId} (${directPurchaseTxs.length} direct purchases)`)
+    console.log(`[capture-paypal-order] Order ${order_group_id} marked as paid — PayPal capture ${paypal_capture_id} (${directPurchaseTxs.length} direct purchases)`)
 
     // Send payment confirmation email (async, non-blocking)
     sendPaymentConfirmationEmail(pgConnection, order_group_id).catch((err) => {
@@ -123,11 +101,11 @@ export async function POST(
 
     res.json({
       success: true,
-      capture_id: captureId,
+      capture_id: paypal_capture_id,
       order_group_id,
     })
   } catch (error: any) {
     console.error("[capture-paypal-order] Error:", error)
-    res.status(500).json({ message: error.message || "Failed to capture PayPal order" })
+    res.status(500).json({ message: error.message || "Failed to process PayPal payment" })
   }
 }
