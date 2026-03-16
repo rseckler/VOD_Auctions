@@ -97,18 +97,9 @@ export async function createPayPalOrder(params: {
           : {}),
       },
     ],
-    payment_source: {
-      paypal: {
-        experience_context: {
-          payment_method_preference: "IMMEDIATE_PAYMENT_REQUIRED",
-          brand_name: "VOD Auctions",
-          locale: "en-US",
-          user_action: "PAY_NOW",
-          return_url: "https://vod-auctions.com/account/checkout?payment=success&provider=paypal",
-          cancel_url: "https://vod-auctions.com/account/checkout?payment=cancelled",
-        },
-      },
-    },
+    // No payment_source — the PayPal JS SDK handles the payment flow via popup.
+    // Adding payment_source with return_url/cancel_url is for redirect flows only
+    // and causes "international regulations" errors in the JS SDK popup flow.
   }
 
   const res = await fetch(`${BASE_URL}/v2/checkout/orders`, {
