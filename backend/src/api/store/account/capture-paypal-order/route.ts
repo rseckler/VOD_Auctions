@@ -45,6 +45,29 @@ export async function POST(
       return
     }
 
+    // ── Amount validation ──
+    // Since the PayPal order is created client-side via JS SDK, a user could
+    // theoretically manipulate the amount. Verify against our stored transactions.
+    const allTxs = await pgConnection("transaction")
+      .where("order_group_id", order_group_id)
+      .where("status", "pending")
+    const expectedTotal = allTxs.reduce((sum: number, tx: any) => sum + Number(tx.total_amount), 0)
+    const expectedRounded = Math.round(expectedTotal * 100) / 100
+
+    if (req.body && (req.body as any).captured_amount) {
+      const capturedAmount = Number((req.body as any).captured_amount)
+      if (Math.abs(capturedAmount - expectedRounded) > 0.02) {
+        console.error(`[capture-paypal-order] Amount mismatch! Expected €${expectedRounded}, captured €${capturedAmount}`)
+        // Mark transactions as failed
+        await pgConnection("transaction")
+          .where("order_group_id", order_group_id)
+          .where("status", "pending")
+          .update({ status: "failed", updated_at: new Date() })
+        res.status(400).json({ message: "Payment amount does not match order total. Transaction cancelled." })
+        return
+      }
+    }
+
     // Update all transactions in the order group
     await pgConnection("transaction")
       .where("order_group_id", order_group_id)

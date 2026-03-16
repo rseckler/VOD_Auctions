@@ -112,7 +112,9 @@ export default function PayPalButton({
                 // Capture via JS SDK
                 const captureResult = await actions.order.capture()
 
-                const captureId = captureResult.purchase_units?.[0]?.payments?.captures?.[0]?.id
+                const capture = captureResult.purchase_units?.[0]?.payments?.captures?.[0]
+                const captureId = capture?.id
+                const capturedAmount = capture?.amount?.value
                 const orderGroupId = captureResult.purchase_units?.[0]?.custom_id
 
                 // Notify our backend to mark transactions as paid
@@ -128,6 +130,7 @@ export default function PayPalButton({
                     body: JSON.stringify({
                       paypal_order_id: data.orderID,
                       paypal_capture_id: captureId,
+                      captured_amount: capturedAmount,
                       order_group_id: orderGroupId,
                     }),
                   }
