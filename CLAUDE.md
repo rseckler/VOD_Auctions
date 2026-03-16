@@ -173,7 +173,7 @@ H (Backend APIs)     → Keine Dependencies, startet sofort
   - **Neue Dateien:** `paypal.ts`, `checkout-helpers.ts`, `create-paypal-order/route.ts`, `capture-paypal-order/route.ts`, `webhooks/paypal/route.ts`, `PayPalButton.tsx`, `paypal-client.ts`, `20260316_paypal_integration.sql`
   - **Geänderte Dateien:** `transaction.ts`, `create-payment-intent/route.ts`, `middlewares.ts`, `admin/transactions/[id]/route.ts`, `checkout/page.tsx`
   - **VPS:** Backend + Storefront deployed, Live-Credentials gesetzt
-  - **TODO:** Betrags-Validierung im capture-paypal-order (client-seitige Order-Erstellung ermöglicht theoretisch Manipulation)
+  - **Betrags-Validierung:** `capture-paypal-order` vergleicht `captured_amount` (von PayPal) mit gespeichertem `total_amount` der Transactions. Bei Abweichung > €0.02 → Transactions auf `failed`, Fehler zurück. Verhindert Manipulation durch client-seitige Order-Erstellung.
 
 ### Letzte Änderungen (2026-03-15, Fortsetzung)
 - **Admin Refund-Funktion:**
