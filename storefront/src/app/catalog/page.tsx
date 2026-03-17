@@ -50,6 +50,8 @@ export default async function CatalogPage({ searchParams }: Props) {
   const category = (params.category as string) || ""
   const format = (params.format as string) || ""
   const sort = (params.sort as string) || "artist:asc"
+  const [sortField, sortOrder] = sort.split(":")
+  const apiSort = sortField === "legacy_price" ? "price" : sortField
   const rawLimit = parseInt(params.limit as string)
   const limit = [24, 48, 96].includes(rawLimit) ? rawLimit : 24
   const for_sale = (params.for_sale as string) || ""
@@ -58,10 +60,6 @@ export default async function CatalogPage({ searchParams }: Props) {
   const year_from = (params.year_from as string) || ""
   const year_to = (params.year_to as string) || ""
   const condition = (params.condition as string) || ""
-
-  // Split combined sort (e.g. "artist:asc") into separate sort + order for backend API
-  const [sortField, sortOrder] = sort.split(":")
-  const apiSort = sortField === "legacy_price" ? "price" : sortField
 
   // Build query string for server-side fetch
   const queryParts = [

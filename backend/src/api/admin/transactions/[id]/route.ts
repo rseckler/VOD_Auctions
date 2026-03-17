@@ -1,6 +1,8 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
+import { stripe } from "../../../../lib/stripe"
+import { refundPayPalCapture } from "../../../../lib/paypal"
 import { sendShippingEmail, sendFeedbackRequestEmail } from "../../../../lib/email-helpers"
 import { crmSyncShippingUpdate } from "../../../../lib/crm-sync"
 
@@ -40,13 +42,103 @@ export async function GET(
   }
 }
 
-// POST /admin/transactions/:id — Update shipping status
+// POST /admin/transactions/:id — Update shipping status or refund
 export async function POST(
   req: MedusaRequest,
   res: MedusaResponse
 ): Promise<void> {
   const { id } = req.params
-  const { shipping_status, tracking_number, carrier } = req.body as {
+  const body = req.body as any
+  const { action } = body
+
+  // ── REFUND ACTION ──
+  if (action === "refund") {
+    const pgConnection: Knex = req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
+
+    try {
+      // Get all transactions in the same order group
+      const transaction = await pgConnection("transaction").where("id", id).first()
+      if (!transaction) {
+        res.status(404).json({ message: "Transaction not found" })
+        return
+      }
+      if (transaction.status !== "paid") {
+        res.status(400).json({ message: "Can only refund paid transactions" })
+        return
+      }
+
+      const orderGroupId = transaction.order_group_id
+      const transactions = orderGroupId
+        ? await pgConnection("transaction").where("order_group_id", orderGroupId).where("status", "paid")
+        : [transaction]
+
+      const paymentProvider = transaction.payment_provider || "stripe"
+      let refundId: string
+      let refundStatus: string
+
+      if (paymentProvider === "paypal") {
+        // ── PayPal Refund (instant!) ──
+        const captureId = transaction.paypal_capture_id
+        if (!captureId) {
+          res.status(400).json({ message: "No PayPal capture ID found for this transaction" })
+          return
+        }
+
+        const refund = await refundPayPalCapture(captureId)
+        refundId = refund.id
+        refundStatus = refund.status
+      } else {
+        // ── Stripe Refund ──
+        const paymentIntentId = transaction.stripe_payment_intent_id
+        if (!paymentIntentId) {
+          res.status(400).json({ message: "No Stripe payment intent found for this transaction" })
+          return
+        }
+
+        if (!stripe) {
+          res.status(503).json({ message: "Stripe not configured" })
+          return
+        }
+
+        const refund = await stripe.refunds.create({
+          payment_intent: paymentIntentId,
+        })
+        refundId = refund.id
+        refundStatus = refund.status
+      }
+
+      // Update all transactions in the order group
+      for (const tx of transactions) {
+        await pgConnection("transaction")
+          .where("id", tx.id)
+          .update({ status: "refunded", updated_at: new Date() })
+
+        // Set releases back to available
+        if (tx.release_id) {
+          await pgConnection("Release")
+            .where("id", tx.release_id)
+            .update({ auction_status: "available", updatedAt: new Date() })
+        }
+      }
+
+      console.log(`[admin/refund] Refunded order ${orderGroupId} via ${paymentProvider}, refund: ${refundId}, status: ${refundStatus}`)
+
+      res.json({
+        success: true,
+        refund_id: refundId,
+        refund_status: refundStatus,
+        payment_provider: paymentProvider,
+        transactions_refunded: transactions.length,
+      })
+    } catch (error: any) {
+      console.error("[admin/refund] Error:", error)
+      res.status(500).json({ message: error.message || "Refund failed" })
+    }
+    return
+  }
+
+  // ── SHIPPING STATUS UPDATE ──
+  const { shipping_status, tracking_number, carrier } = body as {
     shipping_status: "shipped" | "delivered"
     tracking_number?: string
     carrier?: string

@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { getToken } from "@/lib/auth"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
 import { useAuth } from "@/components/AuthProvider"
-import { ShoppingCart, Trash2, Disc3 } from "lucide-react"
+import { ShoppingCart, Trash2, Disc3, AlertCircle, Heart } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -16,7 +17,9 @@ export default function CartPage() {
   const { refreshStatus } = useAuth()
   const [items, setItems] = useState<CartItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
   const [removingId, setRemovingId] = useState<string | null>(null)
+  const [savingId, setSavingId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchCart()
@@ -29,6 +32,7 @@ export default function CartPage() {
       return
     }
 
+    setError(false)
     try {
       const res = await fetch(`${MEDUSA_URL}/store/account/cart`, {
         headers: {
@@ -39,9 +43,11 @@ export default function CartPage() {
       if (res.ok) {
         const data = await res.json()
         setItems(data.items || [])
+      } else {
+        setError(true)
       }
     } catch {
-      // silently fail
+      setError(true)
     } finally {
       setLoading(false)
     }
@@ -75,6 +81,51 @@ export default function CartPage() {
     }
   }
 
+  async function handleSaveForLater(item: CartItem) {
+    const token = getToken()
+    if (!token) return
+
+    setSavingId(item.id)
+    try {
+      // Save to saved items
+      const saveRes = await fetch(`${MEDUSA_URL}/store/account/saved`, {
+        method: "POST",
+        headers: {
+          "x-publishable-api-key": PUBLISHABLE_KEY,
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ release_id: item.release_id }),
+      })
+
+      if (!saveRes.ok) {
+        toast.error("Failed to save item")
+        return
+      }
+
+      // Remove from cart
+      const delRes = await fetch(`${MEDUSA_URL}/store/account/cart/${item.id}`, {
+        method: "DELETE",
+        headers: {
+          "x-publishable-api-key": PUBLISHABLE_KEY,
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      if (delRes.ok) {
+        setItems((prev) => prev.filter((i) => i.id !== item.id))
+        await refreshStatus()
+        toast.success("Moved to saved items")
+      } else {
+        toast.error("Failed to remove from cart")
+      }
+    } catch {
+      toast.error("Failed to save item")
+    } finally {
+      setSavingId(null)
+    }
+  }
+
   const subtotal = items.reduce((sum, item) => sum + item.price, 0)
 
   if (loading) {
@@ -83,6 +134,25 @@ export default function CartPage() {
         {[1, 2].map((i) => (
           <Skeleton key={i} className="h-24 w-full rounded-lg" />
         ))}
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-16">
+        <AlertCircle className="h-12 w-12 text-destructive/40 mx-auto mb-4" />
+        <p className="text-muted-foreground mb-2">Failed to load cart. Please try again.</p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setLoading(true)
+            fetchCart()
+          }}
+        >
+          Retry
+        </Button>
       </div>
     )
   }
@@ -114,13 +184,15 @@ export default function CartPage() {
             <div className="flex gap-4">
               <Link
                 href={`/catalog/${item.release_id}`}
-                className="w-16 h-16 flex-shrink-0 rounded overflow-hidden bg-card"
+                className="relative w-16 h-16 flex-shrink-0 rounded overflow-hidden bg-card"
               >
                 {item.coverImage ? (
-                  <img
+                  <Image
                     src={item.coverImage}
-                    alt=""
-                    className="w-full h-full object-cover"
+                    alt={item.artist_name ? `${item.artist_name} — ${item.title}` : item.title}
+                    fill
+                    sizes="64px"
+                    className="object-cover"
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
@@ -147,15 +219,32 @@ export default function CartPage() {
                 <p className="text-lg font-bold font-mono text-primary">
                   &euro;{Number(item.price).toFixed(2)}
                 </p>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleRemove(item.id)}
-                  disabled={removingId === item.id}
-                  className="text-muted-foreground hover:text-destructive h-8"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                <p className="text-[10px] text-muted-foreground/60">
+                  Condition: see product page
+                </p>
+                {/* TODO: Stale cart detection — show warning badge when API returns error/unavailable flag per item */}
+                <div className="flex gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleSaveForLater(item)}
+                    disabled={savingId === item.id || removingId === item.id}
+                    className="text-muted-foreground hover:text-rose-500 h-8"
+                    title="Save for later"
+                  >
+                    <Heart className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleRemove(item.id)}
+                    disabled={removingId === item.id || savingId === item.id}
+                    className="text-muted-foreground hover:text-destructive h-8"
+                    title="Remove from cart"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </div>
           </Card>
@@ -169,12 +258,24 @@ export default function CartPage() {
             &euro;{subtotal.toFixed(2)}
           </span>
         </div>
-        <p className="text-xs text-muted-foreground mt-1">
-          Shipping calculated at checkout based on weight and destination.
-        </p>
+        <p className="text-xs text-muted-foreground/60 text-right">All prices incl. VAT</p>
+        <div className="flex justify-between items-center mt-2">
+          <span className="text-sm text-muted-foreground">Shipping</span>
+          <span className="text-sm text-muted-foreground">
+            from &euro;4.99 (based on weight and destination)
+          </span>
+        </div>
         <Button asChild className="w-full mt-4 bg-primary hover:bg-primary/90 text-[#1c1915]">
           <Link href="/account/checkout">Proceed to Checkout</Link>
         </Button>
+        <div className="text-center mt-3">
+          <Link
+            href="/catalog"
+            className="text-sm text-muted-foreground hover:text-primary transition-colors"
+          >
+            Continue Shopping
+          </Link>
+        </div>
       </Card>
     </div>
   )

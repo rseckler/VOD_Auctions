@@ -181,9 +181,7 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
     if (label) params.set("label", label)
     if (yearFrom) params.set("year_from", yearFrom)
     if (forSale) params.set("for_sale", "true")
-    const [sortField, sortOrder] = sort.split(":")
-    params.set("sort", sortField === "legacy_price" ? "price" : sortField)
-    if (sortOrder) params.set("order", sortOrder)
+    const [sf, so] = sort.split(":"); params.set("sort", sf === "legacy_price" ? "price" : sf); if (so) params.set("order", so)
 
     const data = await medusaFetch<CatalogResponse>(
       `/store/catalog?${params.toString()}`
@@ -561,7 +559,7 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
           <select
             value={limit}
             onChange={(e) => { setLimit(Number(e.target.value)); setPage(1) }}
-            className="h-8 rounded-md border border-border/50 bg-secondary/30 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary mr-2"
+            className="h-8 rounded-md border border-primary/25 bg-input px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary mr-2"
           >
             {[24, 48, 96].map((n) => (
               <option key={n} value={n}>{n} / page</option>

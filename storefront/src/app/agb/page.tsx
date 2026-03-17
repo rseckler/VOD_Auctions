@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import Link from "next/link"
 
 export const metadata: Metadata = {
   title: "Terms & Conditions",
@@ -8,6 +9,11 @@ export const metadata: Metadata = {
 export default function AGBPage() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-16">
+      <nav className="text-sm text-muted-foreground mb-4">
+        <Link href="/" className="hover:text-primary">Home</Link>
+        <span className="mx-2">/</span>
+        <span>Terms &amp; Conditions</span>
+      </nav>
       <h1 className="font-serif text-4xl mb-8">
         Terms &amp; Conditions
       </h1>
@@ -125,13 +131,9 @@ export default function AGBPage() {
             service.
           </p>
           <p>
-            (2) Shipping costs:
+            (2) Shipping costs are calculated at checkout based on weight and
+            destination.
           </p>
-          <ul className="list-disc pl-5 space-y-1">
-            <li>Germany: €4.99</li>
-            <li>Europe: €9.99</li>
-            <li>Worldwide: €14.99</li>
-          </ul>
           <p>
             (3) For multiple items from the same auction or order,
             shipping is charged only once.
