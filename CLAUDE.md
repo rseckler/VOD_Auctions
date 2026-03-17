@@ -183,6 +183,18 @@ H (Backend APIs)     → Keine Dependencies, startet sofort
   - **Problem:** SSH Port 22 wurde nach 2-3 Verbindungen pro Minute geblockt (Hostinger-seitiges Rate-Limiting, kein fail2ban)
   - **Fix:** Firewall-Konfiguration im Hostinger hPanel zurückgesetzt + neuen SSH-Key (1Password Ed25519 vom neuen Mac) bei Hostinger hinzugefügt
   - **Prävention:** SSH Multiplexing in `~/.ssh/config` (ControlMaster/ControlPersist 30m), möglichst alles in einem SSH-Call bündeln
+- **Alle VPS-Projekte synchronisiert (GitHub ← VPS):**
+  - **Problem:** Nicht nur VOD_Auctions — 4 von 5 VPS-Projekten hatten uncommitted Änderungen die nie auf GitHub waren
+  - **Blackfire_automation:** 5 Dateien gepusht (updated invalid_companies.json, neue Scripts check_ipo.py, data_check.py, news_audit.py, CLAUDE.md)
+  - **Passive-Income-Generator:** 4 Dateien gepusht (major generator rewrite +569 Zeilen, cleanup_all_entries.py, cleanup_duplicates.py, CLAUDE.md)
+  - **tape-mag-migration:** 1 Datei gepusht (package-lock.json)
+  - **blackfire-service:** 1 Datei gepusht (package-lock.json) — lokales Repo war ebenfalls korrupt, Re-Clone durchgeführt
+  - **Service_Overview:** War bereits sauber
+  - **Alle 5 Projekte sind jetzt VPS = GitHub = lokal synchron**
+- **Blackfire_service Re-Clone:**
+  - Gleiche Pack-Korruption wie VOD_Auctions (git status/log hingen)
+  - Fresh clone von `git@github.com:rseckler/blackfire-service.git` (Achtung: lowercase mit Bindestrich, nicht `Blackfire_service`)
+  - .env, node_modules, .next aus Backup übernommen, Backup gelöscht
 
 ### Letzte Änderungen (2026-03-16)
 - **PayPal Direkt-Integration (ohne Stripe):**
