@@ -394,7 +394,7 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
           <select
             value={sort}
             onChange={(e) => { setSort(e.target.value); setPage(1) }}
-            className="h-8 rounded-md border border-border/50 bg-secondary/30 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            className="h-8 rounded-md border border-primary/25 bg-input px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           >
             {SORT_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>

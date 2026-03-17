@@ -131,7 +131,7 @@ export default function FeedbackPage() {
           value={comment}
           onChange={(e) => setComment(e.target.value)}
           placeholder="Tell us about your experience..."
-          className="w-full rounded-lg border border-border bg-background p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+          className="w-full rounded-lg border border-primary/25 bg-input p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary"
         />
       </div>
 
