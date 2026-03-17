@@ -168,6 +168,21 @@ H (Backend APIs)     → Keine Dependencies, startet sofort
   - **Repo-Sync:** 86 Dateien committed + gepusht — GitHub jetzt synchron mit VPS-Produktionsstand
   - **Testbericht:** `docs/INFRASTRUCTURE_TEST_2026-03-17.md` — Vollständige Analyse aller Systeme (lokale Umgebung, Git, GitHub, VPS, externe APIs, Claude Code)
   - **Claude Memory:** 5 Memories erstellt (user_robin, feedback_market_standards, feedback_knex_medusa_gotchas, project_vps_deployment, project_data_sync)
+- **Gold-Tinted Input Styling (Variante C, live verifiziert):**
+  - **Änderung:** Alle Formularfelder (Input, Select, Textarea) mit warmem Hintergrund `#302a22` und goldenem Border `border-primary/25`
+  - **CSS-Variable:** `--input: #302a22` (vorher `rgba(232, 224, 212, 0.06)` — quasi unsichtbar)
+  - **Geänderte Dateien:** `globals.css`, `ui/input.tsx`, `ui/select.tsx`, `CatalogClient.tsx` (native Selects), `feedback/page.tsx` (Textarea)
+  - **VPS:** Storefront deployed
+- **VPS-GitHub Sync-Krise + Lösung:**
+  - **Problem:** `git pull` auf VPS überschrieb Produktionscode mit älterem GitHub-Stand — Checkout, Addresses und weitere Features gingen verloren
+  - **Ursache:** VPS hatte monatelang Code der nie auf GitHub gepusht wurde (direkte SCP/VPS-Deploys). Lokaler Re-Clone + Commit enthielt veraltete Dateien
+  - **Sofort-Fix:** `git checkout 05370bd -- .` stellte VPS auf Pre-Pull-Stand wieder her, dann Sort-Fix + Input-Styling per sed nachappliziert, neu gebaut
+  - **Dauerhafter Fix:** rsync VPS→lokal (storefront/src + backend/src), dann lokal committed + gepusht (46 Dateien, +5098 Zeilen). Alle 3 Instanzen (VPS, GitHub, lokal) sind jetzt synchron
+  - **Lesson Learned:** NIE `git pull` auf VPS machen wenn VPS-Code nicht vorher auf GitHub gepusht wurde. Bei Direkt-Deploys immer auch GitHub synchron halten
+- **SSH-Probleme VPS (Hostinger Rate-Limiting):**
+  - **Problem:** SSH Port 22 wurde nach 2-3 Verbindungen pro Minute geblockt (Hostinger-seitiges Rate-Limiting, kein fail2ban)
+  - **Fix:** Firewall-Konfiguration im Hostinger hPanel zurückgesetzt + neuen SSH-Key (1Password Ed25519 vom neuen Mac) bei Hostinger hinzugefügt
+  - **Prävention:** SSH Multiplexing in `~/.ssh/config` (ControlMaster/ControlPersist 30m), möglichst alles in einem SSH-Call bündeln
 
 ### Letzte Änderungen (2026-03-16)
 - **PayPal Direkt-Integration (ohne Stripe):**
@@ -1783,7 +1798,8 @@ Store in `.env` (git-ignored), manage via `Passwords/` directory:
 ## VPS Deployment
 
 **Server:** 72.62.148.205 (Hostinger Ubuntu)
-**SSH:** `ssh root@72.62.148.205`
+**SSH:** `ssh vps` (alias) oder `ssh root@72.62.148.205` (1Password SSH Agent)
+**ACHTUNG — SSH Multiplexing Pflicht:** Hostinger hat Infrastructure-Level Rate-Limiting auf Port 22. Nach 2-3 schnellen Verbindungen wird IP ~10-15 Min gesperrt. Fix: SSH ControlMaster in `~/.ssh/config` (ControlPersist 30m). **Nie parallele SSH-Calls — immer sequentiell.**
 
 **URLs:**
 - Backend API: https://api.vod-auctions.com (Port 9000, nginx reverse proxy)
