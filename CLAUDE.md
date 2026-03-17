@@ -149,14 +149,25 @@ H (Backend APIs)     → Keine Dependencies, startet sofort
 - **Frontend:** "Download Invoice" Button auf Orders-Seite
 
 ### Letzte Änderungen (2026-03-17)
-- **Catalog Sort Fix:**
+- **Catalog Sort Fix (live verifiziert):**
   - **Problem:** Sort-Dropdown (Artist A-Z, Price Low/High, Year) hatte keinen Effekt — Bilder luden neu, aber Reihenfolge blieb gleich
   - **Root Cause:** Frontend sendete kombinierten String `sort=artist:asc` an Backend-API, aber Backend erwartet getrennte Parameter `sort=artist&order=asc`. Zusätzlich verwendete Frontend `legacy_price` statt `price` als Sort-Feldname.
   - **Fix (2 Dateien):**
     - `catalog/page.tsx` (SSR): `sort.split(":")` → separate `sort` + `order` Query-Params, `legacy_price` → `price` Mapping
     - `CatalogClient.tsx` (Client): Gleicher Split in `fetchReleases()` Callback
   - **Geänderte Dateien:** `storefront/src/app/catalog/page.tsx`, `storefront/src/components/CatalogClient.tsx`
-  - **VPS:** Storefront deployed (direkt per SCP, git war systemweit langsam wegen Disk-I/O)
+  - **VPS:** Storefront deployed, live verifiziert auf vod-auctions.com
+- **Infrastruktur-Wartung:**
+  - **Git Re-Clone:** Lokales Repo hatte korrupte Pack-Files (git log/commit/push hingen). Fresh clone via HTTPS, Working Tree + .env + node_modules übernommen. Alle git-Ops jetzt <100ms
+  - **Git SSH Port 443 Fallback:** `~/.ssh/config` — GitHub SSH über `ssh.github.com:443` als Fallback bei Port-22-Blockaden
+  - **GitHub CLI:** `gh auth login` als `rseckler` (SSH-Protokoll)
+  - **VPS Disk Cleanup:** 90% → 78% (6 GB freigeräumt: Snap Cache, Docker Prune, apt clean, PM2 Logs, journalctl vacuum)
+  - **PM2 Log-Rotation:** `pm2-logrotate` installiert (max 10MB, 5 retained, compressed, daily)
+  - **VPS Disk-Alert:** `/root/scripts/disk-alert.sh` — Crontab alle 6h, Schwelle 85%, loggt nach `disk-alerts.log`
+  - **Storefront Restart-Counter:** Reset auf 0 (531 waren historisch, alte Crash-Loop wegen fehlendem Build)
+  - **Repo-Sync:** 86 Dateien committed + gepusht — GitHub jetzt synchron mit VPS-Produktionsstand
+  - **Testbericht:** `docs/INFRASTRUCTURE_TEST_2026-03-17.md` — Vollständige Analyse aller Systeme (lokale Umgebung, Git, GitHub, VPS, externe APIs, Claude Code)
+  - **Claude Memory:** 5 Memories erstellt (user_robin, feedback_market_standards, feedback_knex_medusa_gotchas, project_vps_deployment, project_data_sync)
 
 ### Letzte Änderungen (2026-03-16)
 - **PayPal Direkt-Integration (ohne Stripe):**
