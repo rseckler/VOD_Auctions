@@ -39,3 +39,14 @@ pnpm-debug.log*
 
 # Sentry
 .sentryclirc
+
+# Local images/screenshots (root level)
+*.jpeg
+*.png
+!Screenshots/*.png
+
+# Python cache
+__pycache__/
+
+# Test env
+.env.test
