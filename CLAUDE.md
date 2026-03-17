@@ -148,6 +148,16 @@ H (Backend APIs)     → Keine Dependencies, startet sofort
 - **Frontend Proxy:** `storefront/src/app/api/invoice/[groupId]/route.ts` (Auth-Proxy)
 - **Frontend:** "Download Invoice" Button auf Orders-Seite
 
+### Letzte Änderungen (2026-03-17)
+- **Catalog Sort Fix:**
+  - **Problem:** Sort-Dropdown (Artist A-Z, Price Low/High, Year) hatte keinen Effekt — Bilder luden neu, aber Reihenfolge blieb gleich
+  - **Root Cause:** Frontend sendete kombinierten String `sort=artist:asc` an Backend-API, aber Backend erwartet getrennte Parameter `sort=artist&order=asc`. Zusätzlich verwendete Frontend `legacy_price` statt `price` als Sort-Feldname.
+  - **Fix (2 Dateien):**
+    - `catalog/page.tsx` (SSR): `sort.split(":")` → separate `sort` + `order` Query-Params, `legacy_price` → `price` Mapping
+    - `CatalogClient.tsx` (Client): Gleicher Split in `fetchReleases()` Callback
+  - **Geänderte Dateien:** `storefront/src/app/catalog/page.tsx`, `storefront/src/components/CatalogClient.tsx`
+  - **VPS:** Storefront deployed (direkt per SCP, git war systemweit langsam wegen Disk-I/O)
+
 ### Letzte Änderungen (2026-03-16)
 - **PayPal Direkt-Integration (ohne Stripe):**
   - **Motivation:** PayPal-Refunds über Stripe dauern 5-7 Tage, direkt über PayPal sind sie sofort

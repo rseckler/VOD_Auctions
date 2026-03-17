@@ -181,7 +181,9 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
     if (label) params.set("label", label)
     if (yearFrom) params.set("year_from", yearFrom)
     if (forSale) params.set("for_sale", "true")
-    params.set("sort", sort)
+    const [sortField, sortOrder] = sort.split(":")
+    params.set("sort", sortField === "legacy_price" ? "price" : sortField)
+    if (sortOrder) params.set("order", sortOrder)
 
     const data = await medusaFetch<CatalogResponse>(
       `/store/catalog?${params.toString()}`
