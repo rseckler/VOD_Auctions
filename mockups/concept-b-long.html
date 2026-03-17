@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Concept B — Museum Catalog (Long Credits)</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --gold: #d4a54a;
+      --gold-light: #e8c878;
+      --gold-dim: #a67c30;
+      --gold-faint: rgba(212, 165, 74, 0.08);
+      --gold-border: rgba(212, 165, 74, 0.15);
+      --gold-border-strong: rgba(212, 165, 74, 0.3);
+      --bg: #1c1915;
+      --bg-card: #231f1b;
+      --bg-elevated: #2a2520;
+      --bg-hover: #302a24;
+      --text: #e8e0d4;
+      --text-muted: #9a8e7f;
+      --text-dim: #6b6057;
+      --border: rgba(255,255,255,0.06);
+      --border-subtle: rgba(255,255,255,0.04);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', -apple-system, sans-serif;
+      padding: 32px;
+      max-width: 460px;
+      margin: 0 auto;
+    }
+
+    .badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--gold);
+      padding: 6px 16px;
+      border: 1px solid var(--gold-border-strong);
+      border-radius: 4px;
+      margin-bottom: 24px;
+    }
+
+    .section-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .section-card h2 {
+      font-family: 'DM Serif Display', serif;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--gold);
+      margin-bottom: 14px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--gold-border);
+    }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px 16px;
+    }
+    .detail-cell-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-dim);
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+    .detail-cell-value { font-size: 13px; color: var(--text); }
+    .detail-cell-value.mono { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; }
+
+    .artist-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .artist-tag {
+      font-size: 11px;
+      padding: 3px 10px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+    }
+
+    .track-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 8px;
+      border-radius: 4px;
+      margin: 0 -8px;
+    }
+    .track-row:nth-child(odd) { background: var(--bg-elevated); }
+    .track-num {
+      font-family: 'DM Serif Display', serif;
+      font-size: 14px;
+      color: var(--gold-dim);
+      width: 28px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .track-name { flex: 1; font-size: 13px; }
+    .track-time {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .credit-item {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      padding: 5px 0;
+    }
+    .credit-item::before {
+      content: '\2014';
+      color: var(--gold-dim);
+      font-size: 12px;
+      flex-shrink: 0;
+    }
+    .credit-role-b { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+    .credit-name-b { font-size: 13px; color: var(--text); font-weight: 500; }
+  </style>
+</head>
+<body>
+
+  <div class="badge">Concept B — Museum Catalog</div>
+
+  <!-- Details -->
+  <div class="section-card">
+    <h2>Details</h2>
+    <div class="detail-grid">
+      <div><div class="detail-cell-label">Article No.</div><div class="detail-cell-value mono">VOD-04104</div></div>
+      <div><div class="detail-cell-label">Label</div><div class="detail-cell-value">Mute Records</div></div>
+      <div><div class="detail-cell-label">Catalog No.</div><div class="detail-cell-value mono">STUMM 21</div></div>
+      <div><div class="detail-cell-label">Condition</div><div class="detail-cell-value mono">VG+</div></div>
+      <div><div class="detail-cell-label">Format</div><div class="detail-cell-value">Vinyl-Lp</div></div>
+      <div><div class="detail-cell-label">Media</div><div class="detail-cell-value">Very Good Plus</div></div>
+    </div>
+  </div>
+
+  <!-- Contributing Artists -->
+  <div class="section-card">
+    <h2>Contributing Artists</h2>
+    <div class="artist-tags">
+      <span class="artist-tag">Blixa Bargeld</span>
+      <span class="artist-tag">N.U. Unruh</span>
+      <span class="artist-tag">F.M. Einheit</span>
+      <span class="artist-tag">Alexander Hacke</span>
+      <span class="artist-tag">Mark Chung</span>
+    </div>
+  </div>
+
+  <!-- Tracklist -->
+  <div class="section-card">
+    <h2>Tracklist</h2>
+    <div>
+      <div class="track-row"><span class="track-num">A1</span><span class="track-name">Feurio!</span><span class="track-time">5:42</span></div>
+      <div class="track-row"><span class="track-num">A2</span><span class="track-name">Yu-Gung (Fütter Mein Ego)</span><span class="track-time">6:01</span></div>
+      <div class="track-row"><span class="track-num">A3</span><span class="track-name">Der Tod Ist Ein Dandy</span><span class="track-time">4:55</span></div>
+      <div class="track-row"><span class="track-num">A4</span><span class="track-name">Seele Brennt</span><span class="track-time">4:28</span></div>
+      <div class="track-row"><span class="track-num">B1</span><span class="track-name">Sand</span><span class="track-time">7:12</span></div>
+      <div class="track-row"><span class="track-num">B2</span><span class="track-name">Letztes Biest (Am Himmel)</span><span class="track-time">5:37</span></div>
+      <div class="track-row"><span class="track-num">B3</span><span class="track-name">Kalte Sterne</span><span class="track-time">6:48</span></div>
+    </div>
+  </div>
+
+  <!-- Credits -->
+  <div class="section-card">
+    <h2>Credits</h2>
+    <div>
+      <div class="credit-item"><span class="credit-role-b">Produced By</span><span class="credit-name-b">Gareth Jones</span></div>
+      <div class="credit-item"><span class="credit-role-b">Written By</span><span class="credit-name-b">Einstürzende Neubauten</span></div>
+      <div class="credit-item"><span class="credit-role-b">Recorded At</span><span class="credit-name-b">Hansa Studios, Berlin</span></div>
+      <div class="credit-item"><span class="credit-role-b">Mixed At</span><span class="credit-name-b">Hansa Mischraum, Berlin</span></div>
+      <div class="credit-item"><span class="credit-role-b">Mastered By</span><span class="credit-name-b">Denis Blackham</span></div>
+      <div class="credit-item"><span class="credit-role-b">Mastered At</span><span class="credit-name-b">Porky's Mastering, London</span></div>
+      <div class="credit-item"><span class="credit-role-b">Engineer</span><span class="credit-name-b">Gareth Jones, Boris Wilsdorf</span></div>
+      <div class="credit-item"><span class="credit-role-b">Assistant Engineer</span><span class="credit-name-b">Ingo Krauss</span></div>
+      <div class="credit-item"><span class="credit-role-b">Vocals</span><span class="credit-name-b">Blixa Bargeld</span></div>
+      <div class="credit-item"><span class="credit-role-b">Guitar</span><span class="credit-name-b">Alexander Hacke</span></div>
+      <div class="credit-item"><span class="credit-role-b">Bass Guitar</span><span class="credit-name-b">Mark Chung</span></div>
+      <div class="credit-item"><span class="credit-role-b">Custom Instruments</span><span class="credit-name-b">N.U. Unruh, F.M. Einheit</span></div>
+      <div class="credit-item"><span class="credit-role-b">Percussion</span><span class="credit-name-b">F.M. Einheit, N.U. Unruh</span></div>
+      <div class="credit-item"><span class="credit-role-b">Artwork By</span><span class="credit-name-b">Gudrun Gut</span></div>
+      <div class="credit-item"><span class="credit-role-b">Photography</span><span class="credit-name-b">Peter Gruchot</span></div>
+      <div class="credit-item"><span class="credit-role-b">Design</span><span class="credit-name-b">23 Envelope (Vaughan Oliver)</span></div>
+      <div class="credit-item"><span class="credit-role-b">A&R</span><span class="credit-name-b">Daniel Miller</span></div>
+      <div class="credit-item"><span class="credit-role-b">Management</span><span class="credit-name-b">Mark Ernestus</span></div>
+      <div class="credit-item"><span class="credit-role-b">Published By</span><span class="credit-name-b">Freibank Musikverlag</span></div>
+      <div class="credit-item"><span class="credit-role-b">Manufactured By</span><span class="credit-name-b">MPO, France</span></div>
+      <div class="credit-item"><span class="credit-role-b">Distributed By</span><span class="credit-name-b">Rough Trade Distribution</span></div>
+    </div>
+  </div>
+
+</body>
+</html>

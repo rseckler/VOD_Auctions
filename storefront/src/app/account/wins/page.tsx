@@ -6,7 +6,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { getToken } from "@/lib/auth"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
-import { Disc3, Trophy, CreditCard, Truck, CheckCircle2, AlertTriangle } from "lucide-react"
+import { Disc3, Trophy, CreditCard, Truck, CheckCircle2 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -239,11 +239,6 @@ export default function WinsPage() {
     )
   }
 
-  const hasUnpaid = wins.some((w) => {
-    const tx = transactions[w.item.id]
-    return !tx || tx.status === "failed"
-  })
-
   return (
     <div>
       <h2 className="text-xl font-semibold mb-6">
@@ -251,18 +246,11 @@ export default function WinsPage() {
         <Badge variant="secondary" className="ml-2">{wins.length}</Badge>
       </h2>
 
-      {/* Payment deadline notice */}
-      {hasUnpaid && (
-        <div className="flex items-center gap-3 p-3 mb-4 rounded-lg bg-amber-500/10 border border-amber-500/30">
-          <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0" />
-          <p className="text-sm text-amber-500">
-            Please complete payment within 14 days of winning.
-          </p>
-        </div>
-      )}
-
       {/* Combined checkout banner */}
-      {hasUnpaid && (
+      {wins.some((w) => {
+        const tx = transactions[w.item.id]
+        return !tx || tx.status === "failed"
+      }) && (
         <Card className="p-4 mb-6 border-primary/30 bg-primary/5">
           <div className="flex items-center justify-between">
             <div>

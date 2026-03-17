@@ -1,0 +1,1570 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VOD Auctions — Customer Journey UX Flow</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap');
+
+  :root {
+    --bg: #1c1915;
+    --bg-card: #241f1a;
+    --bg-elevated: #2a2520;
+    --gold: #d4a54a;
+    --gold-dim: rgba(212,165,74,0.25);
+    --text: #f5efe6;
+    --text-muted: #a09888;
+    --green: #4ade80;
+    --red: #ef4444;
+    --orange: #f97316;
+    --cyan: #38bdf8;
+    --border: rgba(232,224,212,0.08);
+    --border-gold: rgba(212,165,74,0.4);
+    --radius: 12px;
+    --sans: 'DM Sans', sans-serif;
+    --serif: 'DM Serif Display', serif;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* ── NAV ── */
+  .top-nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(28,25,21,0.95);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 32px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .top-nav h1 { font-family: var(--serif); font-size: 18px; color: var(--gold); }
+  .top-nav .pills { display: flex; gap: 6px; flex-wrap: wrap; }
+  .top-nav .pill {
+    padding: 5px 14px; border-radius: 20px; font-size: 12px; font-weight: 500;
+    cursor: pointer; border: 1px solid var(--border); background: transparent;
+    color: var(--text-muted); transition: all .2s;
+  }
+  .top-nav .pill:hover, .top-nav .pill.active {
+    background: var(--gold); color: var(--bg); border-color: var(--gold);
+  }
+
+  /* ── HERO ── */
+  .hero {
+    text-align: center; padding: 64px 32px 40px;
+    background: radial-gradient(ellipse at 50% 0%, rgba(212,165,74,0.08) 0%, transparent 70%);
+  }
+  .hero h2 { font-family: var(--serif); font-size: 42px; margin-bottom: 12px; }
+  .hero h2 span { color: var(--gold); }
+  .hero p { color: var(--text-muted); max-width: 640px; margin: 0 auto 8px; font-size: 15px; }
+  .hero .meta { font-size: 13px; color: var(--text-muted); opacity: .7; margin-top: 16px; }
+
+  /* ── FLOW CONTAINER ── */
+  .flow { max-width: 1200px; margin: 0 auto; padding: 0 24px 80px; }
+
+  /* ── PHASE ── */
+  .phase {
+    margin-top: 56px;
+    border-left: 2px solid var(--gold-dim);
+    padding-left: 32px;
+    position: relative;
+  }
+  .phase::before {
+    content: attr(data-phase);
+    position: absolute; left: -13px; top: -4px;
+    width: 24px; height: 24px; border-radius: 50%;
+    background: var(--gold); color: var(--bg);
+    font-size: 12px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .phase-title {
+    font-family: var(--serif); font-size: 26px; margin-bottom: 4px;
+  }
+  .phase-desc { color: var(--text-muted); font-size: 14px; margin-bottom: 24px; }
+
+  /* ── SCREEN ── */
+  .screen {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 24px;
+    overflow: hidden;
+    transition: border-color .2s;
+  }
+  .screen:hover { border-color: var(--border-gold); }
+
+  .screen-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(232,224,212,0.02);
+  }
+  .screen-header .label {
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 1.2px; color: var(--gold);
+  }
+  .screen-header .route {
+    font-size: 12px; color: var(--text-muted); font-family: monospace;
+  }
+  .screen-body { padding: 20px; }
+
+  /* ── WIREFRAME elements ── */
+  .wire { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+  .wire + .wire { margin-top: 12px; }
+
+  .wire-row { display: flex; gap: 12px; align-items: stretch; flex-wrap: wrap; }
+  .wire-col { flex: 1; min-width: 200px; }
+
+  .wire-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 16px;
+    background: rgba(28,25,21,0.95);
+    border-radius: 8px 8px 0 0;
+    border: 1px solid var(--border);
+    border-bottom: none;
+  }
+  .wire-header .logo { font-family: var(--serif); font-size: 14px; color: var(--gold); }
+  .wire-header .nav-items { display: flex; gap: 16px; font-size: 12px; color: var(--text-muted); }
+
+  .wire-hero-img {
+    width: 100%; height: 120px;
+    background: linear-gradient(135deg, var(--bg-elevated), rgba(212,165,74,0.15));
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--serif); font-size: 20px; color: var(--text);
+  }
+
+  .btn-gold {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 20px; border-radius: 8px; font-size: 13px; font-weight: 600;
+    background: linear-gradient(135deg, var(--gold), #c4943a);
+    color: var(--bg); border: none; cursor: default;
+  }
+  .btn-outline {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 20px; border-radius: 8px; font-size: 13px; font-weight: 500;
+    background: transparent; color: var(--text);
+    border: 1px solid var(--border); cursor: default;
+  }
+  .btn-green {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 20px; border-radius: 8px; font-size: 13px; font-weight: 600;
+    background: var(--green); color: var(--bg); border: none; cursor: default;
+  }
+  .btn-sm { padding: 5px 12px; font-size: 11px; }
+
+  .input-field {
+    width: 100%; padding: 9px 12px; border-radius: 6px;
+    background: var(--bg); border: 1px solid var(--border);
+    color: var(--text); font-size: 13px; font-family: var(--sans);
+  }
+  .input-field::placeholder { color: var(--text-muted); }
+  .input-label { font-size: 12px; font-weight: 500; margin-bottom: 4px; display: block; }
+
+  .badge {
+    display: inline-flex; padding: 3px 10px; border-radius: 20px;
+    font-size: 11px; font-weight: 600;
+  }
+  .badge-gold { background: rgba(212,165,74,0.15); color: var(--gold); border: 1px solid rgba(212,165,74,0.3); }
+  .badge-green { background: rgba(74,222,128,0.15); color: var(--green); border: 1px solid rgba(74,222,128,0.3); }
+  .badge-red { background: rgba(239,68,68,0.15); color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
+  .badge-orange { background: rgba(249,115,22,0.15); color: var(--orange); border: 1px solid rgba(249,115,22,0.3); }
+  .badge-muted { background: rgba(160,152,136,0.15); color: var(--text-muted); border: 1px solid rgba(160,152,136,0.2); }
+
+  /* Grid items */
+  .item-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+  .item-card {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    overflow: hidden; font-size: 11px;
+  }
+  .item-card .img {
+    height: 80px; background: linear-gradient(135deg, #2a2520, #1c1915);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-muted); font-size: 22px; position: relative;
+  }
+  .item-card .img .lot {
+    position: absolute; top: 4px; left: 4px;
+    background: rgba(0,0,0,0.7); color: var(--text); padding: 1px 6px;
+    border-radius: 4px; font-size: 9px; font-weight: 600;
+  }
+  .item-card .info { padding: 8px; }
+  .item-card .info .artist { color: var(--text-muted); font-size: 10px; }
+  .item-card .info .title { font-weight: 600; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item-card .info .price { color: var(--gold); font-weight: 700; font-family: monospace; margin-top: 2px; }
+
+  /* Bid section */
+  .bid-current { font-family: var(--serif); font-size: 32px; color: var(--gold); }
+  .bid-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+  .bid-row { display: flex; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+  .bid-row .user { color: var(--text-muted); }
+  .bid-row .amount { font-weight: 700; font-family: monospace; }
+
+  .countdown {
+    font-family: monospace; font-size: 14px; font-weight: 700;
+    color: var(--orange); padding: 6px 12px;
+    background: rgba(249,115,22,0.1); border-radius: 6px;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .countdown.ending { color: var(--red); background: rgba(239,68,68,0.1); }
+
+  /* Email wireframe */
+  .email-wire {
+    background: #f8f6f3; color: #1c1915; border-radius: 8px;
+    max-width: 420px; margin: 0 auto; font-size: 13px;
+    overflow: hidden;
+  }
+  .email-wire .email-head {
+    background: var(--bg); padding: 16px 20px; text-align: center;
+  }
+  .email-wire .email-head .logo { font-family: var(--serif); color: var(--gold); font-size: 16px; }
+  .email-wire .email-body { padding: 24px 20px; }
+  .email-wire .email-body h3 { font-family: var(--serif); font-size: 20px; margin-bottom: 8px; color: #1c1915; }
+  .email-wire .email-body p { color: #4a4540; font-size: 13px; line-height: 1.5; margin-bottom: 12px; }
+  .email-wire .email-cta {
+    display: inline-block; padding: 10px 28px; border-radius: 8px;
+    background: var(--gold); color: #1c1915; font-weight: 600;
+    text-decoration: none; font-size: 14px;
+  }
+  .email-wire .email-footer {
+    padding: 16px 20px; text-align: center; font-size: 11px;
+    color: #8a8580; border-top: 1px solid #e8e0d4;
+  }
+
+  /* Table */
+  .mini-table { width: 100%; font-size: 12px; border-collapse: collapse; }
+  .mini-table th { text-align: left; color: var(--text-muted); font-weight: 500; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  .mini-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); }
+
+  /* Stripe mock */
+  .stripe-mock {
+    background: #fff; color: #1a1a2e; border-radius: 8px;
+    max-width: 420px; margin: 0 auto; padding: 24px;
+    font-size: 13px;
+  }
+  .stripe-mock .stripe-logo { font-weight: 700; color: #635bff; font-size: 18px; margin-bottom: 16px; }
+  .stripe-mock .stripe-field {
+    width: 100%; padding: 10px 12px; border: 1px solid #e0e0e0;
+    border-radius: 6px; margin-bottom: 10px; font-size: 13px;
+    color: #1a1a2e; background: #fafafa;
+  }
+  .stripe-mock .stripe-btn {
+    width: 100%; padding: 12px; border-radius: 6px;
+    background: #635bff; color: #fff; font-weight: 600;
+    border: none; font-size: 14px; cursor: default;
+  }
+  .stripe-mock .stripe-row { display: flex; gap: 10px; }
+  .stripe-mock .stripe-row > * { flex: 1; }
+
+  /* Annotations */
+  .annotation {
+    display: flex; gap: 8px; align-items: flex-start;
+    padding: 10px 14px; margin-top: 12px;
+    background: rgba(212,165,74,0.06);
+    border-left: 3px solid var(--gold);
+    border-radius: 0 6px 6px 0;
+    font-size: 12px; color: var(--text-muted);
+  }
+  .annotation strong { color: var(--gold); }
+  .annotation .icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+
+  /* Arrow connector */
+  .connector {
+    display: flex; align-items: center; justify-content: center;
+    padding: 8px 0; color: var(--gold-dim);
+    font-size: 20px;
+  }
+
+  /* Two columns for side by side */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 768px) { .two-col { grid-template-columns: 1fr; } }
+
+  /* Status bar */
+  .status-bar {
+    display: flex; gap: 4px; padding: 12px 0;
+  }
+  .status-step {
+    flex: 1; text-align: center; padding: 8px 4px;
+    font-size: 10px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.5px; border-radius: 4px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+  }
+  .status-step.done { background: rgba(74,222,128,0.1); color: var(--green); border-color: rgba(74,222,128,0.3); }
+  .status-step.current { background: rgba(212,165,74,0.15); color: var(--gold); border-color: rgba(212,165,74,0.4); }
+
+  .divider { height: 1px; background: var(--border); margin: 16px 0; }
+
+  .toast {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 16px; border-radius: 8px;
+    background: var(--bg-elevated); border: 1px solid rgba(74,222,128,0.3);
+    font-size: 13px; font-weight: 500;
+  }
+  .toast .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+
+  .img-placeholder {
+    background: linear-gradient(135deg, #2a2520, rgba(212,165,74,0.08));
+    border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    color: var(--text-muted); font-size: 32px;
+  }
+
+  .summary-box {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
+    background: var(--border); border-radius: 8px; overflow: hidden;
+  }
+  .summary-box .cell {
+    background: var(--bg-elevated); padding: 12px 16px;
+  }
+  .summary-box .cell .val { font-family: var(--serif); font-size: 22px; color: var(--gold); }
+  .summary-box .cell .lbl { font-size: 11px; color: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<!-- ═══════ TOP NAV ═══════ -->
+<nav class="top-nav">
+  <h1>VOD Auctions — UX Flow</h1>
+  <div class="pills">
+    <span class="pill active" onclick="scrollToPhase(1)">1 Entdecken</span>
+    <span class="pill" onclick="scrollToPhase(2)">2 Registrieren</span>
+    <span class="pill" onclick="scrollToPhase(3)">3 Auktion</span>
+    <span class="pill" onclick="scrollToPhase(4)">4 Bieten</span>
+    <span class="pill" onclick="scrollToPhase(5)">5 Gewonnen</span>
+    <span class="pill" onclick="scrollToPhase(6)">6 Bezahlen</span>
+    <span class="pill" onclick="scrollToPhase(7)">7 Abschluss</span>
+  </div>
+</nav>
+
+<!-- ═══════ HERO ═══════ -->
+<header class="hero">
+  <h2>Customer Journey: <span>Kompletter Auktions-Durchlauf</span></h2>
+  <p>Alle Screens aus Endkunden-Sicht — vom ersten Besuch bis zur Versandbestätigung.<br>
+  Szenario: Themen-Block „Dark Ambient & Drone" mit 50 Tonträgern, 7 Tage Laufzeit.</p>
+  <div class="meta">VOD Auctions &middot; Vinyl Culture Theme &middot; Stand: März 2026 &middot; UX Flow v1.0</div>
+</header>
+
+<div class="flow">
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- PHASE 1: ENTDECKEN -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<section class="phase" data-phase="1" id="phase-1">
+  <div class="phase-title">Entdecken & Stöbern</div>
+  <p class="phase-desc">Der Kunde landet auf der Startseite und entdeckt laufende Auktionen.</p>
+
+  <!-- Screen 1.1: Homepage -->
+  <div class="screen">
+    <div class="screen-header">
+      <span class="label">Screen 1.1 — Homepage</span>
+      <span class="route">GET /</span>
+    </div>
+    <div class="screen-body">
+      <!-- Browser Header -->
+      <div class="wire-header">
+        <span class="logo">◉ VOD Auctions</span>
+        <div class="nav-items">
+          <span>Auktionen</span>
+          <span style="color:var(--gold)">Anmelden</span>
+        </div>
+      </div>
+      <!-- Hero -->
+      <div style="background: radial-gradient(ellipse at 50% 30%, rgba(212,165,74,0.12) 0%, var(--bg-elevated) 70%); padding: 32px 24px; text-align:center; border: 1px solid var(--border); border-top:none;">
+        <div style="font-family:var(--serif); font-size:28px; margin-bottom:4px;">Seltene Platten.</div>
+        <div style="font-family:var(--serif); font-size:28px; color:var(--gold); margin-bottom:12px;">Echte Sammler.</div>
+        <div style="font-size:13px; color:var(--text-muted); margin-bottom:16px;">Kuratierte Auktionen für Industrial, Ambient, Noise & mehr.</div>
+        <span class="btn-gold">Jetzt entdecken →</span>
+      </div>
+
+      <!-- Live Ticker -->
+      <div style="display:flex; align-items:center; gap:12px; padding:10px 16px; background:var(--bg); border:1px solid var(--border); border-top:none; font-size:12px;">
+        <span style="display:flex;align-items:center;gap:4px;"><span style="width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;"></span> Live</span>
+        <span style="color:var(--text-muted);">3 Auktionen aktiv</span>
+        <span style="margin-left:auto;color:var(--gold);">Dark Ambient & Drone — noch 4T 12Std</span>
+      </div>
+
+      <!-- Active Blocks -->
+      <div style="padding:16px 0;">
+        <div style="font-family:var(--serif);font-size:18px;margin-bottom:12px;">Laufende Auktionen</div>
+        <div class="wire-row">
+          <div class="wire-col">
+            <div class="item-card" style="border-color:var(--border-gold);">
+              <div class="img" style="height:100px;background:linear-gradient(135deg,#2a2520,rgba(212,165,74,0.1));">
+                <span style="font-family:var(--serif);font-size:14px;">Dark Ambient & Drone</span>
+                <div style="position:absolute;top:6px;right:6px;"><span class="badge badge-green" style="font-size:9px;">● Live</span></div>
+              </div>
+              <div class="info">
+                <div class="title">50 seltene Tonträger</div>
+                <div style="display:flex;justify-content:space-between;margin-top:4px;">
+                  <span class="artist">noch 4T 12Std</span>
+                  <span class="price">ab 1,00 €</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="wire-col">
+            <div class="item-card">
+              <div class="img" style="height:100px;">
+                <span style="font-family:var(--serif);font-size:14px;">EBM Classics</span>
+              </div>
+              <div class="info">
+                <div class="title">35 Items</div>
+                <div style="display:flex;justify-content:space-between;margin-top:4px;">
+                  <span class="artist">noch 6T</span>
+                  <span class="price">ab 2,00 €</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="wire-col">
+            <div class="item-card">
+              <div class="img" style="height:100px;">
+                <span style="font-family:var(--serif);font-size:14px;">Noise Japan</span>
+              </div>
+              <div class="info">
+                <div class="title">20 Items</div>
+                <div style="display:flex;justify-content:space-between;margin-top:4px;">
+                  <span class="artist">noch 2T</span>
+                  <span class="price">ab 5,00 €</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="annotation">
+        <span class="icon">💡</span>
+        <div><strong>UX-Entscheidung:</strong> Hero zeigt emotionale Ansprache, Live-Ticker erzeugt Dringlichkeit. Blöcke als Karten mit Countdown. Gold-Border auf aktivem Block = visueller Fokus. Der User klickt auf „Dark Ambient & Drone".</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector">↓</div>
+
+  <!-- Screen 1.2: Auktionsübersicht -->
+  <div class="screen">
+    <div class="screen-header">
+      <span class="label">Screen 1.2 — Auktionsübersicht</span>
+      <span class="route">GET /auctions</span>
+    </div>
+    <div class="screen-body">
+      <div class="wire-header">
+        <span class="logo">◉ VOD Auctions</span>
+        <div class="nav-items"><span style="border-bottom:2px solid var(--gold);padding-bottom:2px;">Auktionen</span> <span>Anmelden</span></div>
+      </div>
+      <div style="padding:16px 0;">
+        <div style="font-family:var(--serif);font-size:22px;margin-bottom:4px;">Auktionen</div>
+        <div style="color:var(--text-muted);font-size:13px;margin-bottom:16px;">Entdecke kuratierte Sammlungen seltener Tonträger.</div>
+        <!-- Filter Pills -->
+        <div style="display:flex;gap:6px;margin-bottom:16px;">
+          <span class="badge badge-gold">Alle (3)</span>
+          <span class="badge badge-green">Laufend (3)</span>
+          <span class="badge badge-muted">Demnächst (1)</span>
+          <span class="badge badge-muted">Beendet (0)</span>
+        </div>
+        <!-- Block List -->
+        <div class="wire" style="display:flex;gap:12px;align-items:center;padding:12px;cursor:default;">
+          <div class="img-placeholder" style="width:140px;height:90px;flex-shrink:0;font-size:20px;">🎵</div>
+          <div style="flex:1;">
+            <span class="badge badge-green btn-sm" style="margin-bottom:4px;">● Live</span>
+            <div style="font-family:var(--serif);font-size:16px;">Dark Ambient & Drone</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">50 Lots · Endet 09.03.2026 · ab 1,00 €</div>
+          </div>
+          <span class="countdown">4T 12:34:56</span>
+        </div>
+      </div>
+      <div class="annotation">
+        <span class="icon">💡</span>
+        <div><strong>Filter-UX:</strong> Pill-Tabs mit Anzahl. Horizontale Block-Karten zeigen alle Infos auf einen Blick. Countdown prominent rechts. User klickt auf den Block.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector">↓</div>
+
+  <!-- Screen 1.3: Block-Detailseite -->
+  <div class="screen">
+    <div class="screen-header">
+      <span class="label">Screen 1.3 — Block-Detail: Dark Ambient & Drone</span>
+      <span class="route">GET /auctions/dark-ambient-drone</span>
+    </div>
+    <div class="screen-body">
+      <!-- Breadcrumb -->
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">← Auktionen / <span style="color:var(--text);">Dark Ambient & Drone</span></div>
+
+      <!-- Hero Image -->
+      <div style="position:relative;border-radius:10px;overflow:hidden;margin-bottom:16px;">
+        <div class="img-placeholder" style="height:140px;width:100%;font-size:16px;font-family:var(--serif);">
+          🌑 Dark Ambient & Drone — Header Image
+        </div>
+        <div style="position:absolute;top:12px;left:12px;display:flex;gap:6px;">
+          <span class="badge badge-green">● Live</span>
+          <span class="badge badge-gold">Themen-Block</span>
+        </div>
+      </div>
+
+      <!-- Stats Row -->
+      <div class="summary-box" style="margin-bottom:16px;">
+        <div class="cell"><div class="val">50</div><div class="lbl">Lots</div></div>
+        <div class="cell"><div class="val" style="font-size:16px;">02.03. — 09.03.2026</div><div class="lbl">Zeitraum</div></div>
+        <div class="cell"><div class="val">1,00 €</div><div class="lbl">Ab Startpreis</div></div>
+        <div class="cell"><div class="val" style="color:var(--orange);">4T 12:34</div><div class="lbl">Endet in</div></div>
+      </div>
+
+      <!-- Description -->
+      <div class="wire" style="margin-bottom:16px;">
+        <div style="font-family:var(--serif);font-size:16px;margin-bottom:6px;">Über diesen Block</div>
+        <div style="font-size:13px;color:var(--text-muted);line-height:1.6;">50 handverlesene Tonträger aus den Tiefen des Dark Ambient und Drone — von Lustmord über Atrium Carceri bis zu seltenen CDr-Editionen von Desiderii Marginis. Vinyl, CD, Kassette. Viele im Zustand Mint/Near Mint.</div>
+      </div>
+
+      <!-- Item Grid (50 items, showing 8 preview) -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div style="font-family:var(--serif);font-size:16px;">50 Lots</div>
+        <div style="display:flex;gap:6px;">
+          <span class="badge badge-gold btn-sm">Lot-Nr.</span>
+          <span class="badge badge-muted btn-sm">Preis ↑</span>
+          <span class="badge badge-muted btn-sm">Artist A-Z</span>
+        </div>
+      </div>
+      <div class="item-grid">
+        <div class="item-card">
+          <div class="img"><div class="lot">#01</div>🎵</div>
+          <div class="info"><div class="artist">Lustmord</div><div class="title">The Place Where…</div><div class="price">1,00 € · 0 Gebote</div></div>
+        </div>
+        <div class="item-card">
+          <div class="img"><div class="lot">#02</div>🎵</div>
+          <div class="info"><div class="artist">Atrium Carceri</div><div class="title">Cellblock</div><div class="price">3,50 € · 2 Gebote</div></div>
+        </div>
+        <div class="item-card">
+          <div class="img"><div class="lot">#03</div>🎵</div>
+          <div class="info"><div class="artist">Desiderii Marginis</div><div class="title">Songs Over Ruins</div><div class="price">8,00 € · 5 Gebote</div></div>
+        </div>
+        <div class="item-card">
+          <div class="img"><div class="lot">#04</div>🎵</div>
+          <div class="info"><div class="artist">Troum</div><div class="title">Tjukurrpa</div><div class="price">2,00 € · 1 Gebot</div></div>
+        </div>
+        <div class="item-card">
+          <div class="img"><div class="lot">#05</div>🎵</div>
+          <div class="info"><div class="artist">raison d'être</div><div class="title">Prospectus I</div><div class="price">5,00 € · 3 Gebote</div></div>
+        </div>
+        <div class="item-card">
+          <div class="img"><div class="lot">#06</div>🎵</div>
+          <div class="info"><div class="artist">Bohren & der…</div><div class="title">Sunset Mission</div><div class="price">12,00 € · 7 Gebote</div></div>
+        </div>
+        <div class="item-card">
+          <div class="img"><div class="lot">#07</div>🎵</div>
+          <div class="info"><div class="artist">Coil</div><div class="title">Time Machines</div><div class="price">25,00 € · 12 Gebote</div></div>
+        </div>
+        <div class="item-card">
+          <div class="img"><div class="lot">#08</div>🎵</div>
+          <div class="info"><div class="artist">Coph Nia</div><div class="title">Shape Shifter</div><div class="price">4,00 € · 2 Gebote</div></div>
+        </div>
+      </div>
+      <div style="text-align:center;padding:10px;font-size:12px;color:var(--text-muted);">… +42 weitere Lots</div>
+
+      <div class="annotation">
+        <span class="icon">💡</span>
+        <div><strong>Block-Detail:</strong> Hero-Bild + Stats-Leiste geben sofort Überblick. Redaktioneller Content vermittelt Kurationsqualität. Item-Grid mit Sortierung. User sieht „Coil — Time Machines" mit 12 Geboten → klickt auf Lot #07.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- PHASE 2: REGISTRIERUNG -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<section class="phase" data-phase="2" id="phase-2">
+  <div class="phase-title">Registrierung & Verifizierung</div>
+  <p class="phase-desc">Vor dem Bieten muss sich der Kunde registrieren. Login/Register als Modal.</p>
+
+  <!-- Screen 2.1: Item Detail (triggers auth) -->
+  <div class="screen">
+    <div class="screen-header">
+      <span class="label">Screen 2.1 — Item-Detail (nicht eingeloggt)</span>
+      <span class="route">GET /auctions/dark-ambient-drone/item-07</span>
+    </div>
+    <div class="screen-body">
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">← Dark Ambient & Drone / <span style="color:var(--text);">Lot #07 — Coil: Time Machines</span></div>
+      <div class="two-col">
+        <!-- Left: Image -->
+        <div>
+          <div class="img-placeholder" style="height:220px;font-size:24px;">🎵<br><span style="font-size:12px;">Coil — Time Machines<br>2LP, 1998</span></div>
+          <div style="display:flex;gap:6px;margin-top:8px;">
+            <div class="img-placeholder" style="width:48px;height:48px;font-size:12px;border:2px solid var(--gold);">A</div>
+            <div class="img-placeholder" style="width:48px;height:48px;font-size:12px;">B</div>
+            <div class="img-placeholder" style="width:48px;height:48px;font-size:12px;">C</div>
+          </div>
+        </div>
+        <!-- Right: Info + Bid -->
+        <div>
+          <div style="display:flex;gap:6px;margin-bottom:8px;">
+            <span class="badge badge-gold">Vinyl 2LP</span>
+            <span class="badge badge-muted">1998</span>
+            <span class="badge badge-muted">UK</span>
+          </div>
+          <div style="font-size:12px;color:var(--text-muted);">Coil</div>
+          <div style="font-family:var(--serif);font-size:22px;margin-bottom:12px;">Time Machines</div>
+
+          <div class="wire" style="padding:16px;">
+            <div class="bid-label">Aktuelles Gebot</div>
+            <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px;">
+              <span class="bid-current">25,00 €</span>
+              <span class="badge badge-green">12 Gebote</span>
+            </div>
+            <div class="countdown" style="margin-bottom:12px;">⏱ 4T 12:34:56</div>
+
+            <div class="divider"></div>
+
+            <div style="margin-top:12px;">
+              <label class="input-label">Dein Gebot (€)</label>
+              <div style="display:flex;gap:8px;">
+                <input class="input-field" value="26,00" style="flex:1;" disabled>
+                <span class="btn-gold" style="opacity:0.5;">Anmelden zum Bieten</span>
+              </div>
+              <div style="font-size:11px;color:var(--orange);margin-top:6px;">⚠ Bitte melde dich an, um ein Gebot abzugeben.</div>
+            </div>
+          </div>
+
+          <div style="margin-top:12px;">
+            <div style="font-size:12px;font-weight:600;margin-bottom:6px;">Details</div>
+            <table class="mini-table">
+              <tr><td style="color:var(--text-muted);">Label</td><td>Eskaton</td></tr>
+              <tr><td style="color:var(--text-muted);">Katalog-Nr.</td><td>SKA 023/024</td></tr>
+              <tr><td style="color:var(--text-muted);">Media</td><td><span style="color:var(--green);">Near Mint (NM)</span></td></tr>
+              <tr><td style="color:var(--text-muted);">Sleeve</td><td><span style="color:var(--green);">Very Good Plus (VG+)</span></td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="annotation">
+        <span class="icon">💡</span>
+        <div><strong>Auth-Trigger:</strong> Bid-Button ist deaktiviert + Hinweis „Bitte anmelde dich an". Klick auf „Anmelden zum Bieten" öffnet das Auth-Modal. Alle Item-Infos bleiben sichtbar.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector">↓ User klickt „Anmelden zum Bieten"</div>
+
+  <!-- Screen 2.2: Auth Modal -->
+  <div class="screen">
+    <div class="screen-header">
+      <span class="label">Screen 2.2 — Registrierungs-Modal</span>
+      <span class="route">Modal Overlay (kein Seitenwechsel)</span>
+    </div>
+    <div class="screen-body">
+      <div style="background:rgba(0,0,0,0.6);border-radius:8px;padding:32px;">
+        <div style="max-width:380px;margin:0 auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:24px;">
+          <div style="text-align:center;margin-bottom:20px;">
+            <div style="font-family:var(--serif);font-size:20px;">Konto erstellen</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Registriere dich, um auf seltene Tonträger zu bieten.</div>
+          </div>
+
+          <!-- Tab Switcher -->
+          <div style="display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:20px;">
+            <div style="flex:1;text-align:center;padding:8px;font-size:13px;color:var(--text-muted);cursor:default;">Anmelden</div>
+            <div style="flex:1;text-align:center;padding:8px;font-size:13px;background:var(--gold);color:var(--bg);font-weight:600;cursor:default;">Registrieren</div>
+          </div>
+
+          <div style="display:flex;gap:10px;margin-bottom:10px;">
+            <div style="flex:1;"><label class="input-label">Vorname</label><input class="input-field" value="Marcus" disabled></div>
+            <div style="flex:1;"><label class="input-label">Nachname</label><input class="input-field" value="Weber" disabled></div>
+          </div>
+          <div style="margin-bottom:10px;"><label class="input-label">E-Mail</label><input class="input-field" value="marcus.weber@email.de" disabled></div>
+          <div style="margin-bottom:16px;"><label class="input-label">Passwort</label><input class="input-field" type="password" value="••••••••••" disabled></div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:16px;">
+            Mit der Registrierung akzeptierst du unsere <span style="color:var(--gold);text-decoration:underline;">AGB</span> und <span style="color:var(--gold);text-decoration:underline;">Datenschutzerklärung</span>.
+          </div>
+          <div class="btn-gold" style="width:100%;justify-content:center;">Konto erstellen</div>
+        </div>
+      </div>
+
+      <div class="annotation">
+        <span class="icon">💡</span>
+        <div><strong>Modal-UX:</strong> Kein Seitenwechsel — Item bleibt im Hintergrund sichtbar. Tab-Switch für Login/Register. Minimale Felder: Vor-/Nachname, E-Mail, Passwort. AGB-Hinweis inline. Nach Submit → Bestätigung.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector">↓ Formular abgesendet</div>
+
+  <!-- Screen 2.3: Success Toast -->
+  <div class="screen">
+    <div class="screen-header">
+      <span class="label">Screen 2.3 — Registrierung erfolgreich (Toast)</span>
+      <span class="route">POST /auth/register → 201</span>
+    </div>
+    <div class="screen-body" style="text-align:center;padding:32px;">
+      <div class="toast" style="font-size:14px;">
+        <span class="dot"></span>
+        Willkommen, Marcus! Bitte bestätige deine E-Mail-Adresse.
+      </div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:12px;">Wir haben eine Bestätigungs-Mail an <strong style="color:var(--text);">marcus.weber@email.de</strong> gesendet.</div>
+    </div>
+  </div>
+
+  <div class="connector">↓ E-Mail wird zugestellt</div>
+
+  <!-- Screen 2.4: Confirmation Email -->
+  <div class="screen">
+    <div class="screen-header">
+      <span class="label">Screen 2.4 — Bestätigungs-E-Mail</span>
+      <span class="route">E-Mail (Transactional)</span>
+    </div>
+    <div class="screen-body">
+      <div style="text-align:center;font-size:12px;color:var(--text-muted);margin-bottom:12px;">Posteingang: marcus.weber@email.de</div>
+      <div class="email-wire">
+        <div class="email-head">
+          <div class="logo">◉ VOD Auctions</div>
+        </div>
+        <div class="email-body">
+          <h3>Willkommen bei VOD Auctions!</h3>
+          <p>Hallo Marcus,</p>
+          <p>vielen Dank für deine Registrierung. Bitte bestätige deine E-Mail-Adresse, um dein Konto zu aktivieren und auf seltene Tonträger zu bieten.</p>
+          <div style="text-align:center;margin:20px 0;">
+            <a class="email-cta" href="#">E-Mail bestätigen</a>
+          </div>
+          <p style="font-size:11px;">Dieser Link ist 24 Stunden gültig. Falls du dich nicht registriert hast, kannst du diese Mail ignorieren.</p>
+        </div>
+        <div class="email-footer">
+          VOD Auctions · Kuratierte Tonträger-Auktionen<br>
+          <a href="#" style="color:var(--gold);text-decoration:none;">Impressum</a> · <a href="#" style="color:var(--gold);text-decoration:none;">Datenschutz</a>
+        </div>
+      </div>
+
+      <div class="annotation">
+        <span class="icon">💡</span>
+        <div><strong>E-Mail-Design:</strong> Minimal, auf-brand (dark header mit Gold-Logo). Klarer CTA-Button. Rechtliche Links im Footer. Nach Klick auf „E-Mail bestätigen" → Redirect zur Item-Seite (eingeloggt).</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- PHASE 3: AUKTION ERKUNDEN -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<section class="phase" data-phase="3" id="phase-3">
+  <div class="phase-title">Auktion erkunden (eingeloggt)</div>
+  <p class="phase-desc">Nach E-Mail-Bestätigung: User ist eingeloggt und kann bieten.</p>
+
+  <!-- Screen 3.1: Logged-in Item Page -->
+  <div class="screen">
+    <div class="screen-header">
+      <span class="label">Screen 3.1 — Item-Detail (eingeloggt)</span>
+      <span class="route">GET /auctions/dark-ambient-drone/item-07</span>
+    </div>
+    <div class="screen-body">
+      <div class="wire-header">
+        <span class="logo">◉ VOD Auctions</span>
+        <div class="nav-items">
+          <span>Auktionen</span>
+          <span style="display:flex;align-items:center;gap:6px;">
+            <span style="width:24px;height:24px;border-radius:50%;background:var(--gold);color:var(--bg);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;">MW</span>
+            Marcus
+          </span>
+        </div>
+      </div>
+
+      <div style="padding:16px 0;">
+        <div class="wire" style="padding:16px;">
+          <div class="bid-label">Aktuelles Gebot</div>
+          <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px;">
+            <span class="bid-current">25,00 €</span>
+            <span class="badge badge-green">12 Gebote</span>
+          </div>
+          <div class="countdown" style="margin-bottom:16px;">⏱ Endet in 4T 11:58:23</div>
+
+          <!-- Bid History -->
+          <div style="font-size:12px;font-weight:600;margin-bottom:6px;">Gebotsverlauf</div>
+          <div style="max-height:120px;overflow-y:auto;margin-bottom:16px;">
+            <div class="bid-row"><span class="user">s***r</span><span class="amount" style="margin-left:auto;">25,00 €</span><span class="badge badge-green btn-sm" style="margin-left:6px;">Höchstgebot</span></div>
+            <div class="bid-row"><span class="user">k***n</span><span class="amount" style="margin-left:auto;">22,00 €</span></div>
+            <div class="bid-row"><span class="user">s***r</span><span class="amount" style="margin-left:auto;">20,00 €</span></div>
+            <div class="bid-row"><span class="user">m***z</span><span class="amount" style="margin-left:auto;">18,00 €</span></div>
+            <div class="bid-row"><span class="user">k***n</span><span class="amount" style="margin-left:auto;">15,00 €</span></div>
+          </div>
+
+          <div class="divider"></div>
+
+          <!-- Bid Form (active) -->
+          <div style="margin-top:12px;">
+            <label class="input-label">Dein Gebot (€)</label>
+            <div style="display:flex;gap:8px;margin-bottom:8px;">
+              <input class="input-field" value="26,00" style="flex:1;" disabled>
+              <span class="btn-gold">Gebot abgeben</span>
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);">Mindestgebot: 26,00 € (aktuell + 1,00 € Mindestschritt)</div>
+
+            <!-- Proxy Bid Toggle -->
+            <div style="display:flex;align-items:center;gap:8px;margin-top:10px;padding:8px 12px;background:var(--bg);border-radius:6px;border:1px solid var(--border);">
+              <div style="width:32px;height:18px;border-radius:9px;background:var(--text-muted);position:relative;cursor:default;"><div style="width:14px;height:14px;border-radius:50%;background:#fff;position:absolute;top:2px;left:2px;"></div></div>
+              <span style="font-size:12px;">Automatisches Bieten (Proxy)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="annotation">
+        <span class="icon">💡</span>
+        <div><strong>Aktiver Bid-Bereich:</strong> Nutzer ist eingeloggt (Avatar „MW" im Header). Bid-Button ist nun aktiv. Mindestgebot wird automatisch berechnet. Proxy-Bidding als Option. Gebotsverlauf mit anonymisierten Usernamen. User gibt 28,00 € ein und klickt „Gebot abgeben".</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- PHASE 4: BIETEN -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<section class="phase" data-phase="4" id="phase-4">
+  <div class="phase-title">Bieten & Gebotsprozess</div>
+  <p class="phase-desc">User gibt Gebot ab — Bestätigungsdialog, Realtime-Update, Überboten-Benachrichtigung.</p>
+
+  <!-- Screen 4.1: Bid Confirmation Dialog -->
+  <div class="screen">
+    <div class="screen-header">
+      <span class="label">Screen 4.1 — Gebotsbestätigung</span>
+      <span class="route">Dialog Overlay</span>
+    </div>
+    <div class="screen-body">
+      <div style="background:rgba(0,0,0,0.6);border-radius:8px;padding:32px;">
+        <div style="max-width:360px;margin:0 auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:24px;">
+          <div style="font-family:var(--serif);font-size:18px;margin-bottom:4px;">Gebot bestätigen</div>
+          <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">Du bietest auf:</div>
+
+          <div style="display:flex;gap:12px;align-items:center;padding:12px;background:var(--bg);border-radius:8px;margin-bottom:16px;">
+            <div class="img-placeholder" style="width:48px;height:48px;font-size:16px;flex-shrink:0;">🎵</div>
+            <div>
+              <div style="font-size:12px;color:var(--text-muted);">Lot #07 · Coil</div>
+              <div style="font-weight:600;font-size:14px;">Time Machines (2LP)</div>
+            </div>
+          </div>
+
+          <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;">
+            <span style="color:var(--text-muted);">Aktuelles Höchstgebot</span>
+            <span>25,00 €</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:13px;">
+            <span style="color:var(--text-muted);">Dein Gebot</span>
+            <span style="font-weight:700;color:var(--gold);font-size:16px;">28,00 €</span>
+          </div>
+
+          <div style="font-size:11px;color:var(--text-muted);margin:12px 0;padding:8px 12px;background:rgba(249,115,22,0.06);border-radius:6px;">
+            ⚠ Gebote sind verbindlich. Du verpflichtest dich zum Kauf, wenn du den Zuschlag erhältst.
+          </div>
+
+          <div style="display:flex;gap:8px;">
+            <span class="btn-outline" style="flex:1;justify-content:center;">Abbrechen</span>
+            <span class="btn-gold" style="flex:1;justify-content:center;">Gebot bestätigen</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="annotation">
+        <span class="icon">💡</span>
+        <div><strong>Bestätigungs-Dialog:</strong> Zeigt Item, aktuelles Gebot und neues Gebot. Verbindlichkeits-Hinweis prominent. Zwei klar unterscheidbare Buttons. Nach Bestätigung → Realtime-Update.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector">↓ Gebot bestätigt</div>
+
+  <!-- Screen 4.2: Bid placed success -->
+  <div class="screen">
+    <div class="screen-header">
+      <span class="label">Screen 4.2 — Gebot platziert (Realtime-Update)</span>
+      <span class="route">POST /store/.../bids → 201 + Supabase Realtime</span>
+    </div>
+    <div class="screen-body">
+      <div style="text-align:center;margin-bottom:16px;">
+        <div class="toast"><span class="dot"></span> Gebot erfolgreich! Du bist Höchstbietender.</div>
+      </div>
+
+      <div class="wire" style="padding:16px;">
+        <div class="bid-label">Aktuelles Gebot</div>
+        <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px;">
+          <span class="bid-current">28,00 €</span>
+          <span class="badge badge-green">13 Gebote</span>
+        </div>
+
+        <div style="max-height:100px;overflow-y:auto;margin-bottom:12px;">
+          <div class="bid-row" style="background:rgba(74,222,128,0.05);border-radius:4px;padding:6px 8px;">
+            <span class="user" style="color:var(--text);">Du</span>
+            <span class="amount" style="margin-left:auto;color:var(--green);">28,00 €</span>
+            <span class="badge badge-green btn-sm" style="margin-left:6px;">Höchstgebot</span>
+          </div>
+          <div class="bid-row"><span class="user">s***r</span><span class="amount" style="margin-left:auto;">25,00 €</span></div>
+          <div class="bid-row"><span class="user">k***n</span><span class="amount" style="margin-left:auto;">22,00 €</span></div>
+        </div>
+      </div>
+
+      <div class="annotation">
+        <span class="icon">💡</span>
+        <div><strong>Realtime-UX:</strong> Toast-Benachrichtigung oben. Preis animiert (Scale-Pulse). Eigenes Gebot grün hervorgehoben mit „Höchstgebot"-Badge. Preis-Update via Supabase Realtime — alle anderen verbundenen Clients sehen die Änderung sofort.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector">↓ 2 Tage später: Ein anderer User bietet 30,00 €</div>
+
+  <!-- Screen 4.3: Outbid Notification -->
+  <div class="screen">
+    <div class="screen-header">
+      <span class="label">Screen 4.3 — Überboten! (E-Mail + On-Site)</span>
+      <span class="route">E-Mail (Transactional) + Realtime Push</span>
+    </div>
+    <div class="screen-body">
+      <div class="two-col">
+        <!-- On-Site Notification -->
+        <div>
+          <div style="font-size:12px;font-weight:600;margin-bottom:8px;">On-Site (falls online)</div>
+          <div class="wire" style="padding:16px;">
+            <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:8px;">
+              <span style="font-size:18px;">⚠️</span>
+              <div>
+                <div style="font-size:13px;font-weight:600;color:var(--red);">Du wurdest überboten!</div>
+                <div style="font-size:12px;color:var(--text-muted);">Coil — Time Machines · Neues Höchstgebot: 30,00 €</div>
+              </div>
+              <span class="btn-gold btn-sm" style="margin-left:auto;">Neu bieten</span>
+            </div>
+          </div>
+        </div>
+        <!-- Email -->
+        <div>
+          <div style="font-size:12px;font-weight:600;margin-bottom:8px;">E-Mail-Benachrichtigung</div>
+          <div class="email-wire" style="font-size:12px;">
+            <div class="email-head" style="padding:12px 16px;">
+              <div class="logo" style="font-size:14px;">◉ VOD Auctions</div>
+            </div>
+            <div class="email-body" style="padding:16px;">
+              <h3 style="font-size:16px;color:var(--red);">Du wurdest überboten!</h3>
+              <p style="font-size:12px;">Dein Gebot von 28,00 € auf <strong>Coil — Time Machines</strong> wurde überboten. Das neue Höchstgebot beträgt <strong>30,00 €</strong>.</p>
+              <p style="font-size:12px;">Die Auktion endet in <strong>1T 23:45:12</strong>.</p>
+              <div style="text-align:center;margin:12px 0;">
+                <a class="email-cta" href="#" style="font-size:12px;padding:8px 20px;">Jetzt neu bieten</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="annotation">
+        <span class="icon">💡</span>
+        <div><strong>Überboten-UX:</strong> Doppelte Benachrichtigung — On-Site (falls online) + E-Mail (immer). Roter Alarm-Style. Direkter CTA „Neu bieten" führt zurück zur Item-Seite. User entscheidet sich, mit 35,00 € nachzubieten.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector">↓ User bietet 35,00 € und bleibt Höchstbietender bis zum Ende</div>
+
+  <!-- Screen 4.4: Auction ending (last minutes) -->
+  <div class="screen">
+    <div class="screen-header">
+      <span class="label">Screen 4.4 — Auktionsende (letzte Minuten)</span>
+      <span class="route">Realtime Countdown + Auto-Extension</span>
+    </div>
+    <div class="screen-body">
+      <div class="wire" style="padding:16px;border-color:rgba(239,68,68,0.3);">
+        <div class="bid-label">Aktuelles Gebot</div>
+        <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px;">
+          <span class="bid-current">35,00 €</span>
+          <span class="badge badge-green">18 Gebote</span>
+        </div>
+
+        <div class="countdown ending" style="margin-bottom:12px;font-size:18px;">
+          🔴 Endet in 00:02:34
+        </div>
+
+        <div style="font-size:11px;color:var(--red);background:rgba(239,68,68,0.06);padding:8px 12px;border-radius:6px;margin-bottom:12px;">
+          ⏱ Auto-Extension: Ein Gebot in den letzten 5 Minuten verlängert die Auktion um 5 Minuten.
+        </div>
+
+        <div style="max-height:80px;overflow-y:auto;">
+          <div class="bid-row" style="background:rgba(74,222,128,0.05);border-radius:4px;padding:6px 8px;">
+            <span class="user" style="color:var(--text);">Du</span>
+            <span class="amount" style="margin-left:auto;color:var(--green);">35,00 €</span>
+            <span class="badge badge-green btn-sm" style="margin-left:6px;">Höchstgebot</span>
+          </div>
+          <div class="bid-row"><span class="user">k***n</span><span class="amount" style="margin-left:auto;">30,00 €</span></div>
+          <div class="bid-row"><span class="user" style="color:var(--text);">Du</span><span class="amount" style="margin-left:auto;">28,00 €</span></div>
+        </div>
+      </div>
+
+      <div class="annotation">
+        <span class="icon">💡</span>
+        <div><strong>Endphase-UX:</strong> Countdown pulsiert rot unter 5 Minuten. Auto-Extension-Hinweis erklärt die Sniping-Protection. Rahmen wird rot. Alle Bids in Echtzeit. Spannung wird visuell aufgebaut.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- PHASE 5: GEWONNEN -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<section class="phase" data-phase="5" id="phase-5">
+  <div class="phase-title">Auktion gewonnen!</div>
+  <p class="phase-desc">Timer ist abgelaufen — Marcus hat Lot #07 für 35,00 € gewonnen.</p>
+
+  <!-- Screen 5.1: Won notification -->
+  <div class="screen">
+    <div class="screen-header">
+      <span class="label">Screen 5.1 — Zuschlag (On-Site)</span>
+      <span class="route">Realtime: auction_ended event</span>
+    </div>
+    <div class="screen-body" style="text-align:center;padding:32px;">
+      <div style="font-size:48px;margin-bottom:8px;">🎉</div>
+      <div style="font-family:var(--serif);font-size:24px;margin-bottom:4px;">Glückwunsch!</div>
+      <div style="font-size:14px;color:var(--text-muted);margin-bottom:20px;">Du hast den Zuschlag erhalten.</div>
+
+      <div style="max-width:340px;margin:0 auto;padding:16px;background:var(--bg-elevated);border:1px solid var(--border-gold);border-radius:12px;">
+        <div style="display:flex;gap:12px;align-items:center;text-align:left;margin-bottom:12px;">
+          <div class="img-placeholder" style="width:56px;height:56px;font-size:20px;flex-shrink:0;">🎵</div>
+          <div>
+            <div style="font-size:11px;color:var(--text-muted);">Lot #07</div>
+            <div style="font-weight:600;">Coil — Time Machines</div>
+            <div style="font-size:12px;color:var(--text-muted);">2LP, 1998, Eskaton</div>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;">
+          <span style="color:var(--text-muted);">Zuschlagspreis</span>
+          <span style="font-weight:700;color:var(--gold);font-family:var(--serif);font-size:18px;">35,00 €</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;">
+          <span style="color:var(--text-muted);">+ Versand (DE)</span>
+          <span>4,99 €</span>
+        </div>
+        <div class="divider"></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:14px;font-weight:700;">
+          <span>Gesamt</span>
+          <span style="color:var(--gold);">39,99 €</span>
+        </div>
+        <div style="margin-top:12px;">
+          <span class="btn-gold" style="width:100%;justify-content:center;">Jetzt bezahlen →</span>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:8px;">Zahlung innerhalb von 3 Tagen erforderlich.</div>
+      </div>
+    </div>
+
+    <div class="annotation">
+      <span class="icon">💡</span>
+      <div><strong>Gewinn-UX:</strong> Emotionale Bestätigung mit Confetti-Icon. Item-Zusammenfassung + Preisaufstellung klar strukturiert. Direkter CTA „Jetzt bezahlen". Frist-Hinweis (3 Tage) erzeugt sanfte Dringlichkeit.</div>
+    </div>
+  </div>
+
+  <div class="connector">↓ Gleichzeitig: E-Mail wird versendet</div>
+
+  <!-- Screen 5.2: Won Email -->
+  <div class="screen">
+    <div class="screen-header">
+      <span class="label">Screen 5.2 — Zuschlag-E-Mail</span>
+      <span class="route">E-Mail (Transactional)</span>
+    </div>
+    <div class="screen-body">
+      <div class="email-wire">
+        <div class="email-head">
+          <div class="logo">◉ VOD Auctions</div>
+        </div>
+        <div class="email-body">
+          <h3>🎉 Zuschlag erhalten!</h3>
+          <p>Hallo Marcus,</p>
+          <p>Glückwunsch! Du hast den Zuschlag für folgenden Artikel erhalten:</p>
+
+          <div style="background:#f0ebe4;padding:12px;border-radius:8px;margin:12px 0;">
+            <div style="font-weight:700;color:#1c1915;">Coil — Time Machines</div>
+            <div style="font-size:12px;color:#4a4540;">Lot #07 · 2LP, 1998, Eskaton · Media: NM / Sleeve: VG+</div>
+            <div style="font-size:12px;color:#4a4540;margin-top:4px;">Block: Dark Ambient & Drone</div>
+            <div style="margin-top:8px;display:flex;justify-content:space-between;">
+              <span style="color:#4a4540;font-size:13px;">Zuschlagspreis</span>
+              <span style="font-weight:700;color:#1c1915;font-size:16px;">35,00 €</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;">
+              <span style="color:#4a4540;font-size:13px;">+ Versand (DE)</span>
+              <span style="color:#1c1915;font-size:13px;">4,99 €</span>
+            </div>
+            <div style="border-top:1px solid #d4cfc8;margin-top:6px;padding-top:6px;display:flex;justify-content:space-between;">
+              <span style="font-weight:700;color:#1c1915;font-size:14px;">Gesamt</span>
+              <span style="font-weight:700;color:#1c1915;font-size:16px;">39,99 €</span>
+            </div>
+          </div>
+
+          <p>Bitte bezahle innerhalb von <strong>3 Tagen</strong> (bis 12.03.2026), um deine Bestellung abzuschließen.</p>
+
+          <div style="text-align:center;margin:20px 0;">
+            <a class="email-cta" href="#">Jetzt bezahlen →</a>
+          </div>
+
+          <p style="font-size:11px;">Bei Fragen wende dich an support@vod-auctions.com</p>
+        </div>
+        <div class="email-footer">
+          VOD Auctions · Kuratierte Tonträger-Auktionen<br>
+          Bestellnr.: VOD-2026-00142
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector">↓ User sieht auch alle Gewinne im Account</div>
+
+  <!-- Screen 5.3: Account Wins -->
+  <div class="screen">
+    <div class="screen-header">
+      <span class="label">Screen 5.3 — Mein Konto: Gewonnene Items</span>
+      <span class="route">GET /account/wins</span>
+    </div>
+    <div class="screen-body">
+      <div style="display:flex;gap:20px;">
+        <!-- Sidebar -->
+        <div style="width:160px;flex-shrink:0;">
+          <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--text-muted);">Mein Konto</div>
+          <div style="font-size:13px;padding:6px 10px;color:var(--text-muted);border-radius:6px;margin-bottom:2px;">Übersicht</div>
+          <div style="font-size:13px;padding:6px 10px;color:var(--text-muted);border-radius:6px;margin-bottom:2px;">Meine Gebote</div>
+          <div style="font-size:13px;padding:6px 10px;background:var(--gold);color:var(--bg);border-radius:6px;font-weight:600;margin-bottom:2px;">Gewonnen</div>
+          <div style="font-size:13px;padding:6px 10px;color:var(--text-muted);border-radius:6px;">Einstellungen</div>
+        </div>
+        <!-- Content -->
+        <div style="flex:1;">
+          <div style="font-family:var(--serif);font-size:20px;margin-bottom:4px;">Gewonnene Auktionen</div>
+          <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">1 Item gewonnen</div>
+
+          <div class="wire" style="display:flex;gap:12px;align-items:center;border-color:var(--border-gold);">
+            <div class="img-placeholder" style="width:64px;height:64px;font-size:20px;flex-shrink:0;">🎵</div>
+            <div style="flex:1;">
+              <div style="font-size:11px;color:var(--text-muted);">Lot #07 · Dark Ambient & Drone</div>
+              <div style="font-weight:600;">Coil — Time Machines</div>
+              <div style="font-size:12px;color:var(--text-muted);">2LP, 1998 · Zuschlag: 35,00 €</div>
+            </div>
+            <div style="text-align:right;">
+              <span class="badge badge-orange">Zahlung offen</span>
+              <div style="margin-top:6px;">
+                <span class="btn-gold btn-sm">Bezahlen →</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- PHASE 6: BEZAHLUNG -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<section class="phase" data-phase="6" id="phase-6">
+  <div class="phase-title">Bezahlung via Stripe</div>
+  <p class="phase-desc">Marcus klickt „Jetzt bezahlen" — Stripe Checkout öffnet sich.</p>
+
+  <!-- Screen 6.1: Checkout Summary -->
+  <div class="screen">
+    <div class="screen-header">
+      <span class="label">Screen 6.1 — Bestell-Zusammenfassung</span>
+      <span class="route">GET /account/wins/checkout</span>
+    </div>
+    <div class="screen-body">
+      <div style="max-width:480px;margin:0 auto;">
+        <div style="font-family:var(--serif);font-size:20px;margin-bottom:16px;">Bestellung abschließen</div>
+
+        <!-- Progress -->
+        <div class="status-bar" style="margin-bottom:20px;">
+          <div class="status-step done">✓ Zuschlag</div>
+          <div class="status-step current">Bezahlung</div>
+          <div class="status-step">Versand</div>
+          <div class="status-step">Abgeschlossen</div>
+        </div>
+
+        <!-- Item -->
+        <div class="wire" style="padding:16px;margin-bottom:16px;">
+          <div style="font-size:12px;font-weight:600;margin-bottom:10px;">Deine Bestellung</div>
+          <div style="display:flex;gap:12px;align-items:center;">
+            <div class="img-placeholder" style="width:64px;height:64px;font-size:20px;flex-shrink:0;">🎵</div>
+            <div style="flex:1;">
+              <div style="font-weight:600;">Coil — Time Machines (2LP)</div>
+              <div style="font-size:12px;color:var(--text-muted);">Lot #07 · Eskaton · NM/VG+</div>
+            </div>
+            <div style="font-weight:700;font-family:monospace;">35,00 €</div>
+          </div>
+
+          <div class="divider"></div>
+
+          <table class="mini-table" style="margin-top:8px;">
+            <tr><td style="color:var(--text-muted);">Artikel</td><td style="text-align:right;">35,00 €</td></tr>
+            <tr><td style="color:var(--text-muted);">Versand (DHL Paket, DE)</td><td style="text-align:right;">4,99 €</td></tr>
+            <tr><td style="color:var(--text-muted);">MwSt. (19%, enthalten)</td><td style="text-align:right;">6,38 €</td></tr>
+            <tr><td style="font-weight:700;">Gesamt</td><td style="text-align:right;font-weight:700;color:var(--gold);font-size:16px;">39,99 €</td></tr>
+          </table>
+        </div>
+
+        <!-- Shipping Address -->
+        <div class="wire" style="padding:16px;margin-bottom:16px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div style="font-size:12px;font-weight:600;">Lieferadresse</div>
+            <span class="btn-outline btn-sm">Ändern</span>
+          </div>
+          <div style="font-size:13px;line-height:1.5;">
+            Marcus Weber<br>
+            Musterstraße 42<br>
+            10115 Berlin<br>
+            Deutschland
+          </div>
+        </div>
+
+        <span class="btn-gold" style="width:100%;justify-content:center;padding:12px 20px;font-size:15px;">
+          Weiter zur Zahlung (Stripe) →
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector">↓ Weiterleitung zu Stripe Checkout</div>
+
+  <!-- Screen 6.2: Stripe Checkout -->
+  <div class="screen">
+    <div class="screen-header">
+      <span class="label">Screen 6.2 — Stripe Checkout</span>
+      <span class="route">checkout.stripe.com (Hosted)</span>
+    </div>
+    <div class="screen-body">
+      <div class="stripe-mock">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+          <div class="stripe-logo">stripe</div>
+          <div style="font-size:12px;color:#666;">Sicherer Checkout</div>
+        </div>
+
+        <div style="display:flex;gap:12px;align-items:center;padding:12px;background:#f7f7f7;border-radius:8px;margin-bottom:20px;">
+          <div style="width:40px;height:40px;border-radius:6px;background:#1c1915;display:flex;align-items:center;justify-content:center;color:#d4a54a;font-size:12px;">VOD</div>
+          <div>
+            <div style="font-weight:600;font-size:14px;">VOD Auctions</div>
+            <div style="font-size:12px;color:#666;">Bestellnr.: VOD-2026-00142</div>
+          </div>
+          <div style="margin-left:auto;font-weight:700;font-size:18px;">39,99 €</div>
+        </div>
+
+        <div style="margin-bottom:16px;">
+          <label style="font-size:12px;font-weight:500;display:block;margin-bottom:4px;color:#1a1a2e;">E-Mail</label>
+          <div class="stripe-field">marcus.weber@email.de</div>
+        </div>
+
+        <div style="margin-bottom:16px;">
+          <label style="font-size:12px;font-weight:500;display:block;margin-bottom:4px;color:#1a1a2e;">Kartennummer</label>
+          <div class="stripe-field">4242 4242 4242 4242</div>
+          <div class="stripe-row" style="margin-top:8px;">
+            <div class="stripe-field">03 / 28</div>
+            <div class="stripe-field">123</div>
+          </div>
+        </div>
+
+        <div style="margin-bottom:16px;">
+          <label style="font-size:12px;font-weight:500;display:block;margin-bottom:4px;color:#1a1a2e;">Name auf der Karte</label>
+          <div class="stripe-field">Marcus Weber</div>
+        </div>
+
+        <div class="stripe-btn">39,99 € bezahlen</div>
+
+        <div style="text-align:center;margin-top:12px;font-size:11px;color:#999;">
+          🔒 Powered by <strong>Stripe</strong> · AES-256 verschlüsselt
+        </div>
+      </div>
+
+      <div class="annotation">
+        <span class="icon">💡</span>
+        <div><strong>Stripe Checkout:</strong> Hosted Checkout Page (kein Custom-Form). Zeigt VOD Auctions Logo + Bestellnr. Unterstützt Kreditkarte, SEPA, Apple Pay, Google Pay. PCI-compliant ohne eigenen Aufwand. Nach Bezahlung → Redirect zurück.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector">↓ Zahlung erfolgreich</div>
+
+  <!-- Screen 6.3: Payment success -->
+  <div class="screen">
+    <div class="screen-header">
+      <span class="label">Screen 6.3 — Zahlung erfolgreich</span>
+      <span class="route">GET /account/wins?payment=success + Stripe Webhook</span>
+    </div>
+    <div class="screen-body" style="text-align:center;padding:32px;">
+      <div style="width:56px;height:56px;border-radius:50%;background:rgba(74,222,128,0.15);border:2px solid var(--green);display:flex;align-items:center;justify-content:center;font-size:24px;margin:0 auto 12px;">✓</div>
+      <div style="font-family:var(--serif);font-size:22px;margin-bottom:4px;">Zahlung erfolgreich!</div>
+      <div style="font-size:14px;color:var(--text-muted);margin-bottom:20px;">Deine Bestellung wird nun vorbereitet.</div>
+
+      <div style="max-width:340px;margin:0 auto;">
+        <div class="status-bar">
+          <div class="status-step done">✓ Zuschlag</div>
+          <div class="status-step done">✓ Bezahlt</div>
+          <div class="status-step current">Versand</div>
+          <div class="status-step">Abgeschlossen</div>
+        </div>
+
+        <div class="wire" style="padding:16px;margin-top:16px;text-align:left;">
+          <table class="mini-table">
+            <tr><td style="color:var(--text-muted);">Bestellnr.</td><td>VOD-2026-00142</td></tr>
+            <tr><td style="color:var(--text-muted);">Bezahlt</td><td style="color:var(--green);">39,99 € via Kreditkarte</td></tr>
+            <tr><td style="color:var(--text-muted);">Versand</td><td>DHL Paket, 2-3 Werktage</td></tr>
+            <tr><td style="color:var(--text-muted);">Tracking</td><td style="color:var(--text-muted);font-style:italic;">Wird nach Versand bereitgestellt</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- PHASE 7: ABSCHLUSS -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<section class="phase" data-phase="7" id="phase-7">
+  <div class="phase-title">Versand & Abschluss</div>
+  <p class="phase-desc">Artikel wird verpackt, versendet und zugestellt. E-Mail-Benachrichtigungen auf jedem Schritt.</p>
+
+  <!-- Screen 7.1: Payment Confirmation Email -->
+  <div class="screen">
+    <div class="screen-header">
+      <span class="label">Screen 7.1 — Zahlungsbestätigung (E-Mail)</span>
+      <span class="route">E-Mail (Transactional, Stripe Webhook)</span>
+    </div>
+    <div class="screen-body">
+      <div class="email-wire">
+        <div class="email-head">
+          <div class="logo">◉ VOD Auctions</div>
+        </div>
+        <div class="email-body">
+          <h3>Zahlungsbestätigung</h3>
+          <p>Hallo Marcus,</p>
+          <p>vielen Dank für deine Zahlung! Deine Bestellung wird nun für den Versand vorbereitet.</p>
+
+          <div style="background:#f0ebe4;padding:12px;border-radius:8px;margin:12px 0;">
+            <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;">
+              <span style="color:#4a4540;">Bestellnr.</span>
+              <span style="font-weight:700;color:#1c1915;">VOD-2026-00142</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;">
+              <span style="color:#4a4540;">Artikel</span>
+              <span style="color:#1c1915;">Coil — Time Machines (2LP)</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;">
+              <span style="color:#4a4540;">Bezahlt</span>
+              <span style="font-weight:700;color:#1c1915;">39,99 €</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;">
+              <span style="color:#4a4540;">Zahlungsart</span>
+              <span style="color:#1c1915;">Visa ****4242</span>
+            </div>
+          </div>
+
+          <p style="font-size:12px;">Wir benachrichtigen dich, sobald dein Paket versendet wurde.</p>
+        </div>
+        <div class="email-footer">
+          VOD Auctions · Kuratierte Tonträger-Auktionen
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector">↓ 1-2 Werktage: Artikel wird verpackt und versendet</div>
+
+  <!-- Screen 7.2: Shipping Email -->
+  <div class="screen">
+    <div class="screen-header">
+      <span class="label">Screen 7.2 — Versandbestätigung (E-Mail)</span>
+      <span class="route">E-Mail (Transactional)</span>
+    </div>
+    <div class="screen-body">
+      <div class="email-wire">
+        <div class="email-head">
+          <div class="logo">◉ VOD Auctions</div>
+        </div>
+        <div class="email-body">
+          <h3>📦 Dein Paket ist unterwegs!</h3>
+          <p>Hallo Marcus,</p>
+          <p>deine Bestellung wurde versendet und ist auf dem Weg zu dir!</p>
+
+          <div style="background:#f0ebe4;padding:12px;border-radius:8px;margin:12px 0;">
+            <div style="font-weight:700;color:#1c1915;margin-bottom:4px;">Coil — Time Machines (2LP)</div>
+            <div style="font-size:12px;color:#4a4540;margin-bottom:8px;">Bestellnr.: VOD-2026-00142</div>
+            <div style="border-top:1px solid #d4cfc8;padding-top:8px;">
+              <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;">
+                <span style="color:#4a4540;">Versandart</span>
+                <span style="color:#1c1915;">DHL Paket</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:13px;">
+                <span style="color:#4a4540;">Sendungsnr.</span>
+                <span style="font-weight:600;color:#1c1915;">00340434161094042557</span>
+              </div>
+            </div>
+          </div>
+
+          <div style="text-align:center;margin:20px 0;">
+            <a class="email-cta" href="#">Sendung verfolgen →</a>
+          </div>
+
+          <p style="font-size:12px;">Voraussichtliche Zustellung: <strong>14.–15. März 2026</strong></p>
+        </div>
+        <div class="email-footer">
+          VOD Auctions · Kuratierte Tonträger-Auktionen
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector">↓ Zustellung erfolgt</div>
+
+  <!-- Screen 7.3: Final account state -->
+  <div class="screen">
+    <div class="screen-header">
+      <span class="label">Screen 7.3 — Mein Konto: Abgeschlossen</span>
+      <span class="route">GET /account/wins</span>
+    </div>
+    <div class="screen-body">
+      <div style="display:flex;gap:20px;">
+        <div style="width:160px;flex-shrink:0;">
+          <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--text-muted);">Mein Konto</div>
+          <div style="font-size:13px;padding:6px 10px;color:var(--text-muted);border-radius:6px;margin-bottom:2px;">Übersicht</div>
+          <div style="font-size:13px;padding:6px 10px;color:var(--text-muted);border-radius:6px;margin-bottom:2px;">Meine Gebote</div>
+          <div style="font-size:13px;padding:6px 10px;background:var(--gold);color:var(--bg);border-radius:6px;font-weight:600;margin-bottom:2px;">Gewonnen</div>
+          <div style="font-size:13px;padding:6px 10px;color:var(--text-muted);border-radius:6px;">Einstellungen</div>
+        </div>
+        <div style="flex:1;">
+          <div style="font-family:var(--serif);font-size:20px;margin-bottom:16px;">Gewonnene Auktionen</div>
+
+          <div class="wire" style="display:flex;gap:12px;align-items:center;">
+            <div class="img-placeholder" style="width:64px;height:64px;font-size:20px;flex-shrink:0;">🎵</div>
+            <div style="flex:1;">
+              <div style="font-size:11px;color:var(--text-muted);">Lot #07 · Dark Ambient & Drone</div>
+              <div style="font-weight:600;">Coil — Time Machines</div>
+              <div style="font-size:12px;color:var(--text-muted);">2LP, 1998 · 35,00 € + 4,99 € Versand</div>
+            </div>
+            <div style="text-align:right;">
+              <span class="badge badge-green">Zugestellt ✓</span>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">14.03.2026</div>
+            </div>
+          </div>
+
+          <!-- Status Bar -->
+          <div class="status-bar" style="margin-top:16px;">
+            <div class="status-step done">✓ Zuschlag</div>
+            <div class="status-step done">✓ Bezahlt</div>
+            <div class="status-step done">✓ Versendet</div>
+            <div class="status-step done">✓ Zugestellt</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector">↓</div>
+
+  <!-- Screen 7.4: Delivery confirmation email -->
+  <div class="screen">
+    <div class="screen-header">
+      <span class="label">Screen 7.4 — Feedback-E-Mail (3 Tage nach Zustellung)</span>
+      <span class="route">E-Mail (Automated, 3 Tage Delay)</span>
+    </div>
+    <div class="screen-body">
+      <div class="email-wire">
+        <div class="email-head">
+          <div class="logo">◉ VOD Auctions</div>
+        </div>
+        <div class="email-body">
+          <h3>Alles angekommen?</h3>
+          <p>Hallo Marcus,</p>
+          <p>dein Paket wurde vor einigen Tagen zugestellt. Wir hoffen, du bist zufrieden mit deiner <strong>Coil — Time Machines</strong> Platte!</p>
+          <p>Hast du Lust auf mehr? Aktuell laufen neue Auktionen:</p>
+
+          <div style="background:#f0ebe4;padding:12px;border-radius:8px;margin:12px 0;">
+            <div style="font-weight:600;color:#1c1915;font-size:14px;">🔥 Neue Blöcke</div>
+            <div style="font-size:12px;color:#4a4540;margin-top:4px;">• Power Electronics & Harsh Noise (30 Lots)<br>• Minimal Synth Raritäten (25 Lots)<br>• Tape Label Specials (40 Lots)</div>
+          </div>
+
+          <div style="text-align:center;margin:20px 0;">
+            <a class="email-cta" href="#">Neue Auktionen entdecken →</a>
+          </div>
+        </div>
+        <div class="email-footer">
+          <a href="#" style="color:#8a8580;text-decoration:none;">Benachrichtigungen verwalten</a><br>
+          VOD Auctions · Kuratierte Tonträger-Auktionen
+        </div>
+      </div>
+
+      <div class="annotation">
+        <span class="icon">💡</span>
+        <div><strong>Retention-Loop:</strong> 3 Tage nach Zustellung → Feedback-Mail mit Cross-Sell auf neue Auktionen. Schließt den Kreislauf und bringt den Kunden zurück zur Startseite. „Benachrichtigungen verwalten"-Link für DSGVO-Compliance.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- SUMMARY -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div style="margin-top:64px;padding:32px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);">
+  <div style="font-family:var(--serif);font-size:24px;margin-bottom:8px;">Journey-Zusammenfassung</div>
+  <div style="color:var(--text-muted);font-size:13px;margin-bottom:20px;">Kompletter Durchlauf: 18 Screens, 5 E-Mails, 7 Phasen</div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:24px;">
+    <div class="wire" style="text-align:center;padding:16px;">
+      <div style="font-family:var(--serif);font-size:28px;color:var(--gold);">18</div>
+      <div style="font-size:12px;color:var(--text-muted);">UI Screens</div>
+    </div>
+    <div class="wire" style="text-align:center;padding:16px;">
+      <div style="font-family:var(--serif);font-size:28px;color:var(--gold);">5</div>
+      <div style="font-size:12px;color:var(--text-muted);">Transactional E-Mails</div>
+    </div>
+    <div class="wire" style="text-align:center;padding:16px;">
+      <div style="font-family:var(--serif);font-size:28px;color:var(--gold);">7</div>
+      <div style="font-size:12px;color:var(--text-muted);">Phasen</div>
+    </div>
+    <div class="wire" style="text-align:center;padding:16px;">
+      <div style="font-family:var(--serif);font-size:28px;color:var(--gold);">~7 Tage</div>
+      <div style="font-size:12px;color:var(--text-muted);">Gesamtdauer</div>
+    </div>
+  </div>
+
+  <div style="font-size:13px;font-weight:600;margin-bottom:8px;">E-Mail-Touchpoints</div>
+  <table class="mini-table" style="margin-bottom:20px;">
+    <thead><tr><th>#</th><th>Auslöser</th><th>Betreff</th><th>Zeitpunkt</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Registrierung</td><td>Willkommen bei VOD Auctions!</td><td>Sofort</td></tr>
+      <tr><td>2</td><td>Überboten</td><td>Du wurdest überboten!</td><td>Event-basiert</td></tr>
+      <tr><td>3</td><td>Zuschlag</td><td>Zuschlag erhalten!</td><td>Auktionsende</td></tr>
+      <tr><td>4</td><td>Zahlung</td><td>Zahlungsbestätigung</td><td>Nach Stripe Webhook</td></tr>
+      <tr><td>5</td><td>Versand</td><td>Dein Paket ist unterwegs!</td><td>Nach Versand</td></tr>
+      <tr><td style="color:var(--text-muted);">6</td><td style="color:var(--text-muted);">Feedback</td><td style="color:var(--text-muted);">Alles angekommen?</td><td style="color:var(--text-muted);">+3 Tage nach Zustellung</td></tr>
+    </tbody>
+  </table>
+
+  <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Persona</div>
+  <div style="display:flex;gap:12px;align-items:center;padding:12px;background:var(--bg);border-radius:8px;">
+    <div style="width:48px;height:48px;border-radius:50%;background:var(--gold);color:var(--bg);display:flex;align-items:center;justify-content:center;font-weight:700;">MW</div>
+    <div>
+      <div style="font-weight:600;">Marcus Weber, 34, Berlin</div>
+      <div style="font-size:12px;color:var(--text-muted);">Sammler von Dark Ambient & Drone Vinyl. Kennt Coil, sucht seltene Pressungen. Erste Auktion auf VOD Auctions.</div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /flow -->
+
+<script>
+function scrollToPhase(n) {
+  document.getElementById('phase-' + n).scrollIntoView({ behavior: 'smooth', block: 'start' });
+  document.querySelectorAll('.top-nav .pill').forEach((p, i) => {
+    p.classList.toggle('active', i === n - 1);
+  });
+}
+window.addEventListener('scroll', () => {
+  const phases = document.querySelectorAll('.phase');
+  const pills = document.querySelectorAll('.top-nav .pill');
+  let current = 0;
+  phases.forEach((p, i) => {
+    if (p.getBoundingClientRect().top < 200) current = i;
+  });
+  pills.forEach((p, i) => p.classList.toggle('active', i === current));
+});
+</script>
+
+</body>
+</html>

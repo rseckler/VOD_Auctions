@@ -285,9 +285,9 @@ export async function POST(
     // Insert all transaction records
     await pgConnection("transaction").insert(transactionInserts)
 
-    // Get customer info (email + name for Stripe/PayPal display)
+    // Get customer email
     const customer = await pgConnection("customer")
-      .select("email", "first_name", "last_name")
+      .select("email")
       .where("id", customerId)
       .first()
 
@@ -300,24 +300,13 @@ export async function POST(
           ? EU_COUNTRIES
           : undefined
 
-    const customerName = [customer?.first_name, customer?.last_name].filter(Boolean).join(" ")
-
     const sessionConfig: any = {
       mode: "payment",
       customer_email: customer?.email || undefined,
       line_items: lineItems,
-      payment_intent_data: {
-        description: `VOD Auctions Order — ${customerName || customer?.email || "Customer"}`,
-        ...(customerName ? { shipping: {
-          name: customerName,
-          address: { line1: "", city: "", country: shipping_country || "DE", postal_code: "" },
-        } } : {}),
-      },
       metadata: {
         order_group_id: orderGroupId,
         user_id: customerId,
-        customer_name: customerName || undefined,
-        customer_email: customer?.email || undefined,
       },
       success_url: `${APP_URL}/account/checkout?payment=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${APP_URL}/account/checkout?payment=cancelled`,

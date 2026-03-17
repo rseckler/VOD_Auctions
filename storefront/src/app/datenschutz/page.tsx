@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import Link from "next/link"
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
@@ -9,11 +8,6 @@ export const metadata: Metadata = {
 export default function DatenschutzPage() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-16">
-      <nav className="text-sm text-muted-foreground mb-4">
-        <Link href="/" className="hover:text-primary">Home</Link>
-        <span className="mx-2">/</span>
-        <span>Privacy Policy</span>
-      </nav>
       <h1 className="font-serif text-4xl mb-8">Privacy Policy</h1>
 
       <div className="prose prose-invert prose-sm max-w-none space-y-6 text-muted-foreground">
@@ -233,15 +227,31 @@ export default function DatenschutzPage() {
         {/* 9. Google Fonts */}
         <section>
           <h2 className="text-lg font-medium text-foreground">
-            9. Google Fonts (Self-Hosted)
+            9. Google Fonts
           </h2>
           <p>
             This website uses the fonts &quot;DM Sans&quot; and &quot;DM
-            Serif Display&quot; from Google Fonts. The fonts are
-            self-hosted via next/font and served directly from our own
-            server. No data is transmitted to Google servers when you
-            visit our website.
+            Serif Display&quot; from Google Fonts for display purposes.
+            When loading a page, the fonts are fetched from Google
+            servers. Your IP address may be transmitted to Google in the
+            process.
           </p>
+          <p>
+            Provider: Google Ireland Limited, Gordon House, Barrow
+            Street, Dublin 4, Ireland.
+          </p>
+          <p>
+            Google Privacy Policy:{" "}
+            <a
+              href="https://policies.google.com/privacy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              https://policies.google.com/privacy
+            </a>
+          </p>
+          <p>Legal basis: Art. 6 (1)(f) GDPR.</p>
         </section>
 
         {/* 10. Discogs API */}

@@ -38,8 +38,6 @@ type Transaction = {
   shipping_name: string | null
   shipping_city: string | null
   shipping_country: string | null
-  customer_name: string | null
-  customer_email: string | null
 }
 
 const CARRIERS = ["DHL", "DPD", "Hermes", "GLS", "UPS", "FedEx", "Deutsche Post"]
@@ -127,32 +125,6 @@ const TransactionsPage = () => {
     }
   }
 
-  const [refunding, setRefunding] = useState<string | null>(null)
-  const refundTransaction = async (id: string) => {
-    if (!window.confirm("Are you sure you want to refund this order? This will refund the full amount via Stripe and set the release(s) back to available.")) return
-    setRefunding(id)
-    try {
-      const res = await fetch(`/admin/transactions/${id}`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "refund" }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        alert(`Refund failed: ${data.message}`)
-      } else {
-        alert(`Refund successful (${data.transactions_refunded} item(s)). Stripe refund: ${data.refund_status}`)
-      }
-      fetchTransactions()
-    } catch (err) {
-      alert("Refund failed. Check console.")
-      console.error("Refund error:", err)
-    } finally {
-      setRefunding(null)
-    }
-  }
-
   const itemLabel = (tx: Transaction) => {
     const parts: string[] = []
     if (tx.release_artist) parts.push(tx.release_artist)
@@ -221,10 +193,7 @@ const TransactionsPage = () => {
                 </Table.Cell>
                 <Table.Cell>
                   <div>
-                    <Text className="text-sm">{tx.customer_name || tx.shipping_name || "—"}</Text>
-                    {tx.customer_email && (
-                      <Text className="text-xs text-ui-fg-muted">{tx.customer_email}</Text>
-                    )}
+                    <Text className="text-sm">{tx.shipping_name || "—"}</Text>
                     {tx.shipping_city && (
                       <Text className="text-ui-fg-subtle text-xs">
                         {tx.shipping_city}, {tx.shipping_country}
@@ -340,16 +309,6 @@ const TransactionsPage = () => {
                       onClick={() => markAsDelivered(tx.id)}
                     >
                       Delivered
-                    </Button>
-                  )}
-                  {tx.status === "paid" && (
-                    <Button
-                      size="small"
-                      variant="danger"
-                      onClick={() => refundTransaction(tx.id)}
-                      disabled={refunding === tx.id}
-                    >
-                      {refunding === tx.id ? "Refunding..." : "Refund"}
                     </Button>
                   )}
                 </Table.Cell>

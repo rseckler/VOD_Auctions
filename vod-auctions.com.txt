@@ -1,0 +1,22 @@
+; Exported Tue, 03 Mar 2026 11:27:13 +0100
+$TTL 2h
+$ORIGIN vod-auctions.com.
+
+@                                                  IN  SOA  ns5.kasserver.com. root.kasserver.com. (
+                                                                       1   ; serial
+                                                                      8h   ; refresh
+                                                                      2h   ; retry
+                                                                     14d   ; expire
+                                                                      2h ) ; minimum TTL
+
+                                                   A 72.62.148.205
+                                                   MX 10 w012c4ae.kasserver.com.
+                                                   NS ns5.kasserver.com.
+                                                   NS ns6.kasserver.com.
+                                                   TXT "v=spf1 a mx include:spf.kasserver.com ~all"
+_dmarc                                             TXT "v=DMARC1; p=none;"
+kas202603030734._domainkey                         TXT "v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsBWI/IwVMVDq6ATfZW0jcvXGNx5QkufuMR33ktwwpNjIPlrMT4y8wnaijRpMHsO7XW7EZiU2trOzqMnKePljo14jDgluaWut6kn+IWjWW4r+EW5R0VvklGqFtlUqMImfveWIHX2i/HFwdF814rB49bZ4UltVcRN7/hEatmGSofCAFG+OrkkoRYFHAiZ4+JoffSQRJgp3R1x4XwaeIyY88JZsBfhpUBlFzSRRINj+5GG1+At3xMyVgugMslj47+s7VVJma7MV5esaWDnxu7Q85lRbJh8tBNKhb+urjiND2VeBzAGSHAWHicz39LrdhGeDNFhTNaf7SHTsWex3xbUvQwIDAQAB"
+www                                                A 72.62.148.205
+api                                                A 72.62.148.205
+admin                                              A 72.62.148.205
+*                                                  A 72.62.148.205

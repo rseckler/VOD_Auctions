@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Concept A — Record Sleeve</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --gold: #d4a54a;
+      --gold-light: #e8c878;
+      --gold-dim: #a67c30;
+      --gold-faint: rgba(212, 165, 74, 0.08);
+      --gold-border: rgba(212, 165, 74, 0.15);
+      --gold-border-strong: rgba(212, 165, 74, 0.3);
+      --bg: #1c1915;
+      --bg-card: #231f1b;
+      --bg-elevated: #2a2520;
+      --text: #e8e0d4;
+      --text-muted: #9a8e7f;
+      --text-dim: #6b6057;
+      --border: rgba(255,255,255,0.06);
+      --border-subtle: rgba(255,255,255,0.04);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', -apple-system, sans-serif;
+      padding: 32px;
+      max-width: 460px;
+      margin: 0 auto;
+    }
+
+    .badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--gold);
+      padding: 6px 16px;
+      border: 1px solid var(--gold-border-strong);
+      border-radius: 4px;
+      margin-bottom: 24px;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .section-header h2 {
+      font-family: 'DM Serif Display', serif;
+      font-size: 16px;
+      color: var(--gold);
+      white-space: nowrap;
+    }
+    .section-header::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, var(--gold-border-strong), transparent);
+    }
+
+    .section-divider {
+      height: 1px;
+      background: var(--border);
+      margin: 24px 0;
+    }
+
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .detail-row:last-child { border-bottom: none; }
+    .detail-label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+    .detail-value {
+      font-size: 13px;
+      color: var(--text);
+      text-align: right;
+    }
+    .detail-value.mono {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .artist-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .artist-chip {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: var(--gold-faint);
+      border: 1px solid var(--gold-border);
+      color: var(--gold-light);
+      font-weight: 500;
+    }
+
+    .track-item {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .track-item:last-child { border-bottom: none; }
+    .track-pos {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 11px;
+      color: var(--gold-dim);
+      width: 28px;
+      text-align: right;
+      flex-shrink: 0;
+      font-weight: 600;
+    }
+    .track-title { flex: 1; font-size: 13px; }
+    .track-duration {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .credit-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .credit-row:last-child { border-bottom: none; }
+    .credit-role { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+    .credit-name { font-size: 13px; color: var(--text); text-align: right; }
+  </style>
+</head>
+<body>
+
+  <div class="badge">Concept A — Record Sleeve</div>
+
+  <div class="section-header"><h2>Details</h2></div>
+  <div>
+    <div class="detail-row"><span class="detail-label">Article No.</span><span class="detail-value mono">VOD-04104</span></div>
+    <div class="detail-row"><span class="detail-label">Label</span><span class="detail-value">Mute Records</span></div>
+    <div class="detail-row"><span class="detail-label">Catalog No.</span><span class="detail-value mono">STUMM 21</span></div>
+    <div class="detail-row"><span class="detail-label">Condition</span><span class="detail-value mono">VG+</span></div>
+    <div class="detail-row"><span class="detail-label">Format</span><span class="detail-value">Vinyl-Lp</span></div>
+    <div class="detail-row"><span class="detail-label">Media</span><span class="detail-value">Very Good Plus (VG+)</span></div>
+    <div class="detail-row"><span class="detail-label">Sleeve</span><span class="detail-value">Very Good (VG)</span></div>
+  </div>
+
+  <div class="section-divider"></div>
+
+  <div class="section-header"><h2>Contributing Artists</h2></div>
+  <div class="artist-chips">
+    <span class="artist-chip">Blixa Bargeld</span>
+    <span class="artist-chip">N.U. Unruh</span>
+    <span class="artist-chip">F.M. Einheit</span>
+    <span class="artist-chip">Alexander Hacke</span>
+    <span class="artist-chip">Mark Chung</span>
+  </div>
+
+  <div class="section-divider"></div>
+
+  <div class="section-header"><h2>Tracklist</h2></div>
+  <div>
+    <div class="track-item"><span class="track-pos">A1</span><span class="track-title">Feurio!</span><span class="track-duration">5:42</span></div>
+    <div class="track-item"><span class="track-pos">A2</span><span class="track-title">Yu-Gung (Fütter Mein Ego)</span><span class="track-duration">6:01</span></div>
+    <div class="track-item"><span class="track-pos">A3</span><span class="track-title">Der Tod Ist Ein Dandy</span><span class="track-duration">4:55</span></div>
+    <div class="track-item"><span class="track-pos">A4</span><span class="track-title">Seele Brennt</span><span class="track-duration">4:28</span></div>
+    <div class="track-item"><span class="track-pos">B1</span><span class="track-title">Sand</span><span class="track-duration">7:12</span></div>
+    <div class="track-item"><span class="track-pos">B2</span><span class="track-title">Letztes Biest (Am Himmel)</span><span class="track-duration">5:37</span></div>
+    <div class="track-item"><span class="track-pos">B3</span><span class="track-title">Kalte Sterne</span><span class="track-duration">6:48</span></div>
+  </div>
+
+  <div class="section-divider"></div>
+
+  <div class="section-header"><h2>Credits</h2></div>
+  <div>
+    <div class="credit-row"><span class="credit-role">Produced By</span><span class="credit-name">Gareth Jones</span></div>
+    <div class="credit-row"><span class="credit-role">Written By</span><span class="credit-name">Einstürzende Neubauten</span></div>
+    <div class="credit-row"><span class="credit-role">Recorded At</span><span class="credit-name">Hansa Studios, Berlin</span></div>
+    <div class="credit-row"><span class="credit-role">Mastered By</span><span class="credit-name">Denis Blackham</span></div>
+  </div>
+
+</body>
+</html>

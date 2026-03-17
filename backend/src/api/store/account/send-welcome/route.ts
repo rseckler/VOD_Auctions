@@ -1,11 +1,8 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys, generateEntityId } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
-import crypto from "crypto"
 import { sendWelcomeEmail } from "../../../../lib/email-helpers"
 import { crmSyncRegistration } from "../../../../lib/crm-sync"
-import { sendEmail, APP_URL } from "../../../../lib/email"
-import { verifyEmailTemplate } from "../../../../emails/verify-email"
 
 // POST /store/account/send-welcome — Send welcome email after registration
 export async function POST(
@@ -27,44 +24,10 @@ export async function POST(
     console.error("[send-welcome] Failed:", err)
   })
 
-  // Send verification email (async, non-blocking)
-  sendVerificationEmail(pgConnection, customerId).catch((err) => {
-    console.error("[send-welcome] Verification email failed:", err)
-  })
-
   // Sync new customer to Brevo CRM (async, non-blocking)
   crmSyncRegistration(pgConnection, customerId).catch((err) => {
     console.error("[send-welcome] CRM sync failed:", err)
   })
 
   res.json({ success: true })
-}
-
-async function sendVerificationEmail(pg: Knex, customerId: string) {
-  const customer = await pg("customer")
-    .where("id", customerId)
-    .select("id", "email", "first_name")
-    .first()
-  if (!customer?.email) return
-
-  const token = crypto.randomBytes(32).toString("hex")
-  const now = new Date()
-  const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000)
-
-  await pg("customer_verification").insert({
-    id: generateEntityId(),
-    customer_id: customerId,
-    token,
-    sent_at: now,
-    expires_at: expiresAt,
-    created_at: now,
-  })
-
-  const verifyUrl = `${APP_URL}/verify?token=${token}`
-  const { subject, html } = verifyEmailTemplate({
-    firstName: customer.first_name || "there",
-    verifyUrl,
-  })
-
-  await sendEmail({ to: customer.email, subject, html })
 }
