@@ -1,5 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, generateEntityId } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { stripe } from "../../../lib/stripe"
 import { sendPaymentConfirmationEmail } from "../../../lib/email-helpers"
@@ -125,6 +125,28 @@ export async function POST(
               })
           }
 
+          // Generate order number for all transactions in the group
+          const [{ nextval: seqVal }] = await pgConnection.raw("SELECT nextval('order_number_seq')")
+          const orderNumber = "VOD-ORD-" + String(seqVal).padStart(6, "0")
+          await pgConnection("transaction")
+            .where("order_group_id", orderGroupId)
+            .update({ order_number: orderNumber })
+
+          // Create audit trail event
+          await pgConnection("order_event").insert({
+            id: generateEntityId(),
+            order_group_id: orderGroupId,
+            event_type: "status_change",
+            title: "Payment received via Stripe (Checkout Session)",
+            details: JSON.stringify({
+              payment_intent_id: (session as any).payment_intent || null,
+              order_number: orderNumber,
+              event_type: event.type,
+            }),
+            actor: "system",
+            created_at: new Date(),
+          })
+
           // Send payment confirmation email (async, non-blocking)
           sendPaymentConfirmationEmail(pgConnection, orderGroupId).catch((err) => {
             console.error("[stripe-webhook] Failed to send payment email:", err)
@@ -221,6 +243,28 @@ export async function POST(
 
         console.log(`[stripe-webhook] PaymentIntent ${paymentIntent.id} — Order ${orderGroupId} marked as paid (${directPurchaseTxs.length} direct purchases)`)
 
+        // Generate order number for all transactions in the group
+        const [{ nextval: piSeqVal }] = await pgConnection.raw("SELECT nextval('order_number_seq')")
+        const piOrderNumber = "VOD-ORD-" + String(piSeqVal).padStart(6, "0")
+        await pgConnection("transaction")
+          .where("order_group_id", orderGroupId)
+          .update({ order_number: piOrderNumber })
+
+        // Create audit trail event
+        await pgConnection("order_event").insert({
+          id: generateEntityId(),
+          order_group_id: orderGroupId,
+          event_type: "status_change",
+          title: "Payment received via Stripe (Payment Element)",
+          details: JSON.stringify({
+            payment_intent_id: paymentIntent.id,
+            order_number: piOrderNumber,
+            event_type: event.type,
+          }),
+          actor: "system",
+          created_at: new Date(),
+        })
+
         // Increment promo code used_count if applicable
         const promoTx = await pgConnection("transaction")
           .where("order_group_id", orderGroupId)
@@ -270,12 +314,34 @@ export async function POST(
             .where("order_group_id", orderGroupId)
             .where("status", "pending")
             .update({ status: "failed", updated_at: new Date() })
+
+          await pgConnection("order_event").insert({
+            id: generateEntityId(),
+            order_group_id: orderGroupId,
+            event_type: "status_change",
+            title: "Checkout session expired",
+            details: JSON.stringify({ session_id: session.id }),
+            actor: "system",
+            created_at: new Date(),
+          })
+
           console.log(`[stripe-webhook] Order group ${orderGroupId} expired`)
         } else if (transactionId) {
           await pgConnection("transaction")
             .where("id", transactionId)
             .where("status", "pending")
             .update({ status: "failed", updated_at: new Date() })
+
+          await pgConnection("order_event").insert({
+            id: generateEntityId(),
+            order_group_id: transactionId,
+            event_type: "status_change",
+            title: "Checkout session expired",
+            details: JSON.stringify({ session_id: session.id }),
+            actor: "system",
+            created_at: new Date(),
+          })
+
           console.log(`[stripe-webhook] Transaction ${transactionId} expired`)
         }
         break

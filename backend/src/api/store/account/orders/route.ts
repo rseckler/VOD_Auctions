@@ -116,6 +116,7 @@ export async function GET(
       } else {
         orderMap.set(groupKey, {
           order_group_id: groupKey,
+          order_number: tx.order_number || null,
           order_date: tx.paid_at || tx.created_at,
           items: [item],
           subtotal: item.amount,

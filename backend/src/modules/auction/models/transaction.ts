@@ -54,6 +54,32 @@ const Transaction = model.define("transaction", {
   shipping_city: model.text().nullable(),
   shipping_postal_code: model.text().nullable(),
   shipping_country: model.text().nullable(),
+
+  // Order number (VOD-000001 format, shared across order_group_id)
+  order_number: model.text().nullable(),
+
+  // Fulfillment: unfulfilled | packing | shipped | delivered | returned
+  fulfillment_status: model.text().default("unfulfilled"),
+
+  // Refund tracking
+  refund_amount: model.float().default(0),
+
+  // Cancellation
+  cancelled_at: model.dateTime().nullable(),
+  cancel_reason: model.text().nullable(),
+
+  // Internal admin note
+  internal_note: model.text().nullable(),
+
+  // Customer phone
+  phone: model.text().nullable(),
+
+  // Billing address (if different from shipping)
+  billing_name: model.text().nullable(),
+  billing_address_line1: model.text().nullable(),
+  billing_city: model.text().nullable(),
+  billing_postal_code: model.text().nullable(),
+  billing_country: model.text().nullable(),
 })
 
 export default Transaction

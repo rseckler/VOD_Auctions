@@ -1,5 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, generateEntityId } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { verifyWebhookSignature } from "../../../lib/paypal"
 
@@ -86,6 +86,44 @@ export async function POST(
             updated_at: new Date(),
           })
 
+        // Generate order number if not already set
+        const paidTx = await pgConnection("transaction")
+          .where("paypal_capture_id", captureId)
+          .first()
+
+        if (paidTx?.order_group_id) {
+          const existingOrder = await pgConnection("transaction")
+            .where("order_group_id", paidTx.order_group_id)
+            .whereNotNull("order_number")
+            .first()
+
+          if (!existingOrder) {
+            const [{ nextval: seqVal }] = await pgConnection.raw("SELECT nextval('order_number_seq')")
+            const orderNumber = "VOD-ORD-" + String(seqVal).padStart(6, "0")
+            await pgConnection("transaction")
+              .where("order_group_id", paidTx.order_group_id)
+              .update({ order_number: orderNumber })
+
+            console.log(`[paypal-webhook] Generated order number ${orderNumber} for group ${paidTx.order_group_id}`)
+          }
+
+          // Create audit trail event
+          await pgConnection("order_event").insert({
+            id: generateEntityId(),
+            order_group_id: paidTx.order_group_id,
+            event_type: "status_change",
+            title: "Payment received via PayPal",
+            details: JSON.stringify({
+              paypal_capture_id: captureId,
+              paypal_order_id: paidTx.paypal_order_id || null,
+              order_number: existingOrder?.order_number || null,
+              event_type: eventType,
+            }),
+            actor: "system",
+            created_at: new Date(),
+          })
+        }
+
         console.log(`[paypal-webhook] PAYMENT.CAPTURE.COMPLETED — capture ${captureId}`)
         break
       }
@@ -94,6 +132,11 @@ export async function POST(
         const captureId = event.resource?.id
         if (!captureId) break
 
+        // Find transaction before updating for audit trail
+        const deniedTx = await pgConnection("transaction")
+          .where("paypal_capture_id", captureId)
+          .first()
+
         await pgConnection("transaction")
           .where("paypal_capture_id", captureId)
           .where("status", "pending")
@@ -101,6 +144,21 @@ export async function POST(
             status: "failed",
             updated_at: new Date(),
           })
+
+        if (deniedTx?.order_group_id) {
+          await pgConnection("order_event").insert({
+            id: generateEntityId(),
+            order_group_id: deniedTx.order_group_id,
+            event_type: "status_change",
+            title: "PayPal payment denied",
+            details: JSON.stringify({
+              paypal_capture_id: captureId,
+              event_type: eventType,
+            }),
+            actor: "system",
+            created_at: new Date(),
+          })
+        }
 
         console.log(`[paypal-webhook] PAYMENT.CAPTURE.DENIED — capture ${captureId}`)
         break
@@ -137,6 +195,23 @@ export async function POST(
                 }
               }
             }
+          }
+
+          // Create audit trail event for refund
+          if (tx?.order_group_id) {
+            await pgConnection("order_event").insert({
+              id: generateEntityId(),
+              order_group_id: tx.order_group_id,
+              event_type: "status_change",
+              title: "Payment refunded via PayPal",
+              details: JSON.stringify({
+                paypal_capture_id: captureId,
+                refund_id: event.resource?.id || null,
+                event_type: eventType,
+              }),
+              actor: "system",
+              created_at: new Date(),
+            })
           }
 
           console.log(`[paypal-webhook] PAYMENT.CAPTURE.REFUNDED — capture ${captureId}`)

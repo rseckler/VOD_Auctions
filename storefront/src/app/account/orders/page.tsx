@@ -35,6 +35,7 @@ type OrderItem = {
 
 type Order = {
   order_group_id: string
+  order_number: string | null
   order_date: string
   items: OrderItem[]
   items_count: number
@@ -125,7 +126,7 @@ function OrderProgressBar({ status }: { status: string }) {
   )
 }
 
-async function downloadInvoice(groupId: string) {
+async function downloadInvoice(groupId: string, orderNumber?: string | null) {
   const token = getToken()
   if (!token) return
 
@@ -141,7 +142,7 @@ async function downloadInvoice(groupId: string) {
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = `VOD-Invoice-${groupId.slice(-6).toUpperCase()}.pdf`
+    a.download = `Invoice-${orderNumber || groupId.slice(-6).toUpperCase()}.pdf`
     a.click()
     URL.revokeObjectURL(url)
   } catch (err) {
@@ -151,7 +152,7 @@ async function downloadInvoice(groupId: string) {
 
 function OrderCard({ order }: { order: Order }) {
   const [expanded, setExpanded] = useState(false)
-  const shortId = `VOD-${order.order_group_id.slice(-6).toUpperCase()}`
+  const shortId = order.order_number || `VOD-${order.order_group_id.slice(-6).toUpperCase()}`
   const date = new Date(order.order_date).toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
@@ -318,7 +319,7 @@ function OrderCard({ order }: { order: Order }) {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => downloadInvoice(order.order_group_id)}
+              onClick={() => downloadInvoice(order.order_group_id, order.order_number)}
               className="gap-2"
             >
               <FileText className="w-4 h-4" />
