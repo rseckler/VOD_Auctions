@@ -13,7 +13,7 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Sprache:** Storefront und Admin-UI komplett auf Englisch (seit 2026-03-03)
 
 **Created:** 2026-02-10
-**Last Updated:** 2026-03-16
+**Last Updated:** 2026-03-18
 
 ### UX/UI Overhaul — 37 CRITICAL+HIGH Findings (2026-03-15, IN PROGRESS)
 
@@ -147,6 +147,37 @@ H (Backend APIs)     → Keine Dependencies, startet sofort
   - Footer: "Kleinunternehmer nach § 19 UStG"
 - **Frontend Proxy:** `storefront/src/app/api/invoice/[groupId]/route.ts` (Auth-Proxy)
 - **Frontend:** "Download Invoice" Button auf Orders-Seite
+
+### Letzte Änderungen (2026-03-18)
+- **Transaction Module Phase 1 — Erweitertes Order Management:**
+  - **DB-Migration:** 12 neue Spalten auf `transaction` (order_number, fulfillment_status, refund_amount, cancelled_at, cancel_reason, internal_note, phone, billing_name/address_line1/city/postal_code/country), neue `order_event` Tabelle (Audit Trail/Timeline), `order_number_seq` Sequence, 3 Indexes, Backfill bestehender Daten
+  - **Order-Nummern (VOD-ORD-XXXXXX):** Human-readable, 6-stellig fortlaufend, generiert bei Payment-Success (Stripe + PayPal Webhooks), gleiche Nummer für alle Items einer Order Group
+  - **Admin Transactions API — Komplett überarbeitet:**
+    - `GET /admin/transactions` — Pagination (limit/offset), Search (q: Kundenname, E-Mail, Order-Nr., Artikel-Nr.), 7 Filter (status, shipping_status, fulfillment_status, payment_provider, shipping_country, date_from, date_to), Sort (created_at, paid_at, total_amount, order_number)
+    - `GET /admin/transactions/:id` — Detail + order_events Timeline
+    - `POST /admin/transactions/:id` — Erweitert: +action "note" (Admin-Notiz → order_event), +action "cancel" (Stornierung mit Auto-Refund + Release-Unlock)
+    - `POST /admin/transactions/bulk-ship` — Bulk Mark-as-Shipped (multiple IDs + Carrier + Tracking)
+    - `POST /admin/transactions/export` — CSV-Export mit BOM (Excel-kompatibel, 15 Spalten, gleiche Filter wie Liste)
+  - **Audit Trail:** Jede Status-Änderung (Ship, Deliver, Refund, Cancel, Note) erzeugt automatisch einen `order_event` Eintrag mit actor + Zeitstempel
+  - **Admin UI — Transactions-Seite komplett neu:**
+    - Suchleiste (debounced 300ms), Filter-Pills (Payment Status, Fulfillment, Provider), Date-Range-Filter
+    - Pagination (25/50/100 pro Seite) mit "Showing X-Y of Z"
+    - Bulk-Checkboxen + Floating Action Bar ("Mark as Shipped", "Export Selected")
+    - "Export All" Button, klickbare Zeilen → Detail-Seite
+  - **Admin UI — Neue Transaction-Detail-Seite** (`/app/transactions/:id`):
+    - 2-Spalten-Layout: Order-Info + Items + Adressen (links), Action-Buttons + Admin-Note + Timeline (rechts)
+    - Actions: Ship Order (Carrier/Tracking), Mark Delivered, Refund, Cancel (mit Grund), Download Invoice
+    - Activity-Timeline: Chronologische Events mit Emojis (📦 Shipment, 📝 Note, 💰 Refund, ❌ Cancel)
+  - **Webhooks:** Stripe + PayPal Webhooks generieren order_number + order_event bei Payment/Expiry/Denied/Refunded
+  - **Store API + Storefront:** `order_number` in Kunden-Orders-Response, Anzeige statt truncierter ULID, Invoice-Filename mit Order-Nr.
+  - **Neue Dateien:** `20260318_transaction_module_expansion.sql`, `bulk-ship/route.ts`, `export/route.ts`, `admin/routes/transactions/[id]/page.tsx`
+  - **Geänderte Dateien:** `transaction.ts` (Model), `admin/transactions/route.ts`, `admin/transactions/[id]/route.ts`, `admin/routes/transactions/page.tsx`, `webhooks/stripe/route.ts`, `webhooks/paypal/route.ts`, `store/account/orders/route.ts`, `storefront/orders/page.tsx`
+  - **VPS:** Migration ausgeführt, Backend + Storefront deployed
+- **VPS SSH Deploy Key:**
+  - Ed25519 Key auf VPS generiert (`~/.ssh/id_ed25519`, Comment: `vps-deploy@vod-auctions`)
+  - Als read-only Deploy Key bei GitHub/rseckler/VOD_Auctions hinterlegt
+  - Git remote zurück auf SSH (`git@github.com:rseckler/VOD_Auctions.git`)
+  - `git pull` via SSH funktioniert
 
 ### Letzte Änderungen (2026-03-17)
 - **Catalog Sort Fix (live verifiziert):**
@@ -933,7 +964,8 @@ Shared DB für tape-mag-mvp + VOD_Auctions. Schema enthält 24 Tabellen (14 Basi
 - `auction_block` — Themen-Auktionsblöcke (status, timing, content, settings, results)
 - `block_item` — Zuordnung Release → Block (Startpreis, current_price, bid_count, lot_end_time, Status)
 - `bid` — Alle Gebote (amount, max_amount, is_winning, is_outbid)
-- `transaction` — Zahlungen & Versand (RSE-76: Stripe, status, shipping_status, Adresse; RSE-111: +release_id, +item_type, +order_group_id, block_item_id nullable; +shipping_method_id, +shipping_country)
+- `transaction` — Zahlungen & Versand (RSE-76: Stripe, status, shipping_status, Adresse; RSE-111: +release_id, +item_type, +order_group_id, block_item_id nullable; +shipping_method_id, +shipping_country; Phase 1: +order_number VOD-ORD-XXXXXX, +fulfillment_status, +refund_amount, +cancelled_at, +cancel_reason, +internal_note, +phone, +billing_name/address_line1/city/postal_code/country)
+- `order_event` — Audit Trail/Timeline pro Order (id, order_group_id, transaction_id, event_type, title, details JSONB, actor, created_at). Event-Types: status_change, note, email_sent, refund, shipment, cancellation
 - `cart_item` — Warenkorb für Direktkäufe (RSE-111: user_id, release_id, price-Snapshot)
 - `saved_item` — Merkliste / Save for Later (user_id, release_id, soft-delete via deleted_at)
 - `related_blocks` — Verwandte Blöcke
@@ -1065,9 +1097,11 @@ VOD_Auctions/
 │   │   │   │   ├── media/       # Medien-Verwaltung API (browse, edit, stats, 5-category filter)
 │   │   │   │   │   └── [id]/route.ts     # GET/POST Release-Detail + Format + PressOrga JOINs
 │   │   │   │   ├── site-config/route.ts   # GET/POST: Catalog visibility toggle (site_config)
-│   │   │   │   └── transactions/         # Transaction Management (RSE-76)
-│   │   │   │       ├── route.ts          # GET: All transactions (filter by status)
-│   │   │   │       └── [id]/route.ts     # GET detail + POST shipping status update
+│   │   │   │   └── transactions/         # Transaction Management (Phase 1 erweitert)
+│   │   │   │       ├── route.ts          # GET: Pagination, Search, 7 Filter, Sort
+│   │   │   │       ├── [id]/route.ts     # GET detail+events, POST ship/refund/note/cancel
+│   │   │   │       ├── bulk-ship/route.ts # POST: Bulk mark-as-shipped
+│   │   │   │       └── export/route.ts   # POST: CSV export with filters
 │   │   │   ├── newsletter/          # Newsletter Admin API (RSE-129)
 │   │   │   │   ├── route.ts          # GET: Campaigns + subscriber counts
 │   │   │   │   ├── stats/route.ts    # GET: Detailed subscriber + campaign stats
@@ -1128,6 +1162,9 @@ VOD_Auctions/
 │   │       │   └── page.tsx     # CRM Dashboard (Segments, Top Customers, Campaigns)
 │   │       ├── entity-content/
 │   │       │   └── page.tsx     # Entity Content Editor (Bands/Labels/Press Tabs, RSE-151)
+│   │       ├── transactions/
+│   │       │   ├── page.tsx     # Transactions List (Search, Filter, Pagination, Bulk, Export)
+│   │       │   └── [id]/page.tsx # Transaction Detail (Timeline, Actions, Notes)
 │   │       └── components/
 │   │           └── rich-text-editor.tsx  # TipTap WYSIWYG Editor
 │   └── node_modules/
@@ -1470,9 +1507,14 @@ psycopg2-binary, python-dotenv, requests, mysql-connector-python
 - API: POST /admin/sync/discogs-health (execute actions: reduce_rate, reset_and_run, run_chunk, run_conservative)
 - API: GET /admin/sync/batch-progress (batch matching progress)
 
-**Transaction Management:** `/admin/transactions` — Zahlungen & Versand (RSE-76)
-- API: GET /admin/transactions (filter: status, shipping_status)
-- API: GET /admin/transactions/:id, POST /admin/transactions/:id (shipping_status update)
+**Transaction Management:** `/admin/transactions` — Erweitertes Order Management (Phase 1)
+- API: GET /admin/transactions (?q, ?status, ?fulfillment_status, ?payment_provider, ?shipping_country, ?date_from, ?date_to, ?sort, ?order, ?limit, ?offset) — Pagination, Search, Filter, Sort
+- API: GET /admin/transactions/:id — Detail + order_events Timeline
+- API: POST /admin/transactions/:id — Actions: shipping_status update, refund, note, cancel
+- API: POST /admin/transactions/bulk-ship — Bulk Mark-as-Shipped (transaction_ids[], carrier, tracking_number)
+- API: POST /admin/transactions/export — CSV Export mit Filtern (BOM, Excel-kompatibel)
+- Admin UI: Transactions-Liste (Suchleiste, Filter-Pills, Pagination, Bulk-Checkboxen, Export)
+- Admin UI: Transaction-Detail-Seite (/app/transactions/:id — 2-Spalten, Timeline, Action-Buttons, Notes)
 
 ## Checkout Redesign — Shopify-Style One-Page Checkout (Phase A+B LIVE, Phase C offen)
 
@@ -1677,8 +1719,10 @@ curl -s https://api.stripe.com/v1/refunds -u $STRIPE_KEY: -d payment_intent=pi_x
 - **Order History:** `/account/orders` — grouped by order_group_id, cover thumbnails, expandable detail, progress bar
 
 ### Transaction Status
-- `status`: pending → paid → refunded (oder failed)
-- `shipping_status`: pending → shipped → delivered
+- `status`: pending → paid → refunded / partially_refunded / cancelled (oder failed)
+- `shipping_status`: pending → shipped → delivered (Legacy-Feld, wird weiter gesetzt)
+- `fulfillment_status`: unfulfilled → packing → shipped → delivered / returned (NEU, Phase 1)
+- `order_number`: VOD-ORD-XXXXXX (generiert bei Payment-Success, shared pro order_group_id)
 
 ### Key Files
 - `backend/src/lib/shipping.ts` — Weight-based shipping calculator (RSE-103)
