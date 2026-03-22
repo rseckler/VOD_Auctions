@@ -299,7 +299,11 @@ def enrich_musicbrainz(name: str, entity_type: str) -> dict | None:
                     break
             if not best:
                 best = artists[0]
-                if best.get("ext:score", "0") and int(best.get("ext:score", "0")) < 80:
+                try:
+                    score = int(best.get("ext:score", "0"))
+                except (ValueError, TypeError):
+                    score = 0
+                if score < 80:
                     return None
 
             mbid = best.get("id")
@@ -351,7 +355,11 @@ def enrich_musicbrainz(name: str, entity_type: str) -> dict | None:
             if not labels:
                 return None
             best = labels[0]
-            if best.get("ext:score", "0") and int(best.get("ext:score", "0")) < 80:
+            try:
+                score = int(best.get("ext:score", "0"))
+            except (ValueError, TypeError):
+                score = 0
+            if score < 80:
                 return None
             return {
                 "mbid": best.get("id"),
