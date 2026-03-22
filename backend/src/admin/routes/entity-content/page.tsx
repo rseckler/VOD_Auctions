@@ -96,6 +96,30 @@ type OverhaulStatus = {
     musicians_with_roles: number
     artists_with_members: number
   } | null
+  project: {
+    linear_issue: string
+    concept_doc: string
+    last_updated: string
+    prerequisites: { name: string; status: string; date: string | null }[]
+    phases: {
+      id: number
+      name: string
+      description: string
+      tasks_total: number
+      tasks_done: number
+      status: string
+      duration: string
+    }[]
+    model_strategy: {
+      writer: string
+      profiler: string
+      seo: string
+      quality: string
+      musician_mapper: string
+      estimated_cost: string
+    }
+    data_sources: { name: string; status: string }[]
+  }
 }
 
 type EditForm = {
@@ -516,6 +540,7 @@ function EntityContentInner() {
             border: `1px solid ${COLORS.border}`,
           }}
         >
+          {/* Header row */}
           <div
             style={{
               display: "flex",
@@ -524,16 +549,23 @@ function EntityContentInner() {
               marginBottom: 14,
             }}
           >
-            <div
-              style={{
-                fontSize: 13,
-                fontWeight: 700,
-                color: COLORS.gold,
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-              }}
-            >
-              Content Overhaul Status
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: COLORS.gold,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                }}
+              >
+                Content Overhaul — RSE-227
+              </div>
+              {overhaulStatus.project && (
+                <span style={{ fontSize: 11, color: COLORS.muted }}>
+                  Updated {overhaulStatus.project.last_updated}
+                </span>
+              )}
             </div>
             {/* Pipeline status badge */}
             <span
@@ -567,318 +599,409 @@ function EntityContentInner() {
                     : overhaulStatus.pipeline
                       ? "#3b82f6"
                       : "#6b7280",
-                  animation: overhaulStatus.process_running
-                    ? "pulse 2s infinite"
-                    : undefined,
                 }}
               />
               {overhaulStatus.process_running
-                ? "RUNNING"
+                ? "PIPELINE RUNNING"
                 : overhaulStatus.pipeline
-                  ? "PAUSED"
-                  : "NOT STARTED"}
+                  ? "PIPELINE PAUSED"
+                  : "PREPARATION PHASE"}
             </span>
           </div>
 
-          {/* Pipeline progress (if running or has data) */}
+          {/* ── Prerequisites ── */}
+          {overhaulStatus.project && (
+            <div
+              style={{
+                background: COLORS.bg,
+                borderRadius: 8,
+                padding: "12px 16px",
+                marginBottom: 12,
+                border: `1px solid ${COLORS.border}`,
+              }}
+            >
+              <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.text, marginBottom: 8 }}>
+                Prerequisites
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {overhaulStatus.project.prerequisites.map((p) => (
+                  <span
+                    key={p.name}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                      padding: "2px 10px",
+                      borderRadius: 10,
+                      fontSize: 11,
+                      fontWeight: 500,
+                      background: p.status === "done" ? "#22c55e18" : "#ef883318",
+                      color: p.status === "done" ? "#22c55e" : "#ef8833",
+                      border: `1px solid ${p.status === "done" ? "#22c55e33" : "#ef883333"}`,
+                    }}
+                  >
+                    {p.status === "done" ? "\u2713" : "\u25CB"} {p.name}
+                    {p.date && (
+                      <span style={{ color: COLORS.muted, fontSize: 10 }}>({p.date})</span>
+                    )}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── Phase Timeline ── */}
+          {overhaulStatus.project && (
+            <div
+              style={{
+                background: COLORS.bg,
+                borderRadius: 8,
+                padding: "12px 16px",
+                marginBottom: 12,
+                border: `1px solid ${COLORS.border}`,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: COLORS.text,
+                  marginBottom: 10,
+                  display: "flex",
+                  justifyContent: "space-between",
+                }}
+              >
+                <span>Implementation Phases</span>
+                <span style={{ fontSize: 11, color: COLORS.muted, fontWeight: 400 }}>
+                  {overhaulStatus.project.phases.reduce((s, p) => s + p.tasks_done, 0)} / {overhaulStatus.project.phases.reduce((s, p) => s + p.tasks_total, 0)} tasks
+                </span>
+              </div>
+              {overhaulStatus.project.phases.map((phase) => {
+                const pct = phase.tasks_total > 0 ? (phase.tasks_done / phase.tasks_total) * 100 : 0
+                const statusColor =
+                  phase.status === "done"
+                    ? "#22c55e"
+                    : phase.status === "in_progress"
+                      ? COLORS.gold
+                      : "#6b7280"
+                const statusLabel =
+                  phase.status === "done"
+                    ? "DONE"
+                    : phase.status === "in_progress"
+                      ? "IN PROGRESS"
+                      : "PENDING"
+                return (
+                  <div
+                    key={phase.id}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "28px 1fr 80px 100px 60px",
+                      alignItems: "center",
+                      gap: 10,
+                      padding: "6px 0",
+                      borderBottom: phase.id < 10 ? `1px solid ${COLORS.border}44` : "none",
+                    }}
+                  >
+                    {/* Phase number */}
+                    <span
+                      style={{
+                        width: 24,
+                        height: 24,
+                        borderRadius: "50%",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        background: `${statusColor}22`,
+                        color: statusColor,
+                        border: `1.5px solid ${statusColor}55`,
+                      }}
+                    >
+                      {phase.status === "done" ? "\u2713" : phase.id}
+                    </span>
+                    {/* Name + description */}
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.text }}>
+                        {phase.name}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 10,
+                          color: COLORS.muted,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {phase.description}
+                      </div>
+                    </div>
+                    {/* Progress bar */}
+                    <div
+                      style={{
+                        height: 6,
+                        borderRadius: 3,
+                        background: COLORS.border,
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: "100%",
+                          width: `${pct}%`,
+                          borderRadius: 3,
+                          background: statusColor,
+                          transition: "width 0.3s ease",
+                        }}
+                      />
+                    </div>
+                    {/* Status badge */}
+                    <span
+                      style={{
+                        fontSize: 9,
+                        fontWeight: 700,
+                        color: statusColor,
+                        textAlign: "center",
+                        letterSpacing: "0.05em",
+                      }}
+                    >
+                      {statusLabel}
+                    </span>
+                    {/* Duration */}
+                    <span
+                      style={{
+                        fontSize: 10,
+                        color: COLORS.muted,
+                        textAlign: "right",
+                      }}
+                    >
+                      {phase.duration}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* ── Bottom row: Model Strategy + Data Sources + Musician DB ── */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+            {/* Model Strategy */}
+            {overhaulStatus.project && (
+              <div
+                style={{
+                  background: COLORS.bg,
+                  borderRadius: 8,
+                  padding: "10px 14px",
+                  border: `1px solid ${COLORS.border}`,
+                }}
+              >
+                <div style={{ fontSize: 11, fontWeight: 600, color: COLORS.gold, marginBottom: 6 }}>
+                  AI Models
+                </div>
+                <div style={{ fontSize: 11, color: COLORS.muted }}>
+                  {Object.entries(overhaulStatus.project.model_strategy)
+                    .filter(([k]) => k !== "estimated_cost")
+                    .map(([role, model]) => (
+                      <div key={role} style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                        <span style={{ textTransform: "capitalize" }}>{role.replace("_", " ")}</span>
+                        <span style={{ color: (model as string).includes("4o-mini") ? COLORS.muted : COLORS.gold, fontWeight: 600 }}>
+                          {model as string}
+                        </span>
+                      </div>
+                    ))}
+                  <div style={{ borderTop: `1px solid ${COLORS.border}`, marginTop: 4, paddingTop: 4, display: "flex", justifyContent: "space-between" }}>
+                    <span>Est. cost</span>
+                    <span style={{ color: COLORS.text, fontWeight: 600 }}>
+                      {overhaulStatus.project.model_strategy.estimated_cost}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Data Sources */}
+            {overhaulStatus.project && (
+              <div
+                style={{
+                  background: COLORS.bg,
+                  borderRadius: 8,
+                  padding: "10px 14px",
+                  border: `1px solid ${COLORS.border}`,
+                }}
+              >
+                <div style={{ fontSize: 11, fontWeight: 600, color: COLORS.gold, marginBottom: 6 }}>
+                  Data Sources ({overhaulStatus.project.data_sources.length})
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                  {overhaulStatus.project.data_sources.map((ds) => (
+                    <span
+                      key={ds.name}
+                      style={{
+                        padding: "1px 8px",
+                        borderRadius: 8,
+                        fontSize: 10,
+                        fontWeight: 500,
+                        background: ds.status === "ready" ? "#22c55e15" : "#6b728015",
+                        color: ds.status === "ready" ? "#22c55e" : "#6b7280",
+                        border: `1px solid ${ds.status === "ready" ? "#22c55e30" : "#6b728030"}`,
+                      }}
+                    >
+                      {ds.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Musician DB */}
+            <div
+              style={{
+                background: COLORS.bg,
+                borderRadius: 8,
+                padding: "10px 14px",
+                border: `1px solid ${COLORS.border}`,
+              }}
+            >
+              <div style={{ fontSize: 11, fontWeight: 600, color: COLORS.gold, marginBottom: 6 }}>
+                Musician DB
+              </div>
+              {overhaulStatus.musician_stats ? (
+                <div style={{ fontSize: 11, color: COLORS.muted }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                    <span>Musicians</span>
+                    <span style={{ color: COLORS.text, fontWeight: 600 }}>{overhaulStatus.musician_stats.total_musicians}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                    <span>Roles</span>
+                    <span style={{ color: COLORS.text, fontWeight: 600 }}>{overhaulStatus.musician_stats.total_roles}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>Bands with members</span>
+                    <span style={{ color: COLORS.text, fontWeight: 600 }}>{overhaulStatus.musician_stats.artists_with_members}</span>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ fontSize: 11, color: COLORS.muted, fontStyle: "italic" }}>
+                  Not created yet — Phase 3
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── Data Quality Grid (current state) ── */}
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: COLORS.muted, marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Current Data Quality
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+              {(["artist", "label", "press_orga"] as const).map((type) => {
+                const q = overhaulStatus.quality[type]
+                const total = overhaulStatus.totals[type] || 0
+                const prio = overhaulStatus.priorities[type]
+                const label = type === "artist" ? "Bands" : type === "label" ? "Labels" : "Press Orgs"
+                if (!q && total === 0) return null
+
+                return (
+                  <div
+                    key={type}
+                    style={{
+                      background: COLORS.bg,
+                      borderRadius: 8,
+                      padding: "10px 14px",
+                      border: `1px solid ${COLORS.border}`,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: COLORS.text,
+                        marginBottom: 6,
+                        display: "flex",
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      <span>{label}</span>
+                      <span style={{ fontSize: 11, color: COLORS.muted }}>{total.toLocaleString()}</span>
+                    </div>
+
+                    {prio && (
+                      <div style={{ display: "flex", gap: 6, marginBottom: 6, fontSize: 10 }}>
+                        <span style={{ padding: "0 6px", borderRadius: 6, background: "#ef883322", color: "#ef8833", fontWeight: 600 }}>P1: {prio.p1}</span>
+                        <span style={{ padding: "0 6px", borderRadius: 6, background: `${COLORS.gold}22`, color: COLORS.gold, fontWeight: 600 }}>P2: {prio.p2}</span>
+                        <span style={{ padding: "0 6px", borderRadius: 6, background: "#6b728022", color: "#9ca3af", fontWeight: 600 }}>P3: {prio.p3}</span>
+                      </div>
+                    )}
+
+                    {q && (
+                      <div style={{ fontSize: 10, color: COLORS.muted }}>
+                        {[
+                          { label: "Description", value: q.with_description },
+                          { label: "Short Desc", value: q.with_short_desc },
+                          { label: "Genre Tags", value: q.with_genre_tags },
+                          { label: "Country", value: q.with_country },
+                          { label: "Year", value: q.with_year },
+                          { label: "Links", value: q.with_links },
+                        ].map((field) => {
+                          const pct = total > 0 ? (field.value / total) * 100 : 0
+                          return (
+                            <div key={field.label} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                              <span style={{ width: 64, flexShrink: 0 }}>{field.label}</span>
+                              <div style={{ flex: 1, height: 4, borderRadius: 2, background: COLORS.border, overflow: "hidden" }}>
+                                <div style={{ height: "100%", width: `${pct}%`, borderRadius: 2, background: pct >= 80 ? "#22c55e" : pct >= 40 ? COLORS.gold : pct > 0 ? "#ef8833" : COLORS.border }} />
+                              </div>
+                              <span style={{ width: 32, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{pct.toFixed(0)}%</span>
+                            </div>
+                          )
+                        })}
+                        {q.avg_description_length && (
+                          <div style={{ marginTop: 3, fontSize: 9, color: COLORS.muted }}>
+                            Avg: {q.avg_description_length.toLocaleString()} chars
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {!q && (
+                      <div style={{ fontSize: 10, color: COLORS.muted, fontStyle: "italic" }}>No content yet</div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Pipeline live progress (only when running) */}
           {overhaulStatus.pipeline && (
             <div
               style={{
                 background: COLORS.bg,
                 borderRadius: 8,
                 padding: "12px 16px",
-                marginBottom: 14,
-                border: `1px solid ${COLORS.border}`,
+                marginTop: 12,
+                border: `1px solid ${COLORS.gold}44`,
               }}
             >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "baseline",
-                  marginBottom: 8,
-                }}
-              >
-                <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.text }}>
-                  Phase: {overhaulStatus.pipeline.current_phase || "—"}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.gold }}>
+                  Live: {overhaulStatus.pipeline.current_phase || "—"}
                 </span>
                 <span style={{ fontSize: 11, color: COLORS.muted }}>
-                  {overhaulStatus.pipeline.entities_processed} / {overhaulStatus.pipeline.entities_total} entities
+                  {overhaulStatus.pipeline.entities_processed} / {overhaulStatus.pipeline.entities_total}
                 </span>
               </div>
-              {/* Progress bar */}
-              <div
-                style={{
-                  height: 10,
-                  borderRadius: 5,
-                  background: COLORS.border,
-                  overflow: "hidden",
-                  marginBottom: 8,
-                }}
-              >
-                <div
-                  style={{
-                    height: "100%",
-                    borderRadius: 5,
-                    width: `${
-                      overhaulStatus.pipeline.entities_total > 0
-                        ? (overhaulStatus.pipeline.entities_processed /
-                            overhaulStatus.pipeline.entities_total) *
-                          100
-                        : 0
-                    }%`,
-                    background: `linear-gradient(90deg, ${COLORS.gold}, #22c55e)`,
-                    transition: "width 0.5s ease",
-                  }}
-                />
+              <div style={{ height: 10, borderRadius: 5, background: COLORS.border, overflow: "hidden", marginBottom: 8 }}>
+                <div style={{ height: "100%", borderRadius: 5, width: `${overhaulStatus.pipeline.entities_total > 0 ? (overhaulStatus.pipeline.entities_processed / overhaulStatus.pipeline.entities_total) * 100 : 0}%`, background: `linear-gradient(90deg, ${COLORS.gold}, #22c55e)`, transition: "width 0.5s ease" }} />
               </div>
-              {/* Stats row */}
-              <div
-                style={{
-                  display: "flex",
-                  gap: 16,
-                  fontSize: 11,
-                  color: COLORS.muted,
-                  flexWrap: "wrap",
-                }}
-              >
-                <span>
-                  <span style={{ color: "#22c55e", fontWeight: 600 }}>
-                    {overhaulStatus.pipeline.entities_accepted}
-                  </span>{" "}
-                  accepted
-                </span>
-                <span>
-                  <span style={{ color: "#eab308", fontWeight: 600 }}>
-                    {overhaulStatus.pipeline.entities_revised}
-                  </span>{" "}
-                  revised
-                </span>
-                <span>
-                  <span style={{ color: "#ef4444", fontWeight: 600 }}>
-                    {overhaulStatus.pipeline.entities_rejected}
-                  </span>{" "}
-                  rejected
-                </span>
-                <span>
-                  <span style={{ color: "#ef4444", fontWeight: 600 }}>
-                    {overhaulStatus.pipeline.errors}
-                  </span>{" "}
-                  errors
-                </span>
+              <div style={{ display: "flex", gap: 16, fontSize: 11, color: COLORS.muted, flexWrap: "wrap" }}>
+                <span><span style={{ color: "#22c55e", fontWeight: 600 }}>{overhaulStatus.pipeline.entities_accepted}</span> accepted</span>
+                <span><span style={{ color: "#eab308", fontWeight: 600 }}>{overhaulStatus.pipeline.entities_revised}</span> revised</span>
+                <span><span style={{ color: "#ef4444", fontWeight: 600 }}>{overhaulStatus.pipeline.entities_rejected}</span> rejected</span>
+                <span><span style={{ color: "#ef4444", fontWeight: 600 }}>{overhaulStatus.pipeline.errors}</span> errors</span>
                 {overhaulStatus.pipeline.current_entity && (
-                  <span style={{ marginLeft: "auto", color: COLORS.text }}>
-                    Current: {overhaulStatus.pipeline.current_entity}
-                  </span>
+                  <span style={{ marginLeft: "auto", color: COLORS.text }}>Current: {overhaulStatus.pipeline.current_entity}</span>
                 )}
               </div>
-            </div>
-          )}
-
-          {/* Data Quality Grid */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 14 }}>
-            {(["artist", "label", "press_orga"] as const).map((type) => {
-              const q = overhaulStatus.quality[type]
-              const total = overhaulStatus.totals[type] || 0
-              const prio = overhaulStatus.priorities[type]
-              const label = type === "artist" ? "Bands" : type === "label" ? "Labels" : "Press Orgs"
-              if (!q && total === 0) return null
-              const coverage = total > 0 ? ((q?.with_description || 0) / total) * 100 : 0
-
-              return (
-                <div
-                  key={type}
-                  style={{
-                    background: COLORS.bg,
-                    borderRadius: 8,
-                    padding: "12px 14px",
-                    border: `1px solid ${COLORS.border}`,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: COLORS.text,
-                      marginBottom: 8,
-                      display: "flex",
-                      justifyContent: "space-between",
-                    }}
-                  >
-                    <span>{label}</span>
-                    <span style={{ fontSize: 11, color: COLORS.muted }}>
-                      {total.toLocaleString()} total
-                    </span>
-                  </div>
-
-                  {/* Priority tiers */}
-                  {prio && (
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: 8,
-                        marginBottom: 8,
-                        fontSize: 11,
-                      }}
-                    >
-                      <span
-                        style={{
-                          padding: "1px 8px",
-                          borderRadius: 8,
-                          background: "#ef883322",
-                          color: "#ef8833",
-                          fontWeight: 600,
-                        }}
-                      >
-                        P1: {prio.p1}
-                      </span>
-                      <span
-                        style={{
-                          padding: "1px 8px",
-                          borderRadius: 8,
-                          background: `${COLORS.gold}22`,
-                          color: COLORS.gold,
-                          fontWeight: 600,
-                        }}
-                      >
-                        P2: {prio.p2}
-                      </span>
-                      <span
-                        style={{
-                          padding: "1px 8px",
-                          borderRadius: 8,
-                          background: "#6b728022",
-                          color: "#9ca3af",
-                          fontWeight: 600,
-                        }}
-                      >
-                        P3: {prio.p3}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Data completeness bars */}
-                  {q && (
-                    <div style={{ fontSize: 11, color: COLORS.muted }}>
-                      {[
-                        { label: "Description", value: q.with_description, total },
-                        { label: "Short Desc", value: q.with_short_desc, total },
-                        { label: "Genre Tags", value: q.with_genre_tags, total },
-                        { label: "Country", value: q.with_country, total },
-                        { label: "Year", value: q.with_year, total },
-                        { label: "Links", value: q.with_links, total },
-                      ].map((field) => {
-                        const pct = total > 0 ? (field.value / total) * 100 : 0
-                        return (
-                          <div
-                            key={field.label}
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 8,
-                              marginBottom: 3,
-                            }}
-                          >
-                            <span style={{ width: 70, flexShrink: 0 }}>{field.label}</span>
-                            <div
-                              style={{
-                                flex: 1,
-                                height: 4,
-                                borderRadius: 2,
-                                background: COLORS.border,
-                                overflow: "hidden",
-                              }}
-                            >
-                              <div
-                                style={{
-                                  height: "100%",
-                                  width: `${pct}%`,
-                                  borderRadius: 2,
-                                  background:
-                                    pct >= 80 ? "#22c55e" : pct >= 40 ? COLORS.gold : "#ef8833",
-                                }}
-                              />
-                            </div>
-                            <span
-                              style={{
-                                width: 36,
-                                textAlign: "right",
-                                fontVariantNumeric: "tabular-nums",
-                              }}
-                            >
-                              {pct.toFixed(0)}%
-                            </span>
-                          </div>
-                        )
-                      })}
-                      {q.avg_description_length && (
-                        <div style={{ marginTop: 4, fontSize: 10, color: COLORS.muted }}>
-                          Avg. length: {q.avg_description_length.toLocaleString()} chars
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {!q && (
-                    <div style={{ fontSize: 11, color: COLORS.muted, fontStyle: "italic" }}>
-                      No content generated yet
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-
-          {/* Musician DB stats (if table exists) */}
-          {overhaulStatus.musician_stats && (
-            <div
-              style={{
-                background: COLORS.bg,
-                borderRadius: 8,
-                padding: "10px 14px",
-                border: `1px solid ${COLORS.border}`,
-                display: "flex",
-                gap: 24,
-                fontSize: 12,
-                color: COLORS.muted,
-              }}
-            >
-              <span style={{ fontWeight: 600, color: COLORS.gold }}>Musician DB</span>
-              <span>
-                <span style={{ color: COLORS.text, fontWeight: 600 }}>
-                  {overhaulStatus.musician_stats.total_musicians}
-                </span>{" "}
-                musicians
-              </span>
-              <span>
-                <span style={{ color: COLORS.text, fontWeight: 600 }}>
-                  {overhaulStatus.musician_stats.total_roles}
-                </span>{" "}
-                roles
-              </span>
-              <span>
-                <span style={{ color: COLORS.text, fontWeight: 600 }}>
-                  {overhaulStatus.musician_stats.artists_with_members}
-                </span>{" "}
-                bands with members
-              </span>
-            </div>
-          )}
-          {!overhaulStatus.musician_stats && (
-            <div
-              style={{
-                background: COLORS.bg,
-                borderRadius: 8,
-                padding: "10px 14px",
-                border: `1px solid ${COLORS.border}`,
-                display: "flex",
-                gap: 12,
-                fontSize: 12,
-                color: COLORS.muted,
-                alignItems: "center",
-              }}
-            >
-              <span style={{ fontWeight: 600, color: COLORS.gold }}>Musician DB</span>
-              <span style={{ fontStyle: "italic" }}>Not created yet — Phase 3 of overhaul plan</span>
             </div>
           )}
         </div>
