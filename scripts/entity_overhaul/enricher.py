@@ -306,8 +306,8 @@ def enrich_musicbrainz(name: str, entity_type: str) -> dict | None:
             if not mbid:
                 return None
 
-            # Fetch full details
-            rate_limit("musicbrainz")
+            # Fetch full details (MusicBrainz requires 1 req/sec)
+            time.sleep(1.1)
             detail = musicbrainzngs.get_artist_by_id(
                 mbid, includes=["artist-rels", "url-rels", "tags"]
             )
@@ -362,6 +362,7 @@ def enrich_musicbrainz(name: str, entity_type: str) -> dict | None:
             }
 
     except Exception as e:
+        print(f"  [MusicBrainz] Error: {e}")
         return None
     return None
 
