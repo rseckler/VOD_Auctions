@@ -55,6 +55,49 @@ type EntityContentItem = {
 
 type Stats = Record<string, { total: number; with_content: number }>
 
+type OverhaulStatus = {
+  pipeline: {
+    status: string
+    current_phase: string
+    started_at: string
+    entities_processed: number
+    entities_total: number
+    entities_accepted: number
+    entities_revised: number
+    entities_rejected: number
+    current_entity: string | null
+    errors: number
+    last_updated: string
+  } | null
+  process_running: boolean
+  quality: Record<
+    string,
+    {
+      total_with_content: number
+      total_in_db: number
+      with_description: number
+      with_short_desc: number
+      with_genre_tags: number
+      with_country: number
+      with_year: number
+      with_links: number
+      published: number
+      ai_generated: number
+      avg_description_length: number
+      first_generated: string | null
+      last_generated: string | null
+    }
+  >
+  totals: Record<string, number>
+  priorities: Record<string, { p1: number; p2: number; p3: number }>
+  musician_stats: {
+    total_musicians: number
+    total_roles: number
+    musicians_with_roles: number
+    artists_with_members: number
+  } | null
+}
+
 type EditForm = {
   description: string
   short_description: string
@@ -116,6 +159,31 @@ function EntityContentInner() {
   const [generating, setGenerating] = useState<string | null>(null)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [debouncedSearch, setDebouncedSearch] = useState("")
+  const [overhaulStatus, setOverhaulStatus] = useState<OverhaulStatus | null>(null)
+  const [overhaulLoading, setOverhaulLoading] = useState(true)
+
+  // Fetch overhaul status
+  const fetchOverhaulStatus = useCallback(async () => {
+    try {
+      const resp = await fetch("/admin/entity-content/overhaul-status", {
+        credentials: "include",
+      })
+      if (!resp.ok) return
+      const data = await resp.json()
+      setOverhaulStatus(data)
+    } catch {
+      // Silent fail — dashboard is informational
+    } finally {
+      setOverhaulLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchOverhaulStatus()
+    // Auto-refresh every 30s if pipeline is running
+    const interval = setInterval(fetchOverhaulStatus, 30000)
+    return () => clearInterval(interval)
+  }, [fetchOverhaulStatus])
 
   // Debounce search
   useEffect(() => {
@@ -434,6 +502,385 @@ function EntityContentInner() {
               </div>
             )
           })()}
+        </div>
+      )}
+
+      {/* ── Entity Content Overhaul Status ─────────────────────────────────── */}
+      {overhaulStatus && !overhaulLoading && (
+        <div
+          style={{
+            background: COLORS.card,
+            borderRadius: 10,
+            padding: "16px 20px",
+            marginBottom: 20,
+            border: `1px solid ${COLORS.border}`,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 14,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 13,
+                fontWeight: 700,
+                color: COLORS.gold,
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+              }}
+            >
+              Content Overhaul Status
+            </div>
+            {/* Pipeline status badge */}
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "3px 12px",
+                borderRadius: 12,
+                fontSize: 11,
+                fontWeight: 600,
+                background: overhaulStatus.process_running
+                  ? "#22c55e22"
+                  : overhaulStatus.pipeline
+                    ? "#3b82f622"
+                    : "#6b728022",
+                color: overhaulStatus.process_running
+                  ? "#22c55e"
+                  : overhaulStatus.pipeline
+                    ? "#3b82f6"
+                    : "#6b7280",
+              }}
+            >
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: "50%",
+                  background: overhaulStatus.process_running
+                    ? "#22c55e"
+                    : overhaulStatus.pipeline
+                      ? "#3b82f6"
+                      : "#6b7280",
+                  animation: overhaulStatus.process_running
+                    ? "pulse 2s infinite"
+                    : undefined,
+                }}
+              />
+              {overhaulStatus.process_running
+                ? "RUNNING"
+                : overhaulStatus.pipeline
+                  ? "PAUSED"
+                  : "NOT STARTED"}
+            </span>
+          </div>
+
+          {/* Pipeline progress (if running or has data) */}
+          {overhaulStatus.pipeline && (
+            <div
+              style={{
+                background: COLORS.bg,
+                borderRadius: 8,
+                padding: "12px 16px",
+                marginBottom: 14,
+                border: `1px solid ${COLORS.border}`,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "baseline",
+                  marginBottom: 8,
+                }}
+              >
+                <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.text }}>
+                  Phase: {overhaulStatus.pipeline.current_phase || "—"}
+                </span>
+                <span style={{ fontSize: 11, color: COLORS.muted }}>
+                  {overhaulStatus.pipeline.entities_processed} / {overhaulStatus.pipeline.entities_total} entities
+                </span>
+              </div>
+              {/* Progress bar */}
+              <div
+                style={{
+                  height: 10,
+                  borderRadius: 5,
+                  background: COLORS.border,
+                  overflow: "hidden",
+                  marginBottom: 8,
+                }}
+              >
+                <div
+                  style={{
+                    height: "100%",
+                    borderRadius: 5,
+                    width: `${
+                      overhaulStatus.pipeline.entities_total > 0
+                        ? (overhaulStatus.pipeline.entities_processed /
+                            overhaulStatus.pipeline.entities_total) *
+                          100
+                        : 0
+                    }%`,
+                    background: `linear-gradient(90deg, ${COLORS.gold}, #22c55e)`,
+                    transition: "width 0.5s ease",
+                  }}
+                />
+              </div>
+              {/* Stats row */}
+              <div
+                style={{
+                  display: "flex",
+                  gap: 16,
+                  fontSize: 11,
+                  color: COLORS.muted,
+                  flexWrap: "wrap",
+                }}
+              >
+                <span>
+                  <span style={{ color: "#22c55e", fontWeight: 600 }}>
+                    {overhaulStatus.pipeline.entities_accepted}
+                  </span>{" "}
+                  accepted
+                </span>
+                <span>
+                  <span style={{ color: "#eab308", fontWeight: 600 }}>
+                    {overhaulStatus.pipeline.entities_revised}
+                  </span>{" "}
+                  revised
+                </span>
+                <span>
+                  <span style={{ color: "#ef4444", fontWeight: 600 }}>
+                    {overhaulStatus.pipeline.entities_rejected}
+                  </span>{" "}
+                  rejected
+                </span>
+                <span>
+                  <span style={{ color: "#ef4444", fontWeight: 600 }}>
+                    {overhaulStatus.pipeline.errors}
+                  </span>{" "}
+                  errors
+                </span>
+                {overhaulStatus.pipeline.current_entity && (
+                  <span style={{ marginLeft: "auto", color: COLORS.text }}>
+                    Current: {overhaulStatus.pipeline.current_entity}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Data Quality Grid */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 14 }}>
+            {(["artist", "label", "press_orga"] as const).map((type) => {
+              const q = overhaulStatus.quality[type]
+              const total = overhaulStatus.totals[type] || 0
+              const prio = overhaulStatus.priorities[type]
+              const label = type === "artist" ? "Bands" : type === "label" ? "Labels" : "Press Orgs"
+              if (!q && total === 0) return null
+              const coverage = total > 0 ? ((q?.with_description || 0) / total) * 100 : 0
+
+              return (
+                <div
+                  key={type}
+                  style={{
+                    background: COLORS.bg,
+                    borderRadius: 8,
+                    padding: "12px 14px",
+                    border: `1px solid ${COLORS.border}`,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: COLORS.text,
+                      marginBottom: 8,
+                      display: "flex",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <span>{label}</span>
+                    <span style={{ fontSize: 11, color: COLORS.muted }}>
+                      {total.toLocaleString()} total
+                    </span>
+                  </div>
+
+                  {/* Priority tiers */}
+                  {prio && (
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 8,
+                        marginBottom: 8,
+                        fontSize: 11,
+                      }}
+                    >
+                      <span
+                        style={{
+                          padding: "1px 8px",
+                          borderRadius: 8,
+                          background: "#ef883322",
+                          color: "#ef8833",
+                          fontWeight: 600,
+                        }}
+                      >
+                        P1: {prio.p1}
+                      </span>
+                      <span
+                        style={{
+                          padding: "1px 8px",
+                          borderRadius: 8,
+                          background: `${COLORS.gold}22`,
+                          color: COLORS.gold,
+                          fontWeight: 600,
+                        }}
+                      >
+                        P2: {prio.p2}
+                      </span>
+                      <span
+                        style={{
+                          padding: "1px 8px",
+                          borderRadius: 8,
+                          background: "#6b728022",
+                          color: "#9ca3af",
+                          fontWeight: 600,
+                        }}
+                      >
+                        P3: {prio.p3}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Data completeness bars */}
+                  {q && (
+                    <div style={{ fontSize: 11, color: COLORS.muted }}>
+                      {[
+                        { label: "Description", value: q.with_description, total },
+                        { label: "Short Desc", value: q.with_short_desc, total },
+                        { label: "Genre Tags", value: q.with_genre_tags, total },
+                        { label: "Country", value: q.with_country, total },
+                        { label: "Year", value: q.with_year, total },
+                        { label: "Links", value: q.with_links, total },
+                      ].map((field) => {
+                        const pct = total > 0 ? (field.value / total) * 100 : 0
+                        return (
+                          <div
+                            key={field.label}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                              marginBottom: 3,
+                            }}
+                          >
+                            <span style={{ width: 70, flexShrink: 0 }}>{field.label}</span>
+                            <div
+                              style={{
+                                flex: 1,
+                                height: 4,
+                                borderRadius: 2,
+                                background: COLORS.border,
+                                overflow: "hidden",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  height: "100%",
+                                  width: `${pct}%`,
+                                  borderRadius: 2,
+                                  background:
+                                    pct >= 80 ? "#22c55e" : pct >= 40 ? COLORS.gold : "#ef8833",
+                                }}
+                              />
+                            </div>
+                            <span
+                              style={{
+                                width: 36,
+                                textAlign: "right",
+                                fontVariantNumeric: "tabular-nums",
+                              }}
+                            >
+                              {pct.toFixed(0)}%
+                            </span>
+                          </div>
+                        )
+                      })}
+                      {q.avg_description_length && (
+                        <div style={{ marginTop: 4, fontSize: 10, color: COLORS.muted }}>
+                          Avg. length: {q.avg_description_length.toLocaleString()} chars
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {!q && (
+                    <div style={{ fontSize: 11, color: COLORS.muted, fontStyle: "italic" }}>
+                      No content generated yet
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Musician DB stats (if table exists) */}
+          {overhaulStatus.musician_stats && (
+            <div
+              style={{
+                background: COLORS.bg,
+                borderRadius: 8,
+                padding: "10px 14px",
+                border: `1px solid ${COLORS.border}`,
+                display: "flex",
+                gap: 24,
+                fontSize: 12,
+                color: COLORS.muted,
+              }}
+            >
+              <span style={{ fontWeight: 600, color: COLORS.gold }}>Musician DB</span>
+              <span>
+                <span style={{ color: COLORS.text, fontWeight: 600 }}>
+                  {overhaulStatus.musician_stats.total_musicians}
+                </span>{" "}
+                musicians
+              </span>
+              <span>
+                <span style={{ color: COLORS.text, fontWeight: 600 }}>
+                  {overhaulStatus.musician_stats.total_roles}
+                </span>{" "}
+                roles
+              </span>
+              <span>
+                <span style={{ color: COLORS.text, fontWeight: 600 }}>
+                  {overhaulStatus.musician_stats.artists_with_members}
+                </span>{" "}
+                bands with members
+              </span>
+            </div>
+          )}
+          {!overhaulStatus.musician_stats && (
+            <div
+              style={{
+                background: COLORS.bg,
+                borderRadius: 8,
+                padding: "10px 14px",
+                border: `1px solid ${COLORS.border}`,
+                display: "flex",
+                gap: 12,
+                fontSize: 12,
+                color: COLORS.muted,
+                alignItems: "center",
+              }}
+            >
+              <span style={{ fontWeight: 600, color: COLORS.gold }}>Musician DB</span>
+              <span style={{ fontStyle: "italic" }}>Not created yet — Phase 3 of overhaul plan</span>
+            </div>
+          )}
         </div>
       )}
 
