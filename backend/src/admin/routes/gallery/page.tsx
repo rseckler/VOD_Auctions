@@ -62,13 +62,13 @@ type ContentBlock = {
 const STOREFRONT_URL = "https://vod-auctions.com"
 
 const COLORS = {
-  bg: "#1c1915",
-  card: "#2a2520",
-  text: "#f5f0eb",
-  muted: "#a09080",
-  gold: "#d4a54a",
-  border: "#3a3530",
-  hover: "#353025",
+  bg: "#ffffff",
+  card: "#f9fafb",
+  text: "#111827",
+  muted: "#6b7280",
+  gold: "#b8860b",
+  border: "#e5e7eb",
+  hover: "#f3f4f6",
   danger: "#ef4444",
   success: "#22c55e",
 }
