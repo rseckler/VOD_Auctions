@@ -719,14 +719,13 @@ if __name__ == "__main__":
 
     # Find entity ID
     cur = conn.cursor()
-    if entity_type == "artist":
-        cur.execute('SELECT id, name FROM "Artist" WHERE name ILIKE %s LIMIT 1', (f"%{name}%",))
-    elif entity_type == "label":
-        cur.execute('SELECT id, name FROM "Label" WHERE name ILIKE %s LIMIT 1', (f"%{name}%",))
-    else:
-        cur.execute('SELECT id, name FROM "PressOrga" WHERE name ILIKE %s LIMIT 1', (f"%{name}%",))
-
+    table = {"artist": '"Artist"', "label": '"Label"', "press_orga": '"PressOrga"'}[entity_type]
+    # Try exact match first, then fuzzy (shortest name = best match)
+    cur.execute(f'SELECT id, name FROM {table} WHERE name = %s LIMIT 1', (name,))
     row = cur.fetchone()
+    if not row:
+        cur.execute(f'SELECT id, name FROM {table} WHERE name ILIKE %s ORDER BY LENGTH(name) ASC LIMIT 1', (f"%{name}%",))
+        row = cur.fetchone()
     cur.close()
 
     if not row:
