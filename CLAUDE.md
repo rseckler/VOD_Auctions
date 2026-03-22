@@ -13,7 +13,7 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Sprache:** Storefront und Admin-UI komplett auf Englisch (seit 2026-03-03)
 
 **Created:** 2026-02-10
-**Last Updated:** 2026-03-18
+**Last Updated:** 2026-03-22
 
 ### UX/UI Overhaul — 37 CRITICAL+HIGH Findings (2026-03-15, IN PROGRESS)
 
@@ -147,6 +147,36 @@ H (Backend APIs)     → Keine Dependencies, startet sofort
   - Footer: "Kleinunternehmer nach § 19 UStG"
 - **Frontend Proxy:** `storefront/src/app/api/invoice/[groupId]/route.ts` (Auth-Proxy)
 - **Frontend:** "Download Invoice" Button auf Orders-Seite
+
+### Letzte Änderungen (2026-03-22)
+- **VOD Gallery — Neuer Hauptbereich auf vod-auctions.com:**
+  - **Konzept:** `docs/Erweiterung VOD Gallery auf der vod-auctions.com.md` — Strategisches Konzept (Executive Summary, Positionierung, IA, Seitenkonzept, Benchmarks)
+  - **Storefront Gallery-Seite** (`/gallery`):
+    - 10 Sektionen: Hero (Fullscreen-Foto), Einführung, Visual Gallery (6-Bild Grid), The Collection (5 Kategorien), From the Archive (4 Featured Highlights), Listening Room, The Experience (5 Module), Coffee-Zitat, Plan Your Visit (Öffnungszeiten, Kontakt, Map), Closing
+    - Server Component — fetcht von `/store/gallery` API mit Fallback auf Defaults
+    - SEO: `generateMetadata()`, Schema.org JSON-LD (LocalBusiness + Museum + Store Hybrid mit Öffnungszeiten, Geo, Kategorien), canonical URL, OG+Twitter Card, 14 Keywords, Sitemap (priority 0.8)
+    - GA4 + Brevo Tracking via `GalleryTracker.tsx` Client Component
+    - 14 Gallery-Fotos in `storefront/public/gallery/`
+  - **CMS/MAM Backend (Gallery Management):**
+    - **DB:** `gallery_media` Tabelle (id, url, filename, alt_text, section, position, title, subtitle, description, link_url, link_label, is_active), RLS, 3 Indexes
+    - **Sektionen:** hero, visual_gallery, collection_sound_carriers, collection_printed_matter, collection_artwork, collection_documents, collection_rare, featured, listening_room
+    - **Admin API:** `GET/POST /admin/gallery` (Liste + Erstellen), `GET/POST/DELETE /admin/gallery/:id` (Einzelitem), `POST /admin/gallery/reorder` (Reihenfolge), `POST /admin/gallery/upload` (Bild-Upload via Base64, speichert in `storefront/public/gallery/`)
+    - **Store API:** `GET /store/gallery` — Public, Media gruppiert nach Section + Content-Blocks. `?absolute_urls=true` für Newsletter-Nutzung
+    - **Admin UI:** `/admin/gallery` — 2 Tabs (Media + Content), Section-Filter-Pills, Image-Grid mit Thumbnails, Add/Edit/Delete, Active-Toggle, Upload-Funktion, Content-Editor pro Sektion
+    - **Content-Blocks:** 6 CMS-Einträge (hero, introduction, listening_room, coffee, visit, closing) über bestehendes `content_block` System
+    - **Seed:** 21 Medien-Einträge + 6 Content-Blocks via Migration
+  - **Navigation:**
+    - Header: „Gallery" als 4. Nav-Link (zwischen Catalog und About)
+    - MobileNav: Gallery mit Landmark-Icon
+    - Footer: Neue „Gallery"-Spalte (Visit the Gallery + Opening Hours)
+  - **Homepage Gallery-Teaser:**
+    - 3-Bild-Grid (Poster-Wand, TG-Artefakte, Vinyl+Kassetten) mit Gradient-Overlay
+    - Titel „VOD Gallery", Ortsangabe „Friedrichshafen, Germany", CTA „Explore the Gallery"
+    - Position: nach Auktions-Blöcken / Empty State, vor Catalog-Teaser
+  - **Password Gate Fix:** `/gallery/gallery-*` Bildpfade durch Middleware-Bypass erlaubt
+  - **Neue Dateien:** `gallery/page.tsx`, `GalleryTracker.tsx`, 14 JPGs in `public/gallery/`, `admin/routes/gallery/page.tsx`, `api/admin/gallery/` (4 Route-Dateien), `api/store/gallery/route.ts`, `20260322_gallery_media.sql`
+  - **Geänderte Dateien:** `Header.tsx`, `MobileNav.tsx`, `Footer.tsx`, `page.tsx` (Homepage), `sitemap.ts`, `middleware.ts`, `analytics.ts`, `brevo-tracking.ts`
+  - **VPS:** Migration ausgeführt (21 Medien + 6 Content-Blocks), Backend + Storefront deployed
 
 ### Letzte Änderungen (2026-03-18)
 - **Transaction Module Phase 1 — Erweitertes Order Management:**
@@ -976,6 +1006,7 @@ Shared DB für tape-mag-mvp + VOD_Auctions. Schema enthält 24 Tabellen (14 Basi
 - `shipping_method` — Per-Zone Carrier/Methoden mit Tracking-URL-Patterns (carrier_name, method_name, delivery_days, has_tracking, tracking_url_pattern, is_default, is_active)
 - `site_config` — Globale Site-Einstellungen (catalog_visibility: all/visible)
 - `entity_content` — CMS-Content für Entity-Seiten (RSE-147: description, short_description, genre_tags TEXT[], external_links JSONB, is_published, ai_generated)
+- `gallery_media` — Gallery-Bilder + Metadaten (url, filename, alt_text, section, position, title, subtitle, description, link_url, link_label, is_active). 9 Sektionen: hero, visual_gallery, collection_* (5 Typen), featured, listening_room
 
 ### Release-Erweiterung
 ```sql
@@ -1110,6 +1141,11 @@ VOD_Auctions/
 │   │   │   ├── entity-content/       # Entity Content CRUD (RSE-148)
 │   │   │   │   ├── route.ts          # GET: List with filters + stats
 │   │   │   │   └── [type]/[entityId]/route.ts  # GET/POST/DELETE: Single entity content
+│   │   │   ├── gallery/              # Gallery Media Management (CMS/MAM)
+│   │   │   │   ├── route.ts          # GET: List all, POST: Create
+│   │   │   │   ├── [id]/route.ts     # GET/POST/DELETE: Single item
+│   │   │   │   ├── reorder/route.ts  # POST: Reorder within section
+│   │   │   │   └── upload/route.ts   # POST: Base64 image upload
 │   │   │   └── store/           # Store API (Publishable Key required)
 │   │   │       ├── auction-blocks/   # Public: list, detail, item detail
 │   │   │       │   ├── route.ts      # List blocks (items_count, status filter)
@@ -1122,6 +1158,7 @@ VOD_Auctions/
 │   │   │       ├── label/[slug]/route.ts  # GET: Public label detail (RSE-148)
 │   │   │       ├── press/[slug]/route.ts  # GET: Public press orga detail (RSE-148)
 │   │   │       ├── entities/route.ts      # GET: Sitemap feed for entity pages (RSE-148)
+│   │   │       ├── gallery/route.ts       # GET: Public gallery media + content (?absolute_urls=true for newsletters)
 │   │   │       ├── catalog/          # Katalog API (alle 41k Releases, 5-category + legacy filters)
 │   │   │       │   └── [id]/route.ts # Release-Detail + Images + Format + PressOrga + Related Releases
 │   │   │       └── account/          # Account APIs (RSE-75b + RSE-76 + RSE-111)
@@ -1162,6 +1199,8 @@ VOD_Auctions/
 │   │       │   └── page.tsx     # CRM Dashboard (Segments, Top Customers, Campaigns)
 │   │       ├── entity-content/
 │   │       │   └── page.tsx     # Entity Content Editor (Bands/Labels/Press Tabs, RSE-151)
+│   │       ├── gallery/
+│   │       │   └── page.tsx     # Gallery Management (Media + Content Tabs, Upload, Section-Filter)
 │   │       ├── transactions/
 │   │       │   ├── page.tsx     # Transactions List (Search, Filter, Pagination, Bulk, Export)
 │   │       │   └── [id]/page.tsx # Transaction Detail (Timeline, Actions, Notes)
@@ -1183,6 +1222,9 @@ VOD_Auctions/
 │   │   │   │       ├── page.tsx # Block-Detail: Hero, BlockItemsGrid
 │   │   │   │       └── [itemId]/page.tsx  # Item-Detail + ItemBidSection + RelatedSection
 │   │   │   ├── about/page.tsx   # About VOD Records: Founder, Mission, Genres, Artists, Sub-Labels, TAPE-MAG, VOD Fest, Links
+│   │   │   ├── gallery/
+│   │   │   │   ├── page.tsx     # Gallery Landingpage (10 Sektionen, API-driven + Fallback, Schema.org JSON-LD)
+│   │   │   │   └── GalleryTracker.tsx  # Client Component: GA4 + Brevo tracking
 │   │   │   ├── band/[slug]/page.tsx    # Band-Detail: Discography, Literature, Labels, Schema.org MusicGroup (RSE-149)
 │   │   │   ├── label/[slug]/page.tsx   # Label-Detail: Katalog, Literature, Persons, Artists, Schema.org Org (RSE-149)
 │   │   │   ├── press/[slug]/page.tsx   # Press-Detail: Publications, Schema.org Organization (RSE-149)
