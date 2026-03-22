@@ -83,3 +83,28 @@ export function trackAuctionView(itemId: string) {
     item_id: itemId,
   })
 }
+
+// ── Gallery Events ──────────────────────────────────────
+
+export function trackGalleryView() {
+  trackEvent({
+    action: "gallery_view",
+    category: "gallery",
+  })
+}
+
+export function trackGallerySection(section: string) {
+  trackEvent({
+    action: "gallery_section_view",
+    category: "gallery",
+    label: section,
+  })
+}
+
+export function trackGalleryVisitClick() {
+  trackEvent({
+    action: "gallery_visit_click",
+    category: "gallery",
+    label: "plan_your_visit",
+  })
+}

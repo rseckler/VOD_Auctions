@@ -79,3 +79,15 @@ export function brevoCatalogSearch(query: string, resultCount?: number) {
     result_count: resultCount,
   })
 }
+
+// ── Gallery Events ──────────────────────────────────────
+
+export function brevoGalleryViewed() {
+  brevoTrack("gallery_viewed", {
+    url: `${typeof window !== "undefined" ? window.location.origin : ""}/gallery`,
+  })
+}
+
+export function brevoGalleryVisitClicked() {
+  brevoTrack("gallery_visit_clicked", {})
+}

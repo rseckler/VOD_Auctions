@@ -103,6 +103,21 @@ export function Footer() {
               </a>
             </div>
             <div className="flex flex-col gap-2">
+              <p className="text-foreground font-medium">Gallery</p>
+              <Link
+                href="/gallery"
+                className="text-muted-foreground hover:text-primary transition-colors"
+              >
+                Visit the Gallery
+              </Link>
+              <Link
+                href="/gallery#visit"
+                className="text-muted-foreground hover:text-primary transition-colors"
+              >
+                Opening Hours
+              </Link>
+            </div>
+            <div className="flex flex-col gap-2">
               <p className="text-foreground font-medium">Legal</p>
               <Link
                 href="/impressum"
