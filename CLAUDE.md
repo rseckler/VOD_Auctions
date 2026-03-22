@@ -149,6 +149,38 @@ H (Backend APIs)     → Keine Dependencies, startet sofort
 - **Frontend:** "Download Invoice" Button auf Orders-Seite
 
 ### Letzte Änderungen (2026-03-22)
+- **Entity Content Overhaul — RSE-227 (Phase 1-7 abgeschlossen, P1 Rollout läuft):**
+  - **Konzept:** `docs/KONZEPT_Entity_Content_Overhaul.md`, **Analyse:** `docs/ANALYSIS_Entity_Content_Phase1.md`
+  - **Problem:** Alte Texte (Claude Haiku) Score 32/100 — generisch, keine Mitglieder, keine Metadata
+  - **Lösung:** Multi-Agent Pipeline mit Genre-adaptivem Schreiben
+  - **Pipeline:** `scripts/entity_overhaul/` — 10 Python-Module:
+    - `orchestrator.py` — Batch-Pipeline mit Resume, Signal Handling, Quality Gate
+    - `enricher.py` — 10 Datenquellen (DB, MusicBrainz, Wikidata, Wikipedia, Last.fm, Brave, Bandcamp, IA, YouTube, Discogs)
+    - `profiler.py` — GPT-4o-mini Genre→Tone Klassifikation (10 Tone-Kategorien)
+    - `writer.py` — GPT-4o kreatives Schreiben mit Tone-Injection + Ban List + Few-Shot Examples
+    - `seo_agent.py` — GPT-4o-mini short_description + genre_tags + keywords
+    - `quality_agent.py` — GPT-4o-mini 6-Kriterien Scoring (accept ≥75 / revise 50-74 / reject <50)
+    - `musician_mapper.py` — MusicBrainz→musician DB mit Confidence + Dedup
+    - `db_writer.py` — Upsert entity_content mit allen Metadata-Feldern
+    - `config.py` — API Keys, Rate Limits, Thresholds
+    - `tone_mapping.py` — 10 Genres mit Keyword→Tone Mapping
+  - **Tone Examples:** `scripts/entity_overhaul/tone_examples/` — 35 handgeschriebene Beispieltexte (10 Genres × 3 + 3 Labels + 2 Press) + Ban List (40+ verbotene Phrasen)
+  - **Musician Database:**
+    - **DB:** `musician`, `musician_role`, `musician_project` Tabellen (7 Indexes, RLS)
+    - **Admin API:** `GET/POST /admin/musicians`, `GET/POST/DELETE /admin/musicians/:id` (Roles + Projects CRUD)
+    - **Admin UI:** `/admin/musicians` — Stats, Tabelle, Search, Review-Filter
+    - **Store API:** `/store/band/:slug` liefert `members[]` mit Rollen, Jahren, anderen Projekten
+    - **Storefront:** Band-Seiten zeigen Members-Sektion + Schema.org `member[]` Property
+    - **Stand:** 897 Musiker, 189 Bands mit Mitgliedern (aus MusicBrainz)
+  - **Admin Status Dashboard:** `/admin/entity-content` — Overhaul-Sektion mit Prerequisites, 10 Phasen-Timeline, Model Strategy, Data Sources, Musician DB, Data Quality Grid, Pipeline Live-Progress
+  - **Backend API:** `GET /admin/entity-content/overhaul-status`
+  - **Test-Ergebnisse (Phase 7, 100 Entities):** 98 accepted, 0 rejected, 0 errors, Avg Score 82.3, Avg 25s/Entity
+  - **P1 Rollout (Phase 8, läuft):** ~1.022 Entities, ~7h Laufzeit
+  - **VPS Setup:** `OPENAI_API_KEY`, `LASTFM_API_KEY`, `LASTFM_SHARED_SECRET`, `YOUTUBE_API_KEY`, `BRAVE_API_KEY` in `scripts/.env`; `openai` 2.29.0 + `musicbrainzngs` 0.7.1 installiert
+  - **Kosten:** ~$350 geschätzt für alle 17.500 Entities (GPT-4o Writer + GPT-4o-mini Rest)
+  - **Neue Dateien:** `scripts/entity_overhaul/` (10 Module + tone_examples/), `docs/KONZEPT_Entity_Content_Overhaul.md`, `docs/ANALYSIS_Entity_Content_Phase1.md`, `20260322_musician_database.sql`, `admin/musicians/` (API + UI), `overhaul-status/route.ts`
+  - **Geänderte Dateien:** `store/band/[slug]/route.ts` (+members), `band/[slug]/page.tsx` (+Members section + Schema.org), `admin/routes/entity-content/page.tsx` (+Overhaul dashboard)
+  - **VPS:** Migration ausgeführt, Backend + Storefront deployed
 - **VOD Gallery — Neuer Hauptbereich auf vod-auctions.com:**
   - **Konzept:** `docs/Erweiterung VOD Gallery auf der vod-auctions.com.md` — Strategisches Konzept (Executive Summary, Positionierung, IA, Seitenkonzept, Benchmarks)
   - **Storefront Gallery-Seite** (`/gallery`):
@@ -177,6 +209,33 @@ H (Backend APIs)     → Keine Dependencies, startet sofort
   - **Neue Dateien:** `gallery/page.tsx`, `GalleryTracker.tsx`, 14 JPGs in `public/gallery/`, `admin/routes/gallery/page.tsx`, `api/admin/gallery/` (4 Route-Dateien), `api/store/gallery/route.ts`, `20260322_gallery_media.sql`
   - **Geänderte Dateien:** `Header.tsx`, `MobileNav.tsx`, `Footer.tsx`, `page.tsx` (Homepage), `sitemap.ts`, `middleware.ts`, `analytics.ts`, `brevo-tracking.ts`
   - **VPS:** Migration ausgeführt (21 Medien + 6 Content-Blocks), Backend + Storefront deployed
+
+### Letzte Änderungen (2026-03-22)
+- **Entity Content Overhaul — Konzept + Admin Status Dashboard:**
+  - **Konzept-Dokument:** `docs/KONZEPT_Entity_Content_Overhaul.md` — Vollständiges Konzept für qualitative Überarbeitung aller ~17.500 Entity-Beschreibungen (Bands, Labels, Press Orgs)
+  - **Problem:** Aktuelle AI-generierte Texte (Claude Haiku 4.5) sind zu generisch, enzyklopädisch und austauschbar. Kein Genre-Matching, keine Tonalität, keine Bandmitglieder.
+  - **Lösung:** Multi-Agent-Pipeline mit Genre-adaptivem Schreiben:
+    - **7 Agents:** Orchestrator, Enricher (10 Datenquellen), Profiler (Genre/Tone), Writer (GPT-4o), SEO (GPT-4o-mini), Musician Mapper, Quality Agent
+    - **10 Datenquellen:** Interne DB, Discogs, MusicBrainz, Wikidata, Wikipedia, Last.fm, Bandcamp, Brave Search, Internet Archive, YouTube
+    - **10 Tone-Kategorien:** Dark Ambient, Power Electronics, Industrial, Noise, Minimal Synth, Experimental, Neofolk, Death Industrial, Drone, EBM
+    - **Modell-Strategie:** GPT-4o für Writer (kreatives Schreiben), GPT-4o-mini für alle anderen Agents
+    - **Geschätzte Kosten:** ~$350 für alle 17.500 Entities (65% günstiger als Claude Sonnet)
+  - **Musician Database:** Schema für `musician`, `musician_role`, `musician_project` Tabellen konzipiert — perspektivisch SEO-optimierte Musikerseiten (`/musician/[slug]`)
+  - **Admin Status Dashboard:** Neuer Bereich auf `/admin/entity-content` (Entity Content Overhaul Status)
+    - Pipeline Status Badge (NOT STARTED / RUNNING / PAUSED mit pulsierendem Dot)
+    - Pipeline Progress Bar (Phase, Fortschritt, accepted/revised/rejected/errors)
+    - Data Quality Grid: 3 Karten (Bands/Labels/Press) mit Priority-Tier-Badges (P1/P2/P3) und 6 Completeness-Balken (Description, Short Desc, Genre Tags, Country, Year, Links)
+    - Musician DB Status
+    - Auto-Refresh 30s
+  - **Backend API:** `GET /admin/entity-content/overhaul-status` — Pipeline-Fortschritt, DB-Qualitäts-Stats, Priority-Breakdown, Musician-Stats, Prozess-Status
+  - **VPS Setup:**
+    - API Keys deployed: `OPENAI_API_KEY`, `LASTFM_API_KEY`, `LASTFM_SHARED_SECRET`, `YOUTUBE_API_KEY` in `scripts/.env`
+    - Python Packages installiert: `openai` 2.29.0, `musicbrainzngs` 0.7.1
+    - 1Password: "last.fm API Key" + "YouTube VOD Auctions API Key" (Work Vault)
+  - **TODO-Plan:** 10 Phasen, 68 Tasks, geschätzte Dauer 22-30 Arbeitstage
+  - **Neue Dateien:** `docs/KONZEPT_Entity_Content_Overhaul.md`, `overhaul-status/route.ts`
+  - **Geänderte Dateien:** `admin/routes/entity-content/page.tsx`
+  - **VPS:** Backend deployed
 
 ### Letzte Änderungen (2026-03-18)
 - **Transaction Module Phase 1 — Erweitertes Order Management:**
@@ -1454,6 +1513,23 @@ npm run build             # Production build
 - ~~**RSE-150:** Internal Linking + Sitemap + Schema.org~~ ✅
 - ~~**RSE-151:** Admin Entity Content Editor~~ ✅
 - ~~**RSE-152:** AI Content Generation Script (Claude Haiku)~~ ✅
+
+### Entity Content Overhaul — RSE-227 (In Progress)
+- **RSE-227:** Entity Content Qualitative Overhaul — Multi-Agent Pipeline with GPT-4o/4o-mini
+  - ~~Phase 1: Analysis~~ ✅ (Score 32/100, 6 Schwächen identifiziert)
+  - ~~Phase 2: Conception & Tone Examples~~ ✅ (35 Texte, 10 Genres, Ban List)
+  - ~~Phase 3: Musician Database~~ ✅ (3 Tabellen, Admin CRUD, Storefront Members)
+  - ~~Phase 4: Enricher Implementation~~ ✅ (10 Datenquellen, getestet)
+  - ~~Phase 5: Prompt & Agent Design~~ ✅ (5 Agents, Tone Mapping)
+  - ~~Phase 6: Pipeline Implementation~~ ✅ (Orchestrator, E2E getestet)
+  - ~~Phase 7: Test Phase~~ ✅ (100 Entities, 98 accepted, Score 82.3)
+  - **Phase 8: P1 Rollout ~1.022 entities** ← RUNNING (VPS Background Job)
+  - Phase 9: P2+P3 Rollout ~16,600 entities (NEXT)
+  - Phase 10: QA & Finalization (NEXT)
+  - **Konzept:** `docs/KONZEPT_Entity_Content_Overhaul.md`
+  - **Pipeline:** `scripts/entity_overhaul/` (10 Module)
+  - **Admin:** `/admin/entity-content` (Overhaul Status) + `/admin/musicians`
+  - **VPS:** API Keys + Python packages deployed, P1 Job läuft
 
 ### Phase 2 (Launch) — Backlog
 - **RSE-78:** P2.1 Launch-Vorbereitung — ~~Stripe Live~~ ✅ ~~Cookie Consent~~ ✅ ~~Sentry~~ ✅ ~~Analytics~~ ✅ ~~Legal Pages~~ ✅ ~~Domain~~ ✅ | Offen: E-Commerce-Anwalt AGB-Prüfung
