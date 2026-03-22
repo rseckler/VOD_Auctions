@@ -334,7 +334,7 @@ def enrich_musicbrainz(name: str, entity_type: str) -> dict | None:
                     })
 
             # Extract tags
-            tags = [t.get("name") for t in artist_data.get("tag-list", []) if t.get("count", 0) > 0]
+            tags = [t.get("name") for t in artist_data.get("tag-list", []) if int(t.get("count", 0)) > 0]
 
             return {
                 "mbid": mbid,
