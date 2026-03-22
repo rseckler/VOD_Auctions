@@ -179,7 +179,7 @@ export async function GET(
       { id: 2, name: "Conception & Tone Examples", description: "Finalize tone mapping, hand-write 35 example texts (3 per genre + labels + press)", tasks_total: 6, tasks_done: 6, status: "done", duration: "2-3 days" },
       { id: 3, name: "Musician Database", description: "SQL migration (musician + musician_role + musician_project), Admin CRUD, Storefront display", tasks_total: 6, tasks_done: 6, status: "done", duration: "1-2 days" },
       { id: 4, name: "Enricher Implementation", description: "Python module: DB + Discogs + MusicBrainz + Wikidata + Wikipedia + Last.fm + Brave + Bandcamp + Internet Archive + YouTube", tasks_total: 14, tasks_done: 14, status: "done", duration: "3-4 days" },
-      { id: 5, name: "Prompt & Agent Design", description: "Write all agent prompts, tone injection, quality rubric, few-shot examples", tasks_total: 9, tasks_done: 0, status: "not_started", duration: "2-3 days" },
+      { id: 5, name: "Prompt & Agent Design", description: "Write all agent prompts, tone injection, quality rubric, few-shot examples", tasks_total: 9, tasks_done: 9, status: "done", duration: "2-3 days" },
       { id: 6, name: "Pipeline Implementation", description: "Orchestrator + 7 agents + state management + resume + logging", tasks_total: 12, tasks_done: 0, status: "not_started", duration: "3-4 days" },
       { id: 7, name: "Test Phase", description: "Run on 100 entities, manual review, iterative prompt tuning", tasks_total: 9, tasks_done: 0, status: "not_started", duration: "3-4 days" },
       { id: 8, name: "P1 Rollout", description: "~900 high-priority entities (>10 releases)", tasks_total: 8, tasks_done: 0, status: "not_started", duration: "2-3 days" },
