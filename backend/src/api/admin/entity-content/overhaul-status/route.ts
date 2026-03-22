@@ -175,7 +175,7 @@ export async function GET(
       { name: "OpenAI API credits sufficient (~$350)", status: "pending", date: null },
     ],
     phases: [
-      { id: 1, name: "Analysis", description: "Pull 50 existing texts, score against quality criteria, document weaknesses", tasks_total: 5, tasks_done: 0, status: "not_started", duration: "1 day" },
+      { id: 1, name: "Analysis", description: "Pull 50 existing texts, score against quality criteria, document weaknesses", tasks_total: 5, tasks_done: 5, status: "done", duration: "1 day" },
       { id: 2, name: "Conception & Tone Examples", description: "Finalize tone mapping, hand-write 35 example texts (3 per genre + labels + press)", tasks_total: 6, tasks_done: 0, status: "not_started", duration: "2-3 days" },
       { id: 3, name: "Musician Database", description: "SQL migration (musician + musician_role + musician_project), Admin CRUD, Storefront display", tasks_total: 6, tasks_done: 0, status: "not_started", duration: "1-2 days" },
       { id: 4, name: "Enricher Implementation", description: "Python module: DB + Discogs + MusicBrainz + Wikidata + Wikipedia + Last.fm + Brave + Bandcamp + Internet Archive + YouTube", tasks_total: 14, tasks_done: 0, status: "not_started", duration: "3-4 days" },
