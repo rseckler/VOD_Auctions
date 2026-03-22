@@ -482,7 +482,7 @@ const MediaTab = () => {
       const resp = await fetch("/admin/gallery", { credentials: "include" })
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       const data = await resp.json()
-      setMedia(data.gallery_media || [])
+      setMedia(data.items || [])
     } catch (e: unknown) {
       console.error("Failed to fetch gallery media:", e)
       setError(e instanceof Error ? e.message : "Failed to load gallery media")

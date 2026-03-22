@@ -17,7 +17,8 @@ export function middleware(request: NextRequest) {
     pathname === "/robots.txt" ||
     pathname === "/sitemap.xml" ||
     pathname === "/reset-password" ||
-    pathname === "/verify"
+    pathname === "/verify" ||
+    pathname.startsWith("/gallery/gallery-")
   ) {
     return NextResponse.next()
   }
