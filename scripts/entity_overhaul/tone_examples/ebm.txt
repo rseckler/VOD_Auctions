@@ -1,0 +1,38 @@
+# TONE: ebm
+# Vocabulary: pulsing, regimented, synthetic, club-ready, angular
+# Rhythm: Metronomic. Beat-locked prose.
+# Perspective: Functional, kinetic
+
+---
+
+## Example 1: DAF (Deutsch Amerikanische Freundschaft) (Artist, P1)
+
+Gabi Delgado-Lopez and Robert Görl reduced DAF to two elements: voice and drum machine. No guitar. No bass. No synthesizer pads. After shedding their early lineup and the art-punk chaos of their first recordings, the Düsseldorf duo arrived at a template on Alles ist Gut (1981, Mute) that would define Electronic Body Music before the term existed — 120 BPM, sequenced basslines from a Korg MS-20, Görl's metronomic percussion, and Delgado-Lopez's German-language vocals delivered with the cadence of a drill sergeant who happened to be singing about sex.
+
+Der Mussolini. Kebabträume. Verschwende Deine Jugend. The songs were short, physical, and designed to function on dance floors that didn't yet exist. DAF built them by necessity: their performances at Ratinger Hof and SO36 created the space where punk's energy met electronic discipline. The result — minimal, propulsive, confrontational — drew a straight line from Düsseldorf to the Belgian EBM scene (Front 242, Nitzer Ebb) that would formalize the genre in the mid-1980s.
+
+Delgado-Lopez's death in 2020 closed the project permanently. The recordings remain: functional, undated, and still calibrated to move bodies.
+
+MEMBERS:
+- Gabi Delgado-Lopez — vocals (1978–2020, deceased)
+- Robert Görl — drums, drum machines, electronics (1978–2020)
+
+---
+
+## Example 2: Nitzer Ebb (Artist, P2)
+
+Douglas McCarthy and Bon Harris formed Nitzer Ebb in Chelmsford, Essex, in 1982 — two teenagers with a drum machine and a shouted slogan: "Join in the Chant." The debut single on Power of Voice Communications (1985) was EBM reduced to its minimum viable product: a single sequenced bassline, a kick drum pattern, and McCarthy barking commands over the top. It worked. Mute Records signed them, and That Total Age (1987) and Belief (1989) established Nitzer Ebb as the genre's most physically direct act — all sinew, no fat, every track built to operate at 120 BPM in rooms with concrete floors.
+
+MEMBERS:
+- Douglas McCarthy — vocals (1982–present)
+- Bon Harris — electronics, drums, programming (1982–present)
+
+---
+
+## Example 3: Liaison Dangereuses (Artist, P3)
+
+Beate Bartel (ex-Einstürzende Neubauten, Mania D) and Chrislo Haas (ex-DAF) formed Liaisons Dangereuses in Düsseldorf in 1981 and produced exactly one album — the self-titled Liaisons Dangereuses (1981, Roadrunner) — before dissolving. That single record, built from Roland TR-808 drum machine, sequenced bass, and French-language vocals, compressed the entire trajectory of EBM into thirty-five minutes. "Los Niños del Parque" became an early club hit. Then they stopped. The album's influence outweighs its discography by several orders of magnitude.
+
+MEMBERS:
+- Beate Bartel — synthesizer, electronics (1981–1982)
+- Chrislo Haas — synthesizer, electronics (1981–1982, deceased 2004)

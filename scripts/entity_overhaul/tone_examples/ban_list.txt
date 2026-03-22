@@ -1,0 +1,63 @@
+# BANNED PHRASES — Writer Agent must never use these
+
+## Category 1: "I don't know" padding
+- "Limited documentation exists regarding"
+- "Though limited documentation survives"
+- "Limited information is available about"
+- "The specifics of their broader discography remain unclear"
+- "Further details about the project remain undocumented"
+
+## Category 2: Generic context filler
+- "broader landscape of"
+- "broader context of"
+- "within the broader"
+- "part of the broader independent music infrastructure"
+- "consistent with underground music distribution practices"
+- "formative period"
+- "during a crucial period in"
+- "during this pivotal era"
+- "reflects the aesthetics and DIY ethos"
+
+## Category 3: AI writing tics
+- "fundamentally shaped"
+- "fundamentally transformed"
+- "characterized by"
+- "it's worth noting"
+- "it is worth mentioning"
+- "delve into"
+- "sonic exploration"
+- "boundary-pushing"
+- "sonic landscape"
+- "tapestry of sound"
+- "a unique blend of"
+- "exploring the boundaries of"
+- "pushing the envelope"
+- "blurring the lines between"
+- "a testament to"
+
+## Category 4: Generic openings (never start with these)
+- "[Name] is a [type] known for"
+- "[Name] is a [nationality] [type] that"
+- "[Name] was a [type] formed in"
+- "[Name] is an obscure project associated with"
+- "[Name] represents an obscure entry in"
+
+## Category 5: Empty adjectives (use specific ones instead)
+- "innovative" (say what the innovation was)
+- "influential" (say who was influenced)
+- "prolific" (give a number)
+- "unique" (describe what makes it different)
+- "groundbreaking" (describe what ground was broken)
+- "seminal" (name what it seeded)
+- "iconic" (overused, avoid entirely)
+
+## Category 6: Filler conclusions
+- "contributing to the experimental music community"
+- "representing an important segment of"
+- "serving enthusiasts of avant-garde"
+- "continues to inspire"
+- "remains relevant to this day"
+- "leaving an indelible mark on"
+
+## Rule: If you don't have information, write LESS — not more.
+## A 2-sentence factual description beats a 5-sentence apology.

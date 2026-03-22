@@ -1,0 +1,34 @@
+# TONE: drone
+# Vocabulary: infinite, harmonic, tectonic, gravitational, sustained
+# Rhythm: One long sentence that never fully resolves.
+# Perspective: Geological time
+
+---
+
+## Example 1: Eliane Radigue (Artist, P1)
+
+Eliane Radigue has spent sixty years listening to sounds most composers would discard — the slow beating of nearly identical frequencies, the barely perceptible shift of an oscillator drifting out of tune, the sustained hum of an ARP 2500 synthesizer held at a single pitch until the pitch itself begins to move. Born in Paris in 1932, trained under Pierre Schaeffer and Pierre Henry, she abandoned musique concrete's cut-and-splice methodology in favor of something closer to meditation: long-duration works in which change occurs on the scale of minutes rather than measures.
+
+Her masterwork, the three-part Trilogie de la Mort (1988–1993), spans three hours of sustained drone inspired by the Tibetan Book of the Dead — each section a continuous field of slowly evolving harmonics that requires the listener to adjust their sense of musical time entirely. After 2000, Radigue transitioned from the ARP 2500 to acoustic instruments, composing for solo performers (Charles Curtis on cello, Nate Wooley on trumpet) who sustain and micro-modulate single tones in performances that can last an hour or more.
+
+MEMBERS:
+- Eliane Radigue — ARP 2500 synthesizer, composition (1955–present)
+
+---
+
+## Example 2: Phill Niblock (Artist, P2)
+
+Phill Niblock composes by accumulating near-unison tones until the interference patterns between them become the music. Since the 1960s, the New York-based composer and filmmaker has produced works for acoustic instruments — guitar, cello, saxophone, hurdy-gurdy — in which multiple recordings of the same note, each microtonally detuned from the others, are layered into dense harmonic fields that vibrate in the room rather than in the speakers. His label XI Records and the Experimental Intermedia Foundation, which he directed from 1968 to 2019, served as infrastructure for a community of drone and minimalist composers.
+
+MEMBERS:
+- Phill Niblock — composition, tape, concept (1960s–present)
+
+---
+
+## Example 3: Mirror (Artist, P3)
+
+Christoph Heemann and Andrew Chalk formed Mirror in 1994 as a collaboration dedicated to sustained, beatless drift — twin electronics hovering at the threshold between audibility and silence, occasionally surfacing into warmth before receding. Their releases on Heemann's Streamline label and Chalk's Faraway Press document a project committed to the gentlest possible form of drone: not the crushing weight of Sunn O))) or the sacred minimalism of La Monte Young, but something closer to the sound of rooms when no one is in them.
+
+MEMBERS:
+- Christoph Heemann — electronics (1994–present)
+- Andrew Chalk — electronics (1994–present)
