@@ -316,10 +316,13 @@ def enrich_musicbrainz(name: str, entity_type: str) -> dict | None:
             # Extract members
             members = []
             for rel in artist_data.get("artist-relation-list", []):
-                if rel.get("type") in ("member of band", "is person"):
+                if rel.get("type") == "member of band":
+                    target = rel.get("artist", rel.get("target", {}))
+                    if isinstance(target, str):
+                        target = {}
                     members.append({
-                        "name": rel.get("target", {}).get("name") if isinstance(rel.get("target"), dict) else rel.get("artist", {}).get("name", ""),
-                        "mbid": rel.get("target", {}).get("id") if isinstance(rel.get("target"), dict) else rel.get("artist", {}).get("id"),
+                        "name": target.get("name", ""),
+                        "mbid": target.get("id"),
                         "type": rel.get("type"),
                         "begin": rel.get("begin"),
                         "end": rel.get("end"),
