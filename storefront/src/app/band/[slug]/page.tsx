@@ -32,6 +32,20 @@ type BandLabel = {
   release_count: number
 }
 
+type BandMember = {
+  id: string
+  name: string
+  slug: string
+  real_name: string | null
+  country: string | null
+  photo_url: string | null
+  role: string
+  active_from: number | null
+  active_to: number | null
+  is_founder: boolean
+  other_projects: { project_name: string; role: string | null; years: string | null }[]
+}
+
 type BandData = {
   artist: {
     id: string
@@ -49,6 +63,7 @@ type BandData = {
   releases: BandRelease[]
   literature: BandLiterature[]
   labels: BandLabel[]
+  members: BandMember[]
   release_count: number
 }
 
@@ -254,6 +269,15 @@ export default async function BandPage({
     ...(band.year && { foundingDate: band.year }),
     ...(genres.length && { genre: genres }),
     ...(description && { description: description.replace(/<[^>]*>/g, "").slice(0, 300) }),
+    ...(data.members?.length > 0 && {
+      member: data.members.map((m) => ({
+        "@type": "Person",
+        name: m.name,
+        ...(m.role && { roleName: m.role }),
+        ...(m.active_from && { startDate: String(m.active_from) }),
+        ...(m.active_to && { endDate: String(m.active_to) }),
+      })),
+    }),
     url: `https://vod-auctions.com/band/${band.slug}`,
   }
 
@@ -318,6 +342,49 @@ export default async function BandPage({
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Members */}
+      {data.members && data.members.length > 0 && (
+        <div className="relative pl-4 mb-10">
+          <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full bg-gradient-to-b from-primary via-primary/60 to-transparent" />
+          <h2 className="font-serif text-[15px] text-primary mb-3">
+            Members{" "}
+            <span className="font-sans text-[11px] text-muted-foreground font-normal ml-1.5">
+              {data.members.length}
+            </span>
+          </h2>
+          <div className="space-y-2">
+            {data.members.map((member) => (
+              <div
+                key={`${member.id}-${member.role}`}
+                className="flex items-baseline gap-2 text-sm"
+              >
+                <span className="font-medium text-foreground">
+                  {member.name}
+                </span>
+                {member.is_founder && (
+                  <span className="text-[10px] font-semibold text-primary/80 uppercase tracking-wider">
+                    founder
+                  </span>
+                )}
+                <span className="text-muted-foreground">
+                  — {member.role}
+                </span>
+                {(member.active_from || member.active_to) && (
+                  <span className="text-xs text-muted-foreground/70">
+                    ({member.active_from || "?"}–{member.active_to || "present"})
+                  </span>
+                )}
+                {member.other_projects.length > 0 && (
+                  <span className="text-xs text-muted-foreground/60">
+                    also: {member.other_projects.map((p) => p.project_name).join(", ")}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

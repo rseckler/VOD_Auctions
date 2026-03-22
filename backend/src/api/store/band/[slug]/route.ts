@@ -94,6 +94,55 @@ export async function GET(
     .where("artistId", artist.id)
     .count("id as count")
 
+  // Members (from musician database)
+  let members: any[] = []
+  try {
+    members = await pgConnection("musician_role")
+      .select(
+        "musician.id",
+        "musician.name",
+        "musician.slug",
+        "musician.real_name",
+        "musician.country",
+        "musician.photo_url",
+        "musician_role.role",
+        "musician_role.active_from",
+        "musician_role.active_to",
+        "musician_role.is_founder"
+      )
+      .join("musician", "musician.id", "musician_role.musician_id")
+      .where("musician_role.artist_id", artist.id)
+      .orderByRaw("musician_role.is_founder DESC, musician_role.active_from ASC NULLS FIRST")
+  } catch {
+    // Table may not exist yet — graceful fallback
+  }
+
+  // Other projects for each member
+  const memberIds = members.map((m: any) => m.id)
+  let otherProjects: any[] = []
+  if (memberIds.length > 0) {
+    try {
+      otherProjects = await pgConnection("musician_project")
+        .select("musician_project.*")
+        .whereIn("musician_project.musician_id", memberIds)
+        .orderBy("musician_project.project_name", "asc")
+    } catch {
+      // Graceful fallback
+    }
+  }
+
+  // Group other projects by musician_id
+  const projectsByMusician: Record<string, any[]> = {}
+  for (const p of otherProjects) {
+    if (!projectsByMusician[p.musician_id]) projectsByMusician[p.musician_id] = []
+    projectsByMusician[p.musician_id].push(p)
+  }
+
+  const membersWithProjects = members.map((m: any) => ({
+    ...m,
+    other_projects: projectsByMusician[m.id] || [],
+  }))
+
   res.json({
     artist: {
       id: artist.id,
@@ -107,6 +156,7 @@ export async function GET(
       ...l,
       release_count: Number(l.release_count),
     })),
+    members: membersWithProjects,
     release_count: Number(release_count),
   })
 }
