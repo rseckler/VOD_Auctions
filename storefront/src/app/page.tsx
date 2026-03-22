@@ -1,5 +1,6 @@
 import Link from "next/link"
-import { Disc3 } from "lucide-react"
+import Image from "next/image"
+import { Disc3, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { HomeContent } from "@/components/HomeContent"
 import { medusaFetch } from "@/lib/api"
@@ -130,6 +131,64 @@ export default async function Home() {
       )}
 
       <HomeContent blocks={blocks} />
+
+      {/* Gallery Teaser */}
+      <section className="mx-auto max-w-6xl px-6 py-16">
+        <div className="relative overflow-hidden rounded-2xl border border-[rgba(232,224,212,0.08)]">
+          {/* Background image grid */}
+          <div className="grid grid-cols-3 h-64 md:h-80">
+            <div className="relative">
+              <Image
+                src="/gallery/gallery-12.jpg"
+                alt="Concert posters at VOD Gallery"
+                fill
+                className="object-cover"
+                sizes="33vw"
+              />
+            </div>
+            <div className="relative">
+              <Image
+                src="/gallery/gallery-06.jpg"
+                alt="Throbbing Gristle artefacts"
+                fill
+                className="object-cover"
+                sizes="33vw"
+              />
+            </div>
+            <div className="relative">
+              <Image
+                src="/gallery/gallery-11.jpg"
+                alt="Vinyl and cassette collection"
+                fill
+                className="object-cover"
+                sizes="33vw"
+              />
+            </div>
+          </div>
+          {/* Overlay with text */}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#1c1915] via-[#1c1915]/70 to-[#1c1915]/30 flex items-end">
+            <div className="p-8 md:p-12 w-full">
+              <p className="text-xs text-primary font-medium uppercase tracking-wider mb-2">
+                Friedrichshafen, Germany
+              </p>
+              <h2 className="font-serif text-2xl md:text-3xl text-foreground mb-3">
+                VOD Gallery
+              </h2>
+              <p className="text-muted-foreground max-w-lg mb-6 text-sm md:text-base">
+                Archive, listening room and meeting point — 41,500+ records, artefacts
+                and rare collectibles in one room. Visit us at Lake Constance.
+              </p>
+              <Link
+                href="/gallery"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-md border border-primary/40 text-primary hover:bg-primary/10 transition-colors text-sm font-medium"
+              >
+                Explore the Gallery
+                <ChevronRight className="h-4 w-4" />
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* Catalog Teaser */}
       <section className="mx-auto max-w-6xl px-6 pt-8 pb-16">
