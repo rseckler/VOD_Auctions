@@ -175,7 +175,8 @@ H (Backend APIs)     → Keine Dependencies, startet sofort
   - **Admin Status Dashboard:** `/admin/entity-content` — Overhaul-Sektion mit Prerequisites, 10 Phasen-Timeline, Model Strategy, Data Sources, Musician DB, Data Quality Grid, Pipeline Live-Progress
   - **Backend API:** `GET /admin/entity-content/overhaul-status`
   - **Test-Ergebnisse (Phase 7, 100 Entities):** 98 accepted, 0 rejected, 0 errors, Avg Score 82.3, Avg 25s/Entity
-  - **P1 Rollout (Phase 8, läuft):** ~1.022 Entities, ~7h Laufzeit
+  - **P1 Rollout (Phase 8, abgeschlossen 2026-03-22 22:59):** 1.022 Entities, 1.013 accepted, 7 revised, 0 rejected, 0 errors, ~8h Laufzeit
+  - **P2 Rollout (Phase 9, gestartet 2026-03-23):** 3.650 Entities, läuft in `screen -r overhaul` auf VPS, ~25h geschätzt
   - **VPS Setup:** `OPENAI_API_KEY`, `LASTFM_API_KEY`, `LASTFM_SHARED_SECRET`, `YOUTUBE_API_KEY`, `BRAVE_API_KEY` in `scripts/.env`; `openai` 2.29.0 + `musicbrainzngs` 0.7.1 installiert
   - **Kosten:** ~$350 geschätzt für alle 17.500 Entities (GPT-4o Writer + GPT-4o-mini Rest)
   - **Neue Dateien:** `scripts/entity_overhaul/` (10 Module + tone_examples/), `docs/KONZEPT_Entity_Content_Overhaul.md`, `docs/ANALYSIS_Entity_Content_Phase1.md`, `20260322_musician_database.sql`, `admin/musicians/` (API + UI), `overhaul-status/route.ts`
@@ -1523,8 +1524,9 @@ npm run build             # Production build
   - ~~Phase 5: Prompt & Agent Design~~ ✅ (5 Agents, Tone Mapping)
   - ~~Phase 6: Pipeline Implementation~~ ✅ (Orchestrator, E2E getestet)
   - ~~Phase 7: Test Phase~~ ✅ (100 Entities, 98 accepted, Score 82.3)
-  - **Phase 8: P1 Rollout ~1.022 entities** ← RUNNING (VPS Background Job)
-  - Phase 9: P2+P3 Rollout ~16,600 entities (NEXT)
+  - ~~Phase 8: P1 Rollout ~1.022 entities~~ ✅ (1.013 accepted, 0 rejected, 8h)
+  - **Phase 9: P2 Rollout ~3.650 entities** ← RUNNING (VPS screen session)
+  - Phase 9b: P3 Rollout ~12.500 entities (NEXT)
   - Phase 10: QA & Finalization (NEXT)
   - **Konzept:** `docs/KONZEPT_Entity_Content_Overhaul.md`
   - **Pipeline:** `scripts/entity_overhaul/` (10 Module)
