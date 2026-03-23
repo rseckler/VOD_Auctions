@@ -162,7 +162,7 @@ export async function GET(
   const projectProgress = {
     linear_issue: "RSE-227",
     concept_doc: "docs/KONZEPT_Entity_Content_Overhaul.md",
-    last_updated: "2026-03-22",
+    last_updated: "2026-03-23",
     prerequisites: [
       { name: "Discogs API Token", status: "done", date: "2026-03-03" },
       { name: "Anthropic API Key", status: "done", date: "2026-03-08" },
@@ -172,7 +172,6 @@ export async function GET(
       { name: "OpenAI API Key (GPT-4o/4o-mini)", status: "done", date: "2026-03-22" },
       { name: "musicbrainzngs 0.7.1 installed", status: "done", date: "2026-03-22" },
       { name: "openai 2.29.0 installed", status: "done", date: "2026-03-22" },
-      { name: "OpenAI API credits sufficient (~$350)", status: "pending", date: null },
     ],
     phases: [
       { id: 1, name: "Analysis", description: "Pull 50 existing texts, score against quality criteria, document weaknesses", tasks_total: 5, tasks_done: 5, status: "done", duration: "1 day" },
@@ -182,9 +181,10 @@ export async function GET(
       { id: 5, name: "Prompt & Agent Design", description: "Write all agent prompts, tone injection, quality rubric, few-shot examples", tasks_total: 9, tasks_done: 9, status: "done", duration: "2-3 days" },
       { id: 6, name: "Pipeline Implementation", description: "Orchestrator + 7 agents + state management + resume + logging", tasks_total: 12, tasks_done: 12, status: "done", duration: "3-4 days" },
       { id: 7, name: "Test Phase", description: "Run on 100 entities, manual review, iterative prompt tuning", tasks_total: 9, tasks_done: 9, status: "done", duration: "3-4 days" },
-      { id: 8, name: "P1 Rollout", description: "~900 high-priority entities (>10 releases)", tasks_total: 8, tasks_done: 0, status: "not_started", duration: "2-3 days" },
-      { id: 9, name: "P2+P3 Rollout", description: "~16,600 remaining entities", tasks_total: 5, tasks_done: 0, status: "not_started", duration: "3-4 days" },
-      { id: 10, name: "QA & Finalization", description: "Statistical analysis, outlier fixes, musician review, crontab setup", tasks_total: 8, tasks_done: 0, status: "not_started", duration: "2-3 days" },
+      { id: 8, name: "P1 Rollout", description: "1,013 accepted, 7 revised, 0 rejected", tasks_total: 8, tasks_done: 8, status: "done", duration: "8h (2026-03-22)" },
+      { id: 9, name: "P2 Rollout", description: "~3,650 entities (3-10 releases)", tasks_total: 5, tasks_done: 2, status: "paused", duration: "paused at 576/3650" },
+      { id: 10, name: "P3 Rollout", description: "~12,500 remaining entities (1-2 releases)", tasks_total: 5, tasks_done: 0, status: "not_started", duration: "TBD" },
+      { id: 11, name: "QA & Finalization", description: "Statistical analysis, outlier fixes, musician review, crontab setup", tasks_total: 8, tasks_done: 0, status: "not_started", duration: "2-3 days" },
     ],
     model_strategy: {
       writer: "GPT-4o",
@@ -208,6 +208,30 @@ export async function GET(
     ],
   }
 
+  // 8. Budget & schedule tracking
+  const budgetSchedule = {
+    total_estimated_cost: 350,
+    currency: "USD",
+    spent: [
+      { period: "2026-03 (P1 + P2 partial)", amount: 96, entities_processed: 2703, note: "P1 complete (1022) + P2 partial (1681)" },
+    ],
+    total_spent: 96,
+    cost_per_entity: 0.0355,
+    schedule: [
+      { id: 1, label: "March 2026", start: "2026-03-22", end: "2026-03-23", budget: 120, spent: 96, status: "paused", note: "Paused — 80% of $120 budget reached" },
+      { id: 2, label: "April 2026", start: "2026-04-01", end: "2026-04-30", budget: 100, spent: 0, status: "scheduled", note: "Resume P2 + start P3" },
+      { id: 3, label: "May 2026", start: "2026-05-01", end: "2026-05-31", budget: 100, spent: 0, status: "scheduled", note: "Continue P3 if budget from April exhausted" },
+    ],
+    entities_remaining: {
+      p2: 3074,
+      p3: 12500,
+      total: 15574,
+    },
+    estimated_remaining_cost: 553,
+    next_run: "2026-04-01",
+    pause_until: "2026-04-01",
+  }
+
   res.json({
     pipeline: pipelineStatus,
     process_running: processRunning,
@@ -216,5 +240,6 @@ export async function GET(
     priorities,
     musician_stats: musicianStats,
     project: projectProgress,
+    budget: budgetSchedule,
   })
 }

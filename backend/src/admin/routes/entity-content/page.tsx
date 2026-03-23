@@ -53,6 +53,19 @@ type EntityContentItem = {
 
 type Stats = Record<string, { total: number; with_content: number }>
 
+type BudgetSchedule = {
+  total_estimated_cost: number
+  currency: string
+  spent: { period: string; amount: number; entities_processed: number; note: string }[]
+  total_spent: number
+  cost_per_entity: number
+  schedule: { id: number; label: string; start: string; end: string; budget: number; spent: number; status: string; note: string }[]
+  entities_remaining: { p2: number; p3: number; total: number }
+  estimated_remaining_cost: number
+  next_run: string
+  pause_until: string
+}
+
 type OverhaulStatus = {
   pipeline: {
     status: string
@@ -94,9 +107,11 @@ type OverhaulStatus = {
   project: {
     linear_issue: string
     last_updated: string
+    phases: { id: number; name: string; description: string; status: string }[]
     model_strategy: { writer: string; estimated_cost: string }
     data_sources: { name: string; status: string }[]
   }
+  budget: BudgetSchedule | null
 }
 
 type EditForm = {
@@ -300,7 +315,7 @@ function EntityContentInner() {
                 width: 6, height: 6, borderRadius: "50%",
                 background: isRunning ? C.green : pipe?.status === "completed" ? C.green : "#6b7280",
               }} />
-              {isRunning ? "RUNNING" : pipe?.status === "completed" ? "COMPLETED" : pipe ? "PAUSED" : "IDLE"}
+              {isRunning ? "RUNNING" : pipe?.status === "completed" ? "COMPLETED" : os?.budget?.pause_until ? `PAUSED until ${os.budget.next_run}` : pipe ? "PAUSED" : "IDLE"}
             </span>
           </div>
 
@@ -435,11 +450,113 @@ function EntityContentInner() {
               <span style={{ color: C.gold, fontWeight: 600 }}>Sources:</span> {os.project?.data_sources?.filter(s => s.status === "ready").length || 0} active
             </span>
             <span style={{ marginLeft: "auto" }}>
-              <span style={{ color: C.gold, fontWeight: 600 }}>Est. cost:</span> {os.project?.model_strategy?.estimated_cost || "~$350"}
+              <span style={{ color: C.gold, fontWeight: 600 }}>Spent:</span> ${os.budget?.total_spent || 0} / ~${os.budget?.total_estimated_cost || 350}
             </span>
           </div>
         </div>
       )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          BUDGET & SCHEDULE — Rollout timeline with monthly budget windows
+          ═══════════════════════════════════════════════════════════════════════ */}
+      {os?.budget && (() => {
+        const b = os.budget
+        const now = new Date().toISOString().slice(0, 10)
+        const isPaused = now < b.next_run
+        const daysUntilResume = isPaused ? Math.ceil((new Date(b.next_run).getTime() - Date.now()) / 86400000) : 0
+        const totalBudgetAllocated = b.schedule.reduce((s, p) => s + p.budget, 0)
+        const pctSpentTotal = totalBudgetAllocated > 0 ? (b.total_spent / totalBudgetAllocated) * 100 : 0
+
+        return (
+          <div style={{ background: C.card, borderRadius: 10, padding: "16px 20px", marginBottom: 20, border: `1px solid ${C.border}` }}>
+            {/* Header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: C.gold, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  Budget & Schedule
+                </span>
+              </div>
+              {isPaused && (
+                <span style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  padding: "3px 12px", borderRadius: 12, fontSize: 11, fontWeight: 600,
+                  background: `${C.orange}22`, color: C.orange,
+                }}>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: C.orange }} />
+                  PAUSED — resumes {b.next_run} ({daysUntilResume}d)
+                </span>
+              )}
+            </div>
+
+            {/* Summary stats row */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 14 }}>
+              {[
+                { label: "Total Spent", value: `$${b.total_spent}`, sub: `of ~$${b.total_estimated_cost} est.`, color: C.gold },
+                { label: "Cost / Entity", value: `$${b.cost_per_entity.toFixed(3)}`, sub: `~${Math.round(1 / b.cost_per_entity)} entities/$1`, color: C.text },
+                { label: "Entities Done", value: b.spent.reduce((s, p) => s + p.entities_processed, 0).toLocaleString(), sub: `${b.entities_remaining.total.toLocaleString()} remaining`, color: C.green },
+                { label: "Est. Remaining", value: `$${b.estimated_remaining_cost}`, sub: `${Math.ceil(b.estimated_remaining_cost / 100)} months @ $100/mo`, color: C.orange },
+              ].map((stat, i) => (
+                <div key={i} style={{ background: C.bg, borderRadius: 8, padding: "10px 14px", border: `1px solid ${C.border}` }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>{stat.label}</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: stat.color, fontVariantNumeric: "tabular-nums" }}>{stat.value}</div>
+                  <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{stat.sub}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Schedule timeline */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>
+                Monthly Budget Windows
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                {b.schedule.map((period) => {
+                  const isActive = now >= period.start && now <= period.end && !isPaused
+                  const isDone = period.status === "paused" || (period.spent > 0 && period.spent >= period.budget * 0.8)
+                  const isNext = period.status === "scheduled" && period.start === b.next_run
+                  const pctUsed = period.budget > 0 ? (period.spent / period.budget) * 100 : 0
+
+                  return (
+                    <div key={period.id} style={{
+                      flex: 1, background: C.bg, borderRadius: 8, padding: "12px 14px",
+                      border: `1px solid ${isActive ? C.gold : isNext ? `${C.gold}66` : C.border}`,
+                      opacity: isDone && !isActive ? 0.7 : 1,
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: isActive ? C.gold : isNext ? C.text : C.muted }}>{period.label}</span>
+                        <span style={{
+                          fontSize: 9, fontWeight: 600, padding: "1px 8px", borderRadius: 8,
+                          background: period.status === "paused" ? `${C.orange}22` : period.status === "scheduled" ? `${C.blue}22` : `${C.green}22`,
+                          color: period.status === "paused" ? C.orange : period.status === "scheduled" ? C.blue : C.green,
+                          textTransform: "uppercase",
+                        }}>{period.status}</span>
+                      </div>
+                      {/* Budget bar */}
+                      <div style={{ height: 6, borderRadius: 3, background: C.border, overflow: "hidden", marginBottom: 4 }}>
+                        <div style={{ height: "100%", width: `${Math.min(pctUsed, 100)}%`, borderRadius: 3, background: pctUsed >= 80 ? C.orange : C.gold, transition: "width 0.3s" }} />
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: C.muted }}>
+                        <span>${period.spent} / ${period.budget}</span>
+                        <span>{pctUsed > 0 ? `${pctUsed.toFixed(0)}%` : "—"}</span>
+                      </div>
+                      <div style={{ fontSize: 10, color: C.muted, marginTop: 4 }}>{period.note}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Entities remaining breakdown */}
+            <div style={{ display: "flex", gap: 16, fontSize: 11, color: C.muted, flexWrap: "wrap", alignItems: "center" }}>
+              <span><span style={{ color: C.gold, fontWeight: 600 }}>P2 remaining:</span> {b.entities_remaining.p2.toLocaleString()} (~${Math.round(b.entities_remaining.p2 * b.cost_per_entity)})</span>
+              <span><span style={{ color: C.gold, fontWeight: 600 }}>P3 remaining:</span> {b.entities_remaining.p3.toLocaleString()} (~${Math.round(b.entities_remaining.p3 * b.cost_per_entity)})</span>
+              <span style={{ marginLeft: "auto" }}>
+                <span style={{ color: C.gold, fontWeight: 600 }}>Projection:</span> Complete by {b.schedule.length > 0 ? b.schedule[b.schedule.length - 1].label : "TBD"}
+              </span>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ═══════════════════════════════════════════════════════════════════════
           ENTITY BROWSER — Tabs, filters, table, edit
