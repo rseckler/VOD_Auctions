@@ -13,7 +13,7 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Sprache:** Storefront und Admin-UI komplett auf Englisch (seit 2026-03-03)
 
 **Created:** 2026-02-10
-**Last Updated:** 2026-03-22
+**Last Updated:** 2026-03-23
 
 ### UX/UI Overhaul — 37 CRITICAL+HIGH Findings (2026-03-15, IN PROGRESS)
 
@@ -148,8 +148,27 @@ H (Backend APIs)     → Keine Dependencies, startet sofort
 - **Frontend Proxy:** `storefront/src/app/api/invoice/[groupId]/route.ts` (Auth-Proxy)
 - **Frontend:** "Download Invoice" Button auf Orders-Seite
 
+### Letzte Änderungen (2026-03-23)
+- **Entity Content Overhaul — P2 pausiert, Budget-Dashboard:**
+  - **P2 Rollout pausiert (2026-03-23 11:05):** 576 von 3.650 Entities verarbeitet (566 accepted, 8 revised, 1 rejected, 1 error). Grund: OpenAI Budget-Alert bei 80% ($96/$120).
+  - **Budget-Zeitplan:**
+    - March 2026: $96 verbraucht (P1 komplett + P2 partial = 2.703 Entities), PAUSED
+    - April 2026: Resume P2 am 01.04.2026 mit $100 Budget
+    - May 2026: Falls April-Budget aufgebraucht, Fortsetzung P3 am 01.05.2026 mit $100 Budget
+    - Kosten pro Entity: ~$0.035 → ~$100 = ~2.800 Entities
+    - Restliche Entities: P2 3.074 + P3 12.500 = 15.574 → ~$553 geschätzt
+  - **Admin Budget Dashboard:** Neuer "Budget & Schedule" Bereich auf `/admin/entity-content`
+    - 4 Summary-Karten: Total Spent, Cost/Entity, Entities Done, Est. Remaining
+    - 3 Monthly Budget Windows mit Progress-Bars und Status-Badges
+    - Pause-Countdown ("PAUSED — resumes 2026-04-01")
+    - Entities-Remaining Breakdown (P2/P3)
+  - **Backend API:** `GET /admin/entity-content/overhaul-status` — neues `budget` Objekt mit schedule, spent, cost_per_entity, entities_remaining
+  - **Phase-Statuses aktualisiert:** P1 done (1.013 accepted), P2 paused (576/3.650), P3 not_started, QA not_started
+  - **Geänderte Dateien:** `overhaul-status/route.ts` (+budget data), `admin/routes/entity-content/page.tsx` (+Budget & Schedule section)
+  - **VPS:** Backend deployed
+
 ### Letzte Änderungen (2026-03-22)
-- **Entity Content Overhaul — RSE-227 (Phase 1-7 abgeschlossen, P1 Rollout läuft):**
+- **Entity Content Overhaul — RSE-227 (Phase 1-7 + P1 abgeschlossen):**
   - **Konzept:** `docs/KONZEPT_Entity_Content_Overhaul.md`, **Analyse:** `docs/ANALYSIS_Entity_Content_Phase1.md`
   - **Problem:** Alte Texte (Claude Haiku) Score 32/100 — generisch, keine Mitglieder, keine Metadata
   - **Lösung:** Multi-Agent Pipeline mit Genre-adaptivem Schreiben
@@ -176,7 +195,6 @@ H (Backend APIs)     → Keine Dependencies, startet sofort
   - **Backend API:** `GET /admin/entity-content/overhaul-status`
   - **Test-Ergebnisse (Phase 7, 100 Entities):** 98 accepted, 0 rejected, 0 errors, Avg Score 82.3, Avg 25s/Entity
   - **P1 Rollout (Phase 8, abgeschlossen 2026-03-22 22:59):** 1.022 Entities, 1.013 accepted, 7 revised, 0 rejected, 0 errors, ~8h Laufzeit
-  - **P2 Rollout (Phase 9, gestartet 2026-03-23):** 3.650 Entities, läuft in `screen -r overhaul` auf VPS, ~25h geschätzt
   - **VPS Setup:** `OPENAI_API_KEY`, `LASTFM_API_KEY`, `LASTFM_SHARED_SECRET`, `YOUTUBE_API_KEY`, `BRAVE_API_KEY` in `scripts/.env`; `openai` 2.29.0 + `musicbrainzngs` 0.7.1 installiert
   - **Kosten:** ~$350 geschätzt für alle 17.500 Entities (GPT-4o Writer + GPT-4o-mini Rest)
   - **Neue Dateien:** `scripts/entity_overhaul/` (10 Module + tone_examples/), `docs/KONZEPT_Entity_Content_Overhaul.md`, `docs/ANALYSIS_Entity_Content_Phase1.md`, `20260322_musician_database.sql`, `admin/musicians/` (API + UI), `overhaul-status/route.ts`
@@ -1525,9 +1543,10 @@ npm run build             # Production build
   - ~~Phase 6: Pipeline Implementation~~ ✅ (Orchestrator, E2E getestet)
   - ~~Phase 7: Test Phase~~ ✅ (100 Entities, 98 accepted, Score 82.3)
   - ~~Phase 8: P1 Rollout ~1.022 entities~~ ✅ (1.013 accepted, 0 rejected, 8h)
-  - **Phase 9: P2 Rollout ~3.650 entities** ← RUNNING (VPS screen session)
-  - Phase 9b: P3 Rollout ~12.500 entities (NEXT)
+  - **Phase 9: P2 Rollout ~3.650 entities** ← PAUSED at 576/3650 (Budget-Limit $96/$120, resumes 2026-04-01)
+  - Phase 9b: P3 Rollout ~12.500 entities (NEXT, ~May 2026)
   - Phase 10: QA & Finalization (NEXT)
+  - **Budget-Zeitplan:** April $100 → Mai $100 → ... bis ~$553 Rest aufgebraucht (~6 Monate)
   - **Konzept:** `docs/KONZEPT_Entity_Content_Overhaul.md`
   - **Pipeline:** `scripts/entity_overhaul/` (10 Module)
   - **Admin:** `/admin/entity-content` (Overhaul Status) + `/admin/musicians`
