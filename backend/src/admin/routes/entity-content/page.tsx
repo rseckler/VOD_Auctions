@@ -22,8 +22,6 @@ class ErrorBoundary extends Component<
           <h2>Error in Entity Content:</h2>
           <pre style={{ whiteSpace: "pre-wrap", fontSize: 13 }}>
             {this.state.error.message}
-            {"\n\n"}
-            {this.state.error.stack}
           </pre>
         </div>
       )
@@ -70,24 +68,21 @@ type OverhaulStatus = {
     last_updated: string
   } | null
   process_running: boolean
-  quality: Record<
-    string,
-    {
-      total_with_content: number
-      total_in_db: number
-      with_description: number
-      with_short_desc: number
-      with_genre_tags: number
-      with_country: number
-      with_year: number
-      with_links: number
-      published: number
-      ai_generated: number
-      avg_description_length: number
-      first_generated: string | null
-      last_generated: string | null
-    }
-  >
+  quality: Record<string, {
+    total_with_content: number
+    total_in_db: number
+    with_description: number
+    with_short_desc: number
+    with_genre_tags: number
+    with_country: number
+    with_year: number
+    with_links: number
+    published: number
+    ai_generated: number
+    avg_description_length: number
+    first_generated: string | null
+    last_generated: string | null
+  }>
   totals: Record<string, number>
   priorities: Record<string, { p1: number; p2: number; p3: number }>
   musician_stats: {
@@ -98,26 +93,8 @@ type OverhaulStatus = {
   } | null
   project: {
     linear_issue: string
-    concept_doc: string
     last_updated: string
-    prerequisites: { name: string; status: string; date: string | null }[]
-    phases: {
-      id: number
-      name: string
-      description: string
-      tasks_total: number
-      tasks_done: number
-      status: string
-      duration: string
-    }[]
-    model_strategy: {
-      writer: string
-      profiler: string
-      seo: string
-      quality: string
-      musician_mapper: string
-      estimated_cost: string
-    }
+    model_strategy: { writer: string; estimated_cost: string }
     data_sources: { name: string; status: string }[]
   }
 }
@@ -133,7 +110,7 @@ type EditForm = {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const COLORS = {
+const C = {
   bg: "#1c1915",
   card: "#2a2520",
   text: "#f5f0eb",
@@ -141,6 +118,11 @@ const COLORS = {
   gold: "#d4a54a",
   border: "#3a3530",
   hover: "#353025",
+  green: "#22c55e",
+  orange: "#ef8833",
+  red: "#ef4444",
+  yellow: "#eab308",
+  blue: "#3b82f6",
 }
 
 const TABS = [
@@ -151,16 +133,11 @@ const TABS = [
 
 const PAGE_SIZE = 25
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function getStatus(item: EntityContentItem): {
-  label: string
-  color: string
-} {
-  if (item.is_published) return { label: "Published", color: "#22c55e" }
-  if (item.ai_generated) return { label: "AI", color: "#3b82f6" }
+function getStatus(item: EntityContentItem): { label: string; color: string } {
+  if (item.is_published) return { label: "Published", color: C.green }
+  if (item.ai_generated) return { label: "AI", color: C.blue }
   if (item.description && item.description.trim().length > 0)
-    return { label: "Draft", color: "#eab308" }
+    return { label: "Draft", color: C.yellow }
   return { label: "Empty", color: "#6b7280" }
 }
 
@@ -183,31 +160,7 @@ function EntityContentInner() {
   const [generating, setGenerating] = useState<string | null>(null)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [debouncedSearch, setDebouncedSearch] = useState("")
-  const [overhaulStatus, setOverhaulStatus] = useState<OverhaulStatus | null>(null)
-  const [overhaulLoading, setOverhaulLoading] = useState(true)
-
-  // Fetch overhaul status
-  const fetchOverhaulStatus = useCallback(async () => {
-    try {
-      const resp = await fetch("/admin/entity-content/overhaul-status", {
-        credentials: "include",
-      })
-      if (!resp.ok) return
-      const data = await resp.json()
-      setOverhaulStatus(data)
-    } catch {
-      // Silent fail — dashboard is informational
-    } finally {
-      setOverhaulLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchOverhaulStatus()
-    // Auto-refresh every 30s if pipeline is running
-    const interval = setInterval(fetchOverhaulStatus, 30000)
-    return () => clearInterval(interval)
-  }, [fetchOverhaulStatus])
+  const [os, setOs] = useState<OverhaulStatus | null>(null)
 
   // Debounce search
   useEffect(() => {
@@ -216,28 +169,18 @@ function EntityContentInner() {
       setDebouncedSearch(search)
       setPage(1)
     }, 300)
-    return () => {
-      if (searchTimer.current) clearTimeout(searchTimer.current)
-    }
+    return () => { if (searchTimer.current) clearTimeout(searchTimer.current) }
   }, [search])
 
-  // Fetch data
+  // Fetch entity list
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams({
-        entity_type: activeTab,
-        page: String(page),
-        limit: String(PAGE_SIZE),
-      })
+      const params = new URLSearchParams({ entity_type: activeTab, page: String(page), limit: String(PAGE_SIZE) })
       if (debouncedSearch) params.set("q", debouncedSearch)
       if (hasContent) params.set("has_content", hasContent)
       if (isPublished) params.set("is_published", isPublished)
-
-      const resp = await fetch(
-        `/admin/entity-content?${params}`,
-        { credentials: "include" }
-      )
+      const resp = await fetch(`/admin/entity-content?${params}`, { credentials: "include" })
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       const data = await resp.json()
       setItems(data.items || [])
@@ -245,767 +188,262 @@ function EntityContentInner() {
       setPages(data.pages || 1)
       setStats(data.stats || {})
     } catch (err) {
-      console.error("Failed to fetch entity content:", err)
+      console.error("Failed to fetch:", err)
     } finally {
       setLoading(false)
     }
   }, [activeTab, page, debouncedSearch, hasContent, isPublished])
 
+  useEffect(() => { fetchData() }, [fetchData])
+  useEffect(() => { setPage(1); setExpandedId(null); setEditForm(null) }, [activeTab])
+
+  // Fetch overhaul status
+  const fetchOverhaul = useCallback(async () => {
+    try {
+      const resp = await fetch("/admin/entity-content/overhaul-status", { credentials: "include" })
+      if (resp.ok) setOs(await resp.json())
+    } catch { /* silent */ }
+  }, [])
+
   useEffect(() => {
-    fetchData()
+    fetchOverhaul()
+    const iv = setInterval(fetchOverhaul, 15000)
+    return () => clearInterval(iv)
+  }, [fetchOverhaul])
+
+  // Handlers
+  const handleExpand = useCallback((item: EntityContentItem) => {
+    if (expandedId === item.id) { setExpandedId(null); setEditForm(null); return }
+    setExpandedId(item.id)
+    setEditForm({
+      description: item.description || "", short_description: item.short_description || "",
+      country: item.country || "", founded_year: item.founded_year || "",
+      genre_tags: item.genre_tags ? item.genre_tags.join(", ") : "", is_published: item.is_published,
+    })
+  }, [expandedId])
+
+  const handleSave = useCallback(async (item: EntityContentItem) => {
+    if (!editForm) return
+    setSaving(true)
+    try {
+      const genreTags = editForm.genre_tags.split(",").map(t => t.trim()).filter(Boolean)
+      const resp = await fetch(`/admin/entity-content/${item.entity_type}/${item.entity_id}`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          description: editForm.description || null, short_description: editForm.short_description || null,
+          country: editForm.country || null, founded_year: editForm.founded_year || null,
+          genre_tags: genreTags.length > 0 ? genreTags : null, is_published: editForm.is_published,
+        }),
+      })
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      setExpandedId(null); setEditForm(null); fetchData()
+    } catch { alert("Failed to save") } finally { setSaving(false) }
+  }, [editForm, fetchData])
+
+  const handleGenerate = useCallback(async (item: EntityContentItem) => {
+    setGenerating(item.id)
+    try {
+      const resp = await fetch(`/admin/entity-content/${item.entity_type}/${item.entity_id}`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ generate_ai: true }),
+      })
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      fetchData()
+    } catch { alert("AI generation failed") } finally { setGenerating(null) }
   }, [fetchData])
 
-  // Reset page when tab changes
-  useEffect(() => {
-    setPage(1)
-    setExpandedId(null)
-    setEditForm(null)
-  }, [activeTab])
-
-  // Expand row and load edit form
-  const handleExpand = useCallback(
-    (item: EntityContentItem) => {
-      if (expandedId === item.id) {
-        setExpandedId(null)
-        setEditForm(null)
-        return
-      }
-      setExpandedId(item.id)
-      setEditForm({
-        description: item.description || "",
-        short_description: item.short_description || "",
-        country: item.country || "",
-        founded_year: item.founded_year || "",
-        genre_tags: item.genre_tags ? item.genre_tags.join(", ") : "",
-        is_published: item.is_published,
-      })
-    },
-    [expandedId]
-  )
-
-  // Save entity content
-  const handleSave = useCallback(
-    async (item: EntityContentItem) => {
-      if (!editForm) return
-      setSaving(true)
-      try {
-        const genreTags = editForm.genre_tags
-          .split(",")
-          .map((t) => t.trim())
-          .filter(Boolean)
-
-        const resp = await fetch(
-          `/admin/entity-content/${item.entity_type}/${item.entity_id}`,
-          {
-            method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              description: editForm.description || null,
-              short_description: editForm.short_description || null,
-              country: editForm.country || null,
-              founded_year: editForm.founded_year || null,
-              genre_tags: genreTags.length > 0 ? genreTags : null,
-              is_published: editForm.is_published,
-            }),
-          }
-        )
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
-        setExpandedId(null)
-        setEditForm(null)
-        fetchData()
-      } catch (err) {
-        console.error("Failed to save:", err)
-        alert("Failed to save entity content")
-      } finally {
-        setSaving(false)
-      }
-    },
-    [editForm, fetchData]
-  )
-
-  // Generate AI content for a single entity
-  const handleGenerate = useCallback(
-    async (item: EntityContentItem) => {
-      setGenerating(item.id)
-      try {
-        const resp = await fetch(
-          `/admin/entity-content/${item.entity_type}/${item.entity_id}`,
-          {
-            method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ generate_ai: true }),
-          }
-        )
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
-        fetchData()
-      } catch (err) {
-        console.error("Failed to generate AI content:", err)
-        alert("AI generation failed (endpoint may not support generate_ai flag yet)")
-      } finally {
-        setGenerating(null)
-      }
-    },
-    [fetchData]
-  )
-
-  const currentTab = TABS.find((t) => t.key === activeTab)!
+  // Computed
+  const totalAll = Object.values(os?.totals || {}).reduce((s, v) => s + v, 0)
+  const withContentAll = Object.values(os?.quality || {}).reduce((s, v) => s + (v?.with_description || 0), 0)
+  const pctAll = totalAll > 0 ? (withContentAll / totalAll) * 100 : 0
+  const pipe = os?.pipeline
+  const isRunning = os?.process_running || false
+  const currentTab = TABS.find(t => t.key === activeTab)!
   const currentStats = stats[activeTab]
 
-  return (
-    <div
-      style={{
-        padding: 24,
-        background: COLORS.bg,
-        minHeight: "100vh",
-        color: COLORS.text,
-      }}
-    >
-      {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 20,
-        }}
-      >
-        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
-          Entity Content
-        </h1>
-      </div>
+  // ─── Label helper ──────
+  const inputStyle = {
+    width: "100%", padding: "8px 10px", background: C.card,
+    border: `1px solid ${C.border}`, borderRadius: 4, color: C.text,
+    fontSize: 13, outline: "none", boxSizing: "border-box" as const,
+  }
+  const labelStyle = {
+    fontSize: 11, fontWeight: 600, color: C.muted, textTransform: "uppercase" as const,
+    letterSpacing: "0.05em", display: "block", marginBottom: 4,
+  }
 
-      {/* Generation Progress Overview */}
-      {Object.keys(stats).length > 0 && (
-        <div
-          style={{
-            background: COLORS.card,
-            borderRadius: 10,
-            padding: "16px 20px",
-            marginBottom: 20,
-            border: `1px solid ${COLORS.border}`,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 13,
-              fontWeight: 700,
-              color: COLORS.gold,
-              marginBottom: 12,
-              textTransform: "uppercase",
-              letterSpacing: "0.05em",
-            }}
-          >
-            AI Content Generation Progress
+  return (
+    <div style={{ padding: 24, background: C.bg, minHeight: "100vh", color: C.text }}>
+      <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 20 }}>Entity Content</h1>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          PIPELINE PROGRESS — Hero section, always visible
+          ═══════════════════════════════════════════════════════════════════════ */}
+      {os && (
+        <div style={{ background: C.card, borderRadius: 10, padding: "16px 20px", marginBottom: 20, border: `1px solid ${C.border}` }}>
+
+          {/* Top bar: title + status badge */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: C.gold, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                Content Overhaul
+              </span>
+              <span style={{ fontSize: 11, color: C.muted }}>RSE-227</span>
+            </div>
+            <span style={{
+              display: "inline-flex", alignItems: "center", gap: 6,
+              padding: "3px 12px", borderRadius: 12, fontSize: 11, fontWeight: 600,
+              background: isRunning ? `${C.green}22` : pipe?.status === "completed" ? `${C.green}22` : "#6b728022",
+              color: isRunning ? C.green : pipe?.status === "completed" ? C.green : "#6b7280",
+            }}>
+              <span style={{
+                width: 6, height: 6, borderRadius: "50%",
+                background: isRunning ? C.green : pipe?.status === "completed" ? C.green : "#6b7280",
+              }} />
+              {isRunning ? "RUNNING" : pipe?.status === "completed" ? "COMPLETED" : pipe ? "PAUSED" : "IDLE"}
+            </span>
           </div>
-          <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-            {TABS.map((tab) => {
-              const s = stats[tab.key]
-              if (!s) return null
-              const pct = s.total > 0 ? (s.with_content / s.total) * 100 : 0
-              const remaining = s.total - s.with_content
+
+          {/* ── Grand total progress ── */}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>
+                Overall Progress
+              </span>
+              <span style={{ fontSize: 24, fontWeight: 700, color: pctAll >= 95 ? C.green : C.gold, fontVariantNumeric: "tabular-nums" }}>
+                {pctAll.toFixed(1)}%
+              </span>
+            </div>
+            <div style={{ height: 12, borderRadius: 6, background: C.border, overflow: "hidden", marginBottom: 6 }}>
+              <div style={{
+                height: "100%", borderRadius: 6, width: `${pctAll}%`,
+                background: pctAll >= 95 ? C.green : `linear-gradient(90deg, ${C.orange}, ${C.gold})`,
+                transition: "width 0.5s ease",
+              }} />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.muted }}>
+              <span>{withContentAll.toLocaleString()} / {totalAll.toLocaleString()} entities with content</span>
+              <span>{(totalAll - withContentAll).toLocaleString()} remaining</span>
+            </div>
+          </div>
+
+          {/* ── Per-type progress bars ── */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 14 }}>
+            {(["artist", "label", "press_orga"] as const).map((type) => {
+              const q = os.quality[type]
+              const total = os.totals[type] || 0
+              const withDesc = q?.with_description || 0
+              const pct = total > 0 ? (withDesc / total) * 100 : 0
+              const prio = os.priorities[type]
+              const label = type === "artist" ? "Bands" : type === "label" ? "Labels" : "Press Orgs"
+
               return (
-                <div
-                  key={tab.key}
-                  style={{
-                    flex: "1 1 200px",
-                    minWidth: 200,
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "baseline",
-                      marginBottom: 6,
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 600,
-                        color: COLORS.text,
-                      }}
-                    >
-                      {tab.entityLabel}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: 12,
-                        color: COLORS.muted,
-                        fontVariantNumeric: "tabular-nums",
-                      }}
-                    >
-                      {s.with_content.toLocaleString()} /{" "}
-                      {s.total.toLocaleString()}
+                <div key={type} style={{ background: C.bg, borderRadius: 8, padding: "10px 14px", border: `1px solid ${C.border}` }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: C.text }}>{label}</span>
+                    <span style={{ fontSize: 18, fontWeight: 700, color: pct >= 95 ? C.green : pct > 50 ? C.gold : C.orange, fontVariantNumeric: "tabular-nums" }}>
+                      {pct.toFixed(0)}%
                     </span>
                   </div>
                   {/* Progress bar */}
-                  <div
-                    style={{
-                      height: 8,
-                      borderRadius: 4,
-                      background: COLORS.border,
-                      overflow: "hidden",
-                      marginBottom: 4,
-                    }}
-                  >
-                    <div
-                      style={{
-                        height: "100%",
-                        borderRadius: 4,
-                        width: `${pct}%`,
-                        background:
-                          pct >= 100
-                            ? "#22c55e"
-                            : pct > 50
-                              ? COLORS.gold
-                              : "#ef8833",
-                        transition: "width 0.5s ease",
-                      }}
-                    />
+                  <div style={{ height: 6, borderRadius: 3, background: C.border, overflow: "hidden", marginBottom: 4 }}>
+                    <div style={{ height: "100%", width: `${pct}%`, borderRadius: 3, background: pct >= 95 ? C.green : pct > 50 ? C.gold : C.orange, transition: "width 0.5s ease" }} />
                   </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      fontSize: 11,
-                      color: COLORS.muted,
-                    }}
-                  >
-                    <span>{pct.toFixed(1)}%</span>
-                    <span>
-                      {remaining > 0
-                        ? `${remaining.toLocaleString()} remaining`
-                        : "Complete ✓"}
-                    </span>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: C.muted }}>
+                    <span>{withDesc.toLocaleString()} / {total.toLocaleString()}</span>
+                    <span>{(total - withDesc).toLocaleString()} left</span>
                   </div>
+                  {/* Priority tiers */}
+                  {prio && (
+                    <div style={{ display: "flex", gap: 4, marginTop: 6, fontSize: 9 }}>
+                      <span style={{ padding: "0 5px", borderRadius: 4, background: `${C.orange}22`, color: C.orange, fontWeight: 600 }}>P1: {prio.p1}</span>
+                      <span style={{ padding: "0 5px", borderRadius: 4, background: `${C.gold}22`, color: C.gold, fontWeight: 600 }}>P2: {prio.p2}</span>
+                      <span style={{ padding: "0 5px", borderRadius: 4, background: "#6b728022", color: "#9ca3af", fontWeight: 600 }}>P3: {prio.p3}</span>
+                    </div>
+                  )}
+                  {/* Data quality mini-bars */}
+                  {q && (
+                    <div style={{ marginTop: 6, fontSize: 9, color: C.muted }}>
+                      {[
+                        { l: "Desc", v: q.with_description },
+                        { l: "Tags", v: q.with_genre_tags },
+                        { l: "Country", v: q.with_country },
+                      ].map((f) => {
+                        const fp = total > 0 ? (f.v / total) * 100 : 0
+                        return (
+                          <div key={f.l} style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 1 }}>
+                            <span style={{ width: 44, flexShrink: 0 }}>{f.l}</span>
+                            <div style={{ flex: 1, height: 3, borderRadius: 1.5, background: C.border, overflow: "hidden" }}>
+                              <div style={{ height: "100%", width: `${fp}%`, borderRadius: 1.5, background: fp >= 80 ? C.green : fp > 0 ? C.gold : C.border }} />
+                            </div>
+                            <span style={{ width: 28, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{fp.toFixed(0)}%</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
               )
             })}
           </div>
-          {/* Total summary */}
-          {(() => {
-            const totalAll = Object.values(stats).reduce(
-              (sum, s) => sum + s.total,
-              0
-            )
-            const withAll = Object.values(stats).reduce(
-              (sum, s) => sum + s.with_content,
-              0
-            )
-            const pctAll = totalAll > 0 ? (withAll / totalAll) * 100 : 0
-            return (
-              <div
-                style={{
-                  marginTop: 12,
-                  paddingTop: 10,
-                  borderTop: `1px solid ${COLORS.border}`,
-                  display: "flex",
-                  justifyContent: "space-between",
-                  fontSize: 12,
-                  color: COLORS.muted,
-                }}
-              >
-                <span>
-                  <span style={{ fontWeight: 600, color: COLORS.text }}>
-                    Total:
-                  </span>{" "}
-                  {withAll.toLocaleString()} / {totalAll.toLocaleString()}{" "}
-                  entities with AI content
+
+          {/* ── Live pipeline progress (when running) ── */}
+          {pipe && (
+            <div style={{
+              background: isRunning ? C.bg : `${C.green}08`, borderRadius: 8, padding: "12px 16px",
+              border: `1px solid ${isRunning ? `${C.gold}44` : `${C.green}33`}`, marginBottom: 14,
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: isRunning ? C.gold : C.green }}>
+                  {isRunning ? `Running: ${pipe.current_phase}` : `Completed: ${pipe.current_phase}`}
                 </span>
-                <span
-                  style={{
-                    fontWeight: 600,
-                    color: pctAll >= 100 ? "#22c55e" : COLORS.gold,
-                  }}
-                >
-                  {pctAll.toFixed(1)}%
+                <span style={{ fontSize: 12, color: C.muted, fontVariantNumeric: "tabular-nums" }}>
+                  {pipe.entities_processed.toLocaleString()} / {pipe.entities_total.toLocaleString()}
                 </span>
               </div>
-            )
-          })()}
-        </div>
-      )}
-
-      {/* ── Entity Content Overhaul Status ─────────────────────────────────── */}
-      {overhaulStatus && !overhaulLoading && (
-        <div
-          style={{
-            background: COLORS.card,
-            borderRadius: 10,
-            padding: "16px 20px",
-            marginBottom: 20,
-            border: `1px solid ${COLORS.border}`,
-          }}
-        >
-          {/* Header row */}
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: 14,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div
-                style={{
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: COLORS.gold,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                }}
-              >
-                Content Overhaul — RSE-227
+              <div style={{ height: 8, borderRadius: 4, background: C.border, overflow: "hidden", marginBottom: 6 }}>
+                <div style={{
+                  height: "100%", borderRadius: 4,
+                  width: `${pipe.entities_total > 0 ? (pipe.entities_processed / pipe.entities_total) * 100 : 0}%`,
+                  background: `linear-gradient(90deg, ${C.gold}, ${C.green})`, transition: "width 0.5s ease",
+                }} />
               </div>
-              {overhaulStatus.project && (
-                <span style={{ fontSize: 11, color: COLORS.muted }}>
-                  Updated {overhaulStatus.project.last_updated}
-                </span>
-              )}
-            </div>
-            {/* Pipeline status badge */}
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "3px 12px",
-                borderRadius: 12,
-                fontSize: 11,
-                fontWeight: 600,
-                background: overhaulStatus.process_running
-                  ? "#22c55e22"
-                  : overhaulStatus.pipeline
-                    ? "#3b82f622"
-                    : "#6b728022",
-                color: overhaulStatus.process_running
-                  ? "#22c55e"
-                  : overhaulStatus.pipeline
-                    ? "#3b82f6"
-                    : "#6b7280",
-              }}
-            >
-              <span
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: "50%",
-                  background: overhaulStatus.process_running
-                    ? "#22c55e"
-                    : overhaulStatus.pipeline
-                      ? "#3b82f6"
-                      : "#6b7280",
-                }}
-              />
-              {overhaulStatus.process_running
-                ? "PIPELINE RUNNING"
-                : overhaulStatus.pipeline
-                  ? "PIPELINE PAUSED"
-                  : "PREPARATION PHASE"}
-            </span>
-          </div>
-
-          {/* ── Prerequisites ── */}
-          {overhaulStatus.project && (
-            <div
-              style={{
-                background: COLORS.bg,
-                borderRadius: 8,
-                padding: "12px 16px",
-                marginBottom: 12,
-                border: `1px solid ${COLORS.border}`,
-              }}
-            >
-              <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.text, marginBottom: 8 }}>
-                Prerequisites
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {overhaulStatus.project.prerequisites.map((p) => (
-                  <span
-                    key={p.name}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 4,
-                      padding: "2px 10px",
-                      borderRadius: 10,
-                      fontSize: 11,
-                      fontWeight: 500,
-                      background: p.status === "done" ? "#22c55e18" : "#ef883318",
-                      color: p.status === "done" ? "#22c55e" : "#ef8833",
-                      border: `1px solid ${p.status === "done" ? "#22c55e33" : "#ef883333"}`,
-                    }}
-                  >
-                    {p.status === "done" ? "\u2713" : "\u25CB"} {p.name}
-                    {p.date && (
-                      <span style={{ color: COLORS.muted, fontSize: 10 }}>({p.date})</span>
-                    )}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* ── Phase Timeline ── */}
-          {overhaulStatus.project && (
-            <div
-              style={{
-                background: COLORS.bg,
-                borderRadius: 8,
-                padding: "12px 16px",
-                marginBottom: 12,
-                border: `1px solid ${COLORS.border}`,
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: COLORS.text,
-                  marginBottom: 10,
-                  display: "flex",
-                  justifyContent: "space-between",
-                }}
-              >
-                <span>Implementation Phases</span>
-                <span style={{ fontSize: 11, color: COLORS.muted, fontWeight: 400 }}>
-                  {overhaulStatus.project.phases.reduce((s, p) => s + p.tasks_done, 0)} / {overhaulStatus.project.phases.reduce((s, p) => s + p.tasks_total, 0)} tasks
-                </span>
-              </div>
-              {overhaulStatus.project.phases.map((phase) => {
-                const pct = phase.tasks_total > 0 ? (phase.tasks_done / phase.tasks_total) * 100 : 0
-                const statusColor =
-                  phase.status === "done"
-                    ? "#22c55e"
-                    : phase.status === "in_progress"
-                      ? COLORS.gold
-                      : "#6b7280"
-                const statusLabel =
-                  phase.status === "done"
-                    ? "DONE"
-                    : phase.status === "in_progress"
-                      ? "IN PROGRESS"
-                      : "PENDING"
-                return (
-                  <div
-                    key={phase.id}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "28px 1fr 80px 100px 60px",
-                      alignItems: "center",
-                      gap: 10,
-                      padding: "6px 0",
-                      borderBottom: phase.id < 10 ? `1px solid ${COLORS.border}44` : "none",
-                    }}
-                  >
-                    {/* Phase number */}
-                    <span
-                      style={{
-                        width: 24,
-                        height: 24,
-                        borderRadius: "50%",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 11,
-                        fontWeight: 700,
-                        background: `${statusColor}22`,
-                        color: statusColor,
-                        border: `1.5px solid ${statusColor}55`,
-                      }}
-                    >
-                      {phase.status === "done" ? "\u2713" : phase.id}
-                    </span>
-                    {/* Name + description */}
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.text }}>
-                        {phase.name}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 10,
-                          color: COLORS.muted,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {phase.description}
-                      </div>
-                    </div>
-                    {/* Progress bar */}
-                    <div
-                      style={{
-                        height: 6,
-                        borderRadius: 3,
-                        background: COLORS.border,
-                        overflow: "hidden",
-                      }}
-                    >
-                      <div
-                        style={{
-                          height: "100%",
-                          width: `${pct}%`,
-                          borderRadius: 3,
-                          background: statusColor,
-                          transition: "width 0.3s ease",
-                        }}
-                      />
-                    </div>
-                    {/* Status badge */}
-                    <span
-                      style={{
-                        fontSize: 9,
-                        fontWeight: 700,
-                        color: statusColor,
-                        textAlign: "center",
-                        letterSpacing: "0.05em",
-                      }}
-                    >
-                      {statusLabel}
-                    </span>
-                    {/* Duration */}
-                    <span
-                      style={{
-                        fontSize: 10,
-                        color: COLORS.muted,
-                        textAlign: "right",
-                      }}
-                    >
-                      {phase.duration}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
-          {/* ── Bottom row: Model Strategy + Data Sources + Musician DB ── */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-            {/* Model Strategy */}
-            {overhaulStatus.project && (
-              <div
-                style={{
-                  background: COLORS.bg,
-                  borderRadius: 8,
-                  padding: "10px 14px",
-                  border: `1px solid ${COLORS.border}`,
-                }}
-              >
-                <div style={{ fontSize: 11, fontWeight: 600, color: COLORS.gold, marginBottom: 6 }}>
-                  AI Models
-                </div>
-                <div style={{ fontSize: 11, color: COLORS.muted }}>
-                  {Object.entries(overhaulStatus.project.model_strategy)
-                    .filter(([k]) => k !== "estimated_cost")
-                    .map(([role, model]) => (
-                      <div key={role} style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
-                        <span style={{ textTransform: "capitalize" }}>{role.replace("_", " ")}</span>
-                        <span style={{ color: (model as string).includes("4o-mini") ? COLORS.muted : COLORS.gold, fontWeight: 600 }}>
-                          {model as string}
-                        </span>
-                      </div>
-                    ))}
-                  <div style={{ borderTop: `1px solid ${COLORS.border}`, marginTop: 4, paddingTop: 4, display: "flex", justifyContent: "space-between" }}>
-                    <span>Est. cost</span>
-                    <span style={{ color: COLORS.text, fontWeight: 600 }}>
-                      {overhaulStatus.project.model_strategy.estimated_cost}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Data Sources */}
-            {overhaulStatus.project && (
-              <div
-                style={{
-                  background: COLORS.bg,
-                  borderRadius: 8,
-                  padding: "10px 14px",
-                  border: `1px solid ${COLORS.border}`,
-                }}
-              >
-                <div style={{ fontSize: 11, fontWeight: 600, color: COLORS.gold, marginBottom: 6 }}>
-                  Data Sources ({overhaulStatus.project.data_sources.length})
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                  {overhaulStatus.project.data_sources.map((ds) => (
-                    <span
-                      key={ds.name}
-                      style={{
-                        padding: "1px 8px",
-                        borderRadius: 8,
-                        fontSize: 10,
-                        fontWeight: 500,
-                        background: ds.status === "ready" ? "#22c55e15" : "#6b728015",
-                        color: ds.status === "ready" ? "#22c55e" : "#6b7280",
-                        border: `1px solid ${ds.status === "ready" ? "#22c55e30" : "#6b728030"}`,
-                      }}
-                    >
-                      {ds.name}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Musician DB */}
-            <div
-              style={{
-                background: COLORS.bg,
-                borderRadius: 8,
-                padding: "10px 14px",
-                border: `1px solid ${COLORS.border}`,
-              }}
-            >
-              <div style={{ fontSize: 11, fontWeight: 600, color: COLORS.gold, marginBottom: 6 }}>
-                Musician DB
-              </div>
-              {overhaulStatus.musician_stats ? (
-                <div style={{ fontSize: 11, color: COLORS.muted }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
-                    <span>Musicians</span>
-                    <span style={{ color: COLORS.text, fontWeight: 600 }}>{overhaulStatus.musician_stats.total_musicians}</span>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
-                    <span>Roles</span>
-                    <span style={{ color: COLORS.text, fontWeight: 600 }}>{overhaulStatus.musician_stats.total_roles}</span>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span>Bands with members</span>
-                    <span style={{ color: COLORS.text, fontWeight: 600 }}>{overhaulStatus.musician_stats.artists_with_members}</span>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ fontSize: 11, color: COLORS.muted, fontStyle: "italic" }}>
-                  Not created yet — Phase 3
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* ── Data Quality Grid (current state) ── */}
-          <div style={{ marginTop: 12 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: COLORS.muted, marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-              Current Data Quality
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-              {(["artist", "label", "press_orga"] as const).map((type) => {
-                const q = overhaulStatus.quality[type]
-                const total = overhaulStatus.totals[type] || 0
-                const prio = overhaulStatus.priorities[type]
-                const label = type === "artist" ? "Bands" : type === "label" ? "Labels" : "Press Orgs"
-                if (!q && total === 0) return null
-
-                return (
-                  <div
-                    key={type}
-                    style={{
-                      background: COLORS.bg,
-                      borderRadius: 8,
-                      padding: "10px 14px",
-                      border: `1px solid ${COLORS.border}`,
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 600,
-                        color: COLORS.text,
-                        marginBottom: 6,
-                        display: "flex",
-                        justifyContent: "space-between",
-                      }}
-                    >
-                      <span>{label}</span>
-                      <span style={{ fontSize: 11, color: COLORS.muted }}>{total.toLocaleString()}</span>
-                    </div>
-
-                    {prio && (
-                      <div style={{ display: "flex", gap: 6, marginBottom: 6, fontSize: 10 }}>
-                        <span style={{ padding: "0 6px", borderRadius: 6, background: "#ef883322", color: "#ef8833", fontWeight: 600 }}>P1: {prio.p1}</span>
-                        <span style={{ padding: "0 6px", borderRadius: 6, background: `${COLORS.gold}22`, color: COLORS.gold, fontWeight: 600 }}>P2: {prio.p2}</span>
-                        <span style={{ padding: "0 6px", borderRadius: 6, background: "#6b728022", color: "#9ca3af", fontWeight: 600 }}>P3: {prio.p3}</span>
-                      </div>
-                    )}
-
-                    {q && (
-                      <div style={{ fontSize: 10, color: COLORS.muted }}>
-                        {[
-                          { label: "Description", value: q.with_description },
-                          { label: "Short Desc", value: q.with_short_desc },
-                          { label: "Genre Tags", value: q.with_genre_tags },
-                          { label: "Country", value: q.with_country },
-                          { label: "Year", value: q.with_year },
-                          { label: "Links", value: q.with_links },
-                        ].map((field) => {
-                          const pct = total > 0 ? (field.value / total) * 100 : 0
-                          return (
-                            <div key={field.label} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-                              <span style={{ width: 64, flexShrink: 0 }}>{field.label}</span>
-                              <div style={{ flex: 1, height: 4, borderRadius: 2, background: COLORS.border, overflow: "hidden" }}>
-                                <div style={{ height: "100%", width: `${pct}%`, borderRadius: 2, background: pct >= 80 ? "#22c55e" : pct >= 40 ? COLORS.gold : pct > 0 ? "#ef8833" : COLORS.border }} />
-                              </div>
-                              <span style={{ width: 32, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{pct.toFixed(0)}%</span>
-                            </div>
-                          )
-                        })}
-                        {q.avg_description_length && (
-                          <div style={{ marginTop: 3, fontSize: 9, color: COLORS.muted }}>
-                            Avg: {q.avg_description_length.toLocaleString()} chars
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    {!q && (
-                      <div style={{ fontSize: 10, color: COLORS.muted, fontStyle: "italic" }}>No content yet</div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* Pipeline live progress (only when running) */}
-          {overhaulStatus.pipeline && (
-            <div
-              style={{
-                background: COLORS.bg,
-                borderRadius: 8,
-                padding: "12px 16px",
-                marginTop: 12,
-                border: `1px solid ${COLORS.gold}44`,
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.gold }}>
-                  Live: {overhaulStatus.pipeline.current_phase || "—"}
-                </span>
-                <span style={{ fontSize: 11, color: COLORS.muted }}>
-                  {overhaulStatus.pipeline.entities_processed} / {overhaulStatus.pipeline.entities_total}
-                </span>
-              </div>
-              <div style={{ height: 10, borderRadius: 5, background: COLORS.border, overflow: "hidden", marginBottom: 8 }}>
-                <div style={{ height: "100%", borderRadius: 5, width: `${overhaulStatus.pipeline.entities_total > 0 ? (overhaulStatus.pipeline.entities_processed / overhaulStatus.pipeline.entities_total) * 100 : 0}%`, background: `linear-gradient(90deg, ${COLORS.gold}, #22c55e)`, transition: "width 0.5s ease" }} />
-              </div>
-              <div style={{ display: "flex", gap: 16, fontSize: 11, color: COLORS.muted, flexWrap: "wrap" }}>
-                <span><span style={{ color: "#22c55e", fontWeight: 600 }}>{overhaulStatus.pipeline.entities_accepted}</span> accepted</span>
-                <span><span style={{ color: "#eab308", fontWeight: 600 }}>{overhaulStatus.pipeline.entities_revised}</span> revised</span>
-                <span><span style={{ color: "#ef4444", fontWeight: 600 }}>{overhaulStatus.pipeline.entities_rejected}</span> rejected</span>
-                <span><span style={{ color: "#ef4444", fontWeight: 600 }}>{overhaulStatus.pipeline.errors}</span> errors</span>
-                {overhaulStatus.pipeline.current_entity && (
-                  <span style={{ marginLeft: "auto", color: COLORS.text }}>Current: {overhaulStatus.pipeline.current_entity}</span>
+              <div style={{ display: "flex", gap: 16, fontSize: 11, color: C.muted, flexWrap: "wrap" }}>
+                <span><span style={{ color: C.green, fontWeight: 600 }}>{pipe.entities_accepted}</span> accepted</span>
+                <span><span style={{ color: C.yellow, fontWeight: 600 }}>{pipe.entities_revised}</span> revised</span>
+                <span><span style={{ color: C.red, fontWeight: 600 }}>{pipe.entities_rejected}</span> rejected</span>
+                <span><span style={{ color: C.red, fontWeight: 600 }}>{pipe.errors}</span> errors</span>
+                {pipe.current_entity && isRunning && (
+                  <span style={{ marginLeft: "auto", color: C.text }}>Current: {pipe.current_entity}</span>
                 )}
               </div>
             </div>
           )}
+
+          {/* ── Bottom stats row: Musicians + Model + Sources ── */}
+          <div style={{ display: "flex", gap: 16, fontSize: 11, color: C.muted, flexWrap: "wrap", alignItems: "center" }}>
+            {os.musician_stats && (
+              <span>
+                <span style={{ color: C.gold, fontWeight: 600 }}>Musicians:</span>{" "}
+                {os.musician_stats.total_musicians.toLocaleString()} ({os.musician_stats.artists_with_members} bands)
+              </span>
+            )}
+            <span>
+              <span style={{ color: C.gold, fontWeight: 600 }}>Model:</span> {os.project?.model_strategy?.writer || "GPT-4o"} + mini
+            </span>
+            <span>
+              <span style={{ color: C.gold, fontWeight: 600 }}>Sources:</span> {os.project?.data_sources?.filter(s => s.status === "ready").length || 0} active
+            </span>
+            <span style={{ marginLeft: "auto" }}>
+              <span style={{ color: C.gold, fontWeight: 600 }}>Est. cost:</span> {os.project?.model_strategy?.estimated_cost || "~$350"}
+            </span>
+          </div>
         </div>
       )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          ENTITY BROWSER — Tabs, filters, table, edit
+          ═══════════════════════════════════════════════════════════════════════ */}
 
       {/* Tabs */}
       <div style={{ display: "flex", gap: 4, marginBottom: 16 }}>
@@ -1014,123 +452,45 @@ function EntityContentInner() {
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
             style={{
-              padding: "8px 20px",
-              border: "none",
-              borderRadius: 6,
-              cursor: "pointer",
-              fontWeight: 600,
-              fontSize: 14,
-              background:
-                activeTab === tab.key ? COLORS.gold : COLORS.card,
-              color:
-                activeTab === tab.key ? COLORS.bg : COLORS.muted,
+              padding: "8px 20px", border: "none", borderRadius: 6, cursor: "pointer",
+              fontWeight: 600, fontSize: 14,
+              background: activeTab === tab.key ? C.gold : C.card,
+              color: activeTab === tab.key ? C.bg : C.muted,
               transition: "all 0.15s",
             }}
-          >
-            {tab.label}
-          </button>
+          >{tab.label}</button>
         ))}
       </div>
 
       {/* Stats Bar */}
       {currentStats && (
-        <div
-          style={{
-            background: COLORS.card,
-            borderRadius: 8,
-            padding: "10px 16px",
-            marginBottom: 16,
-            display: "flex",
-            gap: 24,
-            fontSize: 13,
-            color: COLORS.muted,
-            border: `1px solid ${COLORS.border}`,
-          }}
-        >
+        <div style={{
+          background: C.card, borderRadius: 8, padding: "10px 16px", marginBottom: 16,
+          display: "flex", gap: 24, fontSize: 13, color: C.muted, border: `1px solid ${C.border}`,
+        }}>
           <span>
-            <span style={{ color: COLORS.gold, fontWeight: 700 }}>
-              {currentStats.with_content}
-            </span>
-            <span style={{ color: COLORS.muted }}> / </span>
-            <span>{currentStats.total.toLocaleString()}</span>{" "}
-            {currentTab.entityLabel} with content
+            <span style={{ color: C.gold, fontWeight: 700 }}>{currentStats.with_content}</span>
+            <span style={{ color: C.muted }}> / </span>
+            <span>{currentStats.total.toLocaleString()}</span>{" "}{currentTab.entityLabel} with content
           </span>
-          <span>
-            <span style={{ color: COLORS.text, fontWeight: 600 }}>
-              {total}
-            </span>{" "}
-            matching filters
-          </span>
+          <span><span style={{ color: C.text, fontWeight: 600 }}>{total}</span> matching filters</span>
         </div>
       )}
 
       {/* Filters */}
-      <div
-        style={{
-          display: "flex",
-          gap: 12,
-          marginBottom: 16,
-          flexWrap: "wrap",
-          alignItems: "center",
-        }}
-      >
-        {/* Search */}
-        <input
-          type="text"
-          placeholder="Search by name..."
-          value={search}
+      <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
+        <input type="text" placeholder="Search by name..." value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{
-            padding: "8px 12px",
-            background: COLORS.card,
-            border: `1px solid ${COLORS.border}`,
-            borderRadius: 6,
-            color: COLORS.text,
-            fontSize: 13,
-            width: 240,
-            outline: "none",
-          }}
+          style={{ ...inputStyle, width: 240 }}
         />
-
-        {/* Has Content filter */}
-        <select
-          value={hasContent}
-          onChange={(e) => {
-            setHasContent(e.target.value)
-            setPage(1)
-          }}
-          style={{
-            padding: "8px 12px",
-            background: COLORS.card,
-            border: `1px solid ${COLORS.border}`,
-            borderRadius: 6,
-            color: COLORS.text,
-            fontSize: 13,
-            outline: "none",
-          }}
-        >
+        <select value={hasContent} onChange={(e) => { setHasContent(e.target.value); setPage(1) }}
+          style={{ padding: "8px 12px", background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, color: C.text, fontSize: 13, outline: "none" }}>
           <option value="">Has Content: All</option>
           <option value="true">Has Content: Yes</option>
           <option value="false">Has Content: No</option>
         </select>
-
-        {/* Published filter */}
-        <select
-          value={isPublished}
-          onChange={(e) => {
-            setIsPublished(e.target.value)
-            setPage(1)
-          }}
-          style={{
-            padding: "8px 12px",
-            background: COLORS.card,
-            border: `1px solid ${COLORS.border}`,
-            borderRadius: 6,
-            color: COLORS.text,
-            fontSize: 13,
-            outline: "none",
-          }}
-        >
+        <select value={isPublished} onChange={(e) => { setIsPublished(e.target.value); setPage(1) }}
+          style={{ padding: "8px 12px", background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, color: C.text, fontSize: 13, outline: "none" }}>
           <option value="">Published: All</option>
           <option value="true">Published: Yes</option>
           <option value="false">Published: No</option>
@@ -1138,487 +498,125 @@ function EntityContentInner() {
       </div>
 
       {/* Table */}
-      <div
-        style={{
-          background: COLORS.card,
-          borderRadius: 8,
-          border: `1px solid ${COLORS.border}`,
-          overflow: "hidden",
-        }}
-      >
-        {/* Table Header */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "2fr 80px 100px 140px",
-            padding: "10px 16px",
-            borderBottom: `1px solid ${COLORS.border}`,
-            fontSize: 12,
-            fontWeight: 600,
-            color: COLORS.muted,
-            textTransform: "uppercase",
-            letterSpacing: "0.05em",
-          }}
-        >
+      <div style={{ background: C.card, borderRadius: 8, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+        <div style={{
+          display: "grid", gridTemplateColumns: "2fr 80px 100px 140px",
+          padding: "10px 16px", borderBottom: `1px solid ${C.border}`,
+          fontSize: 12, fontWeight: 600, color: C.muted, textTransform: "uppercase", letterSpacing: "0.05em",
+        }}>
           <span>Name</span>
           <span style={{ textAlign: "center" }}>Releases</span>
           <span style={{ textAlign: "center" }}>Status</span>
           <span style={{ textAlign: "right" }}>Actions</span>
         </div>
 
-        {/* Loading */}
-        {loading && (
-          <div
-            style={{
-              padding: 40,
-              textAlign: "center",
-              color: COLORS.muted,
-              fontSize: 14,
-            }}
-          >
-            Loading...
-          </div>
-        )}
+        {loading && <div style={{ padding: 40, textAlign: "center", color: C.muted, fontSize: 14 }}>Loading...</div>}
+        {!loading && items.length === 0 && <div style={{ padding: 40, textAlign: "center", color: C.muted, fontSize: 14 }}>No entity content found</div>}
 
-        {/* Empty state */}
-        {!loading && items.length === 0 && (
-          <div
-            style={{
-              padding: 40,
-              textAlign: "center",
-              color: COLORS.muted,
-              fontSize: 14,
-            }}
-          >
-            No entity content found
-          </div>
-        )}
+        {!loading && items.map((item) => {
+          const status = getStatus(item)
+          const isExpanded = expandedId === item.id
+          return (
+            <div key={item.id}>
+              <div style={{
+                display: "grid", gridTemplateColumns: "2fr 80px 100px 140px",
+                padding: "10px 16px", borderBottom: `1px solid ${C.border}`,
+                alignItems: "center", background: isExpanded ? C.hover : "transparent", transition: "background 0.1s",
+              }}
+                onMouseEnter={(e) => { if (!isExpanded) (e.currentTarget as HTMLDivElement).style.background = C.hover }}
+                onMouseLeave={(e) => { if (!isExpanded) (e.currentTarget as HTMLDivElement).style.background = "transparent" }}
+              >
+                <span style={{ fontSize: 14, fontWeight: 500, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {item.entity_name || "(unknown)"}
+                </span>
+                <span style={{ textAlign: "center", fontSize: 13, color: C.muted }}>{item.release_count}</span>
+                <span style={{ textAlign: "center" }}>
+                  <span style={{ display: "inline-block", padding: "2px 10px", borderRadius: 10, fontSize: 11, fontWeight: 600, background: `${status.color}22`, color: status.color }}>
+                    {status.label}
+                  </span>
+                </span>
+                <span style={{ textAlign: "right", display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                  <button onClick={() => handleExpand(item)} style={{
+                    padding: "4px 12px", border: `1px solid ${C.border}`, borderRadius: 4,
+                    background: isExpanded ? C.gold : "transparent", color: isExpanded ? C.bg : C.text,
+                    fontSize: 12, cursor: "pointer", fontWeight: 500,
+                  }}>{isExpanded ? "Close" : "Edit"}</button>
+                  <button onClick={() => handleGenerate(item)} disabled={generating === item.id} style={{
+                    padding: "4px 12px", border: `1px solid ${C.gold}44`, borderRadius: 4,
+                    background: "transparent", color: C.gold, fontSize: 12,
+                    cursor: generating === item.id ? "not-allowed" : "pointer",
+                    fontWeight: 500, opacity: generating === item.id ? 0.5 : 1,
+                  }}>{generating === item.id ? "..." : "AI"}</button>
+                </span>
+              </div>
 
-        {/* Rows */}
-        {!loading &&
-          items.map((item) => {
-            const status = getStatus(item)
-            const isExpanded = expandedId === item.id
-
-            return (
-              <div key={item.id}>
-                {/* Row */}
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "2fr 80px 100px 140px",
-                    padding: "10px 16px",
-                    borderBottom: `1px solid ${COLORS.border}`,
-                    alignItems: "center",
-                    background: isExpanded ? COLORS.hover : "transparent",
-                    transition: "background 0.1s",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isExpanded)
-                      (e.currentTarget as HTMLDivElement).style.background =
-                        COLORS.hover
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isExpanded)
-                      (e.currentTarget as HTMLDivElement).style.background =
-                        "transparent"
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: 14,
-                      fontWeight: 500,
-                      color: COLORS.text,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {item.entity_name || "(unknown)"}
-                  </span>
-                  <span
-                    style={{
-                      textAlign: "center",
-                      fontSize: 13,
-                      color: COLORS.muted,
-                    }}
-                  >
-                    {item.release_count}
-                  </span>
-                  <span style={{ textAlign: "center" }}>
-                    <span
-                      style={{
-                        display: "inline-block",
-                        padding: "2px 10px",
-                        borderRadius: 10,
-                        fontSize: 11,
-                        fontWeight: 600,
-                        background: `${status.color}22`,
-                        color: status.color,
-                      }}
-                    >
-                      {status.label}
-                    </span>
-                  </span>
-                  <span
-                    style={{
-                      textAlign: "right",
-                      display: "flex",
-                      gap: 6,
-                      justifyContent: "flex-end",
-                    }}
-                  >
-                    <button
-                      onClick={() => handleExpand(item)}
-                      style={{
-                        padding: "4px 12px",
-                        border: `1px solid ${COLORS.border}`,
-                        borderRadius: 4,
-                        background: isExpanded ? COLORS.gold : "transparent",
-                        color: isExpanded ? COLORS.bg : COLORS.text,
-                        fontSize: 12,
-                        cursor: "pointer",
-                        fontWeight: 500,
-                      }}
-                    >
-                      {isExpanded ? "Close" : "Edit"}
-                    </button>
-                    <button
-                      onClick={() => handleGenerate(item)}
-                      disabled={generating === item.id}
-                      style={{
-                        padding: "4px 12px",
-                        border: `1px solid ${COLORS.gold}44`,
-                        borderRadius: 4,
-                        background: "transparent",
-                        color: COLORS.gold,
-                        fontSize: 12,
-                        cursor:
-                          generating === item.id
-                            ? "not-allowed"
-                            : "pointer",
-                        fontWeight: 500,
-                        opacity: generating === item.id ? 0.5 : 1,
-                      }}
-                    >
-                      {generating === item.id ? "..." : "AI"}
-                    </button>
-                  </span>
-                </div>
-
-                {/* Expanded Edit Panel */}
-                {isExpanded && editForm && (
-                  <div
-                    style={{
-                      padding: "16px 24px 20px",
-                      borderBottom: `1px solid ${COLORS.border}`,
-                      background: COLORS.hover,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 1fr",
-                        gap: 12,
-                        marginBottom: 12,
-                      }}
-                    >
-                      {/* Short description */}
-                      <div>
-                        <label
-                          style={{
-                            fontSize: 11,
-                            fontWeight: 600,
-                            color: COLORS.muted,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.05em",
-                            display: "block",
-                            marginBottom: 4,
-                          }}
-                        >
-                          Short Description
-                        </label>
-                        <input
-                          type="text"
-                          value={editForm.short_description}
-                          onChange={(e) =>
-                            setEditForm({
-                              ...editForm,
-                              short_description: e.target.value,
-                            })
-                          }
-                          style={{
-                            width: "100%",
-                            padding: "8px 10px",
-                            background: COLORS.card,
-                            border: `1px solid ${COLORS.border}`,
-                            borderRadius: 4,
-                            color: COLORS.text,
-                            fontSize: 13,
-                            outline: "none",
-                            boxSizing: "border-box",
-                          }}
-                          placeholder="Brief tagline or summary..."
-                        />
+              {/* Expanded edit panel */}
+              {isExpanded && editForm && (
+                <div style={{ padding: "16px 24px 20px", borderBottom: `1px solid ${C.border}`, background: C.hover }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                    <div>
+                      <label style={labelStyle}>Short Description</label>
+                      <input type="text" value={editForm.short_description}
+                        onChange={(e) => setEditForm({ ...editForm, short_description: e.target.value })}
+                        style={inputStyle} placeholder="Brief tagline or summary..." />
+                    </div>
+                    <div style={{ display: "flex", gap: 12 }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={labelStyle}>Country</label>
+                        <input type="text" value={editForm.country}
+                          onChange={(e) => setEditForm({ ...editForm, country: e.target.value })}
+                          style={inputStyle} placeholder="e.g. Germany" />
                       </div>
-
-                      {/* Country */}
-                      <div style={{ display: "flex", gap: 12 }}>
-                        <div style={{ flex: 1 }}>
-                          <label
-                            style={{
-                              fontSize: 11,
-                              fontWeight: 600,
-                              color: COLORS.muted,
-                              textTransform: "uppercase",
-                              letterSpacing: "0.05em",
-                              display: "block",
-                              marginBottom: 4,
-                            }}
-                          >
-                            Country
-                          </label>
-                          <input
-                            type="text"
-                            value={editForm.country}
-                            onChange={(e) =>
-                              setEditForm({
-                                ...editForm,
-                                country: e.target.value,
-                              })
-                            }
-                            style={{
-                              width: "100%",
-                              padding: "8px 10px",
-                              background: COLORS.card,
-                              border: `1px solid ${COLORS.border}`,
-                              borderRadius: 4,
-                              color: COLORS.text,
-                              fontSize: 13,
-                              outline: "none",
-                              boxSizing: "border-box",
-                            }}
-                            placeholder="e.g. Germany"
-                          />
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <label
-                            style={{
-                              fontSize: 11,
-                              fontWeight: 600,
-                              color: COLORS.muted,
-                              textTransform: "uppercase",
-                              letterSpacing: "0.05em",
-                              display: "block",
-                              marginBottom: 4,
-                            }}
-                          >
-                            Founded Year
-                          </label>
-                          <input
-                            type="text"
-                            value={editForm.founded_year}
-                            onChange={(e) =>
-                              setEditForm({
-                                ...editForm,
-                                founded_year: e.target.value,
-                              })
-                            }
-                            style={{
-                              width: "100%",
-                              padding: "8px 10px",
-                              background: COLORS.card,
-                              border: `1px solid ${COLORS.border}`,
-                              borderRadius: 4,
-                              color: COLORS.text,
-                              fontSize: 13,
-                              outline: "none",
-                              boxSizing: "border-box",
-                            }}
-                            placeholder="e.g. 1982"
-                          />
-                        </div>
+                      <div style={{ flex: 1 }}>
+                        <label style={labelStyle}>Founded Year</label>
+                        <input type="text" value={editForm.founded_year}
+                          onChange={(e) => setEditForm({ ...editForm, founded_year: e.target.value })}
+                          style={inputStyle} placeholder="e.g. 1982" />
                       </div>
-                    </div>
-
-                    {/* Genre Tags */}
-                    <div style={{ marginBottom: 12 }}>
-                      <label
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 600,
-                          color: COLORS.muted,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.05em",
-                          display: "block",
-                          marginBottom: 4,
-                        }}
-                      >
-                        Genre Tags (comma-separated)
-                      </label>
-                      <input
-                        type="text"
-                        value={editForm.genre_tags}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            genre_tags: e.target.value,
-                          })
-                        }
-                        style={{
-                          width: "100%",
-                          padding: "8px 10px",
-                          background: COLORS.card,
-                          border: `1px solid ${COLORS.border}`,
-                          borderRadius: 4,
-                          color: COLORS.text,
-                          fontSize: 13,
-                          outline: "none",
-                          boxSizing: "border-box",
-                        }}
-                        placeholder="Industrial, Noise, Dark Ambient"
-                      />
-                    </div>
-
-                    {/* Description */}
-                    <div style={{ marginBottom: 12 }}>
-                      <label
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 600,
-                          color: COLORS.muted,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.05em",
-                          display: "block",
-                          marginBottom: 4,
-                        }}
-                      >
-                        Description
-                      </label>
-                      <textarea
-                        value={editForm.description}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            description: e.target.value,
-                          })
-                        }
-                        rows={5}
-                        style={{
-                          width: "100%",
-                          padding: "8px 10px",
-                          background: COLORS.card,
-                          border: `1px solid ${COLORS.border}`,
-                          borderRadius: 4,
-                          color: COLORS.text,
-                          fontSize: 13,
-                          outline: "none",
-                          resize: "vertical",
-                          fontFamily: "inherit",
-                          boxSizing: "border-box",
-                        }}
-                        placeholder="Full description of the entity..."
-                      />
-                    </div>
-
-                    {/* Published toggle + Save */}
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                      }}
-                    >
-                      <label
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                          cursor: "pointer",
-                          fontSize: 13,
-                          color: COLORS.text,
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={editForm.is_published}
-                          onChange={(e) =>
-                            setEditForm({
-                              ...editForm,
-                              is_published: e.target.checked,
-                            })
-                          }
-                          style={{ accentColor: COLORS.gold }}
-                        />
-                        Published
-                      </label>
-                      <button
-                        onClick={() => handleSave(item)}
-                        disabled={saving}
-                        style={{
-                          padding: "8px 24px",
-                          background: COLORS.gold,
-                          color: COLORS.bg,
-                          border: "none",
-                          borderRadius: 6,
-                          fontWeight: 600,
-                          fontSize: 13,
-                          cursor: saving ? "not-allowed" : "pointer",
-                          opacity: saving ? 0.6 : 1,
-                        }}
-                      >
-                        {saving ? "Saving..." : "Save"}
-                      </button>
                     </div>
                   </div>
-                )}
-              </div>
-            )
-          })}
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={labelStyle}>Genre Tags (comma-separated)</label>
+                    <input type="text" value={editForm.genre_tags}
+                      onChange={(e) => setEditForm({ ...editForm, genre_tags: e.target.value })}
+                      style={inputStyle} placeholder="Industrial, Noise, Dark Ambient" />
+                  </div>
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={labelStyle}>Description</label>
+                    <textarea value={editForm.description}
+                      onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                      rows={5} style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }}
+                      placeholder="Full description of the entity..." />
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: C.text }}>
+                      <input type="checkbox" checked={editForm.is_published}
+                        onChange={(e) => setEditForm({ ...editForm, is_published: e.target.checked })}
+                        style={{ accentColor: C.gold }} /> Published
+                    </label>
+                    <button onClick={() => handleSave(item)} disabled={saving} style={{
+                      padding: "8px 24px", background: C.gold, color: C.bg, border: "none",
+                      borderRadius: 6, fontWeight: 600, fontSize: 13,
+                      cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1,
+                    }}>{saving ? "Saving..." : "Save"}</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
 
       {/* Pagination */}
       {pages > 1 && (
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            gap: 8,
-            marginTop: 16,
-          }}
-        >
-          <button
-            onClick={() => setPage(Math.max(1, page - 1))}
-            disabled={page <= 1}
-            style={{
-              padding: "6px 14px",
-              background: COLORS.card,
-              border: `1px solid ${COLORS.border}`,
-              borderRadius: 4,
-              color: page <= 1 ? COLORS.muted : COLORS.text,
-              fontSize: 13,
-              cursor: page <= 1 ? "not-allowed" : "pointer",
-            }}
-          >
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 16 }}>
+          <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page <= 1}
+            style={{ padding: "6px 14px", background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, color: page <= 1 ? C.muted : C.text, fontSize: 13, cursor: page <= 1 ? "not-allowed" : "pointer" }}>
             Prev
           </button>
-          <span style={{ fontSize: 13, color: COLORS.muted }}>
-            Page {page} of {pages}
-          </span>
-          <button
-            onClick={() => setPage(Math.min(pages, page + 1))}
-            disabled={page >= pages}
-            style={{
-              padding: "6px 14px",
-              background: COLORS.card,
-              border: `1px solid ${COLORS.border}`,
-              borderRadius: 4,
-              color: page >= pages ? COLORS.muted : COLORS.text,
-              fontSize: 13,
-              cursor: page >= pages ? "not-allowed" : "pointer",
-            }}
-          >
+          <span style={{ fontSize: 13, color: C.muted }}>Page {page} of {pages}</span>
+          <button onClick={() => setPage(Math.min(pages, page + 1))} disabled={page >= pages}
+            style={{ padding: "6px 14px", background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, color: page >= pages ? C.muted : C.text, fontSize: 13, cursor: page >= pages ? "not-allowed" : "pointer" }}>
             Next
           </button>
         </div>
@@ -1635,8 +633,5 @@ const EntityContentPage = () => (
   </ErrorBoundary>
 )
 
-export const config = defineRouteConfig({
-  label: "Entity Content",
-})
-
+export const config = defineRouteConfig({ label: "Entity Content" })
 export default EntityContentPage
