@@ -573,15 +573,15 @@ function CountdownTimer({ endTime }: { endTime: string }) {
     new Date(endTime).getTime() - Date.now() < 300000
 
   return (
-    <div className="flex items-center justify-between">
-      <span className="text-sm text-muted-foreground flex items-center gap-1.5">
-        <Clock className="h-3.5 w-3.5" />
+    <div className={`flex items-center justify-between px-4 py-3 rounded-lg ${isUrgent ? "bg-destructive/10 border border-destructive/30" : "bg-primary/8 border border-primary/20"}`}>
+      <span className={`text-sm font-medium flex items-center gap-1.5 ${isUrgent ? "text-destructive" : "text-primary"}`}>
+        <Clock className="h-4 w-4" />
         Ends in
       </span>
       <div className="text-right">
         <span
-          className={`text-sm font-mono font-bold ${
-            isUrgent ? "text-destructive animate-pulse" : "text-foreground"
+          className={`text-2xl font-mono font-bold tracking-tight ${
+            isUrgent ? "text-destructive animate-pulse" : "text-primary"
           }`}
         >
           {remaining}
