@@ -25,6 +25,9 @@ const BlockItem = model.define("block_item", {
   // Status: reserved | active | sold | unsold
   status: model.text().default("reserved"),
 
+  // View tracking
+  view_count: model.number().default(0),
+
   // Relations
   bids: model.hasMany(() => Bid),
   // Note: transactions use plain block_item_id text FK (nullable), not a Medusa ORM relation

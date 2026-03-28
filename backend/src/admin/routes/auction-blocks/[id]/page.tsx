@@ -607,6 +607,113 @@ const BlockDetailPage = () => {
   // Unique years from filtersData for dropdowns
   const yearOptions = filtersData?.years?.map((y) => Number(y.value)) || []
 
+  // --- Bulk Price Editor state ---
+  const [bulkPanelOpen, setBulkPanelOpen] = useState(false)
+  const [bulkMode, setBulkMode] = useState<"percentage" | "fixed" | "manual">("percentage")
+  const [bulkPercentage, setBulkPercentage] = useState(20)
+  const [bulkFixed, setBulkFixed] = useState(1.00)
+  const [bulkApplying, setBulkApplying] = useState(false)
+  // Manual mode: track pending price changes keyed by item id
+  const [manualPrices, setManualPrices] = useState<Record<string, number>>({})
+  const [manualSaving, setManualSaving] = useState(false)
+
+  // Count how many items have an estimated_value (for preview text)
+  const itemsWithEstValue = (block.items || []).filter(
+    (i) => i.estimated_value != null && Number(i.estimated_value) > 0
+  ).length
+  const itemsWithoutEstValue = (block.items?.length || 0) - itemsWithEstValue
+
+  // Refresh block items from API
+  const refreshBlock = async () => {
+    if (!id || isNew) return
+    const res = await fetch(`/admin/auction-blocks/${id}`, { credentials: "include" })
+    const data = await res.json()
+    setBlock(data.auction_block)
+  }
+
+  // Apply bulk price (percentage or fixed)
+  const handleBulkApply = async () => {
+    if (!id || isNew) return
+    if (bulkMode === "manual") return
+
+    if (bulkMode === "percentage" && (bulkPercentage <= 0 || bulkPercentage > 1000)) {
+      showMessage("Percentage must be between 1 and 1000", "error")
+      return
+    }
+    if (bulkMode === "fixed" && bulkFixed <= 0) {
+      showMessage("Fixed price must be > 0", "error")
+      return
+    }
+
+    const confirmMsg =
+      bulkMode === "percentage"
+        ? `Set all lot start prices to ${bulkPercentage}% of their estimated value? This will skip ${itemsWithoutEstValue} lot(s) without an estimated value.`
+        : `Set all ${block.items?.length || 0} lot start prices to €${bulkFixed.toFixed(2)}?`
+
+    if (!window.confirm(confirmMsg)) return
+
+    setBulkApplying(true)
+    try {
+      const body =
+        bulkMode === "percentage"
+          ? { rule: "percentage", value: bulkPercentage }
+          : { rule: "fixed", value: bulkFixed }
+
+      const res = await fetch(`/admin/auction-blocks/${id}/items/bulk-price`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        showMessage(`Updated ${data.updated} lot(s)${data.skipped > 0 ? `, skipped ${data.skipped} (no estimated value)` : ""}.`)
+        await refreshBlock()
+        setBulkPanelOpen(false)
+      } else {
+        showMessage(data.message || "Bulk update failed", "error")
+      }
+    } catch (err) {
+      showMessage(`Error: ${err}`, "error")
+    } finally {
+      setBulkApplying(false)
+    }
+  }
+
+  // Save manual price changes
+  const handleManualSave = async () => {
+    if (!id || isNew) return
+    const changed = Object.entries(manualPrices).filter(([, price]) => price > 0)
+    if (changed.length === 0) {
+      showMessage("No price changes to save", "error")
+      return
+    }
+
+    setManualSaving(true)
+    try {
+      const items = changed.map(([itemId, start_price]) => ({ id: itemId, start_price }))
+      const res = await fetch(`/admin/auction-blocks/${id}/items/bulk-price`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        showMessage(`Saved ${data.updated} price change(s).`)
+        setManualPrices({})
+        await refreshBlock()
+        setBulkPanelOpen(false)
+      } else {
+        showMessage(data.message || "Save failed", "error")
+      }
+    } catch (err) {
+      showMessage(`Error: ${err}`, "error")
+    } finally {
+      setManualSaving(false)
+    }
+  }
+
   return (
     <Container>
       {/* Header with title, status badge, and action buttons */}
@@ -616,11 +723,20 @@ const BlockDetailPage = () => {
             <Heading level="h1">
               {isNew ? "Create New Block" : block.title}
             </Heading>
-            {!isNew && block.status && (
-              <Badge color={STATUS_COLORS[block.status] || "grey"}>
-                {STATUS_LABELS[block.status] || block.status}
-              </Badge>
-            )}
+            <div className="flex items-center gap-2 flex-wrap mt-1">
+              {!isNew && block.status && (
+                <Badge color={STATUS_COLORS[block.status] || "grey"}>
+                  {STATUS_LABELS[block.status] || block.status}
+                </Badge>
+              )}
+              {!isNew && block.staggered_ending && (
+                <Badge color="blue">
+                  ⏱ Staggered ({block.stagger_interval_seconds >= 60
+                    ? Math.round(block.stagger_interval_seconds / 60) + "m"
+                    : block.stagger_interval_seconds + "s"} intervals)
+                </Badge>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex gap-2 items-center">
@@ -1238,18 +1354,55 @@ const BlockDetailPage = () => {
             </>
           )}
           <div>
-            <Label>Stagger Interval (sec.)</Label>
-            <Input
-              type="number"
-              value={block.stagger_interval_seconds || 120}
-              onChange={(e) =>
-                setBlock((b) => ({
-                  ...b,
-                  stagger_interval_seconds: parseInt(e.target.value),
-                }))
-              }
-            />
+            <Label>Staggered Lot Endings</Label>
+            <div className="flex items-center gap-2 mt-1.5">
+              <input
+                type="checkbox"
+                id="staggered_ending"
+                checked={block.staggered_ending === true}
+                onChange={(e) =>
+                  setBlock((b) => ({ ...b, staggered_ending: e.target.checked }))
+                }
+                className="w-4 h-4 accent-ui-fg-interactive"
+              />
+              <label htmlFor="staggered_ending" className="text-sm text-ui-fg-subtle">
+                Lots end sequentially instead of all at once
+              </label>
+            </div>
           </div>
+          {block.staggered_ending === true && (
+            <>
+              <div>
+                <Label>Interval Between Lots (seconds)</Label>
+                <Input
+                  type="number"
+                  min={30}
+                  max={600}
+                  value={block.stagger_interval_seconds || 120}
+                  onChange={(e) =>
+                    setBlock((b) => ({
+                      ...b,
+                      stagger_interval_seconds: parseInt(e.target.value),
+                    }))
+                  }
+                />
+                <Text className="text-ui-fg-muted text-xs mt-1">
+                  Lot #1 ends at block end time. Each subsequent lot ends X seconds later.
+                </Text>
+              </div>
+              {block.items.length > 1 && (
+                <div className="col-span-2 flex items-start">
+                  <div className="bg-ui-bg-subtle rounded-md p-3 text-sm text-ui-fg-subtle w-full">
+                    With {block.items.length} lots and {block.stagger_interval_seconds || 120}s interval, the last lot ends{" "}
+                    <strong className="text-ui-fg-base">
+                      {Math.round((block.items.length - 1) * (block.stagger_interval_seconds || 120) / 60)} min
+                    </strong>{" "}
+                    after block end time.
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </Container>
 
@@ -1754,9 +1907,140 @@ const BlockDetailPage = () => {
 
           {/* Block Items */}
           <Container>
-            <Heading level="h2" className="mb-4">
-              Block Items ({block.items?.length || 0})
-            </Heading>
+            <div className="flex items-center justify-between mb-4">
+              <Heading level="h2">
+                Block Items ({block.items?.length || 0})
+              </Heading>
+              {/* Bulk Price button — only for editable blocks */}
+              {(block.status === "draft" || block.status === "preview") && (block.items?.length || 0) > 0 && (
+                <Button
+                  variant="secondary"
+                  size="small"
+                  onClick={() => {
+                    setBulkPanelOpen((open) => !open)
+                    setManualPrices({})
+                  }}
+                >
+                  {bulkPanelOpen ? "Close Bulk Editor" : "Bulk Price"}
+                </Button>
+              )}
+            </div>
+
+            {/* Bulk Price Panel */}
+            {bulkPanelOpen && (block.status === "draft" || block.status === "preview") && (
+              <div className="mb-6 p-4 border border-ui-border-base rounded-lg bg-ui-bg-subtle space-y-4">
+                <p className="text-sm font-semibold text-ui-fg-base">Bulk Start Price Editor</p>
+
+                {/* Mode selector */}
+                <div className="flex gap-4">
+                  {(["percentage", "fixed", "manual"] as const).map((mode) => (
+                    <label key={mode} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="bulkMode"
+                        value={mode}
+                        checked={bulkMode === mode}
+                        onChange={() => {
+                          setBulkMode(mode)
+                          setManualPrices({})
+                        }}
+                        className="accent-[#d4a54a]"
+                      />
+                      <span className="text-sm text-ui-fg-base">
+                        {mode === "percentage" && "% of estimated value"}
+                        {mode === "fixed" && "Fixed price for all"}
+                        {mode === "manual" && "Manual (edit table)"}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+
+                {/* Percentage mode */}
+                {bulkMode === "percentage" && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-3">
+                      <Input
+                        type="number"
+                        min={1}
+                        max={1000}
+                        step={1}
+                        className="w-28"
+                        value={bulkPercentage}
+                        onChange={(e) => setBulkPercentage(Number(e.target.value) || 0)}
+                        placeholder="e.g. 20"
+                      />
+                      <span className="text-sm text-ui-fg-subtle">% of estimated value</span>
+                    </div>
+                    <p className="text-xs text-ui-fg-subtle">
+                      This will update <span className="font-semibold text-ui-fg-base">{itemsWithEstValue}</span> lot(s).
+                      {itemsWithoutEstValue > 0 && (
+                        <> <span className="text-amber-400">{itemsWithoutEstValue} lot(s) will be skipped</span> (no estimated value).</>
+                      )}
+                    </p>
+                    <Button
+                      variant="primary"
+                      size="small"
+                      onClick={handleBulkApply}
+                      isLoading={bulkApplying}
+                      disabled={bulkPercentage <= 0 || itemsWithEstValue === 0}
+                    >
+                      Apply to {itemsWithEstValue} lot(s)
+                    </Button>
+                  </div>
+                )}
+
+                {/* Fixed mode */}
+                {bulkMode === "fixed" && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm text-ui-fg-subtle">€</span>
+                      <Input
+                        type="number"
+                        min={0.01}
+                        step={0.01}
+                        className="w-28"
+                        value={bulkFixed}
+                        onChange={(e) => setBulkFixed(parseFloat(e.target.value) || 0)}
+                        placeholder="e.g. 1.00"
+                      />
+                    </div>
+                    <p className="text-xs text-ui-fg-subtle">
+                      This will set all <span className="font-semibold text-ui-fg-base">{block.items?.length || 0}</span> lot(s) to €{bulkFixed > 0 ? bulkFixed.toFixed(2) : "0.00"}.
+                    </p>
+                    <Button
+                      variant="primary"
+                      size="small"
+                      onClick={handleBulkApply}
+                      isLoading={bulkApplying}
+                      disabled={bulkFixed <= 0}
+                    >
+                      Apply to all {block.items?.length || 0} lot(s)
+                    </Button>
+                  </div>
+                )}
+
+                {/* Manual mode instructions */}
+                {bulkMode === "manual" && (
+                  <div className="space-y-2">
+                    <p className="text-xs text-ui-fg-subtle">
+                      Edit the Start Price inputs in the table below. Changed values are highlighted.
+                      Click <span className="font-semibold text-ui-fg-base">Save All Changes</span> to apply.
+                    </p>
+                    {Object.keys(manualPrices).length > 0 && (
+                      <Button
+                        variant="primary"
+                        size="small"
+                        onClick={handleManualSave}
+                        isLoading={manualSaving}
+                      >
+                        Save {Object.keys(manualPrices).length} Change(s)
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {block.items && block.items.length > 0 ? (
               <Table>
                 <Table.Header>
@@ -1812,15 +2096,22 @@ const BlockDetailPage = () => {
                         <Input
                           type="number"
                           step="0.01"
-                          className="w-24"
-                          value={item.start_price}
-                          onChange={(e) =>
-                            handleItemFieldChange(
-                              item.id,
-                              "start_price",
-                              parseFloat(e.target.value) || 0
-                            )
+                          className={`w-24${bulkPanelOpen && bulkMode === "manual" && manualPrices[item.id] !== undefined ? " ring-2 ring-[#d4a54a]" : ""}`}
+                          value={
+                            bulkPanelOpen && bulkMode === "manual" && manualPrices[item.id] !== undefined
+                              ? manualPrices[item.id]
+                              : item.start_price
                           }
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 0
+                            if (bulkPanelOpen && bulkMode === "manual") {
+                              // Track change locally; only save on "Save All Changes"
+                              setManualPrices((prev) => ({ ...prev, [item.id]: val }))
+                            } else {
+                              // Immediate per-item save (existing behavior)
+                              handleItemFieldChange(item.id, "start_price", val)
+                            }
+                          }}
                         />
                       </Table.Cell>
                       <Table.Cell>

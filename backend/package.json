@@ -34,6 +34,7 @@
     "@tiptap/react": "^3.20.0",
     "@tiptap/starter-kit": "^3.20.0",
     "react-email": "^5.2.9",
+    "@supabase/supabase-js": "^2.49.4",
     "resend": "^6.9.3",
     "stripe": "^20.4.0"
   },

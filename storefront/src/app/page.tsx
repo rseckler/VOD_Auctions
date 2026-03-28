@@ -3,6 +3,7 @@ import Image from "next/image"
 import { Disc3, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { HomeContent } from "@/components/HomeContent"
+import { LiveAuctionBanner } from "@/components/LiveAuctionBanner"
 import { medusaFetch } from "@/lib/api"
 import type { AuctionBlock } from "@/types"
 
@@ -115,20 +116,8 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* Live Ticker */}
-      {activeCount > 0 && (
-        <div className="px-6 py-3 bg-[rgba(212,165,74,0.06)] border-y border-[rgba(212,165,74,0.12)]">
-          <div className="mx-auto max-w-6xl flex items-center gap-3 text-sm text-primary">
-            <span className="w-2 h-2 rounded-full bg-[#ef4444] animate-pulse" />
-            <span className="opacity-80">
-              {blocks
-                .filter((b) => b.status === "active")
-                .map((b) => `${b.title} — ${b.items_count} Lots`)
-                .join(" · ")}
-            </span>
-          </div>
-        </div>
-      )}
+      {/* Live Auction Banner */}
+      <LiveAuctionBanner />
 
       <HomeContent blocks={blocks} />
 

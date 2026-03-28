@@ -99,6 +99,7 @@ export type BlockItem = {
   lot_end_time?: string | null
   extension_count?: number
   reserve_met?: boolean | null
+  view_count?: number
   release: Release | null
   images?: ReleaseImage[]
 }

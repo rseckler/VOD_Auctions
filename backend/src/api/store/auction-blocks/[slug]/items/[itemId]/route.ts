@@ -42,6 +42,12 @@ export async function GET(
 
   const item = items[0]
 
+  // Increment view count (fire-and-forget, non-blocking)
+  pgConnection("block_item")
+    .where("id", itemId)
+    .increment("view_count", 1)
+    .catch(() => {}) // Non-blocking
+
   // Get release data with images + extended fields
   const release = await pgConnection("Release")
     .select(
@@ -122,6 +128,7 @@ export async function GET(
       lot_end_time: item.lot_end_time,
       status: item.status,
       reserve_met: reserveMet,
+      view_count: (item.view_count || 0) + 1, // +1 for current request
       release: release
         ? { ...release, images, various_artists: variousArtists, comments }
         : null,

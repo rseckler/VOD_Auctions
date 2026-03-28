@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
-import { ChevronRight, ArrowLeft, Lock, CheckCircle } from "lucide-react"
+import { ChevronRight, ArrowLeft, Lock, CheckCircle, Eye, Clock, Heart } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -111,10 +111,14 @@ export async function generateMetadata({
 
 export default async function ItemDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string; itemId: string }>
+  searchParams: Promise<{ bid?: string }>
 }) {
   const { slug, itemId } = await params
+  const { bid } = await searchParams
+  const suggestedBid = bid ? parseFloat(bid) : undefined
   const [data, blockItems] = await Promise.all([
     getItem(slug, itemId),
     getBlockItems(slug),
@@ -124,6 +128,7 @@ export default async function ItemDetailPage({
 
   const { block_item: item, auction_block: block } = data
   const release = item.release
+  const isBlockPreview = block.status === "preview" || block.status === "scheduled"
 
   // Handle tracklist/credits separation from legacy data
   const hasTracklist = release?.tracklist && release.tracklist.length > 0
@@ -196,6 +201,7 @@ export default async function ItemDetailPage({
             <ShareButton
               url={`https://vod-auctions.com/auctions/${slug}/${itemId}`}
               title={release?.artist_name ? `${release.artist_name} — ${release.title}` : release?.title || `Lot ${item.lot_number}`}
+              compact
             />
           </div>
 
@@ -216,43 +222,101 @@ export default async function ItemDetailPage({
             )}
           </div>
 
-          {/* Bid Section */}
+          {/* Bid Section or Preview CTA */}
           <div id="bid-section" className="mt-6 scroll-mt-20">
-            <ItemBidSection
-              slug={slug}
-              itemId={item.id}
-              initialPrice={item.current_price}
-              startPrice={item.start_price}
-              initialBidCount={item.bid_count}
-              lotEndTime={item.lot_end_time || null}
-              blockStatus={block.status}
-              itemStatus={item.status}
-              blockStartTime={block.start_time || null}
-              extensionCount={item.extension_count || 0}
-            />
-            {item.reserve_met === false && (
-              <p className="flex items-center gap-1.5 text-xs text-amber-500/80 mt-2">
-                <Lock className="h-3 w-3 flex-shrink-0" />
-                Reserve price not yet met
-              </p>
+            {isBlockPreview ? (
+              /* Preview mode: show starting price + watchlist CTA, no bid form */
+              <div className="rounded-xl border border-amber-500/25 bg-amber-950/20 p-5 space-y-4">
+                <div className="flex items-center gap-2 text-amber-400 text-xs font-semibold uppercase tracking-wide">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                  Preview — Bidding not yet open
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Starting bid</span>
+                  <span className="font-mono text-3xl font-bold text-amber-400">
+                    &euro;{Number(item.start_price).toFixed(2)}
+                  </span>
+                </div>
+                {block.start_time && (
+                  <div className="flex items-center gap-2 text-sm text-amber-300/70">
+                    <Clock className="h-4 w-4 flex-shrink-0" />
+                    Bidding opens{" "}
+                    {new Date(block.start_time).toLocaleString("en-GB", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      timeZone: "Europe/Berlin",
+                    })}{" "}
+                    CET
+                  </div>
+                )}
+                {release && (
+                  <SaveForLaterButton releaseId={release.id || item.release_id} variant="button" />
+                )}
+                <p className="text-xs text-muted-foreground/50">
+                  Save this lot to your watchlist and get notified when bidding opens.
+                </p>
+              </div>
+            ) : (
+              <>
+                <ItemBidSection
+                  slug={slug}
+                  itemId={item.id}
+                  initialPrice={item.current_price}
+                  startPrice={item.start_price}
+                  initialBidCount={item.bid_count}
+                  lotEndTime={item.lot_end_time || null}
+                  blockStatus={block.status}
+                  itemStatus={item.status}
+                  blockStartTime={block.start_time || null}
+                  extensionCount={item.extension_count || 0}
+                  suggestedBid={suggestedBid}
+                />
+                {item.reserve_met === false && (
+                  <p className="flex items-center gap-1.5 text-xs text-amber-500/80 mt-2">
+                    <Lock className="h-3 w-3 flex-shrink-0" />
+                    Reserve price not yet met
+                  </p>
+                )}
+                {item.reserve_met === true && (
+                  <p className="flex items-center gap-1.5 text-xs text-green-500 mt-2">
+                    <CheckCircle className="h-3 w-3 flex-shrink-0" />
+                    Reserve price met
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground mt-2">incl. VAT, plus <a href="/agb" className="underline">shipping</a> &middot; <a href="/widerruf" className="underline">14-day return policy</a></p>
+                <p className="flex items-center gap-1 text-xs text-green-400/80 mt-1.5">
+                  <CheckCircle className="h-3 w-3 flex-shrink-0" />
+                  No buyer&apos;s premium — you pay exactly what you bid
+                </p>
+              </>
             )}
-            {item.reserve_met === true && (
-              <p className="flex items-center gap-1.5 text-xs text-green-500 mt-2">
-                <CheckCircle className="h-3 w-3 flex-shrink-0" />
-                Reserve price met
-              </p>
-            )}
-            <p className="text-xs text-muted-foreground mt-2">incl. VAT, plus <a href="/agb" className="underline">shipping</a> &middot; <a href="/widerruf" className="underline">14-day return policy</a></p>
           </div>
 
-          {/* Bid History */}
-          <BidHistoryTable
-            blockSlug={slug}
-            itemId={item.id}
-            itemStatus={item.status}
-            blockStatus={block.status}
-            initialBidCount={item.bid_count}
-          />
+          {/* Bid History — only for active/ended blocks */}
+          {!isBlockPreview && (
+            <BidHistoryTable
+              blockSlug={slug}
+              itemId={item.id}
+              itemStatus={item.status}
+              blockStatus={block.status}
+              initialBidCount={item.bid_count}
+            />
+          )}
+
+          {/* View Count — social proof */}
+          {item.view_count != null && item.view_count > 5 && (
+            <p className="flex items-center gap-1 text-xs text-muted-foreground/50 mt-2">
+              <Eye className="h-3 w-3" />
+              {item.view_count >= 100
+                ? `🔥 ${item.view_count} people are watching this lot`
+                : item.view_count >= 20
+                ? `${item.view_count} people are watching this lot`
+                : `${item.view_count} people have viewed this lot`}
+            </p>
+          )}
 
           {item.estimated_value && (
             <div className="mt-3 flex items-center justify-between text-sm px-1">
@@ -487,23 +551,43 @@ export default async function ItemDetailPage({
 
       {/* Sticky Mobile CTA */}
       <div className="fixed bottom-0 left-0 right-0 z-40 lg:hidden bg-[#1c1915] border-t border-border px-4 py-3 flex items-center justify-between gap-3">
-        <div>
-          <span className="text-xs text-muted-foreground">Current Bid</span>
-          <span className="block text-lg font-mono font-bold text-primary">
-            &euro;{Number(item.current_price || item.start_price).toFixed(2)}
-          </span>
-        </div>
-        {block.status === "active" && item.status === "open" ? (
-          <a
-            href="#bid-section"
-            className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-6 py-2.5 text-sm font-semibold hover:bg-primary/90 transition-colors"
-          >
-            Place Bid
-          </a>
+        {isBlockPreview ? (
+          <>
+            <div>
+              <span className="text-xs text-amber-500/70">Starting bid</span>
+              <span className="block text-lg font-mono font-bold text-amber-400">
+                &euro;{Number(item.start_price).toFixed(2)}
+              </span>
+            </div>
+            <a
+              href="#bid-section"
+              className="inline-flex items-center justify-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-950/40 text-amber-400 px-4 py-2.5 text-sm font-semibold hover:bg-amber-950/60 transition-colors"
+            >
+              <Heart className="h-4 w-4" />
+              Save
+            </a>
+          </>
         ) : (
-          <span className="text-sm text-muted-foreground italic">
-            {item.status === "sold" ? "Sold" : "Auction ended"}
-          </span>
+          <>
+            <div>
+              <span className="text-xs text-muted-foreground">Current Bid</span>
+              <span className="block text-lg font-mono font-bold text-primary">
+                &euro;{Number(item.current_price || item.start_price).toFixed(2)}
+              </span>
+            </div>
+            {block.status === "active" && item.status === "open" ? (
+              <a
+                href="#bid-section"
+                className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-6 py-2.5 text-sm font-semibold hover:bg-primary/90 transition-colors"
+              >
+                Place Bid
+              </a>
+            ) : (
+              <span className="text-sm text-muted-foreground italic">
+                {item.status === "sold" ? "Sold" : "Auction ended"}
+              </span>
+            )}
+          </>
         )}
       </div>
 

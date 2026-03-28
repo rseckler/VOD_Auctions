@@ -2,8 +2,10 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import Image from "next/image"
 import { notFound } from "next/navigation"
-import { ChevronRight, Calendar, Package, Clock, Disc3 } from "lucide-react"
+import { ChevronRight, Calendar, Package, Clock, Disc3, Heart } from "lucide-react"
 import { BlockItemsGrid } from "@/components/BlockItemsGrid"
+import { ShareButton } from "@/components/ShareButton"
+import { PreviewCountdown } from "@/components/PreviewCountdown"
 import { medusaFetch } from "@/lib/api"
 import type { AuctionBlock } from "@/types"
 
@@ -107,6 +109,7 @@ export default async function BlockDetailPage({
 
   const statusConfig = STATUS_CONFIG[block.status] || STATUS_CONFIG.ended
   const items = block.items || []
+  const isPreview = block.status === "preview" || block.status === "scheduled"
 
   const priceRange = items.length > 0
     ? {
@@ -117,6 +120,21 @@ export default async function BlockDetailPage({
 
   return (
     <main>
+      {/* Preview / Scheduled Banner */}
+      {isPreview && (
+        <div className="bg-amber-950/30 border-b border-amber-500/30">
+          <div className="mx-auto max-w-6xl px-6 py-3 flex items-center gap-3">
+            <span className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/15 border border-amber-500/30 text-amber-400 text-xs font-semibold uppercase tracking-wide">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+              Preview
+            </span>
+            <p className="text-sm text-amber-300/80">
+              Bidding not yet open. Browse the upcoming lots and save items to your watchlist.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Hero */}
       <section className="relative">
         {block.header_image ? (
@@ -146,9 +164,18 @@ export default async function BlockDetailPage({
               {TYPE_LABELS[block.block_type] || block.block_type}
             </span>
           </div>
-          <h1 className="font-serif text-3xl md:text-5xl leading-[1.1]">
-            {block.title}
-          </h1>
+          <div className="flex items-start gap-3">
+            <h1 className="font-serif text-3xl md:text-5xl leading-[1.1] flex-1">
+              {block.title}
+            </h1>
+            <div className="pt-1 flex-shrink-0">
+              <ShareButton
+                url={`https://vod-auctions.com/auctions/${block.slug}`}
+                title={`${block.title} — VOD Auctions`}
+                text={`${items.length} lots of industrial music available now`}
+              />
+            </div>
+          </div>
           {block.subtitle && (
             <p className="text-xl text-muted-foreground mt-2">{block.subtitle}</p>
           )}
@@ -195,6 +222,9 @@ export default async function BlockDetailPage({
                 </div>
               </div>
             )}
+            {isPreview && block.start_time && (
+              <PreviewCountdown startTime={block.start_time} />
+            )}
           </div>
         </div>
       </section>
@@ -233,11 +263,19 @@ export default async function BlockDetailPage({
 
         {/* Items Grid */}
         <section>
-          <h2 className="font-serif text-2xl mb-6 flex items-center gap-3">
-            Lots
-            <span className="text-sm font-sans text-muted-foreground font-normal">{items.length} items</span>
-          </h2>
-          <BlockItemsGrid items={items} blockSlug={block.slug} />
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+            <h2 className="font-serif text-2xl flex items-center gap-3">
+              Lots
+              <span className="text-sm font-sans text-muted-foreground font-normal">{items.length} items</span>
+            </h2>
+            {isPreview && items.length > 0 && (
+              <p className="text-sm text-amber-400/80 flex items-center gap-1.5">
+                <Heart className="h-4 w-4" />
+                Click a lot to save it to your watchlist
+              </p>
+            )}
+          </div>
+          <BlockItemsGrid items={items} blockSlug={block.slug} previewMode={isPreview} />
         </section>
       </div>
     </main>

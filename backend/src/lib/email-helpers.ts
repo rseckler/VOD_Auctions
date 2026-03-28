@@ -11,6 +11,16 @@ import { paymentReminder1Email } from "../emails/payment-reminder-1"
 import { paymentReminder3Email } from "../emails/payment-reminder-3"
 import { watchlistReminderEmail } from "../emails/watchlist-reminder"
 
+// Tiered bid increment table (mirrors bid route logic)
+function getMinIncrement(currentPrice: number): number {
+  if (currentPrice < 10)   return 0.50
+  if (currentPrice < 50)   return 1.00
+  if (currentPrice < 200)  return 2.50
+  if (currentPrice < 500)  return 5.00
+  if (currentPrice < 2000) return 10.00
+  return 25.00
+}
+
 // Resolve customer email + first_name from Medusa customer ID
 async function getCustomer(pg: Knex, userId: string) {
   const customer = await pg("customer")
@@ -82,6 +92,9 @@ export async function sendOutbidEmail(
 
   const release = await getReleaseInfo(pg, item.release_id)
 
+  const lotUrl = `${APP_URL}/auctions/${block?.slug || ""}/${blockItemId}`
+  const suggestedBid = currentBid + getMinIncrement(currentBid)
+
   const { subject, html } = outbidEmail({
     firstName: customer.first_name || "there",
     itemTitle: release?.title || "Unknown Item",
@@ -91,7 +104,8 @@ export async function sendOutbidEmail(
     blockTitle: block?.title,
     yourBid,
     currentBid,
-    bidUrl: `${APP_URL}/auctions/${block?.slug || ""}/${blockItemId}`,
+    suggestedBid,
+    bidUrl: lotUrl,
   })
   await sendEmail({ to: customer.email, subject, html })
 }

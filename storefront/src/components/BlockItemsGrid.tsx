@@ -4,21 +4,40 @@ import { useState, useMemo, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { motion, AnimatePresence } from "framer-motion"
-import { Search, Disc3, Clock, Gavel } from "lucide-react"
+import { Search, Disc3, Clock, Gavel, Eye } from "lucide-react"
 import { staggerContainer, staggerItem } from "@/lib/motion"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
 import { getToken } from "@/lib/auth"
+import { SaveForLaterButton } from "@/components/SaveForLaterButton"
 import type { BlockItem } from "@/types"
 
-function formatTimeRemaining(endTime: string): string | null {
+type TimeUrgency = {
+  text: string
+  level: "critical" | "urgent" | "normal" | "ended"
+}
+
+function getTimeUrgency(endTime: string): TimeUrgency {
   const diff = new Date(endTime).getTime() - Date.now()
-  if (diff <= 0) return null
+  if (diff <= 0) return { text: "Ended", level: "ended" }
+
   const days = Math.floor(diff / (1000 * 60 * 60 * 24))
   const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
   const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
-  if (days > 0) return `${days}d ${hours}h left`
-  if (hours > 0) return `${hours}h ${minutes}m left`
-  return `${minutes}m left`
+  const seconds = Math.floor((diff % (1000 * 60)) / 1000)
+
+  if (diff < 5 * 60 * 1000) {
+    // <5 min: critical
+    const text = diff < 60 * 1000 ? `${seconds}s left` : `${minutes}m ${seconds}s left`
+    return { text, level: "critical" }
+  }
+  if (diff < 60 * 60 * 1000) {
+    // <1 hour: urgent
+    return { text: `${minutes}m left`, level: "urgent" }
+  }
+
+  // normal
+  if (days > 0) return { text: `${days}d ${hours}h left`, level: "normal" }
+  return { text: `${hours}h ${minutes}m left`, level: "normal" }
 }
 
 const FORMAT_COLORS: Record<string, string> = {
@@ -42,17 +61,27 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
 export function BlockItemsGrid({
   items,
   blockSlug,
+  previewMode = false,
 }: {
   items: BlockItem[]
   blockSlug: string
+  previewMode?: boolean
 }) {
   const [sort, setSort] = useState<SortOption>("lot")
   const [search, setSearch] = useState("")
   const [userBidItemIds, setUserBidItemIds] = useState<Set<string>>(new Set())
   const [userWinningItemIds, setUserWinningItemIds] = useState<Set<string>>(new Set())
+  // Tick every second so urgency indicators update in real time
+  const [, setTick] = useState(0)
 
-  // Fetch user's bids to show indicator on cards
   useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  // Fetch user's bids to show indicator on cards (not needed in preview mode)
+  useEffect(() => {
+    if (previewMode) return
     const token = getToken()
     if (!token) return
     fetch(`${MEDUSA_URL}/store/account/bids`, {
@@ -76,7 +105,7 @@ export function BlockItemsGrid({
         setUserWinningItemIds(winningIds)
       })
       .catch(() => {})
-  }, [])
+  }, [previewMode])
 
   const filtered = useMemo(() => {
     let result = [...items]
@@ -179,88 +208,177 @@ export function BlockItemsGrid({
             {filtered.map((item) => (
               <motion.div key={item.id} variants={staggerItem}>
                 <Link href={`/auctions/${blockSlug}/${item.id}`}>
-                  <div className={`group overflow-hidden rounded-xl bg-[rgba(232,224,212,0.03)] border transition-all duration-300 hover:-translate-y-0.5 ${
-                    userWinningItemIds.has(item.id)
-                      ? "border-green-500/40 hover:border-green-500/60"
-                      : userBidItemIds.has(item.id)
-                      ? "border-primary/40 hover:border-primary/60"
-                      : "border-[rgba(232,224,212,0.06)] hover:border-[rgba(212,165,74,0.3)]"
-                  }`}>
-                    {/* Image */}
-                    <div className="aspect-square bg-[#2a2520] overflow-hidden relative">
-                      {item.release?.coverImage ? (
-                        <Image
-                          src={item.release.coverImage}
-                          alt={item.release?.title || ""}
-                          fill
-                          sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 25vw"
-                          className="object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <Disc3 className="h-8 w-8 text-muted-foreground/10" />
-                        </div>
-                      )}
-                      {/* Lot overlay */}
-                      {item.lot_number && (
-                        <span className="absolute top-2 left-2 px-2 py-0.5 rounded bg-[rgba(28,25,21,0.85)] backdrop-blur-sm text-[11px] font-semibold text-primary">
-                          #{String(item.lot_number).padStart(2, "0")}
-                        </span>
-                      )}
-                      {/* Format overlay */}
-                      {item.release?.format && (
-                        <span className={`absolute top-2 right-2 px-2 py-0.5 rounded bg-[rgba(28,25,21,0.85)] backdrop-blur-sm text-[10px] uppercase tracking-[1px] font-medium ${FORMAT_COLORS[item.release.format] || "text-muted-foreground"}`}>
-                          {item.release.format}
-                        </span>
-                      )}
-                      {/* Bid status indicator */}
-                      {userWinningItemIds.has(item.id) ? (
-                        <span className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded bg-[rgba(34,197,94,0.9)] backdrop-blur-sm text-xs font-semibold text-[#1c1915] uppercase tracking-wide shadow-lg shadow-green-500/20 ring-2 ring-green-400/50 animate-pulse">
-                          <Gavel className="h-2.5 w-2.5" />
-                          Highest Bid
-                        </span>
-                      ) : userBidItemIds.has(item.id) ? (
-                        <span className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded bg-[rgba(212,165,74,0.9)] backdrop-blur-sm text-xs font-semibold text-[#1c1915] uppercase tracking-wide shadow-lg shadow-primary/20 ring-2 ring-primary/50">
-                          <Gavel className="h-2.5 w-2.5" />
-                          Your Bid
-                        </span>
-                      ) : null}
-                    </div>
-
-                    {/* Info */}
-                    <div className="p-3">
-                      <p className="text-xs text-muted-foreground/60 truncate">
-                        {item.release?.artist_name || "Unknown Artist"}
-                      </p>
-                      <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">
-                        {item.release?.title || item.release_id}
-                      </p>
-                      <div className="flex items-center justify-between mt-2">
-                        <span className="font-serif text-lg font-bold text-primary">
-                          &euro;{(item.current_price || item.start_price).toFixed(0)}
-                        </span>
-                        {item.release?.year && (
-                          <span className="text-[10px] text-muted-foreground/60">
-                            {item.release.year}
+                  {previewMode ? (
+                    /* Preview mode card — amber accents, starting bid only, save to watchlist */
+                    <div className="group overflow-hidden rounded-xl bg-[rgba(232,224,212,0.03)] border border-amber-500/20 hover:border-amber-500/40 opacity-90 transition-all duration-300 hover:-translate-y-0.5">
+                      {/* Image */}
+                      <div className="aspect-square bg-[#2a2520] overflow-hidden relative">
+                        {item.release?.coverImage ? (
+                          <Image
+                            src={item.release.coverImage}
+                            alt={item.release?.title || ""}
+                            fill
+                            sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 25vw"
+                            className="object-cover group-hover:scale-105 transition-transform duration-500"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Disc3 className="h-8 w-8 text-muted-foreground/10" />
+                          </div>
+                        )}
+                        {/* Lot overlay — amber in preview mode */}
+                        {item.lot_number && (
+                          <span className="absolute top-2 left-2 px-2 py-0.5 rounded bg-[rgba(28,25,21,0.85)] backdrop-blur-sm text-[11px] font-semibold text-amber-400">
+                            #{String(item.lot_number).padStart(2, "0")}
                           </span>
                         )}
+                        {/* Format overlay */}
+                        {item.release?.format && (
+                          <span className={`absolute top-2 right-2 px-2 py-0.5 rounded bg-[rgba(28,25,21,0.85)] backdrop-blur-sm text-[10px] uppercase tracking-[1px] font-medium ${FORMAT_COLORS[item.release.format] || "text-muted-foreground"}`}>
+                            {item.release.format}
+                          </span>
+                        )}
+                        {/* Watchlist button — stop link propagation */}
+                        <div
+                          className="absolute bottom-2 right-2"
+                          onClick={(e) => e.preventDefault()}
+                        >
+                          <SaveForLaterButton releaseId={item.release?.id || item.release_id} />
+                        </div>
                       </div>
-                      {item.bid_count > 0 && (
-                        <p className="text-[10px] text-muted-foreground/60 mt-1">
-                          {item.bid_count} {item.bid_count !== 1 ? "bids" : "bid"}
+
+                      {/* Info */}
+                      <div className="p-3">
+                        <p className="text-xs text-muted-foreground/60 truncate">
+                          {item.release?.artist_name || "Unknown Artist"}
                         </p>
-                      )}
-                      {item.lot_end_time && (() => {
-                        const remaining = formatTimeRemaining(item.lot_end_time)
-                        return remaining ? (
-                          <p className="text-[10px] text-muted-foreground/50 mt-0.5 flex items-center gap-1">
-                            <Clock className="h-2.5 w-2.5" />
-                            {remaining}
-                          </p>
-                        ) : null
-                      })()}
+                        <p className="text-sm font-medium truncate group-hover:text-amber-400 transition-colors">
+                          {item.release?.title || item.release_id}
+                        </p>
+                        <div className="flex items-center justify-between mt-2">
+                          <div>
+                            <p className="text-[9px] text-muted-foreground/40 uppercase tracking-[0.5px]">Starting bid</p>
+                            <span className="font-serif text-lg font-bold text-amber-400">
+                              &euro;{Number(item.start_price).toFixed(0)}
+                            </span>
+                          </div>
+                          {item.release?.year && (
+                            <span className="text-[10px] text-muted-foreground/60">
+                              {item.release.year}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    /* Normal (active/ended) card */
+                    (() => {
+                      const urgency = item.lot_end_time ? getTimeUrgency(item.lot_end_time) : null
+                      const isCritical = urgency?.level === "critical"
+                      return (
+                    <div className={`group overflow-hidden rounded-xl bg-[rgba(232,224,212,0.03)] border transition-all duration-300 hover:-translate-y-0.5 ${
+                      isCritical
+                        ? "border-red-500/40 hover:border-red-500/60"
+                        : userWinningItemIds.has(item.id)
+                        ? "border-green-500/40 hover:border-green-500/60"
+                        : userBidItemIds.has(item.id)
+                        ? "border-primary/40 hover:border-primary/60"
+                        : "border-[rgba(232,224,212,0.06)] hover:border-[rgba(212,165,74,0.3)]"
+                    }`}>
+                      {/* Image */}
+                      <div className="aspect-square bg-[#2a2520] overflow-hidden relative">
+                        {item.release?.coverImage ? (
+                          <Image
+                            src={item.release.coverImage}
+                            alt={item.release?.title || ""}
+                            fill
+                            sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 25vw"
+                            className="object-cover group-hover:scale-105 transition-transform duration-500"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Disc3 className="h-8 w-8 text-muted-foreground/10" />
+                          </div>
+                        )}
+                        {/* Lot overlay */}
+                        {item.lot_number && (
+                          <span className="absolute top-2 left-2 px-2 py-0.5 rounded bg-[rgba(28,25,21,0.85)] backdrop-blur-sm text-[11px] font-semibold text-primary">
+                            #{String(item.lot_number).padStart(2, "0")}
+                          </span>
+                        )}
+                        {/* Format overlay */}
+                        {item.release?.format && (
+                          <span className={`absolute top-2 right-2 px-2 py-0.5 rounded bg-[rgba(28,25,21,0.85)] backdrop-blur-sm text-[10px] uppercase tracking-[1px] font-medium ${FORMAT_COLORS[item.release.format] || "text-muted-foreground"}`}>
+                            {item.release.format}
+                          </span>
+                        )}
+                        {/* Bid status indicator */}
+                        {userWinningItemIds.has(item.id) ? (
+                          <span className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded bg-[rgba(34,197,94,0.9)] backdrop-blur-sm text-xs font-semibold text-[#1c1915] uppercase tracking-wide shadow-lg shadow-green-500/20 ring-2 ring-green-400/50 animate-pulse">
+                            <Gavel className="h-2.5 w-2.5" />
+                            Highest Bid
+                          </span>
+                        ) : userBidItemIds.has(item.id) ? (
+                          <span className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded bg-[rgba(212,165,74,0.9)] backdrop-blur-sm text-xs font-semibold text-[#1c1915] uppercase tracking-wide shadow-lg shadow-primary/20 ring-2 ring-primary/50">
+                            <Gavel className="h-2.5 w-2.5" />
+                            Your Bid
+                          </span>
+                        ) : null}
+                      </div>
+
+                      {/* Info */}
+                      <div className="p-3">
+                        <p className="text-xs text-muted-foreground/60 truncate">
+                          {item.release?.artist_name || "Unknown Artist"}
+                        </p>
+                        <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">
+                          {item.release?.title || item.release_id}
+                        </p>
+                        <div className="flex items-center justify-between mt-2">
+                          <span className="font-serif text-lg font-bold text-primary">
+                            &euro;{(item.current_price || item.start_price).toFixed(0)}
+                          </span>
+                          {item.release?.year && (
+                            <span className="text-[10px] text-muted-foreground/60">
+                              {item.release.year}
+                            </span>
+                          )}
+                        </div>
+                        {item.bid_count > 0 && (
+                          <p className="text-[10px] text-muted-foreground/60 mt-1">
+                            {item.bid_count} {item.bid_count !== 1 ? "bids" : "bid"}
+                          </p>
+                        )}
+                        {item.lot_end_time && (() => {
+                          const { text, level } = getTimeUrgency(item.lot_end_time)
+                          if (level === "ended") return null
+                          return (
+                            <p className={`text-[10px] mt-0.5 flex items-center gap-1 ${
+                              level === "critical"
+                                ? "text-red-400 font-semibold animate-pulse"
+                                : level === "urgent"
+                                ? "text-amber-400"
+                                : "text-muted-foreground/50"
+                            }`}>
+                              {level === "critical" && (
+                                <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0" />
+                              )}
+                              <Clock className="h-2.5 w-2.5 flex-shrink-0" />
+                              {text}
+                            </p>
+                          )
+                        })()}
+                        {item.view_count != null && item.view_count > 10 && (
+                          <p className="text-[9px] text-muted-foreground/40 mt-0.5 flex items-center gap-0.5">
+                            <Eye className="h-2 w-2 flex-shrink-0" />
+                            {item.view_count}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                      )
+                    })()
+                  )}
                 </Link>
               </motion.div>
             ))}

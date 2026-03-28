@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Disc3, Mail, Instagram, Facebook } from "lucide-react"
+import { Disc3, Mail, Instagram, Facebook, CheckCircle } from "lucide-react"
 import { useState, type FormEvent } from "react"
 import { toast } from "sonner"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
@@ -48,9 +48,13 @@ export function Footer() {
               </div>
               <span className="text-lg font-serif text-foreground">VOD Auctions</span>
             </div>
-            <p className="text-muted-foreground text-sm mb-4">
+            <p className="text-muted-foreground text-sm mb-3">
               Curated auctions for rare records from the
               Industrial, Experimental and Electronic Music genres.
+            </p>
+            <p className="flex items-center gap-1.5 text-xs text-green-400/70 mb-4">
+              <CheckCircle className="h-3 w-3 flex-shrink-0" />
+              No buyer&apos;s premium — ever
             </p>
 
             {/* Newsletter signup */}

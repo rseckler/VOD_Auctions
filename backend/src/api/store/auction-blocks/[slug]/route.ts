@@ -87,6 +87,7 @@ export async function GET(
         lot_end_time: item.lot_end_time,
         status: item.status,
         reserve_met: reserveMet,
+        view_count: item.view_count || 0,
         release: releasesMap[item.release_id] || null,
       }
     })

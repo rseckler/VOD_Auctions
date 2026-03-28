@@ -1264,6 +1264,10 @@ export default function CheckoutPage() {
                 <span>Total</span>
                 <span className="text-primary font-mono">{"\u20AC"}{grandTotal.toFixed(2)}</span>
               </div>
+              <p className="flex items-center gap-1 text-xs text-green-400/80 mt-2">
+                <CheckCircle2 className="h-3 w-3 flex-shrink-0" />
+                No buyer&apos;s premium added
+              </p>
             </div>
           </Card>
         )}
@@ -1606,6 +1610,10 @@ export default function CheckoutPage() {
                   {"\u20AC"}{grandTotal.toFixed(2)}
                 </span>
               </div>
+              <p className="flex items-center gap-1 text-xs text-green-400/80 mt-2">
+                <CheckCircle2 className="h-3 w-3 flex-shrink-0" />
+                No buyer&apos;s premium added
+              </p>
             </div>
             </div>{/* end collapsible wrapper */}
           </Card>

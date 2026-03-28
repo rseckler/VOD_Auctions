@@ -1,6 +1,7 @@
 import { Suspense } from "react"
 import CatalogClient from "@/components/CatalogClient"
 import type { CatalogInitialParams } from "@/components/CatalogClient"
+import { LiveAuctionBanner } from "@/components/LiveAuctionBanner"
 
 const MEDUSA_URL =
   process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
@@ -117,13 +118,16 @@ export default async function CatalogPage({ searchParams }: Props) {
   }
 
   return (
-    <Suspense>
-      <CatalogClient
-        initialReleases={initialReleases}
-        initialTotal={initialTotal}
-        initialPages={initialPages}
-        initialParams={initialParams}
-      />
-    </Suspense>
+    <>
+      <LiveAuctionBanner />
+      <Suspense>
+        <CatalogClient
+          initialReleases={initialReleases}
+          initialTotal={initialTotal}
+          initialPages={initialPages}
+          initialParams={initialParams}
+        />
+      </Suspense>
+    </>
   )
 }

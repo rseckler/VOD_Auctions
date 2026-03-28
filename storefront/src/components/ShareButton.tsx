@@ -4,12 +4,14 @@ import { useState, useRef, useEffect } from "react"
 import { Share2, Copy, Check, Mail } from "lucide-react"
 import { toast } from "sonner"
 
-type Props = {
+interface ShareButtonProps {
   url: string
   title: string
+  text?: string
+  compact?: boolean
 }
 
-export function ShareButton({ url, title }: Props) {
+export function ShareButton({ url, title, text, compact = false }: ShareButtonProps) {
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -30,7 +32,7 @@ export function ShareButton({ url, title }: Props) {
     // Mobile: use native share sheet
     if (navigator.share) {
       try {
-        await navigator.share({ title, url })
+        await navigator.share({ title, text, url })
       } catch {
         // User cancelled — ignore
       }
@@ -62,20 +64,37 @@ export function ShareButton({ url, title }: Props) {
 
   return (
     <div className="relative" ref={ref}>
-      <button
-        onClick={handleShare}
-        title="Share"
-        className={`w-11 h-11 rounded-[10px] border flex items-center justify-center transition-all flex-shrink-0 ${
-          open
-            ? "bg-primary/20 border-primary/50"
-            : "bg-primary/8 border-primary/25 hover:bg-primary/15 hover:border-primary/40"
-        }`}
-      >
-        <Share2 className="w-[22px] h-[22px] text-primary" />
-      </button>
+      {compact ? (
+        // Icon-only style for tight contexts (e.g. item detail next to title)
+        <button
+          onClick={handleShare}
+          title="Share"
+          className={`w-11 h-11 rounded-[10px] border flex items-center justify-center transition-all flex-shrink-0 ${
+            open
+              ? "bg-primary/20 border-primary/50"
+              : "bg-primary/8 border-primary/25 hover:bg-primary/15 hover:border-primary/40"
+          }`}
+        >
+          <Share2 className="w-[22px] h-[22px] text-primary" />
+        </button>
+      ) : (
+        // Text button style for block pages and general use
+        <button
+          onClick={handleShare}
+          title="Share"
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border transition-all ${
+            open
+              ? "border-[rgba(232,224,212,0.2)] text-foreground"
+              : "border-[rgba(232,224,212,0.12)] text-muted-foreground hover:text-foreground hover:border-[rgba(232,224,212,0.2)]"
+          }`}
+        >
+          <Share2 className="w-3.5 h-3.5" />
+          Share
+        </button>
+      )}
 
       {open && (
-        <div className="absolute top-[50px] right-0 w-[200px] bg-card border border-border rounded-lg shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+        <div className="absolute top-[calc(100%+6px)] right-0 w-[200px] bg-[#2a2520] border border-[rgba(232,224,212,0.1)] rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
           {/* Copy Link */}
           <button
             onClick={handleCopy}
@@ -89,7 +108,7 @@ export function ShareButton({ url, title }: Props) {
             {copied ? "Copied!" : "Copy Link"}
           </button>
 
-          <div className="h-px bg-border/50 mx-2" />
+          <div className="h-px bg-[rgba(232,224,212,0.06)] mx-2" />
 
           {/* WhatsApp */}
           <button
@@ -130,33 +149,6 @@ export function ShareButton({ url, title }: Props) {
               <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
             </svg>
             Facebook
-          </button>
-
-          {/* Telegram */}
-          <button
-            onClick={() =>
-              shareVia(
-                `https://t.me/share/url?url=${encodedUrl}&text=${encodedTitle}`
-              )
-            }
-            className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-foreground hover:bg-primary/10 transition-colors"
-          >
-            <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="#26A5E4">
-              <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z" />
-            </svg>
-            Telegram
-          </button>
-
-          {/* Email */}
-          <button
-            onClick={() => {
-              window.location.href = `mailto:?subject=${encodedTitle}&body=${encodedUrl}`
-              setOpen(false)
-            }}
-            className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-foreground hover:bg-primary/10 transition-colors"
-          >
-            <Mail className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
-            Email
           </button>
         </div>
       )}

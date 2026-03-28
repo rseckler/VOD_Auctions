@@ -8,6 +8,7 @@ import AuctionModuleService from "../../../../../../../modules/auction/service"
 import { AUCTION_MODULE } from "../../../../../../../modules/auction"
 import { sendOutbidEmail } from "../../../../../../../lib/email-helpers"
 import { crmSyncBidPlaced } from "../../../../../../../lib/crm-sync"
+import { getSupabaseAdminClient } from "../../../../../../../lib/supabase"
 
 /**
  * Tiered bid increment table.
@@ -268,7 +269,7 @@ export async function POST(
               updated_at: now,
             })
 
-          await checkAutoExtension(trx, block, item, now)
+          const _extension1 = await checkAutoExtension(trx, block, item, now)
 
           return {
             status: 200,
@@ -280,6 +281,7 @@ export async function POST(
             _outbid_user: customerId,
             _outbid_amount: amount,
             _current_bid: autoResponse,
+            _extension: _extension1,
           }
         }
       }
@@ -321,7 +323,7 @@ export async function POST(
           updated_at: now,
         })
 
-      await checkAutoExtension(trx, block, item, now)
+      const _extension2 = await checkAutoExtension(trx, block, item, now)
 
       return {
         status: 201,
@@ -332,6 +334,7 @@ export async function POST(
         _outbid_user: outbidUserId || null,
         _outbid_amount: outbidAmount,
         _current_bid: finalAmount,
+        _extension: _extension2,
       }
     })
 
@@ -344,6 +347,26 @@ export async function POST(
         result._outbid_amount!,
         result._current_bid!
       ).catch(() => {})
+    }
+
+    // Broadcast lot extension to storefront via Supabase Realtime (async, non-blocking)
+    if (result._extension) {
+      const ext = result._extension
+      const supabaseAdmin = getSupabaseAdminClient()
+      if (supabaseAdmin) {
+        supabaseAdmin
+          .channel(`lot-${ext.item_id}`)
+          .send({
+            type: "broadcast",
+            event: "lot_extended",
+            payload: {
+              item_id: ext.item_id,
+              new_end_time: ext.new_end_time,
+              extension_count: ext.extension_count,
+            },
+          })
+          .catch(() => {})
+      }
     }
 
     // Sync bid to Brevo CRM (async, non-blocking)
@@ -359,7 +382,7 @@ export async function POST(
       : null
 
     // Strip internal fields before sending response
-    const { _outbid_user, _outbid_amount, _current_bid, ...response } = result
+    const { _outbid_user, _outbid_amount, _current_bid, _extension, ...response } = result
     const httpStatus = response.status || 201
     res.status(httpStatus).json({ ...response, reserve_met: reserveMet })
   } catch (err: any) {
@@ -369,30 +392,41 @@ export async function POST(
   }
 }
 
-// Check and apply auto-extension if bid is within the extension window
+type ExtensionResult = {
+  item_id: string
+  new_end_time: string
+  extension_count: number
+} | null
+
+// Check and apply auto-extension if bid is within the extension window.
+// Returns extension info if an extension was applied, null otherwise.
 async function checkAutoExtension(
   trx: Knex.Transaction,
   block: any,
   item: any,
   now: Date
-) {
+): Promise<ExtensionResult> {
   // Default auto_extend to true if not explicitly set to false
-  if (block.auto_extend === false || !item.lot_end_time) return
+  if (block.auto_extend === false || !item.lot_end_time) return null
 
   const extensionMs = (block.extension_minutes || 3) * 60 * 1000
   const maxExtensions = block.max_extensions ?? 10
   const currentExtensions = item.extension_count || 0
 
-  if (currentExtensions >= maxExtensions) return
+  if (currentExtensions >= maxExtensions) return null
 
   const endTime = new Date(item.lot_end_time)
   const timeUntilEnd = endTime.getTime() - now.getTime()
 
   if (timeUntilEnd > 0 && timeUntilEnd < extensionMs) {
     const newEndTime = new Date(endTime.getTime() + extensionMs)
+    const newExtensionCount = currentExtensions + 1
     await trx("block_item")
       .where("id", item.id)
-      .update({ lot_end_time: newEndTime, extension_count: currentExtensions + 1, updated_at: now })
-    console.log(`[anti-snipe] Lot #${item.lot_number} extended to ${newEndTime.toISOString()} (extension ${currentExtensions + 1}/${maxExtensions})`)
+      .update({ lot_end_time: newEndTime, extension_count: newExtensionCount, updated_at: now })
+    console.log(`[anti-snipe] Lot #${item.lot_number} extended to ${newEndTime.toISOString()} (extension ${newExtensionCount}/${maxExtensions})`)
+    return { item_id: item.id, new_end_time: newEndTime.toISOString(), extension_count: newExtensionCount }
   }
+
+  return null
 }

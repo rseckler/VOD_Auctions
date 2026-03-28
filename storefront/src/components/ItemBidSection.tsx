@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Clock, Gavel, AlertTriangle, Check, Info } from "lucide-react"
 import { toast } from "sonner"
@@ -48,6 +48,7 @@ type ItemBidSectionProps = {
   itemStatus: string
   blockStartTime?: string | null
   extensionCount?: number
+  suggestedBid?: number
 }
 
 export function ItemBidSection({
@@ -61,17 +62,31 @@ export function ItemBidSection({
   itemStatus,
   blockStartTime,
   extensionCount = 0,
+  suggestedBid,
 }: ItemBidSectionProps) {
   const { isAuthenticated, customer } = useAuth()
   const [authModalOpen, setAuthModalOpen] = useState(false)
   const [currentPrice, setCurrentPrice] = useState(initialPrice || startPrice)
   const [bidCount, setBidCount] = useState(initialBidCount)
   const [lotEndTime, setLotEndTime] = useState(initialLotEndTime)
+  const [currentExtensionCount, setCurrentExtensionCount] = useState(extensionCount)
   const [bids, setBids] = useState<BidRecord[]>([])
   const [bidsLoaded, setBidsLoaded] = useState(false)
   const [newBidPulse, setNewBidPulse] = useState(false)
 
   const isActive = blockStatus === "active" && itemStatus === "active"
+  const [timeLeft, setTimeLeft] = useState<number | null>(null)
+
+  // Track time left for urgency banner
+  useEffect(() => {
+    if (!lotEndTime) return
+    function updateTimeLeft() {
+      setTimeLeft(new Date(lotEndTime!).getTime() - Date.now())
+    }
+    updateTimeLeft()
+    const id = setInterval(updateTimeLeft, 1000)
+    return () => clearInterval(id)
+  }, [lotEndTime])
 
   const loadBids = useCallback(async () => {
     try {
@@ -151,9 +166,32 @@ export function ItemBidSection({
       )
       .subscribe()
 
+    // Broadcast channel: receives lot_extended events from the backend after anti-snipe kicks in
+    const lotChannel = supabase
+      .channel(`lot-${itemId}`)
+      .on("broadcast", { event: "lot_extended" }, (payload) => {
+        const { new_end_time, extension_count } = payload.payload as {
+          item_id: string
+          new_end_time: string
+          extension_count: number
+        }
+        setLotEndTime(new_end_time)
+        setCurrentExtensionCount(extension_count)
+        toast("Time extended — auction still live", {
+          duration: 5000,
+          style: {
+            background: "rgba(212, 165, 74, 0.15)",
+            border: "1px solid rgba(212, 165, 74, 0.4)",
+            color: "#d4a54a",
+          },
+        })
+      })
+      .subscribe()
+
     return () => {
       supabase.removeChannel(bidChannel)
       supabase.removeChannel(itemChannel)
+      supabase.removeChannel(lotChannel)
     }
   }, [itemId, isActive])
 
@@ -206,17 +244,30 @@ export function ItemBidSection({
         {lotEndTime && (
           <div className="mt-3 mb-3">
             <CountdownTimer endTime={lotEndTime} />
-            {extensionCount > 0 && (
+            {currentExtensionCount > 0 && (
               <p className="text-xs text-muted-foreground/70 mt-1 flex items-center gap-1">
                 <Clock className="h-3 w-3" />
-                ⏱ Extended {extensionCount}×
+                Extended {currentExtensionCount}&times;
               </p>
             )}
           </div>
         )}
 
+        {/* Urgency banner for lots ending soon */}
+        {isActive && timeLeft !== null && timeLeft > 0 && timeLeft < 5 * 60 * 1000 && (
+          <div className={`mb-3 rounded-lg px-4 py-2 text-sm font-medium text-center animate-pulse ${
+            timeLeft < 60 * 1000
+              ? "bg-red-500/20 border border-red-500/50 text-red-400"
+              : "bg-red-500/10 border border-red-500/30 text-red-400"
+          }`}>
+            {timeLeft < 60 * 1000
+              ? "Final seconds — bid now!"
+              : "Ending Soon — less than 5 minutes left"}
+          </div>
+        )}
+
         {/* Bid Form */}
-        {isActive ? (
+        {isActive && (timeLeft === null || timeLeft > 0) ? (
           <BidForm
             slug={slug}
             itemId={itemId}
@@ -226,9 +277,10 @@ export function ItemBidSection({
             isAuthenticated={isAuthenticated}
             onAuthRequired={() => setAuthModalOpen(true)}
             onBidPlaced={loadBids}
-            extensionCount={extensionCount}
+            extensionCount={currentExtensionCount}
+            suggestedBid={suggestedBid}
           />
-        ) : blockStatus === "ended" ? (
+        ) : blockStatus === "ended" || (isActive && timeLeft !== null && timeLeft <= 0) ? (
           <div className="mt-3 py-4 px-4 rounded-lg bg-secondary text-center border border-primary/20">
             <p className="text-sm text-muted-foreground">Auction ended</p>
             {bidCount > 0 && (
@@ -277,6 +329,7 @@ function BidForm({
   onAuthRequired,
   onBidPlaced,
   extensionCount,
+  suggestedBid,
 }: {
   slug: string
   itemId: string
@@ -287,6 +340,7 @@ function BidForm({
   onAuthRequired: () => void
   onBidPlaced: () => void
   extensionCount?: number
+  suggestedBid?: number
 }) {
   const basePrice = bidCount === 0 ? startPrice : currentPrice
   const minIncrement = getMinIncrement(basePrice)
@@ -298,9 +352,17 @@ function BidForm({
   const [loading, setLoading] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
 
+  // Track whether the URL-suggested bid has been applied once
+  const suggestedBidUsed = useRef(false)
+
   useEffect(() => {
-    setAmount(minimumBid.toFixed(2))
-  }, [minimumBid])
+    if (suggestedBid && !suggestedBidUsed.current && suggestedBid >= minimumBid) {
+      setAmount(suggestedBid.toFixed(2))
+      suggestedBidUsed.current = true
+    } else if (!suggestedBidUsed.current) {
+      setAmount(minimumBid.toFixed(2))
+    }
+  }, [minimumBid, suggestedBid])
 
   function handleSubmitClick(e: React.FormEvent) {
     e.preventDefault()
@@ -439,9 +501,9 @@ function BidForm({
           size="lg"
         >
           {loading
-            ? "Submitting…"
+            ? "Submitting\u2026"
             : isAuthenticated
-              ? `Bid: €${parseFloat(amount || "0").toFixed(2)}`
+              ? `Bid: \u20ac${parseFloat(amount || "0").toFixed(2)}`
               : "Login to Bid"}
         </Button>
       </form>
@@ -531,7 +593,10 @@ function CountdownTimer({ endTime }: { endTime: string }) {
       const minutes = Math.floor((diff % 3600000) / 60000)
       const seconds = Math.floor((diff % 60000) / 1000)
 
-      if (days > 0) {
+      if (diff < 60000) {
+        // <1 min: show only seconds prominently
+        setRemaining(`${seconds}s`)
+      } else if (days > 0) {
         setRemaining(`${days}d ${hours}h ${minutes}m ${seconds}s`)
       } else if (hours > 0) {
         setRemaining(`${hours}h ${minutes}m ${seconds}s`)
@@ -545,20 +610,32 @@ function CountdownTimer({ endTime }: { endTime: string }) {
     return () => clearInterval(interval)
   }, [endTime])
 
-  const isUrgent =
-    remaining !== "Ended" &&
-    new Date(endTime).getTime() - Date.now() < 300000
+  const diff = new Date(endTime).getTime() - Date.now()
+  const isUrgent = remaining !== "Ended" && diff < 300000
+  const isCritical = remaining !== "Ended" && diff < 60000
 
   return (
-    <div className={`flex items-center justify-between px-4 py-3 rounded-lg ${isUrgent ? "bg-destructive/10 border border-destructive/30" : "bg-[rgba(232,224,212,0.05)] border border-[rgba(232,224,212,0.12)]"}`}>
-      <span className={`text-sm font-medium flex items-center gap-1.5 ${isUrgent ? "text-destructive" : "text-muted-foreground"}`}>
+    <div className={`flex items-center justify-between px-4 py-3 rounded-lg ${
+      isCritical
+        ? "bg-red-500/20 border border-red-500/50"
+        : isUrgent
+        ? "bg-destructive/10 border border-destructive/30"
+        : "bg-[rgba(232,224,212,0.05)] border border-[rgba(232,224,212,0.12)]"
+    }`}>
+      <span className={`text-sm font-medium flex items-center gap-1.5 ${
+        isCritical || isUrgent ? "text-red-400" : "text-muted-foreground"
+      }`}>
         <Clock className="h-4 w-4" />
         Ends in
       </span>
       <div className="text-right">
         <span
-          className={`text-2xl font-mono font-bold tracking-tight ${
-            isUrgent ? "text-destructive animate-pulse" : "text-foreground"
+          className={`font-mono font-bold tracking-tight ${
+            isCritical
+              ? "text-4xl text-red-400 animate-pulse"
+              : isUrgent
+              ? "text-2xl text-red-400 animate-pulse"
+              : "text-2xl text-foreground"
           }`}
         >
           {remaining}

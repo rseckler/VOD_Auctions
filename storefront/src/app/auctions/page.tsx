@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { AuctionListFilter } from "@/components/AuctionListFilter"
+import { LiveAuctionBanner } from "@/components/LiveAuctionBanner"
 import { medusaFetch } from "@/lib/api"
 import type { AuctionBlock } from "@/types"
 
@@ -26,13 +27,15 @@ export default async function AuctionsPage() {
   const blocks = await getAllBlocks()
 
   return (
-    <main className="mx-auto max-w-6xl px-6 py-12">
-      <h1 className="text-3xl font-bold tracking-tight mb-2">Auctions</h1>
-      <p className="text-muted-foreground mb-8">
-        All running and scheduled auction blocks.
-      </p>
-
-      <AuctionListFilter blocks={blocks} />
-    </main>
+    <>
+      <LiveAuctionBanner />
+      <main className="mx-auto max-w-6xl px-6 py-12">
+        <h1 className="text-3xl font-bold tracking-tight mb-2">Auctions</h1>
+        <p className="text-muted-foreground mb-8">
+          All running and scheduled auction blocks.
+        </p>
+        <AuctionListFilter blocks={blocks} />
+      </main>
+    </>
   )
 }
