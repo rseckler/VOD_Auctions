@@ -603,7 +603,7 @@ const BlockDetailPage = () => {
 
           {!isNew && block.slug && (
             <a
-              href={`http://localhost:3000/auctions/${block.slug}`}
+              href={`https://vod-auctions.com/auctions/${block.slug}`}
               target="_blank"
               rel="noopener noreferrer"
             >

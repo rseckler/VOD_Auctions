@@ -42,11 +42,9 @@ export async function GET(
     if (uniqueUserIds.length > 0) {
       const customers = await pgConnection("customer")
         .whereIn("id", uniqueUserIds as string[])
-        .select("id", "email", "first_name")
+        .select("id", "email", "first_name", "last_name")
       customers.forEach((c: any) => {
-        userHints[c.id] = c.first_name
-          ? `${c.first_name.charAt(0).toUpperCase()}***`
-          : c.email.split("@")[0].substring(0, 3) + "***"
+        userHints[c.id] = [c.first_name, c.last_name].filter(Boolean).join(" ") || c.email
       })
     }
 

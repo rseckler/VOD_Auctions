@@ -117,14 +117,55 @@ export async function POST(
   res.json({ auction_block: block })
 }
 
-// DELETE /admin/auction-blocks/:id — Delete block
+// DELETE /admin/auction-blocks/:id — Delete block (only draft, ended, archived)
 export async function DELETE(
   req: MedusaRequest,
   res: MedusaResponse
 ): Promise<void> {
   const auctionService: AuctionModuleService = req.scope.resolve(AUCTION_MODULE)
+  const pgConnection: Knex = req.scope.resolve(
+    ContainerRegistrationKeys.PG_CONNECTION
+  )
 
+  const DELETABLE_STATUSES = ["draft", "ended", "archived"]
+
+  // Load block to check status
+  let block: any
+  try {
+    block = await auctionService.retrieveAuctionBlock(req.params.id, {
+      relations: ["items"],
+    })
+  } catch {
+    res.status(404).json({ message: "Auction block not found" })
+    return
+  }
+
+  if (!DELETABLE_STATUSES.includes(block.status)) {
+    res.status(409).json({
+      message: `Cannot delete active auction`,
+    })
+    return
+  }
+
+  // 1. Release all associated releases back to 'available'
+  const itemRows = await pgConnection("block_item")
+    .select("release_id")
+    .where("auction_block_id", req.params.id)
+
+  const releaseIds = itemRows.map((r: any) => r.release_id).filter(Boolean)
+  if (releaseIds.length > 0) {
+    await pgConnection("Release")
+      .whereIn("id", releaseIds)
+      .update({ auction_status: "available" })
+  }
+
+  // 2. Delete all block_item rows for this block
+  await pgConnection("block_item")
+    .where("auction_block_id", req.params.id)
+    .delete()
+
+  // 3. Delete the auction_block row
   await auctionService.deleteAuctionBlocks(req.params.id)
 
-  res.status(200).json({ id: req.params.id, deleted: true })
+  res.status(200).json({ success: true })
 }

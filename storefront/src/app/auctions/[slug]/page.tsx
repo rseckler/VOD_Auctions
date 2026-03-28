@@ -26,8 +26,34 @@ function timeRemaining(endStr: string): string {
   if (diff <= 0) return "Ended"
   const days = Math.floor(diff / 86400000)
   const hours = Math.floor((diff % 86400000) / 3600000)
-  if (days > 0) return `${days}d ${hours}h`
-  return `${hours}h`
+  const minutes = Math.floor((diff % 3600000) / 60000)
+  const seconds = Math.floor((diff % 60000) / 1000)
+  if (days > 0) return `${days}d ${hours}h ${minutes}m ${seconds}s`
+  return `${hours}h ${minutes}m ${seconds}s`
+}
+
+function formatBlockTime(dateStr: string): string {
+  const date = new Date(dateStr)
+  const day = date.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    timeZone: "Europe/Berlin",
+  })
+  const time = date.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Berlin",
+  })
+  // Determine CET vs CEST by reading the timezone name from Intl
+  const berlinFormatter = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Berlin",
+    timeZoneName: "short",
+  })
+  const parts = berlinFormatter.formatToParts(date)
+  const tzAbbr = parts.find((p) => p.type === "timeZoneName")?.value || "CET"
+  // Normalize: browsers may return "GMT+1" or "GMT+2"; convert to CET/CEST
+  const tzLabel = tzAbbr.startsWith("GMT+2") ? "CEST" : tzAbbr.startsWith("GMT+1") ? "CET" : tzAbbr
+  return `${day} at ${time} ${tzLabel}`
 }
 
 async function getBlock(slug: string): Promise<AuctionBlock | null> {
@@ -81,8 +107,6 @@ export default async function BlockDetailPage({
 
   const statusConfig = STATUS_CONFIG[block.status] || STATUS_CONFIG.ended
   const items = block.items || []
-  const startDate = new Date(block.start_time)
-  const endDate = new Date(block.end_time)
 
   const priceRange = items.length > 0
     ? {
@@ -136,12 +160,20 @@ export default async function BlockDetailPage({
               <div className="font-serif text-2xl">{items.length}</div>
             </div>
             <div>
-              <div className="text-[11px] uppercase tracking-[1px] text-muted-foreground/60 font-medium mb-1">Period</div>
-              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <Calendar className="h-3.5 w-3.5" />
-                {startDate.toLocaleDateString("en-US", { day: "numeric", month: "short" })}
-                {" – "}
-                {endDate.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })}
+              <div className="text-[11px] uppercase tracking-[1px] text-muted-foreground/60 font-medium mb-1">Schedule</div>
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                  <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
+                  <span className="text-muted-foreground/70">Starts:</span>
+                  <span>{formatBlockTime(block.start_time)}</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-base font-medium text-primary">
+                  <Clock className="h-4 w-4 flex-shrink-0" />
+                  <span className="text-muted-foreground/70 text-sm font-normal">Ends:</span>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-primary/40 bg-primary/10 text-primary text-sm font-semibold">
+                    {formatBlockTime(block.end_time)}
+                  </span>
+                </div>
               </div>
             </div>
             {priceRange && (

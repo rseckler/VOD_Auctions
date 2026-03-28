@@ -555,7 +555,7 @@ function CountdownTimer({ endTime }: { endTime: string }) {
       const seconds = Math.floor((diff % 60000) / 1000)
 
       if (days > 0) {
-        setRemaining(`${days}T ${hours}h ${minutes}m`)
+        setRemaining(`${days}d ${hours}h ${minutes}m ${seconds}s`)
       } else if (hours > 0) {
         setRemaining(`${hours}h ${minutes}m ${seconds}s`)
       } else {

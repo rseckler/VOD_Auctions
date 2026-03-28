@@ -13,7 +13,7 @@ This file provides guidance to Claude Code when working with the VOD Auctions pr
 **Sprache:** Storefront und Admin-UI komplett auf Englisch (seit 2026-03-03)
 
 **Created:** 2026-02-10
-**Last Updated:** 2026-03-23
+**Last Updated:** 2026-03-28
 
 ### UX/UI Overhaul — 37 CRITICAL+HIGH Findings (2026-03-15, IN PROGRESS)
 
@@ -147,6 +147,29 @@ H (Backend APIs)     → Keine Dependencies, startet sofort
   - Footer: "Kleinunternehmer nach § 19 UStG"
 - **Frontend Proxy:** `storefront/src/app/api/invoice/[groupId]/route.ts` (Auth-Proxy)
 - **Frontend:** "Download Invoice" Button auf Orders-Seite
+
+### Letzte Änderungen (2026-03-28)
+- **Admin UX Improvements — Auction Blocks:**
+  - **Bids Log Sektion:** Neuer "Bids Log" Bereich auf der Block-Detail-Seite — zeigt alle Gebote chronologisch (Zeit, Lot#, Cover, Titel, Betrag, Proxy-Betrag, Bieter-Name, Winning/Outbid Status)
+  - **Backend API:** `GET /admin/auction-blocks/:id/bids-log?limit=300&offset=0` — Neue Route, liefert alle Gebote eines Blocks mit Release- und Kunden-Informationen
+  - **Vollständige Bieter-Namen:** `live-bids` + `bids-log` APIs zeigen jetzt vollen Namen ("Robin Seckler") statt anonymisierten Hints
+  - **Auktion löschen:** Delete-Button auf der Auction Blocks Übersichtsseite für Blocks mit Status `draft`, `ended`, `archived`. Confirmation-Dialog. Releases werden zurück auf `available` gesetzt.
+  - **Backend DELETE:** `DELETE /admin/auction-blocks/:id` — Status-Validierung (409 bei active/scheduled/preview), Release-Freigabe, Block-Items-Cleanup, Block-Delete
+  - **Storefront-Link Fix:** "Storefront" Button auf Block-Detail-Seite verlinkt jetzt auf `https://vod-auctions.com` statt `localhost:3000`
+  - **Medusa Nav Cleanup:** Ungenutzte Medusa-Nav-Items (Orders, Products, Inventory, Customers, Promotions, Price Lists) per CSS-Injection ausgeblendet
+- **Storefront — Bid Badge Verbesserungen (BlockItemsGrid):**
+  - **Highest Bid (Winning):** Grünes Badge "HIGHEST BID" mit `animate-pulse`, `ring-2 ring-green-400/50`, grüne Card-Border (`border-green-500/40`)
+  - **Your Bid (Outbid):** Goldenes Badge "YOUR BID" mit `ring-2 ring-primary/50 shadow-lg`, prominentere Darstellung
+  - **Zwei States:** Separate `userWinningItemIds` Set zusätzlich zu `userBidItemIds`
+- **Storefront — Zeit-Anzeige auf Auktions-Block-Detail-Seite (`/auctions/[slug]`):**
+  - **Countdown H:M:S:** Zeigt jetzt immer Stunden + Minuten + Sekunden (`14h 23m 45s`), nie nur `14h`
+  - **Start + End Zeit:** Neue "Schedule" Anzeige mit Starts/Ends (z.B. "28 Mar at 09:00 CET → 29 Mar at 11:00 CET")
+  - **End-Zeit prominent:** Gold-Pill-Badge mit Clock-Icon, `text-primary font-semibold`
+  - **CET/CEST:** Auto-Erkennung via `Intl.DateTimeFormat` (Europe/Berlin timezone)
+- **ItemBidSection Countdown:** H:M:S Format überall (`${days}d ${hours}h ${minutes}m ${seconds}s`)
+- **Konzept-Review Dokument:** `docs/AUCTION_WORKFLOW_KONZEPT_REVIEW_2026.md` — Vergleich VOD Auctions vs eBay/Catawiki/Paddle8 (Workflow, Proxy-Bidding, Payment, Shipping, SEO, Trust & Legal)
+- **Geänderte Dateien:** `backend/src/admin/routes/auction-blocks/page.tsx`, `backend/src/admin/routes/auction-blocks/[id]/page.tsx`, `backend/src/api/admin/auction-blocks/[id]/route.ts`, `backend/src/api/admin/auction-blocks/[id]/bids-log/route.ts` (NEW), `backend/src/api/admin/auction-blocks/[id]/live-bids/route.ts`, `storefront/src/components/BlockItemsGrid.tsx`, `storefront/src/app/auctions/[slug]/page.tsx`, `storefront/src/components/ItemBidSection.tsx`
+- **VPS:** Deployment ausstehend
 
 ### Letzte Änderungen (2026-03-23)
 - **Entity Content Overhaul — P2 pausiert, Budget-Dashboard:**

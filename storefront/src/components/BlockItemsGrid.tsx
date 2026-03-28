@@ -49,6 +49,7 @@ export function BlockItemsGrid({
   const [sort, setSort] = useState<SortOption>("lot")
   const [search, setSearch] = useState("")
   const [userBidItemIds, setUserBidItemIds] = useState<Set<string>>(new Set())
+  const [userWinningItemIds, setUserWinningItemIds] = useState<Set<string>>(new Set())
 
   // Fetch user's bids to show indicator on cards
   useEffect(() => {
@@ -63,8 +64,16 @@ export function BlockItemsGrid({
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
         if (!data?.bids) return
-        const ids = new Set<string>(data.bids.map((b: any) => b.item?.id).filter(Boolean))
-        setUserBidItemIds(ids)
+        const bidIds = new Set<string>()
+        const winningIds = new Set<string>()
+        data.bids.forEach((b: any) => {
+          if (b.item?.id) {
+            bidIds.add(b.item.id)
+            if (b.is_winning) winningIds.add(b.item.id)
+          }
+        })
+        setUserBidItemIds(bidIds)
+        setUserWinningItemIds(winningIds)
       })
       .catch(() => {})
   }, [])
@@ -171,7 +180,9 @@ export function BlockItemsGrid({
               <motion.div key={item.id} variants={staggerItem}>
                 <Link href={`/auctions/${blockSlug}/${item.id}`}>
                   <div className={`group overflow-hidden rounded-xl bg-[rgba(232,224,212,0.03)] border transition-all duration-300 hover:-translate-y-0.5 ${
-                    userBidItemIds.has(item.id)
+                    userWinningItemIds.has(item.id)
+                      ? "border-green-500/40 hover:border-green-500/60"
+                      : userBidItemIds.has(item.id)
                       ? "border-primary/40 hover:border-primary/60"
                       : "border-[rgba(232,224,212,0.06)] hover:border-[rgba(212,165,74,0.3)]"
                   }`}>
@@ -202,13 +213,18 @@ export function BlockItemsGrid({
                           {item.release.format}
                         </span>
                       )}
-                      {/* Your bid indicator */}
-                      {userBidItemIds.has(item.id) && (
-                        <span className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded bg-[rgba(212,165,74,0.9)] backdrop-blur-sm text-[10px] font-semibold text-[#1c1915] uppercase tracking-wide">
+                      {/* Bid status indicator */}
+                      {userWinningItemIds.has(item.id) ? (
+                        <span className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded bg-[rgba(34,197,94,0.9)] backdrop-blur-sm text-xs font-semibold text-[#1c1915] uppercase tracking-wide shadow-lg shadow-green-500/20 ring-2 ring-green-400/50 animate-pulse">
                           <Gavel className="h-2.5 w-2.5" />
-                          Your bid
+                          Highest Bid
                         </span>
-                      )}
+                      ) : userBidItemIds.has(item.id) ? (
+                        <span className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded bg-[rgba(212,165,74,0.9)] backdrop-blur-sm text-xs font-semibold text-[#1c1915] uppercase tracking-wide shadow-lg shadow-primary/20 ring-2 ring-primary/50">
+                          <Gavel className="h-2.5 w-2.5" />
+                          Your Bid
+                        </span>
+                      ) : null}
                     </div>
 
                     {/* Info */}

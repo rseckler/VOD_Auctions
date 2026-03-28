@@ -50,7 +50,17 @@ function ActiveCountdown({ endTime }: { endTime: string }) {
   return <span className="font-mono text-green-400 text-sm font-semibold">{remaining}</span>
 }
 
-function BlocksTable({ rows, isLive = false }: { rows: AuctionBlock[]; isLive?: boolean }) {
+const DELETABLE_STATUSES = ["draft", "ended", "archived"]
+
+function BlocksTable({
+  rows,
+  isLive = false,
+  onDelete,
+}: {
+  rows: AuctionBlock[]
+  isLive?: boolean
+  onDelete: (block: AuctionBlock) => void
+}) {
   return (
     <Table>
       <Table.Header>
@@ -112,11 +122,22 @@ function BlocksTable({ rows, isLive = false }: { rows: AuctionBlock[]; isLive?: 
             </Table.Cell>
             <Table.Cell>{block.items?.length || 0}</Table.Cell>
             <Table.Cell>
-              <a href={`/app/auction-blocks/${block.id}`}>
-                <Button variant="secondary" size="small">
-                  {block.status === "active" ? "Manage" : "Edit"}
-                </Button>
-              </a>
+              <div className="flex items-center gap-2">
+                <a href={`/app/auction-blocks/${block.id}`}>
+                  <Button variant="secondary" size="small">
+                    {block.status === "active" ? "Manage" : "Edit"}
+                  </Button>
+                </a>
+                {DELETABLE_STATUSES.includes(block.status) && (
+                  <Button
+                    variant="danger"
+                    size="small"
+                    onClick={() => onDelete(block)}
+                  >
+                    Delete
+                  </Button>
+                )}
+              </div>
             </Table.Cell>
           </Table.Row>
         ))}
@@ -187,6 +208,28 @@ const AuctionBlocksPage = () => {
     }
   }, [blocks])
 
+  const handleDelete = async (block: AuctionBlock) => {
+    const confirmed = window.confirm(
+      `Delete auction "${block.title}"? This cannot be undone.`
+    )
+    if (!confirmed) return
+
+    try {
+      const res = await fetch(`/admin/auction-blocks/${block.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        alert("Cannot delete this auction: " + (data.message || res.statusText))
+        return
+      }
+      setBlocks((prev) => prev.filter((b) => b.id !== block.id))
+    } catch (err) {
+      alert("Cannot delete this auction: Network error")
+    }
+  }
+
   const live = blocks.filter((b) => b.status === "active")
   const upcoming = blocks.filter((b) => ["scheduled", "preview"].includes(b.status))
   const other = blocks.filter((b) => ["ended", "draft", "archived"].includes(b.status))
@@ -227,7 +270,7 @@ const AuctionBlocksPage = () => {
                 </Text>
               </div>
               <div className="rounded-lg border-2 border-green-500/30 overflow-hidden">
-                <BlocksTable rows={live} isLive={true} />
+                <BlocksTable rows={live} isLive={true} onDelete={handleDelete} />
               </div>
             </div>
           )}
@@ -241,7 +284,7 @@ const AuctionBlocksPage = () => {
                 </Text>
               </div>
               <div className="rounded-lg border border-ui-border-base overflow-hidden">
-                <BlocksTable rows={upcoming} />
+                <BlocksTable rows={upcoming} onDelete={handleDelete} />
               </div>
             </div>
           )}
@@ -255,7 +298,7 @@ const AuctionBlocksPage = () => {
                 </Text>
               </div>
               <div className="rounded-lg border border-ui-border-base overflow-hidden opacity-70">
-                <BlocksTable rows={other} />
+                <BlocksTable rows={other} onDelete={handleDelete} />
               </div>
             </div>
           )}
