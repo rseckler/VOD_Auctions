@@ -114,6 +114,42 @@ const SORT_OPTIONS = [
   { value: "year_asc", label: "Year ↑" },
 ]
 
+function useLiveCountdown(endTime: string | null) {
+  const [remaining, setRemaining] = useState("")
+  useEffect(() => {
+    if (!endTime) return
+    const tick = () => {
+      const diff = new Date(endTime).getTime() - Date.now()
+      if (diff <= 0) { setRemaining("Ended"); return }
+      const h = Math.floor(diff / 3600000)
+      const m = Math.floor((diff % 3600000) / 60000)
+      const s = Math.floor((diff % 60000) / 1000)
+      if (h > 0) setRemaining(`${h}h ${m}m ${s}s`)
+      else if (m > 0) setRemaining(`${m}m ${s}s`)
+      else setRemaining(`${s}s`)
+    }
+    tick()
+    const timer = setInterval(tick, 1000)
+    return () => clearInterval(timer)
+  }, [endTime])
+  return remaining
+}
+
+function LiveItemCountdown({ endTime }: { endTime: string }) {
+  const remaining = useLiveCountdown(endTime)
+  const diff = new Date(endTime).getTime() - Date.now()
+  const isUrgent = diff > 0 && diff < 5 * 60 * 1000
+  return (
+    <span className={`font-mono text-xs font-semibold ${
+      remaining === "Ended" ? "text-red-400" :
+      isUrgent ? "text-red-400 animate-pulse" :
+      "text-ui-fg-subtle"
+    }`}>
+      {remaining}
+    </span>
+  )
+}
+
 const BlockDetailPage = () => {
   const { id } = useParams()
   const isNew = id === "create"
@@ -140,6 +176,33 @@ const BlockDetailPage = () => {
   const [sendingNewsletter, setSendingNewsletter] = useState(false)
   const [message, setMessage] = useState("")
   const [messageType, setMessageType] = useState<"success" | "error">("success")
+
+  // Live bids panel (active auctions)
+  const [liveBids, setLiveBids] = useState<any[]>([])
+  const liveBidsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const fetchLiveBids = useCallback(async () => {
+    if (!id || isNew) return
+    try {
+      const res = await fetch(`/admin/auction-blocks/${id}/live-bids`, { credentials: "include" })
+      const data = await res.json()
+      setLiveBids(data.items || [])
+    } catch (err) {
+      console.error("Failed to fetch live bids:", err)
+    }
+  }, [id, isNew])
+
+  useEffect(() => {
+    if (block.status === "active") {
+      fetchLiveBids()
+      liveBidsIntervalRef.current = setInterval(fetchLiveBids, 10000)
+    } else {
+      if (liveBidsIntervalRef.current) clearInterval(liveBidsIntervalRef.current)
+    }
+    return () => {
+      if (liveBidsIntervalRef.current) clearInterval(liveBidsIntervalRef.current)
+    }
+  }, [block.status, fetchLiveBids])
 
   // Release search & browser
   const [searchQuery, setSearchQuery] = useState("")
@@ -543,6 +606,89 @@ const BlockDetailPage = () => {
         >
           <Text>{message}</Text>
         </div>
+      )}
+
+      {/* Live Bids Panel — only when active */}
+      {!isNew && block.status === "active" && (
+        <Container className="mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <Heading level="h2">Live Bids</Heading>
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                <span className="text-green-400 text-xs font-medium">LIVE · auto-refresh 10s</span>
+              </span>
+            </div>
+            <button
+              onClick={fetchLiveBids}
+              className="text-xs text-ui-fg-subtle hover:text-ui-fg-base underline"
+            >
+              Refresh now
+            </button>
+          </div>
+
+          {liveBids.length === 0 ? (
+            <Text className="text-ui-fg-subtle">No bids yet.</Text>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-ui-border-base text-ui-fg-subtle text-xs uppercase tracking-wide">
+                    <th className="text-left pb-2 pr-4">Lot</th>
+                    <th className="text-left pb-2 pr-4">Item</th>
+                    <th className="text-right pb-2 pr-4">Start</th>
+                    <th className="text-right pb-2 pr-4">Current</th>
+                    <th className="text-center pb-2 pr-4">Bids</th>
+                    <th className="text-left pb-2 pr-4">Leader</th>
+                    <th className="text-right pb-2">Ends in</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {liveBids.map((item: any) => {
+                    const endTime = item.lot_end_time
+                    return (
+                      <tr key={item.id} className="border-b border-ui-border-base/50 hover:bg-ui-bg-subtle/50">
+                        <td className="py-2 pr-4 text-ui-fg-subtle">#{item.lot_number || "—"}</td>
+                        <td className="py-2 pr-4 max-w-[180px]">
+                          <span className="truncate block text-ui-fg-base">{item.release_title || item.id}</span>
+                        </td>
+                        <td className="py-2 pr-4 text-right text-ui-fg-subtle">€{Number(item.start_price).toFixed(2)}</td>
+                        <td className="py-2 pr-4 text-right">
+                          <span className={item.bid_count > 0 ? "text-green-400 font-semibold" : "text-ui-fg-subtle"}>
+                            €{Number(item.current_price || item.start_price).toFixed(2)}
+                          </span>
+                        </td>
+                        <td className="py-2 pr-4 text-center">
+                          {item.bid_count > 0 ? (
+                            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-green-500/20 text-green-400 text-xs font-bold">
+                              {item.bid_count}
+                            </span>
+                          ) : (
+                            <span className="text-ui-fg-subtle">—</span>
+                          )}
+                        </td>
+                        <td className="py-2 pr-4">
+                          {item.winning_bid ? (
+                            <span className="text-ui-fg-base">{item.winning_bid.user_hint}</span>
+                          ) : (
+                            <span className="text-ui-fg-subtle text-xs">No bids</span>
+                          )}
+                        </td>
+                        <td className="py-2 text-right">
+                          {endTime ? (
+                            <LiveItemCountdown endTime={endTime} />
+                          ) : (
+                            <span className="text-ui-fg-subtle text-xs">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Container>
       )}
 
       {/* Ended block summary */}

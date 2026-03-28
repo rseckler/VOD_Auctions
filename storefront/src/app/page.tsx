@@ -60,7 +60,7 @@ export default async function Home() {
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(212,165,74,0.08)_0%,transparent_60%)]" />
         <div className="relative mx-auto max-w-6xl px-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center pt-20 pb-10 md:pt-28 md:pb-14">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center pt-10 pb-10 md:pt-14 md:pb-14">
             {/* Left: Text */}
             <div>
               {activeCount > 0 && (

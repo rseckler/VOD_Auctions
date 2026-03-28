@@ -48,12 +48,33 @@ export async function GET(
     .orderBy("created_at", "desc")
     .limit(50)
 
+  // Fetch customer names for anonymized display
+  const uniqueUserIds = [...new Set(bids.map((b: any) => b.user_id).filter(Boolean))]
+  const customerMap: Record<string, string> = {}
+  if (uniqueUserIds.length > 0) {
+    const customers = await pgConnection("customer")
+      .whereIn("id", uniqueUserIds as string[])
+      .select("id", "first_name", "last_name", "email")
+    customers.forEach((c: any) => {
+      if (c.first_name) {
+        // "Robin" → "R***"
+        customerMap[c.id] = c.first_name.charAt(0).toUpperCase() + "***"
+      } else if (c.email) {
+        // "robin@example.com" → "rob***"
+        customerMap[c.id] = c.email.substring(0, 3) + "***"
+      } else {
+        customerMap[c.id] = "Bid***"
+      }
+    })
+  }
+
   // Anonymize for public view
   const anonymized = bids.map((bid: any) => ({
     id: bid.id,
     amount: parseFloat(bid.amount),
     is_winning: bid.is_winning,
-    user_hint: bid.user_id.substring(0, 8) + "…",
+    user_hint: customerMap[bid.user_id] || "Bid***",
+    user_id: bid.user_id,
     created_at: bid.created_at,
   }))
 

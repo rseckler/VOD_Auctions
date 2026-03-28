@@ -1,7 +1,7 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { ChatBubbleLeftRight } from "@medusajs/icons"
 import { Container, Heading, Table, Badge, Button, Text } from "@medusajs/ui"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 
 type AuctionBlock = {
   id: string
@@ -25,9 +25,35 @@ const STATUS_COLORS: Record<string, "green" | "orange" | "blue" | "grey" | "red"
   archived: "purple",
 }
 
+function useCountdown(endTime: string | null) {
+  const [remaining, setRemaining] = useState("")
+  useEffect(() => {
+    if (!endTime) return
+    const tick = () => {
+      const diff = new Date(endTime).getTime() - Date.now()
+      if (diff <= 0) { setRemaining("Ended"); return }
+      const h = Math.floor(diff / 3600000)
+      const m = Math.floor((diff % 3600000) / 60000)
+      const s = Math.floor((diff % 60000) / 1000)
+      if (h > 0) setRemaining(`${h}h ${m}m`)
+      else setRemaining(`${m}m ${s}s`)
+    }
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [endTime])
+  return remaining
+}
+
+function ActiveCountdown({ endTime }: { endTime: string }) {
+  const remaining = useCountdown(endTime)
+  return <span className="font-mono text-green-400 text-sm font-semibold">{remaining}</span>
+}
+
 const AuctionBlocksPage = () => {
   const [blocks, setBlocks] = useState<AuctionBlock[]>([])
   const [loading, setLoading] = useState(true)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const fetchBlocks = async () => {
     try {
@@ -45,6 +71,20 @@ const AuctionBlocksPage = () => {
     fetchBlocks()
   }, [])
 
+  // Auto-refresh every 30s if any active blocks
+  useEffect(() => {
+    const hasActive = blocks.some((b) => b.status === "active")
+    if (hasActive && !intervalRef.current) {
+      intervalRef.current = setInterval(fetchBlocks, 30000)
+    } else if (!hasActive && intervalRef.current) {
+      clearInterval(intervalRef.current)
+      intervalRef.current = null
+    }
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current)
+    }
+  }, [blocks])
+
   return (
     <Container>
       <div className="flex items-center justify-between mb-6">
@@ -55,7 +95,7 @@ const AuctionBlocksPage = () => {
           </Text>
         </div>
         <a href="/app/auction-blocks/create">
-          <Button>Create New Block</Button>
+          <Button>Create New Auction</Button>
         </a>
       </div>
 
@@ -67,7 +107,7 @@ const AuctionBlocksPage = () => {
             No auction blocks created yet.
           </Text>
           <a href="/app/auction-blocks/create">
-            <Button className="mt-4">Create First Block</Button>
+            <Button className="mt-4">Create New Auction</Button>
           </a>
         </Container>
       ) : (
@@ -100,15 +140,27 @@ const AuctionBlocksPage = () => {
                   <Badge>{block.block_type}</Badge>
                 </Table.Cell>
                 <Table.Cell>
-                  <Badge color={STATUS_COLORS[block.status] || "grey"}>
-                    {block.status}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge color={STATUS_COLORS[block.status] || "grey"}>
+                      {block.status}
+                    </Badge>
+                    {block.status === "active" && (
+                      <span className="flex items-center gap-1">
+                        <span className="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                        <span className="text-green-400 text-xs font-medium">LIVE</span>
+                      </span>
+                    )}
+                  </div>
                 </Table.Cell>
                 <Table.Cell>
                   {new Date(block.start_time).toLocaleDateString("en-GB")}
                 </Table.Cell>
                 <Table.Cell>
-                  {new Date(block.end_time).toLocaleDateString("en-GB")}
+                  {block.status === "active" ? (
+                    <ActiveCountdown endTime={block.end_time} />
+                  ) : (
+                    new Date(block.end_time).toLocaleDateString("en-GB")
+                  )}
                 </Table.Cell>
                 <Table.Cell>{block.items?.length || 0}</Table.Cell>
                 <Table.Cell>

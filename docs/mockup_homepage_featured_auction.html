@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Homepage Auction — Featured Block Mockup</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #111009;
+    color: #e8e0d4;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    padding: 40px 20px;
+  }
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&display=swap');
+
+  .max-w { max-width: 900px; margin: 0 auto; }
+
+  /* Label above section */
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+  .section-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 28px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .pulse-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #d4a54a;
+    display: inline-block;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: .6; transform: scale(1.3); }
+  }
+  .view-all { color: #d4a54a; font-size: 14px; text-decoration: none; }
+
+  /* Featured Card */
+  .featured-card {
+    border-radius: 16px;
+    border: 1px solid rgba(212,165,74,0.2);
+    background: #1a1612;
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color .3s;
+  }
+  .featured-card:hover { border-color: rgba(212,165,74,0.4); }
+
+  /* Image strip */
+  .image-strip {
+    position: relative;
+    height: 320px;
+    display: flex;
+    gap: 2px;
+    overflow: hidden;
+  }
+  .image-slot {
+    flex: 1;
+    background: #2a2420;
+    position: relative;
+    overflow: hidden;
+  }
+  .image-slot img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform .7s;
+  }
+  .featured-card:hover .image-slot img { transform: scale(1.04); }
+
+  /* Gradient overlay */
+  .image-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, #1a1612 0%, rgba(26,22,18,0.15) 50%, transparent 100%);
+    pointer-events: none;
+  }
+
+  /* Badges on image */
+  .badge-live {
+    position: absolute;
+    top: 16px; left: 16px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    backdrop-filter: blur(8px);
+    border: 1px solid;
+  }
+  .badge-live.scheduled {
+    background: rgba(212,165,74,0.15);
+    border-color: rgba(212,165,74,0.3);
+    color: #d4a54a;
+  }
+  .badge-live.active {
+    background: rgba(74,222,128,0.15);
+    border-color: rgba(74,222,128,0.3);
+    color: #4ade80;
+  }
+  .badge-live.active .live-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #4ade80;
+    animation: pulse 1.5s infinite;
+  }
+  .badge-lots {
+    position: absolute;
+    top: 16px; right: 16px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    background: rgba(0,0,0,0.55);
+    border: 1px solid rgba(255,255,255,0.1);
+    backdrop-filter: blur(8px);
+    color: rgba(232,224,212,0.85);
+  }
+  .calendar-icon { font-size: 11px; }
+
+  /* Card body */
+  .card-body { padding: 24px 28px 28px; }
+  .eyebrow {
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #d4a54a;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .card-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 28px;
+    line-height: 1.25;
+    margin-bottom: 6px;
+    color: #e8e0d4;
+    transition: color .2s;
+  }
+  .featured-card:hover .card-title { color: #d4a54a; }
+  .card-subtitle {
+    font-size: 15px;
+    color: rgba(232,224,212,0.65);
+    margin-bottom: 8px;
+  }
+  .card-desc {
+    font-size: 13px;
+    color: rgba(232,224,212,0.4);
+    margin-bottom: 24px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* Footer row */
+  .card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 16px;
+    border-top: 1px solid rgba(212,165,74,0.1);
+  }
+  .meta-row {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    font-size: 13px;
+    color: rgba(232,224,212,0.5);
+  }
+  .meta-row .clock-icon { font-size: 13px; margin-right: 4px; }
+  .from-price { color: #d4a54a; font-weight: 600; font-size: 14px; }
+  .cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #d4a54a;
+    font-size: 14px;
+    font-weight: 500;
+    transition: gap .2s;
+  }
+  .featured-card:hover .cta { gap: 10px; }
+
+  /* Divider */
+  .divider { height: 48px; }
+
+  /* Variant labels */
+  .variant-label {
+    text-align: center;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: rgba(232,224,212,0.25);
+    margin-bottom: 32px;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(232,224,212,0.08);
+  }
+
+  /* Placeholder images using CSS gradients */
+  .img-1 { background: linear-gradient(135deg, #2d1f1a 0%, #3d2a20 40%, #1a1410 100%); }
+  .img-2 { background: linear-gradient(135deg, #1a1a2e 0%, #2a1a30 50%, #120c18 100%); }
+  .img-3 { background: linear-gradient(135deg, #1a2a1a 0%, #162016 60%, #0c140c 100%); }
+
+  /* Fake album art */
+  .img-1::after { content: "♪"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 64px; opacity: .12; }
+  .img-2::after { content: "◈"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 64px; opacity: .1; }
+  .img-3::after { content: "▲"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 64px; opacity: .08; }
+
+  /* Real images if available */
+  .real-img-strip .image-slot { background: #1a1612; }
+</style>
+</head>
+<body>
+
+<div class="max-w">
+
+  <!-- VARIANT A: Scheduled (Coming Soon) -->
+  <div class="variant-label">▶ VARIANT A — "Coming Soon" / Scheduled</div>
+
+  <div class="section-header">
+    <h2 class="section-title">Coming Soon</h2>
+    <a href="#" class="view-all">View all →</a>
+  </div>
+
+  <div class="featured-card">
+    <div class="image-strip">
+      <div class="image-slot img-1"></div>
+      <div class="image-slot img-2"></div>
+      <div class="image-slot img-3"></div>
+      <div class="image-overlay"></div>
+
+      <!-- Scheduled badge with start time -->
+      <div class="badge-live scheduled">
+        <span class="calendar-icon">📅</span>
+        Sat, 28 Mar · 18:39 CET
+      </div>
+      <div class="badge-lots">5 Lots</div>
+    </div>
+
+    <div class="card-body">
+      <div class="eyebrow">Theme Block</div>
+      <h3 class="card-title">Industrial Britain — The Threshold Years 1981–1992</h3>
+      <p class="card-subtitle">Five Vinyl Records from the Edge of Post-Punk</p>
+      <p class="card-desc">Come Organisation, Some Bizzare, Rough Trade — five records from the defining decade of British underground music. Red vinyl, Test Pressings, early Death in June.</p>
+
+      <div class="card-footer">
+        <div class="meta-row">
+          <span><span class="clock-icon">🕐</span> Until Mar 29 · 11:00 CET</span>
+          <span class="from-price">From €1</span>
+        </div>
+        <span class="cta">Preview Lots →</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- VARIANT B: Active / Live -->
+  <div class="variant-label">▶ VARIANT B — Active / Live Now</div>
+
+  <div class="section-header">
+    <h2 class="section-title">
+      <span class="pulse-dot" style="background:#4ade80"></span>
+      Active Auctions
+    </h2>
+    <a href="#" class="view-all">View all →</a>
+  </div>
+
+  <div class="featured-card">
+    <div class="image-strip">
+      <div class="image-slot img-2"></div>
+      <div class="image-slot img-1"></div>
+      <div class="image-slot img-3"></div>
+      <div class="image-overlay"></div>
+
+      <!-- Live badge -->
+      <div class="badge-live active">
+        <span class="live-dot"></span>
+        Live Now
+      </div>
+      <div class="badge-lots">5 Lots</div>
+    </div>
+
+    <div class="card-body">
+      <div class="eyebrow">Theme Block</div>
+      <h3 class="card-title">Industrial Britain — The Threshold Years 1981–1992</h3>
+      <p class="card-subtitle">Five Vinyl Records from the Edge of Post-Punk</p>
+      <p class="card-desc">Come Organisation, Some Bizzare, Rough Trade — five records from the defining decade of British underground music. Red vinyl, Test Pressings, early Death in June.</p>
+
+      <div class="card-footer">
+        <div class="meta-row">
+          <span style="color: #4ade80;"><span class="clock-icon">⏱</span> Ends Mar 29 · 11:00 CET</span>
+          <span class="from-price">From €1</span>
+        </div>
+        <span class="cta" style="color:#4ade80">Place a Bid →</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

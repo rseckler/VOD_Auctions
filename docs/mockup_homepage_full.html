@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VOD Auctions — Homepage Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --primary: #d4a54a;
+  --primary-dim: rgba(212,165,74,0.15);
+  --bg: #111009;
+  --surface: #1a1612;
+  --surface2: #211d18;
+  --border: rgba(232,224,212,0.08);
+  --border-gold: rgba(212,165,74,0.2);
+  --text: #e8e0d4;
+  --text-muted: rgba(232,224,212,0.5);
+  --text-faint: rgba(232,224,212,0.25);
+  --green: #4ade80;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+a { color: inherit; text-decoration: none; }
+
+/* ── HEADER ────────────────────────────── */
+header {
+  position: sticky; top: 0; z-index: 50;
+  background: rgba(17,16,9,0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+.header-inner {
+  max-width: 1152px; margin: 0 auto;
+  padding: 0 24px;
+  display: flex; align-items: center; justify-content: space-between;
+  height: 60px;
+}
+.logo { display: flex; align-items: center; gap: 10px; }
+.logo-disc {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: conic-gradient(from 0deg, var(--primary) 0%, #8b6914 40%, var(--primary) 100%);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+}
+.logo-name { font-family: 'DM Serif Display', serif; font-size: 18px; }
+nav { display: flex; align-items: center; gap: 28px; font-size: 14px; color: var(--text-muted); }
+nav a.active { color: var(--text); font-weight: 500; }
+nav a:hover { color: var(--text); }
+.header-icons { display: flex; align-items: center; gap: 16px; }
+.icon-btn {
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-muted); font-size: 17px; cursor: pointer;
+  position: relative;
+}
+.icon-btn:hover { color: var(--text); }
+.cart-badge {
+  position: absolute; top: -2px; right: -2px;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: var(--primary); color: #111;
+  font-size: 9px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.avatar {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: var(--primary-dim);
+  border: 1.5px solid var(--border-gold);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 600; color: var(--primary);
+}
+
+/* ── HERO ───────────────────────────────── */
+.hero {
+  position: relative;
+  max-width: 1152px; margin: 0 auto;
+  padding: 72px 24px 40px;
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 48px; align-items: center;
+}
+.hero::before {
+  content: '';
+  position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 700px; height: 400px;
+  background: radial-gradient(ellipse at top, rgba(212,165,74,0.07) 0%, transparent 65%);
+  pointer-events: none;
+}
+.live-pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 14px; border-radius: 999px;
+  background: rgba(212,165,74,0.08);
+  border: 1px solid rgba(212,165,74,0.2);
+  color: var(--primary); font-size: 13px; font-weight: 500;
+  margin-bottom: 22px;
+}
+.pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: pulse 1.8s infinite; }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.35)} }
+
+h1 {
+  font-family: 'DM Serif Display', serif;
+  font-size: 56px; line-height: 1.08;
+  margin-bottom: 18px;
+}
+h1 .gold { color: var(--primary); }
+.hero-sub { color: var(--text-muted); font-size: 17px; max-width: 420px; margin-bottom: 32px; line-height: 1.7; }
+.btn-row { display: flex; gap: 12px; flex-wrap: wrap; }
+.btn {
+  padding: 12px 24px; border-radius: 8px;
+  font-size: 15px; font-weight: 500; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.btn-primary {
+  background: linear-gradient(135deg, var(--primary), #b8860b);
+  color: #111; border: none;
+}
+.btn-ghost {
+  background: transparent;
+  border: 1px solid rgba(232,224,212,0.12);
+  color: var(--text-muted);
+}
+
+/* Vinyl graphic */
+.vinyl-wrap { display: flex; justify-content: center; position: relative; }
+.vinyl-graphic { position: relative; width: 300px; height: 300px; }
+.album-cover {
+  position: absolute; top: 24px; left: 0;
+  width: 264px; height: 264px;
+  border-radius: 4px;
+  background: linear-gradient(135deg, #3a3028, #2a221a);
+  border: 1px solid rgba(232,224,212,0.06);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 60px; color: rgba(232,224,212,0.05);
+  box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+}
+.vinyl-disc {
+  position: absolute; top: 16px; left: 64px;
+  width: 264px; height: 264px;
+  border-radius: 50%;
+  background: repeating-radial-gradient(circle at 50%, #1c1915 0%, #2a2520 4%, #1c1915 8%);
+  border: 1px solid rgba(232,224,212,0.04);
+  animation: spin 22s linear infinite;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.7);
+}
+.vinyl-label {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 96px; height: 96px; border-radius: 50%;
+  background: radial-gradient(circle, var(--primary) 0%, #8b6914 100%);
+}
+.vinyl-hole {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 12px; height: 12px; border-radius: 50%;
+  background: #1c1915;
+}
+@keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+
+/* ── LIVE TICKER ───────────────────────── */
+.ticker {
+  background: rgba(212,165,74,0.05);
+  border-top: 1px solid rgba(212,165,74,0.1);
+  border-bottom: 1px solid rgba(212,165,74,0.1);
+  padding: 10px 24px;
+}
+.ticker-inner {
+  max-width: 1152px; margin: 0 auto;
+  display: flex; align-items: center; gap: 10px;
+  font-size: 13px; color: rgba(212,165,74,0.8);
+}
+.red-dot { width: 8px; height: 8px; border-radius: 50%; background: #ef4444; animation: pulse 1.5s infinite; flex-shrink:0; }
+
+/* ── SECTION ───────────────────────────── */
+section { max-width: 1152px; margin: 0 auto; padding: 56px 24px; }
+.section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 28px;
+}
+.section-title {
+  font-family: 'DM Serif Display', serif;
+  font-size: 26px;
+  display: flex; align-items: center; gap: 12px;
+}
+.view-all { color: var(--primary); font-size: 13px; }
+
+/* ── FEATURED AUCTION CARD ─────────────── */
+.featured-card {
+  border-radius: 18px;
+  border: 1px solid var(--border-gold);
+  background: var(--surface);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color .25s, box-shadow .25s;
+}
+.featured-card:hover {
+  border-color: rgba(212,165,74,0.45);
+  box-shadow: 0 0 50px rgba(212,165,74,0.07);
+}
+
+/* Image strip — 3 panels */
+.img-strip {
+  position: relative;
+  height: 340px;
+  display: flex; gap: 2px;
+}
+.img-panel { flex: 1; position: relative; overflow: hidden; }
+.img-panel-bg {
+  width: 100%; height: 100%;
+  background-size: cover; background-position: center;
+  transition: transform .7s;
+}
+.featured-card:hover .img-panel-bg { transform: scale(1.04); }
+
+/* Use real gallery images as placeholders */
+.panel-1 { background-image: url('https://vod-auctions.com/gallery/gallery-12.jpg'); }
+.panel-2 { background-image: url('https://vod-auctions.com/gallery/gallery-06.jpg'); }
+.panel-3 { background-image: url('https://vod-auctions.com/gallery/gallery-11.jpg'); }
+
+/* Fallback gradients */
+.p-dark1 { background: linear-gradient(160deg, #2d1a1a 0%, #1a0f0f 100%); }
+.p-dark2 { background: linear-gradient(160deg, #1a1a2e 0%, #0f0f1a 100%); }
+.p-dark3 { background: linear-gradient(160deg, #1a2a1a 0%, #0f150f 100%); }
+
+.img-overlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(to top, var(--surface) 0%, rgba(26,22,18,.12) 45%, transparent 100%);
+}
+
+.badge-scheduled {
+  position: absolute; top: 16px; left: 16px;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 13px; border-radius: 999px;
+  font-size: 12px; font-weight: 600;
+  background: rgba(212,165,74,0.14);
+  border: 1px solid rgba(212,165,74,0.3);
+  color: var(--primary);
+  backdrop-filter: blur(8px);
+}
+.badge-live-now {
+  position: absolute; top: 16px; left: 16px;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 13px; border-radius: 999px;
+  font-size: 12px; font-weight: 600;
+  background: rgba(74,222,128,0.13);
+  border: 1px solid rgba(74,222,128,0.3);
+  color: var(--green);
+  backdrop-filter: blur(8px);
+}
+.badge-lots {
+  position: absolute; top: 16px; right: 16px;
+  padding: 6px 13px; border-radius: 999px;
+  font-size: 12px; font-weight: 600;
+  background: rgba(0,0,0,0.55);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(232,224,212,0.85);
+  backdrop-filter: blur(8px);
+}
+
+/* Card body */
+.card-body { padding: 26px 30px 30px; }
+.eyebrow { font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: var(--primary); font-weight: 600; margin-bottom: 9px; }
+.card-title {
+  font-family: 'DM Serif Display', serif;
+  font-size: 30px; line-height: 1.2; margin-bottom: 7px;
+  transition: color .2s;
+}
+.featured-card:hover .card-title { color: var(--primary); }
+.card-sub { font-size: 15px; color: var(--text-muted); margin-bottom: 6px; }
+.card-desc { font-size: 13px; color: rgba(232,224,212,0.38); margin-bottom: 22px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.card-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-top: 18px;
+  border-top: 1px solid rgba(212,165,74,0.1);
+}
+.meta-row { display: flex; align-items: center; gap: 20px; font-size: 13px; color: var(--text-muted); }
+.from-price { color: var(--primary); font-weight: 600; font-size: 14px; }
+.cta-link {
+  display: inline-flex; align-items: center; gap: 6px;
+  color: var(--primary); font-size: 14px; font-weight: 500;
+  transition: gap .2s;
+}
+.featured-card:hover .cta-link { gap: 10px; }
+.cta-green { color: var(--green); }
+
+/* ── GALLERY TEASER ─────────────────────── */
+.gallery-teaser {
+  position: relative; border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.gallery-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; height: 280px; }
+.gallery-panel { background: var(--surface2); position: relative; }
+.g1 { background: linear-gradient(135deg, #2a1f1a 0%, #1a1210 100%); }
+.g2 { background: linear-gradient(135deg, #151520 0%, #0d0d18 100%); }
+.g3 { background: linear-gradient(135deg, #121a12 0%, #0b130b 100%); }
+.gallery-text-overlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(to top, #111009 0%, rgba(17,16,9,.75) 50%, rgba(17,16,9,.25) 100%);
+  display: flex; align-items: flex-end;
+  padding: 36px 40px;
+}
+.gallery-label { font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: var(--primary); font-weight: 600; margin-bottom: 8px; }
+.gallery-title { font-family: 'DM Serif Display', serif; font-size: 26px; margin-bottom: 8px; }
+.gallery-desc { font-size: 13px; color: var(--text-muted); max-width: 440px; margin-bottom: 20px; }
+.btn-outline {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 20px; border-radius: 7px;
+  border: 1px solid rgba(212,165,74,0.35);
+  color: var(--primary); font-size: 13px; font-weight: 500;
+}
+
+/* ── CATALOG TEASER ─────────────────────── */
+.catalog-box {
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: rgba(232,224,212,0.02);
+  padding: 64px 40px;
+  text-align: center;
+}
+.catalog-icon { font-size: 44px; margin-bottom: 16px; color: rgba(212,165,74,0.3); }
+.catalog-title { font-family: 'DM Serif Display', serif; font-size: 26px; margin-bottom: 10px; }
+.catalog-desc { color: var(--text-muted); max-width: 420px; margin: 0 auto 24px; font-size: 14px; }
+.btn-outline-sm {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 10px 24px; border-radius: 7px;
+  border: 1px solid rgba(212,165,74,0.3);
+  color: var(--primary); font-size: 14px; font-weight: 500;
+}
+
+/* ── FOOTER ─────────────────────────────── */
+footer {
+  border-top: 1px solid var(--border);
+  margin-top: 24px;
+}
+.footer-inner {
+  max-width: 1152px; margin: 0 auto;
+  padding: 48px 24px;
+  display: flex; justify-content: space-between; gap: 40px;
+  flex-wrap: wrap;
+}
+.footer-brand { max-width: 260px; }
+.footer-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.footer-logo-disc {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: rgba(212,165,74,0.15);
+  border: 1px solid var(--border-gold);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px;
+}
+.footer-logo-name { font-family: 'DM Serif Display', serif; font-size: 15px; }
+.footer-tagline { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; }
+.newsletter-row { display: flex; gap: 8px; }
+.nl-input {
+  flex: 1; min-width: 0;
+  padding: 7px 12px; border-radius: 6px;
+  background: rgba(232,224,212,0.05);
+  border: 1px solid rgba(232,224,212,0.1);
+  color: var(--text); font-size: 13px; font-family: inherit;
+}
+.nl-btn {
+  padding: 7px 14px; border-radius: 6px;
+  background: var(--primary); color: #111;
+  font-size: 13px; font-weight: 500; border: none; cursor: pointer; white-space: nowrap;
+}
+.footer-nav { display: flex; gap: 48px; font-size: 13px; }
+.footer-col { display: flex; flex-direction: column; gap: 8px; }
+.footer-col-title { color: var(--text); font-weight: 500; margin-bottom: 2px; }
+.footer-col a { color: var(--text-muted); }
+.footer-bottom {
+  max-width: 1152px; margin: 0 auto;
+  padding: 16px 24px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-top: 1px solid var(--border);
+  font-size: 12px; color: var(--text-faint);
+}
+.payment-badges { display: flex; gap: 8px; }
+.payment-badge {
+  padding: 3px 10px; border-radius: 5px;
+  border: 1px solid rgba(232,224,212,0.1);
+  font-size: 11px; color: var(--text-muted);
+}
+.social-row { display: flex; gap: 12px; margin-top: 14px; }
+.social-link {
+  width: 30px; height: 30px; border-radius: 50%;
+  border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; color: var(--text-muted);
+}
+
+/* ── UTILS ──────────────────────────────── */
+.g-separator { height: 1px; background: var(--border); max-width: 1152px; margin: 0 auto; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="header-inner">
+    <div class="logo">
+      <div class="logo-disc">◎</div>
+      <span class="logo-name">VOD Auctions</span>
+    </div>
+    <nav>
+      <a href="#" class="active">Auctions</a>
+      <a href="#">Catalog</a>
+      <a href="#">Gallery</a>
+      <a href="#">About</a>
+    </nav>
+    <div class="header-icons">
+      <div class="icon-btn">🔍</div>
+      <div class="icon-btn">♡</div>
+      <div class="icon-btn" style="position:relative">
+        🛒
+        <div class="cart-badge">1</div>
+      </div>
+      <div class="avatar">RS</div>
+    </div>
+  </div>
+</header>
+
+<!-- HERO -->
+<div style="max-width:1152px; margin:0 auto; padding: 72px 24px 36px; display:grid; grid-template-columns:1fr 1fr; gap:48px; align-items:center; position:relative;">
+  <div style="position:absolute; top:0; left:50%; transform:translateX(-50%); width:700px; height:380px; background:radial-gradient(ellipse at top, rgba(212,165,74,0.07), transparent 65%); pointer-events:none;"></div>
+  <div>
+    <div class="live-pill">
+      <span class="pulse"></span>
+      1 Live Auction
+    </div>
+    <h1>
+      Rare Records.<br>
+      <span class="gold">True Collectors.</span>
+    </h1>
+    <p class="hero-sub">
+      Curated vinyl auctions &amp; fair-priced sales-items for music &amp; art-connoisseurs with passion for 20th century DIY &amp; Independent Art &amp; Underground Culture.
+    </p>
+    <div class="btn-row">
+      <a class="btn btn-primary" href="#">Current Auctions</a>
+      <a class="btn btn-ghost" href="#">Browse Catalog</a>
+    </div>
+  </div>
+  <div class="vinyl-wrap">
+    <div class="vinyl-graphic">
+      <div class="album-cover">♪</div>
+      <div class="vinyl-disc">
+        <div class="vinyl-label"></div>
+        <div class="vinyl-hole"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LIVE TICKER -->
+<div class="ticker">
+  <div class="ticker-inner">
+    <div class="red-dot"></div>
+    Industrial Britain — The Threshold Years 1981–1992 — 5 Lots
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- OPTION A — COMING SOON (scheduled, not started) -->
+<!-- ═══════════════════════════════════════════════════ -->
+<section style="padding-top:56px; padding-bottom:0;">
+  <div style="text-align:center; font-size:11px; letter-spacing:2px; text-transform:uppercase; color:rgba(212,165,74,0.35); margin-bottom:32px; padding-bottom:12px; border-bottom:1px solid rgba(232,224,212,0.06);">
+    ▶ OPTION A — Coming Soon (Scheduled Block)
+  </div>
+
+  <div class="section-header">
+    <h2 class="section-title">Coming Soon</h2>
+    <a href="#" class="view-all">View all →</a>
+  </div>
+
+  <div class="featured-card">
+    <div class="img-strip">
+      <div class="img-panel">
+        <div class="img-panel-bg p-dark1" style="height:100%; background-image: linear-gradient(160deg,#3d1a1a,#1a0a0a); display:flex; align-items:center; justify-content:center; font-size:72px; color:rgba(255,255,255,0.04);">
+          <!-- Simulated album cover 1 -->
+          <div style="width:80%; height:80%; background: linear-gradient(135deg, #2d1515 0%,#1a0c0c 100%); border:1px solid rgba(255,255,255,0.05); display:flex; align-items:center; justify-content:center; font-size:11px; letter-spacing:2px; color:rgba(255,255,255,0.12); text-transform:uppercase;">Factrix</div>
+        </div>
+      </div>
+      <div class="img-panel">
+        <div class="img-panel-bg p-dark2" style="height:100%; display:flex; align-items:center; justify-content:center;">
+          <div style="width:80%; height:80%; background: linear-gradient(135deg, #151528 0%,#0a0a1a 100%); border:1px solid rgba(255,255,255,0.05); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; letter-spacing:2px; color:rgba(255,255,255,0.12); text-transform:uppercase;">Psychic TV</div>
+        </div>
+      </div>
+      <div class="img-panel">
+        <div class="img-panel-bg p-dark3" style="height:100%; display:flex; align-items:center; justify-content:center;">
+          <div style="width:75%; height:75%; background: radial-gradient(circle, #8b1010 0%, #2a0000 70%); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; letter-spacing:1px; color:rgba(255,200,200,0.5); text-align:center; padding:12px;">FÜR ILSE KOCH</div>
+        </div>
+      </div>
+      <div class="img-overlay"></div>
+      <div class="badge-scheduled">📅 Sat, 28 Mar · 18:39 CET</div>
+      <div class="badge-lots">5 Lots</div>
+    </div>
+
+    <div class="card-body">
+      <div class="eyebrow">Theme Block</div>
+      <h3 class="card-title">Industrial Britain — The Threshold Years 1981–1992</h3>
+      <p class="card-sub">Five Vinyl Records from the Edge of Post-Punk</p>
+      <p class="card-desc">Come Organisation, Some Bizzare, Rough Trade — five records from the defining decade of British underground music. Red vinyl, Test Pressings, early Death in June.</p>
+      <div class="card-footer">
+        <div class="meta-row">
+          <span>🕐 Until Mar 29 · 11:00 CET</span>
+          <span class="from-price">From €1</span>
+        </div>
+        <span class="cta-link">Preview Lots →</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div style="height:72px;"></div>
+<div class="g-separator"></div>
+<div style="height:72px;"></div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- OPTION B — LIVE NOW (active block, same position) -->
+<!-- ═══════════════════════════════════════════════════ -->
+<section style="padding-top:0; padding-bottom:0; max-width:1152px; margin:0 auto; padding-left:24px; padding-right:24px;">
+  <div style="text-align:center; font-size:11px; letter-spacing:2px; text-transform:uppercase; color:rgba(74,222,128,0.35); margin-bottom:32px; padding-bottom:12px; border-bottom:1px solid rgba(232,224,212,0.06);">
+    ▶ OPTION B — Same Block once it goes Live
+  </div>
+
+  <div class="section-header">
+    <h2 class="section-title">
+      <span class="pulse" style="background:var(--green);"></span>
+      Active Auctions
+    </h2>
+    <a href="#" class="view-all">View all →</a>
+  </div>
+
+  <div class="featured-card" style="border-color: rgba(74,222,128,0.2);">
+    <div class="img-strip">
+      <div class="img-panel">
+        <div class="img-panel-bg" style="height:100%; display:flex; align-items:center; justify-content:center; background:linear-gradient(160deg,#3d1a1a,#1a0a0a);">
+          <div style="width:80%; height:80%; background: linear-gradient(135deg, #2d1515,#1a0c0c); border:1px solid rgba(255,255,255,0.05); display:flex; align-items:center; justify-content:center; font-size:11px; letter-spacing:2px; color:rgba(255,255,255,0.12); text-transform:uppercase;">Factrix</div>
+        </div>
+      </div>
+      <div class="img-panel">
+        <div class="img-panel-bg" style="height:100%; display:flex; align-items:center; justify-content:center; background:linear-gradient(160deg,#151528,#0a0a1a);">
+          <div style="width:80%; height:80%; background: linear-gradient(135deg,#151528,#0a0a1a); border:1px solid rgba(255,255,255,0.05); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; letter-spacing:2px; color:rgba(255,255,255,0.12); text-transform:uppercase;">Psychic TV</div>
+        </div>
+      </div>
+      <div class="img-panel">
+        <div class="img-panel-bg" style="height:100%; display:flex; align-items:center; justify-content:center; background:linear-gradient(160deg,#121a12,#0b130b);">
+          <div style="width:75%; height:75%; background: radial-gradient(circle, #8b1010 0%, #2a0000 70%); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; letter-spacing:1px; color:rgba(255,200,200,0.5); text-align:center; padding:12px;">FÜR ILSE KOCH</div>
+        </div>
+      </div>
+      <div class="img-overlay"></div>
+      <div class="badge-live-now">
+        <span class="pulse" style="background:var(--green); width:7px; height:7px;"></span>
+        Live Now
+      </div>
+      <div class="badge-lots">5 Lots</div>
+    </div>
+
+    <div class="card-body">
+      <div class="eyebrow">Theme Block</div>
+      <h3 class="card-title">Industrial Britain — The Threshold Years 1981–1992</h3>
+      <p class="card-sub">Five Vinyl Records from the Edge of Post-Punk</p>
+      <p class="card-desc">Come Organisation, Some Bizzare, Rough Trade — five records from the defining decade of British underground music. Red vinyl, Test Pressings, early Death in June.</p>
+      <div class="card-footer">
+        <div class="meta-row">
+          <span style="color:var(--green);">⏱ Ends Mar 29 · 11:00 CET</span>
+          <span class="from-price">From €1</span>
+        </div>
+        <span class="cta-link cta-green">Place a Bid →</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div style="height:72px;"></div>
+
+<!-- GALLERY TEASER -->
+<section style="padding-top:0; padding-bottom: 0; max-width:1152px; margin:0 auto; padding-left:24px; padding-right:24px;">
+  <div class="gallery-teaser">
+    <div class="gallery-grid">
+      <div class="gallery-panel g1" style="display:flex; align-items:center; justify-content:center; font-size:48px; color:rgba(255,255,255,0.04);">🎭</div>
+      <div class="gallery-panel g2" style="display:flex; align-items:center; justify-content:center; font-size:48px; color:rgba(255,255,255,0.04);">📼</div>
+      <div class="gallery-panel g3" style="display:flex; align-items:center; justify-content:center; font-size:48px; color:rgba(255,255,255,0.04);">🎵</div>
+    </div>
+    <div class="gallery-text-overlay">
+      <div>
+        <div class="gallery-label">Friedrichshafen, Germany</div>
+        <h2 class="gallery-title">VOD Gallery</h2>
+        <p class="gallery-desc">Archive, listening room and meeting point — 41,500+ records, artefacts and rare collectibles in one room. Visit us at Lake Constance.</p>
+        <a href="#" class="btn-outline">Explore the Gallery →</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div style="height:48px;"></div>
+
+<!-- CATALOG TEASER -->
+<section style="padding-top:0; max-width:1152px; margin:0 auto; padding-left:24px; padding-right:24px; padding-bottom:56px;">
+  <div class="catalog-box">
+    <div class="catalog-icon">◎</div>
+    <h2 class="catalog-title">41,534 Releases in Catalog</h2>
+    <p class="catalog-desc">Browse our complete archive — Industrial, EBM, Dark Ambient, Noise, Experimental and more.</p>
+    <a href="#" class="btn-outline-sm">Browse Catalog →</a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <div class="footer-logo">
+        <div class="footer-logo-disc">◎</div>
+        <span class="footer-logo-name">VOD Auctions</span>
+      </div>
+      <p class="footer-tagline">Curated auctions for rare records from the Industrial, Experimental and Electronic Music genres.</p>
+      <div class="newsletter-row">
+        <input class="nl-input" type="email" placeholder="Your email">
+        <button class="nl-btn">Subscribe</button>
+      </div>
+      <div class="social-row">
+        <a href="#" class="social-link">ig</a>
+        <a href="#" class="social-link">fb</a>
+        <a href="#" class="social-link">dc</a>
+      </div>
+    </div>
+    <nav class="footer-nav">
+      <div class="footer-col">
+        <span class="footer-col-title">Navigation</span>
+        <a href="#">Current Auctions</a>
+        <a href="#">Catalog</a>
+        <a href="#">About VOD Records</a>
+        <a href="#">Contact</a>
+      </div>
+      <div class="footer-col">
+        <span class="footer-col-title">Gallery</span>
+        <a href="#">Visit the Gallery</a>
+        <a href="#">Opening Hours</a>
+      </div>
+      <div class="footer-col">
+        <span class="footer-col-title">Legal</span>
+        <a href="#">Legal Notice</a>
+        <a href="#">Terms &amp; Conditions</a>
+        <a href="#">Privacy Policy</a>
+        <a href="#">Right of Withdrawal</a>
+        <a href="#">Cookie Policy</a>
+        <a href="#">Cookie Settings</a>
+      </div>
+    </nav>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2026 VOD Auctions. All rights reserved.</span>
+    <div class="payment-badges">
+      <span class="payment-badge">Visa</span>
+      <span class="payment-badge">Mastercard</span>
+      <span class="payment-badge">PayPal</span>
+      <span class="payment-badge">Klarna</span>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
