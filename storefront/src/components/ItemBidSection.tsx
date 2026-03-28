@@ -35,6 +35,7 @@ type ItemBidSectionProps = {
   lotEndTime: string | null
   blockStatus: string
   itemStatus: string
+  blockStartTime?: string | null
 }
 
 export function ItemBidSection({
@@ -46,6 +47,7 @@ export function ItemBidSection({
   lotEndTime: initialLotEndTime,
   blockStatus,
   itemStatus,
+  blockStartTime,
 }: ItemBidSectionProps) {
   const { isAuthenticated, customer } = useAuth()
   const [authModalOpen, setAuthModalOpen] = useState(false)
@@ -216,10 +218,24 @@ export function ItemBidSection({
             )}
           </div>
         ) : (
-          <div className="mt-3">
+          <div className="mt-3 space-y-2">
             <Button disabled className="w-full" variant="secondary">
               Auction not started yet
             </Button>
+            {blockStartTime && (
+              <p className="text-center text-xs text-muted-foreground">
+                Starts{" "}
+                {new Date(blockStartTime).toLocaleString("en-GB", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  timeZone: "Europe/Berlin",
+                })}{" "}
+                CET
+              </p>
+            )}
           </div>
         )}
       </Card>

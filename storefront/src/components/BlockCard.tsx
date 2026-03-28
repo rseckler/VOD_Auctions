@@ -24,12 +24,19 @@ const TYPE_LABELS: Record<string, string> = {
   flash: "Flash",
 }
 
-function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("en-US", {
+function formatDate(dateStr: string, includeTime = false) {
+  const opts: Intl.DateTimeFormatOptions = {
     day: "numeric",
     month: "short",
     year: "numeric",
-  })
+    timeZone: "Europe/Berlin",
+  }
+  if (includeTime) {
+    opts.hour = "2-digit"
+    opts.minute = "2-digit"
+  }
+  const formatted = new Date(dateStr).toLocaleString("en-GB", opts)
+  return includeTime ? `${formatted} CET` : formatted
 }
 
 function timeRemaining(endStr: string): string {
@@ -97,7 +104,7 @@ export function BlockCardVertical({ block }: { block: AuctionBlock }) {
             <div className="flex items-center justify-between mt-4 pt-3 border-t border-[rgba(232,224,212,0.06)] text-xs text-muted-foreground">
               <span className="flex items-center gap-1">
                 <Calendar className="h-3 w-3" />
-                {formatDate(block.start_time)}
+                {formatDate(block.start_time, block.status === "scheduled")}
               </span>
               {block.status !== "ended" && (
                 <span className="text-primary font-medium">
@@ -159,7 +166,7 @@ export function BlockCardHorizontal({ block }: { block: AuctionBlock }) {
               <span>{block.items_count} Lots</span>
               <span className="flex items-center gap-1">
                 <Calendar className="h-3 w-3" />
-                {formatDate(block.start_time)} – {formatDate(block.end_time)}
+                {formatDate(block.start_time, block.status === "scheduled")} – {formatDate(block.end_time, block.status === "scheduled")}
               </span>
               {block.status === "active" && (
                 <span className="flex items-center gap-1 text-status-active">

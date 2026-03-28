@@ -223,6 +223,7 @@ export default async function ItemDetailPage({
               lotEndTime={item.lot_end_time || null}
               blockStatus={block.status}
               itemStatus={item.status}
+              blockStartTime={block.start_time || null}
             />
             <p className="text-xs text-muted-foreground mt-2">incl. VAT, plus <a href="/agb" className="underline">shipping</a> &middot; <a href="/widerruf" className="underline">14-day return policy</a></p>
           </div>
