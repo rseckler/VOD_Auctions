@@ -4,7 +4,7 @@
 **Goal:** Eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Phase 1 fertig — RSE-77 (Testlauf) als nächster Schritt
 **Language:** Storefront + Admin-UI: Englisch
-**Last Updated:** 2026-03-29
+**Last Updated:** 2026-03-28
 
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
@@ -74,6 +74,7 @@ npm run build && pm2 restart vodauction-storefront
 - **CamelCase vs snake_case:** Legacy-Tabellen (`Release`, `Artist`) → camelCase; Auction-Tabellen → snake_case
 - **SSL Supabase:** `rejectUnauthorized: false` in `medusa-config.ts` nötig
 - **Medusa/Vite Build:** IIFE `(() => {...})()` in JSX-Ternary → silent build failure → Blank Page. Separate Komponenten verwenden.
+- **pdfkit auf VPS:** Nach jedem Deploy `npm install` ausführen wenn neue Native-Dependencies dazu kommen. `pdfkit` fehlt → `Cannot find module` → PM2 restart-loop. Steht jetzt in `package.json`.
 - **Discogs Prices ausgeblendet:** `{/* HIDDEN: ... */}` Marker in 5 Storefront-Dateien. Wiederherstellen wenn echte Sale-Daten verfügbar.
 - **LEFT JOIN in Transaction APIs:** Direktkäufe haben kein `block_item_id` → immer LEFT JOIN, nie INNER JOIN
 - **COALESCE:** `COALESCE(block_item.release_id, transaction.release_id)` in Transaction-Queries
@@ -124,6 +125,7 @@ npm run build && pm2 restart vodauction-storefront
 - `POST /store/account/create-paypal-order` / `capture-paypal-order` — PayPal
 - `GET /store/account/cart` | `POST` | `DELETE /store/account/cart/:id` — Warenkorb
 - `GET /store/account/orders` — Order History (grouped by order_group_id)
+- `GET /store/account/orders/:groupId/invoice` — PDF-Rechnung (pdfkit)
 - `GET /store/account/status` — cart_count + saved_count
 
 ### Admin (credentials required)
@@ -192,6 +194,7 @@ STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
 PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, PAYPAL_MODE=live, PAYPAL_WEBHOOK_ID
 RESEND_API_KEY
 BREVO_API_KEY, BREVO_LIST_VOD_AUCTIONS=4, BREVO_LIST_TAPE_MAG=5
+SUPABASE_SERVICE_ROLE_KEY  # Für Anti-Sniping Realtime Broadcast (fehlt noch auf VPS!)
 REVALIDATE_SECRET, STOREFRONT_URL=https://vod-auctions.com
 
 # Storefront .env.local
@@ -300,18 +303,22 @@ VOD_Auctions/
 
 ## Recent Changes
 
-### 2026-03-29 — Auction Workflow Vollimplementierung (P1+P2+P3+K-Series)
+### 2026-03-28 — Hotfix: Backend-Crash
+- **pdfkit fehlte auf VPS** → `Cannot find module 'pdfkit'` → PM2 restart-loop. Fix: `npm install pdfkit` auf VPS + in `package.json` committed.
+
+### 2026-03-28 — Auction Workflow Vollimplementierung (P1+P2+P3+K-Series)
 - **Tiered Bid Increments:** €0.50→€25 Stufentabelle (Backend + Storefront "Min. bid" Anzeige)
-- **Anti-Sniping:** max_extensions (10), extension_count, Admin-UI; Realtime Broadcast via Supabase (benötigt SUPABASE_SERVICE_ROLE_KEY in backend/.env)
+- **Anti-Sniping:** max_extensions (10), extension_count, Admin-UI; Realtime Broadcast via Supabase (**SUPABASE_SERVICE_ROLE_KEY noch auf VPS eintragen!**)
 - **Payment Deadline:** 5-Tage-Frist, Tag 1+3 Reminder-Mails, Tag 5 Auto-Relist + Admin-Alert (Cron)
-- **Condition Grading:** Discogs-Standard Dropdowns (M/NM/VG+/VG/G+/G/F/P) Admin + ConditionBadge Storefront
+- **Condition Grading:** Discogs-Standard (M/NM/VG+/VG/G+/G/F/P) Admin + ConditionBadge Storefront
 - **Public Bid History:** BidHistoryTable (Bidder #N, 30s Poll, Framer Motion) auf Lot-Detail-Seite
 - **Watchlist Reminder:** Stündlicher Cron, 24h vor Lot-Ende → Email an Saver
 - **Reserve Price:** reserve_price auf block_item, Lifecycle-Check, Storefront-Anzeige (ohne Betrag)
 - **Admin Live Monitor:** `/admin/live-monitor` — 10s Auto-Refresh, Rot/Grün Lot-Cards
+- **Invoice PDF:** `GET /store/account/orders/:groupId/invoice` — pdfkit-generierte Rechnung
 - **Schema.org MusicAlbum:** JSON-LD auf Catalog-Detail-Seiten
 - **Post-Block Analytics:** `/admin/auction-blocks/:id/analytics` + Analytics-Tab (Conversion, Revenue, Top-Lots)
-- **Newsletter Sequenz:** T-7/T-24h/T+0/T-6h Block-Emails via Brevo Kampagnen-API (Subscriber-Liste ID 4)
+- **Newsletter Sequenz:** T-7/T-24h/T+0/T-6h Block-Emails via Brevo Kampagnen-API (List ID 4)
 - **Going/Going/Gone:** <5 Min rotes Pulsing-Banner + roter Countdown; <1h Amber
 - **"No Buyer's Premium" USP:** Badge auf Lot-Seite, Checkout, Footer
 - **Live Auction Banner:** `LiveAuctionBanner` Server-Component auf Homepage/Catalog/Auctions (ISR 60s)
@@ -321,18 +328,11 @@ VOD_Auctions/
 - **Preview Block Storefront:** Amber-Banner + Countdown für scheduled/preview Blocks, Save-Buttons statt Bid
 - **Bulk Price Editor:** Admin Panel (% vom Schätzwert / Fixed / Manuell), API `/items/bulk-price`
 - **Social Sharing:** ShareButton (Web Share API + Twitter/Facebook/WhatsApp/Copy) auf Block + Lot-Seiten
+- **Admin Bids Log:** `GET /admin/auction-blocks/:id/bids-log` — chronologisch, volle Bieter-Namen
+- **Auction Block löschen:** Delete-Button für draft/ended/archived. `DELETE /admin/auction-blocks/:id` (409 bei active/scheduled/preview)
+- **Bid Badges:** Highest Bid = grünes Badge + `animate-pulse`. Countdown überall H:M:S-Format.
+- **Medusa Nav Cleanup:** Ungenutzte Nav-Items per CSS-Injection ausgeblendet
 - **Migrations:** 20260328-20260330 (auto_extend, payment_reminders, watchlist_reminded_at, reserve_price, newsletter_*_sent_at, view_count)
-
-### 2026-03-28 (RSE-235)
-- **Admin Bids Log:** `GET /admin/auction-blocks/:id/bids-log` — chronologisch, volle Bieter-Namen, Cover, Betrag, Proxy, Winning/Outbid Status
-- **Auction Block löschen:** Delete-Button für draft/ended/archived. Confirmation-Dialog. Releases → available. `DELETE /admin/auction-blocks/:id` (409 bei active/scheduled/preview).
-- **Live-Bids + Bids-Log:** Zeigen jetzt volle Namen statt anonymisierte Hints
-- **Bid Badges (BlockItemsGrid):** Highest Bid = grünes Badge + `animate-pulse` + grüne Card-Border. Your Bid (Outbid) = goldenes Badge prominenter.
-- **Countdown H:M:S:** Überall `14h 23m 45s` Format. Block-Detail: Start+End Zeiten (CET/CEST auto-erkannt), End-Zeit als Gold-Pill-Badge.
-- **Storefront-Link Fix:** Block-Detail "Storefront" Button → `https://vod-auctions.com`
-- **Medusa Nav Cleanup:** Ungenutzte Nav-Items (Orders, Products, Inventory, etc.) per CSS-Injection ausgeblendet
-- **Konzept-Review:** `docs/architecture/AUCTION_WORKFLOW_KONZEPT_REVIEW_2026.md` — Vergleich vs eBay/Catawiki (P1-Gaps: Anti-Sniping, Bid Increments, Payment Deadline, Condition Standard)
-- **VPS:** Deployment ausstehend (lokale Änderungen noch nicht deployed)
 
 ### 2026-03-23
 - Entity Content P2 pausiert (576/3.650, Budget $96/$120). Admin Budget-Dashboard auf `/admin/entity-content` mit Budget-Zeitplan + Progress-Bars.
