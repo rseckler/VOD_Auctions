@@ -63,7 +63,7 @@ export function BlockItemsGrid({
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
         if (!data?.bids) return
-        const ids = new Set<string>(data.bids.map((b: any) => b.item_id).filter(Boolean))
+        const ids = new Set<string>(data.bids.map((b: any) => b.item?.id).filter(Boolean))
         setUserBidItemIds(ids)
       })
       .catch(() => {})

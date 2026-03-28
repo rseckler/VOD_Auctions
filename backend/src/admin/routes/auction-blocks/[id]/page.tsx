@@ -195,17 +195,39 @@ const BlockDetailPage = () => {
     }
   }, [id, isNew])
 
+  // Bids log (all bids, all statuses)
+  const [bidsLog, setBidsLog] = useState<any[]>([])
+  const [bidsLogTotal, setBidsLogTotal] = useState(0)
+
+  const fetchBidsLog = useCallback(async () => {
+    if (!id || isNew) return
+    try {
+      const res = await fetch(`/admin/auction-blocks/${id}/bids-log?limit=300`, { credentials: "include" })
+      const data = await res.json()
+      setBidsLog(data.bids || [])
+      setBidsLogTotal(data.total || 0)
+    } catch (err) {
+      console.error("Failed to fetch bids log:", err)
+    }
+  }, [id, isNew])
+
   useEffect(() => {
     if (block.status === "active") {
       fetchLiveBids()
-      liveBidsIntervalRef.current = setInterval(fetchLiveBids, 10000)
+      fetchBidsLog()
+      liveBidsIntervalRef.current = setInterval(() => {
+        fetchLiveBids()
+        fetchBidsLog()
+      }, 10000)
     } else {
       if (liveBidsIntervalRef.current) clearInterval(liveBidsIntervalRef.current)
+      // Fetch log once for non-active blocks (ended, draft etc.)
+      if (block.status) fetchBidsLog()
     }
     return () => {
       if (liveBidsIntervalRef.current) clearInterval(liveBidsIntervalRef.current)
     }
-  }, [block.status, fetchLiveBids])
+  }, [block.status, fetchLiveBids, fetchBidsLog])
 
   // Release search & browser
   const [searchQuery, setSearchQuery] = useState("")
@@ -1314,6 +1336,108 @@ const BlockDetailPage = () => {
               </div>
             )}
           </Container>
+
+          {/* Bids Log */}
+          {bidsLogTotal > 0 && (
+            <Container className="mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <Heading level="h2">Bids Log</Heading>
+                  <span className="text-ui-fg-subtle text-sm">{bidsLogTotal} total</span>
+                  {block.status === "active" && (
+                    <span className="flex items-center gap-1.5">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                      <span className="text-green-400 text-xs">live</span>
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={fetchBidsLog}
+                  className="text-xs text-ui-fg-subtle hover:text-ui-fg-base underline"
+                >
+                  Refresh
+                </button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-ui-border-base text-ui-fg-subtle text-xs uppercase tracking-wide">
+                      <th className="text-left pb-2 pr-4 font-medium">Time</th>
+                      <th className="text-left pb-2 pr-4 font-medium">Lot</th>
+                      <th className="text-left pb-2 pr-4 font-medium">Item</th>
+                      <th className="text-right pb-2 pr-4 font-medium">Amount</th>
+                      <th className="text-left pb-2 pr-4 font-medium">Bidder</th>
+                      <th className="text-left pb-2 font-medium">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bidsLog.map((bid: any) => (
+                      <tr
+                        key={bid.id}
+                        className={`border-b border-ui-border-base/30 hover:bg-ui-bg-subtle/30 ${
+                          bid.is_winning ? "bg-green-500/5" : ""
+                        }`}
+                      >
+                        <td className="py-1.5 pr-4 text-ui-fg-subtle text-xs whitespace-nowrap">
+                          {new Date(bid.placed_at).toLocaleString("en-GB", {
+                            day: "numeric", month: "short",
+                            hour: "2-digit", minute: "2-digit", second: "2-digit",
+                          })}
+                        </td>
+                        <td className="py-1.5 pr-4 text-ui-fg-subtle text-xs font-mono">
+                          #{String(bid.lot_number ?? "—").padStart(2, "0")}
+                        </td>
+                        <td className="py-1.5 pr-4">
+                          <div className="flex items-center gap-2">
+                            {bid.release_cover ? (
+                              <img
+                                src={bid.release_cover}
+                                alt=""
+                                className="w-6 h-6 object-cover rounded shrink-0"
+                              />
+                            ) : (
+                              <div className="w-6 h-6 bg-ui-bg-subtle rounded shrink-0" />
+                            )}
+                            <span className="text-ui-fg-base max-w-[180px] truncate block text-xs">
+                              {bid.release_title || bid.item_id}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-1.5 pr-4 text-right">
+                          <span className={`font-medium text-sm ${bid.is_winning ? "text-green-400" : "text-ui-fg-base"}`}>
+                            €{Number(bid.amount).toFixed(2)}
+                          </span>
+                          {bid.max_amount && Number(bid.max_amount) > Number(bid.amount) && (
+                            <div className="text-[10px] text-ui-fg-subtle">
+                              proxy €{Number(bid.max_amount).toFixed(2)}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-1.5 pr-4 text-ui-fg-base text-xs">{bid.user_hint}</td>
+                        <td className="py-1.5">
+                          {bid.is_winning ? (
+                            <span className="inline-flex items-center gap-1 text-xs text-green-400 font-medium">
+                              <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                              Winning
+                            </span>
+                          ) : bid.is_outbid ? (
+                            <span className="text-xs text-ui-fg-subtle">outbid</span>
+                          ) : (
+                            <span className="text-xs text-ui-fg-subtle">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {bidsLog.length < bidsLogTotal && (
+                <p className="mt-3 text-center text-xs text-ui-fg-subtle">
+                  Showing {bidsLog.length} of {bidsLogTotal} bids
+                </p>
+              )}
+            </Container>
+          )}
 
           {/* Block Items */}
           <Container>
