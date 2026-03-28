@@ -176,6 +176,9 @@ const BlockDetailPage = () => {
   const [sendingNewsletter, setSendingNewsletter] = useState(false)
   const [message, setMessage] = useState("")
   const [messageType, setMessageType] = useState<"success" | "error">("success")
+  const [editingUnlocked, setEditingUnlocked] = useState(false)
+
+  const isFormLocked = block.status === "active" && !editingUnlocked
 
   // Live bids panel (active auctions)
   const [liveBids, setLiveBids] = useState<any[]>([])
@@ -712,11 +715,33 @@ const BlockDetailPage = () => {
         </Container>
       )}
 
+      {/* Lock banner for active auctions */}
+      {!isNew && block.status === "active" && (
+        <div className={`mb-4 p-3 rounded flex items-center justify-between ${
+          editingUnlocked
+            ? "bg-orange-950 border border-orange-700 text-orange-300"
+            : "bg-yellow-950 border border-yellow-800 text-yellow-300"
+        }`}>
+          <Text>
+            {editingUnlocked
+              ? "⚠️ Editing unlocked — changes affect a live auction."
+              : "🔒 Editing locked — auction is currently live."}
+          </Text>
+          <button
+            onClick={() => setEditingUnlocked((v) => !v)}
+            className="ml-4 px-3 py-1 rounded border text-xs font-medium border-current hover:opacity-80"
+          >
+            {editingUnlocked ? "Lock again" : "Unlock editing"}
+          </button>
+        </div>
+      )}
+
       {/* Block Details Form */}
       <Container className="mb-6">
         <Heading level="h2" className="mb-4">
           Block Details
         </Heading>
+        <div className={isFormLocked ? "opacity-60 pointer-events-none select-none" : ""}>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <Label>Title *</Label>
@@ -724,6 +749,7 @@ const BlockDetailPage = () => {
               value={block.title || ""}
               onChange={(e) => handleTitleChange(e.target.value)}
               placeholder="e.g. Industrial Classics 1980-1985"
+              disabled={isFormLocked}
             />
           </div>
           <div>
@@ -731,6 +757,7 @@ const BlockDetailPage = () => {
             <Input
               value={block.slug || ""}
               onChange={(e) => setBlock((b) => ({ ...b, slug: e.target.value }))}
+              disabled={isFormLocked}
             />
           </div>
           <div>
@@ -741,6 +768,7 @@ const BlockDetailPage = () => {
                 setBlock((b) => ({ ...b, subtitle: e.target.value }))
               }
               placeholder="Optional subtitle"
+              disabled={isFormLocked}
             />
           </div>
           <div>
@@ -748,10 +776,10 @@ const BlockDetailPage = () => {
             <Select
               value={block.block_type || "theme"}
               onValueChange={(val) =>
-                setBlock((b) => ({ ...b, block_type: val }))
+                !isFormLocked && setBlock((b) => ({ ...b, block_type: val }))
               }
             >
-              <Select.Trigger>
+              <Select.Trigger disabled={isFormLocked}>
                 <Select.Value />
               </Select.Trigger>
               <Select.Content>
@@ -771,6 +799,7 @@ const BlockDetailPage = () => {
               onChange={(e) =>
                 setBlock((b) => ({ ...b, start_time: e.target.value }))
               }
+              disabled={isFormLocked}
             />
           </div>
           <div>
@@ -781,6 +810,7 @@ const BlockDetailPage = () => {
               onChange={(e) =>
                 setBlock((b) => ({ ...b, end_time: e.target.value }))
               }
+              disabled={isFormLocked}
             />
           </div>
         </div>
@@ -837,6 +867,7 @@ const BlockDetailPage = () => {
             />
           </div>
         </div>
+        </div>{/* end isFormLocked wrapper */}
       </Container>
 
       {/* Settings */}
@@ -844,7 +875,7 @@ const BlockDetailPage = () => {
         <Heading level="h2" className="mb-4">
           Settings
         </Heading>
-        <div className="grid grid-cols-4 gap-4">
+        <div className={`grid grid-cols-4 gap-4 ${isFormLocked ? "opacity-60 pointer-events-none select-none" : ""}`}>
           <div>
             <Label>Start Price % of Estimated Value</Label>
             <Input

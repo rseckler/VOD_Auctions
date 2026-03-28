@@ -1,11 +1,13 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { motion, AnimatePresence } from "framer-motion"
-import { Search, Disc3, Clock } from "lucide-react"
+import { Search, Disc3, Clock, Gavel } from "lucide-react"
 import { staggerContainer, staggerItem } from "@/lib/motion"
+import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
+import { getToken } from "@/lib/auth"
 import type { BlockItem } from "@/types"
 
 function formatTimeRemaining(endTime: string): string | null {
@@ -46,6 +48,26 @@ export function BlockItemsGrid({
 }) {
   const [sort, setSort] = useState<SortOption>("lot")
   const [search, setSearch] = useState("")
+  const [userBidItemIds, setUserBidItemIds] = useState<Set<string>>(new Set())
+
+  // Fetch user's bids to show indicator on cards
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+    fetch(`${MEDUSA_URL}/store/account/bids`, {
+      headers: {
+        "x-publishable-api-key": PUBLISHABLE_KEY,
+        Authorization: `Bearer ${token}`,
+      },
+    })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (!data?.bids) return
+        const ids = new Set<string>(data.bids.map((b: any) => b.item_id).filter(Boolean))
+        setUserBidItemIds(ids)
+      })
+      .catch(() => {})
+  }, [])
 
   const filtered = useMemo(() => {
     let result = [...items]
@@ -148,7 +170,11 @@ export function BlockItemsGrid({
             {filtered.map((item) => (
               <motion.div key={item.id} variants={staggerItem}>
                 <Link href={`/auctions/${blockSlug}/${item.id}`}>
-                  <div className="group overflow-hidden rounded-xl bg-[rgba(232,224,212,0.03)] border border-[rgba(232,224,212,0.06)] hover:border-[rgba(212,165,74,0.3)] transition-all duration-300 hover:-translate-y-0.5">
+                  <div className={`group overflow-hidden rounded-xl bg-[rgba(232,224,212,0.03)] border transition-all duration-300 hover:-translate-y-0.5 ${
+                    userBidItemIds.has(item.id)
+                      ? "border-primary/40 hover:border-primary/60"
+                      : "border-[rgba(232,224,212,0.06)] hover:border-[rgba(212,165,74,0.3)]"
+                  }`}>
                     {/* Image */}
                     <div className="aspect-square bg-[#2a2520] overflow-hidden relative">
                       {item.release?.coverImage ? (
@@ -174,6 +200,13 @@ export function BlockItemsGrid({
                       {item.release?.format && (
                         <span className={`absolute top-2 right-2 px-2 py-0.5 rounded bg-[rgba(28,25,21,0.85)] backdrop-blur-sm text-[10px] uppercase tracking-[1px] font-medium ${FORMAT_COLORS[item.release.format] || "text-muted-foreground"}`}>
                           {item.release.format}
+                        </span>
+                      )}
+                      {/* Your bid indicator */}
+                      {userBidItemIds.has(item.id) && (
+                        <span className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded bg-[rgba(212,165,74,0.9)] backdrop-blur-sm text-[10px] font-semibold text-[#1c1915] uppercase tracking-wide">
+                          <Gavel className="h-2.5 w-2.5" />
+                          Your bid
                         </span>
                       )}
                     </div>

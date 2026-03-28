@@ -110,70 +110,130 @@ const AuctionBlocksPage = () => {
             <Button className="mt-4">Create New Auction</Button>
           </a>
         </Container>
-      ) : (
-        <Table>
-          <Table.Header>
-            <Table.Row>
-              <Table.HeaderCell>Title</Table.HeaderCell>
-              <Table.HeaderCell>Type</Table.HeaderCell>
-              <Table.HeaderCell>Status</Table.HeaderCell>
-              <Table.HeaderCell>Start</Table.HeaderCell>
-              <Table.HeaderCell>End</Table.HeaderCell>
-              <Table.HeaderCell>Items</Table.HeaderCell>
-              <Table.HeaderCell></Table.HeaderCell>
-            </Table.Row>
-          </Table.Header>
-          <Table.Body>
-            {blocks.map((block) => (
-              <Table.Row key={block.id}>
-                <Table.Cell>
-                  <div>
-                    <Text className="font-medium">{block.title}</Text>
-                    {block.subtitle && (
-                      <Text className="text-ui-fg-subtle text-sm">
-                        {block.subtitle}
-                      </Text>
-                    )}
+      ) : (() => {
+          const live = blocks.filter((b) => b.status === "active")
+          const upcoming = blocks.filter((b) => ["scheduled", "preview"].includes(b.status))
+          const other = blocks.filter((b) => ["ended", "draft", "archived"].includes(b.status))
+
+          const renderTable = (rows: AuctionBlock[], isLive = false) => (
+            <Table>
+              <Table.Header>
+                <Table.Row>
+                  <Table.HeaderCell>Title</Table.HeaderCell>
+                  <Table.HeaderCell>Type</Table.HeaderCell>
+                  <Table.HeaderCell>Status</Table.HeaderCell>
+                  <Table.HeaderCell>Start</Table.HeaderCell>
+                  <Table.HeaderCell>End / Remaining</Table.HeaderCell>
+                  <Table.HeaderCell>Items</Table.HeaderCell>
+                  <Table.HeaderCell></Table.HeaderCell>
+                </Table.Row>
+              </Table.Header>
+              <Table.Body>
+                {rows.map((block) => (
+                  <Table.Row
+                    key={block.id}
+                    className={isLive ? "bg-green-50 dark:bg-green-950/20" : ""}
+                  >
+                    <Table.Cell>
+                      <div>
+                        <Text className="font-medium">{block.title}</Text>
+                        {block.subtitle && (
+                          <Text className="text-ui-fg-subtle text-sm">{block.subtitle}</Text>
+                        )}
+                      </div>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Badge>{block.block_type}</Badge>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <div className="flex items-center gap-2">
+                        <Badge color={STATUS_COLORS[block.status] || "grey"}>
+                          {block.status}
+                        </Badge>
+                        {block.status === "active" && (
+                          <span className="flex items-center gap-1">
+                            <span className="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                            <span className="text-green-400 text-xs font-medium">LIVE</span>
+                          </span>
+                        )}
+                      </div>
+                    </Table.Cell>
+                    <Table.Cell>
+                      {new Date(block.start_time).toLocaleString("en-GB", {
+                        day: "numeric", month: "short",
+                        hour: "2-digit", minute: "2-digit",
+                      })}
+                    </Table.Cell>
+                    <Table.Cell>
+                      {block.status === "active" ? (
+                        <ActiveCountdown endTime={block.end_time} />
+                      ) : (
+                        new Date(block.end_time).toLocaleString("en-GB", {
+                          day: "numeric", month: "short",
+                          hour: "2-digit", minute: "2-digit",
+                        })
+                      )}
+                    </Table.Cell>
+                    <Table.Cell>{block.items?.length || 0}</Table.Cell>
+                    <Table.Cell>
+                      <a href={`/app/auction-blocks/${block.id}`}>
+                        <Button variant="secondary" size="small">
+                          {block.status === "active" ? "Manage" : "Edit"}
+                        </Button>
+                      </a>
+                    </Table.Cell>
+                  </Table.Row>
+                ))}
+              </Table.Body>
+            </Table>
+          )
+
+          return (
+            <div className="space-y-6">
+              {live.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                    <Text className="text-sm font-semibold text-green-600 dark:text-green-400 uppercase tracking-wide">
+                      Live Now — {live.length} running
+                    </Text>
                   </div>
-                </Table.Cell>
-                <Table.Cell>
-                  <Badge>{block.block_type}</Badge>
-                </Table.Cell>
-                <Table.Cell>
-                  <div className="flex items-center gap-2">
-                    <Badge color={STATUS_COLORS[block.status] || "grey"}>
-                      {block.status}
-                    </Badge>
-                    {block.status === "active" && (
-                      <span className="flex items-center gap-1">
-                        <span className="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                        <span className="text-green-400 text-xs font-medium">LIVE</span>
-                      </span>
-                    )}
+                  <div className="rounded-lg border-2 border-green-500/30 overflow-hidden">
+                    {renderTable(live, true)}
                   </div>
-                </Table.Cell>
-                <Table.Cell>
-                  {new Date(block.start_time).toLocaleDateString("en-GB")}
-                </Table.Cell>
-                <Table.Cell>
-                  {block.status === "active" ? (
-                    <ActiveCountdown endTime={block.end_time} />
-                  ) : (
-                    new Date(block.end_time).toLocaleDateString("en-GB")
-                  )}
-                </Table.Cell>
-                <Table.Cell>{block.items?.length || 0}</Table.Cell>
-                <Table.Cell>
-                  <a href={`/app/auction-blocks/${block.id}`}>
-                    <Button variant="secondary" size="small">
-                      Edit
-                    </Button>
-                  </a>
-                </Table.Cell>
-              </Table.Row>
-            ))}
-          </Table.Body>
-        </Table>
+                </div>
+              )}
+
+              {upcoming.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="inline-block w-2 h-2 rounded-full bg-blue-500" />
+                    <Text className="text-sm font-semibold text-ui-fg-subtle uppercase tracking-wide">
+                      Upcoming — {upcoming.length} scheduled
+                    </Text>
+                  </div>
+                  <div className="rounded-lg border border-ui-border-base overflow-hidden">
+                    {renderTable(upcoming)}
+                  </div>
+                </div>
+              )}
+
+              {other.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="inline-block w-2 h-2 rounded-full bg-gray-400" />
+                    <Text className="text-sm font-semibold text-ui-fg-muted uppercase tracking-wide">
+                      Past & Drafts — {other.length}
+                    </Text>
+                  </div>
+                  <div className="rounded-lg border border-ui-border-base overflow-hidden opacity-70">
+                    {renderTable(other)}
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })()
       )}
     </Container>
   )
