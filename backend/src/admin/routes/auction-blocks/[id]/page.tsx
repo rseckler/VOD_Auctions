@@ -74,6 +74,43 @@ type Release = {
 
 type FilterOption = { value: string | number; count: number }
 
+type AnalyticsTopLot = {
+  lot_number: number | null
+  release_title: string
+  release_cover: string | null
+  start_price: number
+  hammer_price: number
+  price_multiple: number
+  bid_count: number
+  winning_bidder_hint: string | null
+}
+
+type AnalyticsNoBidLot = {
+  lot_number: number | null
+  release_title: string
+  release_cover: string | null
+  start_price: number
+}
+
+type AnalyticsData = {
+  block_id: string
+  block_title: string
+  block_status: string
+  total_lots: number
+  lots_with_bids: number
+  lots_sold: number
+  lots_unsold: number
+  conversion_rate: number
+  total_bids: number
+  total_revenue: number
+  avg_hammer_price: number
+  avg_start_price: number
+  avg_price_multiple: number
+  top_lots: AnalyticsTopLot[]
+  no_bid_lots: AnalyticsNoBidLot[]
+  bid_distribution: { "1": number; "2-5": number; "6-10": number; "10+": number }
+}
+
 type FiltersData = {
   formats: FilterOption[]
   countries: FilterOption[]
@@ -213,6 +250,31 @@ const BlockDetailPage = () => {
     }
   }, [id, isNew])
 
+  // Post-auction analytics
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null)
+  const [analyticsLoading, setAnalyticsLoading] = useState(false)
+  const [analyticsError, setAnalyticsError] = useState("")
+  const [noBidLotsExpanded, setNoBidLotsExpanded] = useState(false)
+
+  const fetchAnalytics = useCallback(async () => {
+    if (!id || isNew) return
+    setAnalyticsLoading(true)
+    setAnalyticsError("")
+    try {
+      const res = await fetch(`/admin/auction-blocks/${id}/analytics`, { credentials: "include" })
+      const data = await res.json()
+      if (res.ok) {
+        setAnalyticsData(data)
+      } else {
+        setAnalyticsError(data.message || "Failed to load analytics")
+      }
+    } catch (err) {
+      setAnalyticsError(`Error: ${err}`)
+    } finally {
+      setAnalyticsLoading(false)
+    }
+  }, [id, isNew])
+
   useEffect(() => {
     if (block.status === "active") {
       fetchLiveBids()
@@ -226,10 +288,14 @@ const BlockDetailPage = () => {
       // Fetch log once for non-active blocks (ended, draft etc.)
       if (block.status) fetchBidsLog()
     }
+    // Fetch analytics for ended/archived blocks
+    if (block.status === "ended" || block.status === "archived") {
+      fetchAnalytics()
+    }
     return () => {
       if (liveBidsIntervalRef.current) clearInterval(liveBidsIntervalRef.current)
     }
-  }, [block.status, fetchLiveBids, fetchBidsLog])
+  }, [block.status, fetchLiveBids, fetchBidsLog, fetchAnalytics])
 
   // Release search & browser
   const [searchQuery, setSearchQuery] = useState("")
@@ -718,24 +784,231 @@ const BlockDetailPage = () => {
         </Container>
       )}
 
-      {/* Ended block summary */}
-      {!isNew && block.status === "ended" && (
+      {/* Post-Auction Analytics — shown for ended + archived blocks */}
+      {!isNew && (block.status === "ended" || block.status === "archived") && (
         <Container className="mb-6">
-          <Heading level="h2" className="mb-4">Results</Heading>
-          <div className="grid grid-cols-4 gap-4">
-            <div className="p-4 bg-ui-bg-subtle rounded">
-              <Text className="text-ui-fg-subtle">Revenue</Text>
-              <p className="text-xl font-bold">€{(block.total_revenue || 0).toFixed(2)}</p>
-            </div>
-            <div className="p-4 bg-ui-bg-subtle rounded">
-              <Text className="text-ui-fg-subtle">Sold</Text>
-              <p className="text-xl font-bold">{block.sold_items || 0} / {block.items?.length || 0}</p>
-            </div>
-            <div className="p-4 bg-ui-bg-subtle rounded">
-              <Text className="text-ui-fg-subtle">Bids</Text>
-              <p className="text-xl font-bold">{block.total_bids || 0}</p>
-            </div>
+          <div className="flex items-center justify-between mb-5">
+            <Heading level="h2">Post-Auction Analytics</Heading>
+            <button
+              onClick={fetchAnalytics}
+              className="text-xs text-ui-fg-subtle hover:text-ui-fg-base underline"
+            >
+              Refresh
+            </button>
           </div>
+
+          {analyticsLoading && (
+            <Text className="text-ui-fg-subtle text-sm">Loading analytics…</Text>
+          )}
+
+          {analyticsError && (
+            <Text className="text-red-400 text-sm">{analyticsError}</Text>
+          )}
+
+          {!analyticsLoading && !analyticsError && analyticsData && (
+            <div className="space-y-6">
+
+              {/* Summary stat cards */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="p-4 bg-ui-bg-subtle rounded-lg border border-ui-border-base">
+                  <Text className="text-ui-fg-subtle text-xs uppercase tracking-wide mb-1">Conversion Rate</Text>
+                  <p className="text-2xl font-bold text-[#d4a54a]">{analyticsData.conversion_rate.toFixed(1)}%</p>
+                  <Text className="text-ui-fg-muted text-xs mt-1">
+                    {analyticsData.lots_sold} of {analyticsData.total_lots} lots sold
+                  </Text>
+                </div>
+                <div className="p-4 bg-ui-bg-subtle rounded-lg border border-ui-border-base">
+                  <Text className="text-ui-fg-subtle text-xs uppercase tracking-wide mb-1">Total Revenue</Text>
+                  <p className="text-2xl font-bold">€{analyticsData.total_revenue.toFixed(2)}</p>
+                  <Text className="text-ui-fg-muted text-xs mt-1">
+                    Ø €{analyticsData.avg_hammer_price.toFixed(2)} per lot
+                  </Text>
+                </div>
+                <div className="p-4 bg-ui-bg-subtle rounded-lg border border-ui-border-base">
+                  <Text className="text-ui-fg-subtle text-xs uppercase tracking-wide mb-1">Total Bids</Text>
+                  <p className="text-2xl font-bold">{analyticsData.total_bids}</p>
+                  <Text className="text-ui-fg-muted text-xs mt-1">
+                    {analyticsData.lots_with_bids} lots had bids
+                  </Text>
+                </div>
+                <div className="p-4 bg-ui-bg-subtle rounded-lg border border-ui-border-base">
+                  <Text className="text-ui-fg-subtle text-xs uppercase tracking-wide mb-1">Avg Price Multiple</Text>
+                  <p className="text-2xl font-bold">{analyticsData.avg_price_multiple.toFixed(2)}x</p>
+                  <Text className="text-ui-fg-muted text-xs mt-1">
+                    Ø start €{analyticsData.avg_start_price.toFixed(2)}
+                  </Text>
+                </div>
+              </div>
+
+              {/* Top performers table */}
+              {analyticsData.top_lots.length > 0 && (
+                <div>
+                  <Heading level="h3" className="text-sm font-semibold mb-3 text-ui-fg-subtle uppercase tracking-wide">
+                    Top Performers (by price multiple)
+                  </Heading>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-ui-border-base text-ui-fg-subtle text-xs uppercase tracking-wide">
+                          <th className="text-left pb-2 pr-4 font-medium">Lot</th>
+                          <th className="text-left pb-2 pr-4 font-medium">Release</th>
+                          <th className="text-right pb-2 pr-4 font-medium">Start</th>
+                          <th className="text-right pb-2 pr-4 font-medium">Hammer</th>
+                          <th className="text-right pb-2 pr-4 font-medium">Multiple</th>
+                          <th className="text-center pb-2 pr-4 font-medium">Bids</th>
+                          <th className="text-left pb-2 font-medium">Winner</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {analyticsData.top_lots.map((lot, idx) => (
+                          <tr
+                            key={idx}
+                            className="border-b border-ui-border-base/40 hover:bg-ui-bg-subtle/40"
+                          >
+                            <td className="py-2 pr-4 text-ui-fg-subtle text-xs font-mono">
+                              #{String(lot.lot_number ?? "—").padStart(2, "0")}
+                            </td>
+                            <td className="py-2 pr-4">
+                              <div className="flex items-center gap-2">
+                                {lot.release_cover ? (
+                                  <img
+                                    src={lot.release_cover}
+                                    alt=""
+                                    className="w-7 h-7 object-cover rounded shrink-0"
+                                    loading="lazy"
+                                  />
+                                ) : (
+                                  <div className="w-7 h-7 bg-ui-bg-subtle rounded shrink-0" />
+                                )}
+                                <span className="text-ui-fg-base text-xs max-w-[200px] truncate block">
+                                  {lot.release_title}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="py-2 pr-4 text-right text-ui-fg-subtle text-xs">
+                              €{lot.start_price.toFixed(2)}
+                            </td>
+                            <td className="py-2 pr-4 text-right">
+                              <span className="text-green-400 font-semibold text-sm">
+                                €{lot.hammer_price.toFixed(2)}
+                              </span>
+                            </td>
+                            <td className="py-2 pr-4 text-right">
+                              <Badge color={lot.price_multiple >= 3 ? "green" : lot.price_multiple >= 1.5 ? "orange" : "grey"}>
+                                {lot.price_multiple.toFixed(2)}x
+                              </Badge>
+                            </td>
+                            <td className="py-2 pr-4 text-center">
+                              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-ui-bg-subtle text-ui-fg-base text-xs font-bold">
+                                {lot.bid_count}
+                              </span>
+                            </td>
+                            <td className="py-2 text-ui-fg-base text-xs">
+                              {lot.winning_bidder_hint || "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Bid distribution */}
+              <div>
+                <Heading level="h3" className="text-sm font-semibold mb-3 text-ui-fg-subtle uppercase tracking-wide">
+                  Bid Distribution
+                </Heading>
+                <div className="flex flex-wrap gap-3">
+                  {(["1", "2-5", "6-10", "10+"] as const).map((bucket) => {
+                    const count = analyticsData.bid_distribution[bucket]
+                    return (
+                      <div key={bucket} className="flex items-center gap-2 px-3 py-2 bg-ui-bg-subtle rounded border border-ui-border-base">
+                        <span className="text-xs text-ui-fg-subtle font-medium">{bucket} bid{bucket === "1" ? "" : "s"}:</span>
+                        <span className="text-sm font-bold text-ui-fg-base">{count}</span>
+                        <span className="text-xs text-ui-fg-muted">
+                          {analyticsData.total_lots > 0
+                            ? `(${Math.round((count / analyticsData.total_lots) * 100)}%)`
+                            : ""}
+                        </span>
+                      </div>
+                    )
+                  })}
+                  {analyticsData.lots_unsold > 0 && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-red-950/40 rounded border border-red-900/50">
+                      <span className="text-xs text-red-400 font-medium">No bids:</span>
+                      <span className="text-sm font-bold text-red-300">{analyticsData.no_bid_lots.length}</span>
+                      <span className="text-xs text-red-500">
+                        {analyticsData.total_lots > 0
+                          ? `(${Math.round((analyticsData.no_bid_lots.length / analyticsData.total_lots) * 100)}%)`
+                          : ""}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* No-bid lots (collapsible) */}
+              {analyticsData.no_bid_lots.length > 0 && (
+                <div>
+                  <button
+                    onClick={() => setNoBidLotsExpanded((v) => !v)}
+                    className="flex items-center gap-2 text-sm text-ui-fg-subtle hover:text-ui-fg-base group"
+                  >
+                    <span className={`transition-transform ${noBidLotsExpanded ? "rotate-90" : ""}`}>▶</span>
+                    <span className="font-medium">
+                      {analyticsData.no_bid_lots.length} lot{analyticsData.no_bid_lots.length !== 1 ? "s" : ""} received no bids
+                    </span>
+                    <Badge color="red">{analyticsData.no_bid_lots.length}</Badge>
+                  </button>
+
+                  {noBidLotsExpanded && (
+                    <div className="mt-3 overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-ui-border-base text-ui-fg-subtle text-xs uppercase tracking-wide">
+                            <th className="text-left pb-2 pr-4 font-medium">Lot</th>
+                            <th className="text-left pb-2 pr-4 font-medium">Release</th>
+                            <th className="text-right pb-2 font-medium">Start Price</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {analyticsData.no_bid_lots.map((lot, idx) => (
+                            <tr key={idx} className="border-b border-ui-border-base/30 hover:bg-ui-bg-subtle/30">
+                              <td className="py-1.5 pr-4 text-ui-fg-subtle text-xs font-mono">
+                                #{String(lot.lot_number ?? "—").padStart(2, "0")}
+                              </td>
+                              <td className="py-1.5 pr-4">
+                                <div className="flex items-center gap-2">
+                                  {lot.release_cover ? (
+                                    <img
+                                      src={lot.release_cover}
+                                      alt=""
+                                      className="w-6 h-6 object-cover rounded shrink-0"
+                                      loading="lazy"
+                                    />
+                                  ) : (
+                                    <div className="w-6 h-6 bg-ui-bg-subtle rounded shrink-0" />
+                                  )}
+                                  <span className="text-ui-fg-base text-xs max-w-[240px] truncate block">
+                                    {lot.release_title}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="py-1.5 text-right text-ui-fg-subtle text-xs">
+                                €{lot.start_price.toFixed(2)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+            </div>
+          )}
         </Container>
       )}
 

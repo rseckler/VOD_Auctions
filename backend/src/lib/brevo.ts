@@ -1,3 +1,9 @@
+import { blockTeaserEmail } from "../emails/block-teaser"
+import { blockTomorrowEmail } from "../emails/block-tomorrow"
+import { blockLiveEmail } from "../emails/block-live"
+import { blockEndingEmail } from "../emails/block-ending"
+import type { NewsletterItem } from "../emails/newsletter-layout"
+
 const BREVO_API_KEY = process.env.BREVO_API_KEY
 const BREVO_BASE_URL = "https://api.brevo.com/v3"
 
@@ -135,26 +141,38 @@ export async function getListContactCount(listId: number): Promise<number> {
 // --- Newsletter: Campaigns ---
 
 /**
- * Send a campaign to a list using a Brevo template.
+ * Send a campaign to a list using a Brevo template OR inline HTML.
+ * Exactly one of `templateId` or `htmlContent` must be provided.
  */
 export async function sendCampaign(opts: {
   name: string
   subject: string
-  templateId: number
   listIds: number[]
+  templateId?: number
+  htmlContent?: string
   params?: Record<string, any>
   scheduledAt?: string // ISO 8601
 }): Promise<{ id: number }> {
+  const body: Record<string, any> = {
+    name: opts.name,
+    subject: opts.subject,
+    sender: { name: BREVO_SENDER_NAME, email: BREVO_SENDER_EMAIL },
+    recipients: { listIds: opts.listIds },
+    params: opts.params,
+    scheduledAt: opts.scheduledAt,
+  }
+
+  if (opts.htmlContent) {
+    body.htmlContent = opts.htmlContent
+  } else if (opts.templateId) {
+    body.templateId = opts.templateId
+  } else {
+    throw new Error("sendCampaign: either templateId or htmlContent is required")
+  }
+
   const campaign = await brevoFetch<{ id: number }>("/emailCampaigns", {
     method: "POST",
-    body: {
-      name: opts.name,
-      subject: opts.subject,
-      templateId: opts.templateId,
-      recipients: { listIds: opts.listIds },
-      params: opts.params,
-      scheduledAt: opts.scheduledAt,
-    },
+    body,
   })
 
   // If no scheduledAt, send immediately
@@ -236,4 +254,152 @@ export const BREVO_SENDER_NAME = process.env.BREVO_SENDER_NAME || "VOD Auctions"
  */
 export function isBrevoConfigured(): boolean {
   return !!BREVO_API_KEY
+}
+
+// --- Newsletter: Auction Block Sequence ---
+
+export type NewsletterType = "teaser" | "tomorrow" | "live" | "ending"
+
+/**
+ * Send one of the four auction block newsletter emails to list BREVO_LIST_VOD_AUCTIONS.
+ *
+ * @param type    Which email in the sequence to send
+ * @param block   Auction block record (must have id, title, subtitle, slug, start_time, end_time)
+ * @param items   Block items enriched with release/artist data (from Knex join)
+ */
+export async function sendBlockNewsletter(
+  type: NewsletterType,
+  block: {
+    id: string
+    title: string
+    subtitle?: string | null
+    description?: string | null
+    slug: string
+    start_time?: Date | string | null
+    end_time?: Date | string | null
+    item_count?: number
+  },
+  items: Array<{
+    lot_number?: number | null
+    release_title?: string | null
+    release_artist?: string | null
+    release_cover?: string | null
+    current_price?: string | number | null
+    start_price?: string | number | null
+    bid_count?: number | null
+  }>
+): Promise<void> {
+  const listId = BREVO_LIST_VOD_AUCTIONS || 4
+
+  const startTime = block.start_time ? new Date(block.start_time) : new Date()
+  const endTime = block.end_time ? new Date(block.end_time) : new Date()
+  const itemCount = block.item_count ?? items.length
+
+  // Build NewsletterItem array from enriched block items
+  const toNewsletterItem = (item: typeof items[0]): NewsletterItem => ({
+    lotNumber: item.lot_number ?? undefined,
+    coverImage: item.release_cover ?? undefined,
+    artistName: item.release_artist ?? undefined,
+    title: item.release_title || "Untitled",
+    detail: undefined, // set per email type below
+  })
+
+  const campaignTimestamp = Date.now()
+  let subject: string
+  let htmlContent: string
+
+  switch (type) {
+    case "teaser": {
+      const previewItems = items.slice(0, 3).map((item) => ({
+        ...toNewsletterItem(item),
+        detail: item.start_price
+          ? `Starting at €${parseFloat(String(item.start_price)).toFixed(2)}`
+          : undefined,
+      }))
+      const result = blockTeaserEmail({
+        blockTitle: block.title,
+        blockSubtitle: block.subtitle,
+        blockSlug: block.slug,
+        startTime,
+        itemCount,
+        previewItems,
+      })
+      subject = result.subject
+      htmlContent = result.html
+      break
+    }
+
+    case "tomorrow": {
+      const previewItems = items.slice(0, 6).map((item) => ({
+        ...toNewsletterItem(item),
+        detail: item.start_price
+          ? `From €${parseFloat(String(item.start_price)).toFixed(2)}`
+          : undefined,
+      }))
+      const result = blockTomorrowEmail({
+        blockTitle: block.title,
+        blockDescription: block.description,
+        blockSlug: block.slug,
+        startTime,
+        itemCount,
+        previewItems,
+      })
+      subject = result.subject
+      htmlContent = result.html
+      break
+    }
+
+    case "live": {
+      const previewItems = items.slice(0, 6).map((item) => ({
+        ...toNewsletterItem(item),
+        detail: item.start_price
+          ? `Starts at €${parseFloat(String(item.start_price)).toFixed(2)}`
+          : undefined,
+      }))
+      const result = blockLiveEmail({
+        blockTitle: block.title,
+        blockSlug: block.slug,
+        endTime,
+        itemCount,
+        previewItems,
+      })
+      subject = result.subject
+      htmlContent = result.html
+      break
+    }
+
+    case "ending": {
+      const topItems = items.slice(0, 5).map((item) => ({
+        ...toNewsletterItem(item),
+        detail: item.current_price
+          ? `Current bid: €${parseFloat(String(item.current_price)).toFixed(2)}`
+          : item.start_price
+          ? `Starts at €${parseFloat(String(item.start_price)).toFixed(2)}`
+          : undefined,
+      }))
+      const result = blockEndingEmail({
+        blockTitle: block.title,
+        blockSlug: block.slug,
+        endTime,
+        topItems,
+      })
+      subject = result.subject
+      htmlContent = result.html
+      break
+    }
+
+    default:
+      throw new Error(`Unknown newsletter type: ${type}`)
+  }
+
+  const campaignName = `newsletter-${type}-${block.id}-${campaignTimestamp}`
+
+  await sendCampaign({
+    name: campaignName,
+    subject,
+    htmlContent,
+    listIds: [listId],
+  })
+
+  console.log(`[newsletter] Sent ${type} campaign for block "${block.title}" (${block.id}) to list ${listId}`)
 }
