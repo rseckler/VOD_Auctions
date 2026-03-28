@@ -124,6 +124,8 @@ export async function GET(
       title: block.title,
       slug: block.slug,
       status: block.status,
+      start_time: block.start_time,
+      end_time: block.end_time,
     },
   })
 }

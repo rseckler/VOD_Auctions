@@ -1,4 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { Knex } from "knex"
 import AuctionModuleService from "../../../modules/auction/service"
 import { AUCTION_MODULE } from "../../../modules/auction"
 
@@ -8,6 +10,9 @@ export async function GET(
   res: MedusaResponse
 ): Promise<void> {
   const auctionService: AuctionModuleService = req.scope.resolve(AUCTION_MODULE)
+  const pgConnection: Knex = req.scope.resolve(
+    ContainerRegistrationKeys.PG_CONNECTION
+  )
 
   const { status } = req.query
   const filters: Record<string, unknown> = {}
@@ -29,11 +34,32 @@ export async function GET(
     }
   )
 
-  // Simplify items to count for list view
-  const simplified = blocks.map((block: any) => ({
-    ...block,
-    items_count: block.items?.length || 0,
-    items: undefined,
+  // For each block, fetch up to 3 cover images from its items
+  const simplified = await Promise.all(blocks.map(async (block: any) => {
+    const items = block.items || []
+    const releaseIds = items
+      .map((i: any) => i.release_id)
+      .filter(Boolean)
+      .slice(0, 6) // fetch a few extras in case some have no image
+
+    let coverImages: string[] = []
+    if (releaseIds.length > 0) {
+      const releases = await pgConnection("Release")
+        .whereIn("id", releaseIds)
+        .whereNotNull("coverImage")
+        .select("coverImage")
+        .limit(3)
+      coverImages = releases
+        .map((r: any) => r.coverImage)
+        .filter(Boolean)
+    }
+
+    return {
+      ...block,
+      items_count: items.length,
+      items: undefined,
+      cover_images: coverImages,
+    }
   }))
 
   res.json({ auction_blocks: simplified, count })

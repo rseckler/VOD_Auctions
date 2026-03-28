@@ -20,6 +20,8 @@ type BlockInfo = {
   title: string
   slug: string
   status: string
+  start_time?: string | null
+  end_time?: string | null
 }
 
 type ItemWithImages = BlockItem & {

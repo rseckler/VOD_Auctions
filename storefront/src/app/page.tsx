@@ -206,17 +206,17 @@ export default async function Home() {
       </section>
 
       {/* Catalog Teaser */}
-      <section className="mx-auto max-w-6xl px-6 pt-8 pb-16">
-        <div className="rounded-2xl border border-[rgba(232,224,212,0.08)] bg-[rgba(232,224,212,0.02)] p-12 text-center">
-          <Disc3 className="h-12 w-12 mx-auto text-primary/40 mb-4" />
-          <h2 className="font-serif text-2xl md:text-3xl mb-3">
-            {teaserTitle}
-          </h2>
-          <p className="text-muted-foreground max-w-lg mx-auto mb-6">
-            {teaserBody}
-          </p>
-          <Button size="lg" variant="outline" asChild className="border-primary/30 text-primary hover:bg-primary/10">
-            <Link href={teaserCtaLink}>{teaserCta}</Link>
+      <section className="mx-auto max-w-6xl px-6 pt-4 pb-12">
+        <div className="rounded-2xl border border-[rgba(232,224,212,0.08)] bg-[rgba(232,224,212,0.02)] px-10 py-6 flex items-center justify-between gap-6 flex-wrap">
+          <div className="flex items-center gap-4">
+            <Disc3 className="h-8 w-8 text-primary/40 shrink-0" />
+            <div>
+              <h2 className="font-serif text-xl md:text-2xl">{teaserTitle}</h2>
+              <p className="text-muted-foreground text-sm mt-0.5">{teaserBody}</p>
+            </div>
+          </div>
+          <Button size="default" variant="outline" asChild className="border-primary/30 text-primary hover:bg-primary/10 shrink-0">
+            <Link href={teaserCtaLink}>{teaserCta} →</Link>
           </Button>
         </div>
       </section>

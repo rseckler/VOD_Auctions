@@ -15,6 +15,7 @@ export type AuctionBlock = {
   items?: BlockItem[]
   min_price?: number
   max_price?: number
+  cover_images?: string[]
 }
 
 export type TracklistEntry = {
