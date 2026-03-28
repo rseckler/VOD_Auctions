@@ -4,7 +4,7 @@
 **Goal:** Eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Phase 1 fertig — RSE-77 (Testlauf) als nächster Schritt
 **Language:** Storefront + Admin-UI: Englisch
-**Last Updated:** 2026-03-28
+**Last Updated:** 2026-03-29
 
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
@@ -299,6 +299,29 @@ VOD_Auctions/
 **Backlog:** RSE-78 (Launch, offen: AGB-Anwalt) | RSE-79 (Erste öffentliche Auktionen) | RSE-80 (Marketing)
 
 ## Recent Changes
+
+### 2026-03-29 — Auction Workflow Vollimplementierung (P1+P2+P3+K-Series)
+- **Tiered Bid Increments:** €0.50→€25 Stufentabelle (Backend + Storefront "Min. bid" Anzeige)
+- **Anti-Sniping:** max_extensions (10), extension_count, Admin-UI; Realtime Broadcast via Supabase (benötigt SUPABASE_SERVICE_ROLE_KEY in backend/.env)
+- **Payment Deadline:** 5-Tage-Frist, Tag 1+3 Reminder-Mails, Tag 5 Auto-Relist + Admin-Alert (Cron)
+- **Condition Grading:** Discogs-Standard Dropdowns (M/NM/VG+/VG/G+/G/F/P) Admin + ConditionBadge Storefront
+- **Public Bid History:** BidHistoryTable (Bidder #N, 30s Poll, Framer Motion) auf Lot-Detail-Seite
+- **Watchlist Reminder:** Stündlicher Cron, 24h vor Lot-Ende → Email an Saver
+- **Reserve Price:** reserve_price auf block_item, Lifecycle-Check, Storefront-Anzeige (ohne Betrag)
+- **Admin Live Monitor:** `/admin/live-monitor` — 10s Auto-Refresh, Rot/Grün Lot-Cards
+- **Schema.org MusicAlbum:** JSON-LD auf Catalog-Detail-Seiten
+- **Post-Block Analytics:** `/admin/auction-blocks/:id/analytics` + Analytics-Tab (Conversion, Revenue, Top-Lots)
+- **Newsletter Sequenz:** T-7/T-24h/T+0/T-6h Block-Emails via Brevo Kampagnen-API (Subscriber-Liste ID 4)
+- **Going/Going/Gone:** <5 Min rotes Pulsing-Banner + roter Countdown; <1h Amber
+- **"No Buyer's Premium" USP:** Badge auf Lot-Seite, Checkout, Footer
+- **Live Auction Banner:** `LiveAuctionBanner` Server-Component auf Homepage/Catalog/Auctions (ISR 60s)
+- **1-Click Rebid:** Outbid-Email mit vorgeschlagenem Betrag + `?bid=X` URL param pre-füllt Bid-Input
+- **Staggered Ending UI:** Admin Checkbox + Interval-Input + Preview-Text + Header-Badge
+- **View Counter:** view_count auf block_item, Fire-and-Forget Increment, Social Proof auf Lot-Seite
+- **Preview Block Storefront:** Amber-Banner + Countdown für scheduled/preview Blocks, Save-Buttons statt Bid
+- **Bulk Price Editor:** Admin Panel (% vom Schätzwert / Fixed / Manuell), API `/items/bulk-price`
+- **Social Sharing:** ShareButton (Web Share API + Twitter/Facebook/WhatsApp/Copy) auf Block + Lot-Seiten
+- **Migrations:** 20260328-20260330 (auto_extend, payment_reminders, watchlist_reminded_at, reserve_price, newsletter_*_sent_at, view_count)
 
 ### 2026-03-28 (RSE-235)
 - **Admin Bids Log:** `GET /admin/auction-blocks/:id/bids-log` — chronologisch, volle Bieter-Namen, Cover, Betrag, Proxy, Winning/Outbid Status
