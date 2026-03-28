@@ -7,6 +7,9 @@ import { bidWonEmail } from "../emails/bid-won"
 import { paymentConfirmationEmail } from "../emails/payment-confirmation"
 import { shippingEmail } from "../emails/shipping"
 import { feedbackRequestEmail } from "../emails/feedback-request"
+import { paymentReminder1Email } from "../emails/payment-reminder-1"
+import { paymentReminder3Email } from "../emails/payment-reminder-3"
+import { watchlistReminderEmail } from "../emails/watchlist-reminder"
 
 // Resolve customer email + first_name from Medusa customer ID
 async function getCustomer(pg: Knex, userId: string) {
@@ -226,6 +229,116 @@ export async function sendShippingEmail(
   await sendEmail({ to: customer.email, subject, html })
 }
 
+// --- PAYMENT REMINDER 1 (day 1) ---
+export async function sendPaymentReminder1Email(
+  pg: Knex,
+  transactionId: string
+) {
+  const tx = await pg("transaction").where("id", transactionId).first()
+  if (!tx) return
+
+  const customer = await getCustomer(pg, tx.user_id)
+  if (!customer?.email) return
+
+  // Get all pending transactions in the same order group (or just this one)
+  const transactions = tx.order_group_id
+    ? await pg("transaction")
+        .where("order_group_id", tx.order_group_id)
+        .where("status", "pending")
+        .where("item_type", "auction")
+    : [tx]
+
+  if (!transactions.length) return
+
+  // Resolve block title from the first transaction's block_item
+  const firstItem = await pg("block_item").where("id", tx.block_item_id).first()
+  const block = firstItem
+    ? await pg("auction_block").where("id", firstItem.auction_block_id).select("title").first()
+    : null
+  const blockTitle = block?.title || "VOD Auctions"
+
+  const items = []
+  for (const t of transactions) {
+    if (!t.block_item_id) continue
+    const blockItem = await pg("block_item").where("id", t.block_item_id).first()
+    const releaseId = blockItem?.release_id || t.release_id
+    const release = releaseId ? await getReleaseInfo(pg, releaseId) : null
+    items.push({
+      title: release?.title || "Item",
+      artistName: release?.artistName,
+      coverImage: release?.coverImage,
+      lotNumber: blockItem?.lot_number,
+      amount: parseFloat(t.amount),
+    })
+  }
+
+  if (!items.length) return
+
+  const { subject, html } = paymentReminder1Email({
+    firstName: customer.first_name || "there",
+    blockTitle,
+    items,
+    paymentUrl: `${APP_URL}/account/checkout`,
+  })
+  await sendEmail({ to: customer.email, subject, html })
+}
+
+// --- PAYMENT REMINDER 3 (day 3) ---
+export async function sendPaymentReminder3Email(
+  pg: Knex,
+  transactionId: string,
+  deadlineDate: Date
+) {
+  const tx = await pg("transaction").where("id", transactionId).first()
+  if (!tx) return
+
+  const customer = await getCustomer(pg, tx.user_id)
+  if (!customer?.email) return
+
+  // Get all pending transactions in the same order group (or just this one)
+  const transactions = tx.order_group_id
+    ? await pg("transaction")
+        .where("order_group_id", tx.order_group_id)
+        .where("status", "pending")
+        .where("item_type", "auction")
+    : [tx]
+
+  if (!transactions.length) return
+
+  // Resolve block title from the first transaction's block_item
+  const firstItem = await pg("block_item").where("id", tx.block_item_id).first()
+  const block = firstItem
+    ? await pg("auction_block").where("id", firstItem.auction_block_id).select("title").first()
+    : null
+  const blockTitle = block?.title || "VOD Auctions"
+
+  const items = []
+  for (const t of transactions) {
+    if (!t.block_item_id) continue
+    const blockItem = await pg("block_item").where("id", t.block_item_id).first()
+    const releaseId = blockItem?.release_id || t.release_id
+    const release = releaseId ? await getReleaseInfo(pg, releaseId) : null
+    items.push({
+      title: release?.title || "Item",
+      artistName: release?.artistName,
+      coverImage: release?.coverImage,
+      lotNumber: blockItem?.lot_number,
+      amount: parseFloat(t.amount),
+    })
+  }
+
+  if (!items.length) return
+
+  const { subject, html } = paymentReminder3Email({
+    firstName: customer.first_name || "there",
+    blockTitle,
+    items,
+    deadlineDate,
+    paymentUrl: `${APP_URL}/account/checkout`,
+  })
+  await sendEmail({ to: customer.email, subject, html })
+}
+
 // --- FEEDBACK REQUEST ---
 export async function sendFeedbackRequestEmail(
   pg: Knex,
@@ -275,4 +388,73 @@ export async function sendFeedbackRequestEmail(
       .where("id", transactionId)
       .update({ feedback_email_sent: true, updated_at: new Date() })
   }
+}
+
+// --- WATCHLIST REMINDER ---
+export async function sendWatchlistReminderEmail(
+  pg: Knex,
+  savedItemId: string
+): Promise<void> {
+  // 1. Fetch saved_item
+  const savedItem = await pg("saved_item")
+    .where("id", savedItemId)
+    .whereNull("deleted_at")
+    .first()
+  if (!savedItem) return
+
+  // 2. Find the active block_item for this release
+  const blockItem = await pg("block_item")
+    .where("release_id", savedItem.release_id)
+    .where("status", "active")
+    .first()
+  if (!blockItem) return
+
+  // 3. Get the auction block (for slug)
+  const block = await pg("auction_block")
+    .where("id", blockItem.auction_block_id)
+    .select("slug", "title")
+    .first()
+  if (!block) return
+
+  // 4. Get release details (title, artist, format, year, coverImage)
+  const release = await pg("Release")
+    .select(
+      "Release.id",
+      "Release.title",
+      "Release.coverImage",
+      "Release.format",
+      "Release.year",
+      "Artist.name as artist_name"
+    )
+    .leftJoin("Artist", "Release.artistId", "Artist.id")
+    .where("Release.id", savedItem.release_id)
+    .first()
+  if (!release) return
+
+  const coverImage = release.coverImage
+    ? `https://tape-mag.com/bilder/gross/${release.coverImage}`
+    : undefined
+
+  // 5. Get customer email
+  const customer = await pg("customer")
+    .where("id", savedItem.user_id)
+    .select("id", "email", "first_name")
+    .first()
+  if (!customer?.email) return
+
+  const bidUrl = `${APP_URL}/auctions/${block.slug}/${blockItem.id}`
+
+  const { subject, html } = watchlistReminderEmail({
+    firstName: customer.first_name || "there",
+    itemTitle: release.title || "Unknown Item",
+    artistName: release.artist_name || undefined,
+    coverImage,
+    lotNumber: blockItem.lot_number || undefined,
+    currentPrice: Number(blockItem.current_price || blockItem.start_price || 0),
+    format: release.format || undefined,
+    year: release.year || undefined,
+    bidUrl,
+  })
+
+  await sendEmail({ to: customer.email, subject, html })
 }

@@ -9,6 +9,19 @@ import { AUCTION_MODULE } from "../../../../../../../modules/auction"
 import { sendOutbidEmail } from "../../../../../../../lib/email-helpers"
 import { crmSyncBidPlaced } from "../../../../../../../lib/crm-sync"
 
+/**
+ * Tiered bid increment table.
+ * Returns the minimum increment that must be added to currentPrice.
+ */
+function getMinIncrement(currentPrice: number): number {
+  if (currentPrice < 10)   return 0.50
+  if (currentPrice < 50)   return 1.00
+  if (currentPrice < 200)  return 2.50
+  if (currentPrice < 500)  return 5.00
+  if (currentPrice < 2000) return 10.00
+  return 25.00
+}
+
 // GET /store/auction-blocks/:slug/items/:itemId/bids — Public: bid history
 export async function GET(
   req: MedusaRequest,
@@ -78,7 +91,13 @@ export async function GET(
     created_at: bid.created_at,
   }))
 
-  res.json({ bids: anonymized, count: bids.length })
+  // Reserve status: null if no reserve, true/false if reserve set
+  const item = items[0]
+  const reserveMet: boolean | null = item.reserve_price
+    ? parseFloat(item.current_price || item.start_price) >= parseFloat(item.reserve_price)
+    : null
+
+  res.json({ bids: anonymized, count: bids.length, reserve_met: reserveMet })
 }
 
 // Helper: create a bid record via raw Knex (inside transaction)
@@ -173,7 +192,7 @@ export async function POST(
 
       // Calculate minimum bid
       const currentPrice = parseFloat(item.current_price || item.start_price)
-      const minIncrement = Math.max(1, currentPrice * 0.05)
+      const minIncrement = getMinIncrement(currentPrice)
       const minimumBid =
         item.bid_count === 0
           ? parseFloat(item.start_price)
@@ -222,7 +241,7 @@ export async function POST(
         if (bidAmount <= existingMax) {
           const autoResponse = Math.min(
             existingMax,
-            amount + Math.max(1, amount * 0.05)
+            amount + getMinIncrement(amount)
           )
 
           // Update existing bid's visible amount
@@ -279,7 +298,7 @@ export async function POST(
       let finalAmount = amount
       if (max_amount && existingWinning?.max_amount) {
         const existingMax = parseFloat(existingWinning.max_amount)
-        const minToWin = existingMax + Math.max(1, existingMax * 0.05)
+        const minToWin = existingMax + getMinIncrement(existingMax)
         finalAmount = Math.max(minimumBid, Math.min(max_amount, minToWin))
       }
 
@@ -330,10 +349,19 @@ export async function POST(
     // Sync bid to Brevo CRM (async, non-blocking)
     crmSyncBidPlaced(pgConnection, customerId, result.amount).catch(() => {})
 
+    // Fetch item reserve status for response (re-read after transaction)
+    const updatedItem = await pgConnection("block_item")
+      .where("id", itemId)
+      .select("reserve_price", "current_price", "start_price")
+      .first()
+    const reserveMet: boolean | null = updatedItem?.reserve_price
+      ? parseFloat(updatedItem.current_price ?? updatedItem.start_price) >= parseFloat(updatedItem.reserve_price)
+      : null
+
     // Strip internal fields before sending response
     const { _outbid_user, _outbid_amount, _current_bid, ...response } = result
     const httpStatus = response.status || 201
-    res.status(httpStatus).json(response)
+    res.status(httpStatus).json({ ...response, reserve_met: reserveMet })
   } catch (err: any) {
     const status = err.status || 500
     const message = err.message || "Unknown error"
@@ -348,16 +376,23 @@ async function checkAutoExtension(
   item: any,
   now: Date
 ) {
-  if (!block.auto_extend || !item.lot_end_time) return
+  // Default auto_extend to true if not explicitly set to false
+  if (block.auto_extend === false || !item.lot_end_time) return
+
+  const extensionMs = (block.extension_minutes || 3) * 60 * 1000
+  const maxExtensions = block.max_extensions ?? 10
+  const currentExtensions = item.extension_count || 0
+
+  if (currentExtensions >= maxExtensions) return
 
   const endTime = new Date(item.lot_end_time)
-  const extensionMs = (block.extension_minutes || 5) * 60 * 1000
   const timeUntilEnd = endTime.getTime() - now.getTime()
 
   if (timeUntilEnd > 0 && timeUntilEnd < extensionMs) {
     const newEndTime = new Date(endTime.getTime() + extensionMs)
     await trx("block_item")
       .where("id", item.id)
-      .update({ lot_end_time: newEndTime, updated_at: now })
+      .update({ lot_end_time: newEndTime, extension_count: currentExtensions + 1, updated_at: now })
+    console.log(`[anti-snipe] Lot #${item.lot_number} extended to ${newEndTime.toISOString()} (extension ${currentExtensions + 1}/${maxExtensions})`)
   }
 }

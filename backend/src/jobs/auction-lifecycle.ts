@@ -86,16 +86,16 @@ export default async function auctionLifecycle(container: MedusaContainer) {
         totalBids += item.bid_count || 0
 
         if (item.bid_count > 0 && item.current_price) {
-          // Check reserve price
-          const meetsReserve =
-            !item.reserve_price ||
-            item.current_price >= item.reserve_price
+          // Check reserve price — always compare as floats (Knex returns DECIMAL as strings)
+          const currentPrice = parseFloat(item.current_price)
+          const reservePrice = item.reserve_price ? parseFloat(item.reserve_price) : null
+          const meetsReserve = !reservePrice || currentPrice >= reservePrice
 
           if (meetsReserve) {
             await trx("block_item")
               .where("id", item.id)
               .update({ status: "sold", updated_at: now })
-            totalRevenue += parseFloat(item.current_price)
+            totalRevenue += currentPrice
             soldCount++
 
             // Find the winning bidder
@@ -106,14 +106,21 @@ export default async function auctionLifecycle(container: MedusaContainer) {
               winners.push({
                 userId: winningBid.user_id,
                 blockItemId: item.id,
-                price: parseFloat(item.current_price),
+                price: currentPrice,
                 lotNumber: item.lot_number,
               })
             }
           } else {
+            // Reserve not met — mark unsold and release back to available
             await trx("block_item")
               .where("id", item.id)
               .update({ status: "unsold", updated_at: now })
+            await trx("Release")
+              .where("id", item.release_id)
+              .update({ auction_status: "available", current_block_id: null })
+            console.log(
+              `[lifecycle] Lot #${item.lot_number} reserve not met (current: ${currentPrice}, reserve: ${reservePrice}) — listing as unsold`
+            )
           }
         } else {
           await trx("block_item")

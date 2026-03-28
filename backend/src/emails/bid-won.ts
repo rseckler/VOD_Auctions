@@ -39,7 +39,7 @@ export function bidWonEmail(opts: {
         </tr>
       </table>
       <p style="margin:0 0 16px;font-size:14px;color:#52525b;">
-        Please complete your payment within 7 days so we can ship your record as soon as possible.
+        Please complete your payment within 5 days so we can ship your record as soon as possible.
       </p>
       ${emailButton("Pay Now", opts.paymentUrl)}
     `),

@@ -70,18 +70,26 @@ export async function GET(
   }
 
   const enrichedItems = items
-    .map((item: any) => ({
-      id: item.id,
-      release_id: item.release_id,
-      start_price: item.start_price,
-      estimated_value: item.estimated_value,
-      current_price: item.current_price,
-      bid_count: item.bid_count,
-      lot_number: item.lot_number,
-      lot_end_time: item.lot_end_time,
-      status: item.status,
-      release: releasesMap[item.release_id] || null,
-    }))
+    .map((item: any) => {
+      const currentPrice = parseFloat(item.current_price ?? item.start_price)
+      const reservePrice = item.reserve_price ? parseFloat(item.reserve_price) : null
+      const reserveMet: boolean | null = reservePrice !== null
+        ? currentPrice >= reservePrice
+        : null
+      return {
+        id: item.id,
+        release_id: item.release_id,
+        start_price: item.start_price,
+        estimated_value: item.estimated_value,
+        current_price: item.current_price,
+        bid_count: item.bid_count,
+        lot_number: item.lot_number,
+        lot_end_time: item.lot_end_time,
+        status: item.status,
+        reserve_met: reserveMet,
+        release: releasesMap[item.release_id] || null,
+      }
+    })
     .filter((item: any) => {
       const r = item.release
       return r != null

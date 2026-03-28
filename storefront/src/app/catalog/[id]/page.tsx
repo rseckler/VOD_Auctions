@@ -15,6 +15,7 @@ import { CreditsTable } from "@/components/CreditsTable"
 import { CatalogBackLink } from "@/components/CatalogBackLink"
 import { extractTracklistFromText } from "@/lib/utils"
 import type { Release } from "@/types"
+import { ConditionRow } from "@/components/ConditionBadge"
 
 type RelatedRelease = {
   id: string
@@ -46,6 +47,13 @@ async function getRelease(id: string): Promise<{ release: CatalogRelease } | nul
     `/store/catalog/${id}`,
     { revalidate: 60 }
   )
+}
+
+function durationToISO8601(dur: string): string | null {
+  const match = dur.match(/^(\d+):(\d{2})$/)
+  if (!match) return null
+  const [, m, s] = match
+  return `PT${m}M${s}S`
 }
 
 const FORMAT_COLORS: Record<string, string> = {
@@ -277,6 +285,16 @@ export default async function CatalogDetailPage({
             />
           )}
 
+          {(release.media_condition || release.sleeve_condition) && (
+            <div className="mt-3 flex items-center justify-between px-1">
+              <span className="text-xs text-muted-foreground">Condition</span>
+              <ConditionRow
+                mediaCondition={release.media_condition}
+                sleeveCondition={release.sleeve_condition}
+              />
+            </div>
+          )}
+
           {/* Details — Concept C "Vinyl Groove" */}
           <div className="relative pl-4 mt-8 mb-7">
             <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full bg-gradient-to-b from-primary via-primary/60 to-transparent" />
@@ -289,8 +307,6 @@ export default async function CatalogDetailPage({
                 release.catalogNumber && { k: "Catalog No.", v: release.catalogNumber, mono: true },
                 release.legacy_condition && { k: "Condition", v: release.legacy_condition, mono: true },
                 (release.format_name || release.legacy_format_detail) && { k: "Format", v: release.format_name || release.legacy_format_detail },
-                release.media_condition && { k: "Media", v: release.media_condition },
-                release.sleeve_condition && { k: "Sleeve", v: release.sleeve_condition },
               ].filter(Boolean).map((row, i) => {
                 const { k, v, mono, link } = row as { k: string; v: string; mono?: boolean; link?: string }
                 return (
@@ -492,6 +508,43 @@ export default async function CatalogDetailPage({
                       name: "VOD Records",
                     },
                   },
+                }
+              : {}),
+          }),
+        }}
+      />
+
+      {/* MusicAlbum JSON-LD */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "MusicAlbum",
+            name: release.title,
+            ...(release.artist_name
+              ? { byArtist: { "@type": "MusicGroup", name: release.artist_name } }
+              : {}),
+            ...(release.year ? { datePublished: String(release.year) } : {}),
+            ...(images[0] ? { image: images[0] } : {}),
+            albumProductionType: "https://schema.org/StudioAlbum",
+            ...(release.label_name
+              ? { recordLabel: { "@type": "Organization", name: release.label_name } }
+              : {}),
+            ...(release.catalogNumber ? { catalogNumber: release.catalogNumber } : {}),
+            url: `https://vod-auctions.com/catalog/${release.id}`,
+            ...(effectiveTracklist && effectiveTracklist.length > 0
+              ? {
+                  numTracks: effectiveTracklist.length,
+                  track: effectiveTracklist.map((track, i) => {
+                    const iso = track.duration ? durationToISO8601(track.duration) : null
+                    return {
+                      "@type": "MusicRecording",
+                      name: track.title,
+                      position: track.position || String(i + 1),
+                      ...(iso ? { duration: iso } : {}),
+                    }
+                  }),
                 }
               : {}),
           }),

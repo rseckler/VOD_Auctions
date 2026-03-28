@@ -53,6 +53,7 @@ type AuctionBlock = {
   default_start_price_percent: number
   auto_extend: boolean
   extension_minutes: number
+  max_extensions: number
   total_revenue: number | null
   sold_items: number | null
   total_bids: number | null
@@ -169,7 +170,8 @@ const BlockDetailPage = () => {
     stagger_interval_seconds: 120,
     default_start_price_percent: 50,
     auto_extend: true,
-    extension_minutes: 5,
+    extension_minutes: 3,
+    max_extensions: 10,
     items: [],
   })
   const [saving, setSaving] = useState(false)
@@ -912,18 +914,56 @@ const BlockDetailPage = () => {
             />
           </div>
           <div>
-            <Label>Auto-Extension (Min.)</Label>
-            <Input
-              type="number"
-              value={block.extension_minutes || 5}
-              onChange={(e) =>
-                setBlock((b) => ({
-                  ...b,
-                  extension_minutes: parseInt(e.target.value),
-                }))
-              }
-            />
+            <Label>Auto-Extend on Late Bids</Label>
+            <div className="flex items-center gap-2 mt-1.5">
+              <input
+                type="checkbox"
+                id="auto_extend"
+                checked={block.auto_extend !== false}
+                onChange={(e) =>
+                  setBlock((b) => ({ ...b, auto_extend: e.target.checked }))
+                }
+                className="w-4 h-4 accent-ui-fg-interactive"
+              />
+              <label htmlFor="auto_extend" className="text-sm text-ui-fg-subtle">
+                Extend if bid in last N minutes
+              </label>
+            </div>
           </div>
+          {block.auto_extend !== false && (
+            <>
+              <div>
+                <Label>Extension Minutes (1–10)</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={block.extension_minutes || 3}
+                  onChange={(e) =>
+                    setBlock((b) => ({
+                      ...b,
+                      extension_minutes: parseInt(e.target.value),
+                    }))
+                  }
+                />
+              </div>
+              <div>
+                <Label>Max Extensions (1–20)</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={block.max_extensions || 10}
+                  onChange={(e) =>
+                    setBlock((b) => ({
+                      ...b,
+                      max_extensions: parseInt(e.target.value),
+                    }))
+                  }
+                />
+              </div>
+            </>
+          )}
           <div>
             <Label>Stagger Interval (sec.)</Label>
             <Input

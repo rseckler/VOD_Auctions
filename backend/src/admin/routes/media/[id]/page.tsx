@@ -97,7 +97,16 @@ const COLORS = {
   error: "#ef4444",
 }
 
-const CONDITION_OPTIONS = ["M", "NM", "VG+", "VG", "G+", "G", "Fair", "Poor"]
+const CONDITION_OPTIONS: { value: string; label: string }[] = [
+  { value: "M",   label: "M — Mint" },
+  { value: "NM",  label: "NM — Near Mint" },
+  { value: "VG+", label: "VG+ — Very Good Plus" },
+  { value: "VG",  label: "VG — Very Good" },
+  { value: "G+",  label: "G+ — Good Plus" },
+  { value: "G",   label: "G — Good" },
+  { value: "F",   label: "F — Fair" },
+  { value: "P",   label: "P — Poor" },
+]
 
 const formatDate = (d: string | null) => {
   if (!d) return "\u2014"
@@ -333,16 +342,19 @@ const MediaDetailPage = () => {
                 <div style={labelStyle}>Media Condition</div>
                 <select value={mediaCondition} onChange={(e) => setMediaCondition(e.target.value)} style={selectStyle}>
                   <option value="">-- Select --</option>
-                  {CONDITION_OPTIONS.map((c) => (<option key={c} value={c}>{c}</option>))}
+                  {CONDITION_OPTIONS.map((c) => (<option key={c.value} value={c.value}>{c.label}</option>))}
                 </select>
               </div>
               <div>
                 <div style={labelStyle}>Sleeve Condition</div>
                 <select value={sleeveCondition} onChange={(e) => setSleeveCondition(e.target.value)} style={selectStyle}>
                   <option value="">-- Select --</option>
-                  {CONDITION_OPTIONS.map((c) => (<option key={c} value={c}>{c}</option>))}
+                  {CONDITION_OPTIONS.map((c) => (<option key={c.value} value={c.value}>{c.label}</option>))}
                 </select>
               </div>
+            </div>
+            <div style={{ fontSize: "11px", color: COLORS.muted, marginTop: "6px", lineHeight: "1.4" }}>
+              Discogs/Goldmine grading: <strong style={{ color: COLORS.text, fontWeight: 500 }}>M</strong> Mint &rarr; <strong style={{ color: COLORS.text, fontWeight: 500 }}>NM</strong> Near Mint &rarr; <strong style={{ color: COLORS.text, fontWeight: 500 }}>VG+</strong> Very Good Plus &rarr; <strong style={{ color: COLORS.text, fontWeight: 500 }}>VG</strong> Very Good &rarr; <strong style={{ color: COLORS.text, fontWeight: 500 }}>G+</strong> Good Plus &rarr; <strong style={{ color: COLORS.text, fontWeight: 500 }}>G</strong> Good &rarr; <strong style={{ color: COLORS.text, fontWeight: 500 }}>F</strong> Fair &rarr; <strong style={{ color: COLORS.text, fontWeight: 500 }}>P</strong> Poor
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginTop: "16px" }}>
               <div>

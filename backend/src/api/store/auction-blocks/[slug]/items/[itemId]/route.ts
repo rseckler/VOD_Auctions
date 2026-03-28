@@ -104,6 +104,12 @@ export async function GET(
     .orderBy("legacy_date", "desc")
     .limit(50)
 
+  const currentPrice = parseFloat(item.current_price ?? item.start_price)
+  const reservePrice = item.reserve_price ? parseFloat(item.reserve_price) : null
+  const reserveMet: boolean | null = reservePrice !== null
+    ? currentPrice >= reservePrice
+    : null
+
   res.json({
     block_item: {
       id: item.id,
@@ -115,6 +121,7 @@ export async function GET(
       lot_number: item.lot_number,
       lot_end_time: item.lot_end_time,
       status: item.status,
+      reserve_met: reserveMet,
       release: release
         ? { ...release, images, various_artists: variousArtists, comments }
         : null,

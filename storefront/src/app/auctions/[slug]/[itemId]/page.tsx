@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
-import { ChevronRight, ArrowLeft } from "lucide-react"
+import { ChevronRight, ArrowLeft, Lock, CheckCircle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -14,6 +14,8 @@ import { SaveForLaterButton } from "@/components/SaveForLaterButton"
 import { ShareButton } from "@/components/ShareButton"
 import { extractTracklistFromText } from "@/lib/utils"
 import type { AuctionBlock, BlockItem, ReleaseImage, TracklistEntry, VariousArtist, ReleaseComment } from "@/types"
+import { ConditionRow } from "@/components/ConditionBadge"
+import { BidHistoryTable } from "@/components/BidHistoryTable"
 
 type BlockInfo = {
   id: string
@@ -226,9 +228,31 @@ export default async function ItemDetailPage({
               blockStatus={block.status}
               itemStatus={item.status}
               blockStartTime={block.start_time || null}
+              extensionCount={item.extension_count || 0}
             />
+            {item.reserve_met === false && (
+              <p className="flex items-center gap-1.5 text-xs text-amber-500/80 mt-2">
+                <Lock className="h-3 w-3 flex-shrink-0" />
+                Reserve price not yet met
+              </p>
+            )}
+            {item.reserve_met === true && (
+              <p className="flex items-center gap-1.5 text-xs text-green-500 mt-2">
+                <CheckCircle className="h-3 w-3 flex-shrink-0" />
+                Reserve price met
+              </p>
+            )}
             <p className="text-xs text-muted-foreground mt-2">incl. VAT, plus <a href="/agb" className="underline">shipping</a> &middot; <a href="/widerruf" className="underline">14-day return policy</a></p>
           </div>
+
+          {/* Bid History */}
+          <BidHistoryTable
+            blockSlug={slug}
+            itemId={item.id}
+            itemStatus={item.status}
+            blockStatus={block.status}
+            initialBidCount={item.bid_count}
+          />
 
           {item.estimated_value && (
             <div className="mt-3 flex items-center justify-between text-sm px-1">
@@ -236,6 +260,16 @@ export default async function ItemDetailPage({
               <span className="text-muted-foreground">
                 &euro;{Number(item.estimated_value).toFixed(2)}
               </span>
+            </div>
+          )}
+
+          {(release?.media_condition || release?.sleeve_condition) && (
+            <div className="mt-3 flex items-center justify-between px-1">
+              <span className="text-xs text-muted-foreground">Condition</span>
+              <ConditionRow
+                mediaCondition={release.media_condition}
+                sleeveCondition={release.sleeve_condition}
+              />
             </div>
           )}
 
@@ -249,8 +283,6 @@ export default async function ItemDetailPage({
                 release?.label_name && { k: "Label", v: release.label_name, link: release?.label_slug ? `/label/${release.label_slug}` : undefined },
                 release?.catalogNumber && { k: "Catalog No.", v: release.catalogNumber, mono: true },
                 release?.legacy_condition && { k: "Condition", v: release.legacy_condition, mono: true },
-                release?.media_condition && { k: "Media", v: release.media_condition },
-                release?.sleeve_condition && { k: "Sleeve", v: release.sleeve_condition },
                 release?.legacy_format_detail && { k: "Format", v: release.legacy_format_detail },
                 release?.legacy_price && { k: "Catalog Price", v: `€${Number(release.legacy_price).toFixed(2)}`, mono: true },
               ].filter(Boolean).map((row, i) => {

@@ -13,9 +13,20 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
 import { brevoBidPlaced } from "@/lib/brevo-tracking"
+
+/**
+ * Tiered bid increment table (mirrors backend logic).
+ */
+function getMinIncrement(currentPrice: number): number {
+  if (currentPrice < 10)   return 0.50
+  if (currentPrice < 50)   return 1.00
+  if (currentPrice < 200)  return 2.50
+  if (currentPrice < 500)  return 5.00
+  if (currentPrice < 2000) return 10.00
+  return 25.00
+}
 
 type BidRecord = {
   id: string
@@ -36,6 +47,7 @@ type ItemBidSectionProps = {
   blockStatus: string
   itemStatus: string
   blockStartTime?: string | null
+  extensionCount?: number
 }
 
 export function ItemBidSection({
@@ -48,6 +60,7 @@ export function ItemBidSection({
   blockStatus,
   itemStatus,
   blockStartTime,
+  extensionCount = 0,
 }: ItemBidSectionProps) {
   const { isAuthenticated, customer } = useAuth()
   const [authModalOpen, setAuthModalOpen] = useState(false)
@@ -193,6 +206,12 @@ export function ItemBidSection({
         {lotEndTime && (
           <div className="mt-3 mb-3">
             <CountdownTimer endTime={lotEndTime} />
+            {extensionCount > 0 && (
+              <p className="text-xs text-muted-foreground/70 mt-1 flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                ⏱ Extended {extensionCount}×
+              </p>
+            )}
           </div>
         )}
 
@@ -207,6 +226,7 @@ export function ItemBidSection({
             isAuthenticated={isAuthenticated}
             onAuthRequired={() => setAuthModalOpen(true)}
             onBidPlaced={loadBids}
+            extensionCount={extensionCount}
           />
         ) : blockStatus === "ended" ? (
           <div className="mt-3 py-4 px-4 rounded-lg bg-secondary text-center border border-primary/20">
@@ -240,57 +260,6 @@ export function ItemBidSection({
         )}
       </Card>
 
-      {/* Bid History */}
-      {bidsLoaded && bids.length > 0 && (
-        <div className="mt-4">
-          <h3 className="text-sm font-semibold mb-2 text-muted-foreground flex items-center gap-1.5">
-            <Gavel className="h-3.5 w-3.5" />
-            Bid History
-          </h3>
-          <ScrollArea className="h-48">
-            <div className="space-y-1">
-              {bids.slice(0, 15).map((bid) => (
-                <div
-                  key={bid.id}
-                  className={`flex items-center justify-between text-sm py-1.5 px-3 rounded ${
-                    bid.user_id === customer?.id
-                      ? "bg-primary/5 border-l-2 border-primary"
-                      : "bg-secondary/50"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground font-mono text-xs">
-                      {bid.user_hint || bid.user_id?.substring(0, 8) + "…"}
-                    </span>
-                    {bid.user_id === customer?.id && (
-                      <Badge variant="outline" className="text-[10px] h-4 bg-primary/10 text-primary border-primary/30">
-                        You
-                      </Badge>
-                    )}
-                    {bid.is_winning && (
-                      <Badge variant="outline" className="text-[10px] h-4 bg-bid-winning/10 text-bid-winning border-bid-winning/30">
-                        Highest Bid
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono font-medium">
-                      &euro;{bid.amount.toFixed(2)}
-                    </span>
-                    <span className="text-xs text-muted-foreground/60">
-                      {new Date(bid.created_at).toLocaleTimeString("en-US", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </ScrollArea>
-        </div>
-      )}
-
       <AuthModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} />
     </>
   )
@@ -307,6 +276,7 @@ function BidForm({
   isAuthenticated,
   onAuthRequired,
   onBidPlaced,
+  extensionCount,
 }: {
   slug: string
   itemId: string
@@ -316,9 +286,10 @@ function BidForm({
   isAuthenticated: boolean
   onAuthRequired: () => void
   onBidPlaced: () => void
+  extensionCount?: number
 }) {
   const basePrice = bidCount === 0 ? startPrice : currentPrice
-  const minIncrement = Math.max(1, basePrice * 0.05)
+  const minIncrement = getMinIncrement(basePrice)
   const minimumBid = bidCount === 0 ? startPrice : basePrice + minIncrement
 
   const [amount, setAmount] = useState("")
@@ -393,9 +364,7 @@ function BidForm({
     <>
       <form onSubmit={handleSubmitClick} className="mt-4 space-y-3">
         <div className="space-y-1.5">
-          <Label className="text-xs">
-            Your Bid (min. &euro;{minimumBid.toFixed(2)})
-          </Label>
+          <Label className="text-xs">Your Bid</Label>
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
               &euro;
@@ -409,6 +378,14 @@ function BidForm({
               className="pl-7 font-mono"
             />
           </div>
+          <p className="text-xs text-muted-foreground/60 font-mono">
+            Min. bid: &euro;{minimumBid.toFixed(2)}
+            {bidCount > 0 && (
+              <span className="ml-1.5 text-muted-foreground/40">
+                (+&euro;{minIncrement.toFixed(2)})
+              </span>
+            )}
+          </p>
         </div>
 
         <Button

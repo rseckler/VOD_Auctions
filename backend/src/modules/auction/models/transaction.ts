@@ -64,6 +64,10 @@ const Transaction = model.define("transaction", {
   // Refund tracking
   refund_amount: model.float().default(0),
 
+  // Payment reminder tracking
+  payment_reminder_1_sent_at: model.dateTime().nullable(),
+  payment_reminder_3_sent_at: model.dateTime().nullable(),
+
   // Cancellation
   cancelled_at: model.dateTime().nullable(),
   cancel_reason: model.text().nullable(),
