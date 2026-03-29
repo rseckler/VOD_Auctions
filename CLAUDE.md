@@ -4,7 +4,7 @@
 **Goal:** Eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Phase 1 fertig — RSE-77 (Testlauf) als nächster Schritt
 **Language:** Storefront + Admin-UI: Englisch
-**Last Updated:** 2026-03-30
+**Last Updated:** 2026-03-29
 
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
@@ -302,6 +302,17 @@ VOD_Auctions/
 **Backlog:** RSE-78 (Launch, offen: AGB-Anwalt) | RSE-79 (Erste öffentliche Auktionen) | RSE-80 (Marketing)
 
 ## Recent Changes
+
+### 2026-03-29 — Post-Auction Workflow + Bugfixes
+- **Post-Auction Workflow (Admin)** — Neuer Admin-Bereich für abgeschlossene Auktionen: `/app/auction-blocks/[id]/post-auction` mit 5-stufigem Step-Tracker (Ended → Paid → Packing → Label Printed → Shipped), Lot-Übersicht mit Gewinner/Zahlungsstatus/Fulfillment-Status. Action-Buttons kontextuell pro Step. `Block-Detail`-Seite zeigt "Post-Auction Workflow →" Button wenn `status=ended`.
+- **Shipping Label PDF** — `GET /admin/transactions/:id/shipping-label` generiert pdfkit-PDF mit Absender (VOD Records), Empfänger (Shipping-Adresse), Bestellnummer, Items. Setzt `label_printed_at = NOW()` automatisch.
+- **Neue Transaction Actions** — `POST /admin/transactions/:id` + actions `packing` und `label_printed`.
+- **Bulk Action** — `POST /admin/transactions/bulk-action` mit `{ ids, action }` für Batch-Updates.
+- **DB-Migration** — `label_printed_at TIMESTAMP` auf `transaction`-Tabelle hinzugefügt.
+- **Won-Badge in Account-Sidebar** — Rotes Zahl-Badge bei "Won" zeigt Anzahl unbezahlter Auction-Wins. `GET /store/account/status` gibt jetzt `wins_count` zurück. AuthProvider + AccountLayoutClient aktualisiert.
+- **Bugfix: Cover-Image in Emails** — `coverImage` im DB enthält bereits die volle URL (`https://tape-mag.com/bilder/gross/...`). `email-helpers.ts` hat die Base-URL nochmals vorangestellt → doppelte, kaputte URL. Fix: direkt `release.coverImage` verwenden (2 Stellen).
+- **Sentry-Config bereinigt** — `transpileClientSDK`, `hideSourceMaps`, `disableLogger` aus `next.config.ts` entfernt (in neueren Sentry-Versionen nicht mehr gültig, blockierten Build).
+- **tsconfig: playwright.config.ts ausgeschlossen** — `@playwright/test` nicht auf Prod → TypeScript-Build-Fehler bei `npm run build`. `playwright.config.ts` + `tests/` zu `exclude` in `tsconfig.json` hinzugefügt.
 
 ### 2026-03-30 — Zahlungs- und Sicherheitssanierung (7 Fixes)
 - **PayPal Betragsprüfung serverseitig** — `capture-paypal-order` ruft jetzt immer `GET /v2/checkout/orders/{id}` bei PayPal ab, prüft `status=COMPLETED` und vergleicht echten Capture-Betrag gegen DB-Erwartung. Client-seitige `captured_amount`-Angabe nicht mehr genutzt. `getPayPalOrder()` in `paypal.ts` ergänzt.
