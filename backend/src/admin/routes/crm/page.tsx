@@ -154,6 +154,21 @@ type TimelineEvent = {
   timestamp: string
 }
 
+type SavedAddress = {
+  id: string
+  customer_id: string
+  first_name: string | null
+  last_name: string | null
+  address_1: string
+  address_2: string | null
+  city: string
+  postal_code: string
+  country_code: string
+  phone: string | null
+  created_at: string
+  updated_at: string
+}
+
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const COLORS = {
@@ -311,6 +326,17 @@ function CustomerDetailDrawer({
   // Anonymize state
   const [anonymizeLoading, setAnonymizeLoading] = useState(false)
 
+  // Delete state
+  const [deleteLoading, setDeleteLoading] = useState(false)
+
+  // Saved addresses state
+  const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([])
+  const [savedAddressesLoading, setSavedAddressesLoading] = useState(false)
+  const [editingAddressId, setEditingAddressId] = useState<string | null>(null)
+  const [addressForm, setAddressForm] = useState({ first_name: "", last_name: "", address_1: "", address_2: "", city: "", postal_code: "", country_code: "", phone: "" })
+  const [addressSaving, setAddressSaving] = useState(false)
+  const [showAddAddressForm, setShowAddAddressForm] = useState(false)
+
   useEffect(() => {
     if (!customerId) {
       setData(null)
@@ -323,6 +349,9 @@ function CustomerDetailDrawer({
     setBrevoStatus("idle")
     setNotes([])
     setTimeline([])
+    setSavedAddresses([])
+    setEditingAddressId(null)
+    setShowAddAddressForm(false)
     fetch(`/admin/customers/${customerId}`, { credentials: "include" })
       .then((r) => r.json())
       .then((d) => {
@@ -330,6 +359,9 @@ function CustomerDetailDrawer({
         setLoading(false)
       })
       .catch(() => setLoading(false))
+
+    // Fetch saved addresses
+    fetchSavedAddresses(customerId)
   }, [customerId])
 
   // Load notes when notes tab is selected
@@ -580,6 +612,127 @@ function CustomerDetailDrawer({
       .catch(() => setAnonymizeLoading(false))
   }
 
+  function handleDelete() {
+    if (!c) return
+    const input = window.prompt("Zur Best\u00E4tigung E-Mail des Kunden eingeben:")
+    if (input !== c.email) return
+    setDeleteLoading(true)
+    fetch(`/admin/customers/${customerId}/delete`, {
+      method: "DELETE",
+      credentials: "include",
+      cache: "no-store",
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        setDeleteLoading(false)
+        if (d.success) {
+          onClose()
+          onCustomerChanged?.()
+        }
+      })
+      .catch(() => setDeleteLoading(false))
+  }
+
+  // ── Saved Addresses helpers ──
+
+  function fetchSavedAddresses(cId: string) {
+    setSavedAddressesLoading(true)
+    fetch(`/admin/customers/${cId}/addresses`, { credentials: "include", cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        setSavedAddresses(d.addresses || [])
+        setSavedAddressesLoading(false)
+      })
+      .catch(() => setSavedAddressesLoading(false))
+  }
+
+  function startEditAddress(addr: SavedAddress) {
+    setEditingAddressId(addr.id)
+    setAddressForm({
+      first_name: addr.first_name || "",
+      last_name: addr.last_name || "",
+      address_1: addr.address_1 || "",
+      address_2: addr.address_2 || "",
+      city: addr.city || "",
+      postal_code: addr.postal_code || "",
+      country_code: addr.country_code || "",
+      phone: addr.phone || "",
+    })
+  }
+
+  function cancelEditAddress() {
+    setEditingAddressId(null)
+    setAddressForm({ first_name: "", last_name: "", address_1: "", address_2: "", city: "", postal_code: "", country_code: "", phone: "" })
+  }
+
+  function saveEditAddress() {
+    if (!editingAddressId) return
+    setAddressSaving(true)
+    fetch(`/admin/customer-addresses/${editingAddressId}`, {
+      method: "PATCH",
+      credentials: "include",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(addressForm),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.address) {
+          setSavedAddresses((prev) => prev.map((a) => a.id === editingAddressId ? d.address : a))
+        }
+        setEditingAddressId(null)
+        setAddressSaving(false)
+      })
+      .catch(() => setAddressSaving(false))
+  }
+
+  function deleteSavedAddress(addressId: string) {
+    if (!window.confirm("Delete this address?")) return
+    fetch(`/admin/customer-addresses/${addressId}`, {
+      method: "DELETE",
+      credentials: "include",
+      cache: "no-store",
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success) {
+          setSavedAddresses((prev) => prev.filter((a) => a.id !== addressId))
+        }
+      })
+      .catch(() => {})
+  }
+
+  function startAddAddress() {
+    setShowAddAddressForm(true)
+    setAddressForm({ first_name: "", last_name: "", address_1: "", address_2: "", city: "", postal_code: "", country_code: "", phone: "" })
+  }
+
+  function cancelAddAddress() {
+    setShowAddAddressForm(false)
+    setAddressForm({ first_name: "", last_name: "", address_1: "", address_2: "", city: "", postal_code: "", country_code: "", phone: "" })
+  }
+
+  function saveNewAddress() {
+    if (!customerId || !addressForm.address_1 || !addressForm.city || !addressForm.postal_code || !addressForm.country_code) return
+    setAddressSaving(true)
+    fetch(`/admin/customers/${customerId}/addresses`, {
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(addressForm),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.address) {
+          setSavedAddresses((prev) => [d.address, ...prev])
+        }
+        setShowAddAddressForm(false)
+        setAddressSaving(false)
+      })
+      .catch(() => setAddressSaving(false))
+  }
+
   // ── Styles ──
 
   const drawerStyle: React.CSSProperties = {
@@ -640,6 +793,49 @@ function CustomerDetailDrawer({
     letterSpacing: "0.05em",
     marginBottom: "8px",
   }
+
+  const addressFormFields = (form: typeof addressForm, setForm: (f: typeof addressForm) => void) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+        <div>
+          <label style={{ fontSize: "11px", color: COLORS.muted, display: "block", marginBottom: "3px" }}>First Name</label>
+          <input style={inputStyle} value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} />
+        </div>
+        <div>
+          <label style={{ fontSize: "11px", color: COLORS.muted, display: "block", marginBottom: "3px" }}>Last Name</label>
+          <input style={inputStyle} value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} />
+        </div>
+      </div>
+      <div>
+        <label style={{ fontSize: "11px", color: COLORS.muted, display: "block", marginBottom: "3px" }}>Address Line 1 *</label>
+        <input style={inputStyle} value={form.address_1} onChange={(e) => setForm({ ...form, address_1: e.target.value })} />
+      </div>
+      <div>
+        <label style={{ fontSize: "11px", color: COLORS.muted, display: "block", marginBottom: "3px" }}>Address Line 2</label>
+        <input style={inputStyle} value={form.address_2} onChange={(e) => setForm({ ...form, address_2: e.target.value })} />
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+        <div>
+          <label style={{ fontSize: "11px", color: COLORS.muted, display: "block", marginBottom: "3px" }}>City *</label>
+          <input style={inputStyle} value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
+        </div>
+        <div>
+          <label style={{ fontSize: "11px", color: COLORS.muted, display: "block", marginBottom: "3px" }}>Postal Code *</label>
+          <input style={inputStyle} value={form.postal_code} onChange={(e) => setForm({ ...form, postal_code: e.target.value })} />
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+        <div>
+          <label style={{ fontSize: "11px", color: COLORS.muted, display: "block", marginBottom: "3px" }}>Country Code *</label>
+          <input style={inputStyle} value={form.country_code} onChange={(e) => setForm({ ...form, country_code: e.target.value })} placeholder="DE" />
+        </div>
+        <div>
+          <label style={{ fontSize: "11px", color: COLORS.muted, display: "block", marginBottom: "3px" }}>Phone</label>
+          <input style={inputStyle} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+        </div>
+      </div>
+    </div>
+  )
 
   return (
     <>
@@ -717,7 +913,7 @@ function CustomerDetailDrawer({
               padding: "4px",
             }}
           >
-            \u2715
+            {"\u2715"}
           </button>
         </div>
 
@@ -840,7 +1036,7 @@ function CustomerDetailDrawer({
                         onClick={() => removeTag(tag)}
                         style={{ cursor: "pointer", opacity: 0.7, fontSize: "14px", lineHeight: 1 }}
                       >
-                        \u00D7
+                        {"\u00D7"}
                       </span>
                     </span>
                   ))}
@@ -939,10 +1135,100 @@ function CustomerDetailDrawer({
                 </div>
               </div>
 
-              {/* Addresses */}
+              {/* Saved Addresses (CRUD) */}
+              <div>
+                <div style={{ ...sectionLabelStyle, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span>Saved Addresses</span>
+                  {!showAddAddressForm && (
+                    <button
+                      onClick={startAddAddress}
+                      style={{ ...smallBtnStyle, fontSize: "11px", padding: "2px 8px" }}
+                    >
+                      + Add Address
+                    </button>
+                  )}
+                </div>
+
+                {/* Add Address Form */}
+                {showAddAddressForm && (
+                  <div style={{ padding: "12px", background: COLORS.bg, borderRadius: "6px", border: `1px solid ${COLORS.gold}40`, marginBottom: "8px" }}>
+                    {addressFormFields(addressForm, setAddressForm)}
+                    <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
+                      <button
+                        onClick={saveNewAddress}
+                        disabled={addressSaving || !addressForm.address_1 || !addressForm.city || !addressForm.postal_code || !addressForm.country_code}
+                        style={{ ...smallBtnStyle, background: COLORS.gold, color: COLORS.bg, borderColor: COLORS.gold, fontWeight: 600 }}
+                      >
+                        {addressSaving ? "Saving..." : "Save"}
+                      </button>
+                      <button onClick={cancelAddAddress} style={smallBtnStyle}>Cancel</button>
+                    </div>
+                  </div>
+                )}
+
+                {savedAddressesLoading ? (
+                  <div style={{ color: COLORS.muted, fontSize: "12px" }}>Loading...</div>
+                ) : savedAddresses.length === 0 && !showAddAddressForm ? (
+                  <div style={{ color: COLORS.muted, fontSize: "12px" }}>No saved addresses.</div>
+                ) : (
+                  savedAddresses.map((addr) => (
+                    <div
+                      key={addr.id}
+                      style={{
+                        padding: "10px 12px",
+                        background: COLORS.bg,
+                        borderRadius: "6px",
+                        marginBottom: "8px",
+                        fontSize: "12px",
+                        lineHeight: "1.6",
+                      }}
+                    >
+                      {editingAddressId === addr.id ? (
+                        <div>
+                          {addressFormFields(addressForm, setAddressForm)}
+                          <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
+                            <button
+                              onClick={saveEditAddress}
+                              disabled={addressSaving}
+                              style={{ ...smallBtnStyle, background: COLORS.gold, color: COLORS.bg, borderColor: COLORS.gold, fontWeight: 600 }}
+                            >
+                              {addressSaving ? "Saving..." : "Save"}
+                            </button>
+                            <button onClick={cancelEditAddress} style={smallBtnStyle}>Cancel</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <div style={{ fontWeight: 500 }}>
+                            {[addr.first_name, addr.last_name].filter(Boolean).join(" ") || "\u2014"}
+                          </div>
+                          <div style={{ color: COLORS.muted }}>
+                            {[addr.address_1, addr.address_2].filter(Boolean).join(", ")}
+                          </div>
+                          <div style={{ color: COLORS.muted }}>
+                            {[addr.postal_code, addr.city, addr.country_code].filter(Boolean).join(" ")}
+                          </div>
+                          {addr.phone && <div style={{ color: COLORS.muted }}>{addr.phone}</div>}
+                          <div style={{ display: "flex", gap: "8px", marginTop: "6px" }}>
+                            <button onClick={() => startEditAddress(addr)} style={{ ...smallBtnStyle, fontSize: "11px", padding: "2px 8px" }}>Edit</button>
+                            <button
+                              onClick={() => deleteSavedAddress(addr.id)}
+                              style={{ ...smallBtnStyle, fontSize: "11px", padding: "2px 8px", color: COLORS.error, borderColor: COLORS.error + "60" }}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Known Addresses (from transactions) */}
               {data?.addresses && data.addresses.length > 0 && (
                 <div>
-                  <div style={sectionLabelStyle}>Known Addresses</div>
+                  <div style={sectionLabelStyle}>Known Addresses (from orders)</div>
                   {data.addresses.slice(0, 3).map((addr, i) => (
                     <div
                       key={i}
@@ -1036,11 +1322,27 @@ function CustomerDetailDrawer({
                     {anonymizeLoading ? "Processing..." : "Anonymize Customer (GDPR)"}
                   </button>
                   <button
+                    onClick={handleDelete}
+                    disabled={deleteLoading}
+                    style={{
+                      ...smallBtnStyle,
+                      borderColor: COLORS.error,
+                      color: "#fff",
+                      background: COLORS.error,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {deleteLoading ? "Deleting..." : "Delete Contact"}
+                  </button>
+                  <button
                     onClick={() => window.open(`/admin/customers/${customerId}/gdpr-export`, "_blank")}
                     style={smallBtnStyle}
                   >
                     Admin GDPR Export
                   </button>
+                </div>
+                <div style={{ fontSize: "11px", color: COLORS.muted, marginTop: "8px" }}>
+                  Anonymize: replaces PII with hashes, keeps transactions for accounting. Delete: permanently removes customer and all related data.
                 </div>
               </div>
             </div>
@@ -1359,7 +1661,7 @@ function CustomersListTab({
 
   return (
     <div>
-      {/* Search + Summary */}
+      {/* Search + Summary + Export */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", gap: "12px" }}>
         <input
           type="text"
@@ -1378,8 +1680,26 @@ function CustomersListTab({
             outline: "none",
           }}
         />
-        <div style={{ fontSize: "13px", color: COLORS.muted }}>
-          {loading ? "Loading..." : `${total.toLocaleString("en-US")} customers`}
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ fontSize: "13px", color: COLORS.muted }}>
+            {loading ? "Loading..." : `${total.toLocaleString("en-US")} customers`}
+          </div>
+          <button
+            onClick={() => window.open("/admin/customers/export", "_blank")}
+            style={{
+              padding: "6px 12px",
+              borderRadius: "5px",
+              border: `1px solid ${COLORS.border}`,
+              background: COLORS.card,
+              color: COLORS.text,
+              fontSize: "12px",
+              fontWeight: 500,
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Export CSV
+          </button>
         </div>
       </div>
 
@@ -1494,10 +1814,10 @@ function CustomersListTab({
               fontSize: "13px",
             }}
           >
-            \u2190 Previous
+            {"\u2190"} Previous
           </button>
           <span style={{ fontSize: "13px", color: COLORS.muted, padding: "6px 8px" }}>
-            {offset + 1}\u2013{Math.min(offset + limit, total)} of {total}
+            {offset + 1}{"\u2013"}{Math.min(offset + limit, total)} of {total}
           </span>
           <button
             onClick={() => setOffset(offset + limit)}
@@ -1512,7 +1832,7 @@ function CustomersListTab({
               fontSize: "13px",
             }}
           >
-            Next \u2192
+            Next {"\u2192"}
           </button>
         </div>
       )}
