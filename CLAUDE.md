@@ -62,6 +62,8 @@ npm run build && pm2 restart vodauction-storefront
 
 **Admin Build Gotcha:** `medusa build` → `.medusa/server/public/admin/`. Muss nach `public/admin/` kopiert werden — sonst 502 Bad Gateway!
 
+**Neue Admin-Route hinzugefügt?** Vite-Cache clearen vor dem Build: `rm -rf node_modules/.vite .medusa && npx medusa build`. Sonst registriert der Vite-Plugin die neue Route nicht (→ 404 oder silent crash).
+
 **Git Workflow:** NIE `git pull` auf VPS machen wenn VPS-Code nicht vorher auf GitHub gepusht wurde.
 
 ## Key Gotchas
@@ -71,6 +73,8 @@ npm run build && pm2 restart vodauction-storefront
 - **Medusa ULID IDs:** Bei Knex-Insert immer `id: generateEntityId()` aus `@medusajs/framework/utils` mitgeben — sonst `NOT NULL violation`
 - **Stripe Webhook Raw Body:** `rawBodyMiddleware` in `middlewares.ts` NICHT entfernen — ohne es scheitern ALLE Webhooks mit "No webhook payload"
 - **Admin Routes:** `defineRouteConfig()` NUR auf Top-Level `page.tsx`, NICHT auf `[id]/page.tsx` (Routing-Konflikte)
+- **Admin Route Pfade:** Niemals native Medusa-Pfade verwenden (`customers`, `orders`, `products`, `settings` etc.) → native Route gewinnt immer. Stattdessen eigene Pfade: `crm`, `auction-blocks`, `catalog` etc.
+- **Vite Cache bei neuen Admin-Routen:** Neues `src/admin/routes/X/`-Verzeichnis → VPS Vite-Cache MUSS gecleart werden: `rm -rf node_modules/.vite .medusa && npx medusa build`. Sonst findet der Vite-Plugin die neue Route nicht → 404 oder korrupter Bundle → silent crash.
 - **CamelCase vs snake_case:** Legacy-Tabellen (`Release`, `Artist`) → camelCase; Auction-Tabellen → snake_case
 - **SSL Supabase:** `rejectUnauthorized: false` in `medusa-config.ts` nötig
 - **Medusa/Vite Build:** IIFE `(() => {...})()` in JSX-Ternary → silent build failure → Blank Page. Separate Komponenten verwenden.
@@ -323,6 +327,17 @@ VOD_Auctions/
 ### 2026-03-30 — Admin AI Assistant
 - **AI Assistant** `/app/ai-assistant` (NEU, rank 6, Sparkles-Icon) — Chat-Interface mit Claude Haiku. Streaming SSE. 5 read-only Tools: `get_dashboard_stats`, `list_auction_blocks`, `search_transactions`, `search_media`, `get_system_health`. Tool-Chips in UI (klickbar für Raw-JSON). Markdown-Rendering. `@anthropic-ai/sdk` + `ANTHROPIC_API_KEY` in `backend/.env`.
 - **Neue Route:** `POST /admin/ai-chat` — SSE-Streaming, agentic loop (max 5 Tool-Calls), Knex direkt.
+
+### 2026-03-29 — CRM P1: Customer Stats + Admin Customer List + GDPR Export
+- **`customer_stats` Tabelle** — Materialisierter View für schnelle SQL-Queries. Felder: `total_spent`, `total_purchases`, `total_bids`, `total_wins`, `last_purchase_at`, `first_purchase_at`, `last_bid_at`, `tags TEXT[]`, `is_vip` (≥€500), `is_dormant` (kein Kauf >90 Tage). Migration: `Migration20260331000000.ts`. Backfill: `scripts/backfill_customer_stats.py`.
+- **Stündlicher Recalc-Job** — `src/jobs/customer-stats-recalc.ts` (Schedule `0 * * * *`): Full-UPSERT aller Stats aus `transaction` + `bid` Tabellen.
+- **Subscriber `customer.created`** — `src/subscribers/customer-created.ts`: Legt `customer_stats`-Zeile an + ruft `crmSyncRegistration()` auf. Deckt Admin-erstellte Kunden ab (vorher nur Storefront-Flow).
+- **Admin Customers Page** — `/app/crm` (route: `src/admin/routes/crm/page.tsx`). Zwei Tabs: "Customers" (searchable, sortable Liste mit Stats) + "CRM Dashboard" (Brevo-Daten). Slide-in Detail-Drawer mit 3 Sub-Tabs (Overview/Orders/Bids). Pfad `/crm` (nicht `/customers` — native Medusa-Route kollidiert!).
+- **API `GET /admin/customers/list`** — Paginated customer list mit LEFT JOIN customer_stats. Search (whereILike), Sort, Pagination.
+- **API `GET /admin/customers/:id`** — Customer-Detail + letzte 20 Orders + letzte 20 Bids + letzte 5 Adressen.
+- **GDPR Export** — `GET /store/account/gdpr-export` (auth required). JSON-Download mit Profil, Orders, Bids, Saved Items.
+- **Storefront Settings** — `account/settings/page.tsx`: "Download My Data" Button → ruft GDPR-Export auf.
+- **Deployment-Gotcha:** Neues Admin-Route-Verzeichnis (`crm/`) → VPS Vite-Cache muss gecleart werden: `rm -rf node_modules/.vite .medusa`. Sonst 404 oder silent crash durch korrupten Bundle.
 
 ### 2026-03-30 — Admin Backoffice Fixes + Dashboard Landing Page
 - **Dashboard** `/app/dashboard` (NEU, rank 0, Home-Icon) — KPI-Cards, To-Do-Queue (überfällige Zahlungen, packing-Queue, Labels), Live-Auctions-Widget, Upcoming-Blocks, Week-Stats. Auto-Refresh 60s. 5× `Promise.allSettled` gegen bestehende Endpoints.
