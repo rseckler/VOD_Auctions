@@ -129,6 +129,7 @@ npm run build && pm2 restart vodauction-storefront
 - `GET /store/account/status` — cart_count + saved_count
 
 ### Admin (credentials required)
+- `POST /admin/ai-chat` — AI Assistant Chat (SSE Streaming, Claude Haiku, 5 read-only Tools)
 - `GET/POST /admin/auction-blocks` — Blocks CRUD
 - `DELETE /admin/auction-blocks/:id` — Löschen (nur draft/ended/archived, Releases → available)
 - `GET /admin/auction-blocks/:id/live-bids` — Live Bid Monitor (volle Namen)
@@ -302,6 +303,10 @@ VOD_Auctions/
 **Backlog:** RSE-78 (Launch, offen: AGB-Anwalt) | RSE-79 (Erste öffentliche Auktionen) | RSE-80 (Marketing)
 
 ## Recent Changes
+
+### 2026-03-30 — Admin AI Assistant
+- **AI Assistant** `/app/ai-assistant` (NEU, rank 6, Sparkles-Icon) — Chat-Interface mit Claude Haiku. Streaming SSE. 5 read-only Tools: `get_dashboard_stats`, `list_auction_blocks`, `search_transactions`, `search_media`, `get_system_health`. Tool-Chips in UI (klickbar für Raw-JSON). Markdown-Rendering. `@anthropic-ai/sdk` + `ANTHROPIC_API_KEY` in `backend/.env`.
+- **Neue Route:** `POST /admin/ai-chat` — SSE-Streaming, agentic loop (max 5 Tool-Calls), Knex direkt.
 
 ### 2026-03-30 — Admin Backoffice Fixes + Dashboard Landing Page
 - **Dashboard** `/app/dashboard` (NEU, rank 0, Home-Icon) — KPI-Cards, To-Do-Queue (überfällige Zahlungen, packing-Queue, Labels), Live-Auctions-Widget, Upcoming-Blocks, Week-Stats. Auto-Refresh 60s. 5× `Promise.allSettled` gegen bestehende Endpoints.

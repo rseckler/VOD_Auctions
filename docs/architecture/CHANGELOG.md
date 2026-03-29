@@ -4,6 +4,32 @@ Vollständiger Entwicklungs-Changelog. Aktuelle Änderungen stehen in CLAUDE.md.
 
 ---
 
+### 2026-03-30 — Admin AI Assistant
+
+**Neuer Admin-Bereich `/app/ai-assistant`**
+- Chat-Interface im Medusa-Admin mit Claude Haiku als Backend-AI.
+- Streaming SSE: Antworten erscheinen sofort, kein Warten auf komplette Response.
+- **5 read-only Tools** (Knex-Queries direkt, kein HTTP-Roundtrip):
+  - `get_dashboard_stats` — KPI-Snapshot (aktive Auktionen, offene Bestellungen, Katalog-Größe, Gesamtumsatz)
+  - `list_auction_blocks` — Blocks nach Status filtern
+  - `search_transactions` — Bestellungen nach Kunde, E-Mail, Bestellnummer, Status suchen
+  - `search_media` — 41k Releases durchsuchen (Titel, Artist, Label, Kategorie)
+  - `get_system_health` — DB-Connectivity-Check
+- **Agentic loop:** Claude kann mehrere Tools pro Antwort aufrufen (max 5 Iterationen).
+- **Tool-Chips in der UI:** Zeigen welche Tools aufgerufen wurden, klickbar für Raw-JSON.
+- **5 Suggestion-Chips** als Schnellstart (Deutsch).
+- **Markdown-Rendering:** Tabellen, Code-Blöcke, Bold, Listen.
+- Sidebar: rank 6 (nach Operations), Sparkles-Icon.
+- Model: `claude-haiku-4-5-20251001` (~$0.001/Anfrage).
+- `ANTHROPIC_API_KEY` in `backend/.env` (aus 1Password: "Anthropic API Key (MyNews)").
+
+**Neue Dateien:**
+- `backend/src/api/admin/ai-chat/route.ts` — Backend-Endpoint (POST, SSE-Streaming)
+- `backend/src/admin/routes/ai-assistant/page.tsx` — Chat-UI
+- `@anthropic-ai/sdk` zu `backend/package.json` hinzugefügt
+
+---
+
 ### 2026-03-30 — Admin Backoffice Fixes + Dashboard Landing Page
 
 **Neue Admin-Dashboard-Seite (`/app/dashboard`)**
