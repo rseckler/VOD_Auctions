@@ -1,4 +1,3 @@
-import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { Component, useEffect, useState, useCallback, useRef } from "react"
 import type { ErrorInfo, ReactNode } from "react"
 
@@ -750,5 +749,4 @@ const EntityContentPage = () => (
   </ErrorBoundary>
 )
 
-export const config = defineRouteConfig({ label: "Entity Content" })
 export default EntityContentPage

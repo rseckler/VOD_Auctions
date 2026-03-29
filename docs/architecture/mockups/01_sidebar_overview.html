@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup 1 — New Sidebar Structure</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif; background: #f9fafb; color: #111827; font-size: 14px; }
+
+  /* Layout */
+  .layout { display: flex; height: 100vh; }
+
+  /* Sidebar */
+  .sidebar { width: 240px; background: #fff; border-right: 1px solid #e5e7eb; display: flex; flex-direction: column; flex-shrink: 0; }
+  .sidebar-logo { padding: 20px 16px 16px; border-bottom: 1px solid #e5e7eb; }
+  .sidebar-logo-inner { display: flex; align-items: center; gap: 10px; }
+  .logo-icon { width: 32px; height: 32px; background: #111827; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+  .logo-icon svg { color: #fff; }
+  .logo-text { font-weight: 700; font-size: 15px; color: #111827; }
+  .logo-sub { font-size: 11px; color: #6b7280; margin-top: 1px; }
+
+  .sidebar-section { padding: 12px 8px 4px; }
+  .sidebar-section-label { font-size: 10px; font-weight: 600; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.07em; padding: 0 8px 6px; }
+
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px; cursor: pointer; color: #374151; font-size: 13px; font-weight: 500; position: relative; margin-bottom: 1px; text-decoration: none; }
+  .nav-item:hover { background: #f3f4f6; }
+  .nav-item.active { background: #f3f4f6; color: #111827; }
+  .nav-item .icon { width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 15px; opacity: 0.7; }
+  .nav-item.active .icon { opacity: 1; }
+  .nav-badge { margin-left: auto; background: #dc2626; color: #fff; border-radius: 10px; padding: 1px 6px; font-size: 10px; font-weight: 700; }
+  .nav-badge.green { background: #16a34a; }
+  .nav-badge.amber { background: #d97706; }
+
+  .sidebar-divider { height: 1px; background: #e5e7eb; margin: 8px 16px; }
+
+  /* OLD sidebar items for comparison */
+  .old-nav-item { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 4px; color: #6b7280; font-size: 12px; }
+  .old-dot { width: 6px; height: 6px; border-radius: 50%; background: #d1d5db; flex-shrink: 0; }
+
+  /* Main content */
+  .main { flex: 1; overflow: auto; }
+
+  /* Split view */
+  .split { display: grid; grid-template-columns: 1fr 1fr; height: 100%; }
+  .split-panel { padding: 32px; border-right: 1px solid #e5e7eb; }
+  .split-panel:last-child { border-right: none; }
+
+  .panel-title { font-size: 18px; font-weight: 700; color: #111827; margin-bottom: 4px; }
+  .panel-subtitle { font-size: 12px; color: #6b7280; margin-bottom: 24px; }
+
+  .before-label { display: inline-block; background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5; border-radius: 4px; font-size: 10px; font-weight: 700; padding: 2px 8px; letter-spacing: 0.05em; margin-bottom: 16px; text-transform: uppercase; }
+  .after-label { display: inline-block; background: #f0fdf4; color: #16a34a; border: 1px solid #86efac; border-radius: 4px; font-size: 10px; font-weight: 700; padding: 2px 8px; letter-spacing: 0.05em; margin-bottom: 16px; text-transform: uppercase; }
+
+  .stat-row { display: flex; gap: 12px; margin: 24px 0; }
+  .stat-box { flex: 1; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; text-align: center; }
+  .stat-num { font-size: 28px; font-weight: 800; color: #111827; }
+  .stat-num.red { color: #dc2626; }
+  .stat-num.green { color: #16a34a; }
+  .stat-label { font-size: 10px; color: #6b7280; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+  .arrow-down { text-align: center; font-size: 24px; color: #9ca3af; margin: 8px 0; }
+
+  .change-note { background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 10px 14px; font-size: 12px; color: #92400e; margin-top: 16px; }
+  .change-note strong { color: #78350f; }
+
+  /* Sidebar mock inside main panel */
+  .sidebar-mock { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+  .sidebar-mock-header { padding: 12px 14px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; gap: 8px; }
+  .sidebar-mock-logo { width: 20px; height: 20px; background: #111827; border-radius: 4px; }
+  .sidebar-mock-title { font-size: 13px; font-weight: 600; }
+  .sidebar-mock-body { padding: 8px; }
+  .sidebar-mock-section { font-size: 9px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.07em; padding: 6px 8px 4px; }
+  .sidebar-mock-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 5px; font-size: 12px; color: #374151; font-weight: 500; margin-bottom: 1px; }
+  .sidebar-mock-item.active { background: #f3f4f6; color: #111827; font-weight: 600; }
+  .sidebar-mock-item .m-icon { font-size: 14px; width: 16px; text-align: center; }
+  .sidebar-mock-item .m-badge { margin-left: auto; background: #16a34a; color: #fff; border-radius: 8px; padding: 1px 5px; font-size: 9px; font-weight: 700; }
+  .sidebar-mock-item .m-badge.red { background: #dc2626; }
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- Left sidebar (the NEW one) -->
+  <div class="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-inner">
+        <div class="logo-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg>
+        </div>
+        <div>
+          <div class="logo-text">VOD Admin</div>
+          <div class="logo-sub">Vinyl On Demand</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Core</div>
+      <a class="nav-item active" href="#">
+        <span class="icon">🏆</span> Auction Blocks
+        <span class="nav-badge green">2 live</span>
+      </a>
+      <a class="nav-item" href="#">
+        <span class="icon">📦</span> Orders
+        <span class="nav-badge">6</span>
+      </a>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Management</div>
+      <a class="nav-item" href="#">
+        <span class="icon">🗃️</span> Catalog
+      </a>
+      <a class="nav-item" href="#">
+        <span class="icon">📢</span> Marketing
+      </a>
+      <a class="nav-item" href="#">
+        <span class="icon">⚙️</span> Operations
+        <span class="nav-badge amber">1</span>
+      </a>
+    </div>
+
+    <div style="margin-top: auto; padding: 12px 8px; border-top: 1px solid #e5e7eb;">
+      <a class="nav-item" href="#">
+        <span class="icon">👤</span> admin@vod.de
+      </a>
+    </div>
+  </div>
+
+  <!-- Main area: before/after comparison -->
+  <div class="main">
+    <div class="split">
+
+      <!-- BEFORE -->
+      <div class="split-panel" style="background: #fafafa;">
+        <span class="before-label">Before — 15 flat items</span>
+        <div class="panel-title">Alte Struktur</div>
+        <div class="panel-subtitle">Alphabetisch, keine Logik, kein Workflow</div>
+
+        <div class="sidebar-mock">
+          <div class="sidebar-mock-header">
+            <div class="sidebar-mock-logo"></div>
+            <div class="sidebar-mock-title">VOD Admin</div>
+          </div>
+          <div class="sidebar-mock-body">
+            <div class="sidebar-mock-section">Extensions (15)</div>
+            <div class="sidebar-mock-item"><span class="m-icon">—</span> Auction Blocks</div>
+            <div class="sidebar-mock-item"><span class="m-icon">—</span> CRM Dashboard</div>
+            <div class="sidebar-mock-item"><span class="m-icon">—</span> Content</div>
+            <div class="sidebar-mock-item"><span class="m-icon">—</span> Email Templates</div>
+            <div class="sidebar-mock-item"><span class="m-icon">—</span> Entity Content</div>
+            <div class="sidebar-mock-item"><span class="m-icon">—</span> Gallery</div>
+            <div class="sidebar-mock-item active"><span class="m-icon">—</span> Live Monitor</div>
+            <div class="sidebar-mock-item"><span class="m-icon">—</span> Media</div>
+            <div class="sidebar-mock-item"><span class="m-icon">—</span> Musicians</div>
+            <div class="sidebar-mock-item"><span class="m-icon">—</span> Newsletter</div>
+            <div class="sidebar-mock-item"><span class="m-icon">—</span> Shipping</div>
+            <div class="sidebar-mock-item"><span class="m-icon">—</span> Sync Status</div>
+            <div class="sidebar-mock-item"><span class="m-icon">—</span> System Health</div>
+            <div class="sidebar-mock-item"><span class="m-icon">—</span> Test Runner</div>
+            <div class="sidebar-mock-item"><span class="m-icon">—</span> Transactions</div>
+          </div>
+        </div>
+
+        <div class="stat-row">
+          <div class="stat-box"><div class="stat-num red">15</div><div class="stat-label">Sidebar Items</div></div>
+          <div class="stat-box"><div class="stat-num red">0</div><div class="stat-label">Gruppen</div></div>
+          <div class="stat-box"><div class="stat-num red">—</div><div class="stat-label">Workflow</div></div>
+        </div>
+
+        <div class="change-note">
+          <strong>Problem:</strong> Neuer Mitarbeiter oder Operator nach Pause sieht 15 gleich-gewichtete Items ohne Orientierung. Live Monitor steht zwischen Gallery und Media. Transactions ist am Ende der Liste. Kein erkennbarer Einstiegspunkt.
+        </div>
+      </div>
+
+      <!-- AFTER -->
+      <div class="split-panel" style="background: #fff;">
+        <span class="after-label">After — 5 logische Gruppen</span>
+        <div class="panel-title">Neue Struktur</div>
+        <div class="panel-subtitle">Workflow-orientiert, klar priorisiert</div>
+
+        <div class="sidebar-mock">
+          <div class="sidebar-mock-header">
+            <div class="sidebar-mock-logo"></div>
+            <div class="sidebar-mock-title">VOD Admin</div>
+          </div>
+          <div class="sidebar-mock-body">
+            <div class="sidebar-mock-section">Core Workflows</div>
+            <div class="sidebar-mock-item active">
+              <span class="m-icon">🏆</span> Auction Blocks
+              <span class="m-badge">2 live</span>
+            </div>
+            <div class="sidebar-mock-item">
+              <span class="m-icon">📦</span> Orders
+              <span class="m-badge red">6</span>
+            </div>
+
+            <div class="sidebar-mock-section" style="margin-top:8px;">Management</div>
+            <div class="sidebar-mock-item">
+              <span class="m-icon">🗃️</span> Catalog
+            </div>
+            <div class="sidebar-mock-item">
+              <span class="m-icon">📢</span> Marketing
+            </div>
+            <div class="sidebar-mock-item">
+              <span class="m-icon">⚙️</span> Operations
+            </div>
+          </div>
+        </div>
+
+        <div class="stat-row">
+          <div class="stat-box"><div class="stat-num green">5</div><div class="stat-label">Sidebar Items</div></div>
+          <div class="stat-box"><div class="stat-num green">2</div><div class="stat-label">Gruppen</div></div>
+          <div class="stat-box"><div class="stat-num green">✓</div><div class="stat-label">Workflow</div></div>
+        </div>
+
+        <div class="change-note" style="background:#f0fdf4; border-color:#86efac; color:#14532d;">
+          <strong style="color:#15803d;">Verbesserung:</strong> Sofort erkennbar: Auktionen und Orders sind Hauptaufgaben (oben). Catalog/Marketing/Operations sind Verwaltung (unten). Badges zeigen sofort was zu tun ist. Live Monitor lebt in Operations Hub.
+        </div>
+
+        <div style="margin-top: 20px; padding: 16px; background: #f0fdf4; border-radius: 8px; border: 1px solid #bbf7d0;">
+          <div style="font-size: 12px; font-weight: 700; color: #15803d; margin-bottom: 8px;">Mapping: Was steckt wo drin?</div>
+          <div style="font-size: 11px; color: #166534; line-height: 1.8;">
+            📦 <strong>Orders</strong> = Transactions (umbenannt)<br>
+            🗃️ <strong>Catalog</strong> = Media · Entity Content · Musicians<br>
+            📢 <strong>Marketing</strong> = Newsletter · Emails · CRM · Content · Gallery<br>
+            ⚙️ <strong>Operations</strong> = Live Monitor · Shipping · System Health · Sync · Test
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</body>
+</html>

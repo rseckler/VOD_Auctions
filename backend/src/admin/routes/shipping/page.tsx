@@ -1,4 +1,3 @@
-import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { BuildingStorefront } from "@medusajs/icons"
 import {
   Container,
@@ -1399,10 +1398,5 @@ const ShippingPage = () => {
     </Container>
   )
 }
-
-export const config = defineRouteConfig({
-  label: "Shipping",
-  icon: BuildingStorefront,
-})
 
 export default ShippingPage

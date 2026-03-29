@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup 5 — Order Detail Page</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif; background: #f9fafb; color: #111827; font-size: 14px; display: flex; }
+
+  .sidebar { width: 220px; background: #fff; border-right: 1px solid #e5e7eb; display: flex; flex-direction: column; flex-shrink: 0; height: 100vh; position: sticky; top: 0; }
+  .sidebar-logo { padding: 18px 14px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; gap: 8px; }
+  .logo-dot { width: 28px; height: 28px; background: #111827; border-radius: 6px; }
+  .logo-text { font-weight: 700; font-size: 14px; }
+  .nav-section { padding: 10px 12px 4px; font-size: 9px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.07em; }
+  .nav-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px; margin: 1px 6px; border-radius: 5px; font-size: 12px; font-weight: 500; color: #374151; cursor: pointer; }
+  .nav-item.active { background: #f3f4f6; color: #111827; font-weight: 600; }
+  .nav-badge { margin-left: auto; background: #dc2626; color: #fff; border-radius: 8px; padding: 1px 5px; font-size: 9px; font-weight: 700; }
+  .nav-badge.green { background: #16a34a; }
+
+  .main { flex: 1; padding: 28px 36px; overflow: auto; }
+
+  .breadcrumb { font-size: 12px; color: #9ca3af; margin-bottom: 20px; display: flex; align-items: center; gap: 6px; }
+  .breadcrumb a { color: #6b7280; text-decoration: none; }
+  .sep { color: #d1d5db; }
+
+  /* Header */
+  .order-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; }
+  .order-num { font-size: 22px; font-weight: 800; color: #111827; font-family: monospace; }
+  .order-meta { font-size: 12px; color: #6b7280; margin-top: 3px; display: flex; align-items: center; gap: 8px; }
+  .status-pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; }
+  .status-paid { background: #dcfce7; color: #15803d; }
+  .status-pending { background: #fef3c7; color: #b45309; }
+  .status-shipped { background: #dbeafe; color: #1d4ed8; }
+  .fulfillment-pill { background: #fef3c7; color: #92400e; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+
+  .header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn { padding: 7px 13px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; }
+  .btn-primary { background: #6366f1; color: #fff; }
+  .btn-secondary { background: #fff; color: #374151; border: 1px solid #e5e7eb; }
+  .btn-blue { background: #2563eb; color: #fff; }
+  .btn-green { background: #16a34a; color: #fff; }
+  .btn-danger { background: #fff; color: #dc2626; border: 1px solid #fca5a5; }
+
+  /* Grid layout */
+  .top-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+  .wide-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+
+  .panel { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 18px; }
+  .panel-title { font-size: 10px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 12px; }
+
+  .info-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #f9fafb; font-size: 12px; }
+  .info-row:last-child { border: none; }
+  .info-label { color: #9ca3af; }
+  .info-value { font-weight: 500; color: #374151; }
+  .info-value.mono { font-family: monospace; font-size: 11px; }
+
+  /* Item card */
+  .item-card { display: flex; gap: 14px; padding: 14px 0; border-bottom: 1px solid #f3f4f6; }
+  .item-card:last-child { border: none; }
+  .item-cover { width: 60px; height: 60px; border-radius: 6px; background: #f3f4f6; overflow: hidden; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: #d1d5db; font-size: 20px; }
+  .item-title { font-size: 14px; font-weight: 700; color: #111827; }
+  .item-artist { font-size: 12px; color: #6b7280; margin-top: 1px; }
+  .item-meta { font-size: 11px; color: #9ca3af; margin-top: 4px; }
+  .item-meta a { color: #6366f1; text-decoration: none; }
+  .item-price-row { display: flex; gap: 16px; margin-top: 8px; }
+  .price-block { text-align: right; }
+  .price-label { font-size: 10px; color: #9ca3af; text-transform: uppercase; }
+  .price-val { font-size: 13px; font-weight: 700; color: #111827; }
+  .price-val.total { color: #6366f1; font-size: 15px; }
+  .item-badge { display: inline-block; background: #fef3c7; color: #b45309; border-radius: 4px; padding: 2px 7px; font-size: 10px; font-weight: 600; margin-top: 6px; }
+  .item-badge.auction { background: #f3e8ff; color: #9333ea; }
+  .item-badge.direct { background: #dbeafe; color: #1d4ed8; }
+
+  /* Fulfillment stepper */
+  .stepper { display: flex; align-items: center; margin: 12px 0; }
+  .step-node { display: flex; flex-direction: column; align-items: center; position: relative; flex: 1; }
+  .step-circle { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
+  .step-circle.done { background: #dcfce7; color: #15803d; border: 2px solid #16a34a; }
+  .step-circle.current { background: #fef3c7; color: #b45309; border: 2px solid #d97706; }
+  .step-circle.todo { background: #f3f4f6; color: #9ca3af; border: 2px solid #e5e7eb; }
+  .step-label { font-size: 9px; color: #6b7280; margin-top: 4px; text-align: center; white-space: nowrap; }
+  .step-line { flex: 1; height: 2px; background: #e5e7eb; margin: 0 4px; margin-top: -12px; }
+  .step-line.done { background: #16a34a; }
+
+  /* Audit trail */
+  .audit-item { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f3f4f6; position: relative; }
+  .audit-item:last-child { border: none; }
+  .audit-dot { width: 8px; height: 8px; border-radius: 50%; background: #6366f1; flex-shrink: 0; margin-top: 4px; }
+  .audit-dot.grey { background: #9ca3af; }
+  .audit-dot.green { background: #16a34a; }
+  .audit-dot.red { background: #dc2626; }
+  .audit-title { font-size: 12px; font-weight: 600; color: #374151; }
+  .audit-detail { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+  .audit-time { margin-left: auto; font-size: 11px; color: #9ca3af; white-space: nowrap; }
+
+  /* Actions bar */
+  .actions-bar { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px 20px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .actions-label { font-size: 10px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.06em; margin-right: 4px; }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-dot"></div>
+    <div class="logo-text">VOD Admin</div>
+  </div>
+  <div class="nav-section">Core</div>
+  <div class="nav-item"><span>🏆</span> Auction Blocks <span class="nav-badge green">2</span></div>
+  <div class="nav-item active"><span>📦</span> Orders <span class="nav-badge">6</span></div>
+  <div class="nav-section" style="margin-top:8px;">Management</div>
+  <div class="nav-item"><span>🗃️</span> Catalog</div>
+  <div class="nav-item"><span>📢</span> Marketing</div>
+  <div class="nav-item"><span>⚙️</span> Operations</div>
+</div>
+
+<div class="main">
+
+  <div class="breadcrumb">
+    <a href="#">Orders</a>
+    <span class="sep">›</span>
+    <span style="color:#374151;font-weight:500;">VOD-ORD-000003</span>
+  </div>
+
+  <!-- Order Header -->
+  <div class="order-header">
+    <div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
+        <div class="order-num">VOD-ORD-000003</div>
+        <span class="status-pill status-paid">● Paid</span>
+        <span class="fulfillment-pill">Paid → Pack it</span>
+      </div>
+      <div class="order-meta">
+        <span>Auction Win</span>
+        <span style="color:#e5e7eb;">|</span>
+        <span>PayPal</span>
+        <span style="color:#e5e7eb;">|</span>
+        <span>2026-03-29 · 13:39</span>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-secondary">Add Note</button>
+      <button class="btn btn-blue">Print Label ↗</button>
+      <button class="btn btn-primary">Mark Packing</button>
+      <button class="btn btn-danger">Refund</button>
+    </div>
+  </div>
+
+  <!-- Actions bar (contextual, changes per step) -->
+  <div class="actions-bar">
+    <span class="actions-label">Actions:</span>
+    <button class="btn btn-primary" style="font-size:11px;padding:5px 12px;">Mark Packing</button>
+    <button class="btn btn-blue" style="font-size:11px;padding:5px 12px;">Print Label ↗</button>
+    <button class="btn btn-secondary" style="font-size:11px;padding:5px 12px;">Mark Shipped</button>
+    <button class="btn btn-secondary" style="font-size:11px;padding:5px 12px;">Send Confirmation Email</button>
+    <button class="btn btn-secondary" style="font-size:11px;padding:5px 12px;">Cancel Order</button>
+  </div>
+
+  <!-- Top grid: Customer + Shipping + Payment -->
+  <div class="top-grid">
+
+    <!-- Customer -->
+    <div class="panel">
+      <div class="panel-title">Customer</div>
+      <div style="font-size:15px;font-weight:700;color:#111827;margin-bottom:2px;">Robin Seckler</div>
+      <div style="font-size:12px;color:#6b7280;margin-bottom:10px;">robin@seckler.de</div>
+      <div class="info-row"><span class="info-label">Customer since</span><span class="info-value">2026-03-15</span></div>
+      <div class="info-row"><span class="info-label">Total orders</span><span class="info-value">3</span></div>
+      <div class="info-row"><span class="info-label">Total spent</span><span class="info-value">€47.48</span></div>
+      <div style="margin-top:10px;"><a href="#" style="font-size:11px;color:#6366f1;">View customer profile →</a></div>
+    </div>
+
+    <!-- Shipping Address -->
+    <div class="panel">
+      <div class="panel-title">Shipping Address</div>
+      <div style="font-size:13px;font-weight:600;color:#111827;margin-bottom:6px;">Robin Seckler</div>
+      <div style="font-size:12px;color:#6b7280;line-height:1.7;">
+        Musterstraße 12<br>
+        80333 München<br>
+        Germany (DE)
+      </div>
+      <div style="margin-top:10px;">
+        <div class="info-row"><span class="info-label">Shipping zone</span><span class="info-value">DE (domestic)</span></div>
+        <div class="info-row"><span class="info-label">Shipping cost</span><span class="info-value">€6.49</span></div>
+        <div class="info-row"><span class="info-label">Tracking #</span><span class="info-value" style="color:#9ca3af;">not yet</span></div>
+      </div>
+    </div>
+
+    <!-- Payment -->
+    <div class="panel">
+      <div class="panel-title">Payment</div>
+      <div class="info-row"><span class="info-label">Provider</span><span class="info-value">PayPal</span></div>
+      <div class="info-row"><span class="info-label">Amount</span><span class="info-value" style="font-weight:800;color:#6366f1;">€7.49</span></div>
+      <div class="info-row"><span class="info-label">Paid at</span><span class="info-value">13:39:22</span></div>
+      <div class="info-row"><span class="info-label">PayPal Order</span><span class="info-value mono">97W94113MF...</span></div>
+      <div class="info-row"><span class="info-label">Capture ID</span><span class="info-value mono">5GH44298...</span></div>
+      <div class="info-row"><span class="info-label">Verified</span><span class="info-value" style="color:#16a34a;">✓ Server-side</span></div>
+    </div>
+
+  </div>
+
+  <!-- Item + Fulfillment -->
+  <div class="wide-grid">
+
+    <!-- Item -->
+    <div class="panel">
+      <div class="panel-title">Order Items</div>
+      <div class="item-card">
+        <div class="item-cover">💿</div>
+        <div style="flex:1;">
+          <div class="item-title">Scheintot</div>
+          <div class="item-artist">Factrix</div>
+          <div class="item-meta">
+            <a href="#">Lot #4 in Industrial Classics 1980–1985</a> ·
+            <a href="#">View Release →</a>
+          </div>
+          <div style="margin-top:6px;">
+            <span class="item-badge auction">Auction Win</span>
+          </div>
+        </div>
+        <div>
+          <div class="item-price-row">
+            <div class="price-block">
+              <div class="price-label">Bid</div>
+              <div class="price-val">€1.00</div>
+            </div>
+            <div class="price-block">
+              <div class="price-label">Shipping</div>
+              <div class="price-val">€6.49</div>
+            </div>
+            <div class="price-block">
+              <div class="price-label">Total</div>
+              <div class="price-val total">€7.49</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Fulfillment status -->
+    <div class="panel">
+      <div class="panel-title">Fulfillment Pipeline</div>
+
+      <div class="stepper">
+        <div class="step-node">
+          <div class="step-circle done">✓</div>
+          <div class="step-label">Payment<br>Received</div>
+        </div>
+        <div class="step-line done"></div>
+        <div class="step-node">
+          <div class="step-circle current">2</div>
+          <div class="step-label">Pack It</div>
+        </div>
+        <div class="step-line"></div>
+        <div class="step-node">
+          <div class="step-circle todo">3</div>
+          <div class="step-label">Print Label</div>
+        </div>
+        <div class="step-line"></div>
+        <div class="step-node">
+          <div class="step-circle todo">4</div>
+          <div class="step-label">Ship</div>
+        </div>
+        <div class="step-line"></div>
+        <div class="step-node">
+          <div class="step-circle todo">5</div>
+          <div class="step-label">Delivered</div>
+        </div>
+      </div>
+
+      <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:6px;padding:10px 14px;margin:12px 0;font-size:12px;color:#92400e;">
+        <strong>Current step:</strong> Paid — pack the item and prepare for shipping.<br>
+        <span style="opacity:0.8;">Next: Print shipping label</span>
+      </div>
+
+      <div style="margin-top:4px;">
+        <div class="info-row"><span class="info-label">Packed at</span><span class="info-value" style="color:#9ca3af;">—</span></div>
+        <div class="info-row"><span class="info-label">Label printed</span><span class="info-value" style="color:#9ca3af;">—</span></div>
+        <div class="info-row"><span class="info-label">Shipped at</span><span class="info-value" style="color:#9ca3af;">—</span></div>
+        <div class="info-row"><span class="info-label">Tracking #</span><span class="info-value" style="color:#9ca3af;">—</span></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Audit Trail (full width) -->
+  <div class="panel">
+    <div class="panel-title">Audit Trail</div>
+    <div class="audit-item">
+      <div class="audit-dot green"></div>
+      <div style="flex:1;">
+        <div class="audit-title">Payment received via PayPal</div>
+        <div class="audit-detail">PayPal Order: 97W94113MF528800R · Capture: 5GH44298XX · Amount: €7.49 verified server-side</div>
+      </div>
+      <div class="audit-time">2026-03-29 13:39</div>
+    </div>
+    <div class="audit-item">
+      <div class="audit-dot grey"></div>
+      <div style="flex:1;">
+        <div class="audit-title">Order number assigned manually</div>
+        <div class="audit-detail">Assigned VOD-ORD-000003 — automatic assignment failed due to Knex raw() bug (fixed 2026-03-29)</div>
+      </div>
+      <div class="audit-time">2026-03-29 14:12</div>
+    </div>
+    <div class="audit-item">
+      <div class="audit-dot grey"></div>
+      <div style="flex:1;">
+        <div class="audit-title">Checkout initiated</div>
+        <div class="audit-detail">customer: robin@seckler.de · items: 1 · shipping: DE domestic · method: standard</div>
+      </div>
+      <div class="audit-time">2026-03-29 13:35</div>
+    </div>
+    <div class="audit-item">
+      <div class="audit-dot grey"></div>
+      <div style="flex:1;">
+        <div class="audit-title">PayPal order created (JS SDK)</div>
+        <div class="audit-detail">order_group_id: 01KMWP74XM3AE5CZECKTRCZYED · amount: €7.49</div>
+      </div>
+      <div class="audit-time">2026-03-29 13:38</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

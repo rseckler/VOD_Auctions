@@ -1,4 +1,3 @@
-import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { EnvelopeSolid } from "@medusajs/icons"
 import {
   Container,
@@ -341,10 +340,5 @@ function StatCard({
     </div>
   )
 }
-
-export const config = defineRouteConfig({
-  label: "Newsletter",
-  icon: EnvelopeSolid,
-})
 
 export default NewsletterPage

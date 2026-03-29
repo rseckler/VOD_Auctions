@@ -1,4 +1,3 @@
-import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { useEffect, useState } from "react"
 
 type CRMData = {
@@ -477,9 +476,5 @@ const CustomersPage = () => {
     </div>
   )
 }
-
-export const config = defineRouteConfig({
-  label: "CRM Dashboard",
-})
 
 export default CustomersPage

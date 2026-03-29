@@ -1,4 +1,3 @@
-import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { ChartBar } from "@medusajs/icons"
 import { Container, Heading, Text, Badge } from "@medusajs/ui"
 import { useEffect, useState, useRef } from "react"
@@ -315,10 +314,5 @@ const LiveMonitorPage = () => {
     </Container>
   )
 }
-
-export const config = defineRouteConfig({
-  label: "Live Monitor",
-  icon: ChartBar,
-})
 
 export default LiveMonitorPage

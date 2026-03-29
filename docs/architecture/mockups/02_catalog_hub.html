@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup 2 — Catalog Hub</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif; background: #f9fafb; color: #111827; font-size: 14px; display: flex; }
+
+  .sidebar { width: 220px; background: #fff; border-right: 1px solid #e5e7eb; display: flex; flex-direction: column; flex-shrink: 0; height: 100vh; position: sticky; top: 0; }
+  .sidebar-logo { padding: 18px 14px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; gap: 8px; }
+  .logo-dot { width: 28px; height: 28px; background: #111827; border-radius: 6px; }
+  .logo-text { font-weight: 700; font-size: 14px; }
+  .nav-section { padding: 10px 6px 4px; font-size: 9px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.07em; padding-left: 12px; }
+  .nav-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px; margin: 1px 6px; border-radius: 5px; font-size: 12px; font-weight: 500; color: #374151; cursor: pointer; }
+  .nav-item:hover { background: #f3f4f6; }
+  .nav-item.active { background: #f3f4f6; color: #111827; font-weight: 600; }
+  .nav-badge { margin-left: auto; background: #dc2626; color: #fff; border-radius: 8px; padding: 1px 5px; font-size: 9px; font-weight: 700; }
+  .nav-badge.green { background: #16a34a; }
+
+  .main { flex: 1; padding: 32px 36px; max-width: 900px; }
+
+  .breadcrumb { font-size: 12px; color: #9ca3af; margin-bottom: 20px; }
+  .breadcrumb a { color: #6b7280; text-decoration: none; }
+  .breadcrumb a:hover { color: #374151; }
+
+  .page-header { margin-bottom: 28px; }
+  .page-title { font-size: 24px; font-weight: 800; color: #111827; display: flex; align-items: center; gap: 10px; }
+  .page-subtitle { font-size: 14px; color: #6b7280; margin-top: 4px; }
+
+  /* Stats bar */
+  .stats-bar { display: flex; gap: 12px; margin-bottom: 32px; flex-wrap: wrap; }
+  .stat-pill { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 16px; display: flex; align-items: center; gap: 10px; }
+  .stat-num { font-size: 20px; font-weight: 800; color: #111827; }
+  .stat-label { font-size: 11px; color: #6b7280; }
+  .stat-sublabel { font-size: 10px; color: #9ca3af; }
+
+  /* Section heading */
+  .section-heading { font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 12px; }
+
+  /* Hub cards */
+  .hub-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 32px; }
+  .hub-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px; cursor: pointer; transition: box-shadow 0.15s, border-color 0.15s; position: relative; overflow: hidden; }
+  .hub-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); border-color: #d1d5db; }
+  .hub-card-icon { font-size: 24px; margin-bottom: 12px; }
+  .hub-card-title { font-size: 15px; font-weight: 700; color: #111827; margin-bottom: 4px; }
+  .hub-card-desc { font-size: 12px; color: #6b7280; line-height: 1.5; margin-bottom: 14px; }
+  .hub-card-meta { font-size: 11px; color: #9ca3af; margin-bottom: 12px; }
+  .hub-card-meta strong { color: #374151; }
+  .hub-card-btn { display: inline-flex; align-items: center; gap: 4px; background: #f3f4f6; color: #374151; border: none; border-radius: 5px; padding: 5px 12px; font-size: 12px; font-weight: 500; cursor: pointer; }
+  .hub-card-btn:hover { background: #e5e7eb; }
+  .hub-card-badge { position: absolute; top: 14px; right: 14px; background: #fef3c7; color: #b45309; border-radius: 10px; padding: 2px 8px; font-size: 10px; font-weight: 600; }
+  .hub-card-badge.green { background: #dcfce7; color: #15803d; }
+  .hub-card-badge.blue { background: #dbeafe; color: #1d4ed8; }
+  .hub-card-badge.red { background: #fee2e2; color: #b91c1c; }
+
+  /* Progress bar */
+  .progress-bar { height: 4px; background: #e5e7eb; border-radius: 2px; margin: 8px 0; overflow: hidden; }
+  .progress-fill { height: 100%; background: #6366f1; border-radius: 2px; }
+
+  /* Bottom section - recent activity */
+  .activity-section { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px; }
+  .activity-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid #f3f4f6; font-size: 12px; }
+  .activity-row:last-child { border-bottom: none; }
+  .activity-dot { width: 8px; height: 8px; border-radius: 50%; background: #6366f1; flex-shrink: 0; }
+  .activity-dot.green { background: #16a34a; }
+  .activity-dot.amber { background: #d97706; }
+  .activity-time { color: #9ca3af; margin-left: auto; white-space: nowrap; }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-dot"></div>
+    <div class="logo-text">VOD Admin</div>
+  </div>
+  <div class="nav-section">Core</div>
+  <div class="nav-item"><span>🏆</span> Auction Blocks</div>
+  <div class="nav-item"><span>📦</span> Orders <span class="nav-badge">6</span></div>
+  <div class="nav-section" style="margin-top:8px;">Management</div>
+  <div class="nav-item active"><span>🗃️</span> Catalog</div>
+  <div class="nav-item"><span>📢</span> Marketing</div>
+  <div class="nav-item"><span>⚙️</span> Operations</div>
+</div>
+
+<div class="main">
+
+  <div class="breadcrumb">Admin</div>
+
+  <div class="page-header">
+    <div class="page-title">🗃️ Catalog</div>
+    <div class="page-subtitle">Browse and enrich your 41,500-release catalog — releases, artists, labels, and press</div>
+  </div>
+
+  <div class="stats-bar">
+    <div class="stat-pill">
+      <div>
+        <div class="stat-num">41,529</div>
+        <div class="stat-label">Total Releases</div>
+      </div>
+    </div>
+    <div class="stat-pill">
+      <div>
+        <div class="stat-num">30,159</div>
+        <div class="stat-label">Vinyl / CDs</div>
+        <div class="stat-sublabel">release type</div>
+      </div>
+    </div>
+    <div class="stat-pill">
+      <div>
+        <div class="stat-num">12,451</div>
+        <div class="stat-label">Artists</div>
+      </div>
+    </div>
+    <div class="stat-pill">
+      <div>
+        <div class="stat-num" style="color:#6366f1;">576</div>
+        <div class="stat-label">Entities enriched</div>
+        <div class="stat-sublabel">of 3,650 (P2)</div>
+      </div>
+    </div>
+    <div class="stat-pill">
+      <div>
+        <div class="stat-num">897</div>
+        <div class="stat-label">Musicians</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-heading">Sections</div>
+
+  <div class="hub-grid">
+
+    <!-- Media -->
+    <div class="hub-card">
+      <span class="hub-card-badge blue">41.5k items</span>
+      <div class="hub-card-icon">💿</div>
+      <div class="hub-card-title">Media Browser</div>
+      <div class="hub-card-desc">Browse all 41,500 releases. Search by artist, label, format, country, or year. Set auction pricing and check Discogs data.</div>
+      <div class="hub-card-meta">
+        <strong>97.2%</strong> have cover images ·
+        <strong>8,241</strong> have Discogs price
+      </div>
+      <button class="hub-card-btn">Open Media Browser →</button>
+    </div>
+
+    <!-- Entity Content -->
+    <div class="hub-card">
+      <span class="hub-card-badge" style="background:#fef3c7;color:#b45309;">P2 Paused</span>
+      <div class="hub-card-icon">✍️</div>
+      <div class="hub-card-title">Entity Content</div>
+      <div class="hub-card-desc">AI-generated descriptions for bands, labels, and press orgs. Manage the overhaul pipeline and review quality scores.</div>
+      <div class="hub-card-meta">
+        <strong>576 / 3,650</strong> enriched this phase
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:15.8%"></div></div>
+      <div style="font-size:10px;color:#9ca3af;margin-bottom:12px;">15.8% · Budget $96/$120 · Resumes 2026-04-01</div>
+      <button class="hub-card-btn">Open Entity Content →</button>
+    </div>
+
+    <!-- Musicians -->
+    <div class="hub-card">
+      <span class="hub-card-badge green">897 entries</span>
+      <div class="hub-card-icon">🎵</div>
+      <div class="hub-card-title">Musicians</div>
+      <div class="hub-card-desc">Musician database with roles, band affiliations and project history. 189 bands tracked.</div>
+      <div class="hub-card-meta">
+        <strong>897</strong> musicians ·
+        <strong>189</strong> bands ·
+        <strong>3</strong> roles
+      </div>
+      <button class="hub-card-btn">Open Musicians →</button>
+    </div>
+
+  </div>
+
+  <div class="section-heading">Recent Activity</div>
+  <div class="activity-section">
+    <div class="activity-row">
+      <div class="activity-dot green"></div>
+      <div>Entity overhaul: <strong>12 artists</strong> enriched (score Ø 84.2)</div>
+      <div class="activity-time">2h ago</div>
+    </div>
+    <div class="activity-row">
+      <div class="activity-dot"></div>
+      <div>Discogs sync: <strong>chunk 3/5</strong> completed — 847 prices updated</div>
+      <div class="activity-time">yesterday</div>
+    </div>
+    <div class="activity-row">
+      <div class="activity-dot amber"></div>
+      <div>Entity budget limit reached ($96/$120) — pipeline paused</div>
+      <div class="activity-time">2026-03-23</div>
+    </div>
+    <div class="activity-row">
+      <div class="activity-dot green"></div>
+      <div>Legacy sync: <strong>14 new releases</strong> imported from MySQL</div>
+      <div class="activity-time">2026-03-29 04:00</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

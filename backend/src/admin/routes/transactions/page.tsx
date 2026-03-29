@@ -864,7 +864,7 @@ const TransactionsPage = () => {
 }
 
 export const config = defineRouteConfig({
-  label: "Transactions",
+  label: "Orders",
   icon: CurrencyDollar,
 })
 

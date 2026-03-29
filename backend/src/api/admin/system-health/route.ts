@@ -235,6 +235,58 @@ export async function GET(
     })
   }
 
+  // ── 10. VPS / API Server ─────────────────────────────────────────────────
+  const apiUrl = "https://api.vod-auctions.com"
+  const { error: vpsError, latency_ms: vpsLatency } = await checkWithTimeout(async () => {
+    const r = await fetch(`${apiUrl}/health`, { signal: AbortSignal.timeout(5000) })
+    if (!r.ok) throw new Error(`HTTP ${r.status}`)
+    return r.text()
+  })
+  // Fallback: check if API responds on any endpoint
+  if (vpsError) {
+    const { error: vpsError2, latency_ms: vpsLatency2 } = await checkWithTimeout(async () => {
+      const r = await fetch(`${apiUrl}/store/auction-blocks?limit=1`, {
+        signal: AbortSignal.timeout(5000),
+        headers: { "x-publishable-api-key": process.env.MEDUSA_PUBLISHABLE_KEY || "" },
+      })
+      if (!r.ok) throw new Error(`HTTP ${r.status}`)
+      return r.text()
+    })
+    checks.push({
+      name: "vps",
+      label: "VPS / API Server (Hostinger)",
+      status: vpsError2 ? "error" : "ok",
+      message: vpsError2 ? vpsError2 : `API responding (${apiUrl})`,
+      latency_ms: vpsLatency2,
+      url: "https://manage.hostinger.com",
+    })
+  } else {
+    checks.push({
+      name: "vps",
+      label: "VPS / API Server (Hostinger)",
+      status: "ok",
+      message: `Health OK (${apiUrl})`,
+      latency_ms: vpsLatency,
+      url: "https://manage.hostinger.com",
+    })
+  }
+
+  // ── 11. Storefront on Vercel / VPS ───────────────────────────────────────
+  const publicStorefrontUrl = "https://vod-auctions.com"
+  const { error: sfPubError, latency_ms: sfPubLatency } = await checkWithTimeout(async () => {
+    const r = await fetch(publicStorefrontUrl, { signal: AbortSignal.timeout(5000) })
+    if (!r.ok) throw new Error(`HTTP ${r.status}`)
+    return r.text()
+  })
+  checks.push({
+    name: "storefront_public",
+    label: "Storefront (vod-auctions.com)",
+    status: sfPubError ? "error" : "ok",
+    message: sfPubError ? sfPubError : `HTTP 200 (${publicStorefrontUrl})`,
+    latency_ms: sfPubLatency,
+    url: publicStorefrontUrl,
+  })
+
   // ── Summary ───────────────────────────────────────────────────────────────
   const total = checks.length
   const ok = checks.filter((c) => c.status === "ok").length

@@ -1,11 +1,5 @@
-import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { ServerStack } from "@medusajs/icons"
 import { useEffect, useState, useCallback } from "react"
-
-export const config = defineRouteConfig({
-  label: "System Health",
-  icon: ServerStack,
-})
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -36,15 +30,17 @@ const STATUS_CONFIG: Record<ServiceStatus, { color: string; bg: string; dot: str
 }
 
 const SERVICE_ICONS: Record<string, string> = {
-  postgresql:     "🗄️",
-  stripe:         "💳",
-  paypal:         "🅿️",
-  resend:         "✉️",
-  brevo:          "📧",
-  storefront:     "🌐",
-  sentry:         "🐛",
-  contentsquare:  "👁️",
-  ga4:            "📊",
+  postgresql:          "🗄️",
+  stripe:              "💳",
+  paypal:              "🅿️",
+  resend:              "✉️",
+  brevo:               "📧",
+  storefront:          "🌐",
+  sentry:              "🐛",
+  contentsquare:       "👁️",
+  ga4:                 "📊",
+  vps:                 "🖥️",
+  storefront_public:   "🌍",
 }
 
 function StatusDot({ status }: { status: ServiceStatus }) {

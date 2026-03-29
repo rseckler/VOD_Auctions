@@ -1,4 +1,3 @@
-import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { Component, useEffect, useState, useCallback } from "react"
 import type { ErrorInfo, ReactNode } from "react"
 
@@ -1175,9 +1174,5 @@ const GalleryPage = () => {
     </ErrorBoundary>
   )
 }
-
-export const config = defineRouteConfig({
-  label: "Gallery",
-})
 
 export default GalleryPage

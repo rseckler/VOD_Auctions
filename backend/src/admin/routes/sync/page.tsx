@@ -1,4 +1,3 @@
-import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { useEffect, useState, useCallback } from "react"
 
 type SyncOverview = {
@@ -1375,9 +1374,5 @@ const SyncDashboardPage = () => {
     </div>
   )
 }
-
-export const config = defineRouteConfig({
-  label: "Sync Status",
-})
 
 export default SyncDashboardPage

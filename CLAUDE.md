@@ -4,7 +4,7 @@
 **Goal:** Eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Phase 1 fertig — RSE-77 (Testlauf) als nächster Schritt
 **Language:** Storefront + Admin-UI: Englisch
-**Last Updated:** 2026-03-29
+**Last Updated:** 2026-03-30
 
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
@@ -302,6 +302,14 @@ VOD_Auctions/
 **Backlog:** RSE-78 (Launch, offen: AGB-Anwalt) | RSE-79 (Erste öffentliche Auktionen) | RSE-80 (Marketing)
 
 ## Recent Changes
+
+### 2026-03-30 — Admin UI Restructuring + System Health Erweiterung
+- **Admin Sidebar: 15 → 5 Items** — Neue Hub-Seiten: `/app/catalog` (Media, Entity Content, Musicians), `/app/marketing` (Newsletter, Emails, CRM, Content, Gallery), `/app/operations` (System Health, Shipping, Sync, Test Runner). Operations zeigt Live-Auction-Banner wenn aktiv.
+- **"Transactions" → "Orders"** — Sidebar-Label umbenannt.
+- **Sub-Pages aus Sidebar entfernt** — `defineRouteConfig` entfernt aus 13 Sub-Pages; alle weiter per URL erreichbar.
+- **System Health: 9 → 11 Services** — VPS/API Server (live HTTP-Check `api.vod-auctions.com`) + Storefront public (`vod-auctions.com`) hinzugefügt.
+- **`docs/architecture/MONITORING_SETUP_GUIDE.md`** — Setup-Anleitung für Sentry, ContentSquare/Clarity, GA4 (Env-Vars, Install-Schritte).
+- **`docs/architecture/ADMIN_UI_KONZEPT_2026.md`** + **`docs/architecture/mockups/`** — Konzept + 5 HTML-Mockups (Sidebar, Catalog Hub, Operations Hub, Auction Detail, Order Detail).
 
 ### 2026-03-29 — Post-Auction Workflow + Bugfixes
 - **Post-Auction Workflow (Admin)** — Neuer Admin-Bereich für abgeschlossene Auktionen: `/app/auction-blocks/[id]/post-auction` mit 5-stufigem Step-Tracker (Ended → Paid → Packing → Label Printed → Shipped), Lot-Übersicht mit Gewinner/Zahlungsstatus/Fulfillment-Status. Action-Buttons kontextuell pro Step. `Block-Detail`-Seite zeigt "Post-Auction Workflow →" Button wenn `status=ended`.

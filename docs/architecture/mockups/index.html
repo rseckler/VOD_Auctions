@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>VOD Admin — UI Concept Mockups</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif; background: #111827; color: #fff; padding: 40px; min-height: 100vh; }
+  h1 { font-size: 24px; font-weight: 800; margin-bottom: 6px; }
+  .sub { font-size: 14px; color: #9ca3af; margin-bottom: 40px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
+  .card { background: #1f2937; border: 1px solid #374151; border-radius: 12px; overflow: hidden; cursor: pointer; transition: transform 0.15s, border-color 0.15s; text-decoration: none; }
+  .card:hover { transform: translateY(-2px); border-color: #6366f1; }
+  .card-preview { height: 180px; background: #374151; position: relative; overflow: hidden; }
+  .card-preview iframe { width: 200%; height: 200%; transform: scale(0.5); transform-origin: top left; border: none; pointer-events: none; }
+  .card-body { padding: 16px 20px; }
+  .card-num { font-size: 10px; font-weight: 700; color: #6366f1; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+  .card-title { font-size: 16px; font-weight: 700; color: #f9fafb; margin-bottom: 4px; }
+  .card-desc { font-size: 12px; color: #9ca3af; line-height: 1.5; }
+  .open-btn { display: inline-block; margin-top: 12px; background: #6366f1; color: #fff; padding: 6px 14px; border-radius: 5px; font-size: 12px; font-weight: 600; text-decoration: none; }
+</style>
+</head>
+<body>
+  <h1>VOD Admin — UI Concept Mockups</h1>
+  <div class="sub">Admin UI Redesign Konzept 2026 · 5 Mockups · Dokument: docs/architecture/ADMIN_UI_KONZEPT_2026.md</div>
+
+  <div class="grid">
+
+    <div class="card" onclick="window.open('01_sidebar_overview.html','_blank')">
+      <div class="card-preview">
+        <iframe src="01_sidebar_overview.html" scrolling="no"></iframe>
+      </div>
+      <div class="card-body">
+        <div class="card-num">Mockup 01</div>
+        <div class="card-title">Sidebar: Before / After</div>
+        <div class="card-desc">Direkter Vergleich: 15 flat items (alphabetisch) vs. 5 logische Gruppen (workflow-orientiert). Mit Mapping-Übersicht.</div>
+        <a href="01_sidebar_overview.html" target="_blank" class="open-btn" onclick="event.stopPropagation()">Open →</a>
+      </div>
+    </div>
+
+    <div class="card" onclick="window.open('02_catalog_hub.html','_blank')">
+      <div class="card-preview">
+        <iframe src="02_catalog_hub.html" scrolling="no"></iframe>
+      </div>
+      <div class="card-body">
+        <div class="card-num">Mockup 02</div>
+        <div class="card-title">Catalog Hub</div>
+        <div class="card-desc">Hub-Seite für alle Katalog-Bereiche: Media Browser, Entity Content (mit Pipeline-Status), Musicians. Live-Stats-Bar oben.</div>
+        <a href="02_catalog_hub.html" target="_blank" class="open-btn" onclick="event.stopPropagation()">Open →</a>
+      </div>
+    </div>
+
+    <div class="card" onclick="window.open('03_operations_hub.html','_blank')">
+      <div class="card-preview">
+        <iframe src="03_operations_hub.html" scrolling="no"></iframe>
+      </div>
+      <div class="card-body">
+        <div class="card-num">Mockup 03</div>
+        <div class="card-title">Operations Hub</div>
+        <div class="card-desc">Live Auction Banner (grün, pulsierend) wenn aktive Auktionen laufen. System Health mini-view. Shipping, Sync, Test Runner als Cards.</div>
+        <a href="03_operations_hub.html" target="_blank" class="open-btn" onclick="event.stopPropagation()">Open →</a>
+      </div>
+    </div>
+
+    <div class="card" onclick="window.open('04_auction_detail.html','_blank')">
+      <div class="card-preview">
+        <iframe src="04_auction_detail.html" scrolling="no"></iframe>
+      </div>
+      <div class="card-body">
+        <div class="card-num">Mockup 04</div>
+        <div class="card-title">Auction Detail / Summary</div>
+        <div class="card-desc">Vollständige Zusammenfassung einer Auktion: Revenue, Open Tasks (priorisiert), Lots-Tabelle mit Status/Actions, Info, Troubleshooting.</div>
+        <a href="04_auction_detail.html" target="_blank" class="open-btn" onclick="event.stopPropagation()">Open →</a>
+      </div>
+    </div>
+
+    <div class="card" onclick="window.open('05_order_detail.html','_blank')">
+      <div class="card-preview">
+        <iframe src="05_order_detail.html" scrolling="no"></iframe>
+      </div>
+      <div class="card-body">
+        <div class="card-num">Mockup 05</div>
+        <div class="card-title">Order Detail Page</div>
+        <div class="card-desc">One-Stop Order-Ansicht: Customer, Shipping Address, Item mit Lot-Link, Payment (PayPal/Stripe), Fulfillment Stepper, Audit Trail.</div>
+        <a href="05_order_detail.html" target="_blank" class="open-btn" onclick="event.stopPropagation()">Open →</a>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>

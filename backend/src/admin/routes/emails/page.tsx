@@ -1,11 +1,5 @@
-import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { useState, useEffect, useCallback, useRef } from "react"
 import { EnvelopeSolid } from "@medusajs/icons"
-
-export const config = defineRouteConfig({
-  label: "Emails",
-  icon: EnvelopeSolid,
-})
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 

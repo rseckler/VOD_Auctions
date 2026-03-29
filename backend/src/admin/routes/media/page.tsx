@@ -1,4 +1,3 @@
-import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { Component, useEffect, useState } from "react"
 import type { ErrorInfo, ReactNode } from "react"
 
@@ -1255,9 +1254,5 @@ const MediaPage = () => {
     </ErrorBoundary>
   )
 }
-
-export const config = defineRouteConfig({
-  label: "Media",
-})
 
 export default MediaPage

@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup 3 — Operations Hub</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif; background: #f9fafb; color: #111827; font-size: 14px; display: flex; }
+
+  .sidebar { width: 220px; background: #fff; border-right: 1px solid #e5e7eb; display: flex; flex-direction: column; flex-shrink: 0; height: 100vh; position: sticky; top: 0; }
+  .sidebar-logo { padding: 18px 14px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; gap: 8px; }
+  .logo-dot { width: 28px; height: 28px; background: #111827; border-radius: 6px; }
+  .logo-text { font-weight: 700; font-size: 14px; }
+  .nav-section { padding: 10px 12px 4px; font-size: 9px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.07em; }
+  .nav-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px; margin: 1px 6px; border-radius: 5px; font-size: 12px; font-weight: 500; color: #374151; cursor: pointer; }
+  .nav-item.active { background: #f3f4f6; color: #111827; font-weight: 600; }
+  .nav-badge { margin-left: auto; background: #dc2626; color: #fff; border-radius: 8px; padding: 1px 5px; font-size: 9px; font-weight: 700; }
+  .nav-badge.green { background: #16a34a; }
+  .nav-badge.amber { background: #d97706; }
+
+  .main { flex: 1; padding: 32px 36px; max-width: 960px; }
+  .breadcrumb { font-size: 12px; color: #9ca3af; margin-bottom: 20px; }
+  .page-title { font-size: 24px; font-weight: 800; color: #111827; display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+  .page-subtitle { font-size: 14px; color: #6b7280; margin-bottom: 28px; }
+
+  /* LIVE MONITOR highlight */
+  .live-banner { background: linear-gradient(135deg, #15803d, #166534); border-radius: 10px; padding: 20px 24px; margin-bottom: 24px; color: #fff; display: flex; align-items: center; gap: 16px; }
+  .live-pulse { width: 12px; height: 12px; border-radius: 50%; background: #4ade80; animation: pulse 1.5s ease-in-out infinite; flex-shrink: 0; }
+  @keyframes pulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.7; transform:scale(1.3); } }
+  .live-title { font-size: 16px; font-weight: 700; }
+  .live-sub { font-size: 12px; opacity: 0.8; margin-top: 2px; }
+  .live-btn { margin-left: auto; background: rgba(255,255,255,0.15); color: #fff; border: 1px solid rgba(255,255,255,0.3); border-radius: 6px; padding: 7px 16px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .live-btn:hover { background: rgba(255,255,255,0.25); }
+  .live-stats { display: flex; gap: 24px; margin-top: 10px; }
+  .live-stat { font-size: 12px; opacity: 0.85; }
+  .live-stat strong { font-weight: 700; opacity: 1; }
+
+  .section-heading { font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 12px; margin-top: 24px; }
+
+  /* Cards */
+  .hub-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .hub-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px; cursor: pointer; }
+  .hub-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.07); }
+  .hub-card-header { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 10px; }
+  .hub-card-icon { font-size: 22px; }
+  .hub-card-title { font-size: 14px; font-weight: 700; color: #111827; }
+  .hub-card-desc { font-size: 12px; color: #6b7280; line-height: 1.5; margin-bottom: 12px; }
+  .hub-card-status { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #374151; margin-bottom: 10px; }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; }
+  .status-dot.green { background: #16a34a; }
+  .status-dot.red { background: #dc2626; animation: pulse 1.5s ease-in-out infinite; }
+  .status-dot.grey { background: #9ca3af; }
+  .hub-card-btn { display: inline-flex; align-items: center; gap: 4px; background: #f3f4f6; color: #374151; border: none; border-radius: 5px; padding: 5px 12px; font-size: 11px; font-weight: 500; cursor: pointer; }
+
+  /* System health mini */
+  .health-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 10px 0; }
+  .health-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #374151; }
+  .h-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .h-dot.green { background: #16a34a; }
+  .h-dot.amber { background: #d97706; }
+  .h-dot.red { background: #dc2626; }
+
+  /* Shipping mini */
+  .shipping-row { display: flex; justify-content: space-between; font-size: 11px; padding: 5px 0; border-bottom: 1px solid #f3f4f6; }
+  .shipping-row:last-child { border: none; }
+
+  /* Sync mini */
+  .sync-row { display: flex; align-items: center; gap: 8px; font-size: 11px; padding: 5px 0; border-bottom: 1px solid #f3f4f6; }
+  .sync-row:last-child { border: none; }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-dot"></div>
+    <div class="logo-text">VOD Admin</div>
+  </div>
+  <div class="nav-section">Core</div>
+  <div class="nav-item"><span>🏆</span> Auction Blocks <span class="nav-badge green">2 live</span></div>
+  <div class="nav-item"><span>📦</span> Orders <span class="nav-badge">6</span></div>
+  <div class="nav-section" style="margin-top:8px;">Management</div>
+  <div class="nav-item"><span>🗃️</span> Catalog</div>
+  <div class="nav-item"><span>📢</span> Marketing</div>
+  <div class="nav-item active"><span>⚙️</span> Operations <span class="nav-badge amber">1</span></div>
+</div>
+
+<div class="main">
+  <div class="breadcrumb">Admin</div>
+  <div class="page-title">⚙️ Operations</div>
+  <div class="page-subtitle">Platform monitoring, configuration, and technical tools</div>
+
+  <!-- Live Monitor highlight — always visible when auction is running -->
+  <div class="live-banner">
+    <div class="live-pulse"></div>
+    <div>
+      <div class="live-title">2 Auctions Running Right Now</div>
+      <div class="live-stats">
+        <div class="live-stat"><strong>Industrial Classics</strong> · 4h 23m remaining · 12 active bidders</div>
+        <div class="live-stat"><strong>Post-Punk Essentials</strong> · 2h 07m remaining · 8 active bidders</div>
+      </div>
+    </div>
+    <button class="live-btn">Open Live Monitor ↗</button>
+  </div>
+
+  <div class="section-heading">Platform Tools</div>
+
+  <div class="hub-grid">
+
+    <!-- System Health -->
+    <div class="hub-card">
+      <div class="hub-card-header">
+        <div class="hub-card-icon">🩺</div>
+        <div>
+          <div class="hub-card-title">System Health</div>
+          <div style="font-size:11px;color:#16a34a;font-weight:600;margin-top:2px;">● 8/9 services OK</div>
+        </div>
+      </div>
+      <div class="health-grid">
+        <div class="health-item"><div class="h-dot green"></div>PostgreSQL</div>
+        <div class="health-item"><div class="h-dot green"></div>Stripe</div>
+        <div class="health-item"><div class="h-dot green"></div>PayPal</div>
+        <div class="health-item"><div class="h-dot green"></div>Resend</div>
+        <div class="health-item"><div class="h-dot amber"></div>Brevo</div>
+        <div class="health-item"><div class="h-dot green"></div>Storefront</div>
+        <div class="health-item"><div class="h-dot green"></div>Sentry</div>
+        <div class="health-item"><div class="h-dot green"></div>GA4</div>
+        <div class="health-item"><div class="h-dot green"></div>Supabase</div>
+      </div>
+      <div style="font-size:10px;color:#d97706;background:#fffbeb;border:1px solid #fde68a;border-radius:4px;padding:4px 8px;margin:8px 0;">
+        ⚠ Brevo latency elevated (342ms)
+      </div>
+      <button class="hub-card-btn">Full System Health →</button>
+    </div>
+
+    <!-- Shipping Config -->
+    <div class="hub-card">
+      <div class="hub-card-header">
+        <div class="hub-card-icon">🚚</div>
+        <div>
+          <div class="hub-card-title">Shipping Configuration</div>
+          <div style="font-size:11px;color:#6b7280;margin-top:2px;">3 zones · 15 weight tiers</div>
+        </div>
+      </div>
+      <div class="hub-card-desc">Manage shipping zones, weight-based rates, item types, and methods. Calculator tool included.</div>
+      <div class="shipping-row"><span>DE (domestic)</span><span style="font-weight:600;">from €4.99</span></div>
+      <div class="shipping-row"><span>EU</span><span style="font-weight:600;">from €9.99</span></div>
+      <div class="shipping-row"><span>World</span><span style="font-weight:600;">from €14.99</span></div>
+      <button class="hub-card-btn" style="margin-top:10px;">Configure Shipping →</button>
+    </div>
+
+    <!-- Sync Status -->
+    <div class="hub-card">
+      <div class="hub-card-header">
+        <div class="hub-card-icon">🔄</div>
+        <div>
+          <div class="hub-card-title">Sync Status</div>
+          <div style="font-size:11px;color:#6b7280;margin-top:2px;">Discogs · Legacy MySQL</div>
+        </div>
+      </div>
+      <div class="sync-row">
+        <div class="h-dot green" style="width:7px;height:7px;border-radius:50%;background:#16a34a;"></div>
+        <span style="font-weight:600;">Discogs Daily</span>
+        <span style="color:#6b7280;margin-left:auto;">chunk 3/5 · last: 02:00</span>
+      </div>
+      <div class="sync-row">
+        <div class="h-dot green" style="width:7px;height:7px;border-radius:50%;background:#16a34a;"></div>
+        <span style="font-weight:600;">Legacy Sync</span>
+        <span style="color:#6b7280;margin-left:auto;">14 updates · last: 04:00</span>
+      </div>
+      <div class="sync-row">
+        <div class="h-dot grey" style="width:7px;height:7px;border-radius:50%;background:#9ca3af;"></div>
+        <span style="font-weight:600;">Entity Overhaul</span>
+        <span style="color:#9ca3af;margin-left:auto;">paused</span>
+      </div>
+      <button class="hub-card-btn" style="margin-top:10px;">View Sync Details →</button>
+    </div>
+
+    <!-- Test Runner -->
+    <div class="hub-card">
+      <div class="hub-card-header">
+        <div class="hub-card-icon">🧪</div>
+        <div>
+          <div class="hub-card-title">Test Runner</div>
+          <div style="font-size:11px;color:#6b7280;margin-top:2px;">Payment & flow testing</div>
+        </div>
+      </div>
+      <div class="hub-card-desc">Test Stripe and PayPal payments with test accounts. Verify webhook delivery. Check email templates in real send.</div>
+      <div class="hub-card-status"><div class="status-dot grey"></div>No active tests</div>
+      <div style="font-size:11px;color:#9ca3af;margin-bottom:10px;">Last run: 2026-03-29 · Stripe ✓ PayPal ✓</div>
+      <button class="hub-card-btn">Open Test Runner →</button>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

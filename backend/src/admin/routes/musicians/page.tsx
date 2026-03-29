@@ -1,4 +1,3 @@
-import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { useEffect, useState, useCallback, useRef } from "react"
 
 const COLORS = {
@@ -251,9 +250,5 @@ function MusiciansPage() {
     </div>
   )
 }
-
-export const config = defineRouteConfig({
-  label: "Musicians",
-})
 
 export default MusiciansPage

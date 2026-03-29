@@ -1,4 +1,3 @@
-import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { ChartBar } from "@medusajs/icons"
 import { Container, Heading, Table, Badge, Button, Text } from "@medusajs/ui"
 import { useEffect, useState, useRef } from "react"
@@ -527,10 +526,5 @@ const TestRunnerPage = () => {
     </Container>
   )
 }
-
-export const config = defineRouteConfig({
-  label: "Test Runner",
-  icon: ChartBar,
-})
 
 export default TestRunnerPage

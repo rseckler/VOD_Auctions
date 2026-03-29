@@ -1,4 +1,3 @@
-import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { DocumentText } from "@medusajs/icons"
 import {
   Container,
@@ -538,10 +537,5 @@ const ContentPage = () => {
     </Container>
   )
 }
-
-export const config = defineRouteConfig({
-  label: "Content",
-  icon: DocumentText,
-})
 
 export default ContentPage
