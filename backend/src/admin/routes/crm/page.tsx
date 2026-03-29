@@ -656,9 +656,13 @@ function CustomersListTab({
       sort: sortVal,
       order: orderVal,
     })
-    fetch(`/admin/customers/list?${params}`, { credentials: "include" })
-      .then((r) => r.json())
+    fetch(`/admin/customers/list?${params}`, { credentials: "include", cache: "no-store" })
+      .then((r) => {
+        if (!r.ok) { setLoading(false); return }
+        return r.json()
+      })
       .then((d) => {
+        if (!d) return
         setCustomers(d.customers || [])
         setTotal(d.total || 0)
         setLoading(false)
