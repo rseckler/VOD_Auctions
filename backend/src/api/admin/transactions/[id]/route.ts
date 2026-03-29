@@ -8,6 +8,7 @@ import { stripe } from "../../../../lib/stripe"
 import { refundPayPalCapture } from "../../../../lib/paypal"
 import { sendShippingEmail, sendFeedbackRequestEmail } from "../../../../lib/email-helpers"
 import { crmSyncShippingUpdate } from "../../../../lib/crm-sync"
+import { UpdateTransactionSchema, validateBody } from "../../../../lib/validation"
 
 // GET /admin/transactions/:id — Transaction detail + order events timeline
 export async function GET(
@@ -88,6 +89,19 @@ export async function POST(
   res: MedusaResponse
 ): Promise<void> {
   const { id } = req.params
+
+  const validation = validateBody(UpdateTransactionSchema, req.body)
+  if ("error" in validation) {
+    res.status(400).json({
+      message: validation.error,
+      issues: validation.details.errors.map((e) => ({
+        path: e.path.join("."),
+        message: e.message,
+      })),
+    })
+    return
+  }
+
   const body = req.body as any
   const { action } = body
 

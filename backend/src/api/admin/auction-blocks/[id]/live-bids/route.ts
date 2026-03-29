@@ -23,31 +23,53 @@ export async function GET(
     .where("auction_block_id", id)
     .orderBy("lot_number", "asc")
 
-  // For each item, get the top bids + release info
-  const enriched = await Promise.all(items.map(async (item: any) => {
-    const bids = await pgConnection("bid")
-      .where({ block_item_id: item.id })
-      .orderBy("amount", "desc")
-      .limit(5)
-      .select("id", "amount", "max_amount", "is_winning", "user_id", "created_at")
+  // Batch-load all bids, releases, and customers in 3 queries (no N+1)
+  const itemIds = items.map((i: any) => i.id)
+  const releaseIds = items.map((i: any) => i.release_id).filter(Boolean)
 
-    const release = await pgConnection("Release")
-      .where({ id: item.release_id })
-      .select("title", "coverImage")
-      .first()
+  // ONE query for all bids across all items
+  const allBids = releaseIds.length > 0
+    ? await pgConnection("bid")
+        .whereIn("block_item_id", itemIds)
+        .orderBy("amount", "desc")
+        .select("id", "amount", "max_amount", "is_winning", "user_id", "block_item_id", "created_at")
+    : []
 
-    // Get user hints for each unique bidder
-    const uniqueUserIds = [...new Set(bids.map((b: any) => b.user_id).filter(Boolean))]
-    const userHints: Record<string, string> = {}
-    if (uniqueUserIds.length > 0) {
-      const customers = await pgConnection("customer")
-        .whereIn("id", uniqueUserIds as string[])
+  // ONE query for all releases
+  const allReleases = releaseIds.length > 0
+    ? await pgConnection("Release")
+        .whereIn("id", releaseIds)
+        .select("id", "title", "coverImage")
+    : []
+
+  // ONE query for all customers (based on unique user IDs across all bids)
+  const allUserIds = [...new Set((allBids as any[]).map((b: any) => b.user_id).filter(Boolean))]
+  const allCustomers = allUserIds.length > 0
+    ? await pgConnection("customer")
+        .whereIn("id", allUserIds)
         .select("id", "email", "first_name", "last_name")
-      customers.forEach((c: any) => {
-        userHints[c.id] = [c.first_name, c.last_name].filter(Boolean).join(" ") || c.email
-      })
-    }
+    : []
 
+  // Build O(1) lookup maps
+  const bidsByItem: Record<string, any[]> = {}
+  for (const bid of allBids as any[]) {
+    if (!bidsByItem[bid.block_item_id]) bidsByItem[bid.block_item_id] = []
+    bidsByItem[bid.block_item_id].push(bid)
+  }
+  const releaseMap: Record<string, any> = Object.fromEntries(
+    (allReleases as any[]).map((r: any) => [r.id, r])
+  )
+  const customerMap: Record<string, string> = Object.fromEntries(
+    (allCustomers as any[]).map((c: any) => [
+      c.id,
+      [c.first_name, c.last_name].filter(Boolean).join(" ") || c.email,
+    ])
+  )
+
+  // Enrich items without any additional DB calls
+  const enriched = items.map((item: any) => {
+    const bids = (bidsByItem[item.id] || []).slice(0, 5)
+    const release = releaseMap[item.release_id]
     const winningBid = bids.find((b: any) => b.is_winning)
 
     return {
@@ -63,18 +85,18 @@ export async function GET(
       winning_bid: winningBid
         ? {
             amount: winningBid.amount,
-            user_hint: userHints[winningBid.user_id] || "Bidder",
+            user_hint: customerMap[winningBid.user_id] || "Bidder",
             placed_at: winningBid.created_at,
           }
         : null,
       recent_bids: bids.slice(0, 3).map((b: any) => ({
         amount: b.amount,
-        user_hint: userHints[b.user_id] || "Bidder",
+        user_hint: customerMap[b.user_id] || "Bidder",
         is_winning: b.is_winning,
         placed_at: b.created_at,
       })),
     }
-  }))
+  })
 
   res.json({
     block_id: id,

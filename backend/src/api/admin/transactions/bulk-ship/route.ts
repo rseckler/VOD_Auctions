@@ -6,22 +6,25 @@ import {
 import { Knex } from "knex"
 import { sendShippingEmail } from "../../../../lib/email-helpers"
 import { crmSyncShippingUpdate } from "../../../../lib/crm-sync"
+import { BulkShipSchema, validateBody } from "../../../../lib/validation"
 
 // POST /admin/transactions/bulk-ship — Mark multiple transactions as shipped
 export async function POST(
   req: MedusaRequest,
   res: MedusaResponse
 ): Promise<void> {
-  const { transaction_ids, carrier, tracking_number } = req.body as {
-    transaction_ids: string[]
-    carrier?: string
-    tracking_number?: string
-  }
-
-  if (!transaction_ids?.length) {
-    res.status(400).json({ message: "transaction_ids required" })
+  const validation = validateBody(BulkShipSchema, req.body)
+  if ("error" in validation) {
+    res.status(400).json({
+      message: validation.error,
+      issues: validation.details.errors.map((e) => ({
+        path: e.path.join("."),
+        message: e.message,
+      })),
+    })
     return
   }
+  const { transaction_ids, carrier, tracking_number } = validation.data
 
   const pgConnection: Knex = req.scope.resolve(
     ContainerRegistrationKeys.PG_CONNECTION

@@ -9,8 +9,9 @@ import { getToken } from "@/lib/auth"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
 import { useAuth } from "@/components/AuthProvider"
 import { stripePromise } from "@/lib/stripe-client"
-import PayPalButton from "@/components/PayPalButton"
+import dynamic from "next/dynamic"
 import { CreditCard, Disc3, Trophy, ShoppingCart, Package, MapPin, Truck, CheckCircle2, ClipboardList, Mail, Lock, ChevronDown, FileText, Tag, X } from "lucide-react"
+
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -26,7 +27,17 @@ import {
 } from "@/components/ui/select"
 import { toast } from "sonner"
 import { brevoCheckoutStarted, brevoOrderCompleted } from "@/lib/brevo-tracking"
+import { trackBeginCheckout, trackPurchase } from "@/lib/analytics"
 import type { WinEntry, Transaction, CartItem } from "@/types"
+
+// PayPal is loaded lazily — only rendered when user selects PayPal payment
+const PayPalButton = dynamic(
+  () => import("@/components/PayPalButton"),
+  {
+    ssr: false,
+    loading: () => <div className="h-12 bg-[#1c1915] animate-pulse rounded-lg" />,
+  }
+)
 
 type ShippingMethod = {
   id: string
@@ -181,10 +192,22 @@ function PaymentForm({
       <Button
         onClick={handlePay}
         disabled={!stripe || !paymentReady || paying || !agbAccepted}
-        className="w-full bg-primary hover:bg-primary/90 text-[#1c1915] h-12 text-base font-semibold"
+        className="w-full bg-primary hover:bg-primary/90 text-[#1c1915] h-12 text-base font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        <CreditCard className="w-5 h-5 mr-2" />
-        {paying ? "Processing..." : `Pay \u20AC${amount.toFixed(2)}`}
+        {paying ? (
+          <span className="flex items-center gap-2">
+            <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            Processing...
+          </span>
+        ) : (
+          <>
+            <CreditCard className="w-5 h-5 mr-2" />
+            {`Pay \u20AC${amount.toFixed(2)}`}
+          </>
+        )}
       </Button>
 
       <p className="text-xs text-muted-foreground text-center">
@@ -339,6 +362,7 @@ export default function CheckoutPage() {
   const [transactions, setTransactions] = useState<Record<string, Transaction>>({})
   const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState<string | null>(null)
 
   // Shipping
   const [countries, setCountries] = useState<ShippingCountry[]>([])
@@ -508,7 +532,10 @@ export default function CheckoutPage() {
         if (tx.block_item_id) txMap[tx.block_item_id] = tx
       }
       setTransactions(txMap)
-    } catch { /* silent */ } finally {
+    } catch (err) {
+      console.error("[checkout] Failed to load:", err)
+      setFetchError("Could not load your items. Please refresh the page.")
+    } finally {
       setLoading(false)
     }
   }
@@ -546,7 +573,7 @@ export default function CheckoutPage() {
     if (!address.country || !hasItems) { setShippingCost(0); setShippingLabel(""); return }
 
     const releaseIds = [
-      ...unpaidWins.map((w) => (w.item as any).release_id).filter(Boolean),
+      ...unpaidWins.map((w) => w.item.release_id).filter(Boolean),
       ...cartItems.map((c) => c.release_id).filter(Boolean),
     ]
 
@@ -592,11 +619,12 @@ export default function CheckoutPage() {
       .finally(() => setEstimating(false))
   }, [address.country, unpaidWins.length, cartItems.length])
 
-  // Brevo tracking
+  // Brevo + GA4 tracking
   const [checkoutTracked, setCheckoutTracked] = useState(false)
   useEffect(() => {
     if (!loading && hasItems && !checkoutTracked) {
       brevoCheckoutStarted(unpaidWins.length + cartItems.length, itemsTotal)
+      trackBeginCheckout({ value: itemsTotal, itemCount: unpaidWins.length + cartItems.length })
       setCheckoutTracked(true)
     }
   }, [loading, hasItems, checkoutTracked])
@@ -680,12 +708,19 @@ export default function CheckoutPage() {
 
     setCreatingIntent(true)
     try {
-      const items: any[] = [
-        ...unpaidWins.map((w) => ({ type: "auction_win", block_item_id: w.item.id })),
-        ...cartItems.map((c) => ({ type: "cart", cart_item_id: c.id })),
+      const items: Array<{ type: "auction_win"; block_item_id: string } | { type: "cart"; cart_item_id: string }> = [
+        ...unpaidWins.map((w) => ({ type: "auction_win" as const, block_item_id: w.item.id })),
+        ...cartItems.map((c) => ({ type: "cart" as const, cart_item_id: c.id })),
       ]
 
-      const body: any = {
+      const body: {
+        items: typeof items
+        country_code: string
+        shipping_address: ShippingAddress
+        shipping_method_id?: string
+        promo_code?: string
+        billing_address?: ShippingAddress
+      } = {
         items,
         country_code: address.country,
         shipping_address: address,
@@ -810,6 +845,14 @@ export default function CheckoutPage() {
     setPaymentSuccess(true)
     toast.success("PayPal payment successful!")
     brevoOrderCompleted("checkout", grandTotal, unpaidWins.length + cartItems.length)
+    trackPurchase({
+      transactionId: data.order_group_id,
+      value: grandTotal,
+      items: [
+        ...unpaidWins.map((w) => ({ id: w.item.id, name: w.item.release_title || "Unknown", price: w.final_price })),
+        ...cartItems.map((c) => ({ id: c.release_id || c.id, name: c.title, price: c.price })),
+      ],
+    })
     setCartItems([])
     setWins([])
     refreshStatus()
@@ -843,6 +886,14 @@ export default function CheckoutPage() {
     setPaymentSuccess(true)
     toast.success("Payment successful!")
     brevoOrderCompleted("checkout", grandTotal, unpaidWins.length + cartItems.length)
+    trackPurchase({
+      transactionId: orderGroupId,
+      value: grandTotal,
+      items: [
+        ...unpaidWins.map((w) => ({ id: w.item.id, name: w.item.release_title || "Unknown", price: w.final_price })),
+        ...cartItems.map((c) => ({ id: c.release_id || c.id, name: c.title, price: c.price })),
+      ],
+    })
     setCartItems([])
     setWins([])
     refreshStatus()
@@ -871,6 +922,14 @@ export default function CheckoutPage() {
         {[1, 2, 3].map((i) => (
           <Skeleton key={i} className="h-20 w-full rounded-lg" />
         ))}
+      </div>
+    )
+  }
+
+  if (fetchError) {
+    return (
+      <div className="bg-red-900/20 border border-red-800 rounded-lg p-4 text-red-300 text-sm">
+        {fetchError}
       </div>
     )
   }

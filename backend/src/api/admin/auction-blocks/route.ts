@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import AuctionModuleService from "../../../modules/auction/service"
 import { AUCTION_MODULE } from "../../../modules/auction"
+import { CreateAuctionBlockSchema, validateBody } from "../../../lib/validation"
 
 // GET /admin/auction-blocks — List all blocks
 export async function GET(
@@ -30,9 +31,22 @@ export async function POST(
   req: MedusaRequest,
   res: MedusaResponse
 ): Promise<void> {
+  const validation = validateBody(CreateAuctionBlockSchema, req.body)
+  if ("error" in validation) {
+    res.status(400).json({
+      message: validation.error,
+      issues: validation.details.errors.map((e) => ({
+        path: e.path.join("."),
+        message: e.message,
+      })),
+    })
+    return
+  }
+  const body = validation.data
+
   const auctionService: AuctionModuleService = req.scope.resolve(AUCTION_MODULE)
 
-  const block = await auctionService.createAuctionBlocks(req.body)
+  const block = await auctionService.createAuctionBlocks(body)
 
   res.status(201).json({ auction_block: block })
 }

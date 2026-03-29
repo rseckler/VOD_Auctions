@@ -1,4 +1,5 @@
 import { Knex } from "knex"
+import { createHmac } from "crypto"
 import { sendEmail, APP_URL } from "./email"
 import { getTrackingUrl } from "./tracking"
 import { welcomeEmail } from "../emails/welcome"
@@ -10,6 +11,22 @@ import { feedbackRequestEmail } from "../emails/feedback-request"
 import { paymentReminder1Email } from "../emails/payment-reminder-1"
 import { paymentReminder3Email } from "../emails/payment-reminder-3"
 import { watchlistReminderEmail } from "../emails/watchlist-reminder"
+
+// --- Unsubscribe token helpers ---
+
+export function generateUnsubscribeToken(customerId: string): string {
+  const secret = process.env.REVALIDATE_SECRET || "fallback-secret"
+  return createHmac("sha256", secret)
+    .update(`${customerId}:unsubscribe`)
+    .digest("hex")
+    .slice(0, 32)
+}
+
+export function getUnsubscribeUrl(customerId: string): string {
+  const token = generateUnsubscribeToken(customerId)
+  const base = process.env.STOREFRONT_URL || "http://localhost:3000"
+  return `${base}/email-preferences/unsubscribe?token=${token}&id=${customerId}`
+}
 
 // Tiered bid increment table (mirrors bid route logic)
 function getMinIncrement(currentPrice: number): number {
@@ -64,6 +81,7 @@ export async function sendWelcomeEmail(pg: Knex, userId: string) {
   const { subject, html } = welcomeEmail({
     firstName: customer.first_name || "there",
     auctionsUrl: `${APP_URL}/auctions`,
+    customerId: customer.id,
   })
   await sendEmail({ to: customer.email, subject, html })
 }
@@ -106,6 +124,7 @@ export async function sendOutbidEmail(
     currentBid,
     suggestedBid,
     bidUrl: lotUrl,
+    customerId: customer.id,
   })
   await sendEmail({ to: customer.email, subject, html })
 }
@@ -139,6 +158,7 @@ export async function sendBidWonEmail(
     blockTitle,
     finalPrice,
     paymentUrl: `${APP_URL}/account/wins`,
+    customerId: customer.id,
   })
   await sendEmail({ to: customer.email, subject, html })
 }
@@ -188,6 +208,7 @@ export async function sendPaymentConfirmationEmail(
     shippingCost,
     paidAt: transactions[0].paid_at || new Date(),
     accountUrl: `${APP_URL}/account/wins`,
+    customerId: customer.id,
   })
   await sendEmail({ to: customer.email, subject, html })
 }
@@ -239,6 +260,7 @@ export async function sendShippingEmail(
       postalCode: tx.shipping_postal_code,
       country: tx.shipping_country,
     },
+    customerId: customer.id,
   })
   await sendEmail({ to: customer.email, subject, html })
 }
@@ -293,6 +315,7 @@ export async function sendPaymentReminder1Email(
     blockTitle,
     items,
     paymentUrl: `${APP_URL}/account/checkout`,
+    customerId: customer.id,
   })
   await sendEmail({ to: customer.email, subject, html })
 }
@@ -349,6 +372,7 @@ export async function sendPaymentReminder3Email(
     items,
     deadlineDate,
     paymentUrl: `${APP_URL}/account/checkout`,
+    customerId: customer.id,
   })
   await sendEmail({ to: customer.email, subject, html })
 }
@@ -389,6 +413,7 @@ export async function sendFeedbackRequestEmail(
     items,
     feedbackUrl: `${APP_URL}/account/feedback?order=${orderRef}`,
     auctionsUrl: `${APP_URL}/auctions`,
+    customerId: customer.id,
   })
   await sendEmail({ to: customer.email, subject, html })
 
@@ -468,6 +493,7 @@ export async function sendWatchlistReminderEmail(
     format: release.format || undefined,
     year: release.year || undefined,
     bidUrl,
+    customerId: customer.id,
   })
 
   await sendEmail({ to: customer.email, subject, html })

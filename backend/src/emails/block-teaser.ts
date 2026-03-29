@@ -19,6 +19,7 @@ export function blockTeaserEmail(opts: {
 }): { subject: string; html: string } {
   const startStr = formatCET(opts.startTime)
   const subject = `Coming Soon: ${opts.blockTitle} — ${opts.itemCount} lots of industrial music`
+  const preheader = `${opts.itemCount} lots of rare industrial music launch on ${startStr}. Mark your calendar.`
 
   const previewSection = opts.previewItems.length > 0
     ? `${newsletterDivider()}
@@ -55,7 +56,7 @@ export function blockTeaserEmail(opts: {
     ${newsletterButton("Save the Date →", `https://vod-auctions.com/auctions/${opts.blockSlug}`)}
     ${previewSection}
     <div style="height:20px;"></div>
-  `)
+  `, preheader)
 
   return { subject, html }
 }

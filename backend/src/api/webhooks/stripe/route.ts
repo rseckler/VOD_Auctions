@@ -153,7 +153,9 @@ export async function POST(
           })
 
           // Sync payment to Brevo CRM
-          crmSyncPaymentCompleted(pgConnection, orderGroupId).catch(() => {})
+          crmSyncPaymentCompleted(pgConnection, orderGroupId).catch((err) =>
+            console.error("[stripe-webhook/crm-sync] CRM sync failed (checkout.session.completed):", err instanceof Error ? err.message : err)
+          )
         } else if (transactionId) {
           // Legacy single-item checkout
           await pgConnection("transaction")
@@ -165,7 +167,9 @@ export async function POST(
           // For legacy single-item, create a pseudo order_group_id from transaction
           const tx = await pgConnection("transaction").where("id", transactionId).first()
           if (tx?.order_group_id) {
-            sendPaymentConfirmationEmail(pgConnection, tx.order_group_id).catch(() => {})
+            sendPaymentConfirmationEmail(pgConnection, tx.order_group_id).catch((err) =>
+              console.error("[stripe-webhook] Failed to send payment email (legacy):", err instanceof Error ? err.message : err)
+            )
           }
         } else {
           console.error("[stripe-webhook] No order_group_id or transaction_id in session metadata")
@@ -284,7 +288,9 @@ export async function POST(
         })
 
         // Sync payment to Brevo CRM
-        crmSyncPaymentCompleted(pgConnection, orderGroupId).catch(() => {})
+        crmSyncPaymentCompleted(pgConnection, orderGroupId).catch((err) =>
+          console.error("[stripe-webhook/crm-sync] CRM sync failed (payment_intent.succeeded):", err instanceof Error ? err.message : err)
+        )
 
         break
       }

@@ -11,6 +11,7 @@ export function feedbackRequestEmail(opts: {
   items: FeedbackItem[]
   feedbackUrl: string
   auctionsUrl: string
+  customerId?: string
 }): { subject: string; html: string } {
   const itemsHtml = opts.items.map((item) =>
     emailItemPreview({
@@ -19,42 +20,41 @@ export function feedbackRequestEmail(opts: {
     })
   ).join("")
 
-  const ratingButtons = [
-    { emoji: "&#128543;", label: "1" },
-    { emoji: "&#128528;", label: "2" },
-    { emoji: "&#128578;", label: "3" },
-    { emoji: "&#128522;", label: "4" },
-    { emoji: "&#129321;", label: "5" },
-  ].map((r) =>
-    `<td style="text-align:center;">
-      <a href="${opts.feedbackUrl}&rating=${r.label}" style="display:inline-block;width:40px;height:40px;line-height:40px;background-color:#f4f4f5;border-radius:50%;font-size:20px;text-decoration:none;">${r.emoji}</a>
+  const ratingButtons = [1, 2, 3, 4, 5].map((n) => {
+    const emojis: Record<number, string> = { 1: "&#128543;", 2: "&#128528;", 3: "&#128578;", 4: "&#128522;", 5: "&#129321;" }
+    return `<td style="padding:4px;text-align:center;">
+      <a href="${opts.feedbackUrl}&rating=${n}" style="display:inline-block;width:44px;height:44px;line-height:44px;background-color:#111009;border:1px solid #2a2520;border-radius:50%;font-size:22px;text-decoration:none;text-align:center;">${emojis[n]}</a>
     </td>`
-  ).join("")
+  }).join("")
 
   return {
     subject: "How was your experience at VOD Auctions?",
     html: emailLayout(`
-      <h2 style="margin:0 0 8px;font-size:18px;font-weight:bold;color:#18181b;">How was your purchase?</h2>
-      <p style="margin:0 0 16px;font-size:14px;color:#52525b;">
-        Hi ${opts.firstName}, your order should have arrived by now. We hope you're happy with it!
+      <h2 style="margin:0 0 10px;font-size:20px;font-weight:700;color:#e8e0d4;font-family:'DM Sans',-apple-system,sans-serif;">How was your purchase?</h2>
+      <p style="margin:0 0 24px;font-size:15px;color:#a39d96;line-height:1.7;font-family:'DM Sans',-apple-system,sans-serif;">
+        Hi ${opts.firstName}, your order should have arrived by now. We hope you&rsquo;re happy with it!
+        Your feedback helps us improve VOD Auctions.
       </p>
+
       ${itemsHtml}
-      <p style="margin:0 0 16px;font-size:14px;color:#52525b;">
-        Your feedback helps us make VOD Auctions even better. How do you rate your purchase?
-      </p>
-      <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto 16px;">
+
+      <p style="margin:0 0 16px;font-size:15px;color:#e8e0d4;font-weight:600;text-align:center;font-family:'DM Sans',-apple-system,sans-serif;">How do you rate your experience?</p>
+      <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto 24px;border-collapse:collapse;">
         <tr>${ratingButtons}</tr>
       </table>
-      ${emailButton("Leave Feedback", opts.feedbackUrl)}
-      <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;background-color:#fffbeb;border:1px solid #fde68a;border-radius:8px;margin-top:16px;">
-        <tr>
-          <td style="padding:12px;">
-            <p style="margin:0;font-size:14px;font-weight:500;color:#92400e;">New auctions are waiting!</p>
-            <p style="margin:4px 0 0;font-size:12px;color:#b45309;">Check out our upcoming auction blocks.</p>
-            <p style="margin:8px 0 0;"><a href="${opts.auctionsUrl}" style="font-size:12px;color:#d4a54a;text-decoration:underline;">Browse auctions</a></p>
-          </td>
-        </tr>
+
+      ${emailButton("Leave Detailed Feedback", opts.feedbackUrl)}
+
+      <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#111009;border-radius:8px;border:1px solid #2a2520;margin:24px 0 0;border-collapse:collapse;">
+        <tr><td style="padding:16px 20px;">
+          <p style="margin:0 0 6px;font-size:14px;font-weight:700;color:#d4a54a;font-family:'DM Sans',-apple-system,sans-serif;">More rare records are waiting</p>
+          <p style="margin:0 0 10px;font-size:13px;color:#8a847e;font-family:'DM Sans',-apple-system,sans-serif;">New auction blocks launch every month.</p>
+          <a href="${opts.auctionsUrl}" style="font-size:13px;color:#d4a54a;text-decoration:none;font-weight:600;font-family:'DM Sans',-apple-system,sans-serif;">Browse upcoming auctions &#8250;</a>
+        </td></tr>
       </table>
-    `),
+    `, {
+      preheader: "How did we do? We'd love to hear about your VOD Auctions experience",
+      customerId: opts.customerId,
+    }),
   }
 }

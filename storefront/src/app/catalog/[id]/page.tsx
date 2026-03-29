@@ -16,6 +16,7 @@ import { CatalogBackLink } from "@/components/CatalogBackLink"
 import { extractTracklistFromText } from "@/lib/utils"
 import type { Release } from "@/types"
 import { ConditionRow } from "@/components/ConditionBadge"
+import { CatalogViewTracker } from "@/components/CatalogViewTracker"
 
 type RelatedRelease = {
   id: string
@@ -137,6 +138,12 @@ export default async function CatalogDetailPage({
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-8 pb-20 lg:pb-8">
+      <CatalogViewTracker
+        itemId={release.id}
+        itemName={release.artist_name ? `${release.artist_name} — ${release.title}` : release.title}
+        itemCategory={release.product_category || "release"}
+        price={release.legacy_price ?? undefined}
+      />
       {/* Breadcrumb — preserves catalog filter state via sessionStorage */}
       <nav className="text-sm text-muted-foreground mb-8 flex items-center gap-1 flex-wrap">
         <CatalogBackLink className="hover:text-foreground transition-colors" />

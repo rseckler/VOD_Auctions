@@ -27,17 +27,18 @@
     "@medusajs/framework": "2.13.1",
     "@medusajs/medusa": "2.13.1",
     "@react-email/components": "^1.0.8",
+    "@supabase/supabase-js": "^2.49.4",
     "@tiptap/extension-image": "^3.20.0",
     "@tiptap/extension-link": "^3.20.0",
     "@tiptap/extension-placeholder": "^3.20.0",
     "@tiptap/pm": "^3.20.0",
     "@tiptap/react": "^3.20.0",
     "@tiptap/starter-kit": "^3.20.0",
-    "react-email": "^5.2.9",
-    "@supabase/supabase-js": "^2.49.4",
     "pdfkit": "^0.15.2",
+    "react-email": "^5.2.9",
     "resend": "^6.9.3",
-    "stripe": "^20.4.0"
+    "stripe": "^20.4.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@medusajs/test-utils": "2.13.1",

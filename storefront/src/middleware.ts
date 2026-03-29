@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from "next/server"
 
-const GATE_PASSWORD = process.env.GATE_PASSWORD || "vod2026"
+// LAUNCH CHECKLIST: Remove this entire gate middleware before public launch
+// or set GATE_PASSWORD="" in production ENV to disable
 const GATE_COOKIE = "vod_access"
 
 export function middleware(request: NextRequest) {
+  const gatePassword = process.env.GATE_PASSWORD
+  if (!gatePassword) {
+    // Kein Gate-Password gesetzt → Gate deaktiviert, Request durchlassen
+    return NextResponse.next()
+  }
+
   const { pathname } = request.nextUrl
 
   // Always allow: gate page, gate API, static assets, API routes, health checks

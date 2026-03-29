@@ -1,0 +1,14 @@
+{
+  "name": "vod-auctions",
+  "version": "1.0.0",
+  "private": true,
+  "description": "VOD Auctions — Root workspace scripts",
+  "scripts": {
+    "test:e2e": "cd storefront && npx playwright test",
+    "test:e2e:ui": "cd storefront && npx playwright test --ui",
+    "test:e2e:report": "cd storefront && npx playwright show-report",
+    "test:e2e:headed": "cd storefront && npx playwright test --headed",
+    "test:e2e:debug": "cd storefront && npx playwright test --debug",
+    "test:e2e:prod": "BASE_URL=https://vod-auctions.com MEDUSA_URL=https://api.vod-auctions.com ADMIN_URL=https://admin.vod-auctions.com npm run test:e2e"
+  }
+}

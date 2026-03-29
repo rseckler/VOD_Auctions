@@ -17,6 +17,7 @@ export function blockEndingEmail(opts: {
 }): { subject: string; html: string } {
   const endStr = formatCET(opts.endTime)
   const subject = `Last chance: ${opts.blockTitle} ends in 6 hours`
+  const preheader = `Auction closes at ${endStr}. Place your final bids now before time runs out.`
 
   const topSection = opts.topItems.length > 0
     ? `${newsletterDivider()}
@@ -49,7 +50,7 @@ export function blockEndingEmail(opts: {
     ${newsletterButton("Bid Before It's Too Late →", `https://vod-auctions.com/auctions/${opts.blockSlug}`)}
     ${topSection}
     <div style="height:20px;"></div>
-  `)
+  `, preheader)
 
   return { subject, html }
 }

@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import AuctionModuleService from "../../../../../modules/auction/service"
 import { AUCTION_MODULE } from "../../../../../modules/auction"
+import { CreateBlockItemSchema, validateBody } from "../../../../../lib/validation"
 
 // GET /admin/auction-blocks/:id/items — List items in a block
 export async function GET(
@@ -24,13 +25,25 @@ export async function POST(
   req: MedusaRequest,
   res: MedusaResponse
 ): Promise<void> {
+  const validation = validateBody(CreateBlockItemSchema, req.body)
+  if ("error" in validation) {
+    res.status(400).json({
+      message: validation.error,
+      issues: validation.details.errors.map((e) => ({
+        path: e.path.join("."),
+        message: e.message,
+      })),
+    })
+    return
+  }
+
   const auctionService: AuctionModuleService = req.scope.resolve(AUCTION_MODULE)
   const pgConnection: Knex = req.scope.resolve(
     ContainerRegistrationKeys.PG_CONNECTION
   )
 
   const blockId = req.params.id
-  const releaseId = req.body.release_id
+  const releaseId = validation.data.release_id
 
   // Duplicate detection: check if release already in this block
   const existing = await auctionService.listBlockItems({
@@ -42,7 +55,9 @@ export async function POST(
     return
   }
 
-  const { release_id, start_price, estimated_value, reserve_price, buy_now_price, lot_number } = req.body
+  const { release_id, start_price, reserve_price, lot_number } = validation.data
+  // Pass through any extra fields (estimated_value, buy_now_price) from req.body as-is
+  const { estimated_value, buy_now_price } = req.body as any
   const item = await auctionService.createBlockItems({
     auction_block: blockId,
     release_id,

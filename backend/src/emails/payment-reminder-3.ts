@@ -12,12 +12,12 @@ export function paymentReminder3Email(opts: {
   }>
   deadlineDate: Date
   paymentUrl: string
+  customerId?: string
 }): { subject: string; html: string } {
   const itemCount = opts.items.length
   const itemWord = itemCount === 1 ? "item" : "items"
 
-  // Format deadline as e.g. "Monday, 31 March 2026"
-  const deadlineStr = opts.deadlineDate.toLocaleDateString("en-GB", {
+  const deadlineStr = new Date(opts.deadlineDate).toLocaleDateString("en-GB", {
     weekday: "long",
     day: "numeric",
     month: "long",
@@ -39,23 +39,37 @@ export function paymentReminder3Email(opts: {
   return {
     subject: `Final reminder: Auction payment due tomorrow`,
     html: emailLayout(`
-      <div style="text-align:center;margin-bottom:16px;">
-        <p style="font-size:32px;margin:0;">&#9888;&#65039;</p>
-        <h2 style="margin:4px 0;font-size:18px;font-weight:bold;color:#18181b;">Final reminder, ${opts.firstName}</h2>
-        <p style="margin:0;font-size:14px;color:#71717a;">Your payment for ${itemCount} ${itemWord} from <strong>${opts.blockTitle}</strong> is due tomorrow.</p>
-      </div>
-      ${itemRows}
-      <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;background-color:#fef2f2;border:1px solid #fecaca;border-radius:8px;margin-bottom:16px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#1f0e0e;border:1px solid #5a1a1a;border-radius:8px;margin:0 0 24px;border-collapse:collapse;">
         <tr>
-          <td style="padding:12px;font-size:13px;color:#991b1b;">
-            &#9888; If payment is not received by <strong>${deadlineStr}</strong>, your items will be re-listed and your win will be forfeited.
+          <td style="padding:16px 20px;">
+            <p style="margin:0 0 4px;font-size:18px;font-weight:700;color:#e8e0d4;font-family:'DM Sans',-apple-system,sans-serif;">Final reminder, ${opts.firstName}</p>
+            <p style="margin:0;font-size:14px;color:#f87171;font-family:'DM Sans',-apple-system,sans-serif;">
+              Payment for ${itemCount} ${itemWord} from <strong>${opts.blockTitle}</strong> is due tomorrow.
+            </p>
           </td>
         </tr>
       </table>
-      <p style="margin:0 0 16px;font-size:14px;color:#52525b;">
-        Pay now to secure your wins — this is your final reminder.
+
+      ${itemRows}
+
+      <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#1f0e0e;border-radius:8px;border:1px solid #5a1a1a;margin:0 0 24px;border-collapse:collapse;">
+        <tr><td style="padding:16px 20px;">
+          <p style="margin:0 0 6px;font-size:12px;color:#f87171;letter-spacing:0.04em;text-transform:uppercase;font-family:'DM Sans',-apple-system,sans-serif;">&#9888; Action required by</p>
+          <p style="margin:0;font-size:15px;font-weight:700;color:#fca5a5;font-family:'DM Sans',-apple-system,sans-serif;">${deadlineStr}</p>
+          <p style="margin:8px 0 0;font-size:13px;color:#a39d96;line-height:1.5;font-family:'DM Sans',-apple-system,sans-serif;">
+            If payment is not received by this deadline, your ${itemWord} will be re-listed and your win forfeited.
+          </p>
+        </td></tr>
+      </table>
+
+      <p style="margin:0 0 24px;font-size:14px;color:#a39d96;line-height:1.7;font-family:'DM Sans',-apple-system,sans-serif;">
+        This is your final reminder &mdash; pay now to keep your ${itemWord}.
       </p>
+
       ${emailButton("Pay Now to Secure Your Wins", opts.paymentUrl)}
-    `),
+    `, {
+      preheader: "Last chance: pay by tomorrow or your items will be re-listed",
+      customerId: opts.customerId,
+    }),
   }
 }

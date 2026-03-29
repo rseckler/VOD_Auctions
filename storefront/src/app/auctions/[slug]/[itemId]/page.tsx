@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { ImageGallery } from "@/components/ImageGallery"
 import { ItemBidSection } from "@/components/ItemBidSection"
+import { ErrorBoundary } from "@/components/ErrorBoundary"
 import { RelatedSection } from "@/components/RelatedSection"
 import { medusaFetch } from "@/lib/api"
 import { CreditsTable } from "@/components/CreditsTable"
@@ -261,19 +262,21 @@ export default async function ItemDetailPage({
               </div>
             ) : (
               <>
-                <ItemBidSection
-                  slug={slug}
-                  itemId={item.id}
-                  initialPrice={item.current_price}
-                  startPrice={item.start_price}
-                  initialBidCount={item.bid_count}
-                  lotEndTime={item.lot_end_time || null}
-                  blockStatus={block.status}
-                  itemStatus={item.status}
-                  blockStartTime={block.start_time || null}
-                  extensionCount={item.extension_count || 0}
-                  suggestedBid={suggestedBid}
-                />
+                <ErrorBoundary name="BidSection">
+                  <ItemBidSection
+                    slug={slug}
+                    itemId={item.id}
+                    initialPrice={item.current_price}
+                    startPrice={item.start_price}
+                    initialBidCount={item.bid_count}
+                    lotEndTime={item.lot_end_time || null}
+                    blockStatus={block.status}
+                    itemStatus={item.status}
+                    blockStartTime={block.start_time || null}
+                    extensionCount={item.extension_count || 0}
+                    suggestedBid={suggestedBid}
+                  />
+                </ErrorBoundary>
                 {item.reserve_met === false && (
                   <p className="flex items-center gap-1.5 text-xs text-amber-500/80 mt-2">
                     <Lock className="h-3 w-3 flex-shrink-0" />

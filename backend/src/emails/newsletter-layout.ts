@@ -9,58 +9,69 @@ export interface NewsletterItem {
   lotNumber?: number | null
 }
 
-export function newsletterLayout(content: string): string {
+export function newsletterLayout(content: string, preheader?: string): string {
+  const preheaderHtml = preheader
+    ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;color:#111009;line-height:1px;">${preheader}&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;</div>`
+    : ""
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VOD Auctions</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="x-apple-disable-message-reformatting">
+  <!--[if mso]><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->
 </head>
-<body style="margin:0;padding:0;background-color:#111009;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<body style="margin:0;padding:0;background-color:#111009;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  ${preheaderHtml}
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#111009;">
     <tr>
-      <td align="center" style="padding:32px 16px;">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background-color:#1c1915;border-radius:12px;overflow:hidden;">
-          ${newsletterHeader()}
+      <td align="center" style="padding:24px 16px;">
+
+        <!-- Header -->
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;border-collapse:collapse;">
           <tr>
-            <td style="padding:28px 28px 8px;">
+            <td style="background-color:#111009;padding:20px 28px;border-radius:12px 12px 0 0;border:1px solid #2a2520;border-bottom:none;">
+              <a href="https://vod-auctions.com" style="text-decoration:none;display:inline-block;">
+                <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+                  <tr>
+                    <td style="width:26px;height:26px;background-color:#d4a54a;border-radius:50%;text-align:center;vertical-align:middle;font-size:12px;font-weight:700;color:#1c1915;line-height:26px;font-family:'DM Sans',-apple-system,sans-serif;">V</td>
+                    <td style="padding-left:10px;color:#d4a54a;font-weight:700;font-size:15px;letter-spacing:0.08em;font-family:'DM Sans',-apple-system,sans-serif;">VOD AUCTIONS</td>
+                  </tr>
+                </table>
+              </a>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Body -->
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#1c1915;border:1px solid #2a2520;border-top:none;border-bottom:none;border-collapse:collapse;">
+          <tr>
+            <td style="padding:28px 28px 16px;">
               ${content}
             </td>
           </tr>
-          ${newsletterFooter()}
         </table>
+
+        <!-- Footer -->
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;border-collapse:collapse;">
+          <tr>
+            <td style="background-color:#111009;padding:20px 28px;border-radius:0 0 12px 12px;border:1px solid #2a2520;border-top:1px solid #2a2520;text-align:center;">
+              <p style="margin:0 0 6px;font-size:12px;color:#6b6560;font-family:'DM Sans',-apple-system,sans-serif;">VOD Auctions &mdash; Curated Industrial Music Auctions</p>
+              <p style="margin:0;font-size:12px;color:#6b6560;font-family:'DM Sans',-apple-system,sans-serif;">
+                <a href="{{ unsubscribe }}" style="color:#6b6560;text-decoration:none;">Unsubscribe</a>
+                &nbsp;&middot;&nbsp;
+                <a href="{{ mirror }}" style="color:#6b6560;text-decoration:none;">View in browser</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+
       </td>
     </tr>
   </table>
 </body>
 </html>`
-}
-
-function newsletterHeader(): string {
-  return `<tr>
-  <td style="background-color:#111009;padding:20px 28px;border-bottom:1px solid #2a2520;">
-    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
-      <tr>
-        <td style="width:28px;height:28px;background-color:#d4a54a;border-radius:50%;text-align:center;vertical-align:middle;font-size:13px;font-weight:bold;color:#1c1915;line-height:28px;">V</td>
-        <td style="padding-left:10px;color:#d4a54a;font-weight:700;font-size:16px;letter-spacing:0.5px;">VOD Auctions</td>
-      </tr>
-    </table>
-  </td>
-</tr>`
-}
-
-function newsletterFooter(): string {
-  return `<tr>
-  <td style="border-top:1px solid #2a2520;padding:20px 28px;text-align:center;font-size:11px;color:#6b6560;">
-    <p style="margin:0;">VOD Auctions &mdash; Curated Industrial Music Auctions</p>
-    <p style="margin:6px 0 0;">
-      <a href="{{ unsubscribe }}" style="color:#6b6560;text-decoration:underline;">Unsubscribe</a>
-      &nbsp;&middot;&nbsp;
-      <a href="{{ mirror }}" style="color:#6b6560;text-decoration:underline;">View in browser</a>
-    </p>
-  </td>
-</tr>`
 }
 
 export function newsletterHeading(text: string, sub?: string): string {

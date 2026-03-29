@@ -125,7 +125,7 @@ export function ItemBidSection({
           filter: `block_item_id=eq.${itemId}`,
         },
         (payload) => {
-          const newBid = payload.new as any
+          const newBid = payload.new as { id: string; amount: number; is_winning: boolean; user_id: string; created_at: string }
           setBids((prev) => [
             {
               id: newBid.id,
@@ -158,7 +158,7 @@ export function ItemBidSection({
           filter: `id=eq.${itemId}`,
         },
         (payload) => {
-          const updated = payload.new as any
+          const updated = payload.new as { current_price?: number; lot_end_time?: string; bid_count?: number }
           if (updated.current_price) setCurrentPrice(updated.current_price)
           if (updated.lot_end_time) setLotEndTime(updated.lot_end_time)
           if (updated.bid_count !== undefined) setBidCount(updated.bid_count)
@@ -497,14 +497,20 @@ function BidForm({
         <Button
           type="submit"
           disabled={loading}
-          className="w-full"
+          className="w-full disabled:opacity-50 disabled:cursor-not-allowed"
           size="lg"
         >
-          {loading
-            ? "Submitting\u2026"
-            : isAuthenticated
-              ? `Bid: \u20ac${parseFloat(amount || "0").toFixed(2)}`
-              : "Login to Bid"}
+          {loading ? (
+            <span className="flex items-center gap-2">
+              <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              Processing...
+            </span>
+          ) : isAuthenticated
+            ? `Place Bid: \u20ac${parseFloat(amount || "0").toFixed(2)}`
+            : "Login to Bid"}
         </Button>
       </form>
 
@@ -547,10 +553,23 @@ function BidForm({
                 </button>
                 <button
                   onClick={confirmBid}
-                  className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+                  disabled={loading}
+                  className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Check className="h-4 w-4" />
-                  Confirm Bid
+                  {loading ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="h-4 w-4" />
+                      Confirm Bid
+                    </>
+                  )}
                 </button>
               </div>
             </motion.div>

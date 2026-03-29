@@ -10,6 +10,7 @@ import { CookieConsent } from "@/components/CookieConsent"
 import { BackToTop } from "@/components/BackToTop"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { HotjarProvider } from "@/components/providers/HotjarProvider"
 import "./globals.css"
 
 const dmSans = DM_Sans({
@@ -109,6 +110,7 @@ export default async function RootLayout({
             <BackToTop />
             <BrevoTracker />
             <CookieConsent />
+            <HotjarProvider />
           </TooltipProvider>
         </AuthProvider>
       </body>

@@ -244,8 +244,11 @@ export async function listContacts(opts?: {
 
 // --- Config helpers ---
 
-export const BREVO_LIST_VOD_AUCTIONS = Number(process.env.BREVO_LIST_VOD_AUCTIONS) || 0
-export const BREVO_LIST_TAPE_MAG = Number(process.env.BREVO_LIST_TAPE_MAG) || 0
+export const VOD_AUCTIONS_LIST_ID = parseInt(process.env.BREVO_LIST_VOD_AUCTIONS || "4")
+export const TAPE_MAG_LIST_ID = parseInt(process.env.BREVO_LIST_TAPE_MAG || "5")
+// Backward-compat aliases
+export const BREVO_LIST_VOD_AUCTIONS = VOD_AUCTIONS_LIST_ID
+export const BREVO_LIST_TAPE_MAG = TAPE_MAG_LIST_ID
 export const BREVO_SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || "newsletter@vod-auctions.com"
 export const BREVO_SENDER_NAME = process.env.BREVO_SENDER_NAME || "VOD Auctions"
 

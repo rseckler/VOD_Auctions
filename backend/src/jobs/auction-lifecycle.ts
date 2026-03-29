@@ -159,7 +159,9 @@ export default async function auctionLifecycle(container: MedusaContainer) {
       })
 
       // Sync auction win to Brevo CRM
-      crmSyncAuctionWon(pgConnection, winner.userId, winner.price).catch(() => {})
+      crmSyncAuctionWon(pgConnection, winner.userId, winner.price).catch((err) =>
+        console.error("[lifecycle/crm-sync] CRM sync for auction win failed:", err instanceof Error ? err.message : err)
+      )
     }
   }
 }

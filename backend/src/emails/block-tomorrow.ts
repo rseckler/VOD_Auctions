@@ -19,6 +19,7 @@ export function blockTomorrowEmail(opts: {
 }): { subject: string; html: string } {
   const startStr = formatCET(opts.startTime)
   const subject = `Starts Tomorrow: ${opts.blockTitle} — bidding opens at ${startStr}`
+  const preheader = `Bidding opens tomorrow at ${startStr} — browse all ${opts.itemCount} lots now.`
 
   const previewSection = opts.previewItems.length > 0
     ? `${newsletterDivider()}
@@ -58,7 +59,7 @@ export function blockTomorrowEmail(opts: {
     ${newsletterButton(`View All ${opts.itemCount} Lots →`, `https://vod-auctions.com/auctions/${opts.blockSlug}`)}
     ${previewSection}
     <div style="height:20px;"></div>
-  `)
+  `, preheader)
 
   return { subject, html }
 }

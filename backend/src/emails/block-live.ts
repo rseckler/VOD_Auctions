@@ -18,6 +18,7 @@ export function blockLiveEmail(opts: {
 }): { subject: string; html: string } {
   const endStr = formatCET(opts.endTime)
   const subject = `🔴 LIVE NOW: ${opts.blockTitle} — bidding open`
+  const preheader = `Bidding is live on ${opts.itemCount} lots. Auction closes ${endStr}.`
 
   const previewSection = opts.previewItems.length > 0
     ? `${newsletterDivider()}
@@ -60,7 +61,7 @@ export function blockLiveEmail(opts: {
     ${newsletterButton("Bid Now →", `https://vod-auctions.com/auctions/${opts.blockSlug}`)}
     ${previewSection}
     <div style="height:20px;"></div>
-  `)
+  `, preheader)
 
   return { subject, html }
 }

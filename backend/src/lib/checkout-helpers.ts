@@ -257,26 +257,27 @@ export async function prepareCheckoutOrder(
     }
   }
 
-  // ── Clean up old pending transactions ──
+  // ── Clean up old pending transactions + Insert new ones (atomic) ──
   const auctionBlockItemIds = transactionInserts.filter(t => t.block_item_id).map(t => t.block_item_id)
-  if (auctionBlockItemIds.length > 0) {
-    await pgConnection("transaction")
-      .whereIn("block_item_id", auctionBlockItemIds)
-      .where("status", "pending")
-      .delete()
-  }
   const directReleaseIds = transactionInserts.filter(t => !t.block_item_id).map(t => t.release_id)
-  if (directReleaseIds.length > 0) {
-    await pgConnection("transaction")
-      .whereIn("release_id", directReleaseIds)
-      .where("user_id", customerId)
-      .where("item_type", "direct_purchase")
-      .where("status", "pending")
-      .delete()
-  }
 
-  // ── Insert transactions ──
-  await pgConnection("transaction").insert(transactionInserts)
+  await pgConnection.transaction(async (trx) => {
+    if (auctionBlockItemIds.length > 0) {
+      await trx("transaction")
+        .whereIn("block_item_id", auctionBlockItemIds)
+        .where("status", "pending")
+        .delete()
+    }
+    if (directReleaseIds.length > 0) {
+      await trx("transaction")
+        .whereIn("release_id", directReleaseIds)
+        .where("user_id", customerId)
+        .where("item_type", "direct_purchase")
+        .where("status", "pending")
+        .delete()
+    }
+    await trx("transaction").insert(transactionInserts)
+  })
 
   // ── Get customer info ──
   const customer = await pgConnection("customer")

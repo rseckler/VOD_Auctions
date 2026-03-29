@@ -4,6 +4,7 @@ import {
   generateEntityId,
 } from "@medusajs/framework/utils"
 import { Knex } from "knex"
+import { createHash } from "crypto"
 import AuctionModuleService from "../../../../../../../modules/auction/service"
 import { AUCTION_MODULE } from "../../../../../../../modules/auction"
 import { sendOutbidEmail } from "../../../../../../../lib/email-helpers"
@@ -62,32 +63,25 @@ export async function GET(
     .orderBy("created_at", "desc")
     .limit(50)
 
-  // Fetch customer names for anonymized display
+  // Build anonymized display names via SHA-256 hash of customer ID.
+  // Result e.g. "Bidder A3F2C1" — consistent per user, not bruteforceable.
   const uniqueUserIds = [...new Set(bids.map((b: any) => b.user_id).filter(Boolean))]
   const customerMap: Record<string, string> = {}
-  if (uniqueUserIds.length > 0) {
-    const customers = await pgConnection("customer")
-      .whereIn("id", uniqueUserIds as string[])
-      .select("id", "first_name", "last_name", "email")
-    customers.forEach((c: any) => {
-      if (c.first_name) {
-        // "Robin" → "R***"
-        customerMap[c.id] = c.first_name.charAt(0).toUpperCase() + "***"
-      } else if (c.email) {
-        // "robin@example.com" → "rob***"
-        customerMap[c.id] = c.email.substring(0, 3) + "***"
-      } else {
-        customerMap[c.id] = "Bid***"
-      }
-    })
-  }
+  uniqueUserIds.forEach((userId) => {
+    const hash = createHash("sha256")
+      .update(userId as string)
+      .digest("hex")
+      .slice(0, 6)
+      .toUpperCase()
+    customerMap[userId as string] = `Bidder ${hash}`
+  })
 
   // Anonymize for public view
   const anonymized = bids.map((bid: any) => ({
     id: bid.id,
     amount: parseFloat(bid.amount),
     is_winning: bid.is_winning,
-    user_hint: customerMap[bid.user_id] || "Bid***",
+    user_hint: customerMap[bid.user_id] || "Bidder 000000",
     user_id: bid.user_id,
     created_at: bid.created_at,
   }))
@@ -191,12 +185,21 @@ export async function POST(
         throw { status: 400, message: "Auction is not active" }
       }
 
+      // Guard against null/undefined start_price (item configuration error)
+      const rawStartPrice = item.start_price
+      const startPrice = rawStartPrice != null ? parseFloat(String(rawStartPrice)) : 0
+      if (!isFinite(startPrice)) {
+        throw { status: 500, message: "Item configuration error: invalid start price" }
+      }
+
       // Calculate minimum bid
-      const currentPrice = parseFloat(item.current_price || item.start_price)
+      const currentPrice = item.current_price != null
+        ? parseFloat(String(item.current_price))
+        : startPrice
       const minIncrement = getMinIncrement(currentPrice)
       const minimumBid =
         item.bid_count === 0
-          ? parseFloat(item.start_price)
+          ? startPrice
           : currentPrice + minIncrement
 
       if (amount < minimumBid) {
@@ -207,9 +210,10 @@ export async function POST(
         }
       }
 
-      // Find existing winning bid (for proxy bidding logic)
+      // Find existing winning bid (for proxy bidding logic) — locked to prevent race conditions
       const existingWinning = await trx("bid")
         .where({ block_item_id: itemId, is_winning: true })
+        .forUpdate()
         .first()
 
       const now = new Date()
@@ -346,7 +350,9 @@ export async function POST(
         itemId,
         result._outbid_amount!,
         result._current_bid!
-      ).catch(() => {})
+      ).catch((err) =>
+        console.error("[bid/outbid-email] Failed to send outbid email:", err instanceof Error ? err.message : err)
+      )
     }
 
     // Broadcast lot extension to storefront via Supabase Realtime (async, non-blocking)
@@ -365,12 +371,16 @@ export async function POST(
               extension_count: ext.extension_count,
             },
           })
-          .catch(() => {})
+          .catch((err) =>
+            console.error("[bid/lot-extension] Supabase Realtime broadcast failed:", err instanceof Error ? err.message : err)
+          )
       }
     }
 
     // Sync bid to Brevo CRM (async, non-blocking)
-    crmSyncBidPlaced(pgConnection, customerId, result.amount).catch(() => {})
+    crmSyncBidPlaced(pgConnection, customerId, result.amount).catch((err) =>
+      console.error("[bid/crm-sync] CRM sync failed:", err instanceof Error ? err.message : err)
+    )
 
     // Fetch item reserve status for response (re-read after transaction)
     const updatedItem = await pgConnection("block_item")

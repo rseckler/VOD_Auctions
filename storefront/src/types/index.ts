@@ -153,6 +153,7 @@ export type WinEntry = {
     id: string
     lot_number: number | null
     status: string
+    release_id?: string
     release_title: string | null
     release_artist: string | null
     release_cover: string | null

@@ -7,6 +7,7 @@ import { useEffect } from "react"
 import { LayoutDashboard, Gavel, Trophy, Settings, ShoppingCart, CreditCard, MessageSquare, Package, Heart, MapPin } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { ErrorBoundary } from "@/components/ErrorBoundary"
 
 const NAV_ITEMS = [
   { href: "/account", label: "Overview", icon: LayoutDashboard },
@@ -90,7 +91,11 @@ export function AccountLayoutClient({
           </div>
         </nav>
 
-        <div className="flex-1 min-w-0">{children}</div>
+        <div className="flex-1 min-w-0">
+          <ErrorBoundary name="AccountPage">
+            {children}
+          </ErrorBoundary>
+        </div>
       </div>
     </main>
   )
