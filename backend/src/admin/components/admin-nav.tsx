@@ -95,6 +95,12 @@ function injectNavCSS() {
       display: none !important;
     }
 
+    /* Hide the Extensions section header (trigger button) via CSS —
+       catches both the expand (+) and collapse (—) variants */
+    nav [data-radix-collapsible-trigger] {
+      display: none !important;
+    }
+
     /* Override Radix UI collapsible animation so Extensions content stays visible
        after we hide the trigger button. Without this, content stays at height:0. */
     nav [data-radix-collapsible-content] {
@@ -120,7 +126,7 @@ function expandAndHideExtensions() {
   const buttons = document.querySelectorAll("nav button")
   buttons.forEach((btn) => {
     const text = btn.textContent?.trim()
-    if (text !== "Extensions") return
+    if (!text?.includes("Extensions")) return
 
     const el = btn as HTMLElement
 

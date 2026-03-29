@@ -125,19 +125,11 @@ function BlocksTable({
             <Table.Cell>{block.items?.length || 0}</Table.Cell>
             <Table.Cell onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center gap-2">
-                {block.status === "ended" ? (
-                  <a href={`/app/auction-blocks/${block.id}/post-auction`}>
-                    <Button variant="primary" size="small">
-                      Post-Auction →
-                    </Button>
-                  </a>
-                ) : (
-                  <a href={`/app/auction-blocks/${block.id}`}>
-                    <Button variant="secondary" size="small">
-                      {block.status === "active" ? "Manage" : "Edit"}
-                    </Button>
-                  </a>
-                )}
+                <a href={`/app/auction-blocks/${block.id}`}>
+                  <Button variant={block.status === "ended" ? "primary" : "secondary"} size="small">
+                    {block.status === "ended" ? "Process →" : block.status === "active" ? "Manage" : "Edit"}
+                  </Button>
+                </a>
                 {DELETABLE_STATUSES.includes(block.status) && (
                   <Button
                     variant="danger"
