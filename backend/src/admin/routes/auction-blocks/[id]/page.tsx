@@ -1224,6 +1224,24 @@ const BlockDetailPage = () => {
 
   return (
     <Container>
+      {/* Breadcrumb */}
+      <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 20, display: "flex", alignItems: "center", gap: 6 }}>
+        <button
+          onClick={() => (window.location.href = "/app/auction-blocks")}
+          style={{ color: "#6b7280", textDecoration: "none", cursor: "pointer", background: "none", border: "none", padding: 0, fontSize: 12 }}
+          onMouseEnter={e => (e.currentTarget.style.color = "#111827")}
+          onMouseLeave={e => (e.currentTarget.style.color = "#6b7280")}
+        >
+          ← Auction Blocks
+        </button>
+        {!isNew && block.title && (
+          <>
+            <span style={{ color: "#d1d5db" }}>›</span>
+            <span style={{ color: "#374151", fontWeight: 500 }}>{block.title}</span>
+          </>
+        )}
+      </div>
+
       {/* Header with title, status badge, and action buttons */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
