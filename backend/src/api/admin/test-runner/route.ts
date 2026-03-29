@@ -3,10 +3,11 @@ import { exec } from "child_process"
 import { readFileSync, existsSync, writeFileSync } from "fs"
 import { join } from "path"
 
+// playwright.config.ts writes JSON to storefront/playwright-report/results.json
 const REPORT_PATH = join(
   process.cwd(),
   "..",
-  "tests",
+  "storefront",
   "playwright-report",
   "results.json"
 )
@@ -78,26 +79,17 @@ export async function POST(
   }
 
   const projectRoot = join(process.cwd(), "..")
-  // Write JSON results to tests/playwright-report/results.json
-  const cmd = [
-    `cd "${projectRoot}/storefront"`,
-    `npx playwright test`,
-    `--reporter=json`,
-    `--output="${projectRoot}/tests/playwright-report"`,
-    `2>&1`,
-  ].join(" ")
+  // playwright.config.ts handles reporters (json → storefront/playwright-report/results.json)
+  const cmd = `cd "${projectRoot}/storefront" && npx playwright test 2>&1`
 
   exec(cmd, { maxBuffer: 10 * 1024 * 1024 }, (error, stdout) => {
     runningJobs[jobId].status = error ? "failed" : "completed"
     runningJobs[jobId].output = stdout.slice(0, 5000) // cap to avoid memory bloat
 
-    // Parse JSON output line and append to history
+    // Parse results from the JSON report file and append to history
     try {
-      const jsonLine = stdout
-        .split("\n")
-        .find((l) => l.trimStart().startsWith("{"))
-      if (jsonLine) {
-        const result = JSON.parse(jsonLine)
+      if (existsSync(REPORT_PATH)) {
+        const result = JSON.parse(readFileSync(REPORT_PATH, "utf-8"))
         const passed = result?.stats?.expected ?? 0
         const failed = result?.stats?.unexpected ?? 0
         const skipped = result?.stats?.skipped ?? 0
