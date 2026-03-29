@@ -303,6 +303,15 @@ VOD_Auctions/
 
 ## Recent Changes
 
+### 2026-03-30 — Admin Backoffice Fixes + Dashboard Landing Page
+- **Dashboard** `/app/dashboard` (NEU, rank 0, Home-Icon) — KPI-Cards, To-Do-Queue (überfällige Zahlungen, packing-Queue, Labels), Live-Auctions-Widget, Upcoming-Blocks, Week-Stats. Auto-Refresh 60s. 5× `Promise.allSettled` gegen bestehende Endpoints.
+- **B1:** „Post-Auction Workflow →" Button entfernt (war 404 auf nicht existenter Route).
+- **B2:** Lot-Zeilen in Post-Auction-Seite klickbar → `/app/transactions/{tx.id}`.
+- **B3:** Refund-Button in Post-Auction pro Lot (Steps 2–4), mit Confirm-Dialog.
+- **B4:** Auction-Blocks-Listenzeilen klickbar → `/app/auction-blocks/{id}`.
+- **Konzept:** `docs/architecture/ADMIN_BACKOFFICE_KONZEPT_2026.md` — Analyse + Marktvergleich (eBay/Catawiki/Shopify) + Umsetzungsplan P1–P4.
+- **Sidebar-Fix:** `admin-nav.tsx` — Extensions-Collapsible erst expandieren, dann verstecken (aria-expanded + requestAnimationFrame + Radix CSS-Override).
+
 ### 2026-03-30 — Admin UI Restructuring + System Health Erweiterung
 - **Admin Sidebar: 15 → 5 Items** — Neue Hub-Seiten: `/app/catalog` (Media, Entity Content, Musicians), `/app/marketing` (Newsletter, Emails, CRM, Content, Gallery), `/app/operations` (System Health, Shipping, Sync, Test Runner). Operations zeigt Live-Auction-Banner wenn aktiv.
 - **"Transactions" → "Orders"** — Sidebar-Label umbenannt.
