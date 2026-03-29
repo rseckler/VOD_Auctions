@@ -4,7 +4,7 @@
 **Goal:** Eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Phase 1 fertig — RSE-77 (Testlauf) als nächster Schritt
 **Language:** Storefront + Admin-UI: Englisch
-**Last Updated:** 2026-03-30
+**Last Updated:** 2026-03-29
 
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
@@ -333,11 +333,26 @@ VOD_Auctions/
 - **Stündlicher Recalc-Job** — `src/jobs/customer-stats-recalc.ts` (Schedule `0 * * * *`): Full-UPSERT aller Stats aus `transaction` + `bid` Tabellen.
 - **Subscriber `customer.created`** — `src/subscribers/customer-created.ts`: Legt `customer_stats`-Zeile an + ruft `crmSyncRegistration()` auf. Deckt Admin-erstellte Kunden ab (vorher nur Storefront-Flow).
 - **Admin Customers Page** — `/app/crm` (route: `src/admin/routes/crm/page.tsx`). Zwei Tabs: "Customers" (searchable, sortable Liste mit Stats) + "CRM Dashboard" (Brevo-Daten). Slide-in Detail-Drawer mit 3 Sub-Tabs (Overview/Orders/Bids). Pfad `/crm` (nicht `/customers` — native Medusa-Route kollidiert!).
-- **API `GET /admin/customers/list`** — Paginated customer list mit LEFT JOIN customer_stats. Search (whereILike), Sort, Pagination.
-- **API `GET /admin/customers/:id`** — Customer-Detail + letzte 20 Orders + letzte 20 Bids + letzte 5 Adressen.
-- **GDPR Export** — `GET /store/account/gdpr-export` (auth required). JSON-Download mit Profil, Orders, Bids, Saved Items.
-- **Storefront Settings** — `account/settings/page.tsx`: "Download My Data" Button → ruft GDPR-Export auf.
-- **Deployment-Gotcha:** Neues Admin-Route-Verzeichnis (`crm/`) → VPS Vite-Cache muss gecleart werden: `rm -rf node_modules/.vite .medusa`. Sonst 404 oder silent crash durch korrupten Bundle.
+- **Admin Customers Page** — `/app/crm`: 5-Tab-Drawer (Overview/Orders/Bids/Notes/Timeline). Edit-Form, Tags-CRUD, VIP/Dormant-Toggle, Block/Unblock, Password Reset, Brevo-Sync, Saved Addresses CRUD, Danger Zone (Anonymize + Delete + GDPR Export). CSV Export Button.
+- **API `GET /admin/customers/list`** — Paginated customer list mit LEFT JOIN customer_stats.
+- **API `GET /admin/customers/:id`** — Customer-Detail + Orders + Bids + Addresses.
+- **API `PATCH /admin/customers/:id`** — Edit name/email/phone/tags/is_vip/is_dormant.
+- **API `GET|POST /admin/customers/:id/notes`** + **`DELETE /admin/customers/:id/notes/:noteId`** — Interne Notizen.
+- **API `GET /admin/customers/:id/timeline`** — Unified Event-Feed (bid/transaction/note/account).
+- **API `POST /admin/customers/:id/block`** + **`/unblock`** — Account sperren/entsperren.
+- **API `POST /admin/customers/:id/anonymize`** — DSGVO-Anonymisierung + Audit-Log.
+- **API `GET /admin/customers/:id/gdpr-export`** — Admin GDPR-Download.
+- **API `GET|POST /admin/customers/:id/addresses`** + **`PATCH|DELETE /admin/customer-addresses/:id`** — Saved Addresses CRUD.
+- **API `DELETE /admin/customers/:id/delete`** — Hard-Delete (transactions user_id → NULL, cascade rest).
+- **API `GET /admin/customers/export`** — CSV-Export aller Kunden (BOM, 13 Spalten).
+- **GDPR Export (Storefront)** — `GET /store/account/gdpr-export` (auth required). "Download My Data" in Account Settings.
+- **Rudderstack** — `backend/src/lib/rudderstack.ts` + `storefront/src/lib/rudderstack.ts`. Env: `RUDDERSTACK_WRITE_KEY`, `RUDDERSTACK_DATA_PLANE_URL`. Cloud Data Plane: `secklerrovofrz.dataplane.rudderstack.com`. Events: Customer Registered, Bid Placed, Auction Won, Payment Completed, Order Shipped (Backend) + Bid Submitted, Item Saved, Checkout Started/Completed (Storefront).
+
+### 2026-03-29 — CRM User Management + Rudderstack Integration
+- **DB Migration `20260401000000`** — `customer_note`, `customer_audit_log`, customer_stats: brevo_contact_id/brevo_synced_at/blocked_at/blocked_reason
+- **10 neue Admin-API-Endpunkte** — PATCH edit, Notes CRUD, Timeline, Block/Unblock, Anonymize, Admin GDPR Export, Addresses CRUD, Hard-Delete, CSV Export
+- **CRM-UI `/app/crm`** — 5-Tab-Drawer (Overview/Orders/Bids/Notes/Timeline), Edit-Form, Tags-CRUD, VIP/Dormant-Toggle, Block/Unblock-Button, Saved-Addresses-Section, Danger Zone
+- **Rudderstack** — `backend/src/lib/rudderstack.ts` Wrapper + crm-sync.ts erweitert (5 Events) + Storefront SDK (RudderstackProvider, page tracking, 4 Track-Events). Cloud Data Plane aktiv.
 
 ### 2026-03-30 — Admin Backoffice Fixes + Dashboard Landing Page
 - **Dashboard** `/app/dashboard` (NEU, rank 0, Home-Icon) — KPI-Cards, To-Do-Queue (überfällige Zahlungen, packing-Queue, Labels), Live-Auctions-Widget, Upcoming-Blocks, Week-Stats. Auto-Refresh 60s. 5× `Promise.allSettled` gegen bestehende Endpoints.

@@ -4,6 +4,75 @@ Vollständiger Entwicklungs-Changelog. Aktuelle Änderungen stehen in CLAUDE.md.
 
 ---
 
+### 2026-03-29 — CRM User Management + Rudderstack Integration
+
+#### CRM: Vollständiges User-Management-Backend
+
+**DB Migration (`Migration20260401000000.ts`)**
+- Neue Tabelle `customer_note` (id, customer_id, body, author_email, created_at, deleted_at)
+- Neue Tabelle `customer_audit_log` (id, customer_id, action, details JSONB, admin_email, created_at)
+- `customer_stats` erweitert: brevo_contact_id, brevo_synced_at, blocked_at, blocked_reason
+
+**Neue Backend-Endpunkte (`/admin/customers/[id]/`)**
+- `PATCH [id]` — Stammdaten bearbeiten (name, email, phone, tags, is_vip, is_dormant). E-Mail-Uniqueness-Check + auth_identity-Update (best-effort).
+- `notes/` — GET/POST (erstellen) + `notes/[noteId]/` DELETE (soft-delete). Autor aus auth_context.
+- `timeline/` — Unified Event-Feed aus bid, transaction, customer_note, customer. LEFT JOIN Release für Titel. Sortiert DESC, max 100.
+- `block/` + `unblock/` — Account sperren/entsperren via `customer.deleted_at`.
+- `brevo-sync/` — Manueller Brevo-Push via crmSyncRegistration.
+- `password-reset/` — Placeholder (safe, kein Crash).
+- `anonymize/` — DSGVO-Anonymisierung: PII ersetzen + customer_address anonymisieren + customer_audit_log Eintrag.
+- `gdpr-export/` — Admin-seitiger GDPR-Datenexport (Content-Disposition JSON-Download).
+- `addresses/` — GET (saved addresses aus customer_address) + POST (neue Adresse anlegen).
+- `delete/` — Hard-Delete: user_id in transactions auf NULL, cascade delete customer_stats/notes/addresses/customer. Brevo-Löschung (best-effort).
+- `export/` — CSV-Export aller Kunden mit Stats, BOM für Excel, 13 Spalten.
+
+**Neue Endpunkte (`/admin/customer-addresses/`)**
+- `[addressId]/` — PATCH (Adresse bearbeiten) + DELETE (soft-delete).
+
+**CRM Admin-UI (`admin/routes/crm/page.tsx`) — vollständig erweitert**
+- **Overview-Tab:** Inline Edit-Form (Name/E-Mail/Telefon), Tags-CRUD (Chips + Dropdown + Custom Input), VIP/Dormant-Toggles, Password-Reset-Button, Brevo-Sync-Status + "Sync Now" Button, Saved-Addresses-Section (Edit/Delete/Add Inline-Forms), Danger Zone (Anonymize + Admin GDPR Export + Delete Contact).
+- **Notes-Tab** (neu, 4. Tab): Notizen-Liste mit Author + Datum, Textarea + "Add Note", Delete mit Confirm.
+- **Timeline-Tab** (neu, 5. Tab): Chronologischer Event-Feed mit Typ-Icons (💰🔨🏆📦📝👤).
+- **Block/Unblock:** Button im Drawer-Header, "Blocked"-Badge bei gesperrten Accounts.
+- **Export CSV:** Button im Customers-Tab-Header (`window.open`).
+- Neue Typen: `CustomerNote`, `TimelineEvent`, `SavedAddress`.
+
+#### Rudderstack Integration (P1.5)
+
+**Backend (`backend/src/lib/rudderstack.ts`)** — neu
+- `rudderTrack(userId, event, properties)` + `rudderIdentify(userId, traits)`.
+- Graceful degradation: no-op wenn RUDDERSTACK_WRITE_KEY/DATA_PLANE_URL fehlen oder SDK nicht installiert.
+- `require()` statt `import` für optionale Abhängigkeit.
+
+**`backend/src/lib/crm-sync.ts`** — erweitert
+- Alle 5 CRM-Sync-Funktionen rufen zusätzlich `rudderTrack()` auf (Brevo-Calls unverändert):
+  - `crmSyncRegistration` → `Customer Registered` + `rudderIdentify`
+  - Bid Placed → `Bid Placed`
+  - Auction Won → `Auction Won`
+  - Payment Completed → `Payment Completed`
+  - Order Shipped → `Order Shipped`
+
+**Storefront (`storefront/src/lib/rudderstack.ts`)** — neu
+- Browser-SDK-Helpers: `rudderTrack`, `rudderPage`, `rudderIdentify` (no-op wenn nicht initialisiert).
+
+**`storefront/src/components/RudderstackProvider.tsx`** — neu
+- CDN Script-Tag Initialisierung + automatisches `page()` auf Route-Change via `usePathname`.
+
+**Tracking-Events in Storefront:**
+- `ItemBidSection.tsx` → `Bid Submitted` bei erfolgreichem Gebot
+- `SaveForLaterButton.tsx` → `Item Saved` beim Speichern
+- `checkout/page.tsx` → `Checkout Started` + `Checkout Completed` (alle 3 Payment-Paths)
+
+**Setup:**
+- Rudderstack Cloud Data Plane: `https://secklerrovofrz.dataplane.rudderstack.com`
+- SDK installiert: `@rudderstack/rudder-sdk-node@3.0.3`
+- Env Vars gesetzt in backend/.env + storefront/.env.local (VPS)
+- Doku: `docs/architecture/RUDDERSTACK_SETUP.md`
+
+**Commits:** `4e13966` · `f84d651`
+
+---
+
 ### 2026-03-30 — Orders: Mark Refunded Action + UI Fixes (RSE-269 follow-up)
 
 **Backend (`api/admin/transactions/[id]/route.ts`)**
