@@ -98,7 +98,7 @@ export async function POST(
     env: {
       ...process.env,
       FORCE_COLOR: "0",                          // no ANSI codes in output
-      BASE_URL: process.env.STOREFRONT_URL || "http://localhost:3006",
+      BASE_URL: process.env.STOREFRONT_URL || "https://vod-auctions.com",
     },
   })
 
