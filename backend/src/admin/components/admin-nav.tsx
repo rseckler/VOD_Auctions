@@ -32,7 +32,6 @@ function injectBackNav() {
   const parent = PARENT_HUB[path]
   if (!parent) return
 
-  // Find the main content area — the div after the sidebar
   const main = document.querySelector("main") || document.querySelector("[data-testid='main-content']")
   if (!main) return
 
@@ -63,7 +62,7 @@ function injectBackNav() {
   main.prepend(bar)
 }
 
-// ─── CSS: hide Medusa defaults + Extensions label ────────────────────────────
+// ─── CSS: hide Medusa defaults + keep Extensions content visible ─────────────
 
 const NAV_CSS_ID = "vod-nav-css"
 const NAV_HIDE_SCRIPT_ID = "vod-nav-script"
@@ -81,7 +80,6 @@ function injectNavCSS() {
     a[href="/app/products/gift-cards"],
     a[href="/app/inventory"],
     a[href="/app/reservations"],
-    a[href="/app/customers"],
     a[href="/app/customer-groups"],
     a[href="/app/promotions"],
     a[href="/app/price-lists"] {
@@ -90,13 +88,52 @@ function injectNavCSS() {
     li:has(> a[href="/app/orders"]),
     li:has(> a[href="/app/products"]),
     li:has(> a[href="/app/inventory"]),
-    li:has(> a[href="/app/customers"]),
+    li:has(> a[href="/app/reservations"]),
+    li:has(> a[href="/app/customer-groups"]),
     li:has(> a[href="/app/promotions"]),
     li:has(> a[href="/app/price-lists"]) {
       display: none !important;
     }
+
+    /* Override Radix UI collapsible animation so Extensions content stays visible
+       after we hide the trigger button. Without this, content stays at height:0. */
+    nav [data-radix-collapsible-content] {
+      overflow: visible !important;
+      height: auto !important;
+      min-height: 0 !important;
+      animation: none !important;
+      display: block !important;
+    }
+    /* Also target the data-state="closed" variant Radix sets */
+    nav [data-radix-collapsible-content][data-state="closed"] {
+      overflow: visible !important;
+      height: auto !important;
+      display: block !important;
+    }
   `
   document.head.appendChild(style)
+}
+
+// ─── Click to expand Extensions, then hide its trigger ───────────────────────
+
+function expandAndHideExtensions() {
+  const buttons = document.querySelectorAll("nav button")
+  buttons.forEach((btn) => {
+    const text = btn.textContent?.trim()
+    if (text !== "Extensions") return
+
+    const el = btn as HTMLElement
+
+    // Step 1: expand if not already open
+    if (el.getAttribute("aria-expanded") !== "true") {
+      el.click()
+    }
+
+    // Step 2: hide the trigger after expansion — use rAF to let React/Radix finish
+    requestAnimationFrame(() => {
+      el.style.setProperty("display", "none", "important")
+    })
+  })
 }
 
 function startNavObserver() {
@@ -107,12 +144,8 @@ function startNavObserver() {
   document.head.appendChild(marker)
 
   const hide = () => {
-    // Hide "Extensions" collapsible button in sidebar
-    document.querySelectorAll("nav button").forEach((btn) => {
-      if (btn.textContent?.trim() === "Extensions") {
-        ;(btn as HTMLElement).style.setProperty("display", "none", "important")
-      }
-    })
+    expandAndHideExtensions()
+
     // Remove any remaining empty top-level <li> separators
     document.querySelectorAll("nav > ul > li").forEach((li) => {
       const links = li.querySelectorAll("a[href]")
@@ -123,22 +156,28 @@ function startNavObserver() {
         ;(li as HTMLElement).style.setProperty("display", "none", "important")
       }
     })
+
     // Inject back nav for sub-pages
     injectBackNav()
   }
 
-  // Run immediately and on every DOM mutation (for SPA navigation)
   hide()
   let lastPath = window.location.pathname
   const observer = new MutationObserver(() => {
     hide()
-    // Detect SPA route change
     if (window.location.pathname !== lastPath) {
       lastPath = window.location.pathname
-      setTimeout(injectBackNav, 50) // slight delay for React to render
+      setTimeout(injectBackNav, 50)
     }
   })
   observer.observe(document.body, { childList: true, subtree: true })
+}
+
+// ─── Module-level init: inject CSS immediately on import ─────────────────────
+// This runs before React renders, so the style is ready before any paint.
+
+if (typeof window !== "undefined") {
+  injectNavCSS()
 }
 
 // ─── Hook: call from every hub page ──────────────────────────────────────────
@@ -147,7 +186,6 @@ export function useAdminNav() {
   useEffect(() => {
     injectNavCSS()
     startNavObserver()
-    // Small delay to let Medusa's sidebar render before we inject back nav
     setTimeout(injectBackNav, 100)
   }, [])
 }
