@@ -1,5 +1,10 @@
+import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { useEffect, useState, useCallback, useRef } from "react"
 import { useAdminNav } from "../../components/admin-nav"
+
+export const config = defineRouteConfig({
+  label: "Customers",
+})
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
