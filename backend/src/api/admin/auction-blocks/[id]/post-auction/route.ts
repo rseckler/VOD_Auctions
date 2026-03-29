@@ -140,7 +140,10 @@ export async function GET(
       total: lots.length,
       paid: lots.filter((l: any) => l.transaction?.status === "paid").length,
       unpaid: lots.filter(
-        (l: any) => l.transaction && l.transaction.status !== "paid"
+        (l: any) => l.transaction && l.transaction.status === "pending"
+      ).length,
+      refunded: lots.filter(
+        (l: any) => l.transaction && (l.transaction.status === "refunded" || l.transaction.status === "cancelled" || l.transaction.status === "failed")
       ).length,
       no_bid: lots.filter((l: any) => !l.winner).length,
       shipped: lots.filter(

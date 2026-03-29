@@ -93,16 +93,30 @@ const PROVIDERS = [
 
 const PAGE_SIZES = [25, 50, 100]
 
+// Quick-view tabs — each sets a status+fulfillment combination
+type QuickTab = "unfulfilled" | "packing" | "shipped" | "pending" | "all"
+
+const QUICK_TABS: { id: QuickTab; label: string; status: string; fulfillment: string }[] = [
+  { id: "unfulfilled", label: "Needs Shipping",   status: "paid",    fulfillment: "unfulfilled" },
+  { id: "packing",     label: "Packing",           status: "paid",    fulfillment: "packing" },
+  { id: "shipped",     label: "Shipped",           status: "",        fulfillment: "shipped" },
+  { id: "pending",     label: "Awaiting Payment",  status: "pending", fulfillment: "" },
+  { id: "all",         label: "All",               status: "",        fulfillment: "" },
+]
+
 const TransactionsPage = () => {
   useAdminNav()
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
   const [totalCount, setTotalCount] = useState(0)
 
+  // Quick tab (sets status+fulfillment together)
+  const [activeTab, setActiveTab] = useState<QuickTab>("unfulfilled")
+
   // Filters
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("paid")
-  const [fulfillmentFilter, setFulfillmentFilter] = useState("")
+  const [fulfillmentFilter, setFulfillmentFilter] = useState("unfulfilled")
   const [providerFilter, setProviderFilter] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
@@ -126,6 +140,14 @@ const TransactionsPage = () => {
 
   // Refund
   const [refunding, setRefunding] = useState<string | null>(null)
+
+  const applyTab = (tab: QuickTab) => {
+    const t = QUICK_TABS.find(t => t.id === tab)!
+    setActiveTab(tab)
+    setStatusFilter(t.status)
+    setFulfillmentFilter(t.fulfillment)
+    setOffset(0)
+  }
 
   // Debounce ref
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -394,6 +416,30 @@ const TransactionsPage = () => {
         >
           Export All
         </Button>
+      </div>
+
+      {/* Quick-view Tabs (Shopify-style) */}
+      <div style={{ display: "flex", gap: 0, borderBottom: "1px solid #e5e7eb", marginBottom: 16 }}>
+        {QUICK_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => applyTab(tab.id)}
+            style={{
+              padding: "8px 16px",
+              fontSize: 13,
+              fontWeight: activeTab === tab.id ? 600 : 400,
+              color: activeTab === tab.id ? "#111827" : "#6b7280",
+              background: "none",
+              border: "none",
+              borderBottom: activeTab === tab.id ? "2px solid #111827" : "2px solid transparent",
+              cursor: "pointer",
+              marginBottom: -1,
+              transition: "color 0.1s",
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {/* Search Bar */}

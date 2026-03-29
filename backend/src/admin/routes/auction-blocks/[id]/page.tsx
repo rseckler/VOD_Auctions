@@ -134,7 +134,7 @@ type PostAuctionLot = {
 type PostAuctionResponse = {
   block: { id: string; title: string; status: string; ends_at?: string | null }
   lots: PostAuctionLot[]
-  summary: { total: number; paid: number; unpaid: number; no_bid: number; shipped: number }
+  summary: { total: number; paid: number; unpaid: number; refunded: number; no_bid: number; shipped: number }
 }
 
 type FiltersData = {
@@ -259,12 +259,13 @@ function EndedStateDashboard({
     )
   }
 
-  const summary = postAuctionData?.summary ?? { total: 0, paid: 0, unpaid: 0, no_bid: 0, shipped: 0 }
+  const summary = postAuctionData?.summary ?? { total: 0, paid: 0, unpaid: 0, refunded: 0, no_bid: 0, shipped: 0 }
   const lots = postAuctionData?.lots ?? []
   const wonLots = lots.filter(l => !!l.winner)
   const noBidLots = lots.filter(l => !l.winner)
 
   const totalBiddable = summary.total - summary.no_bid
+  // allPaid = no pending payments remaining (refunded/cancelled are resolved, not blocking)
   const allPaid = totalBiddable > 0 && summary.unpaid === 0
   const allShipped = allPaid && summary.shipped >= summary.paid
 
@@ -336,6 +337,11 @@ function EndedStateDashboard({
             <div style={{ fontSize: 12, color: allPaid ? "#16a34a" : "#dc2626", fontWeight: 500 }}>
               {summary.paid}/{totalBiddable} paid
               {summary.unpaid > 0 && ` · ${summary.unpaid} pending`}
+              {summary.refunded > 0 && (
+                <span style={{ color: "#7c3aed", marginLeft: summary.unpaid > 0 ? 0 : undefined }}>
+                  {summary.unpaid > 0 ? "" : " · "}{summary.refunded} refunded
+                </span>
+              )}
             </div>
           </div>
 

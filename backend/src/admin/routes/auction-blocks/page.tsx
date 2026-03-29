@@ -21,6 +21,7 @@ type BlockSummary = {
   total: number
   paid: number
   unpaid: number
+  refunded: number
   no_bid: number
   shipped: number
 }
@@ -225,6 +226,12 @@ function EndedBlockCard({
                   background: "#fee2e2", color: "#b91c1c",
                   borderRadius: 12, padding: "3px 10px", fontSize: 11, fontWeight: 700,
                 }}>⚠ {summary.unpaid} unpaid</span>
+              )}
+              {summary.refunded > 0 && (
+                <span style={{
+                  background: "#ede9fe", color: "#6d28d9",
+                  borderRadius: 12, padding: "3px 10px", fontSize: 11, fontWeight: 600,
+                }}>{summary.refunded} refunded</span>
               )}
               {summary.paid - summary.shipped > 0 && (
                 <span style={{
