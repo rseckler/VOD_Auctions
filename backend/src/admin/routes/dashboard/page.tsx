@@ -372,6 +372,7 @@ function DashboardPage() {
   const [blocks, setBlocks] = useState<AuctionBlock[]>([])
   const [weekTx, setWeekTx] = useState<Transaction[]>([])
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date())
+  const [cancelling, setCancelling] = useState<string | null>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const fetchAll = useCallback(async () => {
@@ -402,6 +403,29 @@ function DashboardPage() {
       if (intervalRef.current) clearInterval(intervalRef.current)
     }
   }, [fetchAll])
+
+  const cancelTransaction = async (id: string) => {
+    if (!window.confirm("Cancel this order? The release will be set back to available.")) return
+    setCancelling(id)
+    try {
+      const res = await fetch(`/admin/transactions/${id}`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "cancel", reason: "No payment received" }),
+      })
+      if (res.ok) {
+        setPendingTx(prev => prev.filter(tx => tx.id !== id))
+      } else {
+        const data = await res.json().catch(() => ({}))
+        alert(`Cancel failed: ${data.message || "Unknown error"}`)
+      }
+    } catch {
+      alert("Cancel failed. Check console.")
+    } finally {
+      setCancelling(null)
+    }
+  }
 
   // ── Derived values ──────────────────────────────────────────────────────────
 
@@ -523,6 +547,17 @@ function DashboardPage() {
                   </div>
                   <div style={S.cardButtons}>
                     <ActionBtn href={`/app/transactions/${tx.id}`} label="View Order →" variant="primary" />
+                    <button
+                      onClick={() => cancelTransaction(tx.id)}
+                      disabled={cancelling === tx.id}
+                      style={{
+                        padding: "5px 12px", fontSize: 12, fontWeight: 500, borderRadius: 6,
+                        background: "#fff", color: "#6b7280",
+                        border: "1px solid #e5e7eb", cursor: "pointer",
+                      }}
+                    >
+                      {cancelling === tx.id ? "…" : "Cancel Order"}
+                    </button>
                   </div>
                 </div>
               )
