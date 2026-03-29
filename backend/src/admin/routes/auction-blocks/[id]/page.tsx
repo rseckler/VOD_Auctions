@@ -12,7 +12,7 @@ import {
   IconButton,
 } from "@medusajs/ui"
 import { Trash, Plus } from "@medusajs/icons"
-import { useEffect, useState, useRef, useCallback } from "react"
+import React, { useEffect, useState, useRef, useCallback } from "react"
 import { useParams } from "react-router-dom"
 import RichTextEditor from "../../../components/rich-text-editor"
 
@@ -111,6 +111,32 @@ type AnalyticsData = {
   bid_distribution: { "1": number; "2-5": number; "6-10": number; "10+": number }
 }
 
+type PostAuctionLot = {
+  id: string
+  lot_number: number
+  release_id: string
+  release_title: string
+  artist_name: string
+  final_price: number | null
+  winner: { id: string; name: string; email: string } | null
+  transaction: {
+    id: string
+    status: string
+    fulfillment_status: string
+    order_number: string | null
+    label_printed_at: string | null
+    shipping_name: string | null
+    shipping_city: string | null
+    shipping_country: string | null
+  } | null
+}
+
+type PostAuctionResponse = {
+  block: { id: string; title: string; status: string; ends_at?: string | null }
+  lots: PostAuctionLot[]
+  summary: { total: number; paid: number; unpaid: number; no_bid: number; shipped: number }
+}
+
 type FiltersData = {
   formats: FilterOption[]
   countries: FilterOption[]
@@ -188,6 +214,361 @@ function LiveItemCountdown({ endTime }: { endTime: string }) {
   )
 }
 
+function EndedStateDashboard({
+  block,
+  postAuctionData,
+  postAuctionLoading,
+  onMakeAvailable,
+  onMakeAllAvailable,
+  onOpenRelistModal,
+  onHandleAction,
+  actionLoading,
+  relistModal,
+  availableBlocks,
+  relistTarget,
+  setRelistTarget,
+  onRelistConfirm,
+  onRelistCancel,
+  relistLoading,
+  onArchive,
+}: {
+  block: Partial<AuctionBlock>
+  postAuctionData: PostAuctionResponse | null
+  postAuctionLoading: boolean
+  onMakeAvailable: (lotId: string) => void
+  onMakeAllAvailable: () => void
+  onOpenRelistModal: (lot: PostAuctionLot) => void
+  onHandleAction: (txId: string, action: string) => void
+  actionLoading: string | null
+  relistModal: { open: boolean; lot: PostAuctionLot | null }
+  availableBlocks: { id: string; title: string; status: string }[]
+  relistTarget: string
+  setRelistTarget: (v: string) => void
+  onRelistConfirm: () => void
+  onRelistCancel: () => void
+  relistLoading: boolean
+  onArchive: () => void
+}) {
+  const [activeTab, setActiveTab] = React.useState<"won" | "nobid">("won")
+
+  if (postAuctionLoading) {
+    return (
+      <div style={{ padding: "32px 0", textAlign: "center", color: "#6b7280" }}>
+        Loading post-auction data…
+      </div>
+    )
+  }
+
+  const summary = postAuctionData?.summary ?? { total: 0, paid: 0, unpaid: 0, no_bid: 0, shipped: 0 }
+  const lots = postAuctionData?.lots ?? []
+  const wonLots = lots.filter(l => !!l.winner)
+  const noBidLots = lots.filter(l => !l.winner)
+
+  const totalBiddable = summary.total - summary.no_bid
+  const allPaid = totalBiddable > 0 && summary.unpaid === 0
+  const allShipped = allPaid && summary.shipped >= summary.paid
+
+  // Status badge for a lot's transaction
+  const getTxStatusLabel = (lot: PostAuctionLot): { label: string; color: string } => {
+    if (!lot.transaction) return { label: "Awaiting Payment", color: "#ef4444" }
+    const { status, fulfillment_status } = lot.transaction
+    if (fulfillment_status === "delivered") return { label: "Done ✓", color: "#22c55e" }
+    if (fulfillment_status === "shipped") return { label: "Shipped", color: "#22c55e" }
+    if (fulfillment_status === "packing") {
+      if (lot.transaction.label_printed_at) return { label: "Label Printed", color: "#3b82f6" }
+      return { label: "Packing", color: "#f59e0b" }
+    }
+    if (status === "paid") return { label: "Paid", color: "#22c55e" }
+    return { label: "Awaiting Payment", color: "#ef4444" }
+  }
+
+  const getPrimaryAction = (lot: PostAuctionLot): { label: string; action: string } | null => {
+    if (!lot.transaction) return null
+    const { status, fulfillment_status } = lot.transaction
+    if (status !== "paid") return null
+    if (fulfillment_status === "unfulfilled" || !fulfillment_status) return { label: "Mark Packing", action: "packing" }
+    if (fulfillment_status === "packing" && !lot.transaction.label_printed_at) return { label: "Print Label", action: "label_printed" }
+    if (fulfillment_status === "packing" && lot.transaction.label_printed_at) return { label: "Mark Shipped", action: "ship" }
+    return null
+  }
+
+  const s: Record<string, React.CSSProperties> = {
+    card: { background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, padding: "16px 20px", flex: 1, minWidth: 0 },
+    stepNum: { width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, flexShrink: 0 },
+    tab: { padding: "6px 16px", borderRadius: 6, border: "1px solid #e5e7eb", cursor: "pointer", fontSize: 13, fontWeight: 500, background: "#f9fafb", color: "#374151" },
+    tabActive: { padding: "6px 16px", borderRadius: 6, border: "1px solid #1c1915", cursor: "pointer", fontSize: 13, fontWeight: 600, background: "#1c1915", color: "#fff" },
+    btn: { padding: "4px 12px", borderRadius: 6, border: "1px solid #e5e7eb", cursor: "pointer", fontSize: 12, fontWeight: 500, background: "#fff", color: "#374151" },
+    btnPrimary: { padding: "4px 12px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, background: "#d4a54a", color: "#fff" },
+    btnDanger: { padding: "4px 10px", borderRadius: 6, border: "1px solid #fca5a5", cursor: "pointer", fontSize: 12, fontWeight: 500, background: "#fff", color: "#ef4444" },
+    th: { textAlign: "left" as const, padding: "6px 12px 6px 0", fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase" as const, letterSpacing: "0.05em", borderBottom: "1px solid #e5e7eb" },
+    td: { padding: "8px 12px 8px 0", fontSize: 13, borderBottom: "1px solid #f3f4f6", verticalAlign: "middle" as const },
+  }
+  const badge = (color: string): React.CSSProperties => ({ display: "inline-block", padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 600, color, background: color + "18", border: `1px solid ${color}40` })
+
+  return (
+    <div style={{ marginBottom: 24 }}>
+      {/* SECTION 1: Next Steps */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", color: "#6b7280", textTransform: "uppercase", marginBottom: 10 }}>
+          Next Steps
+        </div>
+        <div style={{ display: "flex", gap: 12 }}>
+          {/* Step 1: Winner emails */}
+          <div style={{ ...s.card }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <span style={{ ...s.stepNum, background: "#dcfce7", color: "#16a34a" }}>1</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>Winner Emails</span>
+            </div>
+            <div style={{ fontSize: 12, color: "#16a34a", fontWeight: 500 }}>✓ Sent automatically</div>
+          </div>
+
+          {/* Step 2: Payments */}
+          <div style={{ ...s.card }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <span style={{ ...s.stepNum, background: allPaid ? "#dcfce7" : "#fee2e2", color: allPaid ? "#16a34a" : "#dc2626" }}>2</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>Payments</span>
+            </div>
+            <div style={{ fontSize: 12, color: allPaid ? "#16a34a" : "#dc2626", fontWeight: 500 }}>
+              {summary.paid}/{totalBiddable} paid
+              {summary.unpaid > 0 && ` · ${summary.unpaid} pending`}
+            </div>
+          </div>
+
+          {/* Step 3: Pack & Ship */}
+          <div style={{ ...s.card }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <span style={{ ...s.stepNum, background: !allPaid ? "#f3f4f6" : allShipped ? "#dcfce7" : "#fef3c7", color: !allPaid ? "#9ca3af" : allShipped ? "#16a34a" : "#d97706" }}>3</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: !allPaid ? "#9ca3af" : "#374151" }}>Pack &amp; Ship</span>
+            </div>
+            <div style={{ fontSize: 12, color: !allPaid ? "#9ca3af" : allShipped ? "#16a34a" : "#d97706", fontWeight: 500 }}>
+              {summary.shipped}/{summary.paid} shipped
+            </div>
+          </div>
+
+          {/* Step 4: Archive */}
+          <div style={{ ...s.card }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <span style={{ ...s.stepNum, background: "#f3f4f6", color: "#9ca3af" }}>4</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>Archive Block</span>
+            </div>
+            {(allShipped || summary.paid === 0) ? (
+              <button style={s.btnPrimary} onClick={onArchive}>Archive now →</button>
+            ) : (
+              <div style={{ fontSize: 12, color: "#9ca3af" }}>Available when all shipped</div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* SECTION 2: Lots Table */}
+      <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden" }}>
+        {/* Tab header */}
+        <div style={{ display: "flex", gap: 8, padding: "12px 16px", borderBottom: "1px solid #e5e7eb", alignItems: "center" }}>
+          <button
+            style={activeTab === "won" ? s.tabActive : s.tab}
+            onClick={() => setActiveTab("won")}
+          >
+            Won ({wonLots.length})
+          </button>
+          <button
+            style={activeTab === "nobid" ? s.tabActive : s.tab}
+            onClick={() => setActiveTab("nobid")}
+          >
+            No Bid ({noBidLots.length})
+          </button>
+        </div>
+
+        <div style={{ padding: "12px 16px" }}>
+          {/* Won lots */}
+          {activeTab === "won" && (
+            <>
+              {wonLots.length === 0 ? (
+                <div style={{ color: "#9ca3af", fontSize: 13, padding: "16px 0" }}>No won lots.</div>
+              ) : (
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr>
+                      <th style={s.th}>Lot #</th>
+                      <th style={s.th}>Release</th>
+                      <th style={s.th}>Winner</th>
+                      <th style={s.th}>Amount</th>
+                      <th style={s.th}>Status</th>
+                      <th style={s.th}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {wonLots.map(lot => {
+                      const txStatus = getTxStatusLabel(lot)
+                      const primaryAction = getPrimaryAction(lot)
+                      const hasTx = !!lot.transaction
+                      const isLoadingThis = actionLoading === lot.transaction?.id
+                      return (
+                        <tr
+                          key={lot.id}
+                          style={{ cursor: hasTx ? "pointer" : "default" }}
+                          onClick={() => hasTx && window.open(`/app/transactions/${lot.transaction!.id}`, "_blank")}
+                        >
+                          <td style={s.td}>
+                            <span style={{ fontFamily: "monospace", fontSize: 12, color: "#6b7280" }}>
+                              #{String(lot.lot_number).padStart(2, "0")}
+                            </span>
+                          </td>
+                          <td style={s.td}>
+                            <div style={{ maxWidth: 200 }}>
+                              <div style={{ fontSize: 12, fontWeight: 600, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lot.artist_name}</div>
+                              <div style={{ fontSize: 11, color: "#6b7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lot.release_title}</div>
+                            </div>
+                          </td>
+                          <td style={s.td}>
+                            {lot.winner ? (
+                              <div>
+                                <div style={{ fontSize: 12, fontWeight: 500, color: "#111827" }}>{lot.winner.name}</div>
+                                <div style={{ fontSize: 11, color: "#6b7280" }}>{lot.winner.email}</div>
+                              </div>
+                            ) : <span style={{ color: "#9ca3af" }}>—</span>}
+                          </td>
+                          <td style={s.td}>
+                            <span style={{ fontWeight: 600, color: "#374151", fontSize: 13 }}>
+                              {lot.final_price != null ? `€${Number(lot.final_price).toFixed(2)}` : "—"}
+                            </span>
+                          </td>
+                          <td style={s.td}>
+                            <span style={badge(txStatus.color)}>{txStatus.label}</span>
+                          </td>
+                          <td style={{ ...s.td, whiteSpace: "nowrap" as const }} onClick={e => e.stopPropagation()}>
+                            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                              {primaryAction && lot.transaction && (
+                                <button
+                                  style={{ ...s.btnPrimary, opacity: isLoadingThis ? 0.6 : 1 }}
+                                  disabled={isLoadingThis}
+                                  onClick={() => onHandleAction(lot.transaction!.id, primaryAction.action)}
+                                >
+                                  {isLoadingThis ? "…" : primaryAction.label}
+                                </button>
+                              )}
+                              {lot.transaction?.status === "paid" && (
+                                <button
+                                  style={{ ...s.btnDanger, opacity: isLoadingThis ? 0.6 : 1 }}
+                                  disabled={isLoadingThis}
+                                  onClick={() => onHandleAction(lot.transaction!.id, "refund")}
+                                >
+                                  Refund
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </>
+          )}
+
+          {/* No-bid lots */}
+          {activeTab === "nobid" && (
+            <>
+              {noBidLots.length === 0 ? (
+                <div style={{ color: "#9ca3af", fontSize: 13, padding: "16px 0" }}>All lots received bids.</div>
+              ) : (
+                <>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr>
+                        <th style={s.th}>Lot #</th>
+                        <th style={s.th}>Release</th>
+                        <th style={{ ...s.th, textAlign: "right" as const }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {noBidLots.map(lot => (
+                        <tr key={lot.id}>
+                          <td style={s.td}>
+                            <span style={{ fontFamily: "monospace", fontSize: 12, color: "#6b7280" }}>
+                              #{String(lot.lot_number).padStart(2, "0")}
+                            </span>
+                          </td>
+                          <td style={s.td}>
+                            <div style={{ maxWidth: 280 }}>
+                              <div style={{ fontSize: 12, fontWeight: 600, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lot.artist_name}</div>
+                              <div style={{ fontSize: 11, color: "#6b7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lot.release_title}</div>
+                            </div>
+                          </td>
+                          <td style={{ ...s.td, textAlign: "right" as const }}>
+                            <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                              <button style={s.btnPrimary} onClick={() => onOpenRelistModal(lot)}>Relist →</button>
+                              <button style={s.btn} onClick={() => onMakeAvailable(lot.id)}>Make Available</button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {noBidLots.length > 1 && (
+                    <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid #f3f4f6" }}>
+                      <button style={s.btn} onClick={onMakeAllAvailable}>
+                        Make all {noBidLots.length} available
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Relist Modal */}
+      {relistModal.open && relistModal.lot && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ background: "#fff", borderRadius: 10, padding: 28, width: 440, maxWidth: "90vw", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4, color: "#111827" }}>Relist Lot</div>
+            <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 20 }}>
+              {relistModal.lot.artist_name} — {relistModal.lot.release_title}
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "10px 14px", borderRadius: 6, border: `2px solid ${relistTarget === "available" ? "#d4a54a" : "#e5e7eb"}`, background: relistTarget === "available" ? "#fffbf0" : "#fff" }}>
+                <input type="radio" name="relistTarget" value="available" checked={relistTarget === "available"} onChange={() => setRelistTarget("available")} />
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>Make Available</div>
+                  <div style={{ fontSize: 12, color: "#6b7280" }}>Return to catalog, available for future auctions</div>
+                </div>
+              </label>
+
+              {availableBlocks.length > 0 && availableBlocks.map(ab => (
+                <label key={ab.id} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "10px 14px", borderRadius: 6, border: `2px solid ${relistTarget === ab.id ? "#d4a54a" : "#e5e7eb"}`, background: relistTarget === ab.id ? "#fffbf0" : "#fff" }}>
+                  <input type="radio" name="relistTarget" value={ab.id} checked={relistTarget === ab.id} onChange={() => setRelistTarget(ab.id)} />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{ab.title}</div>
+                    <div style={{ fontSize: 11, color: "#6b7280", textTransform: "capitalize" }}>{ab.status}</div>
+                  </div>
+                </label>
+              ))}
+
+              {availableBlocks.length === 0 && relistTarget === "available" && (
+                <div style={{ fontSize: 12, color: "#9ca3af", padding: "8px 0" }}>No draft or scheduled blocks available.</div>
+              )}
+            </div>
+
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button style={s.btn} onClick={onRelistCancel}>Cancel</button>
+              <button
+                style={{ ...s.btnPrimary, opacity: relistLoading ? 0.6 : 1 }}
+                disabled={relistLoading}
+                onClick={onRelistConfirm}
+              >
+                {relistLoading ? "…" : "Confirm →"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 const BlockDetailPage = () => {
   const { id } = useParams()
   const isNew = id === "create"
@@ -256,6 +637,23 @@ const BlockDetailPage = () => {
   const [analyticsError, setAnalyticsError] = useState("")
   const [noBidLotsExpanded, setNoBidLotsExpanded] = useState(false)
 
+  // Ended state dashboard
+  const [postAuctionData, setPostAuctionData] = useState<PostAuctionResponse | null>(null)
+  const [postAuctionLoading, setPostAuctionLoading] = useState(false)
+
+  // Accordion open/closed (for ended blocks)
+  const [analyticsOpen, setAnalyticsOpen] = useState(false)
+  const [editFormOpen, setEditFormOpen] = useState(false)
+
+  // Relist modal
+  const [relistModal, setRelistModal] = useState<{ open: boolean; lot: PostAuctionLot | null }>({ open: false, lot: null })
+  const [availableBlocks, setAvailableBlocks] = useState<{ id: string; title: string; status: string }[]>([])
+  const [relistTarget, setRelistTarget] = useState<string>("available")
+  const [relistLoading, setRelistLoading] = useState(false)
+
+  // Transaction action loading
+  const [txActionLoading, setTxActionLoading] = useState<string | null>(null)
+
   const fetchAnalytics = useCallback(async () => {
     if (!id || isNew) return
     setAnalyticsLoading(true)
@@ -275,6 +673,28 @@ const BlockDetailPage = () => {
     }
   }, [id, isNew])
 
+  const fetchPostAuction = useCallback(async () => {
+    if (!id || isNew) return
+    setPostAuctionLoading(true)
+    try {
+      const r = await fetch(`/admin/auction-blocks/${id}/post-auction`, { credentials: "include" })
+      if (r.ok) setPostAuctionData(await r.json())
+    } catch { /* silent */ } finally {
+      setPostAuctionLoading(false)
+    }
+  }, [id, isNew])
+
+  const fetchAvailableBlocksForRelist = useCallback(async () => {
+    try {
+      const r = await fetch("/admin/auction-blocks?limit=50", { credentials: "include" })
+      const data = await r.json()
+      const blocks = (data.auction_blocks || []).filter(
+        (b: any) => (b.status === "draft" || b.status === "scheduled") && b.id !== id
+      )
+      setAvailableBlocks(blocks)
+    } catch { /* silent */ }
+  }, [id])
+
   useEffect(() => {
     if (block.status === "active") {
       fetchLiveBids()
@@ -291,11 +711,12 @@ const BlockDetailPage = () => {
     // Fetch analytics for ended/archived blocks
     if (block.status === "ended" || block.status === "archived") {
       fetchAnalytics()
+      fetchPostAuction()
     }
     return () => {
       if (liveBidsIntervalRef.current) clearInterval(liveBidsIntervalRef.current)
     }
-  }, [block.status, fetchLiveBids, fetchBidsLog, fetchAnalytics])
+  }, [block.status, fetchLiveBids, fetchBidsLog, fetchAnalytics, fetchPostAuction])
 
   // Release search & browser
   const [searchQuery, setSearchQuery] = useState("")
@@ -714,6 +1135,82 @@ const BlockDetailPage = () => {
     }
   }
 
+  const handleTransactionAction = useCallback(async (txId: string, action: string) => {
+    setTxActionLoading(txId)
+    try {
+      const r = await fetch(`/admin/transactions/${txId}`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      })
+      if (!r.ok) throw new Error(`HTTP ${r.status}`)
+      await fetchPostAuction()
+    } catch (e: any) {
+      alert(`Action failed: ${e.message}`)
+    } finally {
+      setTxActionLoading(null)
+    }
+  }, [fetchPostAuction])
+
+  const handleMakeAvailable = async (lotId: string) => {
+    if (!window.confirm("Set this lot back to available? It will be removed from this block.")) return
+    try {
+      await fetch(`/admin/auction-blocks/${id}/items/${lotId}`, {
+        method: "DELETE", credentials: "include"
+      })
+      setPostAuctionData(prev => prev ? {
+        ...prev,
+        lots: prev.lots.filter(l => l.id !== lotId)
+      } : null)
+      showMessage("Lot set to available")
+    } catch { showMessage("Error", "error") }
+  }
+
+  const handleMakeAllAvailable = async () => {
+    const noBidLots = postAuctionData?.lots.filter(l => !l.winner) || []
+    if (!noBidLots.length) return
+    if (!window.confirm(`Make all ${noBidLots.length} no-bid lots available? They will be removed from this block.`)) return
+    try {
+      await Promise.all(noBidLots.map(l =>
+        fetch(`/admin/auction-blocks/${id}/items/${l.id}`, { method: "DELETE", credentials: "include" })
+      ))
+      setPostAuctionData(prev => prev ? { ...prev, lots: prev.lots.filter(l => !!l.winner) } : null)
+      showMessage(`${noBidLots.length} lots set to available`)
+    } catch { showMessage("Error making lots available", "error") }
+  }
+
+  const openRelistModal = (lot: PostAuctionLot) => {
+    fetchAvailableBlocksForRelist()
+    setRelistTarget("available")
+    setRelistModal({ open: true, lot })
+  }
+
+  const handleRelistConfirm = async () => {
+    const lot = relistModal.lot
+    if (!lot) return
+    setRelistLoading(true)
+    try {
+      if (relistTarget === "available") {
+        // Delete directly (no confirm — user already confirmed in the modal)
+        await fetch(`/admin/auction-blocks/${id}/items/${lot.id}`, { method: "DELETE", credentials: "include" })
+        setPostAuctionData(prev => prev ? { ...prev, lots: prev.lots.filter(l => l.id !== lot.id) } : null)
+        showMessage("Lot set to available")
+      } else {
+        await fetch(`/admin/auction-blocks/${relistTarget}/items`, {
+          method: "POST", credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ release_id: lot.release_id, start_price: lot.final_price || 1 })
+        })
+        await fetch(`/admin/auction-blocks/${id}/items/${lot.id}`, { method: "DELETE", credentials: "include" })
+        setPostAuctionData(prev => prev ? { ...prev, lots: prev.lots.filter(l => l.id !== lot.id) } : null)
+        showMessage("Lot relisted successfully")
+      }
+      setRelistModal({ open: false, lot: null })
+    } catch { showMessage("Error relisting lot", "error") } finally {
+      setRelistLoading(false)
+    }
+  }
+
   return (
     <Container>
       {/* Header with title, status badge, and action buttons */}
@@ -785,12 +1282,6 @@ const BlockDetailPage = () => {
             </Button>
           )}
 
-          {!isNew && block.status === "ended" && (
-            <a href={`/app/auction-blocks/${id}/post-auction`}>
-              <Button variant="secondary">Post-Auction Workflow →</Button>
-            </a>
-          )}
-
           {!isNew && block.slug && (
             <a
               href={`https://vod-auctions.com/auctions/${block.slug}`}
@@ -821,6 +1312,28 @@ const BlockDetailPage = () => {
         >
           <Text>{message}</Text>
         </div>
+      )}
+
+      {/* Ended State Dashboard */}
+      {!isNew && block.status === "ended" && (
+        <EndedStateDashboard
+          block={block}
+          postAuctionData={postAuctionData}
+          postAuctionLoading={postAuctionLoading}
+          onMakeAvailable={handleMakeAvailable}
+          onMakeAllAvailable={handleMakeAllAvailable}
+          onOpenRelistModal={openRelistModal}
+          onHandleAction={handleTransactionAction}
+          actionLoading={txActionLoading}
+          relistModal={relistModal}
+          availableBlocks={availableBlocks}
+          relistTarget={relistTarget}
+          setRelistTarget={setRelistTarget}
+          onRelistConfirm={handleRelistConfirm}
+          onRelistCancel={() => setRelistModal({ open: false, lot: null })}
+          relistLoading={relistLoading}
+          onArchive={() => handleStatusChange("archived")}
+        />
       )}
 
       {/* Live Bids Panel — only when active */}
@@ -906,8 +1419,252 @@ const BlockDetailPage = () => {
         </Container>
       )}
 
-      {/* Post-Auction Analytics — shown for ended + archived blocks */}
-      {!isNew && (block.status === "ended" || block.status === "archived") && (
+      {/* Post-Auction Analytics — shown for ended (accordion) + archived (always open) blocks */}
+      {!isNew && block.status === "ended" && (
+        <div style={{ marginBottom: 16 }}>
+          <button
+            onClick={() => setAnalyticsOpen(o => !o)}
+            style={{
+              width: "100%", textAlign: "left", padding: "12px 20px",
+              background: "#fff", border: "1px solid #e5e7eb", borderRadius: analyticsOpen ? "8px 8px 0 0" : 8,
+              cursor: "pointer", fontWeight: 600, fontSize: 13, display: "flex",
+              justifyContent: "space-between", alignItems: "center",
+            }}
+          >
+            Post-Auction Analytics
+            <span>{analyticsOpen ? "▲" : "▼"}</span>
+          </button>
+          {analyticsOpen && (
+            <div style={{ border: "1px solid #e5e7eb", borderTop: "none", borderRadius: "0 0 8px 8px", overflow: "hidden", padding: 16, marginBottom: 8 }}>
+              <div className="flex items-center justify-between mb-5">
+                <Heading level="h2">Post-Auction Analytics</Heading>
+                <button
+                  onClick={fetchAnalytics}
+                  className="text-xs text-ui-fg-subtle hover:text-ui-fg-base underline"
+                >
+                  Refresh
+                </button>
+              </div>
+
+          {analyticsLoading && (
+            <Text className="text-ui-fg-subtle text-sm">Loading analytics…</Text>
+          )}
+
+          {analyticsError && (
+            <Text className="text-red-400 text-sm">{analyticsError}</Text>
+          )}
+
+          {!analyticsLoading && !analyticsError && analyticsData && (
+            <div className="space-y-6">
+
+              {/* Summary stat cards */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="p-4 bg-ui-bg-subtle rounded-lg border border-ui-border-base">
+                  <Text className="text-ui-fg-subtle text-xs uppercase tracking-wide mb-1">Conversion Rate</Text>
+                  <p className="text-2xl font-bold text-[#d4a54a]">{analyticsData.conversion_rate.toFixed(1)}%</p>
+                  <Text className="text-ui-fg-muted text-xs mt-1">
+                    {analyticsData.lots_sold} of {analyticsData.total_lots} lots sold
+                  </Text>
+                </div>
+                <div className="p-4 bg-ui-bg-subtle rounded-lg border border-ui-border-base">
+                  <Text className="text-ui-fg-subtle text-xs uppercase tracking-wide mb-1">Total Revenue</Text>
+                  <p className="text-2xl font-bold">€{analyticsData.total_revenue.toFixed(2)}</p>
+                  <Text className="text-ui-fg-muted text-xs mt-1">
+                    Ø €{analyticsData.avg_hammer_price.toFixed(2)} per lot
+                  </Text>
+                </div>
+                <div className="p-4 bg-ui-bg-subtle rounded-lg border border-ui-border-base">
+                  <Text className="text-ui-fg-subtle text-xs uppercase tracking-wide mb-1">Total Bids</Text>
+                  <p className="text-2xl font-bold">{analyticsData.total_bids}</p>
+                  <Text className="text-ui-fg-muted text-xs mt-1">
+                    {analyticsData.lots_with_bids} lots had bids
+                  </Text>
+                </div>
+                <div className="p-4 bg-ui-bg-subtle rounded-lg border border-ui-border-base">
+                  <Text className="text-ui-fg-subtle text-xs uppercase tracking-wide mb-1">Avg Price Multiple</Text>
+                  <p className="text-2xl font-bold">{analyticsData.avg_price_multiple.toFixed(2)}x</p>
+                  <Text className="text-ui-fg-muted text-xs mt-1">
+                    Ø start €{analyticsData.avg_start_price.toFixed(2)}
+                  </Text>
+                </div>
+              </div>
+
+              {/* Top performers table */}
+              {analyticsData.top_lots.length > 0 && (
+                <div>
+                  <Heading level="h3" className="text-sm font-semibold mb-3 text-ui-fg-subtle uppercase tracking-wide">
+                    Top Performers (by price multiple)
+                  </Heading>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-ui-border-base text-ui-fg-subtle text-xs uppercase tracking-wide">
+                          <th className="text-left pb-2 pr-4 font-medium">Lot</th>
+                          <th className="text-left pb-2 pr-4 font-medium">Release</th>
+                          <th className="text-right pb-2 pr-4 font-medium">Start</th>
+                          <th className="text-right pb-2 pr-4 font-medium">Hammer</th>
+                          <th className="text-right pb-2 pr-4 font-medium">Multiple</th>
+                          <th className="text-center pb-2 pr-4 font-medium">Bids</th>
+                          <th className="text-left pb-2 font-medium">Winner</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {analyticsData.top_lots.map((lot, idx) => (
+                          <tr
+                            key={idx}
+                            className="border-b border-ui-border-base/40 hover:bg-ui-bg-subtle/40"
+                          >
+                            <td className="py-2 pr-4 text-ui-fg-subtle text-xs font-mono">
+                              #{String(lot.lot_number ?? "—").padStart(2, "0")}
+                            </td>
+                            <td className="py-2 pr-4">
+                              <div className="flex items-center gap-2">
+                                {lot.release_cover ? (
+                                  <img
+                                    src={lot.release_cover}
+                                    alt=""
+                                    className="w-7 h-7 object-cover rounded shrink-0"
+                                    loading="lazy"
+                                  />
+                                ) : (
+                                  <div className="w-7 h-7 bg-ui-bg-subtle rounded shrink-0" />
+                                )}
+                                <span className="text-ui-fg-base text-xs max-w-[200px] truncate block">
+                                  {lot.release_title}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="py-2 pr-4 text-right text-ui-fg-subtle text-xs">
+                              €{lot.start_price.toFixed(2)}
+                            </td>
+                            <td className="py-2 pr-4 text-right">
+                              <span className="text-green-400 font-semibold text-sm">
+                                €{lot.hammer_price.toFixed(2)}
+                              </span>
+                            </td>
+                            <td className="py-2 pr-4 text-right">
+                              <Badge color={lot.price_multiple >= 3 ? "green" : lot.price_multiple >= 1.5 ? "orange" : "grey"}>
+                                {lot.price_multiple.toFixed(2)}x
+                              </Badge>
+                            </td>
+                            <td className="py-2 pr-4 text-center">
+                              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-ui-bg-subtle text-ui-fg-base text-xs font-bold">
+                                {lot.bid_count}
+                              </span>
+                            </td>
+                            <td className="py-2 text-ui-fg-base text-xs">
+                              {lot.winning_bidder_hint || "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Bid distribution */}
+              <div>
+                <Heading level="h3" className="text-sm font-semibold mb-3 text-ui-fg-subtle uppercase tracking-wide">
+                  Bid Distribution
+                </Heading>
+                <div className="flex flex-wrap gap-3">
+                  {(["1", "2-5", "6-10", "10+"] as const).map((bucket) => {
+                    const count = analyticsData.bid_distribution[bucket]
+                    return (
+                      <div key={bucket} className="flex items-center gap-2 px-3 py-2 bg-ui-bg-subtle rounded border border-ui-border-base">
+                        <span className="text-xs text-ui-fg-subtle font-medium">{bucket} bid{bucket === "1" ? "" : "s"}:</span>
+                        <span className="text-sm font-bold text-ui-fg-base">{count}</span>
+                        <span className="text-xs text-ui-fg-muted">
+                          {analyticsData.total_lots > 0
+                            ? `(${Math.round((count / analyticsData.total_lots) * 100)}%)`
+                            : ""}
+                        </span>
+                      </div>
+                    )
+                  })}
+                  {analyticsData.lots_unsold > 0 && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-red-950/40 rounded border border-red-900/50">
+                      <span className="text-xs text-red-400 font-medium">No bids:</span>
+                      <span className="text-sm font-bold text-red-300">{analyticsData.no_bid_lots.length}</span>
+                      <span className="text-xs text-red-500">
+                        {analyticsData.total_lots > 0
+                          ? `(${Math.round((analyticsData.no_bid_lots.length / analyticsData.total_lots) * 100)}%)`
+                          : ""}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* No-bid lots (collapsible) */}
+              {analyticsData.no_bid_lots.length > 0 && (
+                <div>
+                  <button
+                    onClick={() => setNoBidLotsExpanded((v) => !v)}
+                    className="flex items-center gap-2 text-sm text-ui-fg-subtle hover:text-ui-fg-base group"
+                  >
+                    <span className={`transition-transform ${noBidLotsExpanded ? "rotate-90" : ""}`}>▶</span>
+                    <span className="font-medium">
+                      {analyticsData.no_bid_lots.length} lot{analyticsData.no_bid_lots.length !== 1 ? "s" : ""} received no bids
+                    </span>
+                    <Badge color="red">{analyticsData.no_bid_lots.length}</Badge>
+                  </button>
+
+                  {noBidLotsExpanded && (
+                    <div className="mt-3 overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-ui-border-base text-ui-fg-subtle text-xs uppercase tracking-wide">
+                            <th className="text-left pb-2 pr-4 font-medium">Lot</th>
+                            <th className="text-left pb-2 pr-4 font-medium">Release</th>
+                            <th className="text-right pb-2 font-medium">Start Price</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {analyticsData.no_bid_lots.map((lot, idx) => (
+                            <tr key={idx} className="border-b border-ui-border-base/30 hover:bg-ui-bg-subtle/30">
+                              <td className="py-1.5 pr-4 text-ui-fg-subtle text-xs font-mono">
+                                #{String(lot.lot_number ?? "—").padStart(2, "0")}
+                              </td>
+                              <td className="py-1.5 pr-4">
+                                <div className="flex items-center gap-2">
+                                  {lot.release_cover ? (
+                                    <img
+                                      src={lot.release_cover}
+                                      alt=""
+                                      className="w-6 h-6 object-cover rounded shrink-0"
+                                      loading="lazy"
+                                    />
+                                  ) : (
+                                    <div className="w-6 h-6 bg-ui-bg-subtle rounded shrink-0" />
+                                  )}
+                                  <span className="text-ui-fg-base text-xs max-w-[240px] truncate block">
+                                    {lot.release_title}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="py-1.5 text-right text-ui-fg-subtle text-xs">
+                                €{lot.start_price.toFixed(2)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+            </div>
+          )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Post-Auction Analytics — shown for archived blocks (always open) */}
+      {!isNew && block.status === "archived" && (
         <Container className="mb-6">
           <div className="flex items-center justify-between mb-5">
             <Heading level="h2">Post-Auction Analytics</Heading>
@@ -1155,6 +1912,28 @@ const BlockDetailPage = () => {
         </div>
       )}
 
+      {/* Block Details + Settings accordion header — only for ended blocks */}
+      {!isNew && block.status === "ended" && (
+        <div style={{ marginBottom: 8 }}>
+          <button
+            onClick={() => setEditFormOpen(o => !o)}
+            style={{
+              width: "100%", textAlign: "left", padding: "12px 20px",
+              background: "#fff", border: "1px solid #e5e7eb", borderRadius: editFormOpen ? "8px 8px 0 0" : 8,
+              cursor: "pointer", fontWeight: 600, fontSize: 13, display: "flex",
+              justifyContent: "space-between", alignItems: "center",
+            }}
+          >
+            Block Details &amp; Settings
+            <span>{editFormOpen ? "▲" : "▼"}</span>
+          </button>
+        </div>
+      )}
+
+      {/* Block Details Form — shown when not ended, or when ended+accordion open */}
+      {(isNew || block.status !== "ended" || editFormOpen) && (
+      <div style={(!isNew && block.status === "ended" && editFormOpen) ? { border: "1px solid #e5e7eb", borderTop: "none", borderRadius: "0 0 8px 8px", padding: "16px 0", marginBottom: 16 } : {}}>
+      <>
       {/* Block Details Form */}
       <Container className="mb-6">
         <Heading level="h2" className="mb-4">
@@ -1411,6 +2190,9 @@ const BlockDetailPage = () => {
           )}
         </div>
       </Container>
+      </>
+      </div>
+      )}
 
       {/* Product Browser — only for existing blocks */}
       {!isNew && (
