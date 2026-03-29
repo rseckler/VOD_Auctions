@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@sentry/nextjs": "^10.42.0",
+    "@stripe/react-stripe-js": "^3.3.0",
     "@stripe/stripe-js": "^5.5.0",
     "@supabase/supabase-js": "^2.98.0",
     "class-variance-authority": "^0.7.1",
