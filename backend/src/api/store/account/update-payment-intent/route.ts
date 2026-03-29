@@ -108,20 +108,23 @@ export async function POST(
       shippingCost = 0
     }
 
-    const grandTotal = itemsTotal + shippingCost
+    // Read existing discount from transactions (preserve promo code discount)
+    const discountTotal = transactions.reduce((sum: number, t: any) => sum + parseFloat(t.discount_amount || 0), 0)
+    const grandTotal = Math.max(itemsTotal + shippingCost - discountTotal, 0.50)
 
-    // Redistribute shipping cost
+    // Redistribute shipping cost (and preserve per-item discount share)
     let shippingDistributed = 0
     for (let i = 0; i < transactions.length; i++) {
       const tx = transactions[i]
       const amount = parseFloat(tx.amount)
+      const discountShare = parseFloat(tx.discount_amount || 0)
       const share = i === transactions.length - 1
         ? Math.round((shippingCost - shippingDistributed) * 100) / 100
         : Math.round((amount / itemsTotal) * shippingCost * 100) / 100
 
       const updateData: Record<string, any> = {
         shipping_cost: share,
-        total_amount: amount + share,
+        total_amount: amount + share - discountShare,
         shipping_country,
         updated_at: new Date(),
       }

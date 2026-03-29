@@ -76,13 +76,12 @@ export async function GET(
     customerMap[userId as string] = `Bidder ${hash}`
   })
 
-  // Anonymize for public view
+  // Anonymize for public view — no internal user_id in response
   const anonymized = bids.map((bid: any) => ({
     id: bid.id,
     amount: parseFloat(bid.amount),
     is_winning: bid.is_winning,
     user_hint: customerMap[bid.user_id] || "Bidder 000000",
-    user_id: bid.user_id,
     created_at: bid.created_at,
   }))
 

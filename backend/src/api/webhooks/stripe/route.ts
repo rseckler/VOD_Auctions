@@ -86,6 +86,16 @@ export async function POST(
         }
 
         if (orderGroupId) {
+          // Check if already processed (idempotency — duplicate webhook delivery)
+          const alreadyPaid = await pgConnection("transaction")
+            .where("order_group_id", orderGroupId)
+            .where("status", "paid")
+            .first()
+          if (alreadyPaid) {
+            console.log(`[stripe-webhook] Order group ${orderGroupId} already paid — skipping (checkout.session.completed)`)
+            break
+          }
+
           // Combined checkout: update all transactions in the group
           await pgConnection("transaction")
             .where("order_group_id", orderGroupId)

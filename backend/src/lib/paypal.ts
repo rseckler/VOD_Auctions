@@ -197,5 +197,34 @@ export async function verifyWebhookSignature(params: {
   return data.verification_status === "SUCCESS"
 }
 
+// ── Get Order (for server-side verification) ──
+export async function getPayPalOrder(orderId: string): Promise<{
+  id: string
+  status: string
+  purchase_units: Array<{
+    reference_id?: string
+    payments?: {
+      captures?: Array<{
+        id: string
+        status: string
+        amount: { currency_code: string; value: string }
+      }>
+    }
+  }>
+}> {
+  const token = await getAccessToken()
+  const res = await fetch(`${BASE_URL}/v2/checkout/orders/${orderId}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`PayPal get order failed: ${res.status} ${text}`)
+  }
+  return await res.json()
+}
+
 // ── Check if PayPal is configured ──
 export const paypalConfigured = !!(PAYPAL_CLIENT_ID && PAYPAL_CLIENT_SECRET)

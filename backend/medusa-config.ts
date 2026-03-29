@@ -2,6 +2,11 @@ import { loadEnv, defineConfig } from '@medusajs/framework/utils'
 
 loadEnv(process.env.NODE_ENV || 'development', process.cwd())
 
+if (process.env.NODE_ENV === 'production') {
+  if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET must be set in production — refusing to start with insecure default')
+  if (!process.env.COOKIE_SECRET) throw new Error('COOKIE_SECRET must be set in production — refusing to start with insecure default')
+}
+
 module.exports = defineConfig({
   projectConfig: {
     redisUrl: process.env.REDIS_URL,

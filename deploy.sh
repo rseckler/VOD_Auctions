@@ -73,7 +73,7 @@ if [ ! -f .env.production ]; then
     echo "  Creating .env for production..."
     cat > .env <<'ENVEOF'
 MEDUSA_ADMIN_ONBOARDING_TYPE=default
-DATABASE_URL=postgresql://postgres:zP%2A8jCjb_M6ugdRZY4@db.bofblwqieuvmqybzxapx.supabase.co:5432/postgres
+DATABASE_URL=postgresql://postgres:REPLACE_WITH_SUPABASE_DB_PASSWORD@db.bofblwqieuvmqybzxapx.supabase.co:5432/postgres
 REDIS_URL=redis://localhost:6379
 JWT_SECRET=vod-auctions-jwt-secret-2026-prod
 COOKIE_SECRET=vod-auctions-cookie-secret-2026-prod
@@ -156,10 +156,10 @@ LEGACY_DB_HOST=213.133.106.99
 LEGACY_DB_PORT=3306
 LEGACY_DB_USER=maier1_2_r
 LEGACY_DB_NAME=vodtapes
-LEGACY_DB_PASSWORD=upMHGCLjbR7eeF7Q
+LEGACY_DB_PASSWORD=REPLACE_WITH_LEGACY_DB_PASSWORD
 
 # Supabase Direct DB Connection
-SUPABASE_DB_URL=postgresql://postgres:zP*8jCjb_M6ugdRZY4@db.bofblwqieuvmqybzxapx.supabase.co:5432/postgres
+SUPABASE_DB_URL=postgresql://postgres:REPLACE_WITH_SUPABASE_DB_PASSWORD@db.bofblwqieuvmqybzxapx.supabase.co:5432/postgres
 ENVEOF
     echo "  .env created."
 fi

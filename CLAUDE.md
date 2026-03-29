@@ -4,7 +4,7 @@
 **Goal:** Eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Phase 1 fertig — RSE-77 (Testlauf) als nächster Schritt
 **Language:** Storefront + Admin-UI: Englisch
-**Last Updated:** 2026-03-29
+**Last Updated:** 2026-03-30
 
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
@@ -302,6 +302,15 @@ VOD_Auctions/
 **Backlog:** RSE-78 (Launch, offen: AGB-Anwalt) | RSE-79 (Erste öffentliche Auktionen) | RSE-80 (Marketing)
 
 ## Recent Changes
+
+### 2026-03-30 — Zahlungs- und Sicherheitssanierung (7 Fixes)
+- **PayPal Betragsprüfung serverseitig** — `capture-paypal-order` ruft jetzt immer `GET /v2/checkout/orders/{id}` bei PayPal ab, prüft `status=COMPLETED` und vergleicht echten Capture-Betrag gegen DB-Erwartung. Client-seitige `captured_amount`-Angabe nicht mehr genutzt. `getPayPalOrder()` in `paypal.ts` ergänzt.
+- **PayPal-Orders erhalten jetzt Bestellnummern** — `capture-paypal-order` generiert `order_number` + `order_event` direkt (zuvor fiel beides durch: Webhook skippte wegen `alreadyPaid`-Check). Bonus-Fix.
+- **Stripe Webhook idempotent** — `checkout.session.completed` hat jetzt denselben `alreadyPaid`-Guard wie `payment_intent.succeeded`. Doppelte Webhook-Zustellung löst keine zweite Mail, keinen zweiten Promo-Zähler und keine neue Bestellnummer mehr aus.
+- **Promo-Code-Rabatt bei Shipping-Update erhalten** — `update-payment-intent` liest `discount_amount` aus bestehenden Transaktionen und rechnet ihn in `total_amount` (per Transaktion) und den Stripe-PaymentIntent-Betrag ein. Vorher: Rabatt nach Adressänderung verloren.
+- **`user_id` aus öffentlicher Bid-History entfernt** — GET `/store/auction-blocks/*/items/*/bids` gab interne Customer-IDs zurück. Jetzt nur noch `user_hint` (SHA-256-Hash).
+- **Production-Startup-Check JWT/Cookie** — `medusa-config.ts`: `NODE_ENV=production` ohne `JWT_SECRET`/`COOKIE_SECRET` wirft Exception statt `"supersecret"` zu nutzen.
+- **`deploy.sh` Credentials ersetzt** — Echte Passwörter (`DATABASE_URL`, `SUPABASE_DB_URL`, `LEGACY_DB_PASSWORD`) durch Platzhalter ersetzt. **Hinweis: Git-History enthält die alten Werte noch — Rotation empfohlen.**
 
 ### 2026-03-29 — Admin Backoffice: System Health + Email Preview/Edit
 - **System Health Dashboard** `/admin/system-health` — Live-Status für 9 Services: PostgreSQL, Stripe, PayPal, Resend, Brevo, Storefront, Sentry, ContentSquare, GA4. Latenz-Anzeige, Auto-Refresh 30s, Quick Links.
