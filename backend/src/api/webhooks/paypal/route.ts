@@ -98,8 +98,8 @@ export async function POST(
             .first()
 
           if (!existingOrder) {
-            const [{ nextval: seqVal }] = await pgConnection.raw("SELECT nextval('order_number_seq')")
-            const orderNumber = "VOD-ORD-" + String(seqVal).padStart(6, "0")
+            const seqResult = await pgConnection.raw("SELECT nextval('order_number_seq')")
+            const orderNumber = "VOD-ORD-" + String(seqResult.rows[0].nextval).padStart(6, "0")
             await pgConnection("transaction")
               .where("order_group_id", paidTx.order_group_id)
               .update({ order_number: orderNumber })

@@ -136,8 +136,8 @@ export async function POST(
           }
 
           // Generate order number for all transactions in the group
-          const [{ nextval: seqVal }] = await pgConnection.raw("SELECT nextval('order_number_seq')")
-          const orderNumber = "VOD-ORD-" + String(seqVal).padStart(6, "0")
+          const seqResult1 = await pgConnection.raw("SELECT nextval('order_number_seq')")
+          const orderNumber = "VOD-ORD-" + String(seqResult1.rows[0].nextval).padStart(6, "0")
           await pgConnection("transaction")
             .where("order_group_id", orderGroupId)
             .update({ order_number: orderNumber })
@@ -258,8 +258,8 @@ export async function POST(
         console.log(`[stripe-webhook] PaymentIntent ${paymentIntent.id} — Order ${orderGroupId} marked as paid (${directPurchaseTxs.length} direct purchases)`)
 
         // Generate order number for all transactions in the group
-        const [{ nextval: piSeqVal }] = await pgConnection.raw("SELECT nextval('order_number_seq')")
-        const piOrderNumber = "VOD-ORD-" + String(piSeqVal).padStart(6, "0")
+        const piSeqResult = await pgConnection.raw("SELECT nextval('order_number_seq')")
+        const piOrderNumber = "VOD-ORD-" + String(piSeqResult.rows[0].nextval).padStart(6, "0")
         await pgConnection("transaction")
           .where("order_group_id", orderGroupId)
           .update({ order_number: piOrderNumber })

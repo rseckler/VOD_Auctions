@@ -147,7 +147,8 @@ export async function POST(
     if (existingOrderNumber?.order_number) {
       orderNumber = existingOrderNumber.order_number
     } else {
-      const [{ nextval: seqVal }] = await pgConnection.raw("SELECT nextval('order_number_seq')")
+      const seqResult = await pgConnection.raw("SELECT nextval('order_number_seq')")
+      const seqVal = seqResult.rows[0].nextval
       orderNumber = "VOD-ORD-" + String(seqVal).padStart(6, "0")
       await pgConnection("transaction")
         .where("order_group_id", order_group_id)
