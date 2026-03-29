@@ -1,4 +1,5 @@
 import { Component, useEffect, useState, useCallback } from "react"
+import { useAdminNav } from "../../components/admin-nav"
 import type { ErrorInfo, ReactNode } from "react"
 
 // ─── Error Boundary ─────────────────────────────────────────────────────────
@@ -1136,6 +1137,7 @@ const ContentTab = () => {
 // ─── Main Page Component ────────────────────────────────────────────────────
 
 const GalleryPage = () => {
+  useAdminNav()
   const [activeTab, setActiveTab] = useState<"media" | "content">("media")
 
   return (

@@ -237,6 +237,7 @@ function OperationsHub() {
 export const config = defineRouteConfig({
   label: "Operations",
   icon: CogSixTooth,
+  rank: 5,
 })
 
 export default OperationsHub

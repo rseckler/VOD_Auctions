@@ -1,4 +1,5 @@
 import { BuildingStorefront } from "@medusajs/icons"
+import { useAdminNav } from "../../components/admin-nav"
 import {
   Container,
   Heading,
@@ -122,6 +123,7 @@ const TABS = ["Settings", "Item Types", "Zones & Rates", "Methods", "Calculator"
 type Tab = (typeof TABS)[number]
 
 const ShippingPage = () => {
+  useAdminNav()
   const [activeTab, setActiveTab] = useState<Tab>("Settings")
   const [config, setConfig] = useState<ShippingConfig | null>(null)
   const [itemTypes, setItemTypes] = useState<ItemType[]>([])

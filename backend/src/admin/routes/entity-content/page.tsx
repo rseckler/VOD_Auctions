@@ -1,4 +1,5 @@
 import { Component, useEffect, useState, useCallback, useRef } from "react"
+import { useAdminNav } from "../../components/admin-nav"
 import type { ErrorInfo, ReactNode } from "react"
 
 // ─── ErrorBoundary ────────────────────────────────────────────────────────────
@@ -158,6 +159,7 @@ function getStatus(item: EntityContentItem): { label: string; color: string } {
 // ─── Inner Component ──────────────────────────────────────────────────────────
 
 function EntityContentInner() {
+  useAdminNav()
   const [activeTab, setActiveTab] = useState<string>("artist")
   const [items, setItems] = useState<EntityContentItem[]>([])
   const [stats, setStats] = useState<Stats>({})

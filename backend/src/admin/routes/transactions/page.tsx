@@ -868,6 +868,7 @@ const TransactionsPage = () => {
 export const config = defineRouteConfig({
   label: "Orders",
   icon: CurrencyDollar,
+  rank: 2,
 })
 
 export default TransactionsPage

@@ -1,4 +1,5 @@
 import { DocumentText } from "@medusajs/icons"
+import { useAdminNav } from "../../components/admin-nav"
 import {
   Container,
   Heading,
@@ -183,6 +184,7 @@ const PAGES = [
 // ─── Component ───────────────────────────────────────────────────────────────
 
 const ContentPage = () => {
+  useAdminNav()
   const [blocks, setBlocks] = useState<ContentBlock[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)

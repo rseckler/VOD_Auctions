@@ -294,6 +294,7 @@ const AuctionBlocksPage = () => {
 export const config = defineRouteConfig({
   label: "Auction Blocks",
   icon: ChatBubbleLeftRight,
+  rank: 1,
 })
 
 export default AuctionBlocksPage

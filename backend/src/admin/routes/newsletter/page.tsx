@@ -1,4 +1,5 @@
 import { EnvelopeSolid } from "@medusajs/icons"
+import { useAdminNav } from "../../components/admin-nav"
 import {
   Container,
   Heading,
@@ -55,6 +56,7 @@ type StatsData = {
 }
 
 const NewsletterPage = () => {
+  useAdminNav()
   const [data, setData] = useState<NewsletterData | null>(null)
   const [stats, setStats] = useState<StatsData | null>(null)
   const [loading, setLoading] = useState(true)

@@ -1,4 +1,5 @@
 import { ChartBar } from "@medusajs/icons"
+import { useAdminNav } from "../../components/admin-nav"
 import { Container, Heading, Table, Badge, Button, Text } from "@medusajs/ui"
 import { useEffect, useState, useRef } from "react"
 
@@ -160,6 +161,7 @@ function HistoryBar({ entry }: { entry: HistoryEntry }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 const TestRunnerPage = () => {
+  useAdminNav()
   const [data, setData] = useState<ApiResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [triggering, setTriggering] = useState(false)

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react"
+import { useAdminNav } from "../../components/admin-nav"
 import { EnvelopeSolid } from "@medusajs/icons"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -451,6 +452,7 @@ function TemplateCard({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function EmailsPage() {
+  useAdminNav()
   const [templates, setTemplates] = useState<EmailTemplate[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

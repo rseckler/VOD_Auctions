@@ -199,6 +199,7 @@ function CatalogHub() {
 export const config = defineRouteConfig({
   label: "Catalog",
   icon: FolderOpen,
+  rank: 3,
 })
 
 export default CatalogHub

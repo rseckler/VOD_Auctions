@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react"
+import { useAdminNav } from "../../components/admin-nav"
 
 type SyncOverview = {
   overview: {
@@ -164,6 +165,7 @@ const formatPrice = (p: number | null | undefined) => {
 }
 
 const SyncDashboardPage = () => {
+  useAdminNav()
   const [overview, setOverview] = useState<SyncOverview | null>(null)
   const [legacyData, setLegacyData] = useState<LegacyData | null>(null)
   const [discogsData, setDiscogsData] = useState<DiscogsData | null>(null)

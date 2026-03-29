@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { useAdminNav } from "../../components/admin-nav"
 
 type CRMData = {
   configured: boolean
@@ -91,6 +92,7 @@ const formatPrice = (p: number | null | undefined) => {
 }
 
 const CustomersPage = () => {
+  useAdminNav()
   const [data, setData] = useState<CRMData | null>(null)
   const [loading, setLoading] = useState(true)
 

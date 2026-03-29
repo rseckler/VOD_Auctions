@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react"
+import { useAdminNav } from "../../components/admin-nav"
 
 const COLORS = {
   bg: "#1c1915",
@@ -39,6 +40,7 @@ type Stats = {
 }
 
 function MusiciansPage() {
+  useAdminNav()
   const [musicians, setMusicians] = useState<Musician[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
   const [total, setTotal] = useState(0)

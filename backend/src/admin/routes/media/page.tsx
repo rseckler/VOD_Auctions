@@ -1,4 +1,5 @@
 import { Component, useEffect, useState } from "react"
+import { useAdminNav } from "../../components/admin-nav"
 import type { ErrorInfo, ReactNode } from "react"
 
 class ErrorBoundary extends Component<
@@ -383,6 +384,7 @@ const ImageGalleryOverlay = ({ onClose }: { onClose: () => void }) => {
 }
 
 const MediaPage = () => {
+  useAdminNav()
   const [releases, setReleases] = useState<Release[]>([])
   const [count, setCount] = useState(0)
   const [loading, setLoading] = useState(true)

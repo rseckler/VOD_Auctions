@@ -1,4 +1,5 @@
 import { ChartBar } from "@medusajs/icons"
+import { useAdminNav } from "../../components/admin-nav"
 import { Container, Heading, Text, Badge } from "@medusajs/ui"
 import { useEffect, useState, useRef } from "react"
 
@@ -206,6 +207,7 @@ function BlockSection({ data }: { data: LiveBlockData }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 const LiveMonitorPage = () => {
+  useAdminNav()
   const [monitorData, setMonitorData] = useState<LiveBlockData[]>([])
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [secondsAgo, setSecondsAgo] = useState(0)

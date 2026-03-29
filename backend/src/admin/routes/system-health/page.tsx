@@ -1,4 +1,5 @@
 import { ServerStack } from "@medusajs/icons"
+import { useAdminNav } from "../../components/admin-nav"
 import { useEffect, useState, useCallback } from "react"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -140,6 +141,7 @@ function ServiceCard({ service }: { service: ServiceCheck }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function SystemHealthPage() {
+  useAdminNav()
   const [data, setData] = useState<HealthData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
