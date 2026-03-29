@@ -33,11 +33,12 @@ export async function GET(
       .where("status", "paid")
       .countDistinct("order_group_id as count")
       .first(),
-    pgConnection("transaction")
-      .where("user_id", customerId)
-      .where("status", "pending")
-      .whereNotNull("block_item_id")
-      .count("id as count")
+    pgConnection("bid")
+      .join("block_item", "bid.block_item_id", "block_item.id")
+      .where("bid.user_id", customerId)
+      .where("bid.is_winning", true)
+      .where("block_item.status", "sold")
+      .count("bid.id as count")
       .first(),
     pgConnection("customer_address")
       .where({ customer_id: customerId, is_default_shipping: true })
