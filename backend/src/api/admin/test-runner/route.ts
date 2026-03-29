@@ -1,5 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { exec } from "child_process"
+import { spawn } from "child_process"
 import { readFileSync, existsSync, writeFileSync } from "fs"
 import { join } from "path"
 
@@ -13,7 +13,16 @@ const REPORT_PATH = join(
 )
 const HISTORY_PATH = join(process.cwd(), "..", "tests", "test-history.json")
 
-// GET /admin/test-runner — Return latest Playwright JSON report + history
+type Job = {
+  status: "running" | "completed" | "failed"
+  startTime: string
+  lines: string[]      // live output lines for SSE streaming
+  exitCode: number | null
+}
+
+const runningJobs: Record<string, Job> = {}
+
+// ─── GET /admin/test-runner ───────────────────────────────────────────────────
 export async function GET(
   req: MedusaRequest,
   res: MedusaResponse
@@ -37,7 +46,6 @@ export async function GET(
     }
   }
 
-  // Attach running job status if any
   const activeJob = Object.entries(runningJobs).find(
     ([, job]) => job.status === "running"
   )
@@ -47,17 +55,17 @@ export async function GET(
     history,
     reportExists: !!report,
     runningJob: activeJob
-      ? { jobId: activeJob[0], ...activeJob[1] }
+      ? { jobId: activeJob[0], status: activeJob[1].status, startTime: activeJob[1].startTime }
       : null,
   })
 }
 
-const runningJobs: Record<
-  string,
-  { status: string; startTime: string; output: string }
-> = {}
+// ─── GET /admin/test-runner/stream?jobId=X (SSE) ─────────────────────────────
+// This is handled by a separate route file at stream/route.ts — see below.
+// Exported so stream/route.ts can import job state.
+export { runningJobs }
 
-// POST /admin/test-runner — Start a new Playwright test run
+// ─── POST /admin/test-runner — Start a test run ───────────────────────────────
 export async function POST(
   req: MedusaRequest,
   res: MedusaResponse
@@ -67,7 +75,8 @@ export async function POST(
     (j) => j.status === "running"
   )
   if (alreadyRunning) {
-    res.status(409).json({ message: "A test run is already in progress." })
+    const existing = Object.entries(runningJobs).find(([, j]) => j.status === "running")
+    res.status(409).json({ message: "A test run is already in progress.", jobId: existing?.[0] })
     return
   }
 
@@ -75,18 +84,40 @@ export async function POST(
   runningJobs[jobId] = {
     status: "running",
     startTime: new Date().toISOString(),
-    output: "",
+    lines: [],
+    exitCode: null,
   }
 
   const projectRoot = join(process.cwd(), "..")
-  // playwright.config.ts handles reporters (json → storefront/playwright-report/results.json)
-  const cmd = `cd "${projectRoot}/storefront" && npx playwright test 2>&1`
+  const storefrontDir = join(projectRoot, "storefront")
 
-  exec(cmd, { maxBuffer: 10 * 1024 * 1024 }, (error, stdout) => {
-    runningJobs[jobId].status = error ? "failed" : "completed"
-    runningJobs[jobId].output = stdout.slice(0, 5000) // cap to avoid memory bloat
+  // Use spawn so we can stream output line by line
+  const child = spawn("npx", ["playwright", "test"], {
+    cwd: storefrontDir,
+    shell: true,
+    env: { ...process.env, FORCE_COLOR: "0" }, // no ANSI codes in output
+  })
 
-    // Parse results from the JSON report file and append to history
+  const job = runningJobs[jobId]
+
+  const appendLine = (text: string) => {
+    const lines = text.split("\n")
+    for (const line of lines) {
+      const trimmed = line.trimEnd()
+      if (trimmed) job.lines.push(trimmed)
+    }
+    // Cap memory — keep last 1000 lines
+    if (job.lines.length > 1000) job.lines = job.lines.slice(-1000)
+  }
+
+  child.stdout.on("data", (chunk: Buffer) => appendLine(chunk.toString()))
+  child.stderr.on("data", (chunk: Buffer) => appendLine(chunk.toString()))
+
+  child.on("close", (code) => {
+    job.exitCode = code
+    job.status = code === 0 ? "completed" : "failed"
+
+    // Append to history from JSON report file
     try {
       if (existsSync(REPORT_PATH)) {
         const result = JSON.parse(readFileSync(REPORT_PATH, "utf-8"))
@@ -110,19 +141,14 @@ export async function POST(
           status: failed > 0 ? "failed" : "passed",
         })
 
-        writeFileSync(
-          HISTORY_PATH,
-          JSON.stringify(existing.slice(0, 30), null, 2)
-        )
+        writeFileSync(HISTORY_PATH, JSON.stringify(existing.slice(0, 30), null, 2))
       }
     } catch {
-      // Non-fatal: history write failed
+      // Non-fatal
     }
 
-    // Clean up old finished jobs (keep last 5)
-    const finished = Object.entries(runningJobs).filter(
-      ([, j]) => j.status !== "running"
-    )
+    // Clean up old finished jobs — keep last 5
+    const finished = Object.entries(runningJobs).filter(([, j]) => j.status !== "running")
     if (finished.length > 5) {
       finished.slice(5).forEach(([id]) => delete runningJobs[id])
     }

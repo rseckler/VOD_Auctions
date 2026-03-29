@@ -1,7 +1,6 @@
-import { ChartBar } from "@medusajs/icons"
 import { useAdminNav } from "../../components/admin-nav"
 import { Container, Heading, Table, Badge, Button, Text } from "@medusajs/ui"
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useCallback } from "react"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -79,13 +78,11 @@ function formatDate(iso: string) {
   })
 }
 
-// Extract spec file name from full path
 function specLabel(file: string) {
   const parts = file.split("/")
   return parts[parts.length - 1].replace(".spec.ts", "")
 }
 
-// Flatten all test cases from a suite
 function flattenTests(suites: TestSuite[]) {
   const failed: Array<{ suite: string; title: string; result: TestResult }> = []
   for (const suite of suites) {
@@ -94,11 +91,7 @@ function flattenTests(suites: TestSuite[]) {
         if (test.status === "unexpected") {
           const lastResult = test.results[test.results.length - 1]
           if (lastResult) {
-            failed.push({
-              suite: specLabel(suite.file),
-              title: test.title,
-              result: lastResult,
-            })
+            failed.push({ suite: specLabel(suite.file), title: test.title, result: lastResult })
           }
         }
       }
@@ -107,12 +100,9 @@ function flattenTests(suites: TestSuite[]) {
   return failed
 }
 
-// Build per-spec-file summary
 function buildSpecSummary(suites: TestSuite[]) {
   return suites.map((suite) => {
-    let passed = 0
-    let failed = 0
-    let skipped = 0
+    let passed = 0; let failed = 0; let skipped = 0
     for (const spec of suite.specs) {
       for (const test of spec.tests) {
         if (test.status === "expected") passed++
@@ -120,40 +110,96 @@ function buildSpecSummary(suites: TestSuite[]) {
         else skipped++
       }
     }
-    return {
-      file: specLabel(suite.file),
-      passed,
-      failed,
-      skipped,
-      total: passed + failed + skipped,
-    }
+    return { file: specLabel(suite.file), passed, failed, skipped, total: passed + failed + skipped }
   })
 }
 
-// Mini bar chart for history (last 10 entries)
 function HistoryBar({ entry }: { entry: HistoryEntry }) {
   const total = entry.total || 1
   const passedPct = Math.round((entry.passed / total) * 100)
   return (
     <div className="flex flex-col items-center gap-1">
       <div className="w-6 h-16 bg-ui-bg-subtle rounded overflow-hidden flex flex-col-reverse">
-        <div
-          className="w-full bg-green-500"
-          style={{ height: `${passedPct}%` }}
-        />
+        <div className="w-full bg-green-500" style={{ height: `${passedPct}%` }} />
         {entry.failed > 0 && (
-          <div
-            className="w-full bg-red-500"
-            style={{ height: `${Math.round((entry.failed / total) * 100)}%` }}
-          />
+          <div className="w-full bg-red-500" style={{ height: `${Math.round((entry.failed / total) * 100)}%` }} />
         )}
       </div>
       <span className="text-xs text-ui-fg-muted">
-        {new Date(entry.date).toLocaleDateString("en-GB", {
-          day: "numeric",
-          month: "short",
-        })}
+        {new Date(entry.date).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
       </span>
+    </div>
+  )
+}
+
+// ─── Live Output Terminal ─────────────────────────────────────────────────────
+
+function colorLine(line: string): { text: string; color: string } {
+  // Playwright list reporter output patterns
+  if (line.includes("passed") && (line.includes("failed") || line.startsWith(" "))) {
+    return { text: line, color: "#4ade80" }
+  }
+  if (/^\s+\d+\s+failed/.test(line) || /✘|FAILED|Error:/.test(line)) {
+    return { text: line, color: "#f87171" }
+  }
+  if (/✓|passed|ok/.test(line)) {
+    return { text: line, color: "#4ade80" }
+  }
+  if (/skipped|pending/.test(line)) {
+    return { text: line, color: "#fbbf24" }
+  }
+  if (/›/.test(line)) {
+    return { text: line, color: "#a78bfa" }
+  }
+  return { text: line, color: "#d1d5db" }
+}
+
+function LiveTerminal({ lines, status }: { lines: string[]; status: "running" | "completed" | "failed" | null }) {
+  const bottomRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [lines.length])
+
+  return (
+    <div
+      style={{
+        background: "#0d1117",
+        borderRadius: 8,
+        border: "1px solid #30363d",
+        padding: "12px 16px",
+        fontFamily: "'SF Mono', 'Fira Code', 'Fira Mono', monospace",
+        fontSize: 12,
+        lineHeight: "1.6",
+        maxHeight: 420,
+        overflowY: "auto",
+        color: "#d1d5db",
+      }}
+    >
+      {lines.length === 0 && status === "running" && (
+        <div style={{ color: "#6b7280" }}>Starting Playwright… (this takes ~2-5 min)</div>
+      )}
+      {lines.map((line, i) => {
+        const { text, color } = colorLine(line)
+        return (
+          <div key={i} style={{ color, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+            {text}
+          </div>
+        )
+      })}
+      {status === "running" && (
+        <div style={{ color: "#6b7280", display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+          <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#fbbf24", animation: "pulse 1s infinite" }} />
+          Running…
+        </div>
+      )}
+      {status === "completed" && (
+        <div style={{ color: "#4ade80", marginTop: 4, fontWeight: 600 }}>✓ Run completed</div>
+      )}
+      {status === "failed" && (
+        <div style={{ color: "#f87171", marginTop: 4, fontWeight: 600 }}>✗ Run finished with failures</div>
+      )}
+      <div ref={bottomRef} />
     </div>
   )
 }
@@ -164,80 +210,84 @@ const TestRunnerPage = () => {
   useAdminNav()
   const [data, setData] = useState<ApiResponse | null>(null)
   const [loading, setLoading] = useState(true)
-  const [triggering, setTriggering] = useState(false)
+  const [jobId, setJobId] = useState<string | null>(null)
+  const [jobStatus, setJobStatus] = useState<"running" | "completed" | "failed" | null>(null)
+  const [liveLines, setLiveLines] = useState<string[]>([])
   const [expandedSuite, setExpandedSuite] = useState<string | null>(null)
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const sseRef = useRef<EventSource | null>(null)
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const res = await fetch("/admin/test-runner", { credentials: "include" })
       const json: ApiResponse = await res.json()
       setData(json)
-
-      // Stop polling once job finishes
-      if (json.runningJob === null && pollRef.current) {
-        clearInterval(pollRef.current)
-        pollRef.current = null
-        setTriggering(false)
-      }
+      return json
     } catch (err) {
       console.error("Failed to fetch test runner data:", err)
+      return null
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     fetchData()
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current)
-    }
+    return () => sseRef.current?.close()
   }, [])
 
-  // Start polling when a job is running
-  useEffect(() => {
-    if (data?.runningJob && !pollRef.current) {
-      setTriggering(true)
-      pollRef.current = setInterval(fetchData, 3000)
+  const startStream = (id: string) => {
+    sseRef.current?.close()
+    setLiveLines([])
+    setJobStatus("running")
+    setJobId(id)
+
+    const es = new EventSource(`/admin/test-runner/stream?jobId=${id}`)
+    sseRef.current = es
+
+    es.onmessage = (e) => {
+      const msg = JSON.parse(e.data)
+      if (msg.type === "line") {
+        setLiveLines((prev) => [...prev, msg.text])
+      } else if (msg.type === "done") {
+        setJobStatus(msg.status)
+        es.close()
+        // Refresh report data after a short delay
+        setTimeout(fetchData, 500)
+      }
     }
-  }, [data?.runningJob])
+
+    es.onerror = () => {
+      setJobStatus((prev) => prev === "running" ? "failed" : prev)
+      es.close()
+    }
+  }
 
   const handleRunTests = async () => {
-    setTriggering(true)
     try {
       const res = await fetch("/admin/test-runner", {
         method: "POST",
         credentials: "include",
       })
       if (res.status === 409) {
-        alert("A test run is already in progress.")
-        setTriggering(false)
+        const json = await res.json()
+        if (json.jobId) startStream(json.jobId)
+        else alert("A test run is already in progress.")
         return
       }
-      // Start polling immediately
-      if (!pollRef.current) {
-        pollRef.current = setInterval(fetchData, 3000)
-      }
+      const json = await res.json()
+      startStream(json.jobId)
     } catch (err) {
       console.error("Failed to start test run:", err)
-      setTriggering(false)
     }
   }
 
+  const isRunning = jobStatus === "running"
   const report = data?.report ?? null
   const history = data?.history ?? []
-  const isRunning = triggering || !!data?.runningJob
-
   const stats = report?.stats
   const specSummary = report ? buildSpecSummary(report.suites) : []
   const failedTests = report ? flattenTests(report.suites) : []
-
-  const overallStatus =
-    !stats
-      ? "unknown"
-      : stats.unexpected > 0
-      ? "failed"
-      : "passed"
+  const overallStatus = !stats ? "unknown" : stats.unexpected > 0 ? "failed" : "passed"
 
   return (
     <Container>
@@ -246,7 +296,7 @@ const TestRunnerPage = () => {
         <div>
           <Heading level="h1">E2E Test Runner</Heading>
           <Text className="text-ui-fg-subtle mt-1">
-            Playwright end-to-end tests — 69 tests across 10 spec files
+            Playwright end-to-end tests — live output streamed in real time
           </Text>
         </div>
         <Button
@@ -255,8 +305,8 @@ const TestRunnerPage = () => {
           variant={isRunning ? "secondary" : "primary"}
         >
           {isRunning ? (
-            <span className="flex items-center gap-2">
-              <span className="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#fbbf24" }} />
               Running…
             </span>
           ) : (
@@ -269,80 +319,70 @@ const TestRunnerPage = () => {
 
       {!loading && (
         <div className="space-y-6">
+
+          {/* ── Live Terminal — shown when a job is active ── */}
+          {(isRunning || jobStatus === "completed" || jobStatus === "failed") && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <Heading level="h2">
+                  {isRunning ? "Live Output" : jobStatus === "completed" ? "Last Run Output" : "Last Run Output (failed)"}
+                </Heading>
+                {!isRunning && (
+                  <button
+                    onClick={() => { setJobId(null); setJobStatus(null); setLiveLines([]) }}
+                    style={{ fontSize: 12, color: "#6b7280", cursor: "pointer", background: "none", border: "none" }}
+                  >
+                    Hide
+                  </button>
+                )}
+              </div>
+              <LiveTerminal lines={liveLines} status={jobStatus} />
+            </div>
+          )}
+
           {/* ── Summary Card ── */}
           {stats ? (
             <div className="rounded-lg border border-ui-border-base p-4 grid grid-cols-2 sm:grid-cols-5 gap-4">
               <div>
-                <Text className="text-ui-fg-subtle text-xs uppercase tracking-wide">
-                  Status
-                </Text>
-                <Badge
-                  color={overallStatus === "passed" ? "green" : overallStatus === "failed" ? "red" : "grey"}
-                  className="mt-1"
-                >
-                  {overallStatus === "passed"
-                    ? "All Passed"
-                    : overallStatus === "failed"
-                    ? "Failures"
-                    : "Unknown"}
+                <Text className="text-ui-fg-subtle text-xs uppercase tracking-wide">Status</Text>
+                <Badge color={overallStatus === "passed" ? "green" : overallStatus === "failed" ? "red" : "grey"} className="mt-1">
+                  {overallStatus === "passed" ? "All Passed" : overallStatus === "failed" ? "Failures" : "Unknown"}
                 </Badge>
               </div>
               <div>
-                <Text className="text-ui-fg-subtle text-xs uppercase tracking-wide">
-                  Passed
-                </Text>
-                <Text className="font-semibold text-green-500 mt-1">
-                  {stats.expected}
-                </Text>
+                <Text className="text-ui-fg-subtle text-xs uppercase tracking-wide">Passed</Text>
+                <Text className="font-semibold text-green-500 mt-1">{stats.expected}</Text>
               </div>
               <div>
-                <Text className="text-ui-fg-subtle text-xs uppercase tracking-wide">
-                  Failed
-                </Text>
-                <Text
-                  className={`font-semibold mt-1 ${
-                    stats.unexpected > 0 ? "text-red-500" : "text-ui-fg-subtle"
-                  }`}
-                >
+                <Text className="text-ui-fg-subtle text-xs uppercase tracking-wide">Failed</Text>
+                <Text className={`font-semibold mt-1 ${stats.unexpected > 0 ? "text-red-500" : "text-ui-fg-subtle"}`}>
                   {stats.unexpected}
                 </Text>
               </div>
               <div>
-                <Text className="text-ui-fg-subtle text-xs uppercase tracking-wide">
-                  Skipped
-                </Text>
-                <Text className="text-ui-fg-subtle font-semibold mt-1">
-                  {stats.skipped}
-                </Text>
+                <Text className="text-ui-fg-subtle text-xs uppercase tracking-wide">Skipped</Text>
+                <Text className="text-ui-fg-subtle font-semibold mt-1">{stats.skipped}</Text>
               </div>
               <div>
-                <Text className="text-ui-fg-subtle text-xs uppercase tracking-wide">
-                  Duration
-                </Text>
-                <Text className="font-semibold mt-1">
-                  {formatDuration(Math.round(stats.duration / 1000))}
-                </Text>
+                <Text className="text-ui-fg-subtle text-xs uppercase tracking-wide">Duration</Text>
+                <Text className="font-semibold mt-1">{formatDuration(Math.round(stats.duration / 1000))}</Text>
               </div>
               <div className="col-span-2 sm:col-span-5 border-t border-ui-border-base pt-2">
-                <Text className="text-ui-fg-subtle text-xs">
-                  Last run: {formatDate(stats.startTime)}
-                </Text>
+                <Text className="text-ui-fg-subtle text-xs">Last run: {formatDate(stats.startTime)}</Text>
               </div>
             </div>
           ) : (
-            <div className="rounded-lg border border-ui-border-base p-4">
-              <Text className="text-ui-fg-subtle">
-                No test results found. Click "Run Tests" to execute the Playwright suite.
-              </Text>
-            </div>
+            !isRunning && (
+              <div className="rounded-lg border border-ui-border-base p-4">
+                <Text className="text-ui-fg-subtle">No test results yet. Click "Run Tests" to execute the Playwright suite.</Text>
+              </div>
+            )
           )}
 
           {/* ── Spec File Overview ── */}
           {specSummary.length > 0 && (
             <div>
-              <Heading level="h2" className="mb-3">
-                Spec Files
-              </Heading>
+              <Heading level="h2" className="mb-3">Spec Files</Heading>
               <div className="rounded-lg border border-ui-border-base overflow-hidden">
                 <Table>
                   <Table.Header>
@@ -356,38 +396,19 @@ const TestRunnerPage = () => {
                   </Table.Header>
                   <Table.Body>
                     {specSummary.map((spec) => (
-                      <Table.Row
-                        key={spec.file}
-                        className={
-                          spec.failed > 0 ? "bg-red-950/10" : ""
-                        }
-                      >
+                      <Table.Row key={spec.file} className={spec.failed > 0 ? "bg-red-950/10" : ""}>
                         <Table.Cell>
                           <button
                             className="font-mono text-sm text-ui-fg-base hover:text-ui-fg-interactive underline-offset-2 hover:underline text-left"
-                            onClick={() =>
-                              setExpandedSuite(
-                                expandedSuite === spec.file ? null : spec.file
-                              )
-                            }
+                            onClick={() => setExpandedSuite(expandedSuite === spec.file ? null : spec.file)}
                           >
                             {spec.file}
                           </button>
                         </Table.Cell>
                         <Table.Cell>{spec.total}</Table.Cell>
+                        <Table.Cell><span className="text-green-500 font-medium">{spec.passed}</span></Table.Cell>
                         <Table.Cell>
-                          <span className="text-green-500 font-medium">
-                            {spec.passed}
-                          </span>
-                        </Table.Cell>
-                        <Table.Cell>
-                          <span
-                            className={
-                              spec.failed > 0
-                                ? "text-red-500 font-semibold"
-                                : "text-ui-fg-subtle"
-                            }
-                          >
+                          <span className={spec.failed > 0 ? "text-red-500 font-semibold" : "text-ui-fg-subtle"}>
                             {spec.failed}
                           </span>
                         </Table.Cell>
@@ -407,50 +428,21 @@ const TestRunnerPage = () => {
           {/* ── Failed Tests Detail ── */}
           {failedTests.length > 0 && (
             <div>
-              <Heading level="h2" className="mb-3 text-red-500">
-                Failed Tests ({failedTests.length})
-              </Heading>
+              <Heading level="h2" className="mb-3 text-red-500">Failed Tests ({failedTests.length})</Heading>
               <div className="space-y-3">
                 {failedTests.map((t, idx) => (
-                  <div
-                    key={idx}
-                    className="rounded-lg border border-red-500/30 bg-red-950/10 p-4"
-                  >
+                  <div key={idx} className="rounded-lg border border-red-500/30 bg-red-950/10 p-4">
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <Text className="font-medium">{t.title}</Text>
-                        <Text className="text-ui-fg-subtle text-sm">
-                          {t.suite}
-                        </Text>
+                        <Text className="text-ui-fg-subtle text-sm">{t.suite}</Text>
                       </div>
-                      <Badge color="red">
-                        {formatDuration(Math.round(t.result.duration / 1000))}
-                      </Badge>
+                      <Badge color="red">{formatDuration(Math.round(t.result.duration / 1000))}</Badge>
                     </div>
                     {t.result.error?.message && (
                       <pre className="mt-3 text-xs text-red-400 bg-red-950/30 rounded p-3 overflow-auto max-h-40 whitespace-pre-wrap">
                         {t.result.error.message}
                       </pre>
-                    )}
-                    {/* Screenshot link if available */}
-                    {t.result.attachments?.some(
-                      (a) => a.contentType === "image/png"
-                    ) && (
-                      <div className="mt-2">
-                        {t.result.attachments
-                          .filter((a) => a.contentType === "image/png" && a.path)
-                          .map((a, i) => (
-                            <a
-                              key={i}
-                              href={`/admin/test-runner/screenshot?path=${encodeURIComponent(a.path!)}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-xs text-ui-fg-interactive underline"
-                            >
-                              View Screenshot
-                            </a>
-                          ))}
-                      </div>
                     )}
                   </div>
                 ))}
@@ -461,9 +453,7 @@ const TestRunnerPage = () => {
           {/* ── History Chart ── */}
           {history.length > 0 && (
             <div>
-              <Heading level="h2" className="mb-3">
-                Run History (last {Math.min(history.length, 10)})
-              </Heading>
+              <Heading level="h2" className="mb-3">Run History (last {Math.min(history.length, 10)})</Heading>
               <div className="rounded-lg border border-ui-border-base p-4">
                 <div className="flex items-end gap-3 mb-4">
                   {history.slice(0, 10).map((entry) => (
@@ -485,17 +475,11 @@ const TestRunnerPage = () => {
                     <Table.Body>
                       {history.slice(0, 10).map((entry) => (
                         <Table.Row key={entry.jobId}>
+                          <Table.Cell><Text className="text-sm">{formatDate(entry.date)}</Text></Table.Cell>
                           <Table.Cell>
-                            <Text className="text-sm">{formatDate(entry.date)}</Text>
+                            <Badge color={entry.status === "passed" ? "green" : "red"}>{entry.status}</Badge>
                           </Table.Cell>
-                          <Table.Cell>
-                            <Badge color={entry.status === "passed" ? "green" : "red"}>
-                              {entry.status}
-                            </Badge>
-                          </Table.Cell>
-                          <Table.Cell>
-                            <span className="text-green-500">{entry.passed}</span>
-                          </Table.Cell>
+                          <Table.Cell><span className="text-green-500">{entry.passed}</span></Table.Cell>
                           <Table.Cell>
                             <span className={entry.failed > 0 ? "text-red-500 font-semibold" : "text-ui-fg-subtle"}>
                               {entry.failed}
@@ -512,15 +496,13 @@ const TestRunnerPage = () => {
             </div>
           )}
 
-          {/* ── No data state ── */}
-          {!report && history.length === 0 && (
+          {/* ── Empty state ── */}
+          {!report && history.length === 0 && !isRunning && (
             <Container className="text-center py-12">
               <Text className="text-ui-fg-subtle mb-4">
                 No test results yet. Click "Run Tests" to execute the full Playwright suite.
               </Text>
-              <Button onClick={handleRunTests} disabled={isRunning}>
-                {isRunning ? "Running…" : "Run Tests"}
-              </Button>
+              <Button onClick={handleRunTests}>Run Tests</Button>
             </Container>
           )}
         </div>
