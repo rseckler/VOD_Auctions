@@ -4,7 +4,7 @@
 **Goal:** Eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Phase 1 fertig — RSE-77 (Testlauf) als nächster Schritt
 **Language:** Storefront + Admin-UI: Englisch
-**Last Updated:** 2026-03-30
+**Last Updated:** 2026-03-29
 
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
@@ -303,6 +303,14 @@ VOD_Auctions/
 **Backlog:** RSE-78 (Launch, offen: AGB-Anwalt) | RSE-79 (Erste öffentliche Auktionen) | RSE-80 (Marketing)
 
 ## Recent Changes
+
+### 2026-03-29 — Admin UX Overhaul: Task-Oriented Layout + Orders Redesign (RSE-269)
+- **Ended-State Task Dashboard** — `auction-blocks/[id]/page.tsx`: Block-Detailseite bei `status=ended` zeigt NEXT STEPS (4 Schritt-Cards: Winner Emails → Payments → Pack & Ship → Archive). Payments-Step unterscheidet pending vs. refunded. Relist-Modal (Draft / Scheduled / Make Available). Analytics + Edit als Accordion.
+- **Breadcrumb** — `← Auction Blocks › [Block Title]` auf Auction Block Detailseite (gleicher Stil wie Orders `← Orders › VOD-ORD-XXXXXX`).
+- **Auction Blocks Liste** — `auction-blocks/page.tsx` komplett neu: Ended-Blöcke als `EndedBlockCard` (farbiger linker Rand, Task-Badges). Section-Reihenfolge: Needs Processing → Live Now → Upcoming → Drafts → Archived.
+- **Refund-Status-Fix** — `summary.unpaid` zählt nur `status = 'pending'`. Neues Feld `summary.refunded`. Badges und Step-Anzeige zeigen Refunds in lila, nicht als "Awaiting Payment".
+- **Orders-Seite Redesign** — raw `<table>` statt Medusa `Table`, gleicher Stil wie Auction Blocks. Advanced Filter hinter `Filters ▾`. Shopify-style Quick Tabs. Bulk-Action floating Pill.
+- **Sidebar Extensions-Fix** — `admin-nav.tsx`: CSS `nav [data-radix-collapsible-trigger] { display: none }` (beide +/− Varianten). JS `.includes("Extensions")`.
 
 ### 2026-03-30 — Admin AI Assistant
 - **AI Assistant** `/app/ai-assistant` (NEU, rank 6, Sparkles-Icon) — Chat-Interface mit Claude Haiku. Streaming SSE. 5 read-only Tools: `get_dashboard_stats`, `list_auction_blocks`, `search_transactions`, `search_media`, `get_system_health`. Tool-Chips in UI (klickbar für Raw-JSON). Markdown-Rendering. `@anthropic-ai/sdk` + `ANTHROPIC_API_KEY` in `backend/.env`.

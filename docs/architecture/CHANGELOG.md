@@ -4,6 +4,45 @@ Vollständiger Entwicklungs-Changelog. Aktuelle Änderungen stehen in CLAUDE.md.
 
 ---
 
+### 2026-03-29 — Admin UX Overhaul: Task-Oriented Layout + Orders Redesign (RSE-269)
+
+**Ended-State Task Dashboard (`auction-blocks/[id]/page.tsx`)**
+- Block-Detailseite bei `status=ended` zeigt statt Edit-Form einen Task-Dashboard.
+- **NEXT STEPS** — 4 Schritt-Cards: (1) Winner Emails (✓ Sent automatically), (2) Payments (paid/total · X pending · X refunded), (3) Pack & Ship (shipped/paid), (4) Archive Block (Button wenn alles shipped).
+- Payments-Step unterscheidet jetzt korrekt `pending` vs. `refunded` — refunded wird lila angezeigt, nicht als "Awaiting Payment".
+- Won/No Bid Tab-Toggle in der Lots-Tabelle. Lot-Zeilen klickbar → `/app/transactions/{tx.id}`.
+- **Relist-Modal** für No-Bid-Lots: 3 Optionen (bestehender Draft-Block / neuer Scheduled-Block / Make Available direkt).
+- Analytics-Tab + Edit-Form als aufklappbare Accordion-Sektionen (versteckt by default — Fokus liegt auf Aufgaben).
+- **Breadcrumb** `← Auction Blocks › [Block Title]` oben links, identisches Styling wie Orders-Seite.
+
+**Auction Blocks Liste (`auction-blocks/page.tsx`) — komplett neu**
+- Ended-Blöcke als prominente **EndedBlockCard** mit farbigem linken Rand (rot=unpaid, amber=packing, grün=done).
+- Live-Task-Badges pro Karte: `⚠ X unpaid` (rot), `X refunded` (lila), `📦 X to pack/ship` (amber), `X no bid` (grau), `✓ X shipped` (blau).
+- Section-Header mit pulsierendem rotem Punkt wenn urgentCount > 0.
+- Reihenfolge: **Needs Processing** → Live Now → Upcoming → Drafts → Archived.
+- Summaries für alle Ended-Blöcke werden parallel via `Promise.allSettled` geladen.
+
+**Bugfixes: Refund/Cancelled/Failed Status**
+- `getCurrentStep()` + `getTxStatusLabel()` in `post-auction/page.tsx`: Terminal-States (refunded/cancelled/failed) werden vor `fulfillment_status` geprüft. Vorher: refunded Lots zeigten "Awaiting Payment".
+- Backend `post-auction/route.ts`: `summary.unpaid` zählt jetzt nur `status = 'pending'`. Neues Feld `summary.refunded` für refunded/cancelled/failed.
+- `EndedStateDashboard` (Payments-Step) und `EndedBlockCard` (Badge) nutzen `summary.refunded`.
+
+**Orders-Seite — Visual Redesign (`transactions/page.tsx`)**
+- Medusa `Table`-Komponente durch raw `<table>` ersetzt — gleicher Stil wie Auction Blocks (grauer Header-Background, 10px uppercase Spalten, inline `onMouseEnter/Leave` hover).
+- Advanced Filter (Payment / Fulfillment / Provider / Datum) hinter `Filters ▾` Button versteckt (collapsed by default, leuchtet blau bei aktiven Filtern).
+- **Shopify-style Quick Tabs**: Needs Shipping (default) / Packing / Shipped / Awaiting Payment / All.
+- Status-Badges als inline `Pill`-Komponente (custom bg/color, kein Medusa-Dependency).
+- Bulk-Action-Bar als dunkler floating Pill (statt weißem Kasten).
+- Customer-Spalte zeigt Stadt + Land. Amount-Spalte zeigt Provider darunter.
+
+**Extensions Sidebar-Fix (`admin-nav.tsx`)**
+- CSS: `nav [data-radix-collapsible-trigger] { display: none !important; }` — fängt beide Varianten (+ und −) ab.
+- JS-Match: `!text?.includes("Extensions")` statt `=== "Extensions"` (textContent enthält Icon-Zeichen).
+
+**Commits:** `e925fb0` · `044b25c` · `994f91d` · `8e2b879` · `abeb526` · `6fcd931` · `b9cb9b0`
+
+---
+
 ### 2026-03-30 — Admin AI Assistant
 
 **Neuer Admin-Bereich `/app/ai-assistant`**
