@@ -1,6 +1,7 @@
 // NOTE: No defineRouteConfig here — only on top-level page.tsx files (Medusa Admin routing rule)
 import { useEffect, useState, useCallback } from "react"
 import { useParams } from "react-router-dom"
+import { useAdminNav } from "../../../../components/admin-nav"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -28,9 +29,24 @@ type Lot = {
 }
 
 type Summary = { total: number; paid: number; unpaid: number; no_bid: number; shipped: number }
-type BlockData = { id: string; title: string; status: string }
+type BlockData = {
+  id: string
+  title: string
+  status: string
+  starts_at?: string | null
+  ends_at?: string | null
+  block_type?: string | null
+  newsletter_t7_sent_at?: string | null
+  newsletter_t24h_sent_at?: string | null
+  going_going_gone_sent_at?: string | null
+}
 type PostAuctionResponse = { block: BlockData; lots: Lot[]; summary: Summary }
 type FilterTab = "all" | "unpaid" | "paid" | "shipped"
+
+type AnalyticsData = {
+  total_bids?: number
+  unique_bidders?: number
+}
 
 // ─── Step logic ───────────────────────────────────────────────────────────────
 
@@ -39,18 +55,18 @@ type StepInfo = { step: number; label: string; color: string; bg: string }
 function getCurrentStep(lot: Lot): StepInfo {
   const tx = lot.transaction
   if (!lot.winner || !tx) {
-    return { step: 0, label: "No Bid", color: "#6b7280", bg: "#f3f4f6" }
+    return { step: 0, label: "No Bid", color: "#9ca3af", bg: "#f3f4f6" }
   }
   const paid = tx.status === "paid"
   const packing = ["packing", "shipped"].includes(tx.fulfillment_status)
   const labeled = !!tx.label_printed_at
   const shipped = tx.fulfillment_status === "shipped"
 
-  if (shipped)   return { step: 5, label: "✓ Shipped",       color: "#16a34a", bg: "#dcfce7" }
-  if (labeled)   return { step: 4, label: "Label Printed",   color: "#2563eb", bg: "#dbeafe" }
-  if (packing)   return { step: 3, label: "Packing",         color: "#9333ea", bg: "#f3e8ff" }
-  if (paid)      return { step: 2, label: "Paid — Pack it",  color: "#d97706", bg: "#fef3c7" }
-  return           { step: 1, label: "Awaiting Payment",    color: "#dc2626", bg: "#fee2e2" }
+  if (shipped) return { step: 5, label: "✓ Shipped",      color: "#15803d", bg: "#dcfce7" }
+  if (labeled) return { step: 4, label: "Label Printed",  color: "#1d4ed8", bg: "#dbeafe" }
+  if (packing) return { step: 3, label: "Packing",        color: "#9333ea", bg: "#f3e8ff" }
+  if (paid)    return { step: 2, label: "Paid — Pack it", color: "#b45309", bg: "#fef3c7" }
+  return         { step: 1, label: "Awaiting Payment",   color: "#dc2626", bg: "#fee2e2" }
 }
 
 // ─── Action Button ────────────────────────────────────────────────────────────
@@ -66,17 +82,17 @@ function ActionButton({ lot, onAction, loading }: {
   const step = getCurrentStep(lot)
   const isLoading = loading === tx.id
   const base: React.CSSProperties = {
-    border: "none", borderRadius: 6, padding: "5px 12px", fontWeight: 600, fontSize: 12,
+    border: "none", borderRadius: 4, padding: "4px 10px", fontWeight: 600, fontSize: 11,
     cursor: isLoading ? "not-allowed" : "pointer", opacity: isLoading ? 0.6 : 1,
     whiteSpace: "nowrap", transition: "opacity 0.15s",
   }
 
   if (step.step === 5) return (
-    <span style={{ fontSize: 12, color: "#16a34a", fontWeight: 600 }}>Done ✓</span>
+    <span style={{ fontSize: 11, color: "#16a34a", fontWeight: 600 }}>Done ✓</span>
   )
   if (step.step === 1) return (
     <button disabled style={{ ...base, background: "#f3f4f6", color: "#9ca3af", cursor: "not-allowed" }}>
-      Awaiting Payment
+      Awaiting
     </button>
   )
   if (step.step === 2) return (
@@ -100,11 +116,30 @@ function ActionButton({ lot, onAction, loading }: {
   return null
 }
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function fmtDate(iso: string | null | undefined): string {
+  if (!iso) return "—"
+  try {
+    return new Date(iso).toLocaleString("en-GB", {
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit",
+    }).replace(",", "")
+  } catch { return iso }
+}
+
+function fmtCurrency(n: number): string {
+  return "€" + n.toLocaleString("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function PostAuctionPage() {
+  useAdminNav()
+
   const { id: blockId } = useParams<{ id: string }>()
   const [data, setData] = useState<PostAuctionResponse | null>(null)
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeFilter, setActiveFilter] = useState<FilterTab>("all")
@@ -128,7 +163,25 @@ export default function PostAuctionPage() {
     }
   }, [blockId])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  const fetchAnalytics = useCallback(async () => {
+    if (!blockId) return
+    try {
+      const r = await fetch(`/admin/auction-blocks/${blockId}/analytics`, {
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      })
+      if (!r.ok) return // 404 or unavailable — silently skip
+      const json = await r.json()
+      setAnalyticsData(json)
+    } catch {
+      // Analytics are optional — don't break the page
+    }
+  }, [blockId])
+
+  useEffect(() => {
+    fetchData()
+    fetchAnalytics()
+  }, [fetchData, fetchAnalytics])
 
   const handleAction = useCallback(async (txId: string, action: string) => {
     setActionLoading(txId)
@@ -147,195 +200,473 @@ export default function PostAuctionPage() {
     }
   }, [fetchData])
 
-  const filteredLots = (data?.lots ?? []).filter((lot) => {
+  // ─── Derived stats ────────────────────────────────────────────────────────
+
+  const lots = data?.lots ?? []
+  const summary = data?.summary
+  const block = data?.block
+
+  const totalRevenue = lots.reduce((sum, lot) => {
+    if (lot.transaction?.status === "paid" && lot.final_price !== null) {
+      return sum + Number(lot.final_price)
+    }
+    return sum
+  }, 0)
+
+  const conversionPct = (() => {
+    if (!summary) return 0
+    const eligible = summary.total - summary.no_bid
+    if (eligible <= 0) return 0
+    return Math.round((summary.paid / eligible) * 100)
+  })()
+
+  // Open Tasks derived counts
+  const unpaidCount = lots.filter(l => !!l.winner && (!l.transaction || l.transaction.status !== "paid")).length
+  const readyToPackCount = lots.filter(l =>
+    l.transaction?.status === "paid" &&
+    !["packing", "shipped"].includes(l.transaction.fulfillment_status ?? "")
+  ).length
+  const labelsNotPrintedCount = lots.filter(l =>
+    l.transaction?.fulfillment_status === "packing" && !l.transaction.label_printed_at
+  ).length
+
+  // Troubleshooting
+  const paidWithoutOrderNumber = lots.filter(l =>
+    l.transaction?.status === "paid" && !l.transaction?.order_number
+  )
+
+  // Filter tabs
+  const filteredLots = lots.filter((lot) => {
     if (activeFilter === "all") return true
     const tx = lot.transaction
     if (activeFilter === "unpaid") return !!lot.winner && (!tx || tx.status !== "paid")
-    if (activeFilter === "paid") return tx?.status === "paid" && tx?.fulfillment_status !== "shipped"
+    if (activeFilter === "paid")   return tx?.status === "paid" && tx?.fulfillment_status !== "shipped"
     if (activeFilter === "shipped") return tx?.fulfillment_status === "shipped"
     return true
   })
 
-  const summary = data?.summary
-
-  const filterTabs: { key: FilterTab; label: string; count?: number }[] = [
-    { key: "all",      label: "All",       count: summary?.total },
-    { key: "unpaid",   label: "Unpaid",    count: summary?.unpaid },
-    { key: "paid",     label: "Paid",      count: summary?.paid },
-    { key: "shipped",  label: "Shipped",   count: summary?.shipped },
+  const filterTabs: { key: FilterTab; label: string; count: number }[] = [
+    { key: "all",     label: "All",     count: summary?.total ?? 0 },
+    { key: "unpaid",  label: "Unpaid",  count: summary?.unpaid ?? 0 },
+    { key: "paid",    label: "Paid",    count: summary?.paid ?? 0 },
+    { key: "shipped", label: "Shipped", count: summary?.shipped ?? 0 },
   ]
 
-  // ── Colors (light admin theme) ───────────────────────────────────────────
-  const C = {
-    text:    "#111827",
-    muted:   "#6b7280",
-    border:  "#e5e7eb",
-    bg:      "#f9fafb",
-    gold:    "#b45309",
-    primary: "#6366f1",
-  }
+  // ─── Status badge label ───────────────────────────────────────────────────
+
+  const statusBadgeLabel = block?.status
+    ? block.status.toUpperCase()
+    : "ENDED"
+
+  // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ padding: "24px 28px", maxWidth: 1100, margin: "0 auto", fontFamily: "inherit" }}>
+    <div style={{
+      padding: "28px 36px",
+      maxWidth: 1200,
+      margin: "0 auto",
+      fontFamily: "-apple-system, BlinkMacSystemFont, 'Inter', sans-serif",
+      fontSize: 14,
+      color: "#111827",
+    }}>
 
-      {/* Back */}
-      <a href={`/app/auction-blocks/${blockId}`}
-        style={{ display: "inline-flex", alignItems: "center", gap: 4, color: C.muted, fontSize: 13, textDecoration: "none", marginBottom: 20 }}>
-        ← Back to Block
-      </a>
+      {/* Breadcrumb */}
+      <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 20, display: "flex", alignItems: "center", gap: 6 }}>
+        <a href="/app/auction-blocks" style={{ color: "#6b7280", textDecoration: "none" }}>
+          ← Auction Blocks
+        </a>
+        <span style={{ color: "#d1d5db" }}>›</span>
+        <span style={{ color: "#374151", fontWeight: 500 }}>{block?.title ?? "Loading…"}</span>
+      </div>
 
-      {/* Header */}
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: C.text }}>Post-Auction Workflow</h1>
-        {data?.block?.title && (
-          <p style={{ margin: "4px 0 0", fontSize: 14, color: C.gold, fontWeight: 500 }}>{data.block.title}</p>
-        )}
+      {/* Page header */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+            <div style={{ fontSize: 22, fontWeight: 800, color: "#111827" }}>
+              {block?.title ?? "Post-Auction"}
+            </div>
+            <span style={{
+              display: "inline-block",
+              background: "#fee2e2", color: "#b91c1c",
+              borderRadius: 6, padding: "3px 10px",
+              fontSize: 12, fontWeight: 700,
+            }}>
+              {statusBadgeLabel}
+            </span>
+          </div>
+          <div style={{ fontSize: 12, color: "#6b7280", marginTop: 3 }}>
+            {block?.block_type ?? "Themen-Block"}
+            {block?.ends_at ? ` · Ended ${fmtDate(block.ends_at)}` : ""}
+            {summary ? ` · ${summary.total} lots` : ""}
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <a
+            href={`/app/auction-blocks/${blockId}?tab=analytics`}
+            style={{
+              padding: "7px 14px", borderRadius: 6, fontSize: 12, fontWeight: 600,
+              cursor: "pointer", background: "#fff", color: "#374151",
+              border: "1px solid #e5e7eb", textDecoration: "none", display: "inline-block",
+            }}
+          >
+            ← Analytics
+          </a>
+          <a
+            href={`/app/auction-blocks/${blockId}/post-auction/workflow`}
+            style={{
+              padding: "7px 14px", borderRadius: 6, fontSize: 12, fontWeight: 600,
+              cursor: "pointer", background: "#6366f1", color: "#fff",
+              border: "none", textDecoration: "none", display: "inline-block",
+            }}
+          >
+            Post-Auction Workflow →
+          </a>
+        </div>
       </div>
 
       {/* Error */}
       {error && (
-        <div style={{ background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 8, padding: "12px 16px", color: "#dc2626", marginBottom: 20, fontSize: 13 }}>
-          {error} <button onClick={fetchData} style={{ marginLeft: 8, color: C.primary, background: "none", border: "none", cursor: "pointer", fontSize: 12, textDecoration: "underline" }}>Retry</button>
-        </div>
-      )}
-
-      {/* Summary bar */}
-      {summary && (
-        <div style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
-          {[
-            { label: "Total Lots",  value: summary.total,   color: C.text },
-            { label: "Paid",        value: summary.paid,    color: "#16a34a" },
-            { label: "Unpaid",      value: summary.unpaid,  color: "#dc2626" },
-            { label: "No Bid",      value: summary.no_bid,  color: C.muted },
-            { label: "Shipped",     value: summary.shipped, color: "#2563eb" },
-          ].map((s) => (
-            <div key={s.label} style={{ background: "#fff", border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 20px", display: "flex", flexDirection: "column", alignItems: "center", minWidth: 90 }}>
-              <span style={{ fontSize: 24, fontWeight: 700, color: s.color, lineHeight: 1 }}>{s.value}</span>
-              <span style={{ fontSize: 11, color: C.muted, marginTop: 3, textTransform: "uppercase", letterSpacing: "0.04em" }}>{s.label}</span>
-            </div>
-          ))}
+        <div style={{
+          background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 8,
+          padding: "12px 16px", color: "#dc2626", marginBottom: 20, fontSize: 13,
+        }}>
+          {error}{" "}
+          <button onClick={fetchData} style={{
+            marginLeft: 8, color: "#6366f1", background: "none", border: "none",
+            cursor: "pointer", fontSize: 12, textDecoration: "underline",
+          }}>Retry</button>
         </div>
       )}
 
       {/* Loading skeleton */}
       {loading && !data && (
         <div>
-          {[...Array(5)].map((_, i) => (
-            <div key={i} style={{ background: "#f3f4f6", borderRadius: 8, height: 60, marginBottom: 8, animation: "pulse 1.5s ease-in-out infinite" }} />
+          {[...Array(3)].map((_, i) => (
+            <div key={i} style={{
+              background: "#f3f4f6", borderRadius: 8, height: 80, marginBottom: 12,
+              animation: "pulse 1.5s ease-in-out infinite",
+            }} />
           ))}
         </div>
       )}
 
-      {/* Content */}
       {data && (
         <>
-          {/* Filter tabs */}
-          <div style={{ display: "flex", gap: 6, marginBottom: 16, alignItems: "center" }}>
-            {filterTabs.map((tab) => {
-              const isActive = activeFilter === tab.key
-              return (
-                <button key={tab.key} onClick={() => setActiveFilter(tab.key)} style={{
-                  background: isActive ? C.primary : "#fff",
-                  color: isActive ? "#fff" : C.muted,
-                  border: `1px solid ${isActive ? C.primary : C.border}`,
-                  borderRadius: 6, padding: "5px 14px", fontSize: 12,
-                  fontWeight: isActive ? 700 : 400, cursor: "pointer",
-                  display: "flex", alignItems: "center", gap: 6,
-                }}>
-                  {tab.label}
-                  {tab.count !== undefined && (
-                    <span style={{
-                      background: isActive ? "rgba(255,255,255,0.25)" : "#f3f4f6",
-                      borderRadius: 10, padding: "1px 6px", fontSize: 11, fontWeight: 600,
-                      color: isActive ? "#fff" : C.muted,
-                    }}>{tab.count}</span>
-                  )}
-                </button>
-              )
-            })}
-            <button onClick={fetchData} disabled={loading} style={{
-              marginLeft: "auto", background: "#fff", color: C.muted,
-              border: `1px solid ${C.border}`, borderRadius: 6,
-              padding: "5px 12px", fontSize: 12, cursor: loading ? "not-allowed" : "pointer",
-              opacity: loading ? 0.6 : 1,
-            }}>↻ Refresh</button>
+          {/* Stats row — 7 cards */}
+          <div style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
+            {[
+              { label: "Total Lots",  value: String(summary?.total ?? 0),   numColor: "#111827" },
+              { label: "Paid",        value: String(summary?.paid ?? 0),    numColor: "#16a34a" },
+              { label: "Unpaid",      value: String(summary?.unpaid ?? 0),  numColor: "#dc2626" },
+              { label: "No Bid",      value: String(summary?.no_bid ?? 0),  numColor: "#111827" },
+              { label: "Shipped",     value: String(summary?.shipped ?? 0), numColor: "#2563eb" },
+              { label: "Total Revenue", value: fmtCurrency(totalRevenue),   numColor: "#b45309", minWidth: 140 },
+              { label: "Conversion",  value: `${conversionPct}%`,           numColor: "#374151" },
+            ].map((s) => (
+              <div key={s.label} style={{
+                background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8,
+                padding: "14px 20px", textAlign: "center",
+                minWidth: (s as any).minWidth ?? 100,
+              }}>
+                <div style={{ fontSize: 26, fontWeight: 800, color: s.numColor, lineHeight: 1 }}>
+                  {s.value}
+                </div>
+                <div style={{ fontSize: 10, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 4 }}>
+                  {s.label}
+                </div>
+              </div>
+            ))}
           </div>
 
-          {/* Table */}
-          <div style={{ background: "#fff", border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
+          {/* Two-column layout */}
+          <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 16, marginBottom: 20 }}>
 
-            {/* Header row */}
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "52px 1fr 160px 80px 140px 150px",
-              padding: "10px 16px", gap: 12,
-              borderBottom: `1px solid ${C.border}`,
-              background: C.bg,
-            }}>
-              {["Lot", "Release", "Winner", "Amount", "Status", "Action"].map((h) => (
-                <span key={h} style={{ fontSize: 11, color: C.muted, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>{h}</span>
-              ))}
+            {/* Left column: 3 stacked panels */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+
+              {/* ── Open Tasks panel ────────────────────────────────── */}
+              <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 18 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 14 }}>
+                  Open Tasks
+                </div>
+
+                {/* Unpaid near deadline */}
+                {unpaidCount > 0 && (
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 0", borderBottom: "1px solid #f3f4f6" }}>
+                    <div style={{ width: 16, height: 16, border: "2px solid #dc2626", borderRadius: 3, background: "#fee2e2", flexShrink: 0, marginTop: 1 }} />
+                    <div>
+                      <div style={{ fontSize: 12, color: "#374151", lineHeight: 1.4 }}>
+                        <span style={{ fontWeight: 700, color: "#dc2626" }}>{unpaidCount} lots unpaid</span> — check deadlines
+                      </div>
+                      <div style={{ marginTop: 3 }}>
+                        <span
+                          onClick={() => setActiveFilter("unpaid")}
+                          style={{ fontSize: 11, color: "#6366f1", cursor: "pointer" }}
+                        >
+                          View unpaid lots →
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Ready to pack */}
+                {readyToPackCount > 0 && (
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 0", borderBottom: "1px solid #f3f4f6" }}>
+                    <div style={{ width: 16, height: 16, border: "2px solid #d1d5db", borderRadius: 3, flexShrink: 0, marginTop: 1 }} />
+                    <div>
+                      <div style={{ fontSize: 12, color: "#374151", lineHeight: 1.4 }}>
+                        <span style={{ fontWeight: 700 }}>{readyToPackCount} lots</span> ready to pack (paid, not started)
+                      </div>
+                      <div style={{ marginTop: 3 }}>
+                        <span
+                          onClick={() => setActiveFilter("paid")}
+                          style={{ fontSize: 11, color: "#6366f1", cursor: "pointer" }}
+                        >
+                          View packing queue →
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Labels not printed */}
+                {labelsNotPrintedCount > 0 && (
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 0", borderBottom: "1px solid #f3f4f6" }}>
+                    <div style={{ width: 16, height: 16, border: "2px solid #d1d5db", borderRadius: 3, flexShrink: 0, marginTop: 1 }} />
+                    <div>
+                      <div style={{ fontSize: 12, color: "#374151", lineHeight: 1.4 }}>
+                        <span style={{ fontWeight: 700 }}>{labelsNotPrintedCount} labels</span> not yet printed
+                      </div>
+                      <div style={{ marginTop: 3 }}>
+                        <span style={{ fontSize: 11, color: "#6366f1", cursor: "pointer" }}>
+                          Print all labels →
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* No overdue payments — greyed out when unpaid === 0 */}
+                {unpaidCount === 0 && (
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 0", opacity: 0.5 }}>
+                    <div style={{ width: 16, height: 16, border: "2px solid #16a34a", borderRadius: 3, background: "#dcfce7", flexShrink: 0, marginTop: 1 }} />
+                    <div>
+                      <div style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.4 }}>No overdue payments</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* All clear when no tasks */}
+                {unpaidCount === 0 && readyToPackCount === 0 && labelsNotPrintedCount === 0 && (
+                  <div style={{ fontSize: 12, color: "#9ca3af", paddingTop: 4 }}>All tasks complete ✓</div>
+                )}
+              </div>
+
+              {/* ── Auction Info panel ───────────────────────────────── */}
+              <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 18 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 14 }}>
+                  Auction Info
+                </div>
+                {[
+                  { label: "Type",             value: block?.block_type ?? "Themen-Block", green: false },
+                  { label: "Start",            value: fmtDate(block?.starts_at), green: false },
+                  { label: "End",              value: fmtDate(block?.ends_at), green: false },
+                  { label: "Total bids",       value: analyticsData?.total_bids != null ? String(analyticsData.total_bids) : "—", green: false },
+                  { label: "Unique bidders",   value: analyticsData?.unique_bidders != null ? String(analyticsData.unique_bidders) : "—", green: false },
+                  { label: "T-7 Newsletter",   value: block?.newsletter_t7_sent_at ? "✓ Sent" : "—", green: !!block?.newsletter_t7_sent_at },
+                  { label: "T-24h Newsletter", value: block?.newsletter_t24h_sent_at ? "✓ Sent" : "—", green: !!block?.newsletter_t24h_sent_at },
+                  { label: "Going/Going/Gone", value: block?.going_going_gone_sent_at ? "✓ Triggered" : "—", green: !!block?.going_going_gone_sent_at },
+                ].map(({ label, value, green }) => (
+                  <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #f9fafb", fontSize: 12 }}>
+                    <span style={{ color: "#9ca3af" }}>{label}</span>
+                    <span style={{ fontWeight: 500, color: green ? "#16a34a" : "#374151" }}>{value}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* ── Troubleshooting panel ────────────────────────────── */}
+              <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 18 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 14 }}>
+                  Troubleshooting
+                </div>
+
+                {paidWithoutOrderNumber.length > 0 && (
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 0", borderBottom: "1px solid #f3f4f6", fontSize: 12 }}>
+                    <div style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>⚠️</div>
+                    <div>
+                      <div style={{ fontWeight: 600, color: "#b45309" }}>
+                        {paidWithoutOrderNumber.length} payment{paidWithoutOrderNumber.length > 1 ? "s" : ""} without order number
+                      </div>
+                      <div style={{ color: "#6b7280", fontSize: 11, marginTop: 2 }}>
+                        {paidWithoutOrderNumber.map(l => l.transaction?.id).join(", ")} — capture succeeded but order number was not assigned.
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {[
+                  "All Stripe webhooks received",
+                  "All PayPal captures verified",
+                  "No anti-snipe extensions triggered",
+                ].map((msg) => (
+                  <div key={msg} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 0", borderBottom: "1px solid #f3f4f6", fontSize: 12 }}>
+                    <div style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>✅</div>
+                    <div style={{ color: "#16a34a", fontWeight: 500 }}>{msg}</div>
+                  </div>
+                ))}
+              </div>
+
             </div>
 
-            {/* Rows */}
-            {filteredLots.length === 0 ? (
-              <div style={{ padding: "32px 16px", textAlign: "center", color: C.muted, fontSize: 13 }}>
-                No lots found.
-              </div>
-            ) : filteredLots.map((lot) => {
-              const tx = lot.transaction
-              const stepInfo = getCurrentStep(lot)
+            {/* Right column: Lots table panel */}
+            <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
 
-              return (
-                <div key={lot.id} style={{
-                  display: "grid",
-                  gridTemplateColumns: "52px 1fr 160px 80px 140px 150px",
-                  padding: "12px 16px", gap: 12, alignItems: "center",
-                  borderBottom: `1px solid ${C.border}`,
-                }}>
-                  {/* Lot # */}
-                  <span style={{ fontSize: 13, fontWeight: 700, color: C.gold }}>#{lot.lot_number}</span>
-
-                  {/* Release */}
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: C.text, lineHeight: 1.3 }}>{lot.release_title || "—"}</div>
-                    {lot.artist_name && <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{lot.artist_name}</div>}
-                    {tx?.order_number && <div style={{ fontSize: 10, color: C.muted, marginTop: 2, fontFamily: "monospace" }}>{tx.order_number}</div>}
-                  </div>
-
-                  {/* Winner */}
-                  <div>
-                    {lot.winner ? (
-                      <>
-                        <div style={{ fontSize: 12, color: C.text, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lot.winner.name}</div>
-                        <div style={{ fontSize: 10, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lot.winner.email}</div>
-                        {tx?.shipping_city && <div style={{ fontSize: 10, color: C.muted }}>{tx.shipping_city}{tx.shipping_country ? `, ${tx.shipping_country}` : ""}</div>}
-                      </>
-                    ) : <span style={{ fontSize: 11, color: C.muted }}>—</span>}
-                  </div>
-
-                  {/* Amount */}
-                  <span style={{ fontSize: 13, fontWeight: 600, color: lot.final_price !== null ? C.text : C.muted }}>
-                    {lot.final_price !== null ? `€${Number(lot.final_price).toFixed(2)}` : "—"}
-                  </span>
-
-                  {/* Status badge */}
-                  <span style={{
-                    display: "inline-block",
-                    fontSize: 11, fontWeight: 600,
-                    color: stepInfo.color,
-                    background: stepInfo.bg,
-                    padding: "4px 10px", borderRadius: 20,
-                    whiteSpace: "nowrap", width: "fit-content",
-                  }}>
-                    {stepInfo.label}
-                  </span>
-
-                  {/* Action */}
-                  <ActionButton lot={lot} onAction={handleAction} loading={actionLoading} />
+              {/* Panel header with filter tabs */}
+              <div style={{
+                padding: "14px 16px", borderBottom: "1px solid #e5e7eb",
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+              }}>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>Lots Overview</div>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  {filterTabs.map((tab) => {
+                    const isActive = activeFilter === tab.key
+                    return (
+                      <button key={tab.key} onClick={() => setActiveFilter(tab.key)} style={{
+                        padding: "4px 12px", borderRadius: 5, fontSize: 11, fontWeight: isActive ? 700 : 500,
+                        cursor: "pointer",
+                        background: isActive ? "#6366f1" : "#fff",
+                        color: isActive ? "#fff" : "#6b7280",
+                        border: isActive ? "1px solid #6366f1" : "1px solid #e5e7eb",
+                      }}>
+                        {tab.label} {tab.count}
+                      </button>
+                    )
+                  })}
+                  <button onClick={() => { fetchData(); fetchAnalytics() }} disabled={loading} style={{
+                    marginLeft: 4, background: "#fff", color: "#9ca3af",
+                    border: "1px solid #e5e7eb", borderRadius: 5,
+                    padding: "4px 10px", fontSize: 11, cursor: loading ? "not-allowed" : "pointer",
+                    opacity: loading ? 0.6 : 1,
+                  }}>↻</button>
                 </div>
-              )
-            })}
+              </div>
+
+              {/* Table header row */}
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "48px 1fr 140px 80px 120px 140px",
+                gap: 10, padding: "8px 14px",
+                background: "#f9fafb", borderBottom: "1px solid #e5e7eb",
+              }}>
+                {["Lot", "Release", "Winner", "Amount", "Status", "Action"].map((h) => (
+                  <span key={h} style={{ fontSize: 10, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    {h}
+                  </span>
+                ))}
+              </div>
+
+              {/* Lot rows */}
+              {filteredLots.length === 0 ? (
+                <div style={{ padding: "32px 16px", textAlign: "center", color: "#9ca3af", fontSize: 13 }}>
+                  No lots found.
+                </div>
+              ) : filteredLots.map((lot) => {
+                const tx = lot.transaction
+                const stepInfo = getCurrentStep(lot)
+                const isNoBid = stepInfo.step === 0
+
+                return (
+                  <div key={lot.id} style={{
+                    display: "grid",
+                    gridTemplateColumns: "48px 1fr 140px 80px 120px 140px",
+                    gap: 10, padding: "12px 14px", alignItems: "center",
+                    borderBottom: "1px solid #f3f4f6",
+                    opacity: isNoBid ? 0.5 : 1,
+                    transition: "background 0.1s",
+                  }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#f9fafb")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                  >
+                    {/* Lot # */}
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#b45309" }}>
+                      #{lot.lot_number}
+                    </div>
+
+                    {/* Release */}
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {lot.release_title || "—"}
+                      </div>
+                      {lot.artist_name && (
+                        <div style={{ fontSize: 11, color: "#9ca3af", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {lot.artist_name}
+                        </div>
+                      )}
+                      {tx?.order_number && (
+                        <div style={{ fontSize: 10, color: "#9ca3af", fontFamily: "monospace", marginTop: 1 }}>
+                          {tx.order_number}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Winner */}
+                    <div>
+                      {lot.winner ? (
+                        <>
+                          <div style={{ fontSize: 11, fontWeight: 500, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {lot.winner.name}
+                          </div>
+                          <div style={{ fontSize: 10, color: "#9ca3af", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {lot.winner.email}
+                          </div>
+                          {tx?.shipping_city && (
+                            <div style={{ fontSize: 10, color: "#9ca3af" }}>
+                              {tx.shipping_country ? `${tx.shipping_country} · ` : ""}{tx.shipping_city}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <span style={{ fontSize: 11, color: "#9ca3af" }}>—</span>
+                      )}
+                    </div>
+
+                    {/* Amount */}
+                    <div style={{ fontSize: 13, fontWeight: 600, color: lot.final_price !== null ? "#111827" : "#9ca3af" }}>
+                      {lot.final_price !== null ? `€${Number(lot.final_price).toFixed(2)}` : "—"}
+                    </div>
+
+                    {/* Status badge */}
+                    <div>
+                      <span style={{
+                        display: "inline-block",
+                        padding: "3px 9px", borderRadius: 12,
+                        fontSize: 10, fontWeight: 700,
+                        whiteSpace: "nowrap",
+                        color: stepInfo.color,
+                        background: stepInfo.bg,
+                      }}>
+                        {stepInfo.label}
+                      </span>
+                    </div>
+
+                    {/* Action */}
+                    <div>
+                      <ActionButton lot={lot} onAction={handleAction} loading={actionLoading} />
+                    </div>
+                  </div>
+                )
+              })}
+
+              {/* Footer */}
+              {filteredLots.length > 0 && (
+                <div style={{ padding: "10px 14px", textAlign: "center", color: "#9ca3af", fontSize: 11, borderTop: "1px solid #f3f4f6" }}>
+                  Showing {filteredLots.length} of {summary?.total ?? 0} lots
+                </div>
+              )}
+            </div>
+
           </div>
         </>
       )}

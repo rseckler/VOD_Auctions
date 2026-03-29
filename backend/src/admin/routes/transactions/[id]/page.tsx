@@ -1,15 +1,6 @@
 import { useEffect, useState } from "react"
 import { useParams } from "react-router-dom"
-import {
-  Container,
-  Heading,
-  Badge,
-  Button,
-  Text,
-  Input,
-  Label,
-  Select,
-} from "@medusajs/ui"
+import { useAdminNav } from "../../../components/admin-nav"
 
 type Transaction = {
   id: string
@@ -36,11 +27,13 @@ type Transaction = {
   shipped_at: string | null
   delivered_at: string | null
   cancelled_at: string | null
+  label_printed_at: string | null
   created_at: string
   release_title: string | null
   release_artist: string | null
   article_number: string | null
   block_title: string | null
+  block_slug: string | null
   lot_number: number | null
   shipping_name: string | null
   shipping_address_line1: string | null
@@ -65,55 +58,13 @@ type OrderEvent = {
   event_type: string
   title: string
   description: string | null
+  details?: string | null
   actor: string | null
   metadata: Record<string, unknown> | null
   created_at: string
 }
 
 const CARRIERS = ["DHL", "DPD", "Hermes", "GLS", "UPS", "FedEx", "Deutsche Post"]
-
-const STATUS_COLORS: Record<string, "green" | "orange" | "blue" | "grey" | "red"> = {
-  pending: "grey",
-  paid: "green",
-  failed: "red",
-  refunded: "orange",
-  cancelled: "red",
-  partially_refunded: "orange",
-}
-
-const FULFILLMENT_COLORS: Record<string, "green" | "orange" | "blue" | "grey"> = {
-  unfulfilled: "grey",
-  packing: "blue",
-  shipped: "blue",
-  delivered: "green",
-  returned: "orange",
-}
-
-const EVENT_ICONS: Record<string, string> = {
-  status_change: "\uD83D\uDD04",
-  note: "\uD83D\uDCDD",
-  email_sent: "\u2709\uFE0F",
-  refund: "\uD83D\uDCB0",
-  shipment: "\uD83D\uDCE6",
-  cancellation: "\u274C",
-  payment: "\uD83D\uDCB3",
-  created: "\u2795",
-}
-
-function relativeTime(dateStr: string): string {
-  const now = Date.now()
-  const then = new Date(dateStr).getTime()
-  const diffMs = now - then
-  const diffMin = Math.floor(diffMs / 60000)
-  const diffHrs = Math.floor(diffMs / 3600000)
-  const diffDays = Math.floor(diffMs / 86400000)
-
-  if (diffMin < 1) return "just now"
-  if (diffMin < 60) return `${diffMin} min ago`
-  if (diffHrs < 24) return `${diffHrs}h ago`
-  if (diffDays < 30) return `${diffDays}d ago`
-  return new Date(dateStr).toLocaleDateString("de-DE")
-}
 
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return "—"
@@ -126,12 +77,289 @@ function formatDate(dateStr: string | null): string {
   })
 }
 
-function formatAmount(val: number | null | undefined): string {
-  if (val == null) return "\u20AC0.00"
-  return `\u20AC${Number(val).toFixed(2)}`
+function formatDateShort(dateStr: string | null): string {
+  if (!dateStr) return "—"
+  return new Date(dateStr).toLocaleString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  })
 }
 
+function formatAmount(val: number | null | undefined): string {
+  if (val == null) return "€0.00"
+  return `€${Number(val).toFixed(2)}`
+}
+
+function getShippingZone(country: string | null): string {
+  if (!country) return "—"
+  const code = country.toUpperCase()
+  if (code === "DE") return "DE (domestic)"
+  const eu = ["AT","BE","BG","CY","CZ","DK","EE","ES","FI","FR","GR","HR","HU","IE","IT","LT","LU","LV","MT","NL","PL","PT","RO","SE","SI","SK"]
+  if (eu.includes(code)) return "EU"
+  return "World"
+}
+
+function truncate(str: string | null, len = 12): string {
+  if (!str) return "—"
+  return str.length > len ? str.slice(0, len) + "…" : str
+}
+
+function getFulfillmentStep(tx: Transaction): number {
+  if (tx.status !== "paid") return 1
+  if (tx.fulfillment_status === "delivered") return 5
+  if (tx.fulfillment_status === "shipped") return 4
+  if (tx.label_printed_at) return 3
+  if (tx.fulfillment_status === "packing") return 2
+  return 1
+}
+
+function getStepDescription(step: number): { current: string; next: string } {
+  switch (step) {
+    case 1: return { current: "Payment received — pack the item and prepare for shipping.", next: "Next: Mark as packing" }
+    case 2: return { current: "Packing in progress — prepare the item for shipment.", next: "Next: Print shipping label" }
+    case 3: return { current: "Label printed — ready to hand off to carrier.", next: "Next: Mark as shipped" }
+    case 4: return { current: "Package shipped — waiting for delivery confirmation.", next: "Next: Mark as delivered" }
+    case 5: return { current: "Order delivered successfully.", next: "Complete" }
+    default: return { current: "Awaiting payment.", next: "—" }
+  }
+}
+
+function getEventDotColor(eventType: string): string {
+  if (eventType === "payment") return "#16a34a"
+  if (eventType === "refund" || eventType === "cancellation") return "#dc2626"
+  return "#9ca3af"
+}
+
+// ── Styles ──────────────────────────────────────────────────────────────────
+
+const s = {
+  page: {
+    padding: "28px 36px",
+    background: "#f9fafb",
+    minHeight: "100vh",
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Inter', sans-serif",
+    fontSize: 14,
+    color: "#111827",
+  } as React.CSSProperties,
+  breadcrumb: {
+    fontSize: 12,
+    color: "#9ca3af",
+    marginBottom: 20,
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+  } as React.CSSProperties,
+  breadcrumbLink: {
+    color: "#6b7280",
+    textDecoration: "none",
+    cursor: "pointer",
+    background: "none",
+    border: "none",
+    padding: 0,
+    fontSize: 12,
+  } as React.CSSProperties,
+  sep: { color: "#d1d5db" } as React.CSSProperties,
+  orderHeader: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    marginBottom: 24,
+    flexWrap: "wrap" as const,
+    gap: 12,
+  } as React.CSSProperties,
+  orderNum: {
+    fontSize: 22,
+    fontWeight: 800,
+    color: "#111827",
+    fontFamily: "monospace",
+  } as React.CSSProperties,
+  headerLeft: { display: "flex", flexDirection: "column" as const, gap: 6 } as React.CSSProperties,
+  pillRow: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" as const } as React.CSSProperties,
+  pillPaid: {
+    display: "inline-flex", alignItems: "center", gap: 5,
+    padding: "3px 10px", borderRadius: 12,
+    fontSize: 11, fontWeight: 700,
+    background: "#dcfce7", color: "#15803d",
+  } as React.CSSProperties,
+  pillPending: {
+    display: "inline-flex", alignItems: "center", gap: 5,
+    padding: "3px 10px", borderRadius: 12,
+    fontSize: 11, fontWeight: 700,
+    background: "#fef3c7", color: "#b45309",
+  } as React.CSSProperties,
+  pillRed: {
+    display: "inline-flex", alignItems: "center", gap: 5,
+    padding: "3px 10px", borderRadius: 12,
+    fontSize: 11, fontWeight: 700,
+    background: "#fee2e2", color: "#b91c1c",
+  } as React.CSSProperties,
+  pillBlue: {
+    display: "inline-flex", alignItems: "center", gap: 5,
+    padding: "3px 10px", borderRadius: 12,
+    fontSize: 11, fontWeight: 700,
+    background: "#dbeafe", color: "#1d4ed8",
+  } as React.CSSProperties,
+  fulfillmentPill: {
+    background: "#fef3c7", color: "#92400e",
+    padding: "3px 10px", borderRadius: 12,
+    fontSize: 11, fontWeight: 600,
+  } as React.CSSProperties,
+  orderMeta: {
+    fontSize: 12, color: "#6b7280",
+    display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" as const,
+  } as React.CSSProperties,
+  metaSep: { color: "#e5e7eb" } as React.CSSProperties,
+  headerActions: { display: "flex", gap: 8, flexWrap: "wrap" as const, alignItems: "center" } as React.CSSProperties,
+  btn: (variant: "primary" | "secondary" | "blue" | "danger" | "green") => {
+    const base: React.CSSProperties = {
+      padding: "7px 13px", borderRadius: 6, fontSize: 12,
+      fontWeight: 600, cursor: "pointer", border: "none",
+    }
+    const variants = {
+      primary: { background: "#6366f1", color: "#fff" },
+      secondary: { background: "#fff", color: "#374151", border: "1px solid #e5e7eb" },
+      blue: { background: "#2563eb", color: "#fff" },
+      green: { background: "#16a34a", color: "#fff" },
+      danger: { background: "#fff", color: "#dc2626", border: "1px solid #fca5a5" },
+    }
+    return { ...base, ...variants[variant] }
+  },
+  btnSm: (variant: "primary" | "secondary" | "blue" | "danger" | "green") => {
+    const base: React.CSSProperties = {
+      padding: "5px 12px", borderRadius: 6, fontSize: 11,
+      fontWeight: 600, cursor: "pointer", border: "none",
+    }
+    const variants = {
+      primary: { background: "#6366f1", color: "#fff" },
+      secondary: { background: "#fff", color: "#374151", border: "1px solid #e5e7eb" },
+      blue: { background: "#2563eb", color: "#fff" },
+      green: { background: "#16a34a", color: "#fff" },
+      danger: { background: "#fff", color: "#dc2626", border: "1px solid #fca5a5" },
+    }
+    return { ...base, ...variants[variant] }
+  },
+  actionsBar: {
+    background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10,
+    padding: "16px 20px", display: "flex", alignItems: "center",
+    gap: 10, flexWrap: "wrap" as const, marginBottom: 14,
+  } as React.CSSProperties,
+  actionsLabel: {
+    fontSize: 10, fontWeight: 700, color: "#9ca3af",
+    textTransform: "uppercase" as const, letterSpacing: "0.06em", marginRight: 4,
+  } as React.CSSProperties,
+  topGrid: {
+    display: "grid", gridTemplateColumns: "1fr 1fr 1fr",
+    gap: 14, marginBottom: 14,
+  } as React.CSSProperties,
+  wideGrid: {
+    display: "grid", gridTemplateColumns: "1fr 1fr",
+    gap: 14, marginBottom: 14,
+  } as React.CSSProperties,
+  panel: {
+    background: "#fff", border: "1px solid #e5e7eb",
+    borderRadius: 10, padding: 18,
+  } as React.CSSProperties,
+  panelTitle: {
+    fontSize: 10, fontWeight: 700, color: "#9ca3af",
+    textTransform: "uppercase" as const, letterSpacing: "0.07em", marginBottom: 12,
+  } as React.CSSProperties,
+  infoRow: {
+    display: "flex", justifyContent: "space-between",
+    padding: "5px 0", borderBottom: "1px solid #f9fafb",
+    fontSize: 12,
+  } as React.CSSProperties,
+  infoLabel: { color: "#9ca3af" } as React.CSSProperties,
+  infoValue: { fontWeight: 500, color: "#374151" } as React.CSSProperties,
+  infoValueMono: { fontWeight: 500, color: "#374151", fontFamily: "monospace", fontSize: 11 } as React.CSSProperties,
+  stepperWrap: {
+    display: "flex", alignItems: "center", margin: "12px 0",
+  } as React.CSSProperties,
+  stepNode: {
+    display: "flex", flexDirection: "column" as const,
+    alignItems: "center", position: "relative" as const, flex: 1,
+  } as React.CSSProperties,
+  stepCircle: (state: "done" | "current" | "todo") => {
+    const base: React.CSSProperties = {
+      width: 28, height: 28, borderRadius: "50%",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontSize: 11, fontWeight: 700,
+    }
+    const states = {
+      done: { background: "#dcfce7", color: "#15803d", border: "2px solid #16a34a" },
+      current: { background: "#fef3c7", color: "#b45309", border: "2px solid #d97706" },
+      todo: { background: "#f3f4f6", color: "#9ca3af", border: "2px solid #e5e7eb" },
+    }
+    return { ...base, ...states[state] }
+  },
+  stepLabel: {
+    fontSize: 9, color: "#6b7280", marginTop: 4,
+    textAlign: "center" as const, whiteSpace: "nowrap" as const,
+  } as React.CSSProperties,
+  stepLine: (done: boolean) => ({
+    flex: 1, height: 2,
+    background: done ? "#16a34a" : "#e5e7eb",
+    margin: "0 4px", marginTop: -12,
+  }) as React.CSSProperties,
+  stepInfoBox: {
+    background: "#fef3c7", border: "1px solid #fde68a",
+    borderRadius: 6, padding: "10px 14px",
+    margin: "12px 0", fontSize: 12, color: "#92400e",
+  } as React.CSSProperties,
+  auditItem: {
+    display: "flex", gap: 12, padding: "10px 0",
+    borderBottom: "1px solid #f3f4f6",
+  } as React.CSSProperties,
+  auditDot: (color: string) => ({
+    width: 8, height: 8, borderRadius: "50%",
+    background: color, flexShrink: 0, marginTop: 4,
+  }) as React.CSSProperties,
+  auditTitle: { fontSize: 12, fontWeight: 600, color: "#374151" } as React.CSSProperties,
+  auditDetail: { fontSize: 11, color: "#9ca3af", marginTop: 2 } as React.CSSProperties,
+  auditTime: { marginLeft: "auto", fontSize: 11, color: "#9ca3af", whiteSpace: "nowrap" as const } as React.CSSProperties,
+  formBox: {
+    background: "#f9fafb", border: "1px solid #e5e7eb",
+    borderRadius: 8, padding: 14, marginTop: 8,
+  } as React.CSSProperties,
+  input: {
+    width: "100%", padding: "6px 10px",
+    border: "1px solid #e5e7eb", borderRadius: 6,
+    fontSize: 12, color: "#374151", background: "#fff",
+    outline: "none",
+  } as React.CSSProperties,
+  select: {
+    width: "100%", padding: "6px 10px",
+    border: "1px solid #e5e7eb", borderRadius: 6,
+    fontSize: 12, color: "#374151", background: "#fff",
+    outline: "none",
+  } as React.CSSProperties,
+  label: {
+    fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4, display: "block",
+  } as React.CSSProperties,
+  itemCard: {
+    display: "flex", gap: 14, padding: "14px 0",
+    borderBottom: "1px solid #f3f4f6",
+  } as React.CSSProperties,
+  itemCover: {
+    width: 60, height: 60, borderRadius: 6,
+    background: "#f3f4f6", overflow: "hidden",
+    flexShrink: 0, display: "flex",
+    alignItems: "center", justifyContent: "center",
+    color: "#d1d5db", fontSize: 20,
+  } as React.CSSProperties,
+  link: {
+    color: "#6366f1", textDecoration: "none", cursor: "pointer",
+    fontSize: 11,
+  } as React.CSSProperties,
+}
+
+// ── Component ────────────────────────────────────────────────────────────────
+
 const TransactionDetailPage = () => {
+  useAdminNav()
   const { id } = useParams<{ id: string }>()
   const [transaction, setTransaction] = useState<Transaction | null>(null)
   const [events, setEvents] = useState<OrderEvent[]>([])
@@ -145,15 +373,16 @@ const TransactionDetailPage = () => {
   const [shipping, setShipping] = useState(false)
 
   // Note
+  const [showNoteForm, setShowNoteForm] = useState(false)
   const [noteText, setNoteText] = useState("")
   const [savingNote, setSavingNote] = useState(false)
 
-  // Actions
-  const [actionLoading, setActionLoading] = useState<string | null>(null)
-
-  // Cancel
+  // Cancel form
   const [showCancelForm, setShowCancelForm] = useState(false)
   const [cancelReason, setCancelReason] = useState("")
+
+  // Action loading
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
 
   const fetchDetail = async () => {
     try {
@@ -229,12 +458,7 @@ const TransactionDetailPage = () => {
 
   const handleRefund = async () => {
     if (!transaction) return
-    if (
-      !window.confirm(
-        "Are you sure you want to refund this order? This will refund the full amount and set the release(s) back to available."
-      )
-    )
-      return
+    if (!window.confirm("Are you sure you want to refund this order? This will refund the full amount and set the release(s) back to available.")) return
     setActionLoading("refund")
     try {
       const res = await fetch(`/admin/transactions/${transaction.id}`, {
@@ -247,9 +471,7 @@ const TransactionDetailPage = () => {
       if (!res.ok) {
         alert(`Refund failed: ${data.message}`)
       } else {
-        alert(
-          `Refund successful (${data.transactions_refunded} item(s)). Refund: ${data.refund_status}`
-        )
+        alert(`Refund successful (${data.transactions_refunded} item(s)). Refund: ${data.refund_status}`)
       }
       fetchDetail()
     } catch (err) {
@@ -302,6 +524,7 @@ const TransactionDetailPage = () => {
       })
       if (res.ok) {
         setNoteText("")
+        setShowNoteForm(false)
         fetchDetail()
       } else {
         const data = await res.json()
@@ -314,525 +537,667 @@ const TransactionDetailPage = () => {
     }
   }
 
+  const handlePacking = async () => {
+    if (!transaction) return
+    setActionLoading("packing")
+    try {
+      const res = await fetch(`/admin/transactions/${transaction.id}`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "packing" }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        alert(`Failed: ${data.message || "Unknown error"}`)
+      } else {
+        fetchDetail()
+      }
+    } catch (err) {
+      console.error("Packing error:", err)
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleLabelPrint = async () => {
+    if (!transaction) return
+    // Open label PDF in new tab
+    window.open(`/admin/transactions/${transaction.id}/shipping-label`, "_blank")
+    // Mark label_printed in DB
+    try {
+      await fetch(`/admin/transactions/${transaction.id}`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "label_printed" }),
+      })
+      fetchDetail()
+    } catch (err) {
+      console.error("Label print error:", err)
+    }
+  }
+
+  // ── Loading / Error states ──
+
   if (loading) {
     return (
-      <Container>
-        <Text className="text-ui-fg-subtle py-12 text-center">Loading transaction...</Text>
-      </Container>
+      <div style={s.page}>
+        <p style={{ color: "#9ca3af", textAlign: "center", paddingTop: 60 }}>Loading order…</p>
+      </div>
     )
   }
 
   if (error || !transaction) {
     return (
-      <Container>
-        <Text className="text-ui-fg-error py-12 text-center">
-          {error || "Transaction not found"}
-        </Text>
-      </Container>
+      <div style={s.page}>
+        <p style={{ color: "#dc2626", textAlign: "center", paddingTop: 60 }}>
+          {error || "Order not found"}
+        </p>
+      </div>
     )
   }
 
-  const tx = transaction
-  const fulfillment = tx.fulfillment_status || tx.shipping_status || "unfulfilled"
-  const isPaid = tx.status === "paid"
-  const isUnfulfilled = fulfillment === "unfulfilled" || tx.shipping_status === "pending"
-  const isShipped = fulfillment === "shipped" || tx.shipping_status === "shipped"
+  // ── Derived values ──
 
-  const itemLabel = () => {
-    const parts: string[] = []
-    if (tx.release_artist) parts.push(tx.release_artist)
-    if (tx.release_title) parts.push(tx.release_title)
-    return parts.length > 0 ? parts.join(" — ") : tx.id.slice(0, 16)
+  const tx = transaction
+  const fulfillment = tx.fulfillment_status || "unfulfilled"
+  const isPaid = tx.status === "paid"
+  const isUnfulfilled = fulfillment === "unfulfilled"
+  const isPacking = fulfillment === "packing"
+  const isShipped = fulfillment === "shipped"
+  const isDelivered = fulfillment === "delivered"
+
+  const currentStep = getFulfillmentStep(tx)
+  const stepDesc = getStepDescription(currentStep)
+
+  // Status pill style
+  const statusPillStyle = (): React.CSSProperties => {
+    if (tx.status === "paid") return s.pillPaid
+    if (tx.status === "pending") return s.pillPending
+    if (tx.status === "cancelled" || tx.status === "failed") return s.pillRed
+    if (tx.status === "refunded" || tx.status === "partially_refunded") return s.pillPending
+    return s.pillPending
   }
 
+  // Fulfillment pill label
+  const fulfillmentPillLabel = (): string => {
+    if (!isPaid) return tx.status.charAt(0).toUpperCase() + tx.status.slice(1)
+    if (isDelivered) return "Delivered ✓"
+    if (isShipped) return "Shipped → Awaiting delivery"
+    if (tx.label_printed_at) return "Label printed → Ship it"
+    if (isPacking) return "Packing → Print label"
+    return "Paid → Pack it"
+  }
+
+  const orderTitle = tx.order_number || tx.id.slice(0, 16)
+  const itemTypeLabel = tx.item_type === "direct_purchase" ? "Direct Purchase" : "Auction Win"
+  const providerLabel = tx.payment_provider
+    ? tx.payment_provider.charAt(0).toUpperCase() + tx.payment_provider.slice(1)
+    : "—"
+
+  const createdLabel = tx.created_at
+    ? new Date(tx.created_at).toLocaleString("de-DE", {
+        day: "2-digit", month: "2-digit", year: "numeric",
+        hour: "2-digit", minute: "2-digit",
+      }).replace(",", " ·")
+    : "—"
+
+  // Step node state helper
+  const stepState = (stepNum: number): "done" | "current" | "todo" => {
+    if (stepNum < currentStep) return "done"
+    if (stepNum === currentStep) return "current"
+    return "todo"
+  }
+
+  const sortedEvents = [...events].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  )
+
+  // ── Render ──
+
   return (
-    <Container>
-      {/* Back Link */}
-      <div className="mb-4">
+    <div style={s.page}>
+
+      {/* Breadcrumb */}
+      <div style={s.breadcrumb}>
         <button
+          style={s.breadcrumbLink}
           onClick={() => (window.location.href = "/app/transactions")}
-          className="text-ui-fg-subtle hover:text-ui-fg-base text-sm flex items-center gap-1"
         >
-          <span>{"\u2190"}</span> Back to Transactions
+          ← Orders
         </button>
+        <span style={s.sep}>›</span>
+        <span style={{ color: "#374151", fontWeight: 500 }}>{orderTitle}</span>
       </div>
 
       {/* Order Header */}
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <div className="flex items-center gap-3 mb-1">
-            <Heading level="h1">
-              {tx.order_number || tx.id.slice(0, 16)}
-            </Heading>
+      <div style={s.orderHeader}>
+        <div style={s.headerLeft}>
+          <div style={s.pillRow}>
+            <span style={s.orderNum}>{orderTitle}</span>
+            <span style={statusPillStyle()}>
+              ● {tx.status.charAt(0).toUpperCase() + tx.status.slice(1)}
+            </span>
+            <span style={s.fulfillmentPill}>{fulfillmentPillLabel()}</span>
           </div>
-          <div className="flex items-center gap-2 mt-2">
-            <Badge color={STATUS_COLORS[tx.status] || "grey"}>
-              {tx.status}
-            </Badge>
-            <Badge
-              color={
-                FULFILLMENT_COLORS[fulfillment] || "grey"
-              }
+          <div style={s.orderMeta}>
+            <span>{itemTypeLabel}</span>
+            <span style={s.metaSep}>|</span>
+            <span>{providerLabel}</span>
+            <span style={s.metaSep}>|</span>
+            <span>{createdLabel}</span>
+          </div>
+        </div>
+
+        <div style={s.headerActions}>
+          <button style={s.btn("secondary")} onClick={() => setShowNoteForm(!showNoteForm)}>
+            Add Note
+          </button>
+          {isPaid && (
+            <button style={s.btn("blue")} onClick={handleLabelPrint}>
+              Print Label ↗
+            </button>
+          )}
+          {isPaid && isUnfulfilled && (
+            <button
+              style={s.btn("primary")}
+              onClick={handlePacking}
+              disabled={actionLoading === "packing"}
             >
-              {fulfillment}
-            </Badge>
-            {tx.payment_provider && (
-              <Badge color="grey">
-                {tx.payment_provider}
-              </Badge>
-            )}
-            {tx.item_type && (
-              <Badge color="grey">
-                {tx.item_type === "direct_purchase" ? "Direct Purchase" : "Auction"}
-              </Badge>
-            )}
-          </div>
-          <Text className="text-ui-fg-subtle text-sm mt-2">
-            Created {formatDate(tx.created_at)}
-            {tx.paid_at && ` · Paid ${formatDate(tx.paid_at)}`}
-          </Text>
+              {actionLoading === "packing" ? "Updating…" : "Mark Packing"}
+            </button>
+          )}
+          {isPaid && (
+            <button
+              style={s.btn("danger")}
+              onClick={handleRefund}
+              disabled={actionLoading === "refund"}
+            >
+              {actionLoading === "refund" ? "Refunding…" : "Refund"}
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* Left Column — 3/5 */}
-        <div className="lg:col-span-3 flex flex-col gap-6">
-          {/* Item Section */}
-          <div className="border border-ui-border-base rounded-lg p-4">
-            <Heading level="h2" className="mb-3 text-base">
-              Items
-            </Heading>
-            <div className="flex items-center justify-between py-2 border-b border-ui-border-base">
-              <div>
-                <Text className="font-medium">{itemLabel()}</Text>
-                <div className="flex gap-3 mt-1">
-                  {tx.article_number && (
-                    <Text className="text-xs text-ui-fg-subtle">
-                      {tx.article_number}
-                    </Text>
-                  )}
-                  {tx.block_title && (
-                    <Text className="text-xs text-ui-fg-subtle">
-                      {tx.block_title}
-                      {tx.lot_number ? ` · Lot ${tx.lot_number}` : ""}
-                    </Text>
-                  )}
-                </div>
-              </div>
-              <Text className="font-mono font-medium">{formatAmount(tx.amount)}</Text>
-            </div>
-            {tx.order_group_id && (
-              <Text className="text-xs text-ui-fg-subtle mt-2">
-                Order Group: {tx.order_group_id}
-              </Text>
-            )}
-          </div>
-
-          {/* Shipping Address */}
-          {(tx.shipping_name || tx.shipping_city) && (
-            <div className="border border-ui-border-base rounded-lg p-4">
-              <Heading level="h2" className="mb-3 text-base">
-                Shipping Address
-              </Heading>
-              <div className="space-y-1">
-                {tx.shipping_name && (
-                  <Text className="font-medium">{tx.shipping_name}</Text>
-                )}
-                {tx.shipping_address_line1 && <Text className="text-sm">{tx.shipping_address_line1}</Text>}
-                <Text className="text-sm">
-                  {[tx.shipping_postal_code, tx.shipping_city].filter(Boolean).join(" ")}
-                </Text>
-                {tx.shipping_country && (
-                  <Text className="text-sm text-ui-fg-subtle">{tx.shipping_country}</Text>
-                )}
-              </div>
+      {/* Note form (collapsible) */}
+      {showNoteForm && (
+        <div style={{ ...s.formBox, marginBottom: 14 }}>
+          <label style={s.label}>Internal note</label>
+          {tx.internal_note && (
+            <div style={{ marginBottom: 8, padding: "6px 10px", background: "#f3f4f6", borderRadius: 6, fontSize: 12, color: "#374151" }}>
+              {tx.internal_note}
             </div>
           )}
-
-          {/* Billing Address */}
-          {tx.billing_name && tx.billing_name !== tx.shipping_name && (
-            <div className="border border-ui-border-base rounded-lg p-4">
-              <Heading level="h2" className="mb-3 text-base">
-                Billing Address
-              </Heading>
-              <div className="space-y-1">
-                <Text className="font-medium">{tx.billing_name}</Text>
-                {tx.billing_address_line1 && <Text className="text-sm">{tx.billing_address_line1}</Text>}
-                <Text className="text-sm">
-                  {[tx.billing_postal_code, tx.billing_city].filter(Boolean).join(" ")}
-                </Text>
-                {tx.billing_country && (
-                  <Text className="text-sm text-ui-fg-subtle">{tx.billing_country}</Text>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Payment Details */}
-          <div className="border border-ui-border-base rounded-lg p-4">
-            <Heading level="h2" className="mb-3 text-base">
-              Payment Details
-            </Heading>
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 mb-3">
-                <Badge color="grey" className="capitalize">
-                  {tx.payment_provider || "—"}
-                </Badge>
-              </div>
-
-              {tx.stripe_payment_intent_id && (
-                <div className="flex justify-between text-sm">
-                  <Text className="text-ui-fg-subtle">Stripe PI</Text>
-                  <Text className="font-mono text-xs">
-                    {tx.stripe_payment_intent_id}
-                  </Text>
-                </div>
-              )}
-              {tx.paypal_order_id && (
-                <div className="flex justify-between text-sm">
-                  <Text className="text-ui-fg-subtle">PayPal Order</Text>
-                  <Text className="font-mono text-xs">{tx.paypal_order_id}</Text>
-                </div>
-              )}
-              {tx.paypal_capture_id && (
-                <div className="flex justify-between text-sm">
-                  <Text className="text-ui-fg-subtle">PayPal Capture</Text>
-                  <Text className="font-mono text-xs">{tx.paypal_capture_id}</Text>
-                </div>
-              )}
-
-              <div className="border-t border-ui-border-base pt-2 mt-2 space-y-1">
-                <div className="flex justify-between text-sm">
-                  <Text>Subtotal</Text>
-                  <Text className="font-mono">{formatAmount(tx.amount)}</Text>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <Text>Shipping</Text>
-                  <Text className="font-mono">{formatAmount(tx.shipping_cost)}</Text>
-                </div>
-                {tx.discount_amount != null && Number(tx.discount_amount) > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <Text>
-                      Discount{tx.promo_code ? ` (${tx.promo_code})` : ""}
-                    </Text>
-                    <Text className="font-mono text-ui-fg-error">
-                      -{formatAmount(tx.discount_amount)}
-                    </Text>
-                  </div>
-                )}
-                <div className="flex justify-between text-sm font-medium border-t border-ui-border-base pt-1">
-                  <Text className="font-medium">Total</Text>
-                  <Text className="font-mono font-medium">{formatAmount(tx.total_amount)}</Text>
-                </div>
-                {tx.refund_amount != null && Number(tx.refund_amount) > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <Text className="text-ui-fg-error">Refunded</Text>
-                    <Text className="font-mono text-ui-fg-error">
-                      -{formatAmount(tx.refund_amount)}
-                    </Text>
-                  </div>
-                )}
-              </div>
-
-              {/* Tracking info */}
-              {tx.tracking_number && (
-                <div className="border-t border-ui-border-base pt-2 mt-2">
-                  <div className="flex justify-between text-sm">
-                    <Text className="text-ui-fg-subtle">Carrier</Text>
-                    <Text>{tx.carrier || "—"}</Text>
-                  </div>
-                  <div className="flex justify-between text-sm mt-1">
-                    <Text className="text-ui-fg-subtle">Tracking</Text>
-                    <Text className="font-mono text-xs">{tx.tracking_number}</Text>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Customer */}
-          <div className="border border-ui-border-base rounded-lg p-4">
-            <Heading level="h2" className="mb-3 text-base">
-              Customer
-            </Heading>
-            <div className="space-y-1">
-              <Text className="font-medium">
-                {tx.customer_name || tx.shipping_name || "—"}
-              </Text>
-              {tx.customer_email && (
-                <Text className="text-sm text-ui-fg-subtle">{tx.customer_email}</Text>
-              )}
-              <Text className="text-xs text-ui-fg-muted font-mono mt-1">
-                ID: {tx.user_id}
-              </Text>
-            </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              style={{ ...s.input, flex: 1 }}
+              placeholder="Add a note…"
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && noteText.trim()) handleAddNote() }}
+            />
+            <button
+              style={s.btnSm("primary")}
+              onClick={handleAddNote}
+              disabled={savingNote || !noteText.trim()}
+            >
+              {savingNote ? "…" : "Save"}
+            </button>
+            <button
+              style={s.btnSm("secondary")}
+              onClick={() => { setShowNoteForm(false); setNoteText("") }}
+            >
+              Cancel
+            </button>
           </div>
         </div>
+      )}
 
-        {/* Right Column — 2/5 */}
-        <div className="lg:col-span-2 flex flex-col gap-6">
-          {/* Action Buttons */}
-          <div className="border border-ui-border-base rounded-lg p-4">
-            <Heading level="h2" className="mb-3 text-base">
-              Actions
-            </Heading>
-            <div className="flex flex-col gap-3">
-              {/* Ship Order */}
-              {isPaid && isUnfulfilled && (
-                <>
-                  {showShipForm ? (
-                    <div className="flex flex-col gap-2 border border-ui-border-base rounded p-3 bg-ui-bg-subtle">
-                      <div>
-                        <Label size="xsmall">Carrier</Label>
-                        <Select value={shipCarrier} onValueChange={setShipCarrier}>
-                          <Select.Trigger>
-                            <Select.Value placeholder="Select carrier..." />
-                          </Select.Trigger>
-                          <Select.Content>
-                            {CARRIERS.map((c) => (
-                              <Select.Item key={c} value={c}>
-                                {c}
-                              </Select.Item>
-                            ))}
-                          </Select.Content>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label size="xsmall">Tracking Number</Label>
-                        <Input
-                          size="small"
-                          placeholder="e.g. 00340434..."
-                          value={shipTracking}
-                          onChange={(e) => setShipTracking(e.target.value)}
-                        />
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          size="small"
-                          onClick={handleShip}
-                          disabled={shipping}
-                        >
-                          {shipping ? "Shipping..." : "Confirm Ship"}
-                        </Button>
-                        <Button
-                          size="small"
-                          variant="secondary"
-                          onClick={() => {
-                            setShowShipForm(false)
-                            setShipCarrier("")
-                            setShipTracking("")
-                          }}
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <Button onClick={() => setShowShipForm(true)}>
-                      {"\uD83D\uDCE6"} Ship Order
-                    </Button>
-                  )}
-                </>
-              )}
-
-              {/* Mark Delivered */}
-              {isPaid && isShipped && (
-                <Button
-                  variant="secondary"
-                  onClick={handleDelivered}
-                  disabled={actionLoading === "deliver"}
-                >
-                  {actionLoading === "deliver" ? "Updating..." : "\u2705 Mark Delivered"}
-                </Button>
-              )}
-
-              {/* Refund */}
-              {isPaid && (
-                <Button
-                  variant="danger"
-                  onClick={handleRefund}
-                  disabled={actionLoading === "refund"}
-                >
-                  {actionLoading === "refund" ? "Refunding..." : "\uD83D\uDCB0 Refund Order"}
-                </Button>
-              )}
-
-              {/* Cancel */}
-              {isPaid && isUnfulfilled && (
-                <>
-                  {showCancelForm ? (
-                    <div className="flex flex-col gap-2 border border-ui-border-base rounded p-3 bg-ui-bg-subtle">
-                      <div>
-                        <Label size="xsmall">Reason (optional)</Label>
-                        <Input
-                          size="small"
-                          placeholder="Reason for cancellation..."
-                          value={cancelReason}
-                          onChange={(e) => setCancelReason(e.target.value)}
-                        />
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          size="small"
-                          variant="danger"
-                          onClick={handleCancel}
-                          disabled={actionLoading === "cancel"}
-                        >
-                          {actionLoading === "cancel" ? "Cancelling..." : "Confirm Cancel"}
-                        </Button>
-                        <Button
-                          size="small"
-                          variant="secondary"
-                          onClick={() => {
-                            setShowCancelForm(false)
-                            setCancelReason("")
-                          }}
-                        >
-                          Back
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <Button
-                      variant="secondary"
-                      onClick={() => setShowCancelForm(true)}
-                    >
-                      {"\u274C"} Cancel Order
-                    </Button>
-                  )}
-                </>
-              )}
-
-              {/* Download Invoice */}
-              {isPaid && tx.order_group_id && (
-                <a
-                  href={`/admin/transactions/${tx.id}/invoice`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-block"
-                >
-                  <Button variant="secondary" className="w-full">
-                    {"\uD83D\uDCC4"} Download Invoice
-                  </Button>
-                </a>
-              )}
-            </div>
+      {/* Cancel form (collapsible) */}
+      {showCancelForm && (
+        <div style={{ ...s.formBox, marginBottom: 14 }}>
+          <label style={s.label}>Cancellation reason (optional)</label>
+          <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+            <input
+              style={{ ...s.input, flex: 1 }}
+              placeholder="Reason for cancellation…"
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+            />
+            <button
+              style={s.btnSm("danger")}
+              onClick={handleCancel}
+              disabled={actionLoading === "cancel"}
+            >
+              {actionLoading === "cancel" ? "Cancelling…" : "Confirm Cancel"}
+            </button>
+            <button
+              style={s.btnSm("secondary")}
+              onClick={() => { setShowCancelForm(false); setCancelReason("") }}
+            >
+              Back
+            </button>
           </div>
+        </div>
+      )}
 
-          {/* Admin Note */}
-          <div className="border border-ui-border-base rounded-lg p-4">
-            <Heading level="h2" className="mb-3 text-base">
-              Admin Note
-            </Heading>
-            {tx.internal_note && (
-              <div className="bg-ui-bg-subtle border border-ui-border-base rounded p-3 mb-3">
-                <Text className="text-sm whitespace-pre-wrap">{tx.internal_note}</Text>
-              </div>
-            )}
-            <div className="flex gap-2">
-              <Input
-                size="small"
-                placeholder="Add a note..."
-                value={noteText}
-                onChange={(e) => setNoteText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && noteText.trim()) handleAddNote()
-                }}
-                className="flex-1"
-              />
-              <Button
-                size="small"
-                onClick={handleAddNote}
-                disabled={savingNote || !noteText.trim()}
+      {/* Ship form (collapsible) */}
+      {showShipForm && (
+        <div style={{ ...s.formBox, marginBottom: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+            <div>
+              <label style={s.label}>Carrier</label>
+              <select
+                style={s.select}
+                value={shipCarrier}
+                onChange={(e) => setShipCarrier(e.target.value)}
               >
-                {savingNote ? "..." : "Add"}
-              </Button>
+                <option value="">Select carrier…</option>
+                {CARRIERS.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={s.label}>Tracking Number</label>
+              <input
+                style={s.input}
+                placeholder="e.g. 00340434…"
+                value={shipTracking}
+                onChange={(e) => setShipTracking(e.target.value)}
+              />
             </div>
           </div>
-
-          {/* Timeline */}
-          <div className="border border-ui-border-base rounded-lg p-4">
-            <Heading level="h2" className="mb-3 text-base">
-              Activity
-            </Heading>
-            {events.length === 0 ? (
-              <Text className="text-ui-fg-subtle text-sm">No events recorded yet.</Text>
-            ) : (
-              <div className="space-y-0">
-                {events
-                  .sort(
-                    (a, b) =>
-                      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-                  )
-                  .map((event, idx) => (
-                    <div
-                      key={event.id || idx}
-                      className="flex gap-3 py-3 border-b border-ui-border-base last:border-b-0"
-                    >
-                      <div className="text-lg flex-shrink-0 mt-0.5">
-                        {EVENT_ICONS[event.event_type] || "\u2022"}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <Text className="text-sm font-medium">{event.title}</Text>
-                        {event.description && (
-                          <Text className="text-xs text-ui-fg-subtle mt-0.5">
-                            {event.description}
-                          </Text>
-                        )}
-                        <div className="flex gap-2 mt-1">
-                          {event.actor && (
-                            <Text className="text-xs text-ui-fg-muted">{event.actor}</Text>
-                          )}
-                          <Text className="text-xs text-ui-fg-muted">
-                            {relativeTime(event.created_at)}
-                          </Text>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            )}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button style={s.btnSm("green")} onClick={handleShip} disabled={shipping}>
+              {shipping ? "Shipping…" : "Confirm Ship"}
+            </button>
+            <button style={s.btnSm("secondary")} onClick={() => { setShowShipForm(false); setShipCarrier(""); setShipTracking("") }}>
+              Cancel
+            </button>
           </div>
+        </div>
+      )}
 
-          {/* Dates Summary */}
-          <div className="border border-ui-border-base rounded-lg p-4">
-            <Heading level="h2" className="mb-3 text-base">
-              Dates
-            </Heading>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <Text className="text-ui-fg-subtle">Created</Text>
-                <Text>{formatDate(tx.created_at)}</Text>
-              </div>
-              {tx.paid_at && (
-                <div className="flex justify-between">
-                  <Text className="text-ui-fg-subtle">Paid</Text>
-                  <Text>{formatDate(tx.paid_at)}</Text>
-                </div>
-              )}
-              {tx.shipped_at && (
-                <div className="flex justify-between">
-                  <Text className="text-ui-fg-subtle">Shipped</Text>
-                  <Text>{formatDate(tx.shipped_at)}</Text>
-                </div>
-              )}
-              {tx.delivered_at && (
-                <div className="flex justify-between">
-                  <Text className="text-ui-fg-subtle">Delivered</Text>
-                  <Text>{formatDate(tx.delivered_at)}</Text>
-                </div>
-              )}
-              {tx.cancelled_at && (
-                <div className="flex justify-between">
-                  <Text className="text-ui-fg-subtle text-ui-fg-error">Cancelled</Text>
-                  <Text>{formatDate(tx.cancelled_at)}</Text>
-                </div>
-              )}
+      {/* Actions Bar */}
+      <div style={s.actionsBar}>
+        <span style={s.actionsLabel}>Actions:</span>
+
+        {isPaid && isUnfulfilled && (
+          <button
+            style={s.btnSm("primary")}
+            onClick={handlePacking}
+            disabled={actionLoading === "packing"}
+          >
+            {actionLoading === "packing" ? "Updating…" : "Mark Packing"}
+          </button>
+        )}
+
+        {isPaid && (
+          <button style={s.btnSm("blue")} onClick={handleLabelPrint}>
+            Print Label ↗
+          </button>
+        )}
+
+        {isPaid && (isUnfulfilled || isPacking || (tx.label_printed_at != null && !isShipped)) && (
+          <button style={s.btnSm("secondary")} onClick={() => setShowShipForm(!showShipForm)}>
+            Mark Shipped
+          </button>
+        )}
+
+        {isPaid && isShipped && (
+          <button
+            style={s.btnSm("green")}
+            onClick={handleDelivered}
+            disabled={actionLoading === "deliver"}
+          >
+            {actionLoading === "deliver" ? "Updating…" : "Mark Delivered"}
+          </button>
+        )}
+
+        <button
+          style={s.btnSm("secondary")}
+          onClick={() => alert("Send Confirmation Email — not yet implemented")}
+        >
+          Send Confirmation Email
+        </button>
+
+        {!isDelivered && !isShipped && (
+          <button
+            style={s.btnSm("secondary")}
+            onClick={() => setShowCancelForm(!showCancelForm)}
+          >
+            Cancel Order
+          </button>
+        )}
+      </div>
+
+      {/* Top 3-column grid: Customer | Shipping | Payment */}
+      <div style={s.topGrid}>
+
+        {/* Customer */}
+        <div style={s.panel}>
+          <div style={s.panelTitle}>Customer</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "#111827", marginBottom: 2 }}>
+            {tx.customer_name || tx.shipping_name || "—"}
+          </div>
+          <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 10 }}>
+            {tx.customer_email || "—"}
+          </div>
+          <div style={{ ...s.infoRow }}>
+            <span style={s.infoLabel}>Customer since</span>
+            <span style={s.infoValue}>N/A</span>
+          </div>
+          <div style={{ ...s.infoRow }}>
+            <span style={s.infoLabel}>Total orders</span>
+            <span style={s.infoValue}>N/A</span>
+          </div>
+          <div style={{ ...s.infoRow, borderBottom: "none" }}>
+            <span style={s.infoLabel}>Total spent</span>
+            <span style={s.infoValue}>N/A</span>
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <a
+              href={`/app/customers?q=${encodeURIComponent(tx.customer_email || tx.user_id)}`}
+              style={s.link}
+            >
+              View customer profile →
+            </a>
+          </div>
+        </div>
+
+        {/* Shipping Address */}
+        <div style={s.panel}>
+          <div style={s.panelTitle}>Shipping Address</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#111827", marginBottom: 6 }}>
+            {tx.shipping_name || "—"}
+          </div>
+          <div style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.7 }}>
+            {tx.shipping_address_line1 || "—"}<br />
+            {[tx.shipping_postal_code, tx.shipping_city].filter(Boolean).join(" ") || "—"}<br />
+            {tx.shipping_country ? `${tx.shipping_country}` : "—"}
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <div style={s.infoRow}>
+              <span style={s.infoLabel}>Shipping zone</span>
+              <span style={s.infoValue}>{getShippingZone(tx.shipping_country)}</span>
+            </div>
+            <div style={s.infoRow}>
+              <span style={s.infoLabel}>Shipping cost</span>
+              <span style={s.infoValue}>{formatAmount(tx.shipping_cost)}</span>
+            </div>
+            <div style={{ ...s.infoRow, borderBottom: "none" }}>
+              <span style={s.infoLabel}>Tracking #</span>
+              <span style={{ ...s.infoValue, color: tx.tracking_number ? "#374151" : "#9ca3af" }}>
+                {tx.tracking_number || "not yet"}
+              </span>
             </div>
           </div>
         </div>
+
+        {/* Payment */}
+        <div style={s.panel}>
+          <div style={s.panelTitle}>Payment</div>
+          <div style={s.infoRow}>
+            <span style={s.infoLabel}>Provider</span>
+            <span style={s.infoValue}>{providerLabel}</span>
+          </div>
+          <div style={s.infoRow}>
+            <span style={s.infoLabel}>Amount</span>
+            <span style={{ fontWeight: 800, color: "#6366f1", fontSize: 14 }}>
+              {formatAmount(tx.total_amount)}
+            </span>
+          </div>
+          <div style={s.infoRow}>
+            <span style={s.infoLabel}>Paid at</span>
+            <span style={s.infoValue}>
+              {tx.paid_at
+                ? new Date(tx.paid_at).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+                : "—"}
+            </span>
+          </div>
+          {tx.stripe_payment_intent_id && (
+            <div style={s.infoRow}>
+              <span style={s.infoLabel}>Stripe PI</span>
+              <span style={s.infoValueMono}>{truncate(tx.stripe_payment_intent_id)}</span>
+            </div>
+          )}
+          {tx.paypal_order_id && (
+            <div style={s.infoRow}>
+              <span style={s.infoLabel}>PayPal Order</span>
+              <span style={s.infoValueMono}>{truncate(tx.paypal_order_id)}</span>
+            </div>
+          )}
+          {tx.paypal_capture_id && (
+            <div style={s.infoRow}>
+              <span style={s.infoLabel}>Capture ID</span>
+              <span style={s.infoValueMono}>{truncate(tx.paypal_capture_id)}</span>
+            </div>
+          )}
+          <div style={{ ...s.infoRow, borderBottom: "none" }}>
+            <span style={s.infoLabel}>Verified</span>
+            <span style={{ fontWeight: 500, color: "#16a34a" }}>✓ Server-side</span>
+          </div>
+          {tx.discount_amount != null && Number(tx.discount_amount) > 0 && (
+            <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #f3f4f6", fontSize: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: "#9ca3af" }}>
+                  Discount{tx.promo_code ? ` (${tx.promo_code})` : ""}
+                </span>
+                <span style={{ color: "#dc2626", fontWeight: 600 }}>−{formatAmount(tx.discount_amount)}</span>
+              </div>
+            </div>
+          )}
+        </div>
+
       </div>
-    </Container>
+
+      {/* 2-column grid: Order Items | Fulfillment Pipeline */}
+      <div style={s.wideGrid}>
+
+        {/* Order Items */}
+        <div style={s.panel}>
+          <div style={s.panelTitle}>Order Items</div>
+          <div style={s.itemCard}>
+            <div style={s.itemCover}>💿</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>
+                {tx.release_title || "—"}
+              </div>
+              <div style={{ fontSize: 12, color: "#6b7280", marginTop: 1 }}>
+                {tx.release_artist || ""}
+              </div>
+              <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 4 }}>
+                {tx.lot_number && tx.block_title && (
+                  <>
+                    <a
+                      href={tx.block_slug ? `/app/auction-blocks/${tx.block_slug}` : "/app/auction-blocks"}
+                      style={s.link}
+                    >
+                      Lot #{tx.lot_number} in {tx.block_title}
+                    </a>
+                    {" · "}
+                  </>
+                )}
+                {tx.release_id && (
+                  <a
+                    href={`/app/catalog?release=${tx.release_id}`}
+                    style={s.link}
+                  >
+                    View Release →
+                  </a>
+                )}
+              </div>
+              <div style={{ marginTop: 6 }}>
+                <span style={{
+                  display: "inline-block",
+                  borderRadius: 4, padding: "2px 7px",
+                  fontSize: 10, fontWeight: 600,
+                  ...(tx.item_type === "direct_purchase"
+                    ? { background: "#dbeafe", color: "#1d4ed8" }
+                    : { background: "#f3e8ff", color: "#9333ea" })
+                }}>
+                  {itemTypeLabel}
+                </span>
+              </div>
+            </div>
+            <div>
+              <div style={{ display: "flex", gap: 16, marginTop: 8 }}>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: 10, color: "#9ca3af", textTransform: "uppercase" }}>Bid</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>{formatAmount(tx.amount)}</div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: 10, color: "#9ca3af", textTransform: "uppercase" }}>Shipping</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>{formatAmount(tx.shipping_cost)}</div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: 10, color: "#9ca3af", textTransform: "uppercase" }}>Total</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: "#6366f1" }}>{formatAmount(tx.total_amount)}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Invoice link */}
+          {isPaid && tx.order_group_id && (
+            <div style={{ marginTop: 14, paddingTop: 10, borderTop: "1px solid #f3f4f6" }}>
+              <a
+                href={`/admin/transactions/${tx.id}/invoice`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ ...s.link, fontSize: 12 }}
+              >
+                📄 Download Invoice PDF →
+              </a>
+            </div>
+          )}
+        </div>
+
+        {/* Fulfillment Pipeline */}
+        <div style={s.panel}>
+          <div style={s.panelTitle}>Fulfillment Pipeline</div>
+
+          {/* Stepper */}
+          <div style={s.stepperWrap}>
+            <div style={s.stepNode}>
+              <div style={s.stepCircle(stepState(1))}>
+                {stepState(1) === "done" ? "✓" : "1"}
+              </div>
+              <div style={s.stepLabel}>Payment<br />Received</div>
+            </div>
+            <div style={s.stepLine(currentStep > 1)} />
+            <div style={s.stepNode}>
+              <div style={s.stepCircle(stepState(2))}>
+                {stepState(2) === "done" ? "✓" : "2"}
+              </div>
+              <div style={s.stepLabel}>Pack It</div>
+            </div>
+            <div style={s.stepLine(currentStep > 2)} />
+            <div style={s.stepNode}>
+              <div style={s.stepCircle(stepState(3))}>
+                {stepState(3) === "done" ? "✓" : "3"}
+              </div>
+              <div style={s.stepLabel}>Print Label</div>
+            </div>
+            <div style={s.stepLine(currentStep > 3)} />
+            <div style={s.stepNode}>
+              <div style={s.stepCircle(stepState(4))}>
+                {stepState(4) === "done" ? "✓" : "4"}
+              </div>
+              <div style={s.stepLabel}>Ship</div>
+            </div>
+            <div style={s.stepLine(currentStep > 4)} />
+            <div style={s.stepNode}>
+              <div style={s.stepCircle(stepState(5))}>
+                {stepState(5) === "done" ? "✓" : "5"}
+              </div>
+              <div style={s.stepLabel}>Delivered</div>
+            </div>
+          </div>
+
+          {/* Current step info box */}
+          <div style={s.stepInfoBox}>
+            <strong>Current step:</strong> {stepDesc.current}<br />
+            {stepDesc.next !== "Complete" && (
+              <span style={{ opacity: 0.8 }}>{stepDesc.next}</span>
+            )}
+          </div>
+
+          {/* Step dates */}
+          <div style={{ marginTop: 4 }}>
+            <div style={s.infoRow}>
+              <span style={s.infoLabel}>Packed at</span>
+              <span style={{ ...s.infoValue, color: isPacking || tx.label_printed_at ? "#374151" : "#9ca3af" }}>
+                {isPacking || tx.label_printed_at || isShipped || isDelivered
+                  ? (tx.paid_at ? formatDate(tx.paid_at) : "—")
+                  : "—"}
+              </span>
+            </div>
+            <div style={s.infoRow}>
+              <span style={s.infoLabel}>Label printed</span>
+              <span style={{ ...s.infoValue, color: tx.label_printed_at ? "#374151" : "#9ca3af" }}>
+                {tx.label_printed_at ? formatDate(tx.label_printed_at) : "—"}
+              </span>
+            </div>
+            <div style={s.infoRow}>
+              <span style={s.infoLabel}>Shipped at</span>
+              <span style={{ ...s.infoValue, color: tx.shipped_at ? "#374151" : "#9ca3af" }}>
+                {tx.shipped_at ? formatDate(tx.shipped_at) : "—"}
+              </span>
+            </div>
+            <div style={{ ...s.infoRow, borderBottom: "none" }}>
+              <span style={s.infoLabel}>Tracking #</span>
+              <span style={{ ...s.infoValue, color: tx.tracking_number ? "#374151" : "#9ca3af" }}>
+                {tx.tracking_number
+                  ? `${tx.carrier ? tx.carrier + " · " : ""}${tx.tracking_number}`
+                  : "—"}
+              </span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      {/* Audit Trail (full width) */}
+      <div style={s.panel}>
+        <div style={s.panelTitle}>Audit Trail</div>
+        {sortedEvents.length === 0 ? (
+          <p style={{ color: "#9ca3af", fontSize: 12 }}>No events recorded yet.</p>
+        ) : (
+          sortedEvents.map((event, idx) => {
+            const detailText = event.description || event.details || null
+            return (
+              <div
+                key={event.id || idx}
+                style={{
+                  ...s.auditItem,
+                  ...(idx === sortedEvents.length - 1 ? { borderBottom: "none" } : {}),
+                }}
+              >
+                <div style={s.auditDot(getEventDotColor(event.event_type))} />
+                <div style={{ flex: 1 }}>
+                  <div style={s.auditTitle}>{event.title}</div>
+                  {detailText && (
+                    <div style={s.auditDetail}>
+                      {typeof detailText === "string"
+                        ? detailText
+                        : JSON.stringify(detailText)}
+                    </div>
+                  )}
+                  {event.actor && (
+                    <div style={{ fontSize: 10, color: "#c4b5fd", marginTop: 2 }}>
+                      by {event.actor}
+                    </div>
+                  )}
+                </div>
+                <div style={s.auditTime}>{formatDateShort(event.created_at)}</div>
+              </div>
+            )
+          })
+        )}
+      </div>
+
+    </div>
   )
 }
 
