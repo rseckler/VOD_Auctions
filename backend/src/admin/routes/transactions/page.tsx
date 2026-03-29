@@ -643,40 +643,38 @@ const TransactionsPage = () => {
                               </div>
                             </div>
                           ) : (
-                            <button
+                            <span
                               onClick={() => setShippingDialog(tx.id)}
-                              style={{ padding: "3px 10px", fontSize: 12, fontWeight: 600, background: "#111827", color: "#fff", border: "none", borderRadius: 5, cursor: "pointer" }}
+                              style={{ display: "inline-block", padding: "4px 10px", fontSize: 12, fontWeight: 600, background: "#111827", color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", whiteSpace: "nowrap", lineHeight: "18px" }}
                             >
                               Ship →
-                            </button>
+                            </span>
                           )}
                         </>
                       )}
                       {tx.status === "paid" && (tx.fulfillment_status === "shipped" || tx.shipping_status === "shipped") && (
-                        <button
+                        <span
                           onClick={() => markAsDelivered(tx.id)}
-                          style={{ padding: "3px 10px", fontSize: 12, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 5, cursor: "pointer", color: "#374151" }}
+                          style={{ display: "inline-block", padding: "4px 10px", fontSize: 12, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 5, cursor: "pointer", color: "#374151", whiteSpace: "nowrap", lineHeight: "18px" }}
                         >
                           Delivered
-                        </button>
+                        </span>
                       )}
                       {tx.status === "paid" && (
                         <div style={{ display: "flex", gap: 4 }}>
-                          <button
-                            onClick={() => refundTransaction(tx.id)}
-                            disabled={refunding === tx.id}
-                            style={{ padding: "3px 10px", fontSize: 12, background: "#fee2e2", color: "#b91c1c", border: "1px solid #fca5a5", borderRadius: 5, cursor: "pointer" }}
+                          <span
+                            onClick={() => !refunding && refundTransaction(tx.id)}
+                            style={{ display: "inline-block", padding: "4px 10px", fontSize: 12, background: "#fee2e2", color: "#b91c1c", border: "1px solid #fca5a5", borderRadius: 5, cursor: refunding ? "default" : "pointer", whiteSpace: "nowrap", lineHeight: "18px", opacity: refunding === tx.id ? 0.5 : 1 }}
                           >
                             {refunding === tx.id ? "..." : "Refund"}
-                          </button>
-                          <button
-                            onClick={() => markRefunded(tx.id)}
-                            disabled={refunding === tx.id}
+                          </span>
+                          <span
+                            onClick={() => !refunding && markRefunded(tx.id)}
                             title="Mark as refunded — refund was already processed externally (webhook missed)"
-                            style={{ padding: "3px 10px", fontSize: 12, background: "#ede9fe", color: "#6d28d9", border: "1px solid #c4b5fd", borderRadius: 5, cursor: "pointer" }}
+                            style={{ display: "inline-block", padding: "4px 10px", fontSize: 12, background: "#ede9fe", color: "#6d28d9", border: "1px solid #c4b5fd", borderRadius: 5, cursor: refunding ? "default" : "pointer", whiteSpace: "nowrap", lineHeight: "18px", opacity: refunding === tx.id ? 0.5 : 1 }}
                           >
                             {refunding === tx.id ? "..." : "Mark ✓"}
-                          </button>
+                          </span>
                         </div>
                       )}
                     </div>
