@@ -621,7 +621,7 @@ const TransactionsPage = () => {
 
                   {/* Actions */}
                   <td style={{ padding: "12px 14px" }} onClick={e => e.stopPropagation()}>
-                    <div style={{ display: "flex", gap: 6, alignItems: "flex-start" }} data-no-nav>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }} data-no-nav>
                       {tx.status === "paid" && (tx.fulfillment_status === "unfulfilled" || tx.shipping_status === "pending") && (
                         <>
                           {shippingDialog === tx.id ? (
@@ -645,7 +645,7 @@ const TransactionsPage = () => {
                           ) : (
                             <button
                               onClick={() => setShippingDialog(tx.id)}
-                              style={{ padding: "4px 10px", fontSize: 12, fontWeight: 600, background: "#111827", color: "#fff", border: "none", borderRadius: 5, cursor: "pointer" }}
+                              style={{ padding: "3px 10px", fontSize: 12, fontWeight: 600, background: "#111827", color: "#fff", border: "none", borderRadius: 5, cursor: "pointer" }}
                             >
                               Ship →
                             </button>
@@ -655,29 +655,29 @@ const TransactionsPage = () => {
                       {tx.status === "paid" && (tx.fulfillment_status === "shipped" || tx.shipping_status === "shipped") && (
                         <button
                           onClick={() => markAsDelivered(tx.id)}
-                          style={{ padding: "4px 10px", fontSize: 12, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 5, cursor: "pointer", color: "#374151" }}
+                          style={{ padding: "3px 10px", fontSize: 12, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 5, cursor: "pointer", color: "#374151" }}
                         >
                           Delivered
                         </button>
                       )}
                       {tx.status === "paid" && (
-                        <button
-                          onClick={() => refundTransaction(tx.id)}
-                          disabled={refunding === tx.id}
-                          style={{ padding: "4px 10px", fontSize: 12, background: "#fee2e2", color: "#b91c1c", border: "1px solid #fca5a5", borderRadius: 5, cursor: "pointer" }}
-                        >
-                          {refunding === tx.id ? "..." : "Refund"}
-                        </button>
-                      )}
-                      {tx.status === "paid" && (
-                        <button
-                          onClick={() => markRefunded(tx.id)}
-                          disabled={refunding === tx.id}
-                          title="Mark as refunded (refund was already processed externally)"
-                          style={{ padding: "4px 10px", fontSize: 12, background: "#ede9fe", color: "#6d28d9", border: "1px solid #c4b5fd", borderRadius: 5, cursor: "pointer" }}
-                        >
-                          {refunding === tx.id ? "..." : "Mark Refunded ✓"}
-                        </button>
+                        <div style={{ display: "flex", gap: 4 }}>
+                          <button
+                            onClick={() => refundTransaction(tx.id)}
+                            disabled={refunding === tx.id}
+                            style={{ padding: "3px 10px", fontSize: 12, background: "#fee2e2", color: "#b91c1c", border: "1px solid #fca5a5", borderRadius: 5, cursor: "pointer" }}
+                          >
+                            {refunding === tx.id ? "..." : "Refund"}
+                          </button>
+                          <button
+                            onClick={() => markRefunded(tx.id)}
+                            disabled={refunding === tx.id}
+                            title="Mark as refunded — refund was already processed externally (webhook missed)"
+                            style={{ padding: "3px 10px", fontSize: 12, background: "#ede9fe", color: "#6d28d9", border: "1px solid #c4b5fd", borderRadius: 5, cursor: "pointer" }}
+                          >
+                            {refunding === tx.id ? "..." : "Mark ✓"}
+                          </button>
+                        </div>
                       )}
                     </div>
                   </td>
