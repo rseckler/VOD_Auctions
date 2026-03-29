@@ -4,7 +4,7 @@
 **Goal:** Eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Phase 1 fertig — RSE-77 (Testlauf) als nächster Schritt
 **Language:** Storefront + Admin-UI: Englisch
-**Last Updated:** 2026-03-29
+**Last Updated:** 2026-03-30
 
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
@@ -64,7 +64,9 @@ npm run build && pm2 restart vodauction-storefront
 
 **Neue Admin-Route hinzugefügt?** Vite-Cache clearen vor dem Build: `rm -rf node_modules/.vite .medusa && npx medusa build`. Sonst registriert der Vite-Plugin die neue Route nicht (→ 404 oder silent crash).
 
-**Git Workflow:** NIE `git pull` auf VPS machen wenn VPS-Code nicht vorher auf GitHub gepusht wurde.
+**Git Workflow:** NIE `git pull` auf VPS machen wenn VPS-Code nicht vorher auf GitHub gepusht wurde. Deploy-Reihenfolge IMMER: `git push origin main` auf Mac → dann `git pull` auf VPS. Sonst sagt VPS "Already up to date" obwohl neue Commits fehlen.
+
+**Neue API-Route nicht in Build:** Wenn `backend/src/api/admin/X/route.ts` nach dem Build nicht in `.medusa/server/src/api/admin/X/` erscheint → Clean Build: `rm -rf .medusa node_modules/.vite && npx medusa build`. Inkrementelle Builds registrieren neue Route-Verzeichnisse nicht zuverlässig.
 
 ## Key Gotchas
 
@@ -323,6 +325,16 @@ VOD_Auctions/
 - **Refund-Status-Fix** — `summary.unpaid` zählt nur `status = 'pending'`. Neues Feld `summary.refunded`. Badges und Step-Anzeige zeigen Refunds in lila, nicht als "Awaiting Payment".
 - **Orders-Seite Redesign** — raw `<table>` statt Medusa `Table`, gleicher Stil wie Auction Blocks. Advanced Filter hinter `Filters ▾`. Shopify-style Quick Tabs. Bulk-Action floating Pill.
 - **Sidebar Extensions-Fix** — `admin-nav.tsx`: CSS `nav [data-radix-collapsible-trigger] { display: none }` (beide +/− Varianten). JS `.includes("Extensions")`.
+
+### 2026-03-30 — Rudderstack CDP + Test Runner Overhaul
+- **Rudderstack Backend (16 Events):** Bid Placed, Payment Completed (Stripe+PayPal), Order Shipped, Cart Item Added, Item Saved/Unsaved, Checkout Started, Newsletter Opted In/Out, Newsletter Confirmed, Customer Registered/Logged In. Import: `rudderTrack` aus `lib/rudderstack.ts`.
+- **Rudderstack Storefront (6 Events):** Bid Submitted, Checkout Started/Completed, Product Viewed (CatalogViewTracker), Item Saved (SaveForLaterButton), Search Performed (CatalogClient ≥2 Zeichen, debounced). Import: `rudderTrack` aus `@/lib/rudderstack`.
+- **Rudderstack Credentials:** Write Key + Data Plane URL `secklerrovofrz.dataplane.rudderstack.com` — Cloud Data Plane, kein VPS-Setup nötig.
+- **Test Runner Overhaul:** `spawn` statt `exec` → Live-Streaming via SSE (`GET /admin/test-runner/stream?jobId=X`). Admin-UI: dunkles Terminal mit Echtzeit-Output, Auto-Scroll, Farbkodierung (✓ grün, ✗ rot).
+- **Playwright-Fix VPS:** `tests/node_modules` war defekter Symlink auf lokalen Mac-Pfad → ersetzt durch echtes Verzeichnis mit Symlink auf `storefront/node_modules/@playwright/test`. `@playwright/test` + Chromium auf VPS installiert.
+- **Admin Dashboard Redirect:** nginx `admin.vod-auctions.com` → `/` + `/app` leiten auf `/app/dashboard` weiter.
+- **Deploy-Gotcha:** `git push origin main` ZUERST auf Mac, dann `git pull` auf VPS — sonst "Already up to date" obwohl neue Commits fehlen.
+- **Neue API-Route-Gotcha:** Neue `src/api/admin/X/route.ts` → Clean Build nötig: `rm -rf .medusa node_modules/.vite && npx medusa build`. Sonst nicht in `.medusa/server/src/api/admin/` → 401 statt Route.
 
 ### 2026-03-30 — Admin AI Assistant
 - **AI Assistant** `/app/ai-assistant` (NEU, rank 6, Sparkles-Icon) — Chat-Interface mit Claude Haiku. Streaming SSE. 5 read-only Tools: `get_dashboard_stats`, `list_auction_blocks`, `search_transactions`, `search_media`, `get_system_health`. Tool-Chips in UI (klickbar für Raw-JSON). Markdown-Rendering. `@anthropic-ai/sdk` + `ANTHROPIC_API_KEY` in `backend/.env`.
