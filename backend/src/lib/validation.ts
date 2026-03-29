@@ -32,7 +32,7 @@ export const CreateBlockItemSchema = z.object({
 })
 
 export const UpdateTransactionSchema = z.object({
-  action: z.enum(["ship", "refund", "note", "cancel", "mark_paid", "packing", "label_printed"]),
+  action: z.enum(["ship", "refund", "note", "cancel", "mark_paid", "packing", "label_printed", "mark_refunded"]),
   tracking_number: z.string().optional(),
   carrier: z.string().optional(),
   note: z.string().max(2000).optional(),
