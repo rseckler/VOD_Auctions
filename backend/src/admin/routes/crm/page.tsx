@@ -299,7 +299,7 @@ function CustomerDetailDrawer({
 
   return (
     <>
-      <div style={overlayStyle} onClick={onClose} />
+      {isOpen && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 999 }} onClick={onClose} />}
       <div style={drawerStyle}>
         {/* Header */}
         <div
