@@ -57,6 +57,11 @@ function getCurrentStep(lot: Lot): StepInfo {
   if (!lot.winner || !tx) {
     return { step: 0, label: "No Bid", color: "#9ca3af", bg: "#f3f4f6" }
   }
+  // Terminal states — check before fulfillment
+  if (tx.status === "refunded")  return { step: -1, label: "Refunded",       color: "#7c3aed", bg: "#ede9fe" }
+  if (tx.status === "cancelled") return { step: -1, label: "Cancelled",      color: "#6b7280", bg: "#f3f4f6" }
+  if (tx.status === "failed")    return { step: -1, label: "Payment Failed", color: "#dc2626", bg: "#fee2e2" }
+
   const paid = tx.status === "paid"
   const packing = ["packing", "shipped"].includes(tx.fulfillment_status)
   const labeled = !!tx.label_printed_at
@@ -101,6 +106,9 @@ function ActionButton({ lot, onAction, loading }: {
     </button>
   )
 
+  if (step.step === -1) return (
+    <span style={{ fontSize: 11, color: step.color, fontWeight: 600 }}>{step.label}</span>
+  )
   if (step.step === 5) return (
     <div style={{ display: "flex", alignItems: "center" }}>
       <span style={{ fontSize: 11, color: "#16a34a", fontWeight: 600 }}>Done ✓</span>

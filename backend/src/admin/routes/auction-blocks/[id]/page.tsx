@@ -272,13 +272,18 @@ function EndedStateDashboard({
   const getTxStatusLabel = (lot: PostAuctionLot): { label: string; color: string } => {
     if (!lot.transaction) return { label: "Awaiting Payment", color: "#ef4444" }
     const { status, fulfillment_status } = lot.transaction
+    // Terminal states first — must be checked before fulfillment
+    if (status === "refunded") return { label: "Refunded", color: "#7c3aed" }
+    if (status === "cancelled") return { label: "Cancelled", color: "#6b7280" }
+    if (status === "failed") return { label: "Payment Failed", color: "#dc2626" }
+    // Fulfillment states
     if (fulfillment_status === "delivered") return { label: "Done ✓", color: "#22c55e" }
-    if (fulfillment_status === "shipped") return { label: "Shipped", color: "#22c55e" }
+    if (fulfillment_status === "shipped") return { label: "Shipped ✓", color: "#22c55e" }
     if (fulfillment_status === "packing") {
       if (lot.transaction.label_printed_at) return { label: "Label Printed", color: "#3b82f6" }
       return { label: "Packing", color: "#f59e0b" }
     }
-    if (status === "paid") return { label: "Paid", color: "#22c55e" }
+    if (status === "paid") return { label: "Paid — Pack it", color: "#b45309" }
     return { label: "Awaiting Payment", color: "#ef4444" }
   }
 
