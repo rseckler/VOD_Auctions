@@ -25,18 +25,27 @@ const BACK_NAV_ID = "vod-back-nav"
 function injectBackNav() {
   if (!window.location) return
   const path = window.location.pathname
-
-  // Remove any existing back nav
-  document.getElementById(BACK_NAV_ID)?.remove()
-
   const parent = PARENT_HUB[path]
-  if (!parent) return
+
+  const existing = document.getElementById(BACK_NAV_ID)
+
+  // If no parent hub for this path, remove any existing nav bar and stop
+  if (!parent) {
+    existing?.remove()
+    return
+  }
+
+  // Idempotency check: if correct nav bar already exists, do nothing (prevents DOM mutation loop)
+  if (existing && existing.dataset.href === parent.href) return
+
+  existing?.remove()
 
   const main = document.querySelector("main") || document.querySelector("[data-testid='main-content']")
   if (!main) return
 
   const bar = document.createElement("div")
   bar.id = BACK_NAV_ID
+  bar.dataset.href = parent.href
   bar.style.cssText = `
     display: flex;
     align-items: center;
