@@ -87,8 +87,24 @@ function ActionButton({ lot, onAction, loading }: {
     whiteSpace: "nowrap", transition: "opacity 0.15s",
   }
 
+  const handleRefund = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    const amount = lot.final_price !== null ? `€${Number(lot.final_price).toFixed(2)}` : "this amount"
+    if (!window.confirm(`Refund ${amount} for Lot #${lot.lot_number} (${lot.release_title})? This cannot be undone.`)) return
+    onAction(tx.id, "refund")
+  }
+
+  const refundBtn = (
+    <button onClick={handleRefund} disabled={isLoading}
+      style={{ ...base, background: "#fff", color: "#dc2626", border: "1px solid #fca5a5", marginLeft: 4 }}>
+      Refund
+    </button>
+  )
+
   if (step.step === 5) return (
-    <span style={{ fontSize: 11, color: "#16a34a", fontWeight: 600 }}>Done ✓</span>
+    <div style={{ display: "flex", alignItems: "center" }}>
+      <span style={{ fontSize: 11, color: "#16a34a", fontWeight: 600 }}>Done ✓</span>
+    </div>
   )
   if (step.step === 1) return (
     <button disabled style={{ ...base, background: "#f3f4f6", color: "#9ca3af", cursor: "not-allowed" }}>
@@ -96,22 +112,31 @@ function ActionButton({ lot, onAction, loading }: {
     </button>
   )
   if (step.step === 2) return (
-    <button onClick={() => onAction(tx.id, "packing")} disabled={isLoading}
-      style={{ ...base, background: "#6366f1", color: "#fff" }}>
-      {isLoading ? "…" : "Mark Packing"}
-    </button>
+    <div style={{ display: "flex", alignItems: "center" }}>
+      <button onClick={(e) => { e.stopPropagation(); onAction(tx.id, "packing") }} disabled={isLoading}
+        style={{ ...base, background: "#6366f1", color: "#fff" }}>
+        {isLoading ? "…" : "Mark Packing"}
+      </button>
+      {refundBtn}
+    </div>
   )
   if (step.step === 3) return (
-    <button onClick={() => window.open(`/admin/transactions/${tx.id}/shipping-label`, "_blank")}
-      style={{ ...base, background: "#2563eb", color: "#fff" }}>
-      Print Label ↗
-    </button>
+    <div style={{ display: "flex", alignItems: "center" }}>
+      <button onClick={(e) => { e.stopPropagation(); window.open(`/admin/transactions/${tx.id}/shipping-label`, "_blank") }}
+        style={{ ...base, background: "#2563eb", color: "#fff" }}>
+        Print Label ↗
+      </button>
+      {refundBtn}
+    </div>
   )
   if (step.step === 4) return (
-    <button onClick={() => onAction(tx.id, "ship")} disabled={isLoading}
-      style={{ ...base, background: "#16a34a", color: "#fff" }}>
-      {isLoading ? "…" : "Mark Shipped"}
-    </button>
+    <div style={{ display: "flex", alignItems: "center" }}>
+      <button onClick={(e) => { e.stopPropagation(); onAction(tx.id, "ship") }} disabled={isLoading}
+        style={{ ...base, background: "#16a34a", color: "#fff" }}>
+        {isLoading ? "…" : "Mark Shipped"}
+      </button>
+      {refundBtn}
+    </div>
   )
   return null
 }
@@ -311,16 +336,6 @@ export default function PostAuctionPage() {
             }}
           >
             ← Analytics
-          </a>
-          <a
-            href={`/app/auction-blocks/${blockId}/post-auction/workflow`}
-            style={{
-              padding: "7px 14px", borderRadius: 6, fontSize: 12, fontWeight: 600,
-              cursor: "pointer", background: "#6366f1", color: "#fff",
-              border: "none", textDecoration: "none", display: "inline-block",
-            }}
-          >
-            Post-Auction Workflow →
           </a>
         </div>
       </div>
@@ -556,7 +571,7 @@ export default function PostAuctionPage() {
               {/* Table header row */}
               <div style={{
                 display: "grid",
-                gridTemplateColumns: "48px 1fr 140px 80px 120px 140px",
+                gridTemplateColumns: "48px 1fr 140px 80px 120px 180px",
                 gap: 10, padding: "8px 14px",
                 background: "#f9fafb", borderBottom: "1px solid #e5e7eb",
               }}>
@@ -580,13 +595,15 @@ export default function PostAuctionPage() {
                 return (
                   <div key={lot.id} style={{
                     display: "grid",
-                    gridTemplateColumns: "48px 1fr 140px 80px 120px 140px",
+                    gridTemplateColumns: "48px 1fr 140px 80px 120px 180px",
                     gap: 10, padding: "12px 14px", alignItems: "center",
                     borderBottom: "1px solid #f3f4f6",
                     opacity: isNoBid ? 0.5 : 1,
                     transition: "background 0.1s",
+                    cursor: tx ? "pointer" : "default",
                   }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "#f9fafb")}
+                    onClick={() => tx && (window.location.href = `/app/transactions/${tx.id}`)}
+                    onMouseEnter={(e) => { if (tx) e.currentTarget.style.background = "#f0f9ff" }}
                     onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                   >
                     {/* Lot # */}

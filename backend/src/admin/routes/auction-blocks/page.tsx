@@ -79,7 +79,8 @@ function BlocksTable({
         {rows.map((block) => (
           <Table.Row
             key={block.id}
-            className={isLive ? "bg-green-50 dark:bg-green-950/20" : ""}
+            className={`cursor-pointer hover:bg-ui-bg-subtle-hover ${isLive ? "bg-green-50 dark:bg-green-950/20" : ""}`}
+            onClick={() => { window.location.href = `/app/auction-blocks/${block.id}` }}
           >
             <Table.Cell>
               <div>
@@ -122,7 +123,7 @@ function BlocksTable({
               )}
             </Table.Cell>
             <Table.Cell>{block.items?.length || 0}</Table.Cell>
-            <Table.Cell>
+            <Table.Cell onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center gap-2">
                 {block.status === "ended" ? (
                   <a href={`/app/auction-blocks/${block.id}/post-auction`}>
@@ -141,7 +142,7 @@ function BlocksTable({
                   <Button
                     variant="danger"
                     size="small"
-                    onClick={() => onDelete(block)}
+                    onClick={(e) => { e.stopPropagation(); onDelete(block) }}
                   >
                     Delete
                   </Button>
