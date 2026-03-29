@@ -1,5 +1,6 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { CurrencyDollar } from "@medusajs/icons"
+import { useAdminNav } from "../../components/admin-nav"
 import {
   Container,
   Heading,
@@ -93,6 +94,7 @@ const PROVIDERS = [
 const PAGE_SIZES = [25, 50, 100]
 
 const TransactionsPage = () => {
+  useAdminNav()
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
   const [totalCount, setTotalCount] = useState(0)

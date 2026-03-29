@@ -1,6 +1,7 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { FolderOpen } from "@medusajs/icons"
 import { useEffect, useState } from "react"
+import { useAdminNav } from "../../components/admin-nav"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -89,6 +90,7 @@ function HubCard({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 function CatalogHub() {
+  useAdminNav()
   const [stats, setStats] = useState<CatalogStats | null>(null)
 
   useEffect(() => {

@@ -1,6 +1,7 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { CogSixTooth } from "@medusajs/icons"
 import { useEffect, useState } from "react"
+import { useAdminNav } from "../../components/admin-nav"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -81,6 +82,7 @@ function HubCard({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 function OperationsHub() {
+  useAdminNav()
   const [liveAuctions, setLiveAuctions] = useState<LiveAuction[]>([])
 
   useEffect(() => {

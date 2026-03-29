@@ -1,5 +1,6 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { EnvelopeSolid } from "@medusajs/icons"
+import { useAdminNav } from "../../components/admin-nav"
 
 // ─── Card component ───────────────────────────────────────────────────────────
 
@@ -78,6 +79,7 @@ function HubCard({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 function MarketingHub() {
+  useAdminNav()
   return (
     <div style={{ padding: "32px 36px", maxWidth: 900, fontFamily: "var(--font-sans, system-ui, sans-serif)" }}>
       {/* Header */}

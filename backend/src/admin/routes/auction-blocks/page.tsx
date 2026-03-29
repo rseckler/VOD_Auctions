@@ -2,6 +2,7 @@ import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { ChatBubbleLeftRight } from "@medusajs/icons"
 import { Container, Heading, Table, Badge, Button, Text } from "@medusajs/ui"
 import { useEffect, useState, useRef } from "react"
+import { useAdminNav } from "../../components/admin-nav"
 
 type AuctionBlock = {
   id: string
@@ -155,36 +156,10 @@ function BlocksTable({
 }
 
 const AuctionBlocksPage = () => {
+  useAdminNav()
   const [blocks, setBlocks] = useState<AuctionBlock[]>([])
   const [loading, setLoading] = useState(true)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-
-  // Inject CSS once to hide unused Medusa default nav items
-  useEffect(() => {
-    if (document.getElementById("vod-hide-nav")) return
-    const style = document.createElement("style")
-    style.id = "vod-hide-nav"
-    style.textContent = `
-      a[href="/app/orders"],
-      a[href="/app/orders/drafts"],
-      a[href="/app/products"],
-      a[href="/app/inventory"],
-      a[href="/app/customers"],
-      a[href="/app/promotions"],
-      a[href="/app/price-lists"] {
-        display: none !important;
-      }
-      li:has(a[href="/app/orders"]),
-      li:has(a[href="/app/products"]),
-      li:has(a[href="/app/inventory"]),
-      li:has(a[href="/app/customers"]),
-      li:has(a[href="/app/promotions"]),
-      li:has(a[href="/app/price-lists"]) {
-        display: none !important;
-      }
-    `
-    document.head.appendChild(style)
-  }, [])
 
   const fetchBlocks = async () => {
     try {
