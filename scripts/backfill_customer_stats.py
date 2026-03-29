@@ -12,7 +12,7 @@ Safe to re-run — uses INSERT ... ON CONFLICT DO UPDATE.
 import os
 import sys
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 import psycopg2
 import psycopg2.extras
@@ -87,7 +87,7 @@ def main():
     """)
 
     rows = cur.fetchall()
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     dormant_cutoff = now - timedelta(days=DORMANT_DAYS)
 
     upserted = 0
