@@ -32,6 +32,18 @@ export default function PayPalButton({
   const [error, setError] = useState("")
   const buttonsRendered = useRef(false)
 
+  // Always-current refs so PayPal button closures never use stale values
+  const itemsRef = useRef(items)
+  const countryCodeRef = useRef(countryCode)
+  const shippingAddressRef = useRef(shippingAddress)
+  const shippingMethodIdRef = useRef(shippingMethodId)
+  const promoCodeRef = useRef(promoCode)
+  useEffect(() => { itemsRef.current = items }, [items])
+  useEffect(() => { countryCodeRef.current = countryCode }, [countryCode])
+  useEffect(() => { shippingAddressRef.current = shippingAddress }, [shippingAddress])
+  useEffect(() => { shippingMethodIdRef.current = shippingMethodId }, [shippingMethodId])
+  useEffect(() => { promoCodeRef.current = promoCode }, [promoCode])
+
   useEffect(() => {
     if (!containerRef.current || buttonsRendered.current || disabled) return
 
@@ -57,16 +69,23 @@ export default function PayPalButton({
             },
 
             createOrder: async (_data: any, actions: any) => {
+              // Read from refs to always get latest values (avoid stale closure bug)
+              const currentItems = itemsRef.current
+              const currentCountryCode = countryCodeRef.current
+              const currentShippingAddress = shippingAddressRef.current
+              const currentShippingMethodId = shippingMethodIdRef.current
+              const currentPromoCode = promoCodeRef.current
+
               // First, create order on our backend (validates items, creates transactions)
               const token = getToken()
               if (!token) throw new Error("Not authenticated")
 
               const body: any = {
-                items,
-                country_code: countryCode,
-                shipping_address: shippingAddress,
-                ...(shippingMethodId ? { shipping_method_id: shippingMethodId } : {}),
-                ...(promoCode ? { promo_code: promoCode } : {}),
+                items: currentItems,
+                country_code: currentCountryCode,
+                shipping_address: currentShippingAddress,
+                ...(currentShippingMethodId ? { shipping_method_id: currentShippingMethodId } : {}),
+                ...(currentPromoCode ? { promo_code: currentPromoCode } : {}),
               }
 
               const res = await fetch(
@@ -88,19 +107,17 @@ export default function PayPalButton({
               }
 
               // Create PayPal order via JS SDK (instead of REST API)
-              // This avoids "international regulations" errors in sandbox
+              // Note: application_context is a REST API field — not used here
               return actions.order.create({
+                intent: "CAPTURE",
                 purchase_units: [{
                   amount: {
-                    value: apiData.amount.toFixed(2),
+                    value: Number(apiData.amount).toFixed(2),
                     currency_code: "EUR",
                   },
                   description: "VOD Auctions",
                   custom_id: apiData.order_group_id,
                 }],
-                application_context: {
-                  shipping_preference: "NO_SHIPPING",
-                },
               })
             },
 
