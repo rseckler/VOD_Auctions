@@ -66,9 +66,7 @@ async function getReleaseInfo(pg: Knex, releaseId: string) {
     artistName = artist?.name
   }
 
-  const coverImage = release.coverImage
-    ? `https://tape-mag.com/bilder/gross/${release.coverImage}`
-    : undefined
+  const coverImage = release.coverImage || undefined
 
   return { title: release.title, artistName, coverImage }
 }
@@ -470,9 +468,7 @@ export async function sendWatchlistReminderEmail(
     .first()
   if (!release) return
 
-  const coverImage = release.coverImage
-    ? `https://tape-mag.com/bilder/gross/${release.coverImage}`
-    : undefined
+  const coverImage = release.coverImage || undefined
 
   // 5. Get customer email
   const customer = await pg("customer")
