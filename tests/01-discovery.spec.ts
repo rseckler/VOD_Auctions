@@ -39,13 +39,16 @@ test.describe("Password Gate", () => {
 
 test.describe("Homepage", () => {
   test.beforeEach(async ({ context }) => {
-    // Bypass gate with cookie
+    // Bypass gate with cookie — domain derived from BASE_URL
+    const baseUrl = process.env.BASE_URL || "http://localhost:3000"
+    const domain = new URL(baseUrl).hostname
     await context.addCookies([
       {
         name: "vod_access",
         value: "granted",
-        domain: "localhost",
+        domain,
         path: "/",
+        secure: domain !== "localhost",
       },
     ])
   })

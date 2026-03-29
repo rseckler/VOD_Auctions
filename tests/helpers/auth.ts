@@ -5,14 +5,16 @@ import { Page, BrowserContext } from "@playwright/test"
  * Call this in beforeEach for every test except the gate test itself.
  */
 export async function bypassGate(context: BrowserContext) {
+  const baseUrl = process.env.BASE_URL || "http://localhost:3000"
+  const domain = new URL(baseUrl).hostname
   await context.addCookies([
     {
       name: "vod_access",
       value: "granted",
-      domain: "localhost",
+      domain,
       path: "/",
       httpOnly: false,
-      secure: false,
+      secure: domain !== "localhost",
     },
   ])
 }
