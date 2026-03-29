@@ -4,6 +4,22 @@ Vollständiger Entwicklungs-Changelog. Aktuelle Änderungen stehen in CLAUDE.md.
 
 ---
 
+### 2026-03-30 — E2E Test Suite: Neue Admin-Route Coverage
+
+**`tests/10-admin.spec.ts` — 5 neue Smoke-Tests**
+- `admin dashboard route accessible` → `/app/dashboard`
+- `admin ai-assistant route accessible` → `/app/ai-assistant`
+- `admin catalog hub route accessible` → `/app/catalog`
+- `admin marketing hub route accessible` → `/app/marketing`
+- `admin operations hub route accessible` → `/app/operations`
+
+Alle Tests folgen dem bestehenden Login-then-Navigate-Muster. Bestehende Tests bleiben valide (`/app/transactions`, `/app/auction-blocks`, `/app/live-monitor` existieren weiterhin — Sidebar-Umbenennung "Transactions" → "Orders" betrifft nur den Label, nicht die Route-URL).
+
+**`backend/src/admin/routes/test-runner/page.tsx`**
+- Subtitle-Counter aktualisiert: "64 tests" → "69 tests across 10 spec files"
+
+---
+
 ### 2026-03-29 — Admin UX Overhaul: Task-Oriented Layout + Orders Redesign (RSE-269)
 
 **Ended-State Task Dashboard (`auction-blocks/[id]/page.tsx`)**

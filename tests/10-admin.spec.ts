@@ -115,6 +115,91 @@ test.describe("Admin", () => {
     await page.waitForLoadState("networkidle", { timeout: 20_000 })
     await expect(page.locator("body")).toBeVisible()
   })
+
+  test("admin dashboard route accessible", async ({ page }) => {
+    await page.goto("/app")
+    await page.waitForLoadState("networkidle", { timeout: 20_000 })
+
+    const emailInput = page.locator('input[type="email"], input[name="email"]').first()
+    if (await emailInput.isVisible()) {
+      await emailInput.fill(ADMIN_EMAIL)
+      await page.locator('input[type="password"]').first().fill(ADMIN_PASSWORD)
+      await page.getByRole("button", { name: /sign in|log in|continue/i }).first().click()
+      await page.waitForLoadState("networkidle", { timeout: 15_000 })
+    }
+
+    await page.goto("/app/dashboard")
+    await page.waitForLoadState("networkidle", { timeout: 20_000 })
+    await expect(page.locator("main, body").first()).toBeVisible()
+  })
+
+  test("admin ai-assistant route accessible", async ({ page }) => {
+    await page.goto("/app")
+    await page.waitForLoadState("networkidle", { timeout: 20_000 })
+
+    const emailInput = page.locator('input[type="email"], input[name="email"]').first()
+    if (await emailInput.isVisible()) {
+      await emailInput.fill(ADMIN_EMAIL)
+      await page.locator('input[type="password"]').first().fill(ADMIN_PASSWORD)
+      await page.getByRole("button", { name: /sign in|log in|continue/i }).first().click()
+      await page.waitForLoadState("networkidle", { timeout: 15_000 })
+    }
+
+    await page.goto("/app/ai-assistant")
+    await page.waitForLoadState("networkidle", { timeout: 20_000 })
+    await expect(page.locator("main, body").first()).toBeVisible()
+  })
+
+  test("admin catalog hub route accessible", async ({ page }) => {
+    await page.goto("/app")
+    await page.waitForLoadState("networkidle", { timeout: 20_000 })
+
+    const emailInput = page.locator('input[type="email"], input[name="email"]').first()
+    if (await emailInput.isVisible()) {
+      await emailInput.fill(ADMIN_EMAIL)
+      await page.locator('input[type="password"]').first().fill(ADMIN_PASSWORD)
+      await page.getByRole("button", { name: /sign in|log in|continue/i }).first().click()
+      await page.waitForLoadState("networkidle", { timeout: 15_000 })
+    }
+
+    await page.goto("/app/catalog")
+    await page.waitForLoadState("networkidle", { timeout: 20_000 })
+    await expect(page.locator("main, body").first()).toBeVisible()
+  })
+
+  test("admin marketing hub route accessible", async ({ page }) => {
+    await page.goto("/app")
+    await page.waitForLoadState("networkidle", { timeout: 20_000 })
+
+    const emailInput = page.locator('input[type="email"], input[name="email"]').first()
+    if (await emailInput.isVisible()) {
+      await emailInput.fill(ADMIN_EMAIL)
+      await page.locator('input[type="password"]').first().fill(ADMIN_PASSWORD)
+      await page.getByRole("button", { name: /sign in|log in|continue/i }).first().click()
+      await page.waitForLoadState("networkidle", { timeout: 15_000 })
+    }
+
+    await page.goto("/app/marketing")
+    await page.waitForLoadState("networkidle", { timeout: 20_000 })
+    await expect(page.locator("main, body").first()).toBeVisible()
+  })
+
+  test("admin operations hub route accessible", async ({ page }) => {
+    await page.goto("/app")
+    await page.waitForLoadState("networkidle", { timeout: 20_000 })
+
+    const emailInput = page.locator('input[type="email"], input[name="email"]').first()
+    if (await emailInput.isVisible()) {
+      await emailInput.fill(ADMIN_EMAIL)
+      await page.locator('input[type="password"]').first().fill(ADMIN_PASSWORD)
+      await page.getByRole("button", { name: /sign in|log in|continue/i }).first().click()
+      await page.waitForLoadState("networkidle", { timeout: 15_000 })
+    }
+
+    await page.goto("/app/operations")
+    await page.waitForLoadState("networkidle", { timeout: 20_000 })
+    await expect(page.locator("main, body").first()).toBeVisible()
+  })
 })
 
 test.describe("Admin: Create Auction Block via API", () => {

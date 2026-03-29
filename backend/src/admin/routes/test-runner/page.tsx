@@ -246,7 +246,7 @@ const TestRunnerPage = () => {
         <div>
           <Heading level="h1">E2E Test Runner</Heading>
           <Text className="text-ui-fg-subtle mt-1">
-            Playwright end-to-end tests — 64 tests across 10 spec files
+            Playwright end-to-end tests — 69 tests across 10 spec files
           </Text>
         </div>
         <Button
