@@ -463,6 +463,46 @@ export default function SettingsPage() {
           </form>
         </Card>
 
+        {/* Data & Privacy */}
+        <Card className="p-6">
+          <h3 className="text-sm font-medium text-muted-foreground mb-2">
+            Data & Privacy
+          </h3>
+          <Separator className="my-3" />
+          <p className="text-sm text-muted-foreground mb-4">
+            Download all personal data we hold about you (GDPR Art. 20 — Right to Data Portability).
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              const token = getToken()
+              if (!token) return
+              try {
+                const res = await fetch(`${MEDUSA_URL}/store/account/gdpr-export`, {
+                  headers: {
+                    "x-publishable-api-key": PUBLISHABLE_KEY,
+                    Authorization: `Bearer ${token}`,
+                  },
+                })
+                if (!res.ok) throw new Error("Export failed")
+                const blob = await res.blob()
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement("a")
+                a.href = url
+                a.download = `vod-auctions-data-${new Date().toISOString().split("T")[0]}.json`
+                a.click()
+                URL.revokeObjectURL(url)
+                toast.success("Data export downloaded")
+              } catch {
+                toast.error("Failed to export data. Please try again.")
+              }
+            }}
+          >
+            Download My Data
+          </Button>
+        </Card>
+
         {/* Delete Account */}
         <Card className="p-6 border-destructive/30">
           <div className="flex items-center gap-2 mb-2">
