@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { upsertContact, BREVO_LIST_VOD_AUCTIONS } from "../../../../lib/brevo"
 import { verifyConfirmToken } from "../route"
+import { rudderTrack } from "../../../../lib/rudderstack"
 
 const STOREFRONT_URL = process.env.STOREFRONT_URL || "http://localhost:3000"
 
@@ -65,6 +66,9 @@ export async function GET(
         WHERE customer_id = ?
           AND NOT (tags @> ARRAY['newsletter_subscriber'])
       `, [customer.id])
+      rudderTrack(customer.id, "Newsletter Confirmed", { email: normalised })
+    } else {
+      rudderTrack(normalised, "Newsletter Confirmed", { email: normalised })
     }
   } catch (e: any) {
     // Non-critical — don't block redirect

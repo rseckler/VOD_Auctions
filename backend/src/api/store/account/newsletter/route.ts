@@ -8,6 +8,7 @@ import {
   isBrevoConfigured,
   BREVO_LIST_VOD_AUCTIONS,
 } from "../../../../lib/brevo"
+import { rudderTrack } from "../../../../lib/rudderstack"
 
 // GET /store/account/newsletter — Get newsletter opt-in status
 export async function GET(
@@ -130,6 +131,10 @@ export async function POST(
     } catch (e: any) {
       console.warn("[newsletter] customer_stats tag sync failed:", e.message)
     }
+
+    rudderTrack(customerId, newsletter_optin ? "Newsletter Opted In" : "Newsletter Opted Out", {
+      email: customer.email,
+    })
 
     console.log(
       `[newsletter] ${newsletter_optin ? "Opt-in" : "Opt-out"}: ${customer.email}`
