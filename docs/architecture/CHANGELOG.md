@@ -4,6 +4,27 @@ Vollständiger Entwicklungs-Changelog. Aktuelle Änderungen stehen in CLAUDE.md.
 
 ---
 
+### 2026-03-30 — Orders: Mark Refunded Action + UI Fixes (RSE-269 follow-up)
+
+**Backend (`api/admin/transactions/[id]/route.ts`)**
+- Neue Action `mark_refunded`: Setzt `status = refunded` in der DB ohne Stripe/PayPal API aufzurufen. Iteriert alle Transaktionen der `order_group_id`. Setzt `auction_status = available` auf verknüpftem Release. Schreibt `order_event` Audit-Entry "Marked as refunded (manual)".
+- Abgesichert: gibt 400 zurück wenn `status` bereits `refunded`.
+
+**Validation (`lib/validation.ts`)**
+- `UpdateTransactionSchema.action` Zod-Enum: `mark_refunded` hinzugefügt. Vorher: Request schlug mit "Validation failed" fehl.
+
+**Orders UI (`admin/routes/transactions/page.tsx`)**
+- Neue Funktion `markRefunded()` — ruft `action: "mark_refunded"` auf.
+- Lila "Mark ✓" Button neben rotem "Refund" Button für alle `status=paid` Transaktionen.
+- **Layout-Fix:** Alle Action-Buttons als `<span>` statt `<button>` → umgeht Medusa globales `button { min-height }` CSS. Buttons in vertikalem Stack: Ship oben, Refund + Mark ✓ unten nebeneinander. `whiteSpace: nowrap` + `lineHeight: 18px`.
+
+**Dashboard (`admin/routes/dashboard/page.tsx`)**
+- "Cancel Order" Button in Overdue Payment Cards (ACTION REQUIRED). Ruft `action: "cancel"` auf. Entfernt Transaction sofort aus Queue via State-Update. Für Fälle wo Payment-Reminder Cron nicht läuft.
+
+**Commits:** `8c96247` · `68ceb84` · `c3e3fad` · `b552c1b`
+
+---
+
 ### 2026-03-30 — E2E Test Suite: Neue Admin-Route Coverage
 
 **`tests/10-admin.spec.ts` — 5 neue Smoke-Tests**

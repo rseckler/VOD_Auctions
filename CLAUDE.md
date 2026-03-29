@@ -4,7 +4,7 @@
 **Goal:** Eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Phase 1 fertig — RSE-77 (Testlauf) als nächster Schritt
 **Language:** Storefront + Admin-UI: Englisch
-**Last Updated:** 2026-03-29
+**Last Updated:** 2026-03-30
 
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
@@ -303,6 +303,14 @@ VOD_Auctions/
 **Backlog:** RSE-78 (Launch, offen: AGB-Anwalt) | RSE-79 (Erste öffentliche Auktionen) | RSE-80 (Marketing)
 
 ## Recent Changes
+
+### 2026-03-30 — Orders: Mark Refunded Action + UI Fixes (RSE-269 follow-up)
+- **`action: "mark_refunded"`** — Neues Action-Verb in `POST /admin/transactions/:id`. Setzt `status = refunded` in der DB **ohne** Stripe/PayPal API aufzurufen. Für den Fall, dass Refund direkt im Provider-Dashboard ausgeführt wurde und der Webhook nicht gefeuert hat. Aktualisiert auch `auction_status = available` auf dem Release.
+- **`UpdateTransactionSchema`** — `mark_refunded` zu Zod-Enum hinzugefügt (`validation.ts`). War vorher nicht valide → "Validation failed"-Fehler.
+- **"Mark ✓" Button in Orders** — Lila Button neben "Refund" für alle `status=paid` Transaktionen. Tooltip erklärt den Unterschied. Zeigt keine API-Interaktion, nur DB-Update.
+- **Action-Buttons Layout-Fix** — Stacked vertical (Ship → oben, Refund + Mark ✓ unten nebeneinander). `<span>` statt `<button>` um Medusa's globales `button { min-height }` CSS zu umgehen. `whiteSpace: nowrap` + `lineHeight: 18px` für konsistente Größe.
+- **Dashboard Cancel-Button** — "Cancel Order" Button in ACTION REQUIRED / Overdue Payment Items. Ruft `action: "cancel"` auf, entfernt Transaction sofort aus der Queue (State-Update ohne Reload).
+- **`order_event` Audit Trail** — `mark_refunded` schreibt Event: "Marked as refunded (manual — refund processed externally)".
 
 ### 2026-03-29 — Admin UX Overhaul: Task-Oriented Layout + Orders Redesign (RSE-269)
 - **Ended-State Task Dashboard** — `auction-blocks/[id]/page.tsx`: Block-Detailseite bei `status=ended` zeigt NEXT STEPS (4 Schritt-Cards: Winner Emails → Payments → Pack & Ship → Archive). Payments-Step unterscheidet pending vs. refunded. Relist-Modal (Draft / Scheduled / Make Available). Analytics + Edit als Accordion.
