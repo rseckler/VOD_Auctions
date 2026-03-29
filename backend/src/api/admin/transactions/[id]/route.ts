@@ -370,6 +370,56 @@ export async function POST(
     return
   }
 
+  // ── MARK REFUNDED (manual — refund processed externally) ──
+  if (action === "mark_refunded") {
+    try {
+      const tx = await pgConnection("transaction").where("id", id).first()
+      if (!tx) {
+        res.status(404).json({ message: "Transaction not found" })
+        return
+      }
+      if (tx.status === "refunded") {
+        res.status(400).json({ message: "Already marked as refunded" })
+        return
+      }
+
+      const orderGroupId = tx.order_group_id || tx.id
+      const transactions = tx.order_group_id
+        ? await pgConnection("transaction").where("order_group_id", orderGroupId)
+        : [tx]
+
+      for (const t of transactions) {
+        await pgConnection("transaction")
+          .where("id", t.id)
+          .update({ status: "refunded", updated_at: new Date() })
+        const releaseId = t.release_id || t.block_item_id
+          ? (await pgConnection("block_item").where("id", t.block_item_id).first())?.release_id
+          : null
+        if (t.release_id) {
+          await pgConnection("Release")
+            .where("id", t.release_id)
+            .update({ auction_status: "available", updatedAt: new Date() })
+        }
+      }
+
+      await pgConnection("order_event").insert({
+        id: generateEntityId(),
+        order_group_id: orderGroupId,
+        event_type: "refund",
+        title: "Marked as refunded (manual — refund processed externally)",
+        details: JSON.stringify({ transactions_updated: transactions.length }),
+        actor: "admin",
+        created_at: new Date(),
+      })
+
+      res.json({ success: true, transactions_updated: transactions.length })
+    } catch (error: any) {
+      console.error("[admin/mark_refunded] Error:", error)
+      res.status(500).json({ message: error.message || "Failed to mark as refunded" })
+    }
+    return
+  }
+
   // ── PACKING ACTION ──
   if (action === "packing") {
     try {

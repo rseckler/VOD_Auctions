@@ -244,6 +244,22 @@ const TransactionsPage = () => {
     finally { setRefunding(null) }
   }
 
+  const markRefunded = async (id: string) => {
+    if (!window.confirm("Mark as refunded? Use this when the refund was already processed externally (e.g. via Stripe/PayPal dashboard) and the webhook didn't update the DB. This only updates the database — no money will be moved.")) return
+    setRefunding(id)
+    try {
+      const res = await fetch(`/admin/transactions/${id}`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "mark_refunded" }),
+      })
+      const data = await res.json()
+      if (!res.ok) alert(`Failed: ${data.message}`)
+      else fetchTransactions()
+    } catch { alert("Failed. Check console.") }
+    finally { setRefunding(null) }
+  }
+
   const bulkShip = async () => {
     if (selected.size === 0) return
     setBulkUpdating(true)
@@ -651,6 +667,16 @@ const TransactionsPage = () => {
                           style={{ padding: "4px 10px", fontSize: 12, background: "#fee2e2", color: "#b91c1c", border: "1px solid #fca5a5", borderRadius: 5, cursor: "pointer" }}
                         >
                           {refunding === tx.id ? "..." : "Refund"}
+                        </button>
+                      )}
+                      {tx.status === "paid" && (
+                        <button
+                          onClick={() => markRefunded(tx.id)}
+                          disabled={refunding === tx.id}
+                          title="Mark as refunded (refund was already processed externally)"
+                          style={{ padding: "4px 10px", fontSize: 12, background: "#ede9fe", color: "#6d28d9", border: "1px solid #c4b5fd", borderRadius: 5, cursor: "pointer" }}
+                        >
+                          {refunding === tx.id ? "..." : "Mark Refunded ✓"}
                         </button>
                       )}
                     </div>
