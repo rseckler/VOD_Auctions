@@ -5,6 +5,7 @@ import {
   isBrevoConfigured,
   BREVO_LIST_VOD_AUCTIONS,
 } from "./brevo"
+import { rudderTrack, rudderIdentify } from "./rudderstack"
 
 /**
  * CRM Event-Sync: Fire-and-forget Brevo contact updates.
@@ -50,6 +51,17 @@ export async function crmSyncRegistration(
     REGISTRATION_DATE: new Date().toISOString().split("T")[0],
   }, listIds)
 
+  rudderIdentify(customerId, {
+    email: customer.email,
+    first_name: customer.first_name || "",
+    last_name: customer.last_name || "",
+  })
+  rudderTrack(customerId, "Customer Registered", {
+    email: customer.email,
+    first_name: customer.first_name || "",
+    last_name: customer.last_name || "",
+  })
+
   console.log(`[crm-sync] Registration synced: ${customer.email}`)
 }
 
@@ -76,6 +88,11 @@ export async function crmSyncBidPlaced(
     LAST_BID_DATE: new Date().toISOString().split("T")[0],
     LAST_BID_AMOUNT: bidAmount,
     CUSTOMER_SEGMENT: "bidder",
+  })
+
+  rudderTrack(customerId, "Bid Placed", {
+    bid_amount: bidAmount,
+    total_bids: Number(bidStats?.total || 0),
   })
 
   console.log(`[crm-sync] Bid synced: ${customer.email}, €${bidAmount}`)
@@ -106,6 +123,11 @@ export async function crmSyncAuctionWon(
     TOTAL_AUCTIONS_WON: Number(wonCount?.total || 0),
     LAST_PURCHASE_DATE: new Date().toISOString().split("T")[0],
     CUSTOMER_SEGMENT: "buyer",
+  })
+
+  rudderTrack(customerId, "Auction Won", {
+    amount: price,
+    total_auctions_won: Number(wonCount?.total || 0),
   })
 
   console.log(`[crm-sync] Auction won synced: ${customer.email}, €${price}`)
@@ -164,6 +186,14 @@ export async function crmSyncPaymentCompleted(
     ...addressAttributes,
   })
 
+  const orderTotal = transactions.reduce((sum, t) => sum + Number(t.amount || 0), 0)
+  rudderTrack(customerId, "Payment Completed", {
+    order_group_id: orderGroupId,
+    amount: orderTotal,
+    total_purchases: Number(lifetimeStats?.total_purchases || 0),
+    total_spent: Number(parseFloat(lifetimeStats?.total_spent || "0").toFixed(2)),
+  })
+
   console.log(`[crm-sync] Payment synced: ${customer.email}, group ${orderGroupId}`)
 }
 
@@ -194,6 +224,10 @@ export async function crmSyncShippingUpdate(
   }
 
   await updateContactAttributes(customer.email, attrs)
+
+  rudderTrack(transaction.user_id, shippingStatus === "shipped" ? "Order Shipped" : "Order Delivered", {
+    transaction_id: transactionId,
+  })
 
   console.log(`[crm-sync] Shipping ${shippingStatus} synced: ${customer.email}`)
 }

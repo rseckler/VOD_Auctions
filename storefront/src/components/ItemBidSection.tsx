@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
 import { brevoBidPlaced } from "@/lib/brevo-tracking"
+import { rudderTrack } from "@/lib/rudderstack"
 
 /**
  * Tiered bid increment table (mirrors backend logic).
@@ -413,6 +414,7 @@ function BidForm({
       } else {
         toast.success(`Bid of €${data.amount.toFixed(2)} placed successfully!`)
         brevoBidPlaced(itemId, data.amount, slug)
+        rudderTrack("Bid Submitted", { amount: data.amount, block_item_id: itemId, slug })
         onBidPlaced()
       }
     } catch {

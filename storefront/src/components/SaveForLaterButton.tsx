@@ -6,6 +6,7 @@ import { useAuth } from "@/components/AuthProvider"
 import { getToken } from "@/lib/auth"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
 import { toast } from "sonner"
+import { rudderTrack } from "@/lib/rudderstack"
 
 type Props = {
   releaseId: string
@@ -87,6 +88,7 @@ export function SaveForLaterButton({ releaseId, variant = "icon" }: Props) {
           setSaved(true)
           setSavedItemId(data.item?.id || null)
           await refreshStatus()
+          rudderTrack("Item Saved", { release_id: releaseId })
           toast.success("Saved for later!")
         } else if (res.status === 409) {
           setSaved(true)

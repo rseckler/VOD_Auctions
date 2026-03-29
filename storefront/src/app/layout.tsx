@@ -11,6 +11,7 @@ import { BackToTop } from "@/components/BackToTop"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { HotjarProvider } from "@/components/providers/HotjarProvider"
+import RudderstackProvider from "@/components/RudderstackProvider"
 import "./globals.css"
 
 const dmSans = DM_Sans({
@@ -111,6 +112,7 @@ export default async function RootLayout({
             <BrevoTracker />
             <CookieConsent />
             <HotjarProvider />
+            <RudderstackProvider />
           </TooltipProvider>
         </AuthProvider>
       </body>

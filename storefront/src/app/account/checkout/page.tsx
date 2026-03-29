@@ -28,6 +28,7 @@ import {
 import { toast } from "sonner"
 import { brevoCheckoutStarted, brevoOrderCompleted } from "@/lib/brevo-tracking"
 import { trackBeginCheckout, trackPurchase } from "@/lib/analytics"
+import { rudderTrack } from "@/lib/rudderstack"
 import type { WinEntry, Transaction, CartItem } from "@/types"
 
 // PayPal is loaded lazily — only rendered when user selects PayPal payment
@@ -475,6 +476,7 @@ export default function CheckoutPage() {
         ? "PayPal payment successful! You will receive a confirmation email."
         : "Payment successful! You will receive a confirmation email.")
       brevoOrderCompleted("checkout", 0, 0)
+      rudderTrack("Checkout Completed", { provider: provider || "stripe" })
       setCartItems([])
       setWins([])
       refreshStatus()
@@ -625,6 +627,7 @@ export default function CheckoutPage() {
     if (!loading && hasItems && !checkoutTracked) {
       brevoCheckoutStarted(unpaidWins.length + cartItems.length, itemsTotal)
       trackBeginCheckout({ value: itemsTotal, itemCount: unpaidWins.length + cartItems.length })
+      rudderTrack("Checkout Started", { cart_total: itemsTotal, item_count: unpaidWins.length + cartItems.length })
       setCheckoutTracked(true)
     }
   }, [loading, hasItems, checkoutTracked])
@@ -845,6 +848,7 @@ export default function CheckoutPage() {
     setPaymentSuccess(true)
     toast.success("PayPal payment successful!")
     brevoOrderCompleted("checkout", grandTotal, unpaidWins.length + cartItems.length)
+    rudderTrack("Checkout Completed", { order_group_id: data.order_group_id, amount: grandTotal, provider: "paypal" })
     trackPurchase({
       transactionId: data.order_group_id,
       value: grandTotal,
@@ -886,6 +890,7 @@ export default function CheckoutPage() {
     setPaymentSuccess(true)
     toast.success("Payment successful!")
     brevoOrderCompleted("checkout", grandTotal, unpaidWins.length + cartItems.length)
+    rudderTrack("Checkout Completed", { order_group_id: orderGroupId, amount: grandTotal, provider: "stripe" })
     trackPurchase({
       transactionId: orderGroupId,
       value: grandTotal,

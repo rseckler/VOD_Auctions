@@ -2,6 +2,57 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 
+// Helper: re-fetch customer with stats (shared by GET and PATCH)
+async function fetchCustomerWithStats(pgConnection: Knex, id: string) {
+  return pgConnection("customer as c")
+    .leftJoin("customer_stats as cs", "cs.customer_id", "c.id")
+    .where("c.id", id)
+    .select(
+      "c.id",
+      "c.email",
+      "c.first_name",
+      "c.last_name",
+      "c.phone",
+      "c.created_at",
+      "c.deleted_at",
+      pgConnection.raw("COALESCE(cs.total_spent, 0) as total_spent"),
+      pgConnection.raw("COALESCE(cs.total_purchases, 0) as total_purchases"),
+      pgConnection.raw("COALESCE(cs.total_bids, 0) as total_bids"),
+      pgConnection.raw("COALESCE(cs.total_wins, 0) as total_wins"),
+      "cs.last_purchase_at",
+      "cs.first_purchase_at",
+      "cs.last_bid_at",
+      pgConnection.raw("COALESCE(cs.tags, '{}') as tags"),
+      pgConnection.raw("COALESCE(cs.is_vip, false) as is_vip"),
+      pgConnection.raw("COALESCE(cs.is_dormant, false) as is_dormant"),
+      "cs.updated_at as stats_updated_at"
+    )
+    .first()
+}
+
+function formatCustomer(customer: any) {
+  return {
+    id: customer.id,
+    email: customer.email,
+    name: [customer.first_name, customer.last_name].filter(Boolean).join(" ") || customer.email,
+    first_name: customer.first_name,
+    last_name: customer.last_name,
+    phone: customer.phone,
+    created_at: customer.created_at,
+    total_spent: Number(customer.total_spent),
+    total_purchases: Number(customer.total_purchases),
+    total_bids: Number(customer.total_bids),
+    total_wins: Number(customer.total_wins),
+    last_purchase_at: customer.last_purchase_at,
+    first_purchase_at: customer.first_purchase_at,
+    last_bid_at: customer.last_bid_at,
+    tags: customer.tags || [],
+    is_vip: Boolean(customer.is_vip),
+    is_dormant: Boolean(customer.is_dormant),
+    stats_updated_at: customer.stats_updated_at,
+  }
+}
+
 // GET /admin/customers/:id — Customer detail with full stats + order history
 export async function GET(
   req: MedusaRequest,
@@ -14,33 +65,9 @@ export async function GET(
   )
 
   try {
-    // Customer + stats
-    const customer = await pgConnection("customer as c")
-      .leftJoin("customer_stats as cs", "cs.customer_id", "c.id")
-      .where("c.id", id)
-      .whereNull("c.deleted_at")
-      .select(
-        "c.id",
-        "c.email",
-        "c.first_name",
-        "c.last_name",
-        "c.phone",
-        "c.created_at",
-        pgConnection.raw("COALESCE(cs.total_spent, 0) as total_spent"),
-        pgConnection.raw("COALESCE(cs.total_purchases, 0) as total_purchases"),
-        pgConnection.raw("COALESCE(cs.total_bids, 0) as total_bids"),
-        pgConnection.raw("COALESCE(cs.total_wins, 0) as total_wins"),
-        "cs.last_purchase_at",
-        "cs.first_purchase_at",
-        "cs.last_bid_at",
-        pgConnection.raw("COALESCE(cs.tags, '{}') as tags"),
-        pgConnection.raw("COALESCE(cs.is_vip, false) as is_vip"),
-        pgConnection.raw("COALESCE(cs.is_dormant, false) as is_dormant"),
-        "cs.updated_at as stats_updated_at"
-      )
-      .first()
+    const customer = await fetchCustomerWithStats(pgConnection, id)
 
-    if (!customer) {
+    if (!customer || customer.deleted_at) {
       res.status(404).json({ message: "Customer not found" })
       return
     }
@@ -106,26 +133,7 @@ export async function GET(
       )
 
     res.json({
-      customer: {
-        id: customer.id,
-        email: customer.email,
-        name: [customer.first_name, customer.last_name].filter(Boolean).join(" ") || customer.email,
-        first_name: customer.first_name,
-        last_name: customer.last_name,
-        phone: customer.phone,
-        created_at: customer.created_at,
-        total_spent: Number(customer.total_spent),
-        total_purchases: Number(customer.total_purchases),
-        total_bids: Number(customer.total_bids),
-        total_wins: Number(customer.total_wins),
-        last_purchase_at: customer.last_purchase_at,
-        first_purchase_at: customer.first_purchase_at,
-        last_bid_at: customer.last_bid_at,
-        tags: customer.tags || [],
-        is_vip: Boolean(customer.is_vip),
-        is_dormant: Boolean(customer.is_dormant),
-        stats_updated_at: customer.stats_updated_at,
-      },
+      customer: formatCustomer(customer),
       orders: orders.map((o: any) => ({
         id: o.id,
         order_number: o.order_number,
@@ -157,5 +165,99 @@ export async function GET(
   } catch (err: any) {
     console.error(`[admin/customers/${id}] Error:`, err.message)
     res.status(500).json({ message: "Failed to fetch customer" })
+  }
+}
+
+// PATCH /admin/customers/:id — Update customer profile + stats
+export async function PATCH(
+  req: MedusaRequest,
+  res: MedusaResponse
+): Promise<void> {
+  const { id } = req.params
+  const body = req.body as {
+    first_name?: string
+    last_name?: string
+    email?: string
+    phone?: string
+    tags?: string[]
+    is_vip?: boolean
+    is_dormant?: boolean
+  }
+
+  const pgConnection: Knex = req.scope.resolve(
+    ContainerRegistrationKeys.PG_CONNECTION
+  )
+
+  try {
+    // Check customer exists
+    const existing = await pgConnection("customer")
+      .where("id", id)
+      .select("id", "email")
+      .first()
+
+    if (!existing) {
+      res.status(404).json({ message: "Customer not found" })
+      return
+    }
+
+    // 1. Email change: check uniqueness + update auth_identity
+    if (body.email && body.email !== existing.email) {
+      const duplicate = await pgConnection("customer")
+        .where("email", body.email)
+        .whereNot("id", id)
+        .select("id")
+        .first()
+
+      if (duplicate) {
+        res.status(400).json({ message: "Email already in use" })
+        return
+      }
+
+      // Update auth_identity (best-effort)
+      try {
+        await pgConnection("auth_identity")
+          .where("entity_id", id)
+          .update({
+            provider_identity: pgConnection.raw(
+              `jsonb_set(COALESCE(provider_identity, '{}'), '{user_metadata,email}', ?::jsonb)`,
+              [JSON.stringify(body.email)]
+            ),
+          })
+      } catch (authErr: any) {
+        console.warn(`[admin/customers/${id}] auth_identity update failed:`, authErr.message)
+      }
+    }
+
+    // 2. Update customer table fields
+    const customerUpdate: Record<string, any> = {}
+    if (body.first_name !== undefined) customerUpdate.first_name = body.first_name
+    if (body.last_name !== undefined) customerUpdate.last_name = body.last_name
+    if (body.email !== undefined) customerUpdate.email = body.email
+    if (body.phone !== undefined) customerUpdate.phone = body.phone
+
+    if (Object.keys(customerUpdate).length > 0) {
+      customerUpdate.updated_at = pgConnection.fn.now()
+      await pgConnection("customer").where("id", id).update(customerUpdate)
+    }
+
+    // 3. Update customer_stats fields
+    const statsUpdate: Record<string, any> = {}
+    if (body.tags !== undefined) statsUpdate.tags = pgConnection.raw("?::text[]", [body.tags])
+    if (body.is_vip !== undefined) statsUpdate.is_vip = body.is_vip
+    if (body.is_dormant !== undefined) statsUpdate.is_dormant = body.is_dormant
+
+    if (Object.keys(statsUpdate).length > 0) {
+      statsUpdate.updated_at = pgConnection.fn.now()
+      await pgConnection("customer_stats")
+        .where("customer_id", id)
+        .update(statsUpdate)
+    }
+
+    // 4. Re-fetch and return
+    const updated = await fetchCustomerWithStats(pgConnection, id)
+    res.json({ customer: formatCustomer(updated) })
+  } catch (err: any) {
+    console.error(`[admin/customers/${id}] PATCH Error:`, err.message)
+    res.status(500).json({ message: "Failed to update customer" })
   }
 }

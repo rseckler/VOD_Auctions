@@ -97,7 +97,7 @@ type CustomerListItem = {
 }
 
 type CustomerDetail = CustomerListItem & {
-  // extended with orders, bids, addresses in detail view
+  deleted_at?: string | null
 }
 
 type CustomerDetailData = {
@@ -139,6 +139,21 @@ type CustomerDetailData = {
   }>
 }
 
+type CustomerNote = {
+  id: string
+  customer_id: string
+  body: string
+  author_email: string
+  created_at: string
+}
+
+type TimelineEvent = {
+  type: string
+  title: string
+  description: string
+  timestamp: string
+}
+
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const COLORS = {
@@ -165,10 +180,24 @@ const SEGMENT_COLORS: Record<string, string> = {
   unknown: COLORS.muted,
 }
 
+const PRESET_TAGS = [
+  "vip", "trusted_bidder", "problematic", "collector",
+  "wholesale", "press", "high_value", "new_customer", "repeat_customer",
+]
+
+const TIMELINE_ICONS: Record<string, string> = {
+  payment_completed: "\uD83D\uDCB0",
+  bid_placed: "\uD83D\uDD28",
+  auction_won: "\uD83C\uDFC6",
+  order_shipped: "\uD83D\uDCE6",
+  note_added: "\uD83D\uDCDD",
+  account_created: "\uD83D\uDC64",
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 const formatDate = (d: string | null) => {
-  if (!d) return "—"
+  if (!d) return "\u2014"
   return new Date(d).toLocaleDateString("en-GB", {
     day: "2-digit",
     month: "2-digit",
@@ -177,7 +206,7 @@ const formatDate = (d: string | null) => {
 }
 
 const formatDateTime = (d: string | null) => {
-  if (!d) return "—"
+  if (!d) return "\u2014"
   return new Date(d).toLocaleDateString("en-GB", {
     day: "2-digit",
     month: "2-digit",
@@ -188,8 +217,8 @@ const formatDateTime = (d: string | null) => {
 }
 
 const formatPrice = (p: number | null | undefined) => {
-  if (p === null || p === undefined || p === 0) return "—"
-  return `€${p.toFixed(2)}`
+  if (p === null || p === undefined || p === 0) return "\u2014"
+  return `\u20AC${p.toFixed(2)}`
 }
 
 const SegmentBadge = ({ segment }: { segment: string }) => (
@@ -238,13 +267,49 @@ const PlatformBadge = ({ platform }: { platform: string }) => (
 function CustomerDetailDrawer({
   customerId,
   onClose,
+  onCustomerChanged,
 }: {
   customerId: string | null
   onClose: () => void
+  onCustomerChanged?: () => void
 }) {
   const [data, setData] = useState<CustomerDetailData | null>(null)
   const [loading, setLoading] = useState(false)
-  const [drawerTab, setDrawerTab] = useState<"overview" | "orders" | "bids">("overview")
+  const [drawerTab, setDrawerTab] = useState<"overview" | "orders" | "bids" | "notes" | "timeline">("overview")
+
+  // Edit mode state
+  const [isEditing, setIsEditing] = useState(false)
+  const [editForm, setEditForm] = useState({ first_name: "", last_name: "", email: "", phone: "" })
+  const [editSaving, setEditSaving] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
+
+  // Tags state
+  const [showTagDropdown, setShowTagDropdown] = useState(false)
+  const [customTagInput, setCustomTagInput] = useState("")
+  const [tagSaving, setTagSaving] = useState(false)
+
+  // Password reset state
+  const [resetStatus, setResetStatus] = useState<"idle" | "loading" | "success" | "error">("idle")
+  const [resetMessage, setResetMessage] = useState("")
+
+  // Notes state
+  const [notes, setNotes] = useState<CustomerNote[]>([])
+  const [notesLoading, setNotesLoading] = useState(false)
+  const [noteBody, setNoteBody] = useState("")
+  const [noteSubmitting, setNoteSubmitting] = useState(false)
+
+  // Timeline state
+  const [timeline, setTimeline] = useState<TimelineEvent[]>([])
+  const [timelineLoading, setTimelineLoading] = useState(false)
+
+  // Block state
+  const [blockLoading, setBlockLoading] = useState(false)
+
+  // Brevo sync state
+  const [brevoStatus, setBrevoStatus] = useState<"idle" | "loading" | "synced" | "error">("idle")
+
+  // Anonymize state
+  const [anonymizeLoading, setAnonymizeLoading] = useState(false)
 
   useEffect(() => {
     if (!customerId) {
@@ -253,6 +318,11 @@ function CustomerDetailDrawer({
     }
     setLoading(true)
     setDrawerTab("overview")
+    setIsEditing(false)
+    setResetStatus("idle")
+    setBrevoStatus("idle")
+    setNotes([])
+    setTimeline([])
     fetch(`/admin/customers/${customerId}`, { credentials: "include" })
       .then((r) => r.json())
       .then((d) => {
@@ -262,7 +332,255 @@ function CustomerDetailDrawer({
       .catch(() => setLoading(false))
   }, [customerId])
 
+  // Load notes when notes tab is selected
+  useEffect(() => {
+    if (drawerTab === "notes" && customerId) {
+      fetchNotes()
+    }
+  }, [drawerTab, customerId])
+
+  // Load timeline when timeline tab is selected
+  useEffect(() => {
+    if (drawerTab === "timeline" && customerId) {
+      fetchTimeline()
+    }
+  }, [drawerTab, customerId])
+
   const isOpen = !!customerId
+  const c = data?.customer
+  const isBlocked = !!(c?.deleted_at)
+
+  // ── API helpers ──
+
+  function patchCustomer(body: Record<string, unknown>) {
+    return fetch(`/admin/customers/${customerId}`, {
+      method: "PATCH",
+      credentials: "include",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then((r) => {
+      if (!r.ok) throw new Error("Update failed")
+      return r.json()
+    })
+  }
+
+  function startEditing() {
+    if (!c) return
+    setEditForm({
+      first_name: c.first_name || "",
+      last_name: c.last_name || "",
+      email: c.email || "",
+      phone: c.phone || "",
+    })
+    setEditError(null)
+    setIsEditing(true)
+  }
+
+  function saveEdit() {
+    setEditSaving(true)
+    setEditError(null)
+    patchCustomer({
+      first_name: editForm.first_name,
+      last_name: editForm.last_name,
+      email: editForm.email,
+      phone: editForm.phone,
+    })
+      .then((d) => {
+        if (data) {
+          setData({ ...data, customer: { ...data.customer, ...d.customer } })
+        }
+        setIsEditing(false)
+        setEditSaving(false)
+      })
+      .catch((e) => {
+        setEditError(e.message || "Save failed")
+        setEditSaving(false)
+      })
+  }
+
+  function addTag(tag: string) {
+    if (!c) return
+    const currentTags = c.tags || []
+    if (currentTags.includes(tag)) return
+    const newTags = [...currentTags, tag]
+    setTagSaving(true)
+    patchCustomer({ tags: newTags })
+      .then((d) => {
+        if (data) setData({ ...data, customer: { ...data.customer, ...d.customer } })
+        setTagSaving(false)
+        setShowTagDropdown(false)
+        setCustomTagInput("")
+      })
+      .catch(() => setTagSaving(false))
+  }
+
+  function removeTag(tag: string) {
+    if (!c) return
+    const newTags = (c.tags || []).filter((t) => t !== tag)
+    setTagSaving(true)
+    patchCustomer({ tags: newTags })
+      .then((d) => {
+        if (data) setData({ ...data, customer: { ...data.customer, ...d.customer } })
+        setTagSaving(false)
+      })
+      .catch(() => setTagSaving(false))
+  }
+
+  function toggleVip() {
+    if (!c) return
+    patchCustomer({ is_vip: !c.is_vip })
+      .then((d) => {
+        if (data) setData({ ...data, customer: { ...data.customer, ...d.customer } })
+      })
+      .catch(() => {})
+  }
+
+  function toggleDormant() {
+    if (!c) return
+    patchCustomer({ is_dormant: !c.is_dormant })
+      .then((d) => {
+        if (data) setData({ ...data, customer: { ...data.customer, ...d.customer } })
+      })
+      .catch(() => {})
+  }
+
+  function sendPasswordReset() {
+    setResetStatus("loading")
+    fetch(`/admin/customers/${customerId}/password-reset`, {
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success) {
+          setResetStatus("success")
+          setResetMessage("Password reset email sent.")
+        } else {
+          setResetStatus("error")
+          setResetMessage(d.message || "Failed to send reset email.")
+        }
+      })
+      .catch(() => {
+        setResetStatus("error")
+        setResetMessage("Request failed.")
+      })
+  }
+
+  function fetchNotes() {
+    setNotesLoading(true)
+    fetch(`/admin/customers/${customerId}/notes`, { credentials: "include", cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        setNotes(d.notes || [])
+        setNotesLoading(false)
+      })
+      .catch(() => setNotesLoading(false))
+  }
+
+  function submitNote() {
+    if (!noteBody.trim()) return
+    setNoteSubmitting(true)
+    fetch(`/admin/customers/${customerId}/notes`, {
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ body: noteBody.trim() }),
+    })
+      .then((r) => r.json())
+      .then(() => {
+        setNoteBody("")
+        setNoteSubmitting(false)
+        fetchNotes()
+      })
+      .catch(() => setNoteSubmitting(false))
+  }
+
+  function deleteNote(noteId: string) {
+    if (!window.confirm("Delete this note?")) return
+    fetch(`/admin/customers/${customerId}/notes/${noteId}`, {
+      method: "DELETE",
+      credentials: "include",
+      cache: "no-store",
+    })
+      .then(() => fetchNotes())
+      .catch(() => {})
+  }
+
+  function fetchTimeline() {
+    setTimelineLoading(true)
+    fetch(`/admin/customers/${customerId}/timeline`, { credentials: "include", cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        setTimeline(d.events || [])
+        setTimelineLoading(false)
+      })
+      .catch(() => setTimelineLoading(false))
+  }
+
+  function handleBlock() {
+    const action = isBlocked ? "unblock" : "block"
+    if (!window.confirm(`Are you sure you want to ${action} this customer?`)) return
+    setBlockLoading(true)
+    fetch(`/admin/customers/${customerId}/${action}`, {
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success && data) {
+          setData({
+            ...data,
+            customer: {
+              ...data.customer,
+              deleted_at: d.blocked ? new Date().toISOString() : null,
+            },
+          })
+        }
+        setBlockLoading(false)
+      })
+      .catch(() => setBlockLoading(false))
+  }
+
+  function syncBrevo() {
+    setBrevoStatus("loading")
+    fetch(`/admin/customers/${customerId}/brevo-sync`, {
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        setBrevoStatus(d.success ? "synced" : "error")
+      })
+      .catch(() => setBrevoStatus("error"))
+  }
+
+  function handleAnonymize() {
+    if (!c) return
+    const input = window.prompt("Type customer email to confirm anonymization:")
+    if (input !== c.email) return
+    setAnonymizeLoading(true)
+    fetch(`/admin/customers/${customerId}/anonymize`, {
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        setAnonymizeLoading(false)
+        if (d.success) {
+          onClose()
+          onCustomerChanged?.()
+        }
+      })
+      .catch(() => setAnonymizeLoading(false))
+  }
+
+  // ── Styles ──
 
   const drawerStyle: React.CSSProperties = {
     position: "fixed",
@@ -280,24 +598,11 @@ function CustomerDetailDrawer({
     overflowY: "auto",
   }
 
-  const overlayStyle: React.CSSProperties = {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(0,0,0,0.5)",
-    zIndex: 999,
-    opacity: isOpen ? 1 : 0,
-    pointerEvents: isOpen ? "all" : "none",
-    transition: "opacity 0.25s ease",
-  }
-
-  const c = data?.customer
-
   const drawerTabStyle = (active: boolean): React.CSSProperties => ({
-    padding: "8px 16px",
+    padding: "8px 12px",
     fontSize: "13px",
     fontWeight: active ? 600 : 400,
     color: active ? COLORS.gold : COLORS.muted,
-    borderBottom: active ? `2px solid ${COLORS.gold}` : "2px solid transparent",
     cursor: "pointer",
     background: "none",
     border: "none",
@@ -305,6 +610,36 @@ function CustomerDetailDrawer({
     borderBottomWidth: "2px",
     borderBottomStyle: "solid",
   })
+
+  const smallBtnStyle: React.CSSProperties = {
+    padding: "4px 10px",
+    borderRadius: "4px",
+    fontSize: "12px",
+    fontWeight: 500,
+    cursor: "pointer",
+    border: `1px solid ${COLORS.border}`,
+    background: COLORS.bg,
+    color: COLORS.text,
+  }
+
+  const inputStyle: React.CSSProperties = {
+    width: "100%",
+    padding: "6px 10px",
+    borderRadius: "5px",
+    border: `1px solid ${COLORS.border}`,
+    background: COLORS.bg,
+    color: COLORS.text,
+    fontSize: "13px",
+    outline: "none",
+  }
+
+  const sectionLabelStyle: React.CSSProperties = {
+    fontSize: "11px",
+    color: COLORS.muted,
+    textTransform: "uppercase",
+    letterSpacing: "0.05em",
+    marginBottom: "8px",
+  }
 
   return (
     <>
@@ -320,41 +655,28 @@ function CustomerDetailDrawer({
             alignItems: "flex-start",
           }}
         >
-          <div>
+          <div style={{ flex: 1 }}>
             {loading ? (
               <div style={{ color: COLORS.muted, fontSize: "14px" }}>Loading...</div>
             ) : c ? (
               <>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-                  <h2 style={{ fontSize: "18px", fontWeight: 700, color: COLORS.text }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px", flexWrap: "wrap" }}>
+                  <h2 style={{ fontSize: "18px", fontWeight: 700, color: COLORS.text, margin: 0 }}>
                     {c.name}
                   </h2>
                   {c.is_vip && (
-                    <span
-                      style={{
-                        padding: "2px 8px",
-                        borderRadius: "4px",
-                        fontSize: "11px",
-                        fontWeight: 700,
-                        background: COLORS.gold + "20",
-                        color: COLORS.gold,
-                      }}
-                    >
+                    <span style={{ padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: 700, background: COLORS.gold + "20", color: COLORS.gold }}>
                       VIP
                     </span>
                   )}
                   {c.is_dormant && (
-                    <span
-                      style={{
-                        padding: "2px 8px",
-                        borderRadius: "4px",
-                        fontSize: "11px",
-                        fontWeight: 600,
-                        background: COLORS.muted + "20",
-                        color: COLORS.muted,
-                      }}
-                    >
+                    <span style={{ padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: 600, background: COLORS.muted + "20", color: COLORS.muted }}>
                       Dormant
+                    </span>
+                  )}
+                  {isBlocked && (
+                    <span style={{ padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: 600, background: COLORS.error + "20", color: COLORS.error }}>
+                      Blocked
                     </span>
                   )}
                 </div>
@@ -363,6 +685,22 @@ function CustomerDetailDrawer({
                 </div>
                 <div style={{ fontSize: "12px", color: COLORS.muted, marginTop: "4px" }}>
                   Customer since {formatDate(c.created_at)}
+                </div>
+                {/* Action buttons row */}
+                <div style={{ display: "flex", gap: "6px", marginTop: "8px" }}>
+                  <button onClick={startEditing} style={smallBtnStyle}>Edit</button>
+                  <button
+                    onClick={handleBlock}
+                    disabled={blockLoading}
+                    style={{
+                      ...smallBtnStyle,
+                      background: isBlocked ? COLORS.error + "20" : COLORS.bg,
+                      borderColor: isBlocked ? COLORS.error : COLORS.border,
+                      color: isBlocked ? COLORS.error : COLORS.muted,
+                    }}
+                  >
+                    {blockLoading ? "..." : isBlocked ? "Unblock" : "Block"}
+                  </button>
                 </div>
               </>
             ) : null}
@@ -379,7 +717,7 @@ function CustomerDetailDrawer({
               padding: "4px",
             }}
           >
-            ✕
+            \u2715
           </button>
         </div>
 
@@ -421,7 +759,7 @@ function CustomerDetailDrawer({
 
         {/* Drawer Tabs */}
         {c && (
-          <div style={{ borderBottom: `1px solid ${COLORS.border}`, display: "flex", gap: "0" }}>
+          <div style={{ borderBottom: `1px solid ${COLORS.border}`, display: "flex", gap: "0", overflowX: "auto" }}>
             <button style={drawerTabStyle(drawerTab === "overview")} onClick={() => setDrawerTab("overview")}>Overview</button>
             <button style={drawerTabStyle(drawerTab === "orders")} onClick={() => setDrawerTab("orders")}>
               Orders ({data?.orders.length || 0})
@@ -429,6 +767,8 @@ function CustomerDetailDrawer({
             <button style={drawerTabStyle(drawerTab === "bids")} onClick={() => setDrawerTab("bids")}>
               Bids ({data?.bids.length || 0})
             </button>
+            <button style={drawerTabStyle(drawerTab === "notes")} onClick={() => setDrawerTab("notes")}>Notes</button>
+            <button style={drawerTabStyle(drawerTab === "timeline")} onClick={() => setDrawerTab("timeline")}>Timeline</button>
           </div>
         )}
 
@@ -439,32 +779,151 @@ function CustomerDetailDrawer({
           {/* Overview Tab */}
           {!loading && c && drawerTab === "overview" && (
             <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              {/* Tags */}
-              {c.tags && c.tags.length > 0 && (
-                <div>
-                  <div style={{ fontSize: "11px", color: COLORS.muted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "8px" }}>Tags</div>
-                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                    {c.tags.map((tag: string) => (
-                      <span
-                        key={tag}
-                        style={{
-                          padding: "3px 10px",
-                          borderRadius: "12px",
-                          fontSize: "12px",
-                          background: COLORS.blue + "20",
-                          color: COLORS.blue,
-                        }}
-                      >
-                        {tag}
-                      </span>
-                    ))}
+
+              {/* Edit Form (inline) */}
+              {isEditing && (
+                <div style={{ padding: "16px", background: COLORS.bg, borderRadius: "6px", border: `1px solid ${COLORS.border}` }}>
+                  <div style={sectionLabelStyle}>Edit Customer</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
+                    <div>
+                      <label style={{ fontSize: "11px", color: COLORS.muted, display: "block", marginBottom: "4px" }}>First Name</label>
+                      <input style={inputStyle} value={editForm.first_name} onChange={(e) => setEditForm({ ...editForm, first_name: e.target.value })} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: "11px", color: COLORS.muted, display: "block", marginBottom: "4px" }}>Last Name</label>
+                      <input style={inputStyle} value={editForm.last_name} onChange={(e) => setEditForm({ ...editForm, last_name: e.target.value })} />
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: "10px" }}>
+                    <label style={{ fontSize: "11px", color: COLORS.muted, display: "block", marginBottom: "4px" }}>Email</label>
+                    <input style={inputStyle} value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
+                  </div>
+                  <div style={{ marginBottom: "12px" }}>
+                    <label style={{ fontSize: "11px", color: COLORS.muted, display: "block", marginBottom: "4px" }}>Phone</label>
+                    <input style={inputStyle} value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />
+                  </div>
+                  {editError && <div style={{ fontSize: "12px", color: COLORS.error, marginBottom: "8px" }}>{editError}</div>}
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <button
+                      onClick={saveEdit}
+                      disabled={editSaving}
+                      style={{ ...smallBtnStyle, background: COLORS.gold, color: COLORS.bg, borderColor: COLORS.gold, fontWeight: 600 }}
+                    >
+                      {editSaving ? "Saving..." : "Save"}
+                    </button>
+                    <button onClick={() => setIsEditing(false)} style={smallBtnStyle}>Cancel</button>
                   </div>
                 </div>
               )}
 
-              {/* Timeline */}
+              {/* Tags Section */}
               <div>
-                <div style={{ fontSize: "11px", color: COLORS.muted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "8px" }}>Timeline</div>
+                <div style={sectionLabelStyle}>Tags</div>
+                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
+                  {(c.tags || []).map((tag: string) => (
+                    <span
+                      key={tag}
+                      style={{
+                        padding: "3px 8px",
+                        borderRadius: "12px",
+                        fontSize: "12px",
+                        border: `1px solid ${COLORS.gold}40`,
+                        background: COLORS.gold + "15",
+                        color: COLORS.gold,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px",
+                      }}
+                    >
+                      {tag}
+                      <span
+                        onClick={() => removeTag(tag)}
+                        style={{ cursor: "pointer", opacity: 0.7, fontSize: "14px", lineHeight: 1 }}
+                      >
+                        \u00D7
+                      </span>
+                    </span>
+                  ))}
+                  <div style={{ position: "relative" }}>
+                    <button
+                      onClick={() => setShowTagDropdown(!showTagDropdown)}
+                      disabled={tagSaving}
+                      style={{ ...smallBtnStyle, fontSize: "11px", padding: "3px 8px" }}
+                    >
+                      {tagSaving ? "..." : "+ Tag"}
+                    </button>
+                    {showTagDropdown && (
+                      <div style={{
+                        position: "absolute",
+                        top: "100%",
+                        left: 0,
+                        marginTop: "4px",
+                        background: COLORS.card,
+                        border: `1px solid ${COLORS.border}`,
+                        borderRadius: "6px",
+                        padding: "6px",
+                        zIndex: 10,
+                        minWidth: "180px",
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+                      }}>
+                        {PRESET_TAGS.filter((t) => !(c.tags || []).includes(t)).map((tag) => (
+                          <div
+                            key={tag}
+                            onClick={() => addTag(tag)}
+                            style={{
+                              padding: "5px 8px",
+                              fontSize: "12px",
+                              cursor: "pointer",
+                              borderRadius: "4px",
+                              color: COLORS.text,
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = COLORS.hover)}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                          >
+                            {tag}
+                          </div>
+                        ))}
+                        <div style={{ borderTop: `1px solid ${COLORS.border}`, marginTop: "4px", paddingTop: "6px", display: "flex", gap: "4px" }}>
+                          <input
+                            style={{ ...inputStyle, flex: 1, fontSize: "12px", padding: "4px 8px" }}
+                            placeholder="Custom tag..."
+                            value={customTagInput}
+                            onChange={(e) => setCustomTagInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && customTagInput.trim()) {
+                                addTag(customTagInput.trim().toLowerCase())
+                              }
+                            }}
+                          />
+                          <button
+                            onClick={() => {
+                              if (customTagInput.trim()) addTag(customTagInput.trim().toLowerCase())
+                            }}
+                            style={{ ...smallBtnStyle, fontSize: "11px", padding: "4px 8px" }}
+                          >
+                            Add
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {/* VIP / Dormant toggles */}
+                <div style={{ display: "flex", gap: "16px", marginTop: "10px" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: COLORS.muted, cursor: "pointer" }}>
+                    <input type="checkbox" checked={c.is_vip} onChange={toggleVip} style={{ accentColor: COLORS.gold }} />
+                    VIP
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: COLORS.muted, cursor: "pointer" }}>
+                    <input type="checkbox" checked={c.is_dormant} onChange={toggleDormant} style={{ accentColor: COLORS.muted }} />
+                    Dormant
+                  </label>
+                </div>
+              </div>
+
+              {/* Timeline (date fields) */}
+              <div>
+                <div style={sectionLabelStyle}>Timeline</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                   {[
                     { label: "Registered", value: formatDateTime(c.created_at) },
@@ -483,9 +942,7 @@ function CustomerDetailDrawer({
               {/* Addresses */}
               {data?.addresses && data.addresses.length > 0 && (
                 <div>
-                  <div style={{ fontSize: "11px", color: COLORS.muted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "8px" }}>
-                    Known Addresses
-                  </div>
+                  <div style={sectionLabelStyle}>Known Addresses</div>
                   {data.addresses.slice(0, 3).map((addr, i) => (
                     <div
                       key={i}
@@ -513,10 +970,41 @@ function CustomerDetailDrawer({
               {/* Phone */}
               {c.phone && (
                 <div>
-                  <div style={{ fontSize: "11px", color: COLORS.muted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>Phone</div>
+                  <div style={sectionLabelStyle}>Phone</div>
                   <div style={{ fontSize: "13px" }}>{c.phone}</div>
                 </div>
               )}
+
+              {/* Brevo Sync */}
+              <div>
+                <div style={sectionLabelStyle}>Brevo CRM</div>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <button
+                    onClick={syncBrevo}
+                    disabled={brevoStatus === "loading"}
+                    style={smallBtnStyle}
+                  >
+                    {brevoStatus === "loading" ? "Syncing..." : brevoStatus === "synced" ? "Synced \u2713" : "Sync to Brevo"}
+                  </button>
+                  {brevoStatus === "error" && <span style={{ fontSize: "12px", color: COLORS.error }}>Sync failed</span>}
+                </div>
+              </div>
+
+              {/* Actions row */}
+              <div>
+                <div style={sectionLabelStyle}>Actions</div>
+                <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                  <button
+                    onClick={sendPasswordReset}
+                    disabled={resetStatus === "loading"}
+                    style={smallBtnStyle}
+                  >
+                    {resetStatus === "loading" ? "Sending..." : "Send Password Reset"}
+                  </button>
+                  {resetStatus === "success" && <span style={{ fontSize: "12px", color: COLORS.success }}>{resetMessage}</span>}
+                  {resetStatus === "error" && <span style={{ fontSize: "12px", color: COLORS.error }}>{resetMessage}</span>}
+                </div>
+              </div>
 
               {/* Stats freshness */}
               {c.stats_updated_at && (
@@ -524,6 +1012,37 @@ function CustomerDetailDrawer({
                   Stats last updated: {formatDateTime(c.stats_updated_at)}
                 </div>
               )}
+
+              {/* Danger Zone */}
+              <div style={{
+                marginTop: "8px",
+                padding: "16px",
+                border: `1px solid ${COLORS.error}40`,
+                borderRadius: "6px",
+                background: COLORS.error + "08",
+              }}>
+                <div style={{ ...sectionLabelStyle, color: COLORS.error }}>Danger Zone</div>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  <button
+                    onClick={handleAnonymize}
+                    disabled={anonymizeLoading}
+                    style={{
+                      ...smallBtnStyle,
+                      borderColor: COLORS.error,
+                      color: COLORS.error,
+                      background: COLORS.error + "10",
+                    }}
+                  >
+                    {anonymizeLoading ? "Processing..." : "Anonymize Customer (GDPR)"}
+                  </button>
+                  <button
+                    onClick={() => window.open(`/admin/customers/${customerId}/gdpr-export`, "_blank")}
+                    style={smallBtnStyle}
+                  >
+                    Admin GDPR Export
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -579,12 +1098,12 @@ function CustomerDetailDrawer({
                       </div>
                       {order.auction_title && (
                         <div style={{ fontSize: "11px", color: COLORS.muted, marginTop: "4px" }}>
-                          {order.auction_title}{order.lot_number ? ` · Lot #${order.lot_number}` : ""}
+                          {order.auction_title}{order.lot_number ? ` \u00B7 Lot #${order.lot_number}` : ""}
                         </div>
                       )}
                       <div style={{ fontSize: "11px", color: COLORS.muted, marginTop: "4px" }}>
                         {formatDate(order.created_at)}
-                        {order.shipping_country ? ` · ${order.shipping_country}` : ""}
+                        {order.shipping_country ? ` \u00B7 ${order.shipping_country}` : ""}
                       </div>
                     </div>
                   ))}
@@ -615,7 +1134,7 @@ function CustomerDetailDrawer({
                     >
                       <div>
                         <div style={{ fontSize: "12px", color: COLORS.muted }}>
-                          {bid.auction_title}{bid.lot_number ? ` · Lot #${bid.lot_number}` : ""}
+                          {bid.auction_title}{bid.lot_number ? ` \u00B7 Lot #${bid.lot_number}` : ""}
                         </div>
                         <div style={{ fontSize: "11px", color: COLORS.muted }}>{formatDate(bid.created_at)}</div>
                       </div>
@@ -625,6 +1144,118 @@ function CustomerDetailDrawer({
                         </div>
                         <div style={{ fontSize: "11px", color: bid.is_winning ? COLORS.success : bid.is_outbid ? COLORS.error : COLORS.muted }}>
                           {bid.is_winning ? "Winning" : bid.is_outbid ? "Outbid" : "Active"}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Notes Tab */}
+          {!loading && c && drawerTab === "notes" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              {/* Add note form */}
+              <div>
+                <textarea
+                  value={noteBody}
+                  onChange={(e) => setNoteBody(e.target.value)}
+                  placeholder="Add an internal note..."
+                  rows={3}
+                  style={{
+                    ...inputStyle,
+                    resize: "vertical",
+                    minHeight: "60px",
+                    fontFamily: "inherit",
+                    marginBottom: "8px",
+                  }}
+                />
+                <button
+                  onClick={submitNote}
+                  disabled={noteSubmitting || !noteBody.trim()}
+                  style={{
+                    ...smallBtnStyle,
+                    background: noteBody.trim() ? COLORS.gold : COLORS.bg,
+                    color: noteBody.trim() ? COLORS.bg : COLORS.muted,
+                    borderColor: noteBody.trim() ? COLORS.gold : COLORS.border,
+                    fontWeight: 600,
+                  }}
+                >
+                  {noteSubmitting ? "Saving..." : "Add Note"}
+                </button>
+              </div>
+
+              {/* Notes list */}
+              {notesLoading ? (
+                <div style={{ color: COLORS.muted }}>Loading...</div>
+              ) : notes.length === 0 ? (
+                <div style={{ color: COLORS.muted, textAlign: "center", padding: "20px 0" }}>No internal notes yet.</div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {notes.map((note) => (
+                    <div
+                      key={note.id}
+                      style={{
+                        padding: "12px",
+                        background: COLORS.bg,
+                        borderRadius: "6px",
+                        fontSize: "13px",
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+                        <div>
+                          <span style={{ fontWeight: 500, color: COLORS.text, fontSize: "12px" }}>{note.author_email}</span>
+                          <span style={{ color: COLORS.muted, fontSize: "11px", marginLeft: "8px" }}>{formatDateTime(note.created_at)}</span>
+                        </div>
+                        <span
+                          onClick={() => deleteNote(note.id)}
+                          style={{ color: COLORS.muted, cursor: "pointer", fontSize: "11px" }}
+                          onMouseEnter={(e) => (e.currentTarget.style.color = COLORS.error)}
+                          onMouseLeave={(e) => (e.currentTarget.style.color = COLORS.muted)}
+                        >
+                          Delete
+                        </span>
+                      </div>
+                      <div style={{ color: COLORS.text, lineHeight: "1.5", whiteSpace: "pre-wrap" }}>{note.body}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Timeline Tab */}
+          {!loading && c && drawerTab === "timeline" && (
+            <div>
+              {timelineLoading ? (
+                <div style={{ color: COLORS.muted }}>Loading...</div>
+              ) : timeline.length === 0 ? (
+                <div style={{ color: COLORS.muted, textAlign: "center", padding: "20px 0" }}>No activity yet.</div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  {timeline.map((event, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        padding: "10px 12px",
+                        display: "flex",
+                        gap: "10px",
+                        alignItems: "flex-start",
+                        borderLeft: `2px solid ${COLORS.border}`,
+                        marginLeft: "8px",
+                      }}
+                    >
+                      <span style={{ fontSize: "16px", flexShrink: 0, marginTop: "1px" }}>
+                        {TIMELINE_ICONS[event.type] || "\u2022"}
+                      </span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: "13px", fontWeight: 500, color: COLORS.text }}>{event.title}</div>
+                        {event.description && (
+                          <div style={{ fontSize: "12px", color: COLORS.muted, marginTop: "2px" }}>{event.description}</div>
+                        )}
+                        <div style={{ fontSize: "11px", color: COLORS.muted, marginTop: "4px" }}>
+                          {formatDateTime(event.timestamp)}
                         </div>
                       </div>
                     </div>
@@ -724,7 +1355,7 @@ function CustomersListTab({
     verticalAlign: "middle",
   }
 
-  const sortIndicator = (col: string) => sort === col ? (order === "desc" ? " ↓" : " ↑") : ""
+  const sortIndicator = (col: string) => sort === col ? (order === "desc" ? " \u2193" : " \u2191") : ""
 
   return (
     <div>
@@ -863,10 +1494,10 @@ function CustomersListTab({
               fontSize: "13px",
             }}
           >
-            ← Previous
+            \u2190 Previous
           </button>
           <span style={{ fontSize: "13px", color: COLORS.muted, padding: "6px 8px" }}>
-            {offset + 1}–{Math.min(offset + limit, total)} of {total}
+            {offset + 1}\u2013{Math.min(offset + limit, total)} of {total}
           </span>
           <button
             onClick={() => setOffset(offset + limit)}
@@ -881,7 +1512,7 @@ function CustomersListTab({
               fontSize: "13px",
             }}
           >
-            Next →
+            Next \u2192
           </button>
         </div>
       )}
@@ -1048,7 +1679,7 @@ function CRMDashboardTab() {
                       <td style={tdStyle}><SegmentBadge segment={c.segment} /></td>
                       <td style={tdStyle}>
                         <span style={{ color: c.newsletter ? COLORS.success : COLORS.muted }}>
-                          {c.newsletter ? "✓" : "✗"}
+                          {c.newsletter ? "\u2713" : "\u2717"}
                         </span>
                       </td>
                     </tr>
@@ -1134,11 +1765,11 @@ function CRMDashboardTab() {
                   <tr key={c.id} onMouseEnter={(e) => (e.currentTarget.style.background = COLORS.hover)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
                     <td style={{ ...tdStyle, fontWeight: 500, maxWidth: "250px", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</td>
                     <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{formatDateTime(c.sentDate)}</td>
-                    <td style={{ ...tdStyle, textAlign: "right" }}>{c.stats?.sent?.toLocaleString("en-US") || "—"}</td>
-                    <td style={{ ...tdStyle, textAlign: "right" }}>{c.stats?.opens?.toLocaleString("en-US") || "—"}</td>
-                    <td style={{ ...tdStyle, textAlign: "right", color: COLORS.gold }}>{c.stats?.openRate ? `${c.stats.openRate}%` : "—"}</td>
-                    <td style={{ ...tdStyle, textAlign: "right" }}>{c.stats?.clicks?.toLocaleString("en-US") || "—"}</td>
-                    <td style={{ ...tdStyle, textAlign: "right", color: COLORS.gold }}>{c.stats?.clickRate ? `${c.stats.clickRate}%` : "—"}</td>
+                    <td style={{ ...tdStyle, textAlign: "right" }}>{c.stats?.sent?.toLocaleString("en-US") || "\u2014"}</td>
+                    <td style={{ ...tdStyle, textAlign: "right" }}>{c.stats?.opens?.toLocaleString("en-US") || "\u2014"}</td>
+                    <td style={{ ...tdStyle, textAlign: "right", color: COLORS.gold }}>{c.stats?.openRate ? `${c.stats.openRate}%` : "\u2014"}</td>
+                    <td style={{ ...tdStyle, textAlign: "right" }}>{c.stats?.clicks?.toLocaleString("en-US") || "\u2014"}</td>
+                    <td style={{ ...tdStyle, textAlign: "right", color: COLORS.gold }}>{c.stats?.clickRate ? `${c.stats.clickRate}%` : "\u2014"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1156,6 +1787,7 @@ const CustomersPage = () => {
   useAdminNav()
   const [activeTab, setActiveTab] = useState<"crm" | "customers">("customers")
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   const tabStyle = (active: boolean): React.CSSProperties => ({
     padding: "8px 20px",
@@ -1190,7 +1822,7 @@ const CustomersPage = () => {
 
       {/* Tab Content */}
       {activeTab === "customers" && (
-        <CustomersListTab onSelectCustomer={setSelectedCustomerId} />
+        <CustomersListTab key={refreshKey} onSelectCustomer={setSelectedCustomerId} />
       )}
       {activeTab === "crm" && <CRMDashboardTab />}
 
@@ -1198,6 +1830,7 @@ const CustomersPage = () => {
       <CustomerDetailDrawer
         customerId={selectedCustomerId}
         onClose={() => setSelectedCustomerId(null)}
+        onCustomerChanged={() => setRefreshKey((k) => k + 1)}
       />
     </div>
   )
