@@ -4,7 +4,7 @@
 **Goal:** Eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Phase 1 fertig — RSE-77 (Testlauf) als nächster Schritt
 **Language:** Storefront + Admin-UI: Englisch
-**Last Updated:** 2026-03-28
+**Last Updated:** 2026-03-29
 
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
@@ -302,6 +302,12 @@ VOD_Auctions/
 **Backlog:** RSE-78 (Launch, offen: AGB-Anwalt) | RSE-79 (Erste öffentliche Auktionen) | RSE-80 (Marketing)
 
 ## Recent Changes
+
+### 2026-03-29 — Admin Backoffice: System Health + Email Preview/Edit
+- **System Health Dashboard** `/admin/system-health` — Live-Status für 9 Services: PostgreSQL, Stripe, PayPal, Resend, Brevo, Storefront, Sentry, ContentSquare, GA4. Latenz-Anzeige, Auto-Refresh 30s, Quick Links.
+- **Email Template Preview + Edit** — Klick auf Template öffnet Side-Drawer: iframe-Preview (echtes HTML), Edit-Tab (Subject/Preheader-Override → gespeichert in `content_block`), Send Test Tab. `GET/PUT /admin/email-templates/:id` neu.
+- **Admin VPS Deploy Gotcha** — `cp -r` auf existierenden Ordner merged → immer erst `rm -rf public/admin` dann kopieren.
+- **Pre-Launch Quality Sprint (28 Issues)** — Testing, Email, CRM/Tracking, Code Quality vollständig abgeschlossen. Alle Linear Issues RSE-238–RSE-264 auf Done.
 
 ### 2026-03-28 — Hotfix: Backend-Crash
 - **pdfkit fehlte auf VPS** → `Cannot find module 'pdfkit'` → PM2 restart-loop. Fix: `npm install pdfkit` auf VPS + in `package.json` committed.

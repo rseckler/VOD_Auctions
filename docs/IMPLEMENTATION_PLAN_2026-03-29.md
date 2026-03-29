@@ -186,18 +186,18 @@ DELETE + INSERT in einer DB-Transaktion gewrapped in `checkout-helpers.ts`.
 
 | Issue | Titel | Status | Fertig |
 |-------|-------|--------|--------|
-| A1 | Test Concept Document | ⏳ Todo | — |
+| A1 | Test Concept Document | ✅ Done | 2026-03-29 |
 | A2 | Playwright E2E Suite | ✅ Done | 2026-03-29 |
-| A3 | Test Results Dashboard UI | ⏳ Todo | — |
-| B1 | Unsubscribe Links | ⏳ Todo | — |
-| B2 | Double Opt-In Newsletter | ⏳ Todo | — |
-| B3 | Admin Email Template UI | ⏳ Todo | — |
-| B4 | Professional Email Templates | ⏳ Todo | — |
+| A3 | Test Results Dashboard UI | ✅ Done | 2026-03-29 |
+| B1 | Unsubscribe Links | ✅ Done | 2026-03-29 |
+| B2 | Double Opt-In Newsletter | ✅ Done | 2026-03-29 |
+| B3 | Admin Email Template UI | ✅ Done | 2026-03-29 |
+| B4 | Professional Email Templates | ✅ Done | 2026-03-29 |
 | C1 | Brevo List IDs Config | ✅ Done | 2026-03-29 |
 | C2 | Sentry Setup | ✅ Done | 2026-03-29 |
 | C3 | Gate Password Policy | ✅ Done | 2026-03-29 |
-| C4 | Double-Opt-In Fix | ⏳ Todo | — |
-| C5 | Hotjar Integration | ✅ Done | 2026-03-29 |
+| C4 | Double-Opt-In Fix | ✅ Done | 2026-03-29 |
+| C5 | ContentSquare (UXA) Integration | ✅ Done | 2026-03-29 |
 | C6 | Uptime Monitoring | ✅ Done | 2026-03-29 |
 | C7 | GA4 E-Commerce Events | ✅ Done | 2026-03-29 |
 | D1 | Race Condition Bid | ✅ Done | 2026-03-29 |
@@ -214,6 +214,19 @@ DELETE + INSERT in einer DB-Transaktion gewrapped in `checkout-helpers.ts`.
 | D12 | CORS Config | ✅ Done | 2026-03-29 |
 | D13 | Magic Strings | ✅ Done | 2026-03-29 |
 | D14 | Bundle Size | ✅ Done | 2026-03-29 |
+
+**Alle 28 Issues abgeschlossen ✅ (Stand: 2026-03-29)**
+
+## Post-Sprint Erweiterungen (2026-03-29)
+
+### System Health Dashboard (Admin)
+- `GET /admin/system-health` — Live-Checks für 9 Services (PostgreSQL, Stripe, PayPal, Resend, Brevo, Storefront, Sentry, ContentSquare, GA4)
+- `/admin/system-health` — Status-Cards mit Latenz, Auto-Refresh 30s, Quick Links
+
+### Email Template Preview + Edit (Admin)
+- `GET /admin/email-templates/:id` — Rendert vollständiges HTML-Preview mit Musterdaten
+- `PUT /admin/email-templates/:id` — Speichert Subject/Preheader-Overrides in content_block
+- `/admin/emails` — Klick auf Template öffnet Side-Drawer mit 3 Tabs: Preview (iframe), Edit (overrides), Send Test
 
 ---
 

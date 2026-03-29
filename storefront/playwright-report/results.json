@@ -1,0 +1,1565 @@
+{
+  "config": {
+    "configFile": "/Users/robin/Documents/Claude-Work/PROJECTS/VOD_Auctions/storefront/playwright.config.ts",
+    "rootDir": "/Users/robin/Documents/Claude-Work/PROJECTS/VOD_Auctions/tests",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {},
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/Users/robin/Documents/Claude-Work/PROJECTS/VOD_Auctions/storefront/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {},
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/Users/robin/Documents/Claude-Work/PROJECTS/VOD_Auctions/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "html",
+        {
+          "outputFolder": "playwright-report",
+          "open": "never"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "playwright-report/results.json"
+        }
+      ],
+      [
+        "list",
+        null
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "runAgents": "none",
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.58.2",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "01-discovery.spec.ts",
+      "file": "01-discovery.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Password Gate",
+          "file": "01-discovery.spec.ts",
+          "line": 12,
+          "column": 6,
+          "specs": [
+            {
+              "title": "redirects to /gate when no access cookie is set",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d038addaac0335fadf31-41ed200657972cf0a55a",
+              "file": "01-discovery.spec.ts",
+              "line": 13,
+              "column": 7
+            },
+            {
+              "title": "shows error for wrong password",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d038addaac0335fadf31-8381c882be23edff6b5b",
+              "file": "01-discovery.spec.ts",
+              "line": 22,
+              "column": 7
+            },
+            {
+              "title": "grants access with correct password and redirects to homepage",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d038addaac0335fadf31-046dc4cdf21d4b7f1b70",
+              "file": "01-discovery.spec.ts",
+              "line": 29,
+              "column": 7
+            }
+          ]
+        },
+        {
+          "title": "Homepage",
+          "file": "01-discovery.spec.ts",
+          "line": 40,
+          "column": 6,
+          "specs": [
+            {
+              "title": "loads homepage with hero section",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d038addaac0335fadf31-22af1add3aa1cec98985",
+              "file": "01-discovery.spec.ts",
+              "line": 53,
+              "column": 7
+            },
+            {
+              "title": "homepage has navigation links",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d038addaac0335fadf31-edff929830c11ad41033",
+              "file": "01-discovery.spec.ts",
+              "line": 60,
+              "column": 7
+            },
+            {
+              "title": "homepage has Login button in header when not authenticated",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d038addaac0335fadf31-f6cc9d2668fe74c36309",
+              "file": "01-discovery.spec.ts",
+              "line": 70,
+              "column": 7
+            },
+            {
+              "title": "Browse Catalog button navigates to /catalog",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d038addaac0335fadf31-a95319d31ceaee60b211",
+              "file": "01-discovery.spec.ts",
+              "line": 76,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "02-catalog.spec.ts",
+      "file": "02-catalog.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Catalog",
+          "file": "02-catalog.spec.ts",
+          "line": 8,
+          "column": 6,
+          "specs": [
+            {
+              "title": "catalog page loads with release grid",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "1da3148f1f6353302c5e-eaeeb975f7a02c40c699",
+              "file": "02-catalog.spec.ts",
+              "line": 13,
+              "column": 7
+            },
+            {
+              "title": "search filters results",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "1da3148f1f6353302c5e-3a885ee5acb30d3cea26",
+              "file": "02-catalog.spec.ts",
+              "line": 22,
+              "column": 7
+            },
+            {
+              "title": "category filter via URL param works",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "1da3148f1f6353302c5e-83d737fbabb2b757156b",
+              "file": "02-catalog.spec.ts",
+              "line": 35,
+              "column": 7
+            },
+            {
+              "title": "tapes category filter",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "1da3148f1f6353302c5e-ffa0fbed0f07d395f969",
+              "file": "02-catalog.spec.ts",
+              "line": 43,
+              "column": 7
+            },
+            {
+              "title": "sort by price low to high",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "1da3148f1f6353302c5e-6ba8e701f6757973a6d2",
+              "file": "02-catalog.spec.ts",
+              "line": 49,
+              "column": 7
+            },
+            {
+              "title": "product detail page loads",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "1da3148f1f6353302c5e-b27636b0cbf1daf88d25",
+              "file": "02-catalog.spec.ts",
+              "line": 55,
+              "column": 7
+            },
+            {
+              "title": "product detail shows format badge or release info",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "1da3148f1f6353302c5e-e8f1db265c5c7344b262",
+              "file": "02-catalog.spec.ts",
+              "line": 73,
+              "column": 7
+            },
+            {
+              "title": "breadcrumb navigation works on detail page",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "1da3148f1f6353302c5e-297b717fb60322033dd8",
+              "file": "02-catalog.spec.ts",
+              "line": 89,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "03-auth.spec.ts",
+      "file": "03-auth.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Login",
+          "file": "03-auth.spec.ts",
+          "line": 8,
+          "column": 6,
+          "specs": [
+            {
+              "title": "Login button opens auth modal",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "180603d1a1a9a58e4eae-ac185e7abc43436ccc26",
+              "file": "03-auth.spec.ts",
+              "line": 13,
+              "column": 7
+            },
+            {
+              "title": "modal shows error for wrong credentials",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "180603d1a1a9a58e4eae-149cae91df53e1ab23a8",
+              "file": "03-auth.spec.ts",
+              "line": 26,
+              "column": 7
+            },
+            {
+              "title": "successful login with bidder1 account",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "180603d1a1a9a58e4eae-be6f172dd13e0421ca93",
+              "file": "03-auth.spec.ts",
+              "line": 39,
+              "column": 7
+            },
+            {
+              "title": "successful login with testuser account",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "180603d1a1a9a58e4eae-983a3223002e59d845e6",
+              "file": "03-auth.spec.ts",
+              "line": 50,
+              "column": 7
+            },
+            {
+              "title": "modal switches to Register mode",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "180603d1a1a9a58e4eae-368964d70087767e2d65",
+              "file": "03-auth.spec.ts",
+              "line": 56,
+              "column": 7
+            },
+            {
+              "title": "modal switches to Forgot Password mode",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "180603d1a1a9a58e4eae-1cf4ed8a43d4a80f9ad1",
+              "file": "03-auth.spec.ts",
+              "line": 72,
+              "column": 7
+            }
+          ]
+        },
+        {
+          "title": "Register",
+          "file": "03-auth.spec.ts",
+          "line": 85,
+          "column": 6,
+          "specs": [
+            {
+              "title": "register new account with random email",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "180603d1a1a9a58e4eae-80f737f8696f5469dcd5",
+              "file": "03-auth.spec.ts",
+              "line": 90,
+              "column": 7
+            },
+            {
+              "title": "register shows validation error for mismatched passwords",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "180603d1a1a9a58e4eae-42e257103733b0b2ed4b",
+              "file": "03-auth.spec.ts",
+              "line": 122,
+              "column": 7
+            },
+            {
+              "title": "register shows error when T&C not accepted",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "180603d1a1a9a58e4eae-b074c0d0cbb0100b4ebc",
+              "file": "03-auth.spec.ts",
+              "line": 141,
+              "column": 7
+            }
+          ]
+        },
+        {
+          "title": "Logout",
+          "file": "03-auth.spec.ts",
+          "line": 161,
+          "column": 6,
+          "specs": [
+            {
+              "title": "user can logout via header dropdown",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "180603d1a1a9a58e4eae-c86d14a98432f51ccaa9",
+              "file": "03-auth.spec.ts",
+              "line": 166,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "04-watchlist.spec.ts",
+      "file": "04-watchlist.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Watchlist",
+          "file": "04-watchlist.spec.ts",
+          "line": 11,
+          "column": 6,
+          "specs": [
+            {
+              "title": "Save for Later button is not visible when logged out",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "641d888da6d5ef81915d-558d1d68aa091228d788",
+              "file": "04-watchlist.spec.ts",
+              "line": 16,
+              "column": 7
+            },
+            {
+              "title": "Save for Later button appears after login",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "641d888da6d5ef81915d-f9410f94ba6b96984af7",
+              "file": "04-watchlist.spec.ts",
+              "line": 30,
+              "column": 7
+            },
+            {
+              "title": "can save an item and view it in /account/saved",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "641d888da6d5ef81915d-875cd9a0f29517c26805",
+              "file": "04-watchlist.spec.ts",
+              "line": 51,
+              "column": 7
+            },
+            {
+              "title": "saved items page loads when authenticated",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "641d888da6d5ef81915d-e48773391ca32e04993d",
+              "file": "04-watchlist.spec.ts",
+              "line": 86,
+              "column": 7
+            },
+            {
+              "title": "account overview shows Saved count",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "641d888da6d5ef81915d-ef2d089ac377a2d52872",
+              "file": "04-watchlist.spec.ts",
+              "line": 96,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "05-auction-browse.spec.ts",
+      "file": "05-auction-browse.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Auction Browse",
+          "file": "05-auction-browse.spec.ts",
+          "line": 8,
+          "column": 6,
+          "specs": [
+            {
+              "title": "auctions page loads",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d6ffeda408e7e39b0dce-62c0d8695939fd9e89ff",
+              "file": "05-auction-browse.spec.ts",
+              "line": 13,
+              "column": 7
+            },
+            {
+              "title": "auctions page shows blocks or empty state",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d6ffeda408e7e39b0dce-80aa07b28c3a511dbc45",
+              "file": "05-auction-browse.spec.ts",
+              "line": 19,
+              "column": 7
+            },
+            {
+              "title": "auction block detail page loads via slug",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d6ffeda408e7e39b0dce-cb707f175bbea2bd06cf",
+              "file": "05-auction-browse.spec.ts",
+              "line": 29,
+              "column": 7
+            },
+            {
+              "title": "auction block detail shows lot grid",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d6ffeda408e7e39b0dce-3e6d992ddbfcc4dfa1c4",
+              "file": "05-auction-browse.spec.ts",
+              "line": 52,
+              "column": 7
+            },
+            {
+              "title": "lot detail page loads",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d6ffeda408e7e39b0dce-30135837c80b691ccf90",
+              "file": "05-auction-browse.spec.ts",
+              "line": 72,
+              "column": 7
+            },
+            {
+              "title": "Live Auction Banner is rendered on catalog page",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d6ffeda408e7e39b0dce-6fe9b804691733f12763",
+              "file": "05-auction-browse.spec.ts",
+              "line": 102,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "06-bidding.spec.ts",
+      "file": "06-bidding.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Bidding",
+          "file": "06-bidding.spec.ts",
+          "line": 36,
+          "column": 6,
+          "specs": [
+            {
+              "title": "bid button is not shown when logged out on active lot",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d4b130bb13d88fcb88e0-fdbcea0837e0303437c2",
+              "file": "06-bidding.spec.ts",
+              "line": 41,
+              "column": 7
+            },
+            {
+              "title": "logged-in user can see bid form on active lot",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d4b130bb13d88fcb88e0-6919f0816d612383c542",
+              "file": "06-bidding.spec.ts",
+              "line": 75,
+              "column": 7
+            },
+            {
+              "title": "bid history table is shown on lot detail",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d4b130bb13d88fcb88e0-68d1a34b2caa82eea347",
+              "file": "06-bidding.spec.ts",
+              "line": 109,
+              "column": 7
+            },
+            {
+              "title": "place a bid on active lot (bidder1)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d4b130bb13d88fcb88e0-fe027aaae2d36987a146",
+              "file": "06-bidding.spec.ts",
+              "line": 138,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "07-direct-purchase.spec.ts",
+      "file": "07-direct-purchase.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Direct Purchase",
+          "file": "07-direct-purchase.spec.ts",
+          "line": 35,
+          "column": 6,
+          "specs": [
+            {
+              "title": "Direct purchase button is not shown when logged out",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "133f00f987a7f96e8ba4-2d0e08c75f34952b71ed",
+              "file": "07-direct-purchase.spec.ts",
+              "line": 40,
+              "column": 7
+            },
+            {
+              "title": "can add item to cart when logged in",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "133f00f987a7f96e8ba4-83c0f12d2f20231c0894",
+              "file": "07-direct-purchase.spec.ts",
+              "line": 59,
+              "column": 7
+            },
+            {
+              "title": "cart page loads when authenticated",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "133f00f987a7f96e8ba4-51dd764e0f9fcd19ec50",
+              "file": "07-direct-purchase.spec.ts",
+              "line": 90,
+              "column": 7
+            },
+            {
+              "title": "cart page redirects or shows empty state when no items",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "133f00f987a7f96e8ba4-9bb7db0e9d01d0bcb85d",
+              "file": "07-direct-purchase.spec.ts",
+              "line": 100,
+              "column": 7
+            },
+            {
+              "title": "for_sale filter shows purchasable releases",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "133f00f987a7f96e8ba4-ed76a208b3affc66d8bb",
+              "file": "07-direct-purchase.spec.ts",
+              "line": 112,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "08-payment.spec.ts",
+      "file": "08-payment.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Checkout Page Structure",
+          "file": "08-payment.spec.ts",
+          "line": 15,
+          "column": 6,
+          "specs": [
+            {
+              "title": "checkout page loads when authenticated",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "cc0cfaeef28606949319-dba147a5b6e7630f1eac",
+              "file": "08-payment.spec.ts",
+              "line": 20,
+              "column": 7
+            },
+            {
+              "title": "checkout page has shipping address fields",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "cc0cfaeef28606949319-1b174b997c7142336f90",
+              "file": "08-payment.spec.ts",
+              "line": 30,
+              "column": 7
+            },
+            {
+              "title": "checkout page shows order summary",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "cc0cfaeef28606949319-6c9e3bb85601338dc43f",
+              "file": "08-payment.spec.ts",
+              "line": 56,
+              "column": 7
+            },
+            {
+              "title": "checkout page shows payment methods when items exist",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "cc0cfaeef28606949319-a8afece5d88371ee3518",
+              "file": "08-payment.spec.ts",
+              "line": 73,
+              "column": 7
+            }
+          ]
+        },
+        {
+          "title": "Shipping Address Form",
+          "file": "08-payment.spec.ts",
+          "line": 97,
+          "column": 6,
+          "specs": [
+            {
+              "title": "shipping address form fields are present",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "cc0cfaeef28606949319-e1625a5224f81fe48ab1",
+              "file": "08-payment.spec.ts",
+              "line": 102,
+              "column": 7
+            },
+            {
+              "title": "can fill shipping address form",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "cc0cfaeef28606949319-8ab75938ece95356cd0e",
+              "file": "08-payment.spec.ts",
+              "line": 129,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "09-orders.spec.ts",
+      "file": "09-orders.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Order History",
+          "file": "09-orders.spec.ts",
+          "line": 8,
+          "column": 6,
+          "specs": [
+            {
+              "title": "orders page loads when authenticated",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "1944c7ebe64c4f5355e9-706d99a139e11bc30e83",
+              "file": "09-orders.spec.ts",
+              "line": 13,
+              "column": 7
+            },
+            {
+              "title": "orders page shows order list or empty state",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "1944c7ebe64c4f5355e9-27bfc29121465a7c6ec3",
+              "file": "09-orders.spec.ts",
+              "line": 23,
+              "column": 7
+            },
+            {
+              "title": "testuser has orders (at least 1)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "1944c7ebe64c4f5355e9-48fb09076e00b06dd332",
+              "file": "09-orders.spec.ts",
+              "line": 40,
+              "column": 7
+            },
+            {
+              "title": "order card expands to show detail",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "1944c7ebe64c4f5355e9-279a872301abc8e4defc",
+              "file": "09-orders.spec.ts",
+              "line": 62,
+              "column": 7
+            },
+            {
+              "title": "Download Invoice button appears in expanded order",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "1944c7ebe64c4f5355e9-13276eee42d95730cbeb",
+              "file": "09-orders.spec.ts",
+              "line": 85,
+              "column": 7
+            },
+            {
+              "title": "Invoice PDF download initiates (response check via API)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "1944c7ebe64c4f5355e9-853890ce9f14d5a13b6b",
+              "file": "09-orders.spec.ts",
+              "line": 108,
+              "column": 7
+            },
+            {
+              "title": "account overview shows order count",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "1944c7ebe64c4f5355e9-af869b76c6385281eca6",
+              "file": "09-orders.spec.ts",
+              "line": 147,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "10-admin.spec.ts",
+      "file": "10-admin.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Admin",
+          "file": "10-admin.spec.ts",
+          "line": 17,
+          "column": 6,
+          "specs": [
+            {
+              "title": "admin login page loads at /app",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "456aee3854f22d4b8c6b-a21bb81152cce4cc1df8",
+              "file": "10-admin.spec.ts",
+              "line": 21,
+              "column": 7
+            },
+            {
+              "title": "admin login with credentials",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "456aee3854f22d4b8c6b-90329a2e1ead8adfee5e",
+              "file": "10-admin.spec.ts",
+              "line": 36,
+              "column": 7
+            },
+            {
+              "title": "admin auction-blocks route accessible",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "456aee3854f22d4b8c6b-33c8f3d7ce129be7c51d",
+              "file": "10-admin.spec.ts",
+              "line": 64,
+              "column": 7
+            },
+            {
+              "title": "admin live monitor route accessible",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "456aee3854f22d4b8c6b-53ddd4857015c39f9309",
+              "file": "10-admin.spec.ts",
+              "line": 85,
+              "column": 7
+            },
+            {
+              "title": "admin transactions route accessible",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "456aee3854f22d4b8c6b-5d4df3a5677eedb42150",
+              "file": "10-admin.spec.ts",
+              "line": 102,
+              "column": 7
+            }
+          ]
+        },
+        {
+          "title": "Admin: Create Auction Block via API",
+          "file": "10-admin.spec.ts",
+          "line": 120,
+          "column": 6,
+          "specs": [
+            {
+              "title": "can create and delete a draft block via API",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "456aee3854f22d4b8c6b-29680b767170ef36d4fd",
+              "file": "10-admin.spec.ts",
+              "line": 126,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-03-29T05:13:39.614Z",
+    "duration": 15.456000000000017,
+    "expected": 0,
+    "skipped": 64,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}
