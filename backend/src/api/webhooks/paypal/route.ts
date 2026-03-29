@@ -2,6 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, generateEntityId } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { verifyWebhookSignature } from "../../../lib/paypal"
+import { rudderTrack } from "../../../lib/rudderstack"
 
 // POST /webhooks/paypal — PayPal Webhook Handler
 export async function POST(
@@ -121,6 +122,22 @@ export async function POST(
             }),
             actor: "system",
             created_at: new Date(),
+          })
+        }
+
+        // Track payment completed
+        if (paidTx) {
+          const groupId = paidTx.order_group_id
+          const orderNum = await pgConnection("transaction")
+            .where("order_group_id", groupId)
+            .whereNotNull("order_number")
+            .pluck("order_number")
+            .first()
+          rudderTrack(paidTx.user_id ?? "unknown", "Payment Completed", {
+            order_number: orderNum ?? null,
+            order_group_id: groupId,
+            amount: Number(paidTx.total_amount ?? 0),
+            payment_method: "paypal",
           })
         }
 

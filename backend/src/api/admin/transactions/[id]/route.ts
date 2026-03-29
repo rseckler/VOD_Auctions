@@ -9,6 +9,7 @@ import { refundPayPalCapture } from "../../../../lib/paypal"
 import { sendShippingEmail, sendFeedbackRequestEmail } from "../../../../lib/email-helpers"
 import { crmSyncShippingUpdate } from "../../../../lib/crm-sync"
 import { UpdateTransactionSchema, validateBody } from "../../../../lib/validation"
+import { rudderTrack } from "../../../../lib/rudderstack"
 
 // GET /admin/transactions/:id — Transaction detail + order events timeline
 export async function GET(
@@ -561,6 +562,15 @@ export async function POST(
       actor: "admin",
       created_at: new Date(),
     })
+
+    // Track order shipped
+    if (shipping_status === "shipped" && previousShippingStatus !== "shipped") {
+      rudderTrack(transaction.user_id ?? "admin", "Order Shipped", {
+        transaction_id: id,
+        order_group_id: transaction.order_group_id,
+        order_number: transaction.order_number,
+      })
+    }
 
     // Send shipping email when status changes to "shipped" (async, non-blocking)
     if (shipping_status === "shipped" && previousShippingStatus !== "shipped") {

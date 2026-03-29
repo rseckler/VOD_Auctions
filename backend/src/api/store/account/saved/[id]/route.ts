@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
+import { rudderTrack } from "../../../../../lib/rudderstack"
 
 // DELETE /store/account/saved/:id — Remove saved item
 export async function DELETE(
@@ -32,6 +33,8 @@ export async function DELETE(
   await pgConnection("saved_item")
     .where({ id })
     .update({ deleted_at: new Date() })
+
+  rudderTrack(customerId, "Item Unsaved", { saved_item_id: id })
 
   res.json({ message: "Item removed from saved" })
 }

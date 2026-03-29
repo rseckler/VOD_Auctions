@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { stripe } from "../../../../lib/stripe"
 import { prepareCheckoutOrder, CheckoutError } from "../../../../lib/checkout-helpers"
+import { rudderTrack } from "../../../../lib/rudderstack"
 
 // Explicit payment method types — PayPal removed (now handled directly via PayPal JS SDK)
 // Do NOT use automatic_payment_methods (causes Stripe Link to hijack the Payment Element)
@@ -95,6 +96,12 @@ export async function POST(
         stripe_payment_intent_id: paymentIntent.id,
         updated_at: new Date(),
       })
+
+    rudderTrack(customerId, "Checkout Started", {
+      amount: Number(order.grandTotal),
+      payment_method: "stripe",
+      order_group_id: order.orderGroupId,
+    })
 
     res.json({
       client_secret: paymentIntent.client_secret,

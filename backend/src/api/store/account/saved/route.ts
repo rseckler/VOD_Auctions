@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, generateEntityId } from "@medusajs/framework/utils"
 import { Knex } from "knex"
+import { rudderTrack } from "../../../../lib/rudderstack"
 
 // GET /store/account/saved — List saved items
 export async function GET(
@@ -91,6 +92,8 @@ export async function POST(
       updated_at: new Date(),
     })
     .returning("*")
+
+  rudderTrack(customerId, "Item Saved", { release_id })
 
   res.status(201).json({ item })
 }

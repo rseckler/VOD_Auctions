@@ -10,6 +10,7 @@ import { AUCTION_MODULE } from "../../../../../../../modules/auction"
 import { sendOutbidEmail } from "../../../../../../../lib/email-helpers"
 import { crmSyncBidPlaced } from "../../../../../../../lib/crm-sync"
 import { getSupabaseAdminClient } from "../../../../../../../lib/supabase"
+import { rudderTrack } from "../../../../../../../lib/rudderstack"
 
 /**
  * Tiered bid increment table.
@@ -340,6 +341,16 @@ export async function POST(
         _extension: _extension2,
       }
     })
+
+    // Track bid placed (only for winning bids — not proxy-outbid responses)
+    if (!result.outbid) {
+      rudderTrack(customerId, "Bid Placed", {
+        bid_id: result.bid_id,
+        amount: Number(result.amount),
+        item_id: itemId,
+        block_slug: slug,
+      })
+    }
 
     // Send outbid email AFTER transaction commits (async, non-blocking)
     if (result._outbid_user) {

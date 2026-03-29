@@ -2,6 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, generateEntityId } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { isAvailableForDirectPurchase } from "../../../../lib/auction-helpers"
+import { rudderTrack } from "../../../../lib/rudderstack"
 
 // GET /store/account/cart — List cart items
 export async function GET(
@@ -90,6 +91,11 @@ export async function POST(
       updated_at: new Date(),
     })
     .returning("*")
+
+  rudderTrack(customerId, "Cart Item Added", {
+    release_id,
+    price: Number(release.direct_price),
+  })
 
   res.status(201).json({ item })
 }

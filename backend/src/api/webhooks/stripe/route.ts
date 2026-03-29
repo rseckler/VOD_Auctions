@@ -4,6 +4,7 @@ import { Knex } from "knex"
 import { stripe } from "../../../lib/stripe"
 import { sendPaymentConfirmationEmail } from "../../../lib/email-helpers"
 import { crmSyncPaymentCompleted } from "../../../lib/crm-sync"
+import { rudderTrack } from "../../../lib/rudderstack"
 
 // Get raw body: from rawBody middleware, Buffer body, or string body
 function getRawBody(req: any): Buffer | null {
@@ -157,6 +158,13 @@ export async function POST(
             created_at: new Date(),
           })
 
+          // Track payment completed
+          rudderTrack(session.metadata?.userId ?? "unknown", "Payment Completed", {
+            order_number: orderNumber,
+            order_group_id: orderGroupId,
+            payment_method: "stripe",
+          })
+
           // Send payment confirmation email (async, non-blocking)
           sendPaymentConfirmationEmail(pgConnection, orderGroupId).catch((err) => {
             console.error("[stripe-webhook] Failed to send payment email:", err)
@@ -291,6 +299,13 @@ export async function POST(
             .update({ updated_at: new Date() })
           console.log(`[stripe-webhook] Promo code ${promoTx.promo_code_id} used_count incremented`)
         }
+
+        // Track payment completed
+        rudderTrack(paymentIntent.metadata?.user_id ?? "unknown", "Payment Completed", {
+          order_number: piOrderNumber,
+          order_group_id: orderGroupId,
+          payment_method: "stripe",
+        })
 
         // Send payment confirmation email
         sendPaymentConfirmationEmail(pgConnection, orderGroupId).catch((err) => {
