@@ -785,6 +785,12 @@ const BlockDetailPage = () => {
             </Button>
           )}
 
+          {!isNew && block.status === "ended" && (
+            <a href={`/app/auction-blocks/${id}/post-auction`}>
+              <Button variant="secondary">Post-Auction Workflow →</Button>
+            </a>
+          )}
+
           {!isNew && block.slug && (
             <a
               href={`https://vod-auctions.com/auctions/${block.slug}`}

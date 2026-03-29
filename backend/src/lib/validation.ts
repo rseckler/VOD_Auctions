@@ -32,7 +32,7 @@ export const CreateBlockItemSchema = z.object({
 })
 
 export const UpdateTransactionSchema = z.object({
-  action: z.enum(["ship", "refund", "note", "cancel", "mark_paid"]),
+  action: z.enum(["ship", "refund", "note", "cancel", "mark_paid", "packing", "label_printed"]),
   tracking_number: z.string().optional(),
   carrier: z.string().optional(),
   note: z.string().max(2000).optional(),
@@ -44,6 +44,11 @@ export const BulkShipSchema = z.object({
   transaction_ids: z.array(z.string()).min(1).max(100),
   tracking_number: z.string().optional(),
   carrier: z.string().optional(),
+})
+
+export const BulkActionSchema = z.object({
+  ids: z.array(z.string()).min(1).max(100),
+  action: z.enum(["packing", "label_printed"]),
 })
 
 export function validateBody<T>(

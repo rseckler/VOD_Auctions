@@ -370,6 +370,74 @@ export async function POST(
     return
   }
 
+  // ── PACKING ACTION ──
+  if (action === "packing") {
+    try {
+      const tx = await pgConnection("transaction").where("id", id).first()
+      if (!tx) {
+        res.status(404).json({ message: "Transaction not found" })
+        return
+      }
+
+      await pgConnection("transaction")
+        .where("id", id)
+        .update({ fulfillment_status: "packing", updated_at: new Date() })
+
+      const orderGroupId = tx.order_group_id || tx.id
+      await pgConnection("order_event").insert({
+        id: generateEntityId(),
+        order_group_id: orderGroupId,
+        transaction_id: id,
+        event_type: "fulfillment",
+        title: "Status changed to: Packing",
+        details: JSON.stringify({ fulfillment_status: "packing" }),
+        actor: "admin",
+        created_at: new Date(),
+      })
+
+      res.json({ success: true, fulfillment_status: "packing" })
+    } catch (error: any) {
+      console.error("[admin/transactions/packing] Error:", error)
+      res.status(500).json({ message: "Failed to update transaction" })
+    }
+    return
+  }
+
+  // ── LABEL_PRINTED ACTION ──
+  // SQL to add column (run once on DB if not exists):
+  // ALTER TABLE transaction ADD COLUMN IF NOT EXISTS label_printed_at TIMESTAMP;
+  if (action === "label_printed") {
+    try {
+      const tx = await pgConnection("transaction").where("id", id).first()
+      if (!tx) {
+        res.status(404).json({ message: "Transaction not found" })
+        return
+      }
+
+      await pgConnection("transaction")
+        .where("id", id)
+        .update({ label_printed_at: new Date(), updated_at: new Date() })
+
+      const orderGroupId = tx.order_group_id || tx.id
+      await pgConnection("order_event").insert({
+        id: generateEntityId(),
+        order_group_id: orderGroupId,
+        transaction_id: id,
+        event_type: "fulfillment",
+        title: "Shipping label printed",
+        details: JSON.stringify({ label_printed_at: new Date() }),
+        actor: "admin",
+        created_at: new Date(),
+      })
+
+      res.json({ success: true, label_printed_at: new Date() })
+    } catch (error: any) {
+      console.error("[admin/transactions/label_printed] Error:", error)
+      res.status(500).json({ message: "Failed to update transaction" })
+    }
+    return
+  }
+
   // ── SHIPPING STATUS UPDATE ──
   const { shipping_status, tracking_number, carrier } = body as {
     shipping_status: "shipped" | "delivered"
