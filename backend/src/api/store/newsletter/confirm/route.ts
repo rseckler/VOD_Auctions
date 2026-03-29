@@ -1,4 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { Knex } from "knex"
 import { upsertContact, BREVO_LIST_VOD_AUCTIONS } from "../../../../lib/brevo"
 import { verifyConfirmToken } from "../route"
 
@@ -44,6 +46,29 @@ export async function GET(
   } catch (error: any) {
     console.error("[newsletter/confirm] Brevo upsert failed:", error.message)
     // Redirect anyway — don't block the user on a provider error
+  }
+
+  // If this email belongs to a registered customer, tag them in customer_stats
+  try {
+    const pgConnection: Knex = req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
+    const customer = await pgConnection("customer")
+      .where("email", normalised)
+      .whereNull("deleted_at")
+      .select("id")
+      .first()
+
+    if (customer) {
+      await pgConnection.raw(`
+        UPDATE customer_stats
+        SET tags = array_append(tags, 'newsletter_subscriber'),
+            updated_at = NOW()
+        WHERE customer_id = ?
+          AND NOT (tags @> ARRAY['newsletter_subscriber'])
+      `, [customer.id])
+    }
+  } catch (e: any) {
+    // Non-critical — don't block redirect
+    console.warn("[newsletter/confirm] customer_stats tag update failed:", e.message)
   }
 
   res.redirect(`${STOREFRONT_URL}/newsletter/confirmed`)

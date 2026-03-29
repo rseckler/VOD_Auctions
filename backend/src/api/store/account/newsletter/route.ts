@@ -112,6 +112,25 @@ export async function POST(
       })
     }
 
+    // Sync newsletter_subscriber tag in customer_stats
+    try {
+      if (newsletter_optin) {
+        await pgConnection.raw(`
+          UPDATE customer_stats
+          SET tags = array_append(tags, 'newsletter_subscriber'), updated_at = NOW()
+          WHERE customer_id = ? AND NOT (tags @> ARRAY['newsletter_subscriber'])
+        `, [customerId])
+      } else {
+        await pgConnection.raw(`
+          UPDATE customer_stats
+          SET tags = array_remove(tags, 'newsletter_subscriber'), updated_at = NOW()
+          WHERE customer_id = ?
+        `, [customerId])
+      }
+    } catch (e: any) {
+      console.warn("[newsletter] customer_stats tag sync failed:", e.message)
+    }
+
     console.log(
       `[newsletter] ${newsletter_optin ? "Opt-in" : "Opt-out"}: ${customer.email}`
     )
