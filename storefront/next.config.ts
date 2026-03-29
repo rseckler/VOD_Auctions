@@ -19,8 +19,6 @@ export default withSentryConfig(nextConfig, {
   silent: true,
   widenClientFileUpload: true,
   tunnelRoute: "/monitoring",
-  hideSourceMaps: true,
-  disableLogger: true,
   sourcemaps: {
     disable: process.env.NODE_ENV !== "production",
   },
