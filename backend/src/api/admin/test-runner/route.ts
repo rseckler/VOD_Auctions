@@ -95,7 +95,11 @@ export async function POST(
   const child = spawn("npx", ["playwright", "test"], {
     cwd: storefrontDir,
     shell: true,
-    env: { ...process.env, FORCE_COLOR: "0" }, // no ANSI codes in output
+    env: {
+      ...process.env,
+      FORCE_COLOR: "0",                          // no ANSI codes in output
+      BASE_URL: process.env.STOREFRONT_URL || "http://localhost:3006",
+    },
   })
 
   const job = runningJobs[jobId]
