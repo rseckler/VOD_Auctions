@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { medusaFetch } from "@/lib/api"
 import { staggerContainer, staggerItem } from "@/lib/motion"
+import { rudderTrack } from "@/lib/rudderstack"
 
 type CatalogRelease = {
   id: string
@@ -225,6 +226,9 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
     debounceRef.current = setTimeout(() => {
       setSearch(value)
       setPage(1)
+      if (value.trim().length >= 2) {
+        rudderTrack("Search Performed", { query: value.trim() })
+      }
     }, 500)
   }, [])
 
