@@ -8,7 +8,7 @@ const PARENT_HUB: Record<string, { label: string; href: string }> = {
   "/app/musicians":      { label: "Catalog",    href: "/app/catalog" },
   "/app/newsletter":     { label: "Marketing",  href: "/app/marketing" },
   "/app/emails":         { label: "Marketing",  href: "/app/marketing" },
-  "/app/customers":      { label: "Marketing",  href: "/app/marketing" },
+  "/app/crm":            { label: "Marketing",  href: "/app/marketing" },
   "/app/content":        { label: "Marketing",  href: "/app/marketing" },
   "/app/gallery":        { label: "Marketing",  href: "/app/marketing" },
   "/app/live-monitor":   { label: "Operations", href: "/app/operations" },
