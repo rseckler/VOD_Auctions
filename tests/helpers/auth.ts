@@ -1,5 +1,51 @@
 import { Page, BrowserContext } from "@playwright/test"
 
+const ADMIN_URL = process.env.ADMIN_URL || "http://localhost:9000"
+const ADMIN_EMAIL = "admin@vod.de"
+const ADMIN_PASSWORD = "admin123"
+
+async function getAdminToken(): Promise<string | null> {
+  try {
+    const res = await fetch(`${ADMIN_URL}/auth/user/emailpass`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD }),
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    return data.token || null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Delete a customer by email via the Admin API.
+ * Used in test cleanup to prevent accumulation of E2E test accounts.
+ * Silently succeeds if the customer does not exist.
+ */
+export async function deleteCustomerByEmail(email: string): Promise<void> {
+  const token = await getAdminToken()
+  if (!token) return
+  try {
+    const res = await fetch(
+      `${ADMIN_URL}/admin/customers/list?q=${encodeURIComponent(email)}&limit=10`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    if (!res.ok) return
+    const data = await res.json()
+    const customers: Array<{ id: string; email: string }> = data.customers || []
+    const match = customers.find((c) => c.email === email)
+    if (!match) return
+    await fetch(`${ADMIN_URL}/admin/customers/${match.id}/delete`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    })
+  } catch {
+    // ignore — cleanup is best-effort
+  }
+}
+
 /**
  * Bypass the password gate by setting the cookie directly.
  * Call this in beforeEach for every test except the gate test itself.

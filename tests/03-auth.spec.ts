@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { bypassGate, loginViaModal, TEST_ACCOUNTS } from "./helpers/auth"
+import { bypassGate, loginViaModal, TEST_ACCOUNTS, deleteCustomerByEmail } from "./helpers/auth"
 
 /**
  * 03 — Authentication: Register, Login, Logout
@@ -82,15 +82,25 @@ test.describe("Login", () => {
   })
 })
 
+// Fixed email for register test — cleaned up before each run so no accumulation
+const E2E_REGISTER_EMAIL = "e2e-register@e2e-vod.test"
+const E2E_REGISTER_PASSWORD = "TestPass2026!"
+
 test.describe("Register", () => {
+  test.beforeAll(async () => {
+    // Delete the fixed test user if it exists from a previous run
+    await deleteCustomerByEmail(E2E_REGISTER_EMAIL)
+  })
+
+  test.afterAll(async () => {
+    await deleteCustomerByEmail(E2E_REGISTER_EMAIL)
+  })
+
   test.beforeEach(async ({ context }) => {
     await bypassGate(context)
   })
 
-  test("register new account with random email", async ({ page }) => {
-    const randomEmail = `test-${Date.now()}@e2e-vod.test`
-    const password = "TestPass2026!"
-
+  test("register new account", async ({ page }) => {
     await page.goto("/")
     await page.getByRole("button", { name: "Login" }).click()
     const dialog = page.getByRole("dialog")
@@ -103,9 +113,9 @@ test.describe("Register", () => {
     // Fill form
     await dialog.locator("#firstName").fill("E2E")
     await dialog.locator("#lastName").fill("Tester")
-    await dialog.locator("#email").fill(randomEmail)
-    await dialog.locator("#password").fill(password)
-    await dialog.locator("#confirmPassword").fill(password)
+    await dialog.locator("#email").fill(E2E_REGISTER_EMAIL)
+    await dialog.locator("#password").fill(E2E_REGISTER_PASSWORD)
+    await dialog.locator("#confirmPassword").fill(E2E_REGISTER_PASSWORD)
 
     // Accept T&C (first checkbox)
     await dialog.locator('input[type="checkbox"]').first().check()
