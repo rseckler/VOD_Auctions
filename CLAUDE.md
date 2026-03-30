@@ -4,7 +4,7 @@
 **Goal:** Eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Phase 1 fertig — RSE-77 (Testlauf) als nächster Schritt
 **Language:** Storefront + Admin-UI: Englisch
-**Last Updated:** 2026-04-02
+**Last Updated:** 2026-04-03
 
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
@@ -328,6 +328,30 @@ VOD_Auctions/
 
 ## Recent Changes
 
+### 2026-04-03 — SEO, Rudderstack, UX-Fixes, Security, Mobile
+
+#### Rudderstack + Tracking
+- `rudderIdentify` auf Login/Register/Mount in `AuthProvider.tsx`. `Item Unsaved` Event in `SaveForLaterButton.tsx`.
+
+#### UX Fixes
+- Facebook-Link korrigiert (`vinylondemandrecords`). Discogs-Link aus Footer entfernt. Outbid-Email ohne Preistabelle. Sticky Mobile CTA auf beendeten Lots ausgeblendet.
+
+#### SEO Phase 1+2
+- Canonical URLs auf allen dynamischen Seiten. OG-Images für band/label/press. JSON-LD Event-Schema (Auktionen) + MusicGroup-Schema (Bands). sr-only H1 auf Catalog. Noindex `gate/layout.tsx`. Alt-Texte ImageGallery + BlockItemsGrid.
+
+#### Admin Password Reset Fix
+- Subscriber `password-reset.ts`: Frühes `return` für `actor_type !== "customer"` entfernt. `else if (actor_type === "user")` Branch ergänzt → Admin-Reset-Mail wird jetzt gesendet.
+
+#### Adressen
+- Gallery: Eugenstrasse 57/2. VOD Records (Impressum, AGB, Datenschutz, Widerruf, Invoice): Alpenstrasse 25/1.
+
+#### PostgreSQL Security
+- `listen_addresses = 'localhost'` → Port 5432 nur noch lokal erreichbar (kein öffentlicher Zugriff). Hostinger-Warning behoben.
+
+#### Mobile Fixes
+- `overflow-x: hidden` auf `html`/`body` in `globals.css` + Admin via `injectNavCSS()` — kein horizontales Schieben mehr.
+- `active_bids_count` in `/store/account/status` → "My Bids (N)" im Mobile Nav.
+
 ### 2026-04-02 — Bugfixes Fehler 8–13 (Format, CRM, Bid Email, Countdown, Translate)
 
 #### Format Badge Fix (Fehler 10)
@@ -349,8 +373,8 @@ VOD_Auctions/
 - Sekunden erst wenn < 60 Minuten. 4 Dateien: `ItemBidSection.tsx`, `auctions/[slug]/page.tsx`, `BlockItemsGrid.tsx`, `PreviewCountdown.tsx`.
 
 #### Address + Translate
-- Adresse: Alpenstrasse 25/1 → Eugenstrasse 57/2 (Impressum, Datenschutz, AGB, Widerruf, Gallery).
-- `translate="no"` + `<meta name="google" content="notranslate">` im Root Layout — verhindert Bandnamen-Übersetzung auf Android/Chrome.
+- Gallery: Eugenstrasse 57/2. VOD Records: Alpenstrasse 25/1.
+- `translate="no"` + `<meta name="google" content="notranslate">` im Root Layout.
 
 ### 2026-04-01 — Bugfixes Fehler 1–7 (Live Bidding, Tracklist, Saved Items, CRM Stats)
 

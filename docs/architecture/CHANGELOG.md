@@ -4,6 +4,48 @@ Vollständiger Entwicklungs-Changelog. Aktuelle Änderungen stehen in CLAUDE.md.
 
 ---
 
+### 2026-04-03 — SEO Phase 1+2, Rudderstack Tracking, UX Fixes, Security
+
+#### Rudderstack: rudderIdentify + Item Unsaved Event
+- **`AuthProvider.tsx`**: `rudderIdentify(id, { email })` auf Mount (token restore), nach Login, nach Register.
+- **`SaveForLaterButton.tsx`**: `rudderTrack("Item Unsaved", { release_id })` auf erfolgreichem DELETE.
+
+#### 4 UX Kleinigkeiten
+- **Facebook-Link:** `#` → `https://www.facebook.com/vinylondemandrecords` im Footer.
+- **Discogs-Link** aus Footer entfernt (kein Angebot mehr).
+- **Outbid-Email:** Preistabelle (yourBid/currentBid/suggestedBid) entfernt. CTA "Bid Now" statt "Bid €X.XX Now" — Preise können sich vor Klick ändern.
+- **Sticky Mobile CTA auf beendeten Lots**: War immer sichtbar, zeigte "Auction ended" nutzlos. Jetzt: nur anzeigen wenn `isBlockPreview || (block.status === "active" && item.status === "open")`.
+
+#### SEO Phase 1+2 — Canonicals, OG, JSON-LD, Robots
+- **Canonical URLs** auf allen dynamischen Seiten: `catalog/[id]`, `auctions/[slug]`, `auctions/[slug]/[itemId]`, `band/[slug]`, `label/[slug]`, `press/[slug]`.
+- **OG-Images**: `band/[slug]`, `label/[slug]`, `press/[slug]` — erste verfügbare Cover-URL als `og:image` + Twitter Card `summary_large_image`.
+- **JSON-LD Event Schema** auf Auction-Block-Seite: `@type: Event`, name/description/url/image/startDate/endDate/eventStatus/organizer/AggregateOffer.
+- **JSON-LD MusicGroup Schema** auf Band-Seiten: name/description/url/image/genre/sameAs.
+- **sr-only H1** auf Catalog-Seite: kontextuell je nach Filter/Suche/Kategorie.
+- **Noindex auf Gate-Seite**: `gate/layout.tsx` (NEU, Server Component) → `robots: { index: false }`.
+- **Alt-Texte**: `ImageGallery.tsx` Thumbnails — `""` → `"${title} — image ${i+1}"`. `BlockItemsGrid.tsx` — `""` → `"Auction lot ${lot_number}"`.
+
+#### Admin Password Reset Fix
+- **`backend/src/subscribers/password-reset.ts`**: Subscriber hatte frühes `return` für `actor_type !== "customer"` → Admin-User-Reset wurde still ignoriert. Neuer `else if (actor_type === "user")` Branch mit `adminResetUrl` → `admin.vod-auctions.com/app/reset-password?token=...&email=...`.
+
+#### Adressen Klarstellung
+- **Gallery:** `Eugenstrasse 57/2` (via Supabase `content_block` UPDATE).
+- **VOD Records (Impressum, AGB, Datenschutz, Widerruf, Invoice, Shipping Label):** Alpenstrasse 25/1 (zurückgesetzt).
+
+#### PostgreSQL Security Fix
+- `listen_addresses = 'localhost'` in `/etc/postgresql/16/main/postgresql.conf` — Port 5432 nur noch auf Loopback erreichbar, nicht mehr öffentlich. `systemctl restart postgresql`. Hostinger-Warning damit behoben.
+
+#### Mobile Horizontal Scroll Fix
+- `overflow-x: hidden` auf `html` + `body` in `storefront/src/app/globals.css`.
+- Gleiches CSS via `injectNavCSS()` in `admin-nav.tsx` injiziert → greift auf allen Admin-Seiten.
+
+#### My Bids Count im Mobile Nav
+- **`/store/account/status`**: Neues Feld `active_bids_count` — COUNT aller Bids auf Blöcken mit `status IN (active, preview)`.
+- **`AuthProvider.tsx`**: `bidsCount` State aus `active_bids_count`.
+- **`MobileNav.tsx`**: "My Bids" → "My Bids (N)" wenn N > 0, analog zu "Saved (2)".
+
+---
+
 ### 2026-04-02 — Bugfixes Fehler 8–13: Format Badge, CRM Staleness, Bid Email, Countdown, Translate
 
 #### Format Badge Fix (Fehler 10) — Lot Detail Page
