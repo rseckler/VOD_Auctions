@@ -109,11 +109,13 @@ test.describe("Bidding", () => {
 
     await lotLinks.first().click()
     await page.waitForLoadState("networkidle", { timeout: 20_000 })
+    // Allow React hydration to complete before checking bid section
+    await page.waitForTimeout(2_000)
 
     // Bid form should be visible for authenticated users
-    // ItemBidSection renders a Label "Your Bid" and an Input
+    // ItemBidSection renders a Label "Your Bid" and a "Place Bid" button
     const bidLabel = page.getByText(/your bid|min.*bid|place bid/i).first()
-    const bidButton = page.getByRole("button", { name: /place bid|bid now/i })
+    const bidButton = page.getByRole("button", { name: /place bid/i }).first()
 
     const hasLabel = await bidLabel.isVisible()
     const hasButton = await bidButton.isVisible()
@@ -168,6 +170,7 @@ test.describe("Bidding", () => {
 
     await lotLinks.first().click()
     await page.waitForLoadState("networkidle", { timeout: 20_000 })
+    await page.waitForTimeout(2_000)
 
     // Find the bid amount input
     const bidInput = page.locator("input[type='number']").first()
