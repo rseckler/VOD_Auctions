@@ -458,18 +458,17 @@ function BidForm({
       const data = await res.json()
       if (!res.ok) {
         const msg = data.message || "Bid failed"
-        const isAlreadyWinning =
-          msg.toLowerCase().includes("already") ||
-          msg.toLowerCase().includes("highest bidder")
-        toast.error(msg, {
-          duration: 8000,
-          description: isAlreadyWinning
-            ? "Use 'Set maximum bid' to raise your proxy bid limit."
-            : undefined,
-        })
+        toast.error(msg, { duration: 8000 })
       } else if (data.outbid) {
         toast.warning(data.message || "You have been outbid", { duration: 6000 })
         onBidResult?.(false)
+      } else if (data.max_updated) {
+        toast.success(`Maximum bid raised to €${Number(data.new_max_amount).toFixed(2)}`, {
+          duration: 6000,
+          description: "You remain the highest bidder.",
+        })
+        onBidResult?.(true)
+        onBidPlaced()
       } else {
         toast.success(`Bid of €${data.amount.toFixed(2)} placed successfully!`, { duration: 6000 })
         brevoBidPlaced(itemId, data.amount, slug)

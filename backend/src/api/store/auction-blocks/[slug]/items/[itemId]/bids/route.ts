@@ -218,18 +218,24 @@ export async function POST(
 
       const now = new Date()
 
-      // Prevent self-outbid (same user can't outbid themselves)
+      // Prevent self-outbid: user is already highest bidder.
+      // Allow raising the proxy ceiling via either amount or max_amount field.
       if (existingWinning && existingWinning.user_id === customerId) {
-        if (max_amount && max_amount > (parseFloat(existingWinning.max_amount) || 0)) {
+        const newMax = max_amount || amount
+        const existingMax = parseFloat(existingWinning.max_amount) || 0
+
+        if (newMax > existingMax) {
           await trx("bid")
             .where("id", existingWinning.id)
-            .update({ max_amount, updated_at: now })
+            .update({ max_amount: newMax, updated_at: now })
           return {
             status: 200,
             bid_id: existingWinning.id,
             amount: parseFloat(existingWinning.amount),
             current_price: currentPrice,
             message: "Maximum bid updated",
+            max_updated: true,
+            new_max_amount: newMax,
           }
         }
         throw {
