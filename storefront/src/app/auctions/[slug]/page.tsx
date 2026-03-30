@@ -4,6 +4,7 @@ import Image from "next/image"
 import { notFound } from "next/navigation"
 import { ChevronRight, Calendar, Package, Clock, Disc3, Heart } from "lucide-react"
 import { BlockItemsGrid } from "@/components/BlockItemsGrid"
+import { CollapsibleDescription } from "@/components/CollapsibleDescription"
 import { ShareButton } from "@/components/ShareButton"
 import { PreviewCountdown } from "@/components/PreviewCountdown"
 import { medusaFetch } from "@/lib/api"
@@ -243,11 +244,9 @@ export default async function BlockDetailPage({
         {(block.long_description || block.video_url) && (
           <section className="mb-12 max-w-3xl">
             {block.long_description && (
-              <div className="prose prose-invert max-w-none prose-p:text-muted-foreground prose-p:leading-relaxed">
-                {block.long_description.split("\n").map((p, i) =>
-                  p.trim() ? <p key={i}>{p}</p> : null
-                )}
-              </div>
+              <CollapsibleDescription
+                paragraphs={block.long_description.split("\n")}
+              />
             )}
             {block.video_url && (
               <div className="mt-6 aspect-video rounded-lg overflow-hidden border border-[rgba(232,224,212,0.08)]">
