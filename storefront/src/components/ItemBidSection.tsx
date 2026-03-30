@@ -74,8 +74,12 @@ export function ItemBidSection({
   const [bids, setBids] = useState<BidRecord[]>([])
   const [bidsLoaded, setBidsLoaded] = useState(false)
   const [newBidPulse, setNewBidPulse] = useState(false)
+  // Reactive status — ISR props may be up to 30s stale; refreshed on mount + via realtime
+  const [liveBlockStatus, setLiveBlockStatus] = useState(blockStatus)
+  const [liveItemStatus, setLiveItemStatus] = useState(itemStatus)
 
-  const isActive = blockStatus === "active" && itemStatus === "active"
+  // item.status is "open" when active (not "active") — check both to be safe
+  const isActive = liveBlockStatus === "active" && (liveItemStatus === "active" || liveItemStatus === "open")
   const [timeLeft, setTimeLeft] = useState<number | null>(null)
 
   // Track time left for urgency banner
@@ -88,6 +92,25 @@ export function ItemBidSection({
     const id = setInterval(updateTimeLeft, 1000)
     return () => clearInterval(id)
   }, [lotEndTime])
+
+  // Fetch fresh status + price on mount to fix ISR-stale props (Fehler 1, 2, 6)
+  useEffect(() => {
+    fetch(`${MEDUSA_URL}/store/auction-blocks/${slug}/items/${itemId}`, {
+      headers: { "x-publishable-api-key": PUBLISHABLE_KEY },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data) return
+        const fi = data.block_item
+        const fb = data.auction_block
+        if (fb?.status) setLiveBlockStatus(fb.status)
+        if (fi?.status) setLiveItemStatus(fi.status)
+        if (fi?.current_price != null) setCurrentPrice(Number(fi.current_price))
+        if (fi?.bid_count != null) setBidCount(fi.bid_count)
+        if (fi?.lot_end_time) setLotEndTime(fi.lot_end_time)
+      })
+      .catch(() => {})
+  }, [slug, itemId])
 
   const loadBids = useCallback(async () => {
     try {
@@ -106,10 +129,10 @@ export function ItemBidSection({
   }, [slug, itemId])
 
   useEffect(() => {
-    if (isActive || blockStatus === "ended") {
+    if (isActive || liveBlockStatus === "ended") {
       loadBids()
     }
-  }, [isActive, blockStatus, loadBids])
+  }, [isActive, liveBlockStatus, loadBids])
 
   // Supabase Realtime subscriptions
   useEffect(() => {
@@ -159,10 +182,11 @@ export function ItemBidSection({
           filter: `id=eq.${itemId}`,
         },
         (payload) => {
-          const updated = payload.new as { current_price?: number; lot_end_time?: string; bid_count?: number }
-          if (updated.current_price) setCurrentPrice(updated.current_price)
+          const updated = payload.new as { current_price?: number; lot_end_time?: string; bid_count?: number; status?: string }
+          if (updated.current_price) setCurrentPrice(Number(updated.current_price))
           if (updated.lot_end_time) setLotEndTime(updated.lot_end_time)
           if (updated.bid_count !== undefined) setBidCount(updated.bid_count)
+          if (updated.status) setLiveItemStatus(updated.status)
         }
       )
       .subscribe()
@@ -281,7 +305,7 @@ export function ItemBidSection({
             extensionCount={currentExtensionCount}
             suggestedBid={suggestedBid}
           />
-        ) : blockStatus === "ended" || (isActive && timeLeft !== null && timeLeft <= 0) ? (
+        ) : liveBlockStatus === "ended" || (isActive && timeLeft !== null && timeLeft <= 0) ? (
           <div className="mt-3 py-4 px-4 rounded-lg bg-secondary text-center border border-primary/20">
             <p className="text-sm text-muted-foreground">Auction ended</p>
             {bidCount > 0 && (
@@ -408,17 +432,26 @@ function BidForm({
 
       const data = await res.json()
       if (!res.ok) {
-        toast.error(data.message || "Bid failed")
+        const msg = data.message || "Bid failed"
+        const isAlreadyWinning =
+          msg.toLowerCase().includes("already") ||
+          msg.toLowerCase().includes("highest bidder")
+        toast.error(msg, {
+          duration: 8000,
+          description: isAlreadyWinning
+            ? "Use 'Set maximum bid' to raise your proxy bid limit."
+            : undefined,
+        })
       } else if (data.outbid) {
-        toast.warning(data.message || "Outbid")
+        toast.warning(data.message || "You have been outbid", { duration: 6000 })
       } else {
-        toast.success(`Bid of €${data.amount.toFixed(2)} placed successfully!`)
+        toast.success(`Bid of €${data.amount.toFixed(2)} placed successfully!`, { duration: 6000 })
         brevoBidPlaced(itemId, data.amount, slug)
         rudderTrack("Bid Submitted", { amount: data.amount, block_item_id: itemId, slug })
         onBidPlaced()
       }
     } catch {
-      toast.error("Network error")
+      toast.error("Network error — please try again", { duration: 6000 })
     } finally {
       setLoading(false)
     }

@@ -488,7 +488,7 @@ export default async function ItemDetailPage({
           )}
 
           {/* Description */}
-          {release?.description && !effectiveTracklist?.length && !effectiveCredits && (
+          {release?.description && (
             <>
               <Separator className="my-6" />
               <div>
