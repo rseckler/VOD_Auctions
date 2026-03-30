@@ -4,6 +4,20 @@ Vollständiger Entwicklungs-Changelog. Aktuelle Änderungen stehen in CLAUDE.md.
 
 ---
 
+### 2026-04-03 — PressOrga Subtitle + Category-Aware Context überall
+
+#### PressOrga JOIN + Subtitle vollständig
+- **Root Cause:** `press_literature` (6.326 Items) hatte 0 Labels/Artists verknüpft — aber alle haben `pressOrgaId` → `PressOrga`-Tabelle (1.983 Einträge, Magazinnamen wie "391", "Abstract Magazine" etc.).
+- **Backend** `catalog/route.ts` + `catalog/[id]/route.ts` + `auction-blocks/[slug]/route.ts` + `items/[itemId]/route.ts`: LEFT JOIN auf `PressOrga` → `press_orga_name` + `press_orga_slug`.
+- **Storefront:** Category-aware `contextName`/`contextHref` in allen 6 Anzeigebereichen:
+  - `release` + `band_literature` → `artist_name` / `/band/:slug`
+  - `label_literature` → `label_name` / `/label/:slug`
+  - `press_literature` → `press_orga_name` / `/press/:slug`
+- **Dateien:** `BlockItemsGrid.tsx`, `CatalogClient.tsx`, `CatalogRelatedSection.tsx`, `RelatedSection.tsx`, `catalog/[id]/page.tsx`, `auctions/[slug]/[itemId]/page.tsx`, `label/[slug]/page.tsx`
+- **"Unknown" vollständig entfernt** aus allen Subtitle-Bereichen.
+
+---
+
 ### 2026-04-03 — Mag/Lit/Photo Subtitle Logic, Bid UX Fixes, Security
 
 #### Mag/Lit/Photo Subtitle Logic

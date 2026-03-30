@@ -328,6 +328,15 @@ VOD_Auctions/
 
 ## Recent Changes
 
+### 2026-04-03 — PressOrga Subtitle vollständig (alle 6 Bereiche)
+
+#### PressOrga JOIN + Category-aware Context
+- `press_literature` (6.326 Items) hatte alle `pressOrgaId` verknüpft — aber kein JOIN im Backend.
+- Backend: LEFT JOIN `PressOrga` in allen 4 Store-Routes → `press_orga_name` + `press_orga_slug`.
+- Storefront: `contextName`/`contextHref` in `BlockItemsGrid`, `CatalogClient`, `CatalogRelatedSection`, `RelatedSection`, `catalog/[id]/page.tsx`, `auctions/[slug]/[itemId]/page.tsx`.
+- Logik: `release`/`band_literature` → artist, `label_literature` → label, `press_literature` → press_orga.
+- "Unknown" komplett entfernt aus allen Subtitle-Bereichen.
+
 ### 2026-04-03 — Mag/Lit/Photo Subtitle, Bid UX, Mobile, SEO, Security
 
 #### Mag/Lit/Photo Subtitle Logic
