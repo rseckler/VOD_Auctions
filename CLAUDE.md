@@ -4,7 +4,7 @@
 **Goal:** Eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Phase 1 fertig — RSE-77 (Testlauf) als nächster Schritt
 **Language:** Storefront + Admin-UI: Englisch
-**Last Updated:** 2026-03-30
+**Last Updated:** 2026-03-31
 
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
@@ -309,6 +309,19 @@ VOD_Auctions/
 **Backlog:** RSE-78 (Launch, offen: AGB-Anwalt) | RSE-79 (Erste öffentliche Auktionen) | RSE-80 (Marketing)
 
 ## Recent Changes
+
+### 2026-03-31 — E2E Test Suite Stabilisierung + Storefront OOM-Fix
+
+#### Playwright Test Suite: 66 passed, 3 skipped, 0 failed
+- **`tests/helpers/auction-setup.ts`** (NEU) — Helper erstellt/teardown einen Live-Auktionsblock für E2E-Tests. `createTestAuctionBlock()`: draft → scheduled → active, Items aktivieren, gibt `{id, slug, items}` zurück. `cleanupTestAuctionBlock()`: Items → `unsold`, Lifecycle-Job beendet Block automatisch.
+- **`tests/05-auction-browse.spec.ts`** — `beforeAll`/`afterAll` mit eigenem Testblock. Tests navigieren direkt zu `testBlock.slug` (kein ISR-Cache-Problem mehr).
+- **`tests/06-bidding.spec.ts`** — React-Hydration-Race durch `waitForTimeout(2s)` behoben (Tests 38 + 40). Bid-Section ist Client-Component und hydratisiert asynchron nach `networkidle`.
+
+#### Storefront PM2 Restart-Loop behoben
+- **Root Cause:** `max_memory_restart: 300MB` — Next.js mit ISR + 41k-Katalog überschreitet dieses Limit regelmäßig → PM2 Kill + Restart-Loop → 5.687 Restarts.
+- **`ecosystem.config.js`** (NEU) — PM2-Konfiguration für Backend + Storefront: `max_memory_restart: 600MB`, `node_args: --max-old-space-size=512`.
+- **`storefront/next.config.ts`** — `outputFileTracingRoot` hinzugefügt (behebt workspace-root Warning, das Error-Log bei jedem Restart gespammt hat).
+- **Ergebnis:** Storefront läuft stabil, 0 Restarts nach Neustart.
 
 ### 2026-03-30 — Orders: Mark Refunded Action + UI Fixes (RSE-269 follow-up)
 - **`action: "mark_refunded"`** — Neues Action-Verb in `POST /admin/transactions/:id`. Setzt `status = refunded` in der DB **ohne** Stripe/PayPal API aufzurufen. Für den Fall, dass Refund direkt im Provider-Dashboard ausgeführt wurde und der Webhook nicht gefeuert hat. Aktualisiert auch `auction_status = available` auf dem Release.
