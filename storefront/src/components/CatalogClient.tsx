@@ -28,8 +28,13 @@ type CatalogRelease = {
   legacy_condition: string | null
   legacy_price: number | null
   legacy_format_detail: string | null
+  product_category?: string | null
   artist_name: string | null
+  artist_slug?: string | null
   label_name: string | null
+  label_slug?: string | null
+  press_orga_name?: string | null
+  press_orga_slug?: string | null
   is_purchasable: boolean
 }
 
@@ -500,7 +505,11 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
                   </div>
 
                   <p className="text-xs text-muted-foreground truncate">
-                    {release.artist_name || release.label_name || "Unknown"}
+                    {release.product_category === "press_literature"
+                      ? (release.press_orga_name || "")
+                      : release.product_category === "label_literature"
+                        ? (release.label_name || "")
+                        : (release.artist_name || "")}
                   </p>
                   <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">
                     {release.title}

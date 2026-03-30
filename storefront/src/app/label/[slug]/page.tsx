@@ -144,11 +144,11 @@ function ReleaseTable({ releases }: { releases: LabelRelease[] }) {
                     href={`/band/${r.artist_slug}`}
                     className="text-muted-foreground hover:text-primary transition-colors text-xs"
                   >
-                    {r.artist_name || "Unknown"}
+                    {r.artist_name}
                   </Link>
                 ) : (
                   <span className="text-muted-foreground text-xs">
-                    {r.artist_name || "Unknown"}
+                    {r.artist_name || ""}
                   </span>
                 )}
               </td>

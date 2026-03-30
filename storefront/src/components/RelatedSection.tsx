@@ -216,13 +216,23 @@ function ItemTable({
             {/* Artist — Title */}
             <div className="min-w-0">
               <span className="text-sm truncate block group-hover:text-primary transition-colors">
-                <span className="text-muted-foreground">
-                  {item.release?.artist_name || "Unknown"}
-                </span>
-                {" — "}
-                <span className="font-medium">
-                  {item.release?.title || item.release_id}
-                </span>
+                {(() => {
+                    const rel = item.release
+                    const ctx = rel?.product_category === "press_literature"
+                      ? rel?.press_orga_name
+                      : rel?.product_category === "label_literature"
+                        ? rel?.label_name
+                        : rel?.artist_name
+                    return ctx ? (
+                      <>
+                        <span className="text-muted-foreground">{ctx}</span>
+                        {" — "}
+                        <span className="font-medium">{rel?.title || item.release_id}</span>
+                      </>
+                    ) : (
+                      <span className="font-medium">{rel?.title || item.release_id}</span>
+                    )
+                  })()}
               </span>
             </div>
             {/* Label */}

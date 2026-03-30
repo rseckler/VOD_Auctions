@@ -73,7 +73,12 @@ export async function generateMetadata({
   if (!data) return { title: "Release Not Found" }
 
   const r = data.release
-  const title = r.artist_name ? `${r.artist_name} — ${r.title}` : r.title
+  const rContextName = r.product_category === "press_literature"
+    ? r.press_orga_name
+    : r.product_category === "label_literature"
+      ? r.label_name
+      : r.artist_name
+  const title = rContextName ? `${rContextName} — ${r.title}` : r.title
   const description = [
     r.format_name || r.format,
     r.label_name,
@@ -115,6 +120,19 @@ export default async function CatalogDetailPage({
 
   const release = data.release
 
+  // Category-aware context: artist for releases/band_lit, label for label_lit, press org for press_lit
+  const cat = release.product_category
+  const contextName = cat === "press_literature"
+    ? release.press_orga_name
+    : cat === "label_literature"
+      ? release.label_name
+      : release.artist_name
+  const contextHref = cat === "press_literature"
+    ? (release.press_orga_slug ? `/press/${release.press_orga_slug}` : null)
+    : cat === "label_literature"
+      ? (release.label_slug ? `/label/${release.label_slug}` : null)
+      : (release.artist_slug ? `/band/${release.artist_slug}` : null)
+
   // Handle tracklist/credits separation from legacy data.
   // Always prefer the credits-parser result (produces A1/title/duration structure).
   // JSONB tracklist is fallback only — legacy imports often store each raw line as a
@@ -148,7 +166,7 @@ export default async function CatalogDetailPage({
     <main className="mx-auto max-w-6xl px-6 py-8 pb-20 lg:pb-8">
       <CatalogViewTracker
         itemId={release.id}
-        itemName={release.artist_name ? `${release.artist_name} — ${release.title}` : release.title}
+        itemName={contextName ? `${contextName} — ${release.title}` : release.title}
         itemCategory={release.product_category || "release"}
         price={release.legacy_price ?? undefined}
       />
@@ -157,9 +175,7 @@ export default async function CatalogDetailPage({
         <CatalogBackLink className="hover:text-foreground transition-colors" />
         <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" />
         <span className="text-foreground truncate">
-          {release.artist_name
-            ? `${release.artist_name} — ${release.title}`
-            : release.title}
+          {contextName ? `${contextName} — ${release.title}` : release.title}
         </span>
       </nav>
 
@@ -170,12 +186,12 @@ export default async function CatalogDetailPage({
         {/* Details */}
         <div>
           <p className="text-muted-foreground text-lg">
-            {release.artist_slug ? (
-              <Link href={`/band/${release.artist_slug}`} className="hover:text-primary transition-colors">
-                {release.artist_name}
+            {contextHref ? (
+              <Link href={contextHref} className="hover:text-primary transition-colors">
+                {contextName}
               </Link>
             ) : (
-              release.artist_name || release.label_name || "Unknown Artist"
+              contextName || ""
             )}
           </p>
           <div className="flex items-start gap-3 mt-1">
@@ -185,7 +201,7 @@ export default async function CatalogDetailPage({
             <SaveForLaterButton releaseId={release.id} />
             <ShareButton
               url={`https://vod-auctions.com/catalog/${release.id}`}
-              title={release.artist_name ? `${release.artist_name} — ${release.title}` : release.title}
+              title={contextName ? `${contextName} — ${release.title}` : release.title}
             />
           </div>
 
@@ -495,9 +511,7 @@ export default async function CatalogDetailPage({
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "Product",
-            name: release.artist_name
-              ? `${release.artist_name} — ${release.title}`
-              : release.title,
+            name: contextName ? `${contextName} — ${release.title}` : release.title,
             ...(images[0] ? { image: images[0] } : {}),
             description: [
               release.format_name || release.format,

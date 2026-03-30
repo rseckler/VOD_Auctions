@@ -14,9 +14,11 @@ type RelatedRelease = {
   coverImage: string | null
   legacy_price: number | null
   legacy_condition: string | null
+  product_category?: string | null
   artist_name: string | null
   artist_slug: string | null
   label_name: string | null
+  press_orga_name?: string | null
 }
 
 type CatalogRelatedSectionProps = {
@@ -122,16 +124,25 @@ function ReleaseTable({ releases }: { releases: RelatedRelease[] }) {
                 <div className="w-full h-full flex items-center justify-center text-muted-foreground/30 text-[10px]">♪</div>
               )}
             </div>
-            {/* Artist — Title */}
+            {/* Context — Title */}
             <div className="min-w-0">
               <span className="text-sm truncate block group-hover:text-primary transition-colors">
-                <span className="text-muted-foreground">
-                  {r.artist_name || "Unknown"}
-                </span>
-                {" — "}
-                <span className="font-medium">
-                  {r.title}
-                </span>
+                {(() => {
+                  const ctx = r.product_category === "press_literature"
+                    ? r.press_orga_name
+                    : r.product_category === "label_literature"
+                      ? r.label_name
+                      : r.artist_name
+                  return ctx ? (
+                    <>
+                      <span className="text-muted-foreground">{ctx}</span>
+                      {" — "}
+                      <span className="font-medium">{r.title}</span>
+                    </>
+                  ) : (
+                    <span className="font-medium">{r.title}</span>
+                  )
+                })()}
               </span>
             </div>
             {/* Label */}
