@@ -6,7 +6,7 @@ import Image from "next/image"
 import { getToken } from "@/lib/auth"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
 import { useAuth } from "@/components/AuthProvider"
-import { Heart, Trash2, Disc3, ShoppingCart } from "lucide-react"
+import { Heart, Trash2, Disc3, ShoppingCart, Check, AlertTriangle } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -28,16 +28,38 @@ type SavedItem = {
   block_slug: string | null
 }
 
+// block_item_id → { is_winning, amount }
+type BidStatus = { is_winning: boolean; amount: number }
+
 export default function SavedPage() {
   const { refreshStatus } = useAuth()
   const [items, setItems] = useState<SavedItem[]>([])
   const [loading, setLoading] = useState(true)
   const [removingId, setRemovingId] = useState<string | null>(null)
   const [addingToCartId, setAddingToCartId] = useState<string | null>(null)
+  const [bidStatusMap, setBidStatusMap] = useState<Record<string, BidStatus>>({})
 
   useEffect(() => {
     fetchSaved()
+    fetchBidStatus()
   }, [])
+
+  async function fetchBidStatus() {
+    const token = getToken()
+    if (!token) return
+    try {
+      const res = await fetch(`${MEDUSA_URL}/store/account/bids`, {
+        headers: { "x-publishable-api-key": PUBLISHABLE_KEY, Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) return
+      const data = await res.json()
+      const map: Record<string, BidStatus> = {}
+      for (const b of data.bids || []) {
+        if (b.item?.id) map[b.item.id] = { is_winning: b.is_winning, amount: b.amount }
+      }
+      setBidStatusMap(map)
+    } catch { /* ignore */ }
+  }
 
   async function fetchSaved() {
     const token = getToken()
@@ -201,6 +223,18 @@ export default function SavedPage() {
                       {item.title}
                     </p>
                   </Link>
+                  {item.block_item_id && bidStatusMap[item.block_item_id] && (
+                    <span className={`inline-flex items-center gap-1 text-xs font-medium mt-1 ${
+                      bidStatusMap[item.block_item_id].is_winning
+                        ? "text-green-400"
+                        : "text-orange-400"
+                    }`}>
+                      {bidStatusMap[item.block_item_id].is_winning
+                        ? <><Check className="h-3 w-3" /> Highest bid · €{Number(bidStatusMap[item.block_item_id].amount).toFixed(2)}</>
+                        : <><AlertTriangle className="h-3 w-3" /> Outbid · €{Number(bidStatusMap[item.block_item_id].amount).toFixed(2)}</>
+                      }
+                    </span>
+                  )}
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {item.format}
                     {item.sale_mode !== "auction_only" && price
