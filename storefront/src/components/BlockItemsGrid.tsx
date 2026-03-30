@@ -116,6 +116,8 @@ export function BlockItemsGrid({
         (i) =>
           i.release?.title?.toLowerCase().includes(q) ||
           i.release?.artist_name?.toLowerCase().includes(q) ||
+          i.release?.press_orga_name?.toLowerCase().includes(q) ||
+          i.release?.label_name?.toLowerCase().includes(q) ||
           i.release?.catalogNumber?.toLowerCase().includes(q)
       )
     }
@@ -128,10 +130,17 @@ export function BlockItemsGrid({
           return a.start_price - b.start_price
         case "price_desc":
           return b.start_price - a.start_price
-        case "artist":
-          return (a.release?.artist_name || "").localeCompare(
-            b.release?.artist_name || ""
-          )
+        case "artist": {
+          const getCtx = (item: BlockItem) => {
+            const r = item.release
+            if (!r) return ""
+            const cat = r.product_category
+            if (cat === "press_literature") return r.press_orga_name || ""
+            if (cat === "label_literature") return r.label_name || ""
+            return r.artist_name || ""
+          }
+          return getCtx(a).localeCompare(getCtx(b))
+        }
         default:
           return 0
       }

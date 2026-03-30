@@ -269,6 +269,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setCustomer(null)
     setCartCount(0)
     setSavedCount(0)
+    setBidsCount(0)
   }, [])
 
   return (

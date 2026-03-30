@@ -325,6 +325,10 @@ export function ItemBidSection({
             onAuthRequired={() => setAuthModalOpen(true)}
             onBidPlaced={loadBids}
             onBidResult={(won) => setUserIsWinning(won)}
+            onPriceUpdate={(price, count) => {
+              if (price != null) setCurrentPrice(price)
+              if (count != null) setBidCount(count)
+            }}
             extensionCount={currentExtensionCount}
             suggestedBid={suggestedBid}
           />
@@ -377,6 +381,7 @@ function BidForm({
   onAuthRequired,
   onBidPlaced,
   onBidResult,
+  onPriceUpdate,
   extensionCount,
   suggestedBid,
 }: {
@@ -389,6 +394,7 @@ function BidForm({
   onAuthRequired: () => void
   onBidPlaced: () => void
   onBidResult?: (won: boolean) => void
+  onPriceUpdate?: (price: number | null, count: number | null) => void
   extensionCount?: number
   suggestedBid?: number
 }) {
@@ -466,6 +472,7 @@ function BidForm({
         })
         onBidResult?.(false)
       } else if (data.max_updated) {
+        if (data.current_price != null) onPriceUpdate?.(Number(data.current_price), data.bid_count ?? null)
         toast.success(`Maximum bid raised to €${Number(data.new_max_amount).toFixed(2)}`, {
           duration: 6000,
           description: "You remain the highest bidder.",

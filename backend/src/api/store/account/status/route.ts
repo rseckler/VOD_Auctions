@@ -44,7 +44,7 @@ export async function GET(
       .join("block_item", "bid.block_item_id", "block_item.id")
       .join("auction_block", "block_item.auction_block_id", "auction_block.id")
       .where("bid.user_id", customerId)
-      .whereIn("auction_block.status", ["active", "preview"])
+      .whereIn("auction_block.status", ["active"])
       .count("bid.id as count")
       .first(),
     pgConnection("customer_address")

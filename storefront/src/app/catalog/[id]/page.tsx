@@ -63,6 +63,13 @@ const FORMAT_COLORS: Record<string, string> = {
   CASSETTE: "bg-format-cassette/15 text-format-cassette border-format-cassette/30",
 }
 
+function formatColorKey(release: { format?: string | null; format_name?: string | null }): string {
+  const name = (release.format_name || release.format || "").toUpperCase()
+  if (name.includes("CD")) return "CD"
+  if (name.includes("CASS") || name.includes("TAPE")) return "CASSETTE"
+  return "LP"
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -209,7 +216,7 @@ export default async function CatalogDetailPage({
             {(release.format_name || release.format) && (
               <Badge
                 variant="outline"
-                className={FORMAT_COLORS[release.format] || "bg-secondary text-muted-foreground"}
+                className={FORMAT_COLORS[formatColorKey(release)] || "bg-secondary text-muted-foreground"}
               >
                 {release.format_name || release.format}
               </Badge>
@@ -471,7 +478,7 @@ export default async function CatalogDetailPage({
       {/* Related Section */}
       <Separator className="my-8" />
       <CatalogRelatedSection
-        artistName={release.artist_name}
+        artistName={contextName ?? null}
         labelName={release.label_name}
         relatedByArtist={release.related_by_artist || []}
         relatedByLabel={release.related_by_label || []}
@@ -551,7 +558,7 @@ export default async function CatalogDetailPage({
             "@context": "https://schema.org",
             "@type": "MusicAlbum",
             name: release.title,
-            ...(release.artist_name
+            ...(release.artist_name && (cat === "release" || cat === "band_literature")
               ? { byArtist: { "@type": "MusicGroup", name: release.artist_name } }
               : {}),
             ...(release.year ? { datePublished: String(release.year) } : {}),

@@ -228,7 +228,7 @@ export default async function ItemDetailPage({
                 {contextName}
               </Link>
             ) : (
-              contextName || "Unknown"
+              contextName || ""
             )}
           </p>
           <div className="flex items-start gap-3 mt-1">
@@ -595,7 +595,7 @@ export default async function ItemDetailPage({
         blockSlug={block.slug}
         currentItemId={item.id}
         blockItems={blockItems}
-        artistName={release?.artist_name || null}
+        artistName={contextName || null}
         labelName={release?.label_name || null}
         variousArtists={release?.various_artists}
       />

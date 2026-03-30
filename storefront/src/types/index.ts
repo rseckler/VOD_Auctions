@@ -45,7 +45,7 @@ export type Release = {
   format_id?: number | null
   format_name?: string | null
   format_group?: string | null
-  product_category?: string
+  product_category?: string | null
   year: number | null
   country: string | null
   coverImage: string | null

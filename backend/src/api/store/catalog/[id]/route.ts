@@ -104,10 +104,13 @@ export async function GET(
           "Release.legacy_price",
           "Release.legacy_condition",
           "Artist.name as artist_name",
-          "Label.name as label_name"
+          "Label.name as label_name",
+          "PressOrga.name as press_orga_name",
+          "PressOrga.slug as press_orga_slug"
         )
         .leftJoin("Artist", "Release.artistId", "Artist.id")
         .leftJoin("Label", "Release.labelId", "Label.id")
+        .leftJoin("PressOrga", "Release.pressOrgaId", "PressOrga.id")
         .where("Release.artistId", release.artistId)
         .andWhereNot("Release.id", id)
         .orderBy("Release.year", "desc")
@@ -128,10 +131,13 @@ export async function GET(
           "Release.legacy_price",
           "Release.legacy_condition",
           "Artist.name as artist_name",
-          "Label.name as label_name"
+          "Label.name as label_name",
+          "PressOrga.name as press_orga_name",
+          "PressOrga.slug as press_orga_slug"
         )
         .leftJoin("Artist", "Release.artistId", "Artist.id")
         .leftJoin("Label", "Release.labelId", "Label.id")
+        .leftJoin("PressOrga", "Release.pressOrgaId", "PressOrga.id")
         .where("Release.labelId", release.labelId)
         .andWhereNot("Release.id", id)
         .orderBy("Release.year", "desc")
