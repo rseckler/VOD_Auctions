@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Mail, Instagram, Facebook, CheckCircle } from "lucide-react"
+import { Disc3, Mail, Instagram, Facebook, CheckCircle } from "lucide-react"
 import { useState, type FormEvent } from "react"
 import { toast } from "sonner"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
