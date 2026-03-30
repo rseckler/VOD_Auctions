@@ -16,6 +16,7 @@ import { newsletterConfirmEmail } from "../../../../emails/newsletter-confirm"
 import { blockTomorrowEmail } from "../../../../emails/block-tomorrow"
 import { blockLiveEmail } from "../../../../emails/block-live"
 import { blockEndingEmail } from "../../../../emails/block-ending"
+import { bidPlacedEmail } from "../../../../emails/bid-placed"
 
 const STOREFRONT_URL = process.env.STOREFRONT_URL || "https://vod-auctions.com"
 const BACKEND_URL = process.env.MEDUSA_BACKEND_URL || "http://localhost:9000"
@@ -33,6 +34,16 @@ function renderTemplate(id: string): { subject: string; html: string } | null {
       return verifyEmailTemplate({ firstName: "Frank", verifyUrl: `${STOREFRONT_URL}/verify?token=PREVIEW_TOKEN` })
     case "password-reset":
       return passwordResetEmail({ firstName: "Frank", resetUrl: `${STOREFRONT_URL}/reset-password?token=PREVIEW_TOKEN` })
+    case "bid-placed":
+      return bidPlacedEmail({
+        firstName: "Frank",
+        itemTitle: "Dorothy — I Confess / Softness",
+        artistName: "Dorothy",
+        lotNumber: 5,
+        blockTitle: DEMO_BLOCK_TITLE,
+        bidAmount: 1.50,
+        lotUrl: `${STOREFRONT_URL}/auctions/${DEMO_BLOCK_SLUG}/lot-demo`,
+      })
     case "bid-won":
       return bidWonEmail({
         firstName: "Frank",
