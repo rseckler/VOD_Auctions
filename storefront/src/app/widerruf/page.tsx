@@ -38,7 +38,7 @@ export default function WiderrufPage() {
             <br />
             VOD-Records
             <br />
-            Eugenstrasse 57/2
+            Alpenstrasse 25/1
             <br />
             88045 Friedrichshafen
             <br />
@@ -142,7 +142,7 @@ export default function WiderrufPage() {
           </p>
           <div className="rounded-lg border border-[rgba(232,224,212,0.12)] bg-[rgba(232,224,212,0.03)] p-4 space-y-2">
             <p>
-              To: Frank Bull, VOD-Records, Eugenstrasse 57/2, 88045
+              To: Frank Bull, VOD-Records, Alpenstrasse 25/1, 88045
               Friedrichshafen, Germany, Email: frank@vinyl-on-demand.com
             </p>
             <p>

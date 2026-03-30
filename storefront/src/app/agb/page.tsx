@@ -24,7 +24,7 @@ export default function AGBPage() {
           <p>
             (1) These Terms &amp; Conditions apply to all business
             relationships between Frank Bull, VOD-Records,
-            Eugenstrasse 57/2, 88045 Friedrichshafen, Germany
+            Alpenstrasse 25/1, 88045 Friedrichshafen, Germany
             (hereinafter &quot;Seller&quot;) and the customer via the
             VOD Auctions platform (hereinafter &quot;Platform&quot;).
           </p>
@@ -45,7 +45,7 @@ export default function AGBPage() {
           </h2>
           <p>
             (1) The purchase contract is concluded with Frank Bull,
-            VOD-Records, Eugenstrasse 57/2, 88045 Friedrichshafen,
+            VOD-Records, Alpenstrasse 25/1, 88045 Friedrichshafen,
             Germany.
           </p>
           <p>

@@ -26,7 +26,7 @@ export default function ImpressumPage() {
             <br />
             VOD-Records
             <br />
-            Eugenstrasse 57/2
+            Alpenstrasse 25/1
             <br />
             88045 Friedrichshafen
             <br />
@@ -63,7 +63,7 @@ export default function ImpressumPage() {
           <p>
             Frank Bull
             <br />
-            Eugenstrasse 57/2
+            Alpenstrasse 25/1
             <br />
             88045 Friedrichshafen
           </p>

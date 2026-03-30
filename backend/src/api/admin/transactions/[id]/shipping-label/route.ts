@@ -116,7 +116,7 @@ export async function GET(
     y += 14
     doc.fontSize(9).font("Helvetica").fillColor(GRAY)
       .text("Frank Bull", leftMargin, y)
-      .text("Eugenstrasse 57/2", leftMargin, y + 12)
+      .text("Alpenstrasse 25/1", leftMargin, y + 12)
       .text("88045 Friedrichshafen", leftMargin, y + 24)
       .text("Deutschland", leftMargin, y + 36)
 
