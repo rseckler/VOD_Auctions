@@ -9,10 +9,12 @@ function computeCountdown(startTime: string): string {
   const days = Math.floor(diff / 86400000)
   const hours = Math.floor((diff % 86400000) / 3600000)
   const minutes = Math.floor((diff % 3600000) / 60000)
+  if (diff < 3600000) {
+    const seconds = Math.floor((diff % 60000) / 1000)
+    return diff < 60000 ? `${seconds}s` : `${minutes}m ${seconds}s`
+  }
   if (days > 0) return `${days}d ${hours}h ${minutes}m`
-  if (hours > 0) return `${hours}h ${minutes}m`
-  const seconds = Math.floor((diff % 60000) / 1000)
-  return `${minutes}m ${seconds}s`
+  return `${hours}h ${minutes}m`
 }
 
 export function PreviewCountdown({ startTime }: { startTime: string }) {

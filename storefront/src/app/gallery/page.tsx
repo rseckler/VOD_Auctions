@@ -123,7 +123,7 @@ const DEFAULT_VISIT = {
   hours: "Wednesday – Friday  14:00 – 19:00\nSaturday  11:00 – 17:00\n\nOr by appointment.",
   phone: "+49 7541 34412",
   email: "frank@vinyl-on-demand.com",
-  address: "VOD Gallery\nAlpenstrasse 25/1\n88045 Friedrichshafen\nGermany",
+  address: "VOD Gallery\nEugenstrasse 57/2\n88045 Friedrichshafen\nGermany",
   region: "Lake Constance / Bodensee region",
 }
 
@@ -226,7 +226,7 @@ export default async function GalleryPage() {
     email: visit.email,
     address: {
       "@type": "PostalAddress",
-      streetAddress: "Alpenstrasse 25/1",
+      streetAddress: "Eugenstrasse 57/2",
       addressLocality: "Friedrichshafen",
       postalCode: "88045",
       addressCountry: "DE",

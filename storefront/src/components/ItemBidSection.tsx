@@ -675,14 +675,14 @@ function CountdownTimer({ endTime }: { endTime: string }) {
       const seconds = Math.floor((diff % 60000) / 1000)
 
       if (diff < 60000) {
-        // <1 min: show only seconds prominently
         setRemaining(`${seconds}s`)
-      } else if (days > 0) {
-        setRemaining(`${days}d ${hours}h ${minutes}m ${seconds}s`)
-      } else if (hours > 0) {
-        setRemaining(`${hours}h ${minutes}m ${seconds}s`)
-      } else {
+      } else if (diff < 3600000) {
+        // <60 min: show minutes + seconds
         setRemaining(`${minutes}m ${seconds}s`)
+      } else if (days > 0) {
+        setRemaining(`${days}d ${hours}h ${minutes}m`)
+      } else {
+        setRemaining(`${hours}h ${minutes}m`)
       }
     }
 

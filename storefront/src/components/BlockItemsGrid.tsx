@@ -31,11 +31,11 @@ function getTimeUrgency(endTime: string): TimeUrgency {
     return { text, level: "critical" }
   }
   if (diff < 60 * 60 * 1000) {
-    // <1 hour: urgent
-    return { text: `${minutes}m left`, level: "urgent" }
+    // <60 min: urgent — show seconds
+    return { text: `${minutes}m ${seconds}s left`, level: "urgent" }
   }
 
-  // normal
+  // normal — no seconds
   if (days > 0) return { text: `${days}d ${hours}h left`, level: "normal" }
   return { text: `${hours}h ${minutes}m left`, level: "normal" }
 }

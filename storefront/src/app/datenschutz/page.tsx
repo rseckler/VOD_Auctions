@@ -32,7 +32,7 @@ export default function DatenschutzPage() {
             <br />
             VOD-Records
             <br />
-            Alpenstrasse 25/1
+            Eugenstrasse 57/2
             <br />
             88045 Friedrichshafen
             <br />

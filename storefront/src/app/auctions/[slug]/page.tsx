@@ -31,8 +31,9 @@ function timeRemaining(endStr: string): string {
   const hours = Math.floor((diff % 86400000) / 3600000)
   const minutes = Math.floor((diff % 3600000) / 60000)
   const seconds = Math.floor((diff % 60000) / 1000)
-  if (days > 0) return `${days}d ${hours}h ${minutes}m ${seconds}s`
-  return `${hours}h ${minutes}m ${seconds}s`
+  if (diff < 3600000) return `${minutes}m ${seconds}s`
+  if (days > 0) return `${days}d ${hours}h ${minutes}m`
+  return `${hours}h ${minutes}m`
 }
 
 function formatBlockTime(dateStr: string): string {
