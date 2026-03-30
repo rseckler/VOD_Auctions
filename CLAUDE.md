@@ -328,6 +328,28 @@ VOD_Auctions/
 
 ## Recent Changes
 
+### 2026-04-03 — Code Review Pass: 14 Fixes (Backend, Components, Pages, Types)
+
+#### Backend
+- `catalog/route.ts` + `catalog/[id]/route.ts` + `auction-blocks/[slug]/route.ts` + `items/[itemId]/route.ts`: `product_category` im SELECT ergänzt wo fehlend.
+- `account/status/route.ts`: `active_bids_count` filtert jetzt nur `["active"]` statt `["active","preview"]` — kein UX-Mismatch mehr.
+
+#### Types & Utils
+- `types/index.ts`: `pressorga_*` → `press_orga_*`, `product_category?: string` → `product_category?: string | null`.
+- Category-aware `contextName`/`contextHref`-Logik in allen 6 Dateien konsistent: release/band_lit → artist, label_lit → label, press_lit → press_orga.
+
+#### Components
+- `BlockItemsGrid.tsx`: Suche + Sort "artist" category-aware (PressOrga, Label, Artist).
+- `CatalogClient.tsx`: Doppeltes `product_category` entfernt, subtitle category-aware.
+- `CatalogRelatedSection.tsx` + `RelatedSection.tsx`: Category-aware subtitle.
+- `AuthProvider.tsx`: `setBidsCount(0)` auf Logout ergänzt.
+- `ItemBidSection.tsx`: `max_updated` Branch updatet `currentPrice`/`bidCount` State vor Toast.
+
+#### Pages
+- `catalog/[id]/page.tsx`: `formatColorKey()` ergänzt, Format Badge fix, JSON-LD byArtist nur für release/band_lit, `contextName ?? null` für TypeScript.
+- `auctions/[slug]/[itemId]/page.tsx`: Breadcrumb, subtitle, ShareButton, JSON-LD, RelatedSection — alle category-aware.
+- `label/[slug]/page.tsx`: `|| "Unknown"` Fallback entfernt.
+
 ### 2026-04-03 — PressOrga Subtitle vollständig (alle 6 Bereiche)
 
 #### PressOrga JOIN + Category-aware Context
