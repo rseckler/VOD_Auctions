@@ -132,11 +132,17 @@ export default async function ItemDetailPage({
   const isBlockPreview = block.status === "preview" || block.status === "scheduled"
 
   // Handle tracklist/credits separation from legacy data
-  const hasTracklist = release?.tracklist && release.tracklist.length > 0
   const extracted = release?.credits
     ? extractTracklistFromText(release.credits)
     : null
-  const effectiveTracklist = hasTracklist
+  // Prefer credits-parsed tracklist when JSONB tracks are unstructured (no position field).
+  // Some legacy JSONB entries store each raw line as a flat entry without A1/B1 positions.
+  const jsonbHasPositions =
+    release?.tracklist &&
+    release.tracklist.length > 0 &&
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    release.tracklist.some((t: any) => t.position != null)
+  const effectiveTracklist = jsonbHasPositions
     ? release!.tracklist!
     : extracted?.tracks.length ? extracted.tracks : null
   // Always strip tracklist data from credits, even when tracklist JSONB exists
@@ -487,12 +493,13 @@ export default async function ItemDetailPage({
             </div>
           )}
 
-          {/* Description — strip legacy HTML tags from Discogs scrape */}
-          {(() => {
-            if (!release?.description) return null
+          {/* Description — only shown when no tracklist/credits (avoids duplicating Discogs HTML).
+              Strip HTML tags for items where description is a plain-text note. */}
+          {release?.description && !effectiveTracklist?.length && !effectiveCredits && (() => {
             const stripped = release.description
+              .replace(/<br\s*\/?>/gi, "\n")
               .replace(/<[^>]*>/g, " ")
-              .replace(/&nbsp;/g, " ")
+              .replace(/&nbsp;/gi, " ")
               .replace(/&ndash;/g, "–")
               .replace(/&mdash;/g, "—")
               .replace(/&amp;/g, "&")

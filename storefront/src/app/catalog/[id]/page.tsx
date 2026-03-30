@@ -113,11 +113,16 @@ export default async function CatalogDetailPage({
   const release = data.release
 
   // Handle tracklist/credits separation from legacy data
-  const hasTracklist = release.tracklist && release.tracklist.length > 0
   const extracted = release.credits
     ? extractTracklistFromText(release.credits)
     : null
-  const effectiveTracklist = hasTracklist
+  // Prefer credits-parsed tracklist when JSONB tracks are unstructured (no position field)
+  const jsonbHasPositions =
+    release.tracklist &&
+    release.tracklist.length > 0 &&
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    release.tracklist.some((t: any) => t.position != null)
+  const effectiveTracklist = jsonbHasPositions
     ? release.tracklist!
     : extracted?.tracks.length ? extracted.tracks : null
   // Always strip tracklist data from credits, even when tracklist JSONB exists
