@@ -108,6 +108,11 @@ npm run build && pm2 restart vodauction-storefront
 - `cart_item` — Direktkauf-Warenkorb (user_id, release_id, price)
 - `saved_item` — Merkliste (user_id, release_id, soft-delete via deleted_at)
 
+### CRM Tabellen (snake_case)
+- `customer_stats` — Aggregierte Kundendaten (total_spent, total_purchases, total_bids, total_wins, last_purchase_at, last_bid_at, tags TEXT[], is_vip ≥€500, is_dormant >90 Tage kein Kauf). Stündlicher Recalc via Cron-Job. Manueller Refresh: `POST /admin/customers/recalc-stats`.
+- `customer_note` — Interne Admin-Notizen (customer_id, body, author_email, soft-delete)
+- `customer_audit_log` — DSGVO-Audit-Trail (customer_id, action, details JSONB, admin_email)
+
 ### Release sale_mode
 - `auction_only` (default) | `direct_purchase` | `both`
 
@@ -132,7 +137,9 @@ npm run build && pm2 restart vodauction-storefront
 - `GET /store/account/cart` | `POST` | `DELETE /store/account/cart/:id` — Warenkorb
 - `GET /store/account/orders` — Order History (grouped by order_group_id)
 - `GET /store/account/orders/:groupId/invoice` — PDF-Rechnung (pdfkit)
-- `GET /store/account/status` — cart_count + saved_count
+- `GET /store/account/saved` — Merkliste (inkl. block_item_id + block_slug wenn Lot aktiv → Link direkt zu Auktion)
+- `GET /store/account/status` — cart_count + saved_count + wins_count
+- `GET /store/account/gdpr-export` — DSGVO Datenexport (auth)
 
 ### Admin (credentials required)
 - `POST /admin/ai-chat` — AI Assistant Chat (SSE Streaming, Claude Haiku, 5 read-only Tools)
@@ -141,12 +148,20 @@ npm run build && pm2 restart vodauction-storefront
 - `GET /admin/auction-blocks/:id/live-bids` — Live Bid Monitor (volle Namen)
 - `GET /admin/auction-blocks/:id/bids-log` — Chronologischer Bid-Log (?limit=300)
 - `GET /admin/transactions` — Orders (?q, status, fulfillment_status, payment_provider, shipping_country, date_from, date_to, sort, limit, offset)
-- `POST /admin/transactions/:id` — Ship/Refund/Note/Cancel
+- `POST /admin/transactions/:id` — Ship/Refund/Note/Cancel/mark_refunded
+- `GET /admin/transactions/:id/shipping-label` — Shipping Label PDF (pdfkit)
 - `POST /admin/transactions/bulk-ship` — Bulk Mark-as-Shipped
 - `POST /admin/transactions/export` — CSV Export (BOM, Excel-kompatibel)
 - `GET /admin/media` — 41k Releases (q, category, format, country, label, has_discogs, sort field:dir)
 - `GET /admin/entity-content/overhaul-status` — Entity Overhaul Status + Budget
 - `GET /admin/sync/discogs-health` | `POST` — Discogs Sync Health + Actions
+- `GET /admin/customers/list` — Paginated Customer-Liste mit Stats (?q, sort, limit, offset)
+- `GET|PATCH /admin/customers/:id` — Customer-Detail + Edit (name/email/phone/tags/is_vip)
+- `POST /admin/customers/recalc-stats` — Force-Recalc aller customer_stats aus live Daten
+- `GET /admin/customers/export` — CSV aller Kunden (BOM, 13 Spalten)
+- `GET|POST /admin/customers/:id/notes` + `DELETE .../notes/:noteId` — Interne Notizen
+- `GET /admin/customers/:id/timeline` — Unified Event-Feed (bid/order/note)
+- `POST /admin/customers/:id/block` + `/unblock` | `/anonymize` | `/gdpr-export` | `/delete`
 
 ## Payment
 
@@ -201,8 +216,10 @@ STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
 PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, PAYPAL_MODE=live, PAYPAL_WEBHOOK_ID
 RESEND_API_KEY
 BREVO_API_KEY, BREVO_LIST_VOD_AUCTIONS=4, BREVO_LIST_TAPE_MAG=5
-SUPABASE_SERVICE_ROLE_KEY  # Für Anti-Sniping Realtime Broadcast (fehlt noch auf VPS!)
+SUPABASE_SERVICE_ROLE_KEY  # Für Anti-Sniping Realtime Broadcast
 REVALIDATE_SECRET, STOREFRONT_URL=https://vod-auctions.com
+RUDDERSTACK_WRITE_KEY, RUDDERSTACK_DATA_PLANE_URL=secklerrovofrz.dataplane.rudderstack.com
+ANTHROPIC_API_KEY  # AI Assistant (Claude Haiku)
 
 # Storefront .env.local
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
@@ -210,6 +227,7 @@ NEXT_PUBLIC_PAYPAL_CLIENT_ID
 NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY
 NEXT_PUBLIC_BREVO_CLIENT_KEY
 NEXT_PUBLIC_GA_MEASUREMENT_ID=G-M9BJGC5D69
+RUDDERSTACK_WRITE_KEY, RUDDERSTACK_DATA_PLANE_URL
 UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN
 GATE_PASSWORD=vod2026, REVALIDATE_SECRET
 
@@ -275,7 +293,7 @@ VOD_Auctions/
 │   └── admin/routes/              # auction-blocks/, media/, transactions/, entity-content/, gallery/, sync/
 ├── storefront/src/
 │   ├── app/                       # catalog/, auctions/, band/, label/, press/, gallery/, about/, account/
-│   ├── components/                # AuthProvider, Header, Footer, ItemBidSection, BlockItemsGrid, ImageGallery
+│   ├── components/                # AuthProvider, Header, Footer, ItemBidSection, BlockItemsGrid, ImageGallery, CollapsibleDescription
 │   └── middleware.ts              # Pre-launch password gate (GATE_PASSWORD=vod2026)
 ├── scripts/
 │   ├── legacy_sync.py             # Daily MySQL→Supabase sync (bilder_typ: release=10, band=13, label=14, press=12)
@@ -335,153 +353,11 @@ VOD_Auctions/
 - **`POST /admin/customers/recalc-stats`** (NEU) — Führt vollständigen UPSERT aller Customer-Stats aus live `bid`- + `transaction`-Daten aus. Kein Cron-Wait nötig.
 - **"↻ Recalc Stats" Button** im CRM-Listenheader — ruft Endpoint auf, refreshed Tabelle automatisch.
 
-### 2026-03-31 — E2E Test Suite Stabilisierung + Storefront OOM-Fix
+### 2026-03-31 — E2E Tests + Storefront OOM-Fix
+- Playwright Test Suite: **66 passed, 3 skipped, 0 failed**. `tests/helpers/auction-setup.ts` (NEU) — Helper erstellt/teardown Live-Auktionsblock für Tests.
+- Storefront PM2-Restart-Loop behoben: `max_memory_restart` 300MB → 600MB, `--max-old-space-size=512`. `ecosystem.config.js` neu.
 
-#### Playwright Test Suite: 66 passed, 3 skipped, 0 failed
-- **`tests/helpers/auction-setup.ts`** (NEU) — Helper erstellt/teardown einen Live-Auktionsblock für E2E-Tests. `createTestAuctionBlock()`: draft → scheduled → active, Items aktivieren, gibt `{id, slug, items}` zurück. `cleanupTestAuctionBlock()`: Items → `unsold`, Lifecycle-Job beendet Block automatisch.
-- **`tests/05-auction-browse.spec.ts`** — `beforeAll`/`afterAll` mit eigenem Testblock. Tests navigieren direkt zu `testBlock.slug` (kein ISR-Cache-Problem mehr).
-- **`tests/06-bidding.spec.ts`** — React-Hydration-Race durch `waitForTimeout(2s)` behoben (Tests 38 + 40). Bid-Section ist Client-Component und hydratisiert asynchron nach `networkidle`.
-
-#### Storefront PM2 Restart-Loop behoben
-- **Root Cause:** `max_memory_restart: 300MB` — Next.js mit ISR + 41k-Katalog überschreitet dieses Limit regelmäßig → PM2 Kill + Restart-Loop → 5.687 Restarts.
-- **`ecosystem.config.js`** (NEU) — PM2-Konfiguration für Backend + Storefront: `max_memory_restart: 600MB`, `node_args: --max-old-space-size=512`.
-- **`storefront/next.config.ts`** — `outputFileTracingRoot` hinzugefügt (behebt workspace-root Warning, das Error-Log bei jedem Restart gespammt hat).
-- **Ergebnis:** Storefront läuft stabil, 0 Restarts nach Neustart.
-
-### 2026-03-30 — Orders: Mark Refunded Action + UI Fixes (RSE-269 follow-up)
-- **`action: "mark_refunded"`** — Neues Action-Verb in `POST /admin/transactions/:id`. Setzt `status = refunded` in der DB **ohne** Stripe/PayPal API aufzurufen. Für den Fall, dass Refund direkt im Provider-Dashboard ausgeführt wurde und der Webhook nicht gefeuert hat. Aktualisiert auch `auction_status = available` auf dem Release.
-- **`UpdateTransactionSchema`** — `mark_refunded` zu Zod-Enum hinzugefügt (`validation.ts`). War vorher nicht valide → "Validation failed"-Fehler.
-- **"Mark ✓" Button in Orders** — Lila Button neben "Refund" für alle `status=paid` Transaktionen. Tooltip erklärt den Unterschied. Zeigt keine API-Interaktion, nur DB-Update.
-- **Action-Buttons Layout-Fix** — Stacked vertical (Ship → oben, Refund + Mark ✓ unten nebeneinander). `<span>` statt `<button>` um Medusa's globales `button { min-height }` CSS zu umgehen. `whiteSpace: nowrap` + `lineHeight: 18px` für konsistente Größe.
-- **Dashboard Cancel-Button** — "Cancel Order" Button in ACTION REQUIRED / Overdue Payment Items. Ruft `action: "cancel"` auf, entfernt Transaction sofort aus der Queue (State-Update ohne Reload).
-- **`order_event` Audit Trail** — `mark_refunded` schreibt Event: "Marked as refunded (manual — refund processed externally)".
-
-### 2026-03-29 — Admin UX Overhaul: Task-Oriented Layout + Orders Redesign (RSE-269)
-- **Ended-State Task Dashboard** — `auction-blocks/[id]/page.tsx`: Block-Detailseite bei `status=ended` zeigt NEXT STEPS (4 Schritt-Cards: Winner Emails → Payments → Pack & Ship → Archive). Payments-Step unterscheidet pending vs. refunded. Relist-Modal (Draft / Scheduled / Make Available). Analytics + Edit als Accordion.
-- **Breadcrumb** — `← Auction Blocks › [Block Title]` auf Auction Block Detailseite (gleicher Stil wie Orders `← Orders › VOD-ORD-XXXXXX`).
-- **Auction Blocks Liste** — `auction-blocks/page.tsx` komplett neu: Ended-Blöcke als `EndedBlockCard` (farbiger linker Rand, Task-Badges). Section-Reihenfolge: Needs Processing → Live Now → Upcoming → Drafts → Archived.
-- **Refund-Status-Fix** — `summary.unpaid` zählt nur `status = 'pending'`. Neues Feld `summary.refunded`. Badges und Step-Anzeige zeigen Refunds in lila, nicht als "Awaiting Payment".
-- **Orders-Seite Redesign** — raw `<table>` statt Medusa `Table`, gleicher Stil wie Auction Blocks. Advanced Filter hinter `Filters ▾`. Shopify-style Quick Tabs. Bulk-Action floating Pill.
-- **Sidebar Extensions-Fix** — `admin-nav.tsx`: CSS `nav [data-radix-collapsible-trigger] { display: none }` (beide +/− Varianten). JS `.includes("Extensions")`.
-
-### 2026-03-30 — Rudderstack CDP + Test Runner Overhaul
-- **Rudderstack Backend (16 Events):** Bid Placed, Payment Completed (Stripe+PayPal), Order Shipped, Cart Item Added, Item Saved/Unsaved, Checkout Started, Newsletter Opted In/Out, Newsletter Confirmed, Customer Registered/Logged In. Import: `rudderTrack` aus `lib/rudderstack.ts`.
-- **Rudderstack Storefront (6 Events):** Bid Submitted, Checkout Started/Completed, Product Viewed (CatalogViewTracker), Item Saved (SaveForLaterButton), Search Performed (CatalogClient ≥2 Zeichen, debounced). Import: `rudderTrack` aus `@/lib/rudderstack`.
-- **Rudderstack Credentials:** Write Key + Data Plane URL `secklerrovofrz.dataplane.rudderstack.com` — Cloud Data Plane, kein VPS-Setup nötig.
-- **Test Runner Overhaul:** `spawn` statt `exec` → Live-Streaming via SSE (`GET /admin/test-runner/stream?jobId=X`). Admin-UI: dunkles Terminal mit Echtzeit-Output, Auto-Scroll, Farbkodierung (✓ grün, ✗ rot).
-- **Playwright-Fix VPS:** `tests/node_modules` war defekter Symlink auf lokalen Mac-Pfad → ersetzt durch echtes Verzeichnis mit Symlink auf `storefront/node_modules/@playwright/test`. `@playwright/test` + Chromium auf VPS installiert.
-- **Admin Dashboard Redirect:** nginx `admin.vod-auctions.com` → `/` + `/app` leiten auf `/app/dashboard` weiter.
-- **Deploy-Gotcha:** `git push origin main` ZUERST auf Mac, dann `git pull` auf VPS — sonst "Already up to date" obwohl neue Commits fehlen.
-- **Neue API-Route-Gotcha:** Neue `src/api/admin/X/route.ts` → Clean Build nötig: `rm -rf .medusa node_modules/.vite && npx medusa build`. Sonst nicht in `.medusa/server/src/api/admin/` → 401 statt Route.
-
-### 2026-03-30 — Admin AI Assistant
-- **AI Assistant** `/app/ai-assistant` (NEU, rank 6, Sparkles-Icon) — Chat-Interface mit Claude Haiku. Streaming SSE. 5 read-only Tools: `get_dashboard_stats`, `list_auction_blocks`, `search_transactions`, `search_media`, `get_system_health`. Tool-Chips in UI (klickbar für Raw-JSON). Markdown-Rendering. `@anthropic-ai/sdk` + `ANTHROPIC_API_KEY` in `backend/.env`.
-- **Neue Route:** `POST /admin/ai-chat` — SSE-Streaming, agentic loop (max 5 Tool-Calls), Knex direkt.
-
-### 2026-03-29 — CRM P1: Customer Stats + Admin Customer List + GDPR Export
-- **`customer_stats` Tabelle** — Materialisierter View für schnelle SQL-Queries. Felder: `total_spent`, `total_purchases`, `total_bids`, `total_wins`, `last_purchase_at`, `first_purchase_at`, `last_bid_at`, `tags TEXT[]`, `is_vip` (≥€500), `is_dormant` (kein Kauf >90 Tage). Migration: `Migration20260331000000.ts`. Backfill: `scripts/backfill_customer_stats.py`.
-- **Stündlicher Recalc-Job** — `src/jobs/customer-stats-recalc.ts` (Schedule `0 * * * *`): Full-UPSERT aller Stats aus `transaction` + `bid` Tabellen.
-- **Subscriber `customer.created`** — `src/subscribers/customer-created.ts`: Legt `customer_stats`-Zeile an + ruft `crmSyncRegistration()` auf. Deckt Admin-erstellte Kunden ab (vorher nur Storefront-Flow).
-- **Admin Customers Page** — `/app/crm` (route: `src/admin/routes/crm/page.tsx`). Zwei Tabs: "Customers" (searchable, sortable Liste mit Stats) + "CRM Dashboard" (Brevo-Daten). Slide-in Detail-Drawer mit 3 Sub-Tabs (Overview/Orders/Bids). Pfad `/crm` (nicht `/customers` — native Medusa-Route kollidiert!).
-- **Admin Customers Page** — `/app/crm`: 5-Tab-Drawer (Overview/Orders/Bids/Notes/Timeline). Edit-Form, Tags-CRUD, VIP/Dormant-Toggle, Block/Unblock, Password Reset, Brevo-Sync, Saved Addresses CRUD, Danger Zone (Anonymize + Delete + GDPR Export). CSV Export Button.
-- **API `GET /admin/customers/list`** — Paginated customer list mit LEFT JOIN customer_stats.
-- **API `GET /admin/customers/:id`** — Customer-Detail + Orders + Bids + Addresses.
-- **API `PATCH /admin/customers/:id`** — Edit name/email/phone/tags/is_vip/is_dormant.
-- **API `GET|POST /admin/customers/:id/notes`** + **`DELETE /admin/customers/:id/notes/:noteId`** — Interne Notizen.
-- **API `GET /admin/customers/:id/timeline`** — Unified Event-Feed (bid/transaction/note/account).
-- **API `POST /admin/customers/:id/block`** + **`/unblock`** — Account sperren/entsperren.
-- **API `POST /admin/customers/:id/anonymize`** — DSGVO-Anonymisierung + Audit-Log.
-- **API `GET /admin/customers/:id/gdpr-export`** — Admin GDPR-Download.
-- **API `GET|POST /admin/customers/:id/addresses`** + **`PATCH|DELETE /admin/customer-addresses/:id`** — Saved Addresses CRUD.
-- **API `DELETE /admin/customers/:id/delete`** — Hard-Delete (transactions user_id → NULL, cascade rest).
-- **API `GET /admin/customers/export`** — CSV-Export aller Kunden (BOM, 13 Spalten).
-- **GDPR Export (Storefront)** — `GET /store/account/gdpr-export` (auth required). "Download My Data" in Account Settings.
-- **Rudderstack** — `backend/src/lib/rudderstack.ts` + `storefront/src/lib/rudderstack.ts`. Env: `RUDDERSTACK_WRITE_KEY`, `RUDDERSTACK_DATA_PLANE_URL`. Cloud Data Plane: `secklerrovofrz.dataplane.rudderstack.com`. Events: Customer Registered, Bid Placed, Auction Won, Payment Completed, Order Shipped (Backend) + Bid Submitted, Item Saved, Checkout Started/Completed (Storefront).
-
-### 2026-03-29 — CRM User Management + Rudderstack Integration
-- **DB Migration `20260401000000`** — `customer_note`, `customer_audit_log`, customer_stats: brevo_contact_id/brevo_synced_at/blocked_at/blocked_reason
-- **10 neue Admin-API-Endpunkte** — PATCH edit, Notes CRUD, Timeline, Block/Unblock, Anonymize, Admin GDPR Export, Addresses CRUD, Hard-Delete, CSV Export
-- **CRM-UI `/app/crm`** — 5-Tab-Drawer (Overview/Orders/Bids/Notes/Timeline), Edit-Form, Tags-CRUD, VIP/Dormant-Toggle, Block/Unblock-Button, Saved-Addresses-Section, Danger Zone
-- **Rudderstack** — `backend/src/lib/rudderstack.ts` Wrapper + crm-sync.ts erweitert (5 Events) + Storefront SDK (RudderstackProvider, page tracking, 4 Track-Events). Cloud Data Plane aktiv.
-
-### 2026-03-30 — Admin Backoffice Fixes + Dashboard Landing Page
-- **Dashboard** `/app/dashboard` (NEU, rank 0, Home-Icon) — KPI-Cards, To-Do-Queue (überfällige Zahlungen, packing-Queue, Labels), Live-Auctions-Widget, Upcoming-Blocks, Week-Stats. Auto-Refresh 60s. 5× `Promise.allSettled` gegen bestehende Endpoints.
-- **B1:** „Post-Auction Workflow →" Button entfernt (war 404 auf nicht existenter Route).
-- **B2:** Lot-Zeilen in Post-Auction-Seite klickbar → `/app/transactions/{tx.id}`.
-- **B3:** Refund-Button in Post-Auction pro Lot (Steps 2–4), mit Confirm-Dialog.
-- **B4:** Auction-Blocks-Listenzeilen klickbar → `/app/auction-blocks/{id}`.
-- **Konzept:** `docs/architecture/ADMIN_BACKOFFICE_KONZEPT_2026.md` — Analyse + Marktvergleich (eBay/Catawiki/Shopify) + Umsetzungsplan P1–P4.
-- **Sidebar-Fix:** `admin-nav.tsx` — Extensions-Collapsible erst expandieren, dann verstecken (aria-expanded + requestAnimationFrame + Radix CSS-Override).
-
-### 2026-03-30 — Admin UI Restructuring + System Health Erweiterung
-- **Admin Sidebar: 15 → 5 Items** — Neue Hub-Seiten: `/app/catalog` (Media, Entity Content, Musicians), `/app/marketing` (Newsletter, Emails, CRM, Content, Gallery), `/app/operations` (System Health, Shipping, Sync, Test Runner). Operations zeigt Live-Auction-Banner wenn aktiv.
-- **"Transactions" → "Orders"** — Sidebar-Label umbenannt.
-- **Sub-Pages aus Sidebar entfernt** — `defineRouteConfig` entfernt aus 13 Sub-Pages; alle weiter per URL erreichbar.
-- **System Health: 9 → 11 Services** — VPS/API Server (live HTTP-Check `api.vod-auctions.com`) + Storefront public (`vod-auctions.com`) hinzugefügt.
-- **`docs/architecture/MONITORING_SETUP_GUIDE.md`** — Setup-Anleitung für Sentry, ContentSquare/Clarity, GA4 (Env-Vars, Install-Schritte).
-- **`docs/architecture/ADMIN_UI_KONZEPT_2026.md`** + **`docs/architecture/mockups/`** — Konzept + 5 HTML-Mockups (Sidebar, Catalog Hub, Operations Hub, Auction Detail, Order Detail).
-
-### 2026-03-29 — Post-Auction Workflow + Bugfixes
-- **Post-Auction Workflow (Admin)** — Neuer Admin-Bereich für abgeschlossene Auktionen: `/app/auction-blocks/[id]/post-auction` mit 5-stufigem Step-Tracker (Ended → Paid → Packing → Label Printed → Shipped), Lot-Übersicht mit Gewinner/Zahlungsstatus/Fulfillment-Status. Action-Buttons kontextuell pro Step. `Block-Detail`-Seite zeigt "Post-Auction Workflow →" Button wenn `status=ended`.
-- **Shipping Label PDF** — `GET /admin/transactions/:id/shipping-label` generiert pdfkit-PDF mit Absender (VOD Records), Empfänger (Shipping-Adresse), Bestellnummer, Items. Setzt `label_printed_at = NOW()` automatisch.
-- **Neue Transaction Actions** — `POST /admin/transactions/:id` + actions `packing` und `label_printed`.
-- **Bulk Action** — `POST /admin/transactions/bulk-action` mit `{ ids, action }` für Batch-Updates.
-- **DB-Migration** — `label_printed_at TIMESTAMP` auf `transaction`-Tabelle hinzugefügt.
-- **Won-Badge in Account-Sidebar** — Rotes Zahl-Badge bei "Won" zeigt Anzahl unbezahlter Auction-Wins. `GET /store/account/status` gibt jetzt `wins_count` zurück. AuthProvider + AccountLayoutClient aktualisiert.
-- **Bugfix: Cover-Image in Emails** — `coverImage` im DB enthält bereits die volle URL (`https://tape-mag.com/bilder/gross/...`). `email-helpers.ts` hat die Base-URL nochmals vorangestellt → doppelte, kaputte URL. Fix: direkt `release.coverImage` verwenden (2 Stellen).
-- **Sentry-Config bereinigt** — `transpileClientSDK`, `hideSourceMaps`, `disableLogger` aus `next.config.ts` entfernt (in neueren Sentry-Versionen nicht mehr gültig, blockierten Build).
-- **tsconfig: playwright.config.ts ausgeschlossen** — `@playwright/test` nicht auf Prod → TypeScript-Build-Fehler bei `npm run build`. `playwright.config.ts` + `tests/` zu `exclude` in `tsconfig.json` hinzugefügt.
-
-### 2026-03-30 — Zahlungs- und Sicherheitssanierung (7 Fixes)
-- **PayPal Betragsprüfung serverseitig** — `capture-paypal-order` ruft jetzt immer `GET /v2/checkout/orders/{id}` bei PayPal ab, prüft `status=COMPLETED` und vergleicht echten Capture-Betrag gegen DB-Erwartung. Client-seitige `captured_amount`-Angabe nicht mehr genutzt. `getPayPalOrder()` in `paypal.ts` ergänzt.
-- **PayPal-Orders erhalten jetzt Bestellnummern** — `capture-paypal-order` generiert `order_number` + `order_event` direkt (zuvor fiel beides durch: Webhook skippte wegen `alreadyPaid`-Check). Bonus-Fix.
-- **Stripe Webhook idempotent** — `checkout.session.completed` hat jetzt denselben `alreadyPaid`-Guard wie `payment_intent.succeeded`. Doppelte Webhook-Zustellung löst keine zweite Mail, keinen zweiten Promo-Zähler und keine neue Bestellnummer mehr aus.
-- **Promo-Code-Rabatt bei Shipping-Update erhalten** — `update-payment-intent` liest `discount_amount` aus bestehenden Transaktionen und rechnet ihn in `total_amount` (per Transaktion) und den Stripe-PaymentIntent-Betrag ein. Vorher: Rabatt nach Adressänderung verloren.
-- **`user_id` aus öffentlicher Bid-History entfernt** — GET `/store/auction-blocks/*/items/*/bids` gab interne Customer-IDs zurück. Jetzt nur noch `user_hint` (SHA-256-Hash).
-- **Production-Startup-Check JWT/Cookie** — `medusa-config.ts`: `NODE_ENV=production` ohne `JWT_SECRET`/`COOKIE_SECRET` wirft Exception statt `"supersecret"` zu nutzen.
-- **`deploy.sh` Credentials ersetzt** — Echte Passwörter (`DATABASE_URL`, `SUPABASE_DB_URL`, `LEGACY_DB_PASSWORD`) durch Platzhalter ersetzt. **Hinweis: Git-History enthält die alten Werte noch — Rotation empfohlen.**
-
-### 2026-03-29 — Admin Backoffice: System Health + Email Preview/Edit
-- **System Health Dashboard** `/admin/system-health` — Live-Status für 9 Services: PostgreSQL, Stripe, PayPal, Resend, Brevo, Storefront, Sentry, ContentSquare, GA4. Latenz-Anzeige, Auto-Refresh 30s, Quick Links.
-- **Email Template Preview + Edit** — Klick auf Template öffnet Side-Drawer: iframe-Preview (echtes HTML), Edit-Tab (Subject/Preheader-Override → gespeichert in `content_block`), Send Test Tab. `GET/PUT /admin/email-templates/:id` neu.
-- **Admin VPS Deploy Gotcha** — `cp -r` auf existierenden Ordner merged → immer erst `rm -rf public/admin` dann kopieren.
-- **Pre-Launch Quality Sprint (28 Issues)** — Testing, Email, CRM/Tracking, Code Quality vollständig abgeschlossen. Alle Linear Issues RSE-238–RSE-264 auf Done.
-
-### 2026-03-28 — Hotfix: Backend-Crash
-- **pdfkit fehlte auf VPS** → `Cannot find module 'pdfkit'` → PM2 restart-loop. Fix: `npm install pdfkit` auf VPS + in `package.json` committed.
-
-### 2026-03-28 — Auction Workflow Vollimplementierung (P1+P2+P3+K-Series)
-- **Tiered Bid Increments:** €0.50→€25 Stufentabelle (Backend + Storefront "Min. bid" Anzeige)
-- **Anti-Sniping:** max_extensions (10), extension_count, Admin-UI; Realtime Broadcast via Supabase (**SUPABASE_SERVICE_ROLE_KEY noch auf VPS eintragen!**)
-- **Payment Deadline:** 5-Tage-Frist, Tag 1+3 Reminder-Mails, Tag 5 Auto-Relist + Admin-Alert (Cron)
-- **Condition Grading:** Discogs-Standard (M/NM/VG+/VG/G+/G/F/P) Admin + ConditionBadge Storefront
-- **Public Bid History:** BidHistoryTable (Bidder #N, 30s Poll, Framer Motion) auf Lot-Detail-Seite
-- **Watchlist Reminder:** Stündlicher Cron, 24h vor Lot-Ende → Email an Saver
-- **Reserve Price:** reserve_price auf block_item, Lifecycle-Check, Storefront-Anzeige (ohne Betrag)
-- **Admin Live Monitor:** `/admin/live-monitor` — 10s Auto-Refresh, Rot/Grün Lot-Cards
-- **Invoice PDF:** `GET /store/account/orders/:groupId/invoice` — pdfkit-generierte Rechnung
-- **Schema.org MusicAlbum:** JSON-LD auf Catalog-Detail-Seiten
-- **Post-Block Analytics:** `/admin/auction-blocks/:id/analytics` + Analytics-Tab (Conversion, Revenue, Top-Lots)
-- **Newsletter Sequenz:** T-7/T-24h/T+0/T-6h Block-Emails via Brevo Kampagnen-API (List ID 4)
-- **Going/Going/Gone:** <5 Min rotes Pulsing-Banner + roter Countdown; <1h Amber
-- **"No Buyer's Premium" USP:** Badge auf Lot-Seite, Checkout, Footer
-- **Live Auction Banner:** `LiveAuctionBanner` Server-Component auf Homepage/Catalog/Auctions (ISR 60s)
-- **1-Click Rebid:** Outbid-Email mit vorgeschlagenem Betrag + `?bid=X` URL param pre-füllt Bid-Input
-- **Staggered Ending UI:** Admin Checkbox + Interval-Input + Preview-Text + Header-Badge
-- **View Counter:** view_count auf block_item, Fire-and-Forget Increment, Social Proof auf Lot-Seite
-- **Preview Block Storefront:** Amber-Banner + Countdown für scheduled/preview Blocks, Save-Buttons statt Bid
-- **Bulk Price Editor:** Admin Panel (% vom Schätzwert / Fixed / Manuell), API `/items/bulk-price`
-- **Social Sharing:** ShareButton (Web Share API + Twitter/Facebook/WhatsApp/Copy) auf Block + Lot-Seiten
-- **Admin Bids Log:** `GET /admin/auction-blocks/:id/bids-log` — chronologisch, volle Bieter-Namen
-- **Auction Block löschen:** Delete-Button für draft/ended/archived. `DELETE /admin/auction-blocks/:id` (409 bei active/scheduled/preview)
-- **Bid Badges:** Highest Bid = grünes Badge + `animate-pulse`. Countdown überall H:M:S-Format.
-- **Medusa Nav Cleanup:** Ungenutzte Nav-Items per CSS-Injection ausgeblendet
-- **Migrations:** 20260328-20260330 (auto_extend, payment_reminders, watchlist_reminded_at, reserve_price, newsletter_*_sent_at, view_count)
-
-### 2026-03-23
-- Entity Content P2 pausiert (576/3.650, Budget $96/$120). Admin Budget-Dashboard auf `/admin/entity-content` mit Budget-Zeitplan + Progress-Bars.
-
-→ Vollständiger Changelog: `docs/architecture/CHANGELOG.md`
+→ Ältere Einträge: `docs/architecture/CHANGELOG.md`
 
 ---
 
