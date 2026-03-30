@@ -74,6 +74,8 @@ export function ItemBidSection({
   const [bids, setBids] = useState<BidRecord[]>([])
   const [bidsLoaded, setBidsLoaded] = useState(false)
   const [newBidPulse, setNewBidPulse] = useState(false)
+  // Own bid status: null = not loaded, true = winning, false = outbid/no bid
+  const [userIsWinning, setUserIsWinning] = useState<boolean | null>(null)
   // Reactive status — ISR props may be up to 30s stale; refreshed on mount + via realtime
   const [liveBlockStatus, setLiveBlockStatus] = useState(blockStatus)
   const [liveItemStatus, setLiveItemStatus] = useState(itemStatus)
@@ -111,6 +113,27 @@ export function ItemBidSection({
       })
       .catch(() => {})
   }, [slug, itemId])
+
+  // Fetch own bid status from authenticated account endpoint (mirrors BlockItemsGrid logic)
+  useEffect(() => {
+    if (!isAuthenticated) return
+    const token = getToken()
+    if (!token) return
+    fetch(`${MEDUSA_URL}/store/account/bids`, {
+      headers: {
+        "x-publishable-api-key": PUBLISHABLE_KEY,
+        Authorization: `Bearer ${token}`,
+      },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data?.bids) return
+        const ownBid = data.bids.find((b: any) => b.item?.id === itemId)
+        // null = no bid placed (banner hidden); true/false = winning/outbid
+        if (ownBid) setUserIsWinning(ownBid.is_winning === true)
+      })
+      .catch(() => {})
+  }, [isAuthenticated, itemId])
 
   const loadBids = useCallback(async () => {
     try {
@@ -163,6 +186,10 @@ export function ItemBidSection({
           ])
           if (newBid.is_winning) {
             setCurrentPrice(newBid.amount)
+            // If someone else placed a winning bid, we've been outbid
+            if (customer && newBid.user_id !== customer.id) {
+              setUserIsWinning((prev) => prev === true ? false : prev)
+            }
           }
           setBidCount((c) => c + 1)
           setNewBidPulse(true)
@@ -224,24 +251,19 @@ export function ItemBidSection({
     <>
       <Card className="p-5">
         {/* Bid status indicator for authenticated user */}
-        {isAuthenticated && customer && bidsLoaded && bids.length > 0 && (() => {
-          const userBids = bids.filter(b => b.user_id === customer.id)
-          if (userBids.length === 0) return null
-          const isHighest = bids[0]?.user_id === customer.id && bids[0]?.is_winning
-          return (
-            <div className={`flex items-center gap-2 px-3 py-2 rounded-lg mb-3 text-sm font-medium ${
-              isHighest
-                ? "bg-green-500/10 text-green-400 border border-green-500/20"
-                : "bg-red-500/10 text-red-400 border border-red-500/20"
-            }`}>
-              {isHighest ? (
-                <><Check className="h-4 w-4" /> You are the highest bidder</>
-              ) : (
-                <><AlertTriangle className="h-4 w-4" /> You have been outbid</>
-              )}
-            </div>
-          )
-        })()}
+        {isAuthenticated && userIsWinning !== null && (
+          <div className={`flex items-center gap-2 px-3 py-2 rounded-lg mb-3 text-sm font-medium ${
+            userIsWinning
+              ? "bg-green-500/10 text-green-400 border border-green-500/20"
+              : "bg-red-500/10 text-red-400 border border-red-500/20"
+          }`}>
+            {userIsWinning ? (
+              <><Check className="h-4 w-4" /> You are the highest bidder</>
+            ) : (
+              <><AlertTriangle className="h-4 w-4" /> You have been outbid</>
+            )}
+          </div>
+        )}
 
         {/* Current Price */}
         <div className="flex items-center justify-between mb-3">
@@ -302,6 +324,7 @@ export function ItemBidSection({
             isAuthenticated={isAuthenticated}
             onAuthRequired={() => setAuthModalOpen(true)}
             onBidPlaced={loadBids}
+            onBidResult={(won) => setUserIsWinning(won)}
             extensionCount={currentExtensionCount}
             suggestedBid={suggestedBid}
           />
@@ -353,6 +376,7 @@ function BidForm({
   isAuthenticated,
   onAuthRequired,
   onBidPlaced,
+  onBidResult,
   extensionCount,
   suggestedBid,
 }: {
@@ -364,6 +388,7 @@ function BidForm({
   isAuthenticated: boolean
   onAuthRequired: () => void
   onBidPlaced: () => void
+  onBidResult?: (won: boolean) => void
   extensionCount?: number
   suggestedBid?: number
 }) {
@@ -444,10 +469,12 @@ function BidForm({
         })
       } else if (data.outbid) {
         toast.warning(data.message || "You have been outbid", { duration: 6000 })
+        onBidResult?.(false)
       } else {
         toast.success(`Bid of €${data.amount.toFixed(2)} placed successfully!`, { duration: 6000 })
         brevoBidPlaced(itemId, data.amount, slug)
         rudderTrack("Bid Submitted", { amount: data.amount, block_item_id: itemId, slug })
+        onBidResult?.(true)
         onBidPlaced()
       }
     } catch {
