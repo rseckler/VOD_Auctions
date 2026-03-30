@@ -14,26 +14,34 @@ export default async function passwordResetHandler({
   event: { data },
   container,
 }: SubscriberArgs<PasswordResetData>) {
-  // Only handle customer password resets (not admin users)
-  if (data.actor_type !== "customer") return
-
   const pgConnection: Knex = container.resolve(
     ContainerRegistrationKeys.PG_CONNECTION
   )
 
-  // Look up customer name by email
-  const customer = await pgConnection("customer")
-    .select("first_name")
-    .where("email", data.entity_id)
-    .first()
+  if (data.actor_type === "customer") {
+    // Customer password reset → storefront /reset-password
+    const customer = await pgConnection("customer")
+      .select("first_name")
+      .where("email", data.entity_id)
+      .first()
 
-  const firstName = customer?.first_name || "there"
-  const resetUrl = `${APP_URL}/reset-password?token=${data.token}`
+    const firstName = customer?.first_name || "there"
+    const resetUrl = `${APP_URL}/reset-password?token=${data.token}`
 
-  const { subject, html } = passwordResetEmail({ firstName, resetUrl })
-  await sendEmail({ to: data.entity_id, subject, html })
+    const { subject, html } = passwordResetEmail({ firstName, resetUrl })
+    await sendEmail({ to: data.entity_id, subject, html })
+    console.log("[password-reset] Sent customer reset email to:", data.entity_id)
+  } else if (data.actor_type === "user") {
+    // Admin user password reset → Medusa admin /app/reset-password
+    const adminResetUrl = `https://admin.vod-auctions.com/app/reset-password?token=${data.token}&email=${encodeURIComponent(data.entity_id)}`
 
-  console.log("[password-reset] Sent reset email to:", data.entity_id)
+    const { subject, html } = passwordResetEmail({
+      firstName: "Admin",
+      resetUrl: adminResetUrl,
+    })
+    await sendEmail({ to: data.entity_id, subject, html })
+    console.log("[password-reset] Sent admin reset email to:", data.entity_id)
+  }
 }
 
 export const config: SubscriberConfig = {
