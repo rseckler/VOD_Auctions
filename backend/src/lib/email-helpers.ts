@@ -50,25 +50,17 @@ async function getCustomer(pg: Knex, userId: string) {
 // Resolve release info for an item (via block_item or direct release_id)
 async function getReleaseInfo(pg: Knex, releaseId: string) {
   const release = await pg("Release")
-    .where("id", releaseId)
-    .select("id", "title", "coverImage")
+    .where("Release.id", releaseId)
+    .leftJoin("Artist", "Artist.id", "Release.artistId")
+    .select("Release.id", "Release.title", "Release.coverImage", "Artist.name as artistName")
     .first()
   if (!release) return null
 
-  // Get artist name
-  const ra = await pg("ReleaseArtist")
-    .where("releaseId", releaseId)
-    .select("artistId")
-    .first()
-  let artistName: string | undefined
-  if (ra) {
-    const artist = await pg("Artist").where("id", ra.artistId).select("name").first()
-    artistName = artist?.name
+  return {
+    title: release.title,
+    artistName: release.artistName || undefined,
+    coverImage: release.coverImage || undefined,
   }
-
-  const coverImage = release.coverImage || undefined
-
-  return { title: release.title, artistName, coverImage }
 }
 
 // --- WELCOME ---
