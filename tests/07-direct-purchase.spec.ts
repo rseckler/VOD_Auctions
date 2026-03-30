@@ -53,7 +53,7 @@ test.describe("Direct Purchase", () => {
     const loginToCart = page.getByRole("button", { name: /login|sign in/i })
 
     // Page should load without error
-    await expect(page.locator("main")).toBeVisible()
+    await expect(page.locator("main").first()).toBeVisible()
   })
 
   test("can add item to cart when logged in", async ({ page }) => {
@@ -84,7 +84,7 @@ test.describe("Direct Purchase", () => {
     // Navigate to cart to verify
     await page.goto("/account/cart")
     await expect(page).toHaveURL(/\/account\/cart/)
-    await expect(page.locator("main")).toBeVisible()
+    await expect(page.locator("main").first()).toBeVisible()
   })
 
   test("cart page loads when authenticated", async ({ page }) => {

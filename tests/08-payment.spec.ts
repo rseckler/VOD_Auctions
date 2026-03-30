@@ -24,7 +24,7 @@ test.describe("Checkout Page Structure", () => {
     await page.goto("/account/checkout")
     await expect(page).toHaveURL(/\/account\/checkout/)
     await page.waitForLoadState("networkidle", { timeout: 20_000 })
-    await expect(page.locator("main")).toBeVisible()
+    await expect(page.locator("main").first()).toBeVisible()
   })
 
   test("checkout page has shipping address fields", async ({ page }) => {
@@ -39,7 +39,7 @@ test.describe("Checkout Page Structure", () => {
 
     // Look for shipping-related fields or payment section
     // The checkout page shows a two-column layout: left (order items) + right (form)
-    const pageText = await page.locator("main").textContent()
+    const pageText = await page.locator("main").first().textContent()
     // Should mention either shipping or payment
     const hasCheckoutContent =
       (pageText || "").toLowerCase().includes("shipping") ||
@@ -63,7 +63,7 @@ test.describe("Checkout Page Structure", () => {
 
     // The checkout page renders won items + cart items
     // Main should be visible and not blank
-    const main = page.locator("main")
+    const main = page.locator("main").first()
     await expect(main).toBeVisible()
     const text = await main.textContent()
     expect(text).toBeTruthy()
@@ -123,7 +123,7 @@ test.describe("Shipping Address Form", () => {
       await expect(lastNameLabel).toBeVisible()
     }
     // If no form is shown, page still should be valid (empty cart/wins state)
-    await expect(page.locator("main")).toBeVisible()
+    await expect(page.locator("main").first()).toBeVisible()
   })
 
   test("can fill shipping address form", async ({ page }) => {

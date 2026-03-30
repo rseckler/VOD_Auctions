@@ -132,7 +132,7 @@ test.describe("Bidding", () => {
       await expect(bidHistorySection).toBeVisible()
     }
     // Page should load without error regardless
-    await expect(page.locator("main")).toBeVisible()
+    await expect(page.locator("main").first()).toBeVisible()
   })
 
   test("place a bid on active lot (bidder1)", async ({ page }) => {

@@ -33,7 +33,7 @@ test.describe("Password Gate", () => {
 
     // Should redirect to homepage
     await expect(page).toHaveURL("/", { timeout: 10_000 })
-    await expect(page.getByRole("main")).toBeVisible()
+    await expect(page.getByRole("main").first()).toBeVisible()
   })
 })
 

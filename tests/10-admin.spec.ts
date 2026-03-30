@@ -235,6 +235,7 @@ test.describe("Admin: Create Auction Block via API", () => {
       },
       data: {
         title: "E2E Test Block — Auto Delete",
+        slug: `e2e-test-block-${Date.now()}`,
         description: "Created by Playwright E2E test",
         block_type: "theme",
         status: "draft",

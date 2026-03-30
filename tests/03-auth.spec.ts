@@ -18,7 +18,7 @@ test.describe("Login", () => {
 
     const dialog = page.getByRole("dialog")
     await expect(dialog).toBeVisible()
-    await expect(dialog.getByText("Login")).toBeVisible()
+    await expect(dialog.getByText("Login").first()).toBeVisible()
     await expect(dialog.locator("#email")).toBeVisible()
     await expect(dialog.locator("#password")).toBeVisible()
   })
@@ -154,7 +154,7 @@ test.describe("Register", () => {
     // Do NOT check T&C checkbox
 
     await dialog.getByRole("button", { name: "Create Account" }).click()
-    await expect(dialog.getByText("Terms & Conditions")).toBeVisible()
+    await expect(dialog.getByText("Terms & Conditions").first()).toBeVisible()
   })
 })
 

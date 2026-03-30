@@ -37,19 +37,19 @@ test.describe("Catalog", () => {
     await page.waitForSelector("a[href*='/catalog/']", { timeout: 15_000 })
     // CD badge or format indicator should be present
     // Page should load without error
-    await expect(page.locator("main")).toBeVisible()
+    await expect(page.locator("main").first()).toBeVisible()
   })
 
   test("tapes category filter", async ({ page }) => {
     await page.goto("/catalog?category=tapes")
     await page.waitForTimeout(2_000)
-    await expect(page.locator("main")).toBeVisible()
+    await expect(page.locator("main").first()).toBeVisible()
   })
 
   test("sort by price low to high", async ({ page }) => {
     await page.goto("/catalog?sort=legacy_price:asc&for_sale=true")
     await page.waitForSelector("a[href*='/catalog/']", { timeout: 15_000 })
-    await expect(page.locator("main")).toBeVisible()
+    await expect(page.locator("main").first()).toBeVisible()
   })
 
   test("product detail page loads", async ({ page }) => {
@@ -65,7 +65,7 @@ test.describe("Catalog", () => {
     await page.waitForLoadState("networkidle", { timeout: 20_000 })
 
     // Detail page should have a main content area
-    await expect(page.locator("main")).toBeVisible()
+    await expect(page.locator("main").first()).toBeVisible()
     // Should have a heading (release title or artist)
     await expect(page.locator("h1").first()).toBeVisible()
   })
@@ -78,9 +78,8 @@ test.describe("Catalog", () => {
     await page.waitForLoadState("networkidle", { timeout: 20_000 })
 
     // Should contain a main element with content
-    const main = page.locator("main")
+    const main = page.locator("main").first()
     await expect(main).toBeVisible()
-    // The page should have more than just a blank layout
     const textContent = await main.textContent()
     expect(textContent).toBeTruthy()
     expect(textContent!.length).toBeGreaterThan(50)

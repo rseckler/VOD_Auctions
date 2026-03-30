@@ -29,7 +29,7 @@ test.describe("Order History", () => {
     await page.waitForTimeout(2_000)
 
     // Either shows orders or "No orders yet" message
-    const pageText = await page.locator("main").textContent()
+    const pageText = await page.locator("main").first().textContent()
     const hasOrderContent =
       (pageText || "").toLowerCase().includes("order") ||
       (pageText || "").toLowerCase().includes("no orders") ||

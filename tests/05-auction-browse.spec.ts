@@ -20,7 +20,7 @@ test.describe("Auction Browse", () => {
     await page.goto("/auctions")
     await page.waitForLoadState("networkidle", { timeout: 15_000 })
     // Either shows auction blocks or an empty/no-blocks state
-    const main = page.locator("main")
+    const main = page.locator("main").first()
     await expect(main).toBeVisible()
     const content = await main.textContent()
     expect(content).toBeTruthy()
@@ -65,7 +65,7 @@ test.describe("Auction Browse", () => {
     await page.waitForLoadState("networkidle", { timeout: 20_000 })
 
     // Lot grid should be visible or empty state message
-    const main = page.locator("main")
+    const main = page.locator("main").first()
     await expect(main).toBeVisible()
   })
 
@@ -96,13 +96,13 @@ test.describe("Auction Browse", () => {
     // Click on a lot to see detail
     await lotLinks.first().click()
     await page.waitForLoadState("networkidle", { timeout: 20_000 })
-    await expect(page.locator("main")).toBeVisible()
+    await expect(page.locator("main").first()).toBeVisible()
   })
 
   test("Live Auction Banner is rendered on catalog page", async ({ page }) => {
     await page.goto("/catalog")
     await page.waitForLoadState("networkidle", { timeout: 15_000 })
     // The LiveAuctionBanner renders conditionally — just check the page loads
-    await expect(page.locator("main")).toBeVisible()
+    await expect(page.locator("main").first()).toBeVisible()
   })
 })
