@@ -487,18 +487,36 @@ export default async function ItemDetailPage({
             </div>
           )}
 
-          {/* Description */}
-          {release?.description && (
-            <>
-              <Separator className="my-6" />
-              <div>
-                <h2 className="text-lg font-semibold mb-2">Description</h2>
-                <p className="text-sm text-muted-foreground whitespace-pre-line">
-                  {release.description}
-                </p>
-              </div>
-            </>
-          )}
+          {/* Description — strip legacy HTML tags from Discogs scrape */}
+          {(() => {
+            if (!release?.description) return null
+            const stripped = release.description
+              .replace(/<[^>]*>/g, " ")
+              .replace(/&nbsp;/g, " ")
+              .replace(/&ndash;/g, "–")
+              .replace(/&mdash;/g, "—")
+              .replace(/&amp;/g, "&")
+              .replace(/&lt;/g, "<")
+              .replace(/&gt;/g, ">")
+              .replace(/&quot;/g, '"')
+              .replace(/&#39;/g, "'")
+              .replace(/[ \t]+/g, " ")
+              .replace(/\n[ \t]+/g, "\n")
+              .replace(/\n{3,}/g, "\n\n")
+              .trim()
+            if (!stripped) return null
+            return (
+              <>
+                <Separator className="my-6" />
+                <div>
+                  <h2 className="text-lg font-semibold mb-2">Description</h2>
+                  <p className="text-sm text-muted-foreground whitespace-pre-line">
+                    {stripped}
+                  </p>
+                </div>
+              </>
+            )
+          })()}
 
           {/* Comments */}
           {release?.comments && release.comments.length > 0 && (
