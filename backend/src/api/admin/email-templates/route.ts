@@ -11,6 +11,7 @@ import { paymentReminder3Email } from "../../../emails/payment-reminder-3"
 import { shippingEmail } from "../../../emails/shipping"
 import { feedbackRequestEmail } from "../../../emails/feedback-request"
 import { watchlistReminderEmail } from "../../../emails/watchlist-reminder"
+import { bidPlacedEmail } from "../../../emails/bid-placed"
 import { newsletterConfirmEmail } from "../../../emails/newsletter-confirm"
 import { blockTomorrowEmail } from "../../../emails/block-tomorrow"
 import { blockLiveEmail } from "../../../emails/block-live"
@@ -56,6 +57,15 @@ const TEMPLATES: EmailTemplate[] = [
     category: "transactional",
     trigger: "Forgot password",
     preheader: "Your password reset link — valid for 15 minutes",
+  },
+  {
+    id: "bid-placed",
+    name: "Bid Placed Confirmation",
+    description: "Sent immediately when a bid is successfully placed and wins",
+    channel: "resend",
+    category: "transactional",
+    trigger: "Bid placed — winning bid",
+    preheader: "Your bid is the highest — you're in the lead!",
   },
   {
     id: "bid-won",
@@ -220,6 +230,18 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
       rendered = passwordResetEmail({
         firstName: "Frank",
         resetUrl: `${STOREFRONT_URL}/reset-password?token=TEST_TOKEN`,
+      })
+      break
+
+    case "bid-placed":
+      rendered = bidPlacedEmail({
+        firstName: "Frank",
+        itemTitle: "Dorothy — I Confess / Softness",
+        artistName: "Dorothy",
+        lotNumber: 5,
+        blockTitle: DEMO_BLOCK_TITLE,
+        bidAmount: 1.50,
+        lotUrl: `${STOREFRONT_URL}/auctions/${DEMO_BLOCK_SLUG}/lot-demo`,
       })
       break
 
