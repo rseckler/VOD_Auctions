@@ -24,6 +24,8 @@ type SavedItem = {
   direct_price: number | null
   legacy_price: number | null
   auction_status: string
+  block_item_id: string | null
+  block_slug: string | null
 }
 
 export default function SavedPage() {
@@ -159,11 +161,15 @@ export default function SavedPage() {
       <div className="space-y-3">
         {items.map((item) => {
           const price = item.direct_price || item.legacy_price
+          const itemHref =
+            item.block_slug && item.block_item_id
+              ? `/auctions/${item.block_slug}/${item.block_item_id}`
+              : `/catalog/${item.release_id}`
           return (
             <Card key={item.id} className="p-4">
               <div className="flex gap-4">
                 <Link
-                  href={`/catalog/${item.release_id}`}
+                  href={itemHref}
                   className="w-16 h-16 flex-shrink-0 rounded overflow-hidden bg-card relative"
                 >
                   {item.coverImage ? (
@@ -183,7 +189,7 @@ export default function SavedPage() {
 
                 <div className="flex-1 min-w-0">
                   <Link
-                    href={`/catalog/${item.release_id}`}
+                    href={itemHref}
                     className="hover:text-primary transition-colors"
                   >
                     <p className="text-sm font-medium truncate">

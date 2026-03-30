@@ -30,10 +30,21 @@ export async function GET(
       "Release.direct_price",
       "Release.auction_status",
       "Release.legacy_price",
-      "Artist.name as artist_name"
+      "Artist.name as artist_name",
+      // Active auction lot — if this release is currently in an active block
+      "block_item.id as block_item_id",
+      "auction_block.slug as block_slug"
     )
     .join("Release", "Release.id", "saved_item.release_id")
     .leftJoin("Artist", "Artist.id", "Release.artistId")
+    .leftJoin("block_item", function () {
+      this.on("block_item.release_id", "=", "saved_item.release_id")
+        .andOnIn("block_item.status", ["open", "active"])
+    })
+    .leftJoin("auction_block", function () {
+      this.on("auction_block.id", "=", "block_item.auction_block_id")
+        .andOnIn("auction_block.status", ["active", "preview", "scheduled"])
+    })
     .where("saved_item.user_id", customerId)
     .whereNull("saved_item.deleted_at")
     .orderBy("saved_item.created_at", "desc")
