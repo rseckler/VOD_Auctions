@@ -46,17 +46,13 @@ test.describe("Order History", () => {
     await page.waitForLoadState("networkidle", { timeout: 15_000 })
     await page.waitForTimeout(3_000)
 
-    // Check for order cards — they have order numbers like "VOD-ORD-XXXXXX"
-    const orderCards = page.locator("[class*='Card'], [class*='card']")
-    const count = await orderCards.count()
-
-    if (count > 0) {
-      await expect(orderCards.first()).toBeVisible()
-      // Order should show some identifying info
-      const cardText = await orderCards.first().textContent()
-      expect(cardText).toBeTruthy()
-    }
+    // Check for order groups — they contain VOD-ORD order numbers
+    const orderGroupText = page.getByText(/VOD-ORD-/i).first()
+    const hasOrders = await orderGroupText.isVisible()
     // If no orders, that's also acceptable (test data may have been cleaned up)
+    if (hasOrders) {
+      await expect(orderGroupText).toBeVisible()
+    }
   })
 
   test("order card expands to show detail", async ({ page }) => {
@@ -90,7 +86,13 @@ test.describe("Order History", () => {
     await page.waitForLoadState("networkidle", { timeout: 15_000 })
     await page.waitForTimeout(3_000)
 
-    // Expand first order
+    // Only run if there are actual orders (VOD-ORD numbers)
+    const hasOrders = await page.getByText(/VOD-ORD-/i).first().isVisible()
+    if (!hasOrders) {
+      test.skip()
+      return
+    }
+
     const orderToggleBtn = page.locator("button[aria-expanded='false']").first()
     if (!await orderToggleBtn.isVisible()) {
       test.skip()

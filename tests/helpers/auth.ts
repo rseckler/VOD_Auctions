@@ -91,18 +91,20 @@ export async function registerViaModal(
  * Logout via the user dropdown menu in the header.
  */
 export async function logoutViaHeader(page: Page) {
-  // Click the Avatar/user button (dropdown trigger in header)
-  await page.locator("header").getByRole("button").filter({ hasText: /./}).last().click()
+  // Click the Avatar dropdown trigger (rounded-full button in header)
+  const avatarBtn = page.locator("header button[class*='rounded-full']")
+  await avatarBtn.waitFor({ state: "visible", timeout: 5_000 })
+  await avatarBtn.click()
 
   // Wait for dropdown
   const dropdown = page.getByRole("menu")
-  await dropdown.waitFor({ state: "visible" })
+  await dropdown.waitFor({ state: "visible", timeout: 5_000 })
+
+  // Handle window.confirm before clicking Logout
+  page.once("dialog", (dialog) => dialog.accept())
 
   // Click Logout
   await dropdown.getByText("Logout").click()
-
-  // Handle confirm dialog
-  page.on("dialog", (dialog) => dialog.accept())
   await page.waitForTimeout(500)
 }
 

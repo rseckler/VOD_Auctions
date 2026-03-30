@@ -168,16 +168,14 @@ test.describe("Logout", () => {
     await loginViaModal(page, TEST_ACCOUNTS.bidder1.email, TEST_ACCOUNTS.bidder1.password)
 
     // User is logged in — header shows Avatar dropdown
-    // Find the header avatar button (not the "Login" button)
-    const header = page.locator("header")
-    // The dropdown trigger is a button with an Avatar inside
-    await header.locator("button").filter({ hasNot: page.locator('[role="menuitem"]') }).last().click()
-
-    // Handle confirm dialog that appears on logout
-    page.once("dialog", (dialog) => dialog.accept())
+    await page.locator("header button[class*='rounded-full']").waitFor({ state: "visible", timeout: 5_000 })
+    await page.locator("header button[class*='rounded-full']").click()
 
     const dropdown = page.getByRole("menu")
     await dropdown.waitFor({ state: "visible", timeout: 5_000 })
+
+    // Handle window.confirm before clicking Logout
+    page.once("dialog", (dialog) => dialog.accept())
     await dropdown.getByText("Logout").click()
 
     // After logout, Login button should reappear

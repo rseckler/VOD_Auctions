@@ -46,6 +46,18 @@ export async function register(
     throw new Error(err.message || "Customer account could not be created")
   }
 
+  // The registration token is short-lived and not valid for store APIs.
+  // Do a regular login to get a proper session token.
+  const loginRes = await fetch(`${MEDUSA_URL}/auth/customer/emailpass`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  })
+  if (loginRes.ok) {
+    const { token: sessionToken } = await loginRes.json()
+    return sessionToken
+  }
+
   return token
 }
 

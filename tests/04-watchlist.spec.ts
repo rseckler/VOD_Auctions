@@ -100,6 +100,6 @@ test.describe("Watchlist", () => {
     await page.goto("/account")
     await expect(page).toHaveURL(/\/account/)
     // The account page shows Saved card
-    await expect(page.getByText("Saved")).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText("Saved").first()).toBeVisible({ timeout: 10_000 })
   })
 })
