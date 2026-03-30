@@ -20,7 +20,7 @@ export function MobileNav({
   open: boolean
   onClose: () => void
 }) {
-  const { isAuthenticated, customer, logout, cartCount, savedCount } = useAuth()
+  const { isAuthenticated, customer, logout, cartCount, savedCount, bidsCount } = useAuth()
   const [authModalOpen, setAuthModalOpen] = useState(false)
 
   return (
@@ -109,7 +109,7 @@ export function MobileNav({
                   className="flex items-center gap-3 px-3 pl-7 py-2 rounded-md text-sm text-muted-foreground/80 hover:text-foreground hover:bg-[rgba(232,224,212,0.04)] transition-colors"
                 >
                   <Gavel className="h-3.5 w-3.5" />
-                  My Bids
+                  My Bids{bidsCount > 0 && ` (${bidsCount})`}
                 </Link>
                 <Link
                   href="/account/wins"

@@ -40,6 +40,7 @@ type AuthContextType = {
   savedCount: number
   ordersCount: number
   winsCount: number
+  bidsCount: number
   sessionExpiredMessage: string | null
   intendedAction: IntendedAction | null
   dismissSessionExpired: () => void
@@ -66,6 +67,7 @@ const AuthContext = createContext<AuthContextType>({
   savedCount: 0,
   ordersCount: 0,
   winsCount: 0,
+  bidsCount: 0,
   sessionExpiredMessage: null,
   intendedAction: null,
   dismissSessionExpired: () => {},
@@ -91,6 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [savedCount, setSavedCount] = useState(0)
   const [ordersCount, setOrdersCount] = useState(0)
   const [winsCount, setWinsCount] = useState(0)
+  const [bidsCount, setBidsCount] = useState(0)
   const [sessionExpiredMessage, setSessionExpiredMessage] = useState<string | null>(null)
   const [intendedAction, setIntendedActionState] = useState<IntendedAction | null>(null)
   const logoutTriggeredRef = useRef(false)
@@ -137,6 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSavedCount(data.saved_count || 0)
         setOrdersCount(data.orders_count || 0)
         setWinsCount(data.wins_count || 0)
+        setBidsCount(data.active_bids_count || 0)
       }
     } catch {
       // silently fail on network errors
@@ -277,6 +281,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         savedCount,
         ordersCount,
         winsCount,
+        bidsCount,
         sessionExpiredMessage,
         intendedAction,
         dismissSessionExpired,

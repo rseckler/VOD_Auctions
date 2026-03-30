@@ -590,8 +590,8 @@ export default async function ItemDetailPage({
         </Link>
       </Button>
 
-      {/* Sticky Mobile CTA — hidden when auction ended/sold */}
-      {(isBlockPreview || block.status === "active") && item.status !== "sold" && (block.status === "active" || block.status === "preview") && (
+      {/* Sticky Mobile CTA — only when there's an action to take */}
+      {(isBlockPreview || (block.status === "active" && item.status === "open")) && (
       <div className="fixed bottom-0 left-0 right-0 z-40 lg:hidden bg-[#1c1915] border-t border-border px-4 py-3 flex items-center justify-between gap-3">
         {isBlockPreview ? (
           <>

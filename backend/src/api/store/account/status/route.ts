@@ -17,7 +17,7 @@ export async function GET(
     ContainerRegistrationKeys.PG_CONNECTION
   )
 
-  const [cartResult, savedResult, ordersResult, winsResult, defaultAddress, customerResult] = await Promise.all([
+  const [cartResult, savedResult, ordersResult, winsResult, activeBidsResult, defaultAddress, customerResult] = await Promise.all([
     pgConnection("cart_item")
       .where("user_id", customerId)
       .whereNull("deleted_at")
@@ -40,6 +40,13 @@ export async function GET(
       .where("block_item.status", "sold")
       .count("bid.id as count")
       .first(),
+    pgConnection("bid")
+      .join("block_item", "bid.block_item_id", "block_item.id")
+      .join("auction_block", "block_item.auction_block_id", "auction_block.id")
+      .where("bid.user_id", customerId)
+      .whereIn("auction_block.status", ["active", "preview"])
+      .count("bid.id as count")
+      .first(),
     pgConnection("customer_address")
       .where({ customer_id: customerId, is_default_shipping: true })
       .whereNull("deleted_at")
@@ -56,6 +63,7 @@ export async function GET(
     saved_count: Number(savedResult?.count || 0),
     orders_count: Number(ordersResult?.count || 0),
     wins_count: Number(winsResult?.count || 0),
+    active_bids_count: Number(activeBidsResult?.count || 0),
     email_verified: customerResult?.email_verified || false,
     default_shipping_address: defaultAddress ? {
       first_name: defaultAddress.first_name || "",
