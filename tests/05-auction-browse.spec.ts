@@ -3,6 +3,7 @@ import { bypassGate } from "./helpers/auth"
 import {
   createTestAuctionBlock,
   cleanupTestAuctionBlock,
+  cleanupStaleTestAuctionBlocks,
   type TestAuctionBlock,
 } from "./helpers/auction-setup"
 
@@ -14,6 +15,7 @@ let testBlock: TestAuctionBlock | null = null
 
 test.describe("Auction Browse", () => {
   test.beforeAll(async () => {
+    await cleanupStaleTestAuctionBlocks()
     testBlock = await createTestAuctionBlock()
   })
 

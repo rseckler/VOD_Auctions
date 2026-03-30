@@ -187,9 +187,7 @@ export async function createTestAuctionBlock(): Promise<TestAuctionBlock | null>
 }
 
 /**
- * Signal the lifecycle job to end the test block by marking all items as
- * unsold. The scheduler (every minute) sees no active items and transitions
- * the block to ended automatically — no waiting required in the test.
+ * Fully delete the test auction block: force status to ended, then hard-delete.
  */
 export async function cleanupTestAuctionBlock(
   block: TestAuctionBlock | null
@@ -203,14 +201,59 @@ export async function cleanupTestAuctionBlock(
     "Content-Type": "application/json",
   }
 
-  for (const item of block.items) {
-    await fetch(
-      `${ADMIN_URL}/admin/auction-blocks/${block.id}/items/${item.id}`,
-      {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ status: "unsold" }),
+  // Force block to ended (skips lifecycle scheduler)
+  await fetch(`${ADMIN_URL}/admin/auction-blocks/${block.id}`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ status: "ended" }),
+  }).catch(() => {})
+
+  // Hard-delete (only allowed for draft/ended/archived)
+  await fetch(`${ADMIN_URL}/admin/auction-blocks/${block.id}`, {
+    method: "DELETE",
+    headers,
+  }).catch(() => {})
+}
+
+/**
+ * Delete all stale E2E test auction blocks (title = "E2E Test Auction").
+ * Call in beforeAll to prevent accumulation from aborted test runs.
+ */
+export async function cleanupStaleTestAuctionBlocks(): Promise<void> {
+  const token = await getAdminToken()
+  if (!token) return
+
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+  }
+
+  try {
+    const res = await fetch(`${ADMIN_URL}/admin/auction-blocks?limit=100`, { headers })
+    if (!res.ok) return
+    const data = await res.json()
+    const blocks: Array<{ id: string; title: string; status: string }> =
+      data.auction_blocks || []
+
+    const stale = blocks.filter((b) => b.title === "E2E Test Auction")
+    for (const b of stale) {
+      // Force to ended if still active/scheduled/preview
+      if (!["draft", "ended", "archived"].includes(b.status)) {
+        await fetch(`${ADMIN_URL}/admin/auction-blocks/${b.id}`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ status: "ended" }),
+        }).catch(() => {})
       }
-    ).catch(() => {})
+      await fetch(`${ADMIN_URL}/admin/auction-blocks/${b.id}`, {
+        method: "DELETE",
+        headers,
+      }).catch(() => {})
+    }
+    if (stale.length > 0) {
+      console.log(`[auction-setup] Cleaned up ${stale.length} stale E2E test block(s)`)
+    }
+  } catch {
+    // ignore — cleanup is best-effort
   }
 }

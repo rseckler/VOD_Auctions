@@ -3,6 +3,7 @@ import { bypassGate, loginViaModal, TEST_ACCOUNTS } from "./helpers/auth"
 import {
   createTestAuctionBlock,
   cleanupTestAuctionBlock,
+  cleanupStaleTestAuctionBlocks,
   type TestAuctionBlock,
 } from "./helpers/auction-setup"
 
@@ -42,6 +43,7 @@ let testBlock: TestAuctionBlock | null = null
 
 test.describe("Bidding", () => {
   test.beforeAll(async () => {
+    await cleanupStaleTestAuctionBlocks()
     testBlock = await createTestAuctionBlock()
   })
 

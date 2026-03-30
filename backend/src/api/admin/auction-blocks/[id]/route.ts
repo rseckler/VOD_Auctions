@@ -6,8 +6,9 @@ import { AUCTION_MODULE } from "../../../../modules/auction"
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   draft: ["scheduled"],
-  scheduled: ["preview", "active"],
-  preview: ["active"],
+  scheduled: ["preview", "active", "ended"],
+  preview: ["active", "ended"],
+  active: ["ended"],
   ended: ["archived"],
 }
 
