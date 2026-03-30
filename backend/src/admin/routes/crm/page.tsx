@@ -1586,8 +1586,26 @@ function CustomersListTab({
   const [offset, setOffset] = useState(0)
   const [sort, setSort] = useState("created_at")
   const [order, setOrder] = useState("desc")
+  const [recalcLoading, setRecalcLoading] = useState(false)
   const limit = 50
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleRecalcStats = async () => {
+    setRecalcLoading(true)
+    try {
+      const res = await fetch("/admin/customers/recalc-stats", { method: "POST", credentials: "include" })
+      const data = await res.json()
+      if (res.ok) {
+        fetchCustomers(q, offset, sort, order)
+      } else {
+        alert("Recalc failed: " + (data.message || "Unknown error"))
+      }
+    } catch {
+      alert("Recalc failed")
+    } finally {
+      setRecalcLoading(false)
+    }
+  }
 
   const fetchCustomers = useCallback((query: string, offsetVal: number, sortVal: string, orderVal: string) => {
     setLoading(true)
@@ -1684,6 +1702,24 @@ function CustomersListTab({
           <div style={{ fontSize: "13px", color: COLORS.muted }}>
             {loading ? "Loading..." : `${total.toLocaleString("en-US")} customers`}
           </div>
+          <button
+            onClick={handleRecalcStats}
+            disabled={recalcLoading}
+            title="Recalculate bid/order counts from live data"
+            style={{
+              padding: "6px 12px",
+              borderRadius: "5px",
+              border: `1px solid ${COLORS.border}`,
+              background: COLORS.card,
+              color: recalcLoading ? COLORS.muted : COLORS.text,
+              fontSize: "12px",
+              fontWeight: 500,
+              cursor: recalcLoading ? "not-allowed" : "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {recalcLoading ? "Recalculating…" : "↻ Recalc Stats"}
+          </button>
           <button
             onClick={() => window.open("/admin/customers/export", "_blank")}
             style={{
