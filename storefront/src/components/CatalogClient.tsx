@@ -19,7 +19,7 @@ type CatalogRelease = {
   format: string
   format_name: string | null
   format_group: string | null
-  product_category: string
+  product_category: string | null
   year: number | null
   country: string | null
   coverImage: string | null
@@ -28,7 +28,6 @@ type CatalogRelease = {
   legacy_condition: string | null
   legacy_price: number | null
   legacy_format_detail: string | null
-  product_category?: string | null
   artist_name: string | null
   artist_slug?: string | null
   label_name: string | null
