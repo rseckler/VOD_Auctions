@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Disc3, Mail, Instagram, Facebook, CheckCircle } from "lucide-react"
+import { Mail, Instagram, Facebook, CheckCircle } from "lucide-react"
 import { useState, type FormEvent } from "react"
 import { toast } from "sonner"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
@@ -168,15 +168,6 @@ export function Footer() {
           {/* Social media */}
           <div className="flex items-center gap-4">
             <a
-              href="https://www.discogs.com/seller/VODRecords"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-muted-foreground hover:text-primary transition-colors text-sm"
-              aria-label="Discogs"
-            >
-              Discogs
-            </a>
-            <a
               href="#"
               target="_blank"
               rel="noopener noreferrer"
@@ -186,7 +177,7 @@ export function Footer() {
               <Instagram className="h-4 w-4" />
             </a>
             <a
-              href="#"
+              href="https://www.facebook.com/vinylondemandrecords"
               target="_blank"
               rel="noopener noreferrer"
               className="text-muted-foreground hover:text-primary transition-colors"
