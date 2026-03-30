@@ -4,7 +4,7 @@
 **Goal:** Eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Phase 1 fertig — RSE-77 (Testlauf) als nächster Schritt
 **Language:** Storefront + Admin-UI: Englisch
-**Last Updated:** 2026-03-31
+**Last Updated:** 2026-04-01
 
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
@@ -309,6 +309,31 @@ VOD_Auctions/
 **Backlog:** RSE-78 (Launch, offen: AGB-Anwalt) | RSE-79 (Erste öffentliche Auktionen) | RSE-80 (Marketing)
 
 ## Recent Changes
+
+### 2026-04-01 — Bugfixes Fehler 1–7 (Live Bidding, Tracklist, Saved Items, CRM Stats)
+
+#### Live Bidding Fixes (Fehler 1–6) — `ItemBidSection.tsx`
+- **Fehler 1 — `isActive` nie true:** `itemStatus === "active"` passte nicht — DB speichert `"open"` für aktive Lots. Fix: `liveItemStatus === "active" || liveItemStatus === "open"`. Reaktiver State (`liveBlockStatus`, `liveItemStatus`) statt direkter Props.
+- **Fehler 2 — Stale ISR-Props:** Mount-fetch überschreibt Next.js ISR-gecachte Props mit Live-Daten von `/store/auction-blocks/:slug/items/:itemId`. Aktualisiert `currentPrice`, `bidCount`, `lotEndTime`, `liveBlockStatus`, `liveItemStatus`.
+- **Fehler 3 — Garbled Description / HTML-Tags sichtbar:** `release.description` enthält rohes Discogs-HTML. Inline-Strip in `auctions/[slug]/[itemId]/page.tsx` (`<br>` → `\n`, Tags entfernen, HTML-Entities dekodieren). Guard: Description-Sektion nur wenn kein Tracklist + keine Credits.
+- **Fehler 4 — Bid Silence bei "Already Highest Bidder":** Backend gibt 400 mit Meldung zurück. `toast.error(msg, { duration: 8000 })` + Beschreibung "Use 'Set maximum bid'..." wenn already-winning erkannt.
+- **Fehler 5 — Toast zu kurz:** Alle Success/Warning-Toasts auf `{ duration: 6000 }`, Errors auf `{ duration: 8000 }`.
+- **Fehler 6 — Saved Items Link:** `/account/saved` verlinkte auf `/catalog/:id` statt auf aktiven Auktions-Lot. Fix: `GET /store/account/saved` joinent jetzt `block_item` + `auction_block` und gibt `block_item_id` + `block_slug` zurück. Link-Logik: auction-Lot wenn vorhanden, sonst catalog-Fallback.
+
+#### Tracklist Parser Fixes — `storefront/src/lib/utils.ts`
+- **`POSITION_RE`** — War `/^[A-Z]?\d{1,2}\.?$/` → matched nicht "A", "B" (ohne Ziffern). Neu: `/^([A-Z]{1,2}\d{0,2}|\d{1,2})\.?$/` — unterstützt Vinyl-Seiten A/B, AA/BB, A1/B2, I/II, 1/12.
+- **Minimum-Threshold** — `extractTracklistFromText` gab bei < 3 Tracks zurück. Gesenkt auf < 2, damit 7"-Singles (2 Tracks) erkannt werden.
+- **`parseUnstructuredTracklist`** — `alreadyStructured`-Bail-out entfernt. War fälschlicherweise aktiv bei JSONB-Einträgen wie `{position:"I", title:"Confess"}` → kein Parsing.
+- **Resultat:** 7"-Single "I Confess / Softness" zeigt jetzt korrekt: `A / I Confess / 3:11` und `B / Softness / 2:08`.
+
+#### Collapsible Block Description — `CollapsibleDescription.tsx` (NEU)
+- Auction-Block-Seite: `long_description` war immer vollständig ausgeklappt → viel Scroll bis zu den Lots.
+- Neuer Client-Component `CollapsibleDescription` in `storefront/src/components/`. Zeigt max. 3 Zeilen (CSS `-webkit-line-clamp`), "Show more / Show less" Toggle mit Chevron. Nur bei Texten > 300 Zeichen oder mehreren Absätzen.
+
+#### CRM Stats Recalculation (Fehler 7) — `customer_stats`
+- **Problem:** `customer_stats`-Tabelle wird nur stündlich via Cron aktualisiert. Kunden mit neuen Bids zeigten 0 in der Tabelle weil Cron noch nicht lief.
+- **`POST /admin/customers/recalc-stats`** (NEU) — Führt vollständigen UPSERT aller Customer-Stats aus live `bid`- + `transaction`-Daten aus. Kein Cron-Wait nötig.
+- **"↻ Recalc Stats" Button** im CRM-Listenheader — ruft Endpoint auf, refreshed Tabelle automatisch.
 
 ### 2026-03-31 — E2E Test Suite Stabilisierung + Storefront OOM-Fix
 
