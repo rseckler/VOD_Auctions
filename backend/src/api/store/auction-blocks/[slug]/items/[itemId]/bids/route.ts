@@ -7,7 +7,7 @@ import { Knex } from "knex"
 import { createHash } from "crypto"
 import AuctionModuleService from "../../../../../../../modules/auction/service"
 import { AUCTION_MODULE } from "../../../../../../../modules/auction"
-import { sendOutbidEmail } from "../../../../../../../lib/email-helpers"
+import { sendOutbidEmail, sendBidPlacedEmail } from "../../../../../../../lib/email-helpers"
 import { crmSyncBidPlaced } from "../../../../../../../lib/crm-sync"
 import { getSupabaseAdminClient } from "../../../../../../../lib/supabase"
 import { rudderTrack } from "../../../../../../../lib/rudderstack"
@@ -350,6 +350,13 @@ export async function POST(
         item_id: itemId,
         block_slug: slug,
       })
+    }
+
+    // Send bid placed confirmation email (only for winning bids, non-blocking)
+    if (!result.outbid) {
+      sendBidPlacedEmail(pgConnection, customerId, itemId, Number(result.amount)).catch((err) =>
+        console.error("[bid/bid-placed-email] Failed to send bid confirmation email:", err instanceof Error ? err.message : err)
+      )
     }
 
     // Send outbid email AFTER transaction commits (async, non-blocking)

@@ -11,6 +11,7 @@ import { feedbackRequestEmail } from "../emails/feedback-request"
 import { paymentReminder1Email } from "../emails/payment-reminder-1"
 import { paymentReminder3Email } from "../emails/payment-reminder-3"
 import { watchlistReminderEmail } from "../emails/watchlist-reminder"
+import { bidPlacedEmail } from "../emails/bid-placed"
 
 // --- Unsubscribe token helpers ---
 
@@ -114,6 +115,45 @@ export async function sendOutbidEmail(
     currentBid,
     suggestedBid,
     bidUrl: lotUrl,
+    customerId: customer.id,
+  })
+  await sendEmail({ to: customer.email, subject, html })
+}
+
+// --- BID PLACED ---
+export async function sendBidPlacedEmail(
+  pg: Knex,
+  bidderId: string,
+  blockItemId: string,
+  bidAmount: number
+) {
+  const customer = await getCustomer(pg, bidderId)
+  if (!customer?.email) return
+
+  const item = await pg("block_item")
+    .where("id", blockItemId)
+    .select("release_id", "lot_number", "auction_block_id")
+    .first()
+  if (!item) return
+
+  const block = await pg("auction_block")
+    .where("id", item.auction_block_id)
+    .select("title", "slug")
+    .first()
+
+  const release = await getReleaseInfo(pg, item.release_id)
+
+  const lotUrl = `${APP_URL}/auctions/${block?.slug || ""}/${blockItemId}`
+
+  const { subject, html } = bidPlacedEmail({
+    firstName: customer.first_name || "there",
+    itemTitle: release?.title || "Unknown Item",
+    artistName: release?.artistName,
+    coverImage: release?.coverImage,
+    lotNumber: item.lot_number,
+    blockTitle: block?.title,
+    bidAmount,
+    lotUrl,
     customerId: customer.id,
   })
   await sendEmail({ to: customer.email, subject, html })

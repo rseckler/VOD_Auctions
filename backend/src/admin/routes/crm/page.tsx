@@ -1634,6 +1634,17 @@ function CustomersListTab({
     fetchCustomers(q, offset, sort, order)
   }, [fetchCustomers, offset, sort, order])
 
+  // Silent background recalc on mount — keeps list stats fresh without requiring manual click
+  useEffect(() => {
+    fetch("/admin/customers/recalc-stats", { method: "POST", credentials: "include" })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data?.ok) fetchCustomers(q, offset, sort, order)
+      })
+      .catch(() => {})
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   function handleSearch(value: string) {
     setQ(value)
     setOffset(0)
