@@ -4,6 +4,25 @@ Vollständiger Entwicklungs-Changelog. Aktuelle Änderungen stehen in CLAUDE.md.
 
 ---
 
+### 2026-04-03 — Mag/Lit/Photo Subtitle Logic, Bid UX Fixes, Security
+
+#### Mag/Lit/Photo Subtitle Logic
+- **`BlockItemsGrid.tsx`**: Karten-Untertitel zeigt `label_name` für `band_literature`/`label_literature`/`press_literature`. Releases weiterhin `artist_name`.
+- **`auctions/[slug]/[itemId]/page.tsx`**: Breadcrumb, Subtitle-Link, ShareButton-Titel, JSON-LD-Name — alle nutzen jetzt `contextName` (category-aware: `label_name` für Nicht-Release, `artist_name` für Release). Link zeigt zu `/label/:slug` statt `/band/:slug` für Lit/Press.
+- **Backend** `store/auction-blocks/[slug]/route.ts` + `items/[itemId]/route.ts`: `Release.product_category` zum SELECT ergänzt.
+
+#### Bid UX Fixes
+- **Proxy-Bid Erhöhung möglich**: Bereits Höchstbietende können jetzt ihr Gebot manuell erhöhen. Backend akzeptiert `amount` als neues Maximum wenn kein `max_amount` gesendet wird. Response: `max_updated: true` + `new_max_amount`.
+- **Outbid-Toast verbessert**: Bei Proxy-Block klarer Fehler mit aktuellem Preis: "A proxy bid was already higher. Current bid: €X.XX".
+- **Max-Bid-Updated-Toast**: "Maximum bid raised to €X.XX — You remain the highest bidder."
+
+#### Mobile/Nav UX
+- **Horizontal Scroll Fix**: `overflow-x: hidden` auf `html`+`body` in `globals.css` + Admin `injectNavCSS()`.
+- **My Bids Count**: Mobile Nav zeigt "My Bids (N)" wenn N > 0. Neues Feld `active_bids_count` in `/store/account/status`.
+- **Sticky "Auction ended" Bar entfernt**: Footer nur noch bei tatsächlicher Bid-Action (`isBlockPreview || active+open`).
+
+---
+
 ### 2026-04-03 — SEO Phase 1+2, Rudderstack Tracking, UX Fixes, Security
 
 #### Rudderstack: rudderIdentify + Item Unsaved Event

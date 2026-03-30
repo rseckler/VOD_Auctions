@@ -328,6 +328,24 @@ VOD_Auctions/
 
 ## Recent Changes
 
+### 2026-04-03 — Mag/Lit/Photo Subtitle, Bid UX, Mobile, SEO, Security
+
+#### Mag/Lit/Photo Subtitle Logic
+- `BlockItemsGrid.tsx`: Karten-Untertitel zeigt `label_name` für Lit/Mag/Photo-Kategorien statt `artist_name`.
+- `auctions/[slug]/[itemId]/page.tsx`: Breadcrumb, Subtitle-Link, ShareButton, JSON-LD — alle nutzen `contextName` (category-aware). Backend: `Release.product_category` in beiden Block-Routes ergänzt.
+
+#### Bid UX
+- Bereits Höchstbietende können Gebot erhöhen. Backend: `amount` als neues Maximum wenn kein `max_amount`. Response `max_updated: true` + Success-Toast "Maximum bid raised".
+- Outbid-Toast: Klarer Fehler mit aktuellem Preis statt generischem "You are not the highest bidder".
+
+#### Mobile
+- `overflow-x: hidden` auf `html`/`body` — kein horizontales Schieben mehr auf mobilen Seiten.
+- "My Bids (N)" im Mobile Nav via `active_bids_count` aus `/store/account/status`.
+- Sticky "Auction ended" Footer ausgeblendet (nur noch bei echter Bid-Action sichtbar).
+
+#### SEO, Rudderstack, Security
+- SEO Phase 1+2: Canonicals, OG, JSON-LD, Robots. Rudderstack: identify + unsaved event. PostgreSQL: `listen_addresses = 'localhost'`.
+
 ### 2026-04-03 — SEO, Rudderstack, UX-Fixes, Security, Mobile
 
 #### Rudderstack + Tracking

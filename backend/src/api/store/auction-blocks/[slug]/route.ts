@@ -55,6 +55,7 @@ export async function GET(
         "Release.estimated_value",
         "Release.legacy_condition",
         "Release.legacy_price",
+        "Release.product_category",
         "Artist.name as artist_name",
         "Artist.slug as artist_slug",
         "Label.name as label_name",

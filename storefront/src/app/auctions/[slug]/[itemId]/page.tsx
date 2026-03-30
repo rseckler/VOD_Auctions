@@ -89,8 +89,10 @@ export async function generateMetadata({
 
   const { block_item: item, auction_block: block } = data
   const r = item.release
-  const title = r?.artist_name
-    ? `${r.artist_name} — ${r.title}`
+  const isRelease = !r?.product_category || r.product_category === "release"
+  const contextName = isRelease ? r?.artist_name : (r?.label_name || r?.artist_name)
+  const title = contextName
+    ? `${contextName} — ${r?.title}`
     : r?.title || `Lot ${item.lot_number}`
   const description = [
     r ? (r.format_name || r.format) : null,
@@ -163,6 +165,15 @@ export default async function ItemDetailPage({
     ? extracted.remainingCredits
     : (release?.credits || null)
 
+  // For Mag/Lit/Photo categories, show label_name as context instead of artist_name
+  const isRelease = !release?.product_category || release.product_category === "release"
+  const contextName = isRelease
+    ? release?.artist_name
+    : (release?.label_name || release?.artist_name)
+  const contextHref = isRelease
+    ? (release?.artist_slug ? `/band/${release.artist_slug}` : null)
+    : (release?.label_slug ? `/label/${release.label_slug}` : null)
+
   // Use images in API sort order (by URL, matching legacy rang order)
   const images: string[] = []
   if (release?.images && release.images.length > 0) {
@@ -186,8 +197,8 @@ export default async function ItemDetailPage({
         </Link>
         <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" />
         <span className="text-foreground truncate">
-          {release?.artist_name
-            ? `${release.artist_name} — ${release.title}`
+          {contextName
+            ? `${contextName} — ${release?.title}`
             : release?.title || `Lot ${item.lot_number}`}
         </span>
       </nav>
@@ -205,12 +216,12 @@ export default async function ItemDetailPage({
           )}
 
           <p className="text-muted-foreground text-lg">
-            {release?.artist_slug ? (
-              <Link href={`/band/${release.artist_slug}`} className="hover:text-primary transition-colors">
-                {release.artist_name}
+            {contextHref ? (
+              <Link href={contextHref} className="hover:text-primary transition-colors">
+                {contextName}
               </Link>
             ) : (
-              release?.artist_name || release?.label_name || "Unknown Artist"
+              contextName || "Unknown"
             )}
           </p>
           <div className="flex items-start gap-3 mt-1">
@@ -220,7 +231,7 @@ export default async function ItemDetailPage({
             {release && <SaveForLaterButton releaseId={release.id || item.release_id} />}
             <ShareButton
               url={`https://vod-auctions.com/auctions/${slug}/${itemId}`}
-              title={release?.artist_name ? `${release.artist_name} — ${release.title}` : release?.title || `Lot ${item.lot_number}`}
+              title={contextName ? `${contextName} — ${release?.title}` : release?.title || `Lot ${item.lot_number}`}
               compact
             />
           </div>
@@ -641,8 +652,8 @@ export default async function ItemDetailPage({
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "Product",
-            name: release?.artist_name
-              ? `${release.artist_name} — ${release.title}`
+            name: contextName
+              ? `${contextName} — ${release?.title}`
               : release?.title || `Lot ${item.lot_number}`,
             ...(images[0] ? { image: images[0] } : {}),
             description: [

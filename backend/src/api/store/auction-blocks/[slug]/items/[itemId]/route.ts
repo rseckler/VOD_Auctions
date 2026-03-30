@@ -54,6 +54,7 @@ export async function GET(
       "Release.id",
       "Release.title",
       "Release.slug",
+      "Release.product_category",
       "Release.format",
       "Release.format_id",
       "Release.year",
