@@ -1,11 +1,27 @@
 import { test, expect } from "@playwright/test"
 import { bypassGate } from "./helpers/auth"
+import {
+  createTestAuctionBlock,
+  cleanupTestAuctionBlock,
+  type TestAuctionBlock,
+} from "./helpers/auction-setup"
 
 /**
  * 05 — Auction Browse: Discover auctions, open block detail, view lots
  */
 
+let testBlock: TestAuctionBlock | null = null
+
 test.describe("Auction Browse", () => {
+  test.beforeAll(async () => {
+    testBlock = await createTestAuctionBlock()
+  })
+
+  test.afterAll(async () => {
+    await cleanupTestAuctionBlock(testBlock)
+    testBlock = null
+  })
+
   test.beforeEach(async ({ context }) => {
     await bypassGate(context)
   })
@@ -27,22 +43,12 @@ test.describe("Auction Browse", () => {
   })
 
   test("auction block detail page loads via slug", async ({ page }) => {
-    // Navigate to auctions page first to find a block slug
-    await page.goto("/auctions")
-    await page.waitForLoadState("networkidle", { timeout: 15_000 })
-
-    const blockLinks = page.locator("a[href*='/auctions/']").filter({ hasNotText: /back|breadcrumb/i })
-    const count = await blockLinks.count()
-
-    if (count === 0) {
+    if (!testBlock) {
       test.skip()
       return
     }
 
-    const href = await blockLinks.first().getAttribute("href")
-    expect(href).toBeTruthy()
-
-    await blockLinks.first().click()
+    await page.goto(`/auctions/${testBlock.slug}`)
     await page.waitForLoadState("networkidle", { timeout: 20_000 })
 
     // Block detail should have heading
@@ -50,41 +56,29 @@ test.describe("Auction Browse", () => {
   })
 
   test("auction block detail shows lot grid", async ({ page }) => {
-    await page.goto("/auctions")
-    await page.waitForLoadState("networkidle", { timeout: 15_000 })
-
-    const blockLinks = page.locator("a[href*='/auctions/']").filter({ hasNotText: /back|breadcrumb/i })
-    const count = await blockLinks.count()
-
-    if (count === 0) {
+    if (!testBlock) {
       test.skip()
       return
     }
 
-    await blockLinks.first().click()
+    await page.goto(`/auctions/${testBlock.slug}`)
     await page.waitForLoadState("networkidle", { timeout: 20_000 })
 
-    // Lot grid should be visible or empty state message
+    // Lot grid should be visible
     const main = page.locator("main").first()
     await expect(main).toBeVisible()
   })
 
   test("lot detail page loads", async ({ page }) => {
-    await page.goto("/auctions")
-    await page.waitForLoadState("networkidle", { timeout: 15_000 })
-
-    const blockLinks = page.locator("a[href*='/auctions/']").filter({ hasNotText: /back|breadcrumb/i })
-    const blockCount = await blockLinks.count()
-
-    if (blockCount === 0) {
+    if (!testBlock) {
       test.skip()
       return
     }
 
-    await blockLinks.first().click()
+    await page.goto(`/auctions/${testBlock.slug}`)
     await page.waitForLoadState("networkidle", { timeout: 20_000 })
 
-    // Find a lot link (item detail within an auction block)
+    // Find a lot link within the block page
     const lotLinks = page.locator("a[href*='/auctions/']").filter({ hasNotText: /back|breadcrumb/i })
     const lotCount = await lotLinks.count()
 

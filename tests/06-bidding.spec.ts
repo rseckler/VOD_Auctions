@@ -1,11 +1,16 @@
 import { test, expect } from "@playwright/test"
 import { bypassGate, loginViaModal, TEST_ACCOUNTS } from "./helpers/auth"
+import {
+  createTestAuctionBlock,
+  cleanupTestAuctionBlock,
+  type TestAuctionBlock,
+} from "./helpers/auction-setup"
 
 /**
  * 06 — Bidding: Place bids, view bid history
  *
  * These tests require an ACTIVE auction block with items.
- * Tests skip gracefully when no active block is found.
+ * A test block is created in beforeAll and cleaned up in afterAll.
  */
 
 const MEDUSA_URL = process.env.MEDUSA_URL || "http://localhost:9000"
@@ -33,19 +38,29 @@ async function findActiveBlock(): Promise<{ slug: string; id: string } | null> {
   }
 }
 
+let testBlock: TestAuctionBlock | null = null
+
 test.describe("Bidding", () => {
+  test.beforeAll(async () => {
+    testBlock = await createTestAuctionBlock()
+  })
+
+  test.afterAll(async () => {
+    await cleanupTestAuctionBlock(testBlock)
+    testBlock = null
+  })
+
   test.beforeEach(async ({ context }) => {
     await bypassGate(context)
   })
 
   test("bid button is not shown when logged out on active lot", async ({ page }) => {
-    const block = await findActiveBlock()
-    if (!block) {
+    if (!testBlock) {
       test.skip()
       return
     }
 
-    await page.goto(`/auctions/${block.slug}`)
+    await page.goto(`/auctions/${testBlock.slug}`)
     await page.waitForLoadState("networkidle", { timeout: 20_000 })
 
     // Find a lot link on the block page
@@ -73,8 +88,7 @@ test.describe("Bidding", () => {
   })
 
   test("logged-in user can see bid form on active lot", async ({ page }) => {
-    const block = await findActiveBlock()
-    if (!block) {
+    if (!testBlock) {
       test.skip()
       return
     }
@@ -82,7 +96,7 @@ test.describe("Bidding", () => {
     await page.goto("/")
     await loginViaModal(page, TEST_ACCOUNTS.bidder1.email, TEST_ACCOUNTS.bidder1.password)
 
-    await page.goto(`/auctions/${block.slug}`)
+    await page.goto(`/auctions/${testBlock.slug}`)
     await page.waitForLoadState("networkidle", { timeout: 20_000 })
 
     const lotLinks = page.locator("a[href*='/auctions/']").filter({ hasNotText: /back|breadcrumb/i })
@@ -107,13 +121,12 @@ test.describe("Bidding", () => {
   })
 
   test("bid history table is shown on lot detail", async ({ page }) => {
-    const block = await findActiveBlock()
-    if (!block) {
+    if (!testBlock) {
       test.skip()
       return
     }
 
-    await page.goto(`/auctions/${block.slug}`)
+    await page.goto(`/auctions/${testBlock.slug}`)
     await page.waitForLoadState("networkidle", { timeout: 20_000 })
 
     const lotLinks = page.locator("a[href*='/auctions/']").filter({ hasNotText: /back|breadcrumb/i })
@@ -136,8 +149,7 @@ test.describe("Bidding", () => {
   })
 
   test("place a bid on active lot (bidder1)", async ({ page }) => {
-    const block = await findActiveBlock()
-    if (!block) {
+    if (!testBlock) {
       test.skip()
       return
     }
@@ -145,7 +157,7 @@ test.describe("Bidding", () => {
     await page.goto("/")
     await loginViaModal(page, TEST_ACCOUNTS.bidder1.email, TEST_ACCOUNTS.bidder1.password)
 
-    await page.goto(`/auctions/${block.slug}`)
+    await page.goto(`/auctions/${testBlock.slug}`)
     await page.waitForLoadState("networkidle", { timeout: 20_000 })
 
     const lotLinks = page.locator("a[href*='/auctions/']").filter({ hasNotText: /back|breadcrumb/i })
