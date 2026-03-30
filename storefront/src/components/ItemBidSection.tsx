@@ -460,7 +460,10 @@ function BidForm({
         const msg = data.message || "Bid failed"
         toast.error(msg, { duration: 8000 })
       } else if (data.outbid) {
-        toast.warning(data.message || "You have been outbid", { duration: 6000 })
+        toast.error("You are not the highest bidder", {
+          duration: 8000,
+          description: `A proxy bid was already higher. Current bid: €${Number(data.current_price).toFixed(2)}.`,
+        })
         onBidResult?.(false)
       } else if (data.max_updated) {
         toast.success(`Maximum bid raised to €${Number(data.new_max_amount).toFixed(2)}`, {
