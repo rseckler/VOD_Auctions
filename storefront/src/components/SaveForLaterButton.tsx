@@ -70,6 +70,7 @@ export function SaveForLaterButton({ releaseId, variant = "icon" }: Props) {
           setSaved(false)
           setSavedItemId(null)
           await refreshStatus()
+          rudderTrack("Item Unsaved", { release_id: releaseId })
           toast.success("Removed from saved")
         }
       } else {

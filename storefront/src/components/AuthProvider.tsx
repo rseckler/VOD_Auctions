@@ -18,6 +18,7 @@ import {
   clearToken,
 } from "@/lib/auth"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
+import { rudderIdentify } from "@/lib/rudderstack"
 
 type Customer = {
   id: string
@@ -161,8 +162,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (token) {
       Promise.all([
         getCustomer(token).then((c) => {
-          if (c) setCustomer(c)
-          else handleSessionExpired()
+          if (c) {
+            setCustomer(c)
+            rudderIdentify(c.id, { email: c.email ?? undefined })
+          } else {
+            handleSessionExpired()
+          }
         }),
         fetchStatus(token),
       ])
@@ -211,6 +216,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setCustomer(c)
     setSessionExpiredMessage(null)
     await fetchStatus(token)
+    if (c) rudderIdentify(c.id, { email: c.email ?? undefined })
   }, [fetchStatus])
 
   const register = useCallback(
@@ -227,6 +233,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setCustomer(c)
       setSessionExpiredMessage(null)
       await fetchStatus(token)
+      if (c) rudderIdentify(c.id, { email: c.email ?? undefined })
 
       // Send welcome email (fire-and-forget)
       fetch(`${MEDUSA_URL}/store/account/send-welcome`, {
