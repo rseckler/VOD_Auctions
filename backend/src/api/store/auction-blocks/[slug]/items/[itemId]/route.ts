@@ -55,6 +55,7 @@ export async function GET(
       "Release.title",
       "Release.slug",
       "Release.format",
+      "Release.format_id",
       "Release.year",
       "Release.country",
       "Release.coverImage",
@@ -76,10 +77,12 @@ export async function GET(
       "Artist.name as artist_name",
       "Artist.slug as artist_slug",
       "Label.name as label_name",
-      "Label.slug as label_slug"
+      "Label.slug as label_slug",
+      "Format.name as format_name"
     )
     .leftJoin("Artist", "Release.artistId", "Artist.id")
     .leftJoin("Label", "Release.labelId", "Label.id")
+    .leftJoin("Format", "Release.format_id", "Format.id")
     .where("Release.id", item.release_id)
     .first()
 

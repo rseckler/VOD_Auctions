@@ -67,6 +67,17 @@ const FORMAT_COLORS: Record<string, string> = {
   CASSETTE: "bg-format-cassette/15 text-format-cassette border-format-cassette/30",
 }
 
+function formatLabel(release: { format?: string | null; format_name?: string | null }): string | null {
+  return release.format_name || release.format || null
+}
+
+function formatColorKey(release: { format?: string | null; format_name?: string | null }): string {
+  const name = (release.format_name || release.format || "").toUpperCase()
+  if (name.includes("CD")) return "CD"
+  if (name.includes("CASS") || name.includes("TAPE")) return "CASSETTE"
+  return "LP"
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -82,7 +93,7 @@ export async function generateMetadata({
     ? `${r.artist_name} — ${r.title}`
     : r?.title || `Lot ${item.lot_number}`
   const description = [
-    r?.format,
+    r ? (r.format_name || r.format) : null,
     r?.label_name,
     r?.year,
     r?.country,
@@ -212,12 +223,12 @@ export default async function ItemDetailPage({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 mt-4">
-            {release?.format && (
+            {release && formatLabel(release) && (
               <Badge
                 variant="outline"
-                className={FORMAT_COLORS[release.format] || "bg-secondary text-muted-foreground"}
+                className={FORMAT_COLORS[formatColorKey(release)] || "bg-secondary text-muted-foreground"}
               >
-                {release.format}
+                {formatLabel(release)}
               </Badge>
             )}
             {release?.year && (
@@ -630,7 +641,7 @@ export default async function ItemDetailPage({
               : release?.title || `Lot ${item.lot_number}`,
             ...(images[0] ? { image: images[0] } : {}),
             description: [
-              release?.format,
+              release ? (release.format_name || release.format) : null,
               release?.label_name,
               release?.year,
               release?.country,
