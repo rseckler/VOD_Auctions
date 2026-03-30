@@ -112,20 +112,18 @@ export default async function CatalogDetailPage({
 
   const release = data.release
 
-  // Handle tracklist/credits separation from legacy data
+  // Handle tracklist/credits separation from legacy data.
+  // Always prefer the credits-parser result (produces A1/title/duration structure).
+  // JSONB tracklist is fallback only — legacy imports often store each raw line as a
+  // flat entry without proper position+title pairs.
   const extracted = release.credits
     ? extractTracklistFromText(release.credits)
     : null
-  // Prefer credits-parsed tracklist when JSONB tracks are unstructured (no position field)
-  const jsonbHasPositions =
-    release.tracklist &&
-    release.tracklist.length > 0 &&
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    release.tracklist.some((t: any) => t.position != null)
-  const effectiveTracklist = jsonbHasPositions
-    ? release.tracklist!
-    : extracted?.tracks.length ? extracted.tracks : null
-  // Always strip tracklist data from credits, even when tracklist JSONB exists
+  const effectiveTracklist =
+    extracted?.tracks.length
+      ? extracted.tracks
+      : (release.tracklist?.length ? release.tracklist : null)
+  // Strip parsed tracklist lines from the credits display
   const effectiveCredits = extracted?.tracks.length
     ? extracted.remainingCredits
     : release.credits
