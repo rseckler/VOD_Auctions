@@ -13,7 +13,7 @@ import { medusaFetch } from "@/lib/api"
 import { CreditsTable } from "@/components/CreditsTable"
 import { SaveForLaterButton } from "@/components/SaveForLaterButton"
 import { ShareButton } from "@/components/ShareButton"
-import { extractTracklistFromText } from "@/lib/utils"
+import { extractTracklistFromText, parseUnstructuredTracklist } from "@/lib/utils"
 import type { AuctionBlock, BlockItem, ReleaseImage, TracklistEntry, VariousArtist, ReleaseComment } from "@/types"
 import { ConditionRow } from "@/components/ConditionBadge"
 import { BidHistoryTable } from "@/components/BidHistoryTable"
@@ -140,8 +140,10 @@ export default async function ItemDetailPage({
     : null
   const effectiveTracklist =
     extracted?.tracks.length
-      ? extracted.tracks                                     // credits parser wins
-      : (release?.tracklist?.length ? release.tracklist : null)  // JSONB fallback
+      ? extracted.tracks                                          // credits parser wins
+      : (release?.tracklist?.length
+          ? (parseUnstructuredTracklist(release.tracklist) ?? release.tracklist)
+          : null)  // JSONB: try to regroup flat entries, fall back to raw
   // Strip parsed tracklist lines from the credits display
   const effectiveCredits = extracted?.tracks.length
     ? extracted.remainingCredits

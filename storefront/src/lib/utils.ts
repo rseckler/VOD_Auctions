@@ -241,3 +241,61 @@ export function extractTracklistFromText(raw: string): {
     remainingCredits: creditLines.length > 0 ? creditLines.join('\n') : null,
   }
 }
+
+/**
+ * Parse a flat/unstructured JSONB tracklist where each line of the original
+ * Discogs tracklist was stored as a separate entry with only a `title` field:
+ *   [{title:"A1"}, {title:"E-Coli"}, {title:"11:29"}, {title:"A2"}, ...]
+ *
+ * Detects the repeating [position, title, duration?] pattern and regroups
+ * entries into properly structured tracks.
+ *
+ * Returns null if the data doesn't look like this flat format (e.g. already
+ * structured, or too few entries to form valid tracks).
+ */
+// Vinyl-style position: A, B, A1, A2, B1, AA, 1, 12 — max 4 chars, letters+digits only
+const FLAT_POS_RE = /^[A-Z]{0,2}\d{0,2}$/
+const FLAT_DUR_RE = /^\d{1,3}:\d{2}$/
+
+export function parseUnstructuredTracklist(
+  tracks: { position?: string | null; title?: string | null; duration?: string | null }[]
+): { position: string; title: string; duration?: string }[] | null {
+  if (!tracks || tracks.length < 3) return null
+
+  // Only attempt if none of the entries already have both position + title
+  const alreadyStructured = tracks.some(
+    (t) => t.position && t.title && t.position.trim() !== t.title?.trim()
+  )
+  if (alreadyStructured) return null
+
+  const result: { position: string; title: string; duration?: string }[] = []
+  let i = 0
+
+  while (i < tracks.length) {
+    const t0 = (tracks[i]?.title || tracks[i]?.position || "").trim()
+    const t1 = (tracks[i + 1]?.title || tracks[i + 1]?.position || "").trim()
+    const t2 = (tracks[i + 2]?.title || tracks[i + 2]?.position || "").trim()
+
+    const t0isPos = t0.length > 0 && t0.length <= 4 && FLAT_POS_RE.test(t0)
+    const t1isTitle = t1.length > 0 && !FLAT_POS_RE.test(t1) && !FLAT_DUR_RE.test(t1)
+    const t2isDur = t2.length > 0 && FLAT_DUR_RE.test(t2)
+
+    if (t0isPos && t1isTitle && t2isDur && i + 2 < tracks.length) {
+      result.push({ position: t0, title: t1, duration: t2 })
+      i += 3
+      continue
+    }
+
+    // position + title without duration (e.g. last track or untimed)
+    if (t0isPos && t1isTitle && i + 1 < tracks.length) {
+      result.push({ position: t0, title: t1 })
+      i += 2
+      continue
+    }
+
+    // Unrecognised line — skip
+    i++
+  }
+
+  return result.length >= 2 ? result : null
+}

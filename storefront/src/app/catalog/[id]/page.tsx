@@ -13,7 +13,7 @@ import { ShareButton } from "@/components/ShareButton"
 import { medusaFetch } from "@/lib/api"
 import { CreditsTable } from "@/components/CreditsTable"
 import { CatalogBackLink } from "@/components/CatalogBackLink"
-import { extractTracklistFromText } from "@/lib/utils"
+import { extractTracklistFromText, parseUnstructuredTracklist } from "@/lib/utils"
 import type { Release } from "@/types"
 import { ConditionRow } from "@/components/ConditionBadge"
 import { CatalogViewTracker } from "@/components/CatalogViewTracker"
@@ -122,7 +122,9 @@ export default async function CatalogDetailPage({
   const effectiveTracklist =
     extracted?.tracks.length
       ? extracted.tracks
-      : (release.tracklist?.length ? release.tracklist : null)
+      : (release.tracklist?.length
+          ? (parseUnstructuredTracklist(release.tracklist) ?? release.tracklist)
+          : null)
   // Strip parsed tracklist lines from the credits display
   const effectiveCredits = extracted?.tracks.length
     ? extracted.remainingCredits
