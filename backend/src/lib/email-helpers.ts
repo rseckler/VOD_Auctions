@@ -208,7 +208,7 @@ export async function sendPaymentConfirmationEmail(
   const customer = await getCustomer(pg, transactions[0].user_id)
   if (!customer?.email) return
 
-  const items = []
+  const items: Array<{ title: string; artistName?: string; coverImage?: string; price: number }> = []
   let totalAmount = 0
   let shippingCost = 0
 
@@ -259,7 +259,7 @@ export async function sendShippingEmail(
     ? await pg("transaction").where("order_group_id", tx.order_group_id)
     : [tx]
 
-  const items = []
+  const items: Array<{ title: string; artistName?: string; coverImage?: string }> = []
   for (const t of transactions) {
     const releaseId = t.release_id || (
       t.block_item_id
@@ -323,7 +323,7 @@ export async function sendPaymentReminder1Email(
     : null
   const blockTitle = block?.title || "VOD Auctions"
 
-  const items = []
+  const items: Array<{ title: string; artistName?: string; coverImage?: string; lotNumber?: number; amount: number }> = []
   for (const t of transactions) {
     if (!t.block_item_id) continue
     const blockItem = await pg("block_item").where("id", t.block_item_id).first()
@@ -379,7 +379,7 @@ export async function sendPaymentReminder3Email(
     : null
   const blockTitle = block?.title || "VOD Auctions"
 
-  const items = []
+  const items: Array<{ title: string; artistName?: string; coverImage?: string; lotNumber?: number; amount: number }> = []
   for (const t of transactions) {
     if (!t.block_item_id) continue
     const blockItem = await pg("block_item").where("id", t.block_item_id).first()
@@ -422,7 +422,7 @@ export async function sendFeedbackRequestEmail(
     ? await pg("transaction").where("order_group_id", tx.order_group_id)
     : [tx]
 
-  const items = []
+  const items: Array<{ title: string; artistName?: string; coverImage?: string }> = []
   for (const t of transactions) {
     const releaseId = t.release_id || (
       t.block_item_id
