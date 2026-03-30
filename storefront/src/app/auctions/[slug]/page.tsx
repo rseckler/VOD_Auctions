@@ -189,15 +189,15 @@ export default async function BlockDetailPage({
             <div>
               <div className="text-[11px] uppercase tracking-[1px] text-muted-foreground/60 font-medium mb-1">Schedule</div>
               <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                  <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
-                  <span className="text-muted-foreground/70">Starts:</span>
-                  <span>{formatBlockTime(block.start_time)}</span>
+                <div className="flex items-center gap-1.5 text-sm">
+                  <Calendar className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-white/10 bg-[rgba(28,25,21,0.85)] backdrop-blur-sm text-foreground text-sm font-medium">
+                    {formatBlockTime(block.start_time)}
+                  </span>
                 </div>
-                <div className="flex items-center gap-1.5 text-base font-medium text-primary">
-                  <Clock className="h-4 w-4 flex-shrink-0" />
-                  <span className="text-muted-foreground/70 text-sm font-normal">Ends:</span>
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-primary/40 bg-primary/10 text-primary text-sm font-semibold">
+                <div className="flex items-center gap-1.5 text-sm">
+                  <Clock className="h-3.5 w-3.5 flex-shrink-0 text-primary" />
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-primary/60 bg-[rgba(28,25,21,0.85)] backdrop-blur-sm text-primary text-sm font-semibold">
                     {formatBlockTime(block.end_time)}
                   </span>
                 </div>
