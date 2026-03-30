@@ -65,7 +65,7 @@ export function generateInvoicePDF(data: InvoiceData): typeof PDFDocument.protot
   y += 14
   doc.fontSize(9).font("Helvetica").fillColor(GRAY)
     .text("Frank Bull", leftMargin, y)
-    .text("Alpenstrasse 25/1", leftMargin, y + 12)
+    .text("Eugenstrasse 57/2", leftMargin, y + 12)
     .text("88045 Friedrichshafen", leftMargin, y + 24)
     .text("Germany", leftMargin, y + 36)
   y += 54
@@ -197,7 +197,7 @@ export function generateInvoicePDF(data: InvoiceData): typeof PDFDocument.protot
       leftMargin, footerY + 20
     )
     .text(
-      "VOD-Records \u2022 Frank Bull \u2022 Alpenstrasse 25/1 \u2022 88045 Friedrichshafen \u2022 Germany",
+      "VOD-Records \u2022 Frank Bull \u2022 Eugenstrasse 57/2 \u2022 88045 Friedrichshafen \u2022 Germany",
       leftMargin, footerY + 32
     )
     .text(
