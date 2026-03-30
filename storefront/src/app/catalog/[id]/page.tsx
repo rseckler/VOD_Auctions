@@ -318,7 +318,7 @@ export default async function CatalogDetailPage({
               {[
                 release.article_number && { k: "Article No.", v: release.article_number, mono: true },
                 release.label_name && { k: "Label", v: release.label_name, link: release.label_slug ? `/label/${release.label_slug}` : undefined },
-                release.pressorga_name && { k: "Press / Org", v: release.pressorga_name, link: release.pressorga_slug ? `/press/${release.pressorga_slug}` : undefined },
+                release.press_orga_name && { k: "Press / Org", v: release.press_orga_name, link: release.press_orga_slug ? `/press/${release.press_orga_slug}` : undefined },
                 release.catalogNumber && { k: "Catalog No.", v: release.catalogNumber, mono: true },
                 release.legacy_condition && { k: "Condition", v: release.legacy_condition, mono: true },
                 (release.format_name || release.legacy_format_detail) && { k: "Format", v: release.format_name || release.legacy_format_detail },
