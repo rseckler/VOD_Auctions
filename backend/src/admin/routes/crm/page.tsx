@@ -930,9 +930,9 @@ function CustomerDetailDrawer({
           >
             {[
               { label: "Spent", value: formatPrice(c.total_spent) },
-              { label: "Purchases", value: c.total_purchases },
-              { label: "Bids", value: c.total_bids },
-              { label: "Wins", value: c.total_wins },
+              { label: "Purchases", value: data ? data.orders.length : c.total_purchases },
+              { label: "Bids", value: data ? data.bids.length : c.total_bids },
+              { label: "Wins", value: data ? data.bids.filter((b: { is_winning: boolean }) => b.is_winning).length : c.total_wins },
             ].map((kpi) => (
               <div
                 key={kpi.label}
