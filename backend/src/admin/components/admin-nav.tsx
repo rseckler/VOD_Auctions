@@ -50,7 +50,7 @@ function injectBackNav() {
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 8px 36px;
+    padding: 8px max(12px, min(36px, 4vw));
     background: #f9fafb;
     border-bottom: 1px solid #e5e7eb;
     font-size: 12px;

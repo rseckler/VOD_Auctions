@@ -740,7 +740,7 @@ function CustomerDetailDrawer({
     top: 0,
     right: 0,
     bottom: 0,
-    width: "540px",
+    width: "min(540px, 100vw)",
     background: COLORS.card,
     borderLeft: `1px solid ${COLORS.border}`,
     zIndex: 1000,

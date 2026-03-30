@@ -110,7 +110,7 @@ const S = {
     fontFamily: "-apple-system, BlinkMacSystemFont, 'Inter', sans-serif",
     backgroundColor: "#f9fafb",
     minHeight: "100vh",
-    padding: "28px 32px 48px",
+    padding: "20px 16px 48px",
     color: "#111827",
   } as React.CSSProperties,
 
@@ -118,6 +118,8 @@ const S = {
     display: "flex",
     alignItems: "flex-start",
     justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: "12px",
     marginBottom: "24px",
   } as React.CSSProperties,
 
@@ -143,7 +145,7 @@ const S = {
 
   kpiBar: {
     display: "grid",
-    gridTemplateColumns: "repeat(5, 1fr)",
+    gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
     gap: "12px",
     marginBottom: "28px",
   } as React.CSSProperties,
@@ -237,6 +239,7 @@ const S = {
     display: "flex",
     gap: "8px",
     flexShrink: 0,
+    flexWrap: "wrap",
   } as React.CSSProperties,
 
   btn: (variant: "primary" | "secondary"): React.CSSProperties => ({

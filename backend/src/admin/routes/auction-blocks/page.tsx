@@ -421,7 +421,9 @@ const AuctionBlocksPage = () => {
                 </span>
               </div>
               <div style={{ border: "2px solid rgba(34,197,94,0.3)", borderRadius: 8, overflow: "hidden" }}>
-                <BlocksTable rows={live} isLive onDelete={handleDelete} />
+                <div style={{ overflowX: "auto" }}>
+                  <BlocksTable rows={live} isLive onDelete={handleDelete} />
+                </div>
               </div>
             </div>
           )}
@@ -436,7 +438,9 @@ const AuctionBlocksPage = () => {
                 </span>
               </div>
               <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden" }}>
-                <BlocksTable rows={upcoming} onDelete={handleDelete} />
+                <div style={{ overflowX: "auto" }}>
+                  <BlocksTable rows={upcoming} onDelete={handleDelete} />
+                </div>
               </div>
             </div>
           )}
@@ -451,7 +455,9 @@ const AuctionBlocksPage = () => {
                 </span>
               </div>
               <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden", opacity: 0.8 }}>
-                <BlocksTable rows={drafts} onDelete={handleDelete} />
+                <div style={{ overflowX: "auto" }}>
+                  <BlocksTable rows={drafts} onDelete={handleDelete} />
+                </div>
               </div>
             </div>
           )}
@@ -466,7 +472,9 @@ const AuctionBlocksPage = () => {
                 </span>
               </div>
               <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden", opacity: 0.5 }}>
-                <BlocksTable rows={archived} onDelete={handleDelete} />
+                <div style={{ overflowX: "auto" }}>
+                  <BlocksTable rows={archived} onDelete={handleDelete} />
+                </div>
               </div>
             </div>
           )}
