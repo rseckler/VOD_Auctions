@@ -82,6 +82,9 @@ function injectNavCSS() {
   const style = document.createElement("style")
   style.id = NAV_CSS_ID
   style.textContent = `
+    /* Prevent horizontal page scroll on mobile */
+    html, body { overflow-x: hidden !important; }
+
     /* Hide Medusa built-in nav items */
     a[href="/app/orders"],
     a[href="/app/orders/drafts"],
