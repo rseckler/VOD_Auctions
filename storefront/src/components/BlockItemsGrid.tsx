@@ -216,7 +216,7 @@ export function BlockItemsGrid({
                         {item.release?.coverImage ? (
                           <Image
                             src={item.release.coverImage}
-                            alt={item.release?.title || ""}
+                            alt={item.release?.title || `Auction lot ${item.lot_number || ""}`}
                             fill
                             sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 25vw"
                             className="object-cover group-hover:scale-105 transition-transform duration-500"
@@ -290,7 +290,7 @@ export function BlockItemsGrid({
                         {item.release?.coverImage ? (
                           <Image
                             src={item.release.coverImage}
-                            alt={item.release?.title || ""}
+                            alt={item.release?.title || `Auction lot ${item.lot_number || ""}`}
                             fill
                             sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 25vw"
                             className="object-cover group-hover:scale-105 transition-transform duration-500"

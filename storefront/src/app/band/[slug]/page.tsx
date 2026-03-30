@@ -88,12 +88,24 @@ export async function generateMetadata({
     data.content?.short_description ||
     `Explore the discography of ${b.name}${b.country ? ` (${b.country})` : ""}. ${data.releases.length} releases available on VOD Auctions.`
 
+  const ogImage = data.releases.find((r) => r.coverImage)?.coverImage
+
   return {
     title: `${b.name} — Discography & Releases`,
     description: metaDesc,
     openGraph: {
       title: `${b.name} — Discography & Releases — VOD Auctions`,
       description: metaDesc,
+      ...(ogImage ? { images: [{ url: ogImage, alt: b.name }] } : {}),
+    },
+    twitter: {
+      card: ogImage ? "summary_large_image" : "summary",
+      title: `${b.name} — Discography & Releases — VOD Auctions`,
+      description: metaDesc,
+      ...(ogImage ? { images: [ogImage] } : {}),
+    },
+    alternates: {
+      canonical: `/band/${slug}`,
     },
   }
 }

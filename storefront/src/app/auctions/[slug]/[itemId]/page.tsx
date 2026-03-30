@@ -118,6 +118,9 @@ export async function generateMetadata({
       description: description || `${title} — auction lot on VOD Auctions`,
       ...(r?.coverImage ? { images: [r.coverImage] } : {}),
     },
+    alternates: {
+      canonical: `/auctions/${slug}/${itemId}`,
+    },
   }
 }
 

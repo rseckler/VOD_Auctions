@@ -53,12 +53,24 @@ export async function generateMetadata({
     data.content?.short_description ||
     `Explore publications by ${p.name}${p.country ? ` (${p.country})` : ""}. ${data.publications.length} items available on VOD Auctions.`
 
+  const ogImage = data.publications.find((r: any) => r.coverImage)?.coverImage
+
   return {
     title: `${p.name} — Publications`,
     description: metaDesc,
     openGraph: {
       title: `${p.name} — Publications — VOD Auctions`,
       description: metaDesc,
+      ...(ogImage ? { images: [{ url: ogImage, alt: p.name }] } : {}),
+    },
+    twitter: {
+      card: ogImage ? "summary_large_image" : "summary",
+      title: `${p.name} — Publications — VOD Auctions`,
+      description: metaDesc,
+      ...(ogImage ? { images: [ogImage] } : {}),
+    },
+    alternates: {
+      canonical: `/press/${slug}`,
     },
   }
 }

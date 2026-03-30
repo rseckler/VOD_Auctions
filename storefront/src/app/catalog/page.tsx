@@ -120,6 +120,9 @@ export default async function CatalogPage({ searchParams }: Props) {
   return (
     <>
       <LiveAuctionBanner />
+      <h1 className="sr-only">
+        {category ? `${category.replace(/_/g, " ")} — Catalog` : search ? `Search: ${search}` : "Catalog — Rare Music Releases"}
+      </h1>
       <Suspense>
         <CatalogClient
           initialReleases={initialReleases}

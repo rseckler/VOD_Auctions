@@ -153,7 +153,7 @@ export function ImageGallery({
               >
                 <Image
                   src={url}
-                  alt=""
+                  alt={`${title} — image ${i + 1}`}
                   fill
                   sizes="25vw"
                   className="object-cover"
@@ -233,7 +233,7 @@ export function ImageGallery({
                 >
                   <Image
                     src={url}
-                    alt=""
+                    alt={`${title} — image ${i + 1}`}
                     fill
                     sizes="48px"
                     className="object-cover"

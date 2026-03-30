@@ -96,6 +96,9 @@ export async function generateMetadata({
       description,
       ...(block.header_image ? { images: [block.header_image] } : {}),
     },
+    alternates: {
+      canonical: `/auctions/${slug}`,
+    },
   }
 }
 
@@ -278,6 +281,45 @@ export default async function BlockDetailPage({
           <BlockItemsGrid items={items} blockSlug={block.slug} previewMode={isPreview} />
         </section>
       </div>
+
+      {/* Auction Block JSON-LD */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Event",
+            name: block.title,
+            description: block.short_description || block.subtitle || undefined,
+            url: `https://vod-auctions.com/auctions/${block.slug}`,
+            ...(block.header_image ? { image: block.header_image } : {}),
+            ...(block.start_time ? { startDate: block.start_time } : {}),
+            ...(block.end_time ? { endDate: block.end_time } : {}),
+            eventStatus: block.status === "active"
+              ? "https://schema.org/EventScheduled"
+              : block.status === "ended"
+              ? "https://schema.org/EventPast"
+              : "https://schema.org/EventScheduled",
+            eventAttendanceMode: "https://schema.org/OnlineEventAttendanceMode",
+            location: {
+              "@type": "VirtualLocation",
+              url: "https://vod-auctions.com/auctions",
+            },
+            organizer: {
+              "@type": "Organization",
+              name: "VOD Auctions",
+              url: "https://vod-auctions.com",
+            },
+            offers: priceRange ? {
+              "@type": "AggregateOffer",
+              priceCurrency: "EUR",
+              lowPrice: priceRange.min,
+              highPrice: priceRange.max,
+              offerCount: items.length,
+            } : undefined,
+          }),
+        }}
+      />
     </main>
   )
 }
