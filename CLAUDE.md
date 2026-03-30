@@ -4,7 +4,7 @@
 **Goal:** Eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Phase 1 fertig — RSE-77 (Testlauf) als nächster Schritt
 **Language:** Storefront + Admin-UI: Englisch
-**Last Updated:** 2026-04-01
+**Last Updated:** 2026-04-02
 
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
@@ -327,6 +327,30 @@ VOD_Auctions/
 **Backlog:** RSE-78 (Launch, offen: AGB-Anwalt) | RSE-79 (Erste öffentliche Auktionen) | RSE-80 (Marketing)
 
 ## Recent Changes
+
+### 2026-04-02 — Bugfixes Fehler 8–13 (Format, CRM, Bid Email, Countdown, Translate)
+
+#### Format Badge Fix (Fehler 10)
+- Backend: `Format.name as format_name` via LEFT JOIN in `/store/auction-blocks/[slug]/items/[itemId]`. Storefront: `formatLabel()` + `formatColorKey()` Helper — "Vinyl-7"" statt "LP".
+
+#### CRM Staleness Fix (Fehler 9)
+- KPI-Karten im Drawer nutzen live `data`-Counts. Auto-Recalc `POST /admin/customers/recalc-stats` im Hintergrund beim Seitenaufruf.
+
+#### Bid Confirmation Email (Fehler 11)
+- `backend/src/emails/bid-placed.ts` (NEU) — "You are the highest bidder" Mail nach Gebot. Cover-Bild + Lot-Details. Admin Email Preview (`/app/emails`) inkl. Cover-Bilder für alle Item-Mails.
+
+#### Lot Page Winning Indicator (Fehler 11 Teil 2)
+- `ItemBidSection.tsx`: `GET /store/account/bids` auf Mount identifiziert eigene Bids. Banner "You are the highest bidder" (grün) / "You have been outbid" (orange).
+
+#### Saved Items Bid Status (Fehler 12)
+- `/account/saved`: "Highest bid · €X.XX" / "Outbid · €X.XX" Badge via `GET /store/account/bids`.
+
+#### Countdown Seconds (Fehler 13)
+- Sekunden erst wenn < 60 Minuten. 4 Dateien: `ItemBidSection.tsx`, `auctions/[slug]/page.tsx`, `BlockItemsGrid.tsx`, `PreviewCountdown.tsx`.
+
+#### Address + Translate
+- Adresse: Alpenstrasse 25/1 → Eugenstrasse 57/2 (Impressum, Datenschutz, AGB, Widerruf, Gallery).
+- `translate="no"` + `<meta name="google" content="notranslate">` im Root Layout — verhindert Bandnamen-Übersetzung auf Android/Chrome.
 
 ### 2026-04-01 — Bugfixes Fehler 1–7 (Live Bidding, Tracklist, Saved Items, CRM Stats)
 
