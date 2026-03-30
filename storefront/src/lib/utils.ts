@@ -150,7 +150,9 @@ type TracklistFromText = {
   duration?: string
 }
 
-const POSITION_RE = /^[A-Z]?\d{1,2}\.?$/
+// Matches vinyl-style positions: A, B, A1, B2, I, II, 1, 12
+// Single letter (A/B/I) for vinyl sides or Roman numerals; optional digits for sub-tracks
+const POSITION_RE = /^([A-Z]{1,2}\d{0,2}|\d{1,2})\.?$/
 const DURATION_RE = /^\d{1,3}:\d{2}$/
 
 /**
@@ -231,8 +233,8 @@ export function extractTracklistFromText(raw: string): {
     }
   }
 
-  // Only consider it a valid tracklist if we found >= 3 tracks
-  if (tracks.length < 3) {
+  // Only consider it a valid tracklist if we found >= 2 tracks (handles 7" singles)
+  if (tracks.length < 2) {
     return { tracks: [], remainingCredits: raw }
   }
 
@@ -261,12 +263,6 @@ export function parseUnstructuredTracklist(
   tracks: { position?: string | null; title?: string | null; duration?: string | null }[]
 ): { position: string; title: string; duration?: string }[] | null {
   if (!tracks || tracks.length < 3) return null
-
-  // Only attempt if none of the entries already have both position + title
-  const alreadyStructured = tracks.some(
-    (t) => t.position && t.title && t.position.trim() !== t.title?.trim()
-  )
-  if (alreadyStructured) return null
 
   const result: { position: string; title: string; duration?: string }[] = []
   let i = 0
