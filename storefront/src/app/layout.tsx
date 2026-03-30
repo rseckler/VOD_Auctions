@@ -68,6 +68,9 @@ export const metadata: Metadata = {
   alternates: {
     canonical: SITE_URL,
   },
+  other: {
+    "google": "notranslate",
+  },
 }
 
 export default async function RootLayout({
@@ -80,7 +83,7 @@ export default async function RootLayout({
 
   if (!hasAccess) {
     return (
-      <html lang="en">
+      <html lang="en" translate="no">
         <body
           className={`${dmSans.variable} ${dmSerif.variable} antialiased`}
         >
@@ -91,7 +94,7 @@ export default async function RootLayout({
   }
 
   return (
-    <html lang="en">
+    <html lang="en" translate="no">
       <GoogleAnalytics />
       <body
         className={`${dmSans.variable} ${dmSerif.variable} antialiased min-h-screen flex flex-col`}
