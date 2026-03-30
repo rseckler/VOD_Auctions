@@ -89,8 +89,11 @@ export async function generateMetadata({
 
   const { block_item: item, auction_block: block } = data
   const r = item.release
-  const isRelease = !r?.product_category || r.product_category === "release"
-  const contextName = isRelease ? r?.artist_name : (r?.label_name || r?.artist_name)
+  const contextName = r?.product_category === "press_literature"
+    ? r?.press_orga_name
+    : r?.product_category === "label_literature"
+      ? r?.label_name
+      : r?.artist_name
   const title = contextName
     ? `${contextName} — ${r?.title}`
     : r?.title || `Lot ${item.lot_number}`
@@ -165,14 +168,18 @@ export default async function ItemDetailPage({
     ? extracted.remainingCredits
     : (release?.credits || null)
 
-  // For Mag/Lit/Photo categories, show label_name as context instead of artist_name
-  const isRelease = !release?.product_category || release.product_category === "release"
-  const contextName = isRelease
-    ? release?.artist_name
-    : (release?.label_name || release?.artist_name)
-  const contextHref = isRelease
-    ? (release?.artist_slug ? `/band/${release.artist_slug}` : null)
-    : (release?.label_slug ? `/label/${release.label_slug}` : null)
+  // Category-aware context: artist for releases/band_lit, label for label_lit, press org for press_lit
+  const cat = release?.product_category
+  const contextName = cat === "press_literature"
+    ? release?.press_orga_name
+    : cat === "label_literature"
+      ? release?.label_name
+      : release?.artist_name  // release + band_literature + NULL fallback
+  const contextHref = cat === "press_literature"
+    ? (release?.press_orga_slug ? `/press/${release.press_orga_slug}` : null)
+    : cat === "label_literature"
+      ? (release?.label_slug ? `/label/${release.label_slug}` : null)
+      : (release?.artist_slug ? `/band/${release.artist_slug}` : null)
 
   // Use images in API sort order (by URL, matching legacy rang order)
   const images: string[] = []

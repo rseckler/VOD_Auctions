@@ -250,9 +250,11 @@ export function BlockItemsGrid({
                       {/* Info */}
                       <div className="p-3">
                         <p className="text-xs text-muted-foreground/60 truncate">
-                          {item.release?.product_category === "release"
-  ? (item.release.artist_name || item.release.label_name || "Unknown")
-  : (item.release?.label_name || item.release?.artist_name || "Unknown")}
+                          {item.release?.product_category === "release" || item.release?.product_category === "band_literature"
+  ? (item.release.artist_name || "")
+  : item.release?.product_category === "press_literature"
+    ? (item.release?.press_orga_name || "")
+    : (item.release?.label_name || "")}
                         </p>
                         <p className="text-sm font-medium truncate group-hover:text-amber-400 transition-colors">
                           {item.release?.title || item.release_id}
@@ -331,9 +333,11 @@ export function BlockItemsGrid({
                       {/* Info */}
                       <div className="p-3">
                         <p className="text-xs text-muted-foreground/60 truncate">
-                          {item.release?.product_category === "release"
-  ? (item.release.artist_name || item.release.label_name || "Unknown")
-  : (item.release?.label_name || item.release?.artist_name || "Unknown")}
+                          {item.release?.product_category === "release" || item.release?.product_category === "band_literature"
+  ? (item.release.artist_name || "")
+  : item.release?.product_category === "press_literature"
+    ? (item.release?.press_orga_name || "")
+    : (item.release?.label_name || "")}
                         </p>
                         <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">
                           {item.release?.title || item.release_id}

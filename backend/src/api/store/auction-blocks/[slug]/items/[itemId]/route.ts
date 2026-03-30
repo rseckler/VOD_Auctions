@@ -79,10 +79,13 @@ export async function GET(
       "Artist.slug as artist_slug",
       "Label.name as label_name",
       "Label.slug as label_slug",
+      "PressOrga.name as press_orga_name",
+      "PressOrga.slug as press_orga_slug",
       "Format.name as format_name"
     )
     .leftJoin("Artist", "Release.artistId", "Artist.id")
     .leftJoin("Label", "Release.labelId", "Label.id")
+    .leftJoin("PressOrga", "Release.pressOrgaId", "PressOrga.id")
     .leftJoin("Format", "Release.format_id", "Format.id")
     .where("Release.id", item.release_id)
     .first()

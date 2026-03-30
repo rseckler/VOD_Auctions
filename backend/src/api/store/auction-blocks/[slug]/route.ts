@@ -59,10 +59,13 @@ export async function GET(
         "Artist.name as artist_name",
         "Artist.slug as artist_slug",
         "Label.name as label_name",
-        "Label.slug as label_slug"
+        "Label.slug as label_slug",
+        "PressOrga.name as press_orga_name",
+        "PressOrga.slug as press_orga_slug"
       )
       .leftJoin("Artist", "Release.artistId", "Artist.id")
       .leftJoin("Label", "Release.labelId", "Label.id")
+      .leftJoin("PressOrga", "Release.pressOrgaId", "PressOrga.id")
       .whereIn("Release.id", releaseIds)
 
     for (const r of releases) {
