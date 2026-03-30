@@ -207,6 +207,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
   let rendered: { subject: string; html: string }
 
   const DEMO_BLOCK_SLUG = "industrial-classics-demo"
+  const DEMO_COVER = "https://tape-mag.com/bilder/gross/The_Industrial_Revolution_Sounds_1980_Seite_1.jpg"
   const DEMO_BLOCK_TITLE = "Industrial Classics Test Block"
   const DEMO_END_TIME = new Date(Date.now() + 6 * 60 * 60 * 1000)
   const DEMO_START_TIME = new Date(Date.now() + 24 * 60 * 60 * 1000)
@@ -238,6 +239,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
         firstName: "Frank",
         itemTitle: "Dorothy — I Confess / Softness",
         artistName: "Dorothy",
+        coverImage: DEMO_COVER,
         lotNumber: 5,
         blockTitle: DEMO_BLOCK_TITLE,
         bidAmount: 1.50,
@@ -250,6 +252,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
         firstName: "Frank",
         itemTitle: "Black Tape for a Blue Girl — Ashes in the Brittle Air",
         artistName: "Black Tape for a Blue Girl",
+        coverImage: DEMO_COVER,
         lotNumber: 7,
         blockTitle: DEMO_BLOCK_TITLE,
         finalPrice: 34.50,
@@ -262,6 +265,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
         firstName: "Frank",
         itemTitle: "Skinny Puppy — Bites",
         artistName: "Skinny Puppy",
+        coverImage: DEMO_COVER,
         lotNumber: 3,
         blockTitle: DEMO_BLOCK_TITLE,
         yourBid: 22.00,
@@ -276,8 +280,8 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
         firstName: "Frank",
         orderGroupId: "demo-order-group-id",
         items: [
-          { title: "Bites", artistName: "Skinny Puppy", price: 25.00 },
-          { title: "Remission", artistName: "Mastodon", price: 18.50 },
+          { title: "Bites", artistName: "Skinny Puppy", coverImage: DEMO_COVER, price: 25.00 },
+          { title: "Remission", artistName: "Mastodon", coverImage: DEMO_COVER, price: 18.50 },
         ],
         totalAmount: 52.99,
         shippingCost: 9.49,
@@ -290,7 +294,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
       rendered = paymentReminder1Email({
         firstName: "Frank",
         blockTitle: DEMO_BLOCK_TITLE,
-        items: [{ title: "Bites", artistName: "Skinny Puppy", lotNumber: 3, amount: 25.00 }],
+        items: [{ title: "Bites", artistName: "Skinny Puppy", coverImage: DEMO_COVER, lotNumber: 3, amount: 25.00 }],
         paymentUrl: `${STOREFRONT_URL}/account/checkout`,
       })
       break
@@ -299,7 +303,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
       rendered = paymentReminder3Email({
         firstName: "Frank",
         blockTitle: DEMO_BLOCK_TITLE,
-        items: [{ title: "Bites", artistName: "Skinny Puppy", lotNumber: 3, amount: 25.00 }],
+        items: [{ title: "Bites", artistName: "Skinny Puppy", coverImage: DEMO_COVER, lotNumber: 3, amount: 25.00 }],
         deadlineDate: new Date(Date.now() + 24 * 60 * 60 * 1000),
         paymentUrl: `${STOREFRONT_URL}/account/checkout`,
       })
@@ -309,7 +313,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
       rendered = shippingEmail({
         firstName: "Frank",
         orderGroupId: "demo-order-group-id",
-        items: [{ title: "Bites", artistName: "Skinny Puppy" }],
+        items: [{ title: "Bites", artistName: "Skinny Puppy", coverImage: DEMO_COVER }],
         carrier: "DHL",
         trackingNumber: "1Z999AA10123456784",
         trackingUrl: "https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html",
@@ -326,7 +330,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
     case "feedback-request":
       rendered = feedbackRequestEmail({
         firstName: "Frank",
-        items: [{ title: "Bites", artistName: "Skinny Puppy" }],
+        items: [{ title: "Bites", artistName: "Skinny Puppy", coverImage: DEMO_COVER }],
         feedbackUrl: `${STOREFRONT_URL}/account/feedback?order=demo`,
         auctionsUrl: `${STOREFRONT_URL}/auctions`,
       })
@@ -337,6 +341,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
         firstName: "Frank",
         itemTitle: "Cleanse Fold and Manipulate",
         artistName: "Skinny Puppy",
+        coverImage: DEMO_COVER,
         lotNumber: 5,
         currentPrice: 42.00,
         format: "LP",

@@ -24,6 +24,7 @@ const BACKEND_URL = process.env.MEDUSA_BACKEND_URL || "http://localhost:9000"
 function renderTemplate(id: string): { subject: string; html: string } | null {
   const DEMO_BLOCK_TITLE = "Industrial Classics 1980–1995"
   const DEMO_BLOCK_SLUG = "industrial-classics-demo"
+  const DEMO_COVER = "https://tape-mag.com/bilder/gross/The_Industrial_Revolution_Sounds_1980_Seite_1.jpg"
   const DEMO_END_TIME = new Date(Date.now() + 6 * 60 * 60 * 1000)
   const DEMO_START_TIME = new Date(Date.now() + 24 * 60 * 60 * 1000)
 
@@ -39,6 +40,7 @@ function renderTemplate(id: string): { subject: string; html: string } | null {
         firstName: "Frank",
         itemTitle: "Dorothy — I Confess / Softness",
         artistName: "Dorothy",
+        coverImage: DEMO_COVER,
         lotNumber: 5,
         blockTitle: DEMO_BLOCK_TITLE,
         bidAmount: 1.50,
@@ -49,6 +51,7 @@ function renderTemplate(id: string): { subject: string; html: string } | null {
         firstName: "Frank",
         itemTitle: "Black Tape for a Blue Girl — Ashes in the Brittle Air",
         artistName: "Black Tape for a Blue Girl",
+        coverImage: DEMO_COVER,
         lotNumber: 7,
         blockTitle: DEMO_BLOCK_TITLE,
         finalPrice: 34.50,
@@ -59,6 +62,7 @@ function renderTemplate(id: string): { subject: string; html: string } | null {
         firstName: "Frank",
         itemTitle: "Skinny Puppy — Bites",
         artistName: "Skinny Puppy",
+        coverImage: DEMO_COVER,
         lotNumber: 3,
         blockTitle: DEMO_BLOCK_TITLE,
         yourBid: 22.00,
@@ -71,8 +75,8 @@ function renderTemplate(id: string): { subject: string; html: string } | null {
         firstName: "Frank",
         orderGroupId: "demo-order-group-id",
         items: [
-          { title: "Bites", artistName: "Skinny Puppy", price: 25.00 },
-          { title: "Remission", artistName: "Mastodon", price: 18.50 },
+          { title: "Bites", artistName: "Skinny Puppy", coverImage: DEMO_COVER, price: 25.00 },
+          { title: "Remission", artistName: "Mastodon", coverImage: DEMO_COVER, price: 18.50 },
         ],
         totalAmount: 52.99,
         shippingCost: 9.49,
@@ -83,14 +87,14 @@ function renderTemplate(id: string): { subject: string; html: string } | null {
       return paymentReminder1Email({
         firstName: "Frank",
         blockTitle: DEMO_BLOCK_TITLE,
-        items: [{ title: "Bites", artistName: "Skinny Puppy", lotNumber: 3, amount: 25.00 }],
+        items: [{ title: "Bites", artistName: "Skinny Puppy", coverImage: DEMO_COVER, lotNumber: 3, amount: 25.00 }],
         paymentUrl: `${STOREFRONT_URL}/account/checkout`,
       })
     case "payment-reminder-3":
       return paymentReminder3Email({
         firstName: "Frank",
         blockTitle: DEMO_BLOCK_TITLE,
-        items: [{ title: "Bites", artistName: "Skinny Puppy", lotNumber: 3, amount: 25.00 }],
+        items: [{ title: "Bites", artistName: "Skinny Puppy", coverImage: DEMO_COVER, lotNumber: 3, amount: 25.00 }],
         deadlineDate: new Date(Date.now() + 24 * 60 * 60 * 1000),
         paymentUrl: `${STOREFRONT_URL}/account/checkout`,
       })
@@ -98,7 +102,7 @@ function renderTemplate(id: string): { subject: string; html: string } | null {
       return shippingEmail({
         firstName: "Frank",
         orderGroupId: "demo-order-group-id",
-        items: [{ title: "Bites", artistName: "Skinny Puppy" }],
+        items: [{ title: "Bites", artistName: "Skinny Puppy", coverImage: DEMO_COVER }],
         carrier: "DHL",
         trackingNumber: "1Z999AA10123456784",
         trackingUrl: "https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html",
@@ -107,7 +111,7 @@ function renderTemplate(id: string): { subject: string; html: string } | null {
     case "feedback-request":
       return feedbackRequestEmail({
         firstName: "Frank",
-        items: [{ title: "Bites", artistName: "Skinny Puppy" }],
+        items: [{ title: "Bites", artistName: "Skinny Puppy", coverImage: DEMO_COVER }],
         feedbackUrl: `${STOREFRONT_URL}/account/feedback?order=demo`,
         auctionsUrl: `${STOREFRONT_URL}/auctions`,
       })
@@ -116,6 +120,7 @@ function renderTemplate(id: string): { subject: string; html: string } | null {
         firstName: "Frank",
         itemTitle: "Cleanse Fold and Manipulate",
         artistName: "Skinny Puppy",
+        coverImage: DEMO_COVER,
         lotNumber: 5,
         currentPrice: 42.00,
         format: "LP",
