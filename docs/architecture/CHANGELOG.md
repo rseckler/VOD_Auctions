@@ -4,6 +4,17 @@ Vollständiger Entwicklungs-Changelog. Aktuelle Änderungen stehen in CLAUDE.md.
 
 ---
 
+### 2026-04-04 — Admin Mobile Overflow Fix (5 Pages)
+
+- **Problem:** Admin-Seiten auf Mobile zeigten horizontalen Overflow — Header-Rows mit `justify-between` ohne `flex-wrap` schoben Buttons aus dem Viewport.
+- **`auction-blocks/page.tsx`**: `flex-wrap gap-3` auf Header-Row.
+- **`auction-blocks/[id]/page.tsx`**: `flex-wrap` auf Header + Button-Group (Send Newsletter, Storefront, Back, Save).
+- **`crm/page.tsx`**: `flexWrap: "wrap"` auf Search+Buttons-Row.
+- **`transactions/page.tsx`**: `flexWrap: "wrap", gap: 12` auf Header-Row.
+- **`media/page.tsx`**: `flexWrap: "wrap", gap: "12px"` auf Header-Row.
+
+---
+
 ### 2026-04-03 — PressOrga Subtitle + Category-Aware Context überall
 
 #### PressOrga JOIN + Subtitle vollständig

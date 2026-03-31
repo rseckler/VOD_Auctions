@@ -4,7 +4,7 @@
 **Goal:** Eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Phase 1 fertig — RSE-77 (Testlauf) als nächster Schritt
 **Language:** Storefront + Admin-UI: Englisch
-**Last Updated:** 2026-04-03
+**Last Updated:** 2026-04-04
 
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
@@ -327,6 +327,16 @@ VOD_Auctions/
 **Backlog:** RSE-78 (Launch, offen: AGB-Anwalt) | RSE-79 (Erste öffentliche Auktionen) | RSE-80 (Marketing)
 
 ## Recent Changes
+
+### 2026-04-04 — Admin Mobile Overflow Fix (5 Pages)
+
+#### Admin Header Rows: flex-wrap
+- `auction-blocks/page.tsx`: Header `flex-wrap` + `gap-3` → Title + "Create New Auction" Button wrappen auf Mobile.
+- `auction-blocks/[id]/page.tsx`: Header + Button-Row (Send Newsletter, Storefront, Back, Save) `flex-wrap` → kein Overflow mehr.
+- `crm/page.tsx`: Header-Row (Search + Recalc Stats + Export CSV) `flexWrap: "wrap"`.
+- `transactions/page.tsx`: Header-Row (Orders + Export CSV) `flexWrap: "wrap"`.
+- `media/page.tsx`: Header-Row (Media Management + Browse Images) `flexWrap: "wrap"`.
+- `overflow-x: hidden` auf `html`/`body` war bereits via `injectNavCSS()` aktiv — fehlende `flex-wrap` war die Ursache der Darstellungsfehler.
 
 ### 2026-04-03 — Code Review Pass: 14 Fixes (Backend, Components, Pages, Types)
 
