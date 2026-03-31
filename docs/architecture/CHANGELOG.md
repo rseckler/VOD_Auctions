@@ -4,6 +4,36 @@ Vollständiger Entwicklungs-Changelog. Aktuelle Änderungen stehen in CLAUDE.md.
 
 ---
 
+## 2026-04-08 — System Health Redesign + Sentry Server-Side Fix
+
+### Sentry: Server-Side Error Capture aktiviert
+- `storefront/instrumentation.ts` (NEU) — fehlende Next.js Instrumentation Hook
+- Ohne diese Datei lädt Next.js `sentry.server.config.ts` nicht zur Laufzeit → Server-Errors wurden nie an Sentry gesendet
+- Datei registriert `sentry.server.config` (nodejs) und `sentry.edge.config` (edge) je nach `NEXT_RUNTIME`
+- Deployed + storefront rebuild auf VPS
+
+### System Health Page: Komplettes Redesign (`backend/src/admin/routes/system-health/page.tsx`)
+
+#### Architecture Flow Diagram
+- Neues `ArchitectureFlow`-Component — 4-Layer visuelle Darstellung wie alle Systeme zusammenhängen
+- Layer 1: Customer Browser (gold)
+- Layer 2: Storefront (Next.js) links ← → Analytics-Layer rechts (GA4, RudderStack, Clarity, Sentry)
+- Layer 3: API Backend full-width (Medusa.js auf VPS)
+- Layer 4: 4 Spalten — Data Layer (PostgreSQL, Upstash) | Payments (Stripe, PayPal) | Communication (Resend, Brevo) | AI (Anthropic)
+- Pure Flexbox/Div mit Unicode-Pfeilen, keine Dependencies
+
+#### Service-Gruppierung in 5 Kategorien
+- `CATEGORIES`-Config: Infrastructure | Payments | Communication | Analytics & Monitoring | Cache & AI
+- Jede Kategorie mit Section-Header, Beschreibung + Per-Kategorie-Status-Summary (All OK / N errors / N unconfigured)
+- Orphan-Safety-Net für Services die keiner Kategorie zugeordnet sind
+
+#### Key Info pro Service-Card
+- `SERVICE_META`-Config mit statischen Architektur-Informationen für alle 14 Services
+- Jede Card erweitert um: **Role** (kursiv, gold) + **Key Functions** (Bullet-Liste) + **Key Metrics** (Tags)
+- PostgreSQL: DB-Schema-Details, Free-Tier-Limits; Stripe: Payment-Methoden, Webhook-Events; Brevo: 3.580 tape-mag Kontakte; etc.
+
+---
+
 ## 2026-04-07 — Session 2: My Bids Badge, Swipe, Back Button (3 Fixes)
 
 ### My Bids Nav Badge
