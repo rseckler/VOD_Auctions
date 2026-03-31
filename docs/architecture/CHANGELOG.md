@@ -4,6 +4,40 @@ Vollständiger Entwicklungs-Changelog. Aktuelle Änderungen stehen in CLAUDE.md.
 
 ---
 
+### 2026-04-06 — Bug-Fix Session: 7 Fixes (Rendering, Bidding, Webhooks, UX)
+
+#### Stripe Webhook: charge.refunded Handler (Backend)
+- **Problem:** Refund über Stripe-Dashboard (außerhalb VOD-Admin) setzte `auction_status` nie zurück → Release blieb als "Sold" im Catalog.
+- **Fix:** `case "charge.refunded"` in `webhooks/stripe/route.ts` — findet Transaction via `stripe_payment_intent_id`, setzt alle Transactions der Order-Group auf `refunded`, setzt `Release.auction_status = "available"`, schreibt Audit-Event.
+- **PayPal war bereits korrekt:** `PAYMENT.CAPTURE.REFUNDED` Handler existierte schon.
+- **DB-Fix:** Release `legacy-release-28352` ("Das Spiel") manuell via Supabase auf `available` zurückgesetzt.
+- **Stripe Dashboard:** `charge.refunded` Event im Webhook-Endpoint aktiviert.
+
+#### Catalog Mobile: All Items / For Sale Toggle (`CatalogClient.tsx`)
+- **Problem:** Toggle war im horizontalen Scroll-Container mit `ml-auto` — auf Mobile nicht sichtbar.
+- **Fix:** Toggle auf Mobile (`< sm`) als eigene Zeile oberhalb der Kategorie-Pills; Desktop unverändert (`sm+` inline).
+
+#### FOUC Fix: html background-color (`globals.css`)
+- **Problem:** Beim Seitenwechsel (Next.js App Router) flackerte die Seite weiß, weil `html` keine Hintergrundfarbe hatte — nur `body` hatte `bg-background`.
+- **Fix:** `html { background-color: #1c1915; }` in `globals.css`.
+
+#### Bid Form: 4 Bugs behoben (`ItemBidSection.tsx`)
+- **Bug 1 — Amount-Reset:** `useEffect` setzte `suggestedBidUsed.current = true` nicht im `else if` Branch → jede Realtime-Preis-Änderung überschrieb User-Eingabe mit Minimum. Fix: functional `setAmount(prev => ...)` + korrektes Flag-Setzen auf first-init.
+- **Bug 2 — Modal €0.00:** Konsequenz aus Bug 1 (amount wurde zurückgesetzt bevor Modal öffnete). Behoben durch Bug-1-Fix.
+- **Bug 3 — Native Validation Blocker:** Browser-native `min` Attribut auf `<input type="number">` blockierte Form-Submit-Event mit "must be >= 3.51" Bubble. Fix: `min` Attribut entfernt, `<form onSubmit>` → `<div>`, `type="submit"` → `type="button" onClick`, manuelle Validierung per Toast.
+- **Bug 4 — Layout-Shift bei Proxy-Toggle:** `space-y-3` + AnimatePresence height-animation → Container sprang sofort. Fix: `flex flex-col gap-3` + `AnimatePresence initial={false}` + explizite `transition={{ duration: 0.2 }}`.
+
+#### Z-Index Hover (`BlockItemsGrid.tsx`)
+- **Problem:** Gehoverter Lot-Karte erschien hinter Nachbar-Karte — Framer Motion Stagger-Animationen erstellen Stacking Contexts ohne z-index.
+- **Fix:** `className="relative hover:z-10"` auf `motion.div` Wrapper jeder Lot-Karte.
+
+#### Account Skeleton (`account/loading.tsx` + `account/cart/page.tsx`)
+- **Problem:** `account/loading.tsx` zeigte 5 Overview-Dashboard-Kacheln für ALLE `/account/*` Route-Transitions (cart, bids, saved etc.) → falsche Größe + Layout.
+- **Fix loading.tsx:** Ersetzt durch 3 generische Skeleton-Rows (neutral für alle Sub-Pages).
+- **Fix Cart-Skeleton:** Von 2× `h-24` Full-Width-Blöcken zu Layout-passendem Skeleton: 64px Bild + Text-Linien + Preis-Block (matcht `Card p-4 flex gap-4`).
+
+---
+
 ### 2026-04-05 — Admin Mobile Overflow: Deep Fix (Medusa DOM + Deploy Bug)
 
 #### Root Cause Discovery

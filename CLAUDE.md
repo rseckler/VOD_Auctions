@@ -4,7 +4,7 @@
 **Goal:** Eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Phase 1 fertig — RSE-77 (Testlauf) als nächster Schritt
 **Language:** Storefront + Admin-UI: Englisch
-**Last Updated:** 2026-04-05
+**Last Updated:** 2026-04-06
 
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
@@ -327,6 +327,35 @@ VOD_Auctions/
 **Backlog:** RSE-78 (Launch, offen: AGB-Anwalt) | RSE-79 (Erste öffentliche Auktionen) | RSE-80 (Marketing)
 
 ## Recent Changes
+
+### 2026-04-06 — Bug-Fix Session: 7 Fixes (Rendering, Bidding, Webhooks, UX)
+
+#### Stripe Webhook: charge.refunded Handler
+- **Problem:** Refund über Stripe-Dashboard setzte `auction_status` nie zurück → Release blieb "Sold".
+- `case "charge.refunded"` in `webhooks/stripe/route.ts`: findet TX via `stripe_payment_intent_id`, setzt `refunded` + `auction_status = available` + Audit-Event.
+- DB-Fix: `legacy-release-28352` ("Das Spiel") manuell via Supabase korrigiert.
+- `charge.refunded` im Stripe-Dashboard Webhook-Endpoint aktiviert.
+
+#### Catalog Mobile: All Items / For Sale Toggle
+- Toggle war auf Mobile im horizontalen Scroll versteckt (ml-auto). Jetzt eigene Zeile auf `< sm`, Desktop unverändert.
+
+#### FOUC Fix: html background-color
+- `html { background-color: #1c1915; }` in `globals.css` — eliminiert weißes Aufblitzen zwischen Seitenwechseln.
+
+#### Bid Form: 4 Bugs (`ItemBidSection.tsx`)
+- **Amount-Reset:** `useEffect` fehlte `suggestedBidUsed.current = true` → Realtime-Updates überschrieben User-Eingabe. Fix: functional setState + korrektes Flag.
+- **Modal €0.00:** Folge des Amount-Reset-Bugs — behoben.
+- **Native Validation Blocker:** `min` Attribut auf `<input type="number">` blockierte Submit mit Browser-Bubble. Fix: `min` entfernt, `type="button"` + manuelle Toast-Validierung.
+- **Proxy-Toggle Layout-Shift:** `flex flex-col gap-3` + `AnimatePresence initial={false}` + transition duration.
+
+#### Z-Index Hover — Lot-Karten (`BlockItemsGrid.tsx`)
+- Gehovertes Lot erschien hinter Nachbarkarte. Fix: `className="relative hover:z-10"` auf `motion.div` Wrapper.
+
+#### Account Skeleton
+- `account/loading.tsx`: Statt 5 Overview-Kacheln jetzt 3 generische Rows (neutral für alle Sub-Pages).
+- Cart-Skeleton: Von 2× `h-24` Blöcken zu layout-passendem Skeleton (64px Bild + Text + Preis).
+
+---
 
 ### 2026-04-05 — Admin Mobile Overflow: Deep Fix (Medusa DOM + Deploy Bug)
 
