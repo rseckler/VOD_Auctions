@@ -408,21 +408,28 @@ function BidForm({
   const [loading, setLoading] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
 
-  // Track whether the URL-suggested bid has been applied once
+  // Track whether the initial amount has been set once
   const suggestedBidUsed = useRef(false)
 
   useEffect(() => {
-    if (suggestedBid && !suggestedBidUsed.current && suggestedBid >= minimumBid) {
-      setAmount(suggestedBid.toFixed(2))
+    if (!suggestedBidUsed.current) {
+      // First mount: initialise with suggestedBid (from URL) or minimumBid
+      setAmount(
+        suggestedBid && suggestedBid >= minimumBid
+          ? suggestedBid.toFixed(2)
+          : minimumBid.toFixed(2)
+      )
       suggestedBidUsed.current = true
-    } else if (!suggestedBidUsed.current) {
-      setAmount(minimumBid.toFixed(2))
+      return
     }
+    // Price changed via realtime: bump up only if user's current value is now below minimum
+    setAmount((prev) => {
+      const n = parseFloat(prev)
+      return isNaN(n) || n < minimumBid ? minimumBid.toFixed(2) : prev
+    })
   }, [minimumBid, suggestedBid])
 
-  function handleSubmitClick(e: React.FormEvent) {
-    e.preventDefault()
-
+  function handleSubmitClick() {
     if (!isAuthenticated) {
       onAuthRequired()
       return
@@ -431,6 +438,12 @@ function BidForm({
     const token = getToken()
     if (!token) {
       onAuthRequired()
+      return
+    }
+
+    const val = parseFloat(amount)
+    if (isNaN(val) || val < minimumBid) {
+      toast.error(`Minimum bid is €${minimumBid.toFixed(2)}`, { duration: 5000 })
       return
     }
 
@@ -495,7 +508,7 @@ function BidForm({
 
   return (
     <>
-      <form onSubmit={handleSubmitClick} className="mt-4 space-y-3">
+      <div className="mt-4 flex flex-col gap-3">
         <div className="space-y-1.5">
           <Label className="text-xs">Your Bid</Label>
           <div className="relative">
@@ -505,7 +518,6 @@ function BidForm({
             <Input
               type="number"
               step="0.01"
-              min={minimumBid}
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               className="pl-7 font-mono"
@@ -533,12 +545,13 @@ function BidForm({
             : "Set maximum bid (proxy bidding)"}
         </Button>
 
-        <AnimatePresence>
+        <AnimatePresence initial={false}>
           {showProxy && (
             <motion.div
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
               className="overflow-hidden"
             >
               <div className="space-y-1.5">
@@ -566,8 +579,9 @@ function BidForm({
         </AnimatePresence>
 
         <Button
-          type="submit"
+          type="button"
           disabled={loading}
+          onClick={handleSubmitClick}
           className="w-full disabled:opacity-50 disabled:cursor-not-allowed"
           size="lg"
         >
@@ -583,7 +597,7 @@ function BidForm({
             ? `Place Bid: \u20ac${parseFloat(amount || "0").toFixed(2)}`
             : "Login to Bid"}
         </Button>
-      </form>
+      </div>
 
       {/* Confirmation Modal */}
       <AnimatePresence>
