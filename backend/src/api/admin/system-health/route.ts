@@ -197,16 +197,68 @@ export async function GET(
   }
 
   function checkGA4(): ServiceCheck {
-    const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID
+    // NEXT_PUBLIC_ vars are storefront-only; backend uses GA_MEASUREMENT_ID
+    const gaMeasurementId = process.env.GA_MEASUREMENT_ID || process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID
     if (!gaMeasurementId) {
-      return { name: "ga4", label: "Google Analytics 4", status: "unconfigured", message: "NEXT_PUBLIC_GA_MEASUREMENT_ID not set", latency_ms: null, url: "https://analytics.google.com" }
+      return { name: "ga4", label: "Google Analytics 4", status: "unconfigured", message: "GA_MEASUREMENT_ID not set (add to backend .env)", latency_ms: null, url: "https://analytics.google.com" }
     }
     return {
       name: "ga4", label: "Google Analytics 4",
       status: "ok",
-      message: `Measurement ID: ${gaMeasurementId}`,
+      message: `Measurement ID: ${gaMeasurementId} (active on storefront)`,
       latency_ms: null,
       url: `https://analytics.google.com/analytics/web/#/p${gaMeasurementId.replace("G-", "")}`,
+    }
+  }
+
+  function checkRudderStack(): ServiceCheck {
+    const writeKey = process.env.RUDDERSTACK_WRITE_KEY
+    const dataPlaneUrl = process.env.RUDDERSTACK_DATA_PLANE_URL
+    if (!writeKey || !dataPlaneUrl) {
+      return { name: "rudderstack", label: "RudderStack (Analytics)", status: "unconfigured", message: "RUDDERSTACK_WRITE_KEY or DATA_PLANE_URL not set", latency_ms: null, url: "https://app.rudderstack.com" }
+    }
+    return {
+      name: "rudderstack", label: "RudderStack (Analytics)",
+      status: "ok",
+      message: `Write key configured — plane: ${dataPlaneUrl}`,
+      latency_ms: null,
+      url: "https://app.rudderstack.com",
+    }
+  }
+
+  async function checkUpstash(): Promise<ServiceCheck> {
+    const url = process.env.UPSTASH_REDIS_REST_URL
+    const token = process.env.UPSTASH_REDIS_REST_TOKEN
+    if (!url || !token) {
+      return { name: "upstash", label: "Upstash Redis (Cache)", status: "unconfigured", message: "UPSTASH_REDIS_REST_URL or TOKEN not set", latency_ms: null, url: "https://console.upstash.com" }
+    }
+    const { result, error, latency_ms } = await checkWithTimeout(async () => {
+      const r = await fetch(`${url}/ping`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!r.ok) throw new Error(`HTTP ${r.status}`)
+      return r.json()
+    })
+    return {
+      name: "upstash", label: "Upstash Redis (Cache)",
+      status: error ? "error" : "ok",
+      message: error ? error : `PONG — ${url.replace("https://", "").split(".")[0]}`,
+      latency_ms,
+      url: "https://console.upstash.com",
+    }
+  }
+
+  function checkAnthropic(): ServiceCheck {
+    const apiKey = process.env.ANTHROPIC_API_KEY
+    if (!apiKey) {
+      return { name: "anthropic", label: "Anthropic (AI Assistant)", status: "unconfigured", message: "ANTHROPIC_API_KEY not set", latency_ms: null, url: "https://console.anthropic.com" }
+    }
+    return {
+      name: "anthropic", label: "Anthropic (AI Assistant)",
+      status: "ok",
+      message: `API key configured (Claude Haiku — Admin AI Chat)`,
+      latency_ms: null,
+      url: "https://console.anthropic.com",
     }
   }
 
@@ -266,6 +318,9 @@ export async function GET(
     Promise.resolve(checkSentry()),
     Promise.resolve(checkContentSquare()),
     Promise.resolve(checkGA4()),
+    Promise.resolve(checkRudderStack()),
+    checkUpstash(),
+    Promise.resolve(checkAnthropic()),
     checkVPS(),
     checkStorefrontPublic(),
   ])

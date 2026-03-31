@@ -40,6 +40,9 @@ const SERVICE_ICONS: Record<string, string> = {
   sentry:              "🐛",
   contentsquare:       "👁️",
   ga4:                 "📊",
+  rudderstack:         "📡",
+  upstash:             "⚡",
+  anthropic:           "🤖",
   vps:                 "🖥️",
   storefront_public:   "🌍",
 }
@@ -191,8 +194,8 @@ export default function SystemHealthPage() {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: "#f5f0e8" }}>System Health</h1>
-          <p style={{ margin: "4px 0 0", fontSize: 13, color: "#9ca3af" }}>
+          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: "#111827" }}>System Health</h1>
+          <p style={{ margin: "4px 0 0", fontSize: 13, color: "#6b7280" }}>
             {checkedAt ? `Last checked: ${checkedAt}` : "Checking all services…"}
           </p>
         </div>
@@ -304,6 +307,9 @@ export default function SystemHealthPage() {
             { label: "Sentry Issues", url: "https://vod-records.sentry.io/issues/" },
             { label: "ContentSquare", url: "https://app.contentsquare.com" },
             { label: "GA4 Analytics", url: "https://analytics.google.com" },
+            { label: "RudderStack", url: "https://app.rudderstack.com" },
+            { label: "Upstash Redis", url: "https://console.upstash.com" },
+            { label: "Anthropic Console", url: "https://console.anthropic.com" },
           ].map((link) => (
             <a
               key={link.url}
