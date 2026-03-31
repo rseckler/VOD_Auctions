@@ -97,6 +97,7 @@
 html {
   scroll-behavior: smooth;
   overflow-x: hidden;
+  background-color: #1c1915;
 }
 
 body {
