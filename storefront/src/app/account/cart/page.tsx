@@ -132,7 +132,19 @@ export default function CartPage() {
     return (
       <div className="space-y-3">
         {[1, 2].map((i) => (
-          <Skeleton key={i} className="h-24 w-full rounded-lg" />
+          <div key={i} className="rounded-lg border border-border p-4">
+            <div className="flex gap-4 items-start">
+              <Skeleton className="w-16 h-16 rounded flex-shrink-0" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-3 w-1/3" />
+              </div>
+              <div className="flex flex-col items-end gap-2">
+                <Skeleton className="h-6 w-14" />
+                <Skeleton className="h-7 w-16" />
+              </div>
+            </div>
+          </div>
         ))}
       </div>
     )

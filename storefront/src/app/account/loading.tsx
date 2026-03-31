@@ -1,21 +1,14 @@
 import { Skeleton } from "@/components/ui/skeleton"
 
+// Generic account loading — shown by Next.js during route transitions for any /account/* page.
+// Must be visually neutral enough to work as a placeholder for overview, cart, bids, saved, etc.
 export default function AccountLoading() {
   return (
-    <div>
-      {/* Welcome heading */}
-      <Skeleton className="h-7 w-48 mb-6" />
-
-      {/* Summary cards grid (matches 2-col layout) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="rounded-lg border border-border p-6 space-y-3">
-            <div className="flex items-center gap-3">
-              <Skeleton className="h-9 w-9 rounded-lg" />
-              <Skeleton className="h-4 w-24" />
-            </div>
-            <Skeleton className="h-9 w-12" />
-          </div>
+    <div className="space-y-4">
+      <Skeleton className="h-7 w-40" />
+      <div className="space-y-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} className="h-20 w-full rounded-lg" />
         ))}
       </div>
     </div>
