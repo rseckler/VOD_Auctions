@@ -215,7 +215,7 @@ export function BlockItemsGrid({
             className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4"
           >
             {filtered.map((item) => (
-              <motion.div key={item.id} variants={staggerItem}>
+              <motion.div key={item.id} variants={staggerItem} className="relative hover:z-10">
                 <Link href={`/auctions/${blockSlug}/${item.id}`}>
                   {previewMode ? (
                     /* Preview mode card — amber accents, starting bid only, save to watchlist */
