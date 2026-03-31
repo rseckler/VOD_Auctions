@@ -4,6 +4,108 @@ Vollständiger Entwicklungs-Changelog. Aktuelle Änderungen stehen in CLAUDE.md.
 
 ---
 
+## 2026-04-07 — Prio 1–4: UX, Loading, Gallery Redesign (19 Fixes)
+
+### Prio 1 — Functional Bugs
+
+#### Newsletter-Bestätigungsmail: localhost → Production URL
+- `backend/src/api/store/newsletter/route.ts`: Bestätigungslink verwendete `localhost:9000` → `process.env.BACKEND_URL ?? process.env.MEDUSA_BACKEND_URL ?? "https://api.vod-auctions.com"`
+- Aktivierung: `BACKEND_URL=https://api.vod-auctions.com` im Backend `.env` auf VPS setzen
+
+#### Preis-Sort in BlockItemsGrid
+- `BlockItemsGrid.tsx`: Preis-Aufsteigend-Sort verwendete nur `start_price` → jetzt `current_price || start_price`, also den aktuellen Gebotsstand
+
+#### Back-Button auf Catalog-Detailseite
+- `storefront/src/app/catalog/[id]/page.tsx`: Ghost-Button "← Back" über dem Breadcrumb via existierender `CatalogBackLink`-Komponente
+
+---
+
+### Prio 2 — UX Improvements
+
+#### Country-Filter: Text → Dropdown
+- `CatalogClient.tsx`: Text-Input → `<select>` mit 19 Ländern: DE, US, GB, FR, IT, NL, BE, AT, CH, JP, CA, AU, SE, NO, DK, PL, CZ, ES + "Other"
+
+#### Safari Number Input Spinner entfernt
+- `globals.css`: `-webkit-inner-spin-button`, `-webkit-outer-spin-button` → `display: none`, `-moz-appearance: textfield` — keine nativen Zahlenpfeile mehr in Safari/Firefox
+
+#### Footer Restrukturierung
+- `Footer.tsx`: "Navigation"-Spalte vollständig entfernt
+- Neue "Contact"-Spalte: E-Mail (shop@vod-records.com), Öffnungszeiten (Mo–Fr 10–18), Google Maps Link (Eugenstrasse 57, Friedrichshafen)
+- Instagram-Link: temporär entfernt (kein URL verfügbar)
+
+---
+
+### Prio 3 — Visual Polish
+
+#### Skeleton-Farbe: Gold → Dunkles Grau
+- `storefront/src/components/ui/skeleton.tsx`: `bg-accent` → `bg-[#2a2520]`
+- Vorher: Gold `#d4a54a` → aggressiver Goldblitz bei jedem Seitenaufruf
+- Jetzt: Dunkles Warmgrau, kaum sichtbar auf `#1c1915` Hintergrund
+- Betrifft alle 7 `loading.tsx`-Dateien im Projekt auf einmal
+
+#### TopLoadingBar — YouTube-Style Navigation Indicator
+- Neues `storefront/src/components/TopLoadingBar.tsx`
+- 2px dünner Gold-Fortschrittsbalken am oberen Bildschirmrand
+- Startet bei Link-Klick (15%), füllt sich auf 85%, springt auf 100% wenn neue Route gerendert
+- Wrapped in `<Suspense>` in `layout.tsx` (useSearchParams erfordert das)
+- Ersetzt das harte "Seitenleeren"-Gefühl bei Navigation
+
+#### Stagger-Animation gedämpft
+- `storefront/src/lib/motion.ts`: `staggerChildren` 0.08 → 0.04, `delayChildren` 0.1 → 0.05, item `y` 16 → 8, `duration` 0.35 → 0.2
+- Betrifft `CatalogClient.tsx` und `BlockItemsGrid.tsx` (beide importieren aus motion.ts)
+
+#### Pulse-Animation gedämpft
+- `globals.css`: Custom `@keyframes pulse` Override — Opacity-Swing 1→0.6 (statt harter 0/1-Zyklus), 2s Dauer
+
+#### Format-Tags: Overlay → Card Body
+- `BlockItemsGrid.tsx` + `CatalogClient.tsx`: Format-Badge (`MAGAZINE`, `LP` etc.) von absoluter Bild-Overlay-Position in den Card-Body unterhalb des Bildes verschoben
+
+#### Card-Text-Lesbarkeit
+- `BlockItemsGrid.tsx`: "Starting bid"-Label und View-Count von `/40` auf `/70` Opacity erhöht
+
+#### User-Avatar Cleanup
+- `HeaderAuth.tsx`: Name-Text aus dem Avatar-Trigger entfernt — nur noch Icon/Initials-Kreis
+- `Header.tsx`: Saved-Items-Badge von `rose-500` → Gold `#d4a54a`
+
+#### Gallery Quote
+- `gallery/page.tsx` Closing-Section: "Browse the full catalogue →" → "Explore the archive →"
+
+---
+
+### Prio 4 — Gallery Redesign (`storefront/src/app/gallery/page.tsx`)
+
+Basiert auf einer visuellen Mockup-Analyse (`docs/gallery-mockup.html`) mit Risiko-Bewertung und Side-by-Side-Vergleichen. User hat folgende Varianten gewählt:
+- Section 3: Mit Hero (breites erstes Bild)
+- Section 4: 2 Spalten + letztes Element full-width
+- Section 5: Vertikale Karten (3B)
+
+#### Section 3 — Visual Gallery (neu)
+- Bild #1: Eigene Zeile, volle Breite, `aspect-[16/9]`, `max-w-7xl` Container
+- Bilder 2–6: Einheitliches 3-Spalten-Grid, alle `aspect-[4/3]`, `max-w-7xl`
+- Kein gemischtes Seitenverhältnis mehr (vorher: hero 16/10 + 5× 4/3)
+- Hover: `scale-[1.02]` / 500ms (statt 700ms)
+
+#### Section 4 — The Collection (neu: Vertical Cards)
+- Vorher: Overlay-Cards (Text auf Gradient-Bild)
+- Jetzt: Bild oben (`aspect-[5/4]`), Text-Block darunter (dunkles bg, Border)
+- 2-Spalten-Grid (`md:grid-cols-2`)
+- Letztes Element (5. Karte) automatisch `md:col-span-2` full-width mit `aspect-[5/2]`
+- Kein Gradient-Overlay mehr
+
+#### Section 5 — From the Archive (neu: Vertical Cards)
+- Vorher: Horizontale Karte, fixes `w-48 aspect-square` Thumbnail links (192px)
+- Jetzt: Bild oben, volle Kartenbreite, `aspect-[4/3]` (~580px auf Desktop)
+- Bildgröße: 3× größer als vorher
+- Text-Block darunter mit Gold-Badge, Serif-Titel, Beschreibung, optionalem Link
+- 2-Spalten-Grid bleibt
+
+#### Section 6 — Listening Room (neu: Asymmetrisch)
+- Grid: `grid-cols-1 md:grid-cols-[1fr_1.2fr]` — mehr Platz für das Bild
+- Bild-Seitenverhältnis: `4/3` → `3/2` (etwas breiter, mehr Atmung)
+- `sizes` auf `60vw` erhöht
+
+---
+
 ### 2026-04-07 — Prio 1/2/3 Fix Session: 14 Fixes (Bugs, UX, Visual Polish)
 
 #### Newsletter Confirmation URL Fix (Prio 1.1) — `backend/src/api/store/newsletter/route.ts`

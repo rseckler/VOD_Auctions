@@ -4,7 +4,7 @@
 **Goal:** Eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Phase 1 fertig — RSE-77 (Testlauf) als nächster Schritt
 **Language:** Storefront + Admin-UI: Englisch
-**Last Updated:** 2026-04-06
+**Last Updated:** 2026-04-07
 
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
@@ -341,6 +341,37 @@ VOD_Auctions/
 - **User avatar:** Removed name text from HeaderAuth dropdown trigger (avatar circle only); saved-count badge changed from rose-500 to gold (`#d4a54a`)
 - **Gallery quote:** "Browse the full catalogue →" → "Explore the archive →"
 - **Card text readability:** Increased low-opacity card footer text from `/40` to `/70`
+
+### 2026-04-07 — Prio 1–4: UX, Loading, Gallery Redesign (19 Fixes)
+
+#### Prio 1 — Functional Bugs
+- **Newsletter-URL:** Bestätigungsmail verwendete `localhost:9000` → jetzt `BACKEND_URL ?? https://api.vod-auctions.com`
+- **Preis-Sort:** `BlockItemsGrid` sortiert jetzt nach `current_price || start_price` (live Gebotspreis)
+- **Back-Button:** Catalog-Detailseite (`catalog/[id]`) hat jetzt einen `← Back`-Button oben
+
+#### Prio 2 — UX
+- **Country-Filter:** Text-Input → Select-Dropdown mit 19 Ländern + "Other"
+- **Safari-Spinner:** `-webkit-appearance: none` in globals.css — keine Zahlenpfeile in Number-Inputs
+- **Footer:** "Navigation"-Spalte entfernt, "Contact"-Sektion (E-Mail, Öffnungszeiten, Google Maps) hinzugefügt, Instagram-Link entfernt
+
+#### Prio 3 — Visual Polish
+- **Skeleton-Farbe:** `bg-accent` (#d4a54a gold) → `bg-[#2a2520]` (dunkles Grau, kaum sichtbar auf #1c1915) — betrifft alle 7 loading.tsx-Dateien auf einmal
+- **TopLoadingBar:** Neues `TopLoadingBar.tsx` — 2px Gold-Fortschrittsbalken beim Seitenwechsel (YouTube-Style), in layout.tsx eingebunden
+- **Stagger-Animation:** Halbiert (delay 80ms→40ms, y 16→8, duration 350ms→200ms) via `storefront/src/lib/motion.ts`
+- **Pulse-Animation:** Gedämpft (opacity 1→0.6, 2s Dauer) in globals.css
+- **Format-Tags:** Von Bild-Overlay in den Card-Body verschoben (kein absolutes Positioning mehr)
+- **Card-Text:** `/40` → `/70` Opacity für bessere Lesbarkeit
+- **User-Avatar:** Kein Name-Text mehr im Trigger (nur Avatar-Icon)
+- **Saved-Badge:** Farbe → Gold `#d4a54a`
+- **Gallery-Quote:** "Browse the full catalogue →" → "Explore the archive →"
+
+#### Prio 4 — Gallery Redesign (`gallery/page.tsx`)
+- **Section 3 (Visual Gallery):** Hero-Bild #1 full-width `aspect-[16/9]` + 5 einheitliche Tiles `aspect-[4/3]` 3-Spalten-Grid, Container max-w-7xl
+- **Section 4 (The Collection):** Overlay-Cards → Vertikal (Bild oben, Text darunter), 2-Spalten, letztes Element (5.) automatisch `col-span-2` full-width
+- **Section 5 (From the Archive):** Horizontales 192px-Thumbnail → Vertikale Karte mit `aspect-[4/3]` Vollbreiten-Bild (~580px auf Desktop, 3× größer)
+- **Section 6 (Listening Room):** Asymmetrisches Grid `1fr 1.2fr`, `aspect-[3/2]` statt 4/3
+
+---
 
 ### 2026-04-06 — Bug-Fix Session: 7 Fixes (Rendering, Bidding, Webhooks, UX)
 
