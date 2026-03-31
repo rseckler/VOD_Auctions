@@ -88,13 +88,13 @@ function injectNavCSS() {
     /* Medusa's main content wrapper uses overflow-auto (both axes).
        This allows independent horizontal scrolling even when body is locked.
        Target it precisely: it's the only element that has both h-screen and overflow-auto. */
-    .h-screen.overflow-auto { overflow-x: hidden !important; }
+    .h-screen.overflow-auto { overflow-x: hidden !important; overscroll-behavior-x: none !important; }
 
     /* Medusa's <main> uses items-center in flex-col, which horizontally centers
        children. On narrow viewports this clips content on both sides.
        Force children to fill available width instead. */
-    main.items-center { align-items: flex-start !important; }
-    main.items-center > * { max-width: 100% !important; }
+    main { align-items: flex-start !important; overflow-x: hidden !important; }
+    main > * { max-width: 100% !important; width: 100% !important; }
 
     /* Hide Medusa built-in nav items */
     a[href="/app/orders"],
@@ -145,6 +145,27 @@ function injectNavCSS() {
 
 // ─── Click to expand Extensions, then hide its trigger ───────────────────────
 
+// ─── Mobile scroll-container fix ─────────────────────────────────────────────
+// CSS alone is unreliable here: Medusa's inner scroll containers use
+// overflow-auto which can scroll horizontally even with body overflow-x:hidden.
+// Apply inline styles directly so there's no specificity or timing race.
+function fixMobileScrollContainers() {
+  if (window.innerWidth > 1024) return
+
+  // Fix the main content wrapper (flex h-screen w-full flex-col overflow-auto)
+  document.querySelectorAll<HTMLElement>(".h-screen.overflow-auto").forEach((el) => {
+    el.style.setProperty("overflow-x", "hidden", "important")
+    el.style.setProperty("overscroll-behavior-x", "none", "important")
+  })
+
+  // Fix <main> centering (items-center clips content on both sides on mobile)
+  const mainEl = document.querySelector<HTMLElement>("main")
+  if (mainEl) {
+    mainEl.style.setProperty("align-items", "flex-start", "important")
+    mainEl.style.setProperty("overflow-x", "hidden", "important")
+  }
+}
+
 function expandAndHideExtensions() {
   const buttons = document.querySelectorAll("nav button")
   buttons.forEach((btn) => {
@@ -173,6 +194,7 @@ function startNavObserver() {
   document.head.appendChild(marker)
 
   const hide = () => {
+    fixMobileScrollContainers()
     expandAndHideExtensions()
 
     // Remove any remaining empty top-level <li> separators
