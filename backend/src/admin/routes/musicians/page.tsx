@@ -85,7 +85,7 @@ function MusiciansPage() {
   useEffect(() => { fetchData() }, [fetchData])
 
   return (
-    <div style={{ padding: 24, background: COLORS.bg, minHeight: "100vh", color: COLORS.text }}>
+    <div style={{ padding: 24, background: COLORS.bg, minHeight: "100vh", color: COLORS.text, minWidth: 0, width: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 20 }}>Musicians</h1>
 
       {/* Stats */}

@@ -356,7 +356,7 @@ const SyncDashboardPage = () => {
 
   if (loading) {
     return (
-      <div style={{ padding: "24px", background: COLORS.bg, minHeight: "100vh", color: COLORS.text }}>
+      <div style={{ padding: "24px", background: COLORS.bg, minHeight: "100vh", color: COLORS.text, minWidth: 0, width: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
         <div style={{ color: COLORS.muted }}>Loading...</div>
       </div>
     )
@@ -394,7 +394,7 @@ const SyncDashboardPage = () => {
   const batchRunning = bp && bp.processed > 0
 
   return (
-    <div style={{ padding: "24px", background: COLORS.bg, minHeight: "100vh", color: COLORS.text }}>
+    <div style={{ padding: "24px", background: COLORS.bg, minHeight: "100vh", color: COLORS.text, minWidth: 0, width: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
       {/* Page Title */}
       <h1 style={{ fontSize: "24px", fontWeight: 700, marginBottom: "20px" }}>Sync Dashboard</h1>
 

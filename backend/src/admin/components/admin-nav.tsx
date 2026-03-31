@@ -94,7 +94,12 @@ function injectNavCSS() {
        children. On narrow viewports this clips content on both sides.
        Force children to fill available width instead. */
     main { align-items: flex-start !important; overflow-x: hidden !important; }
-    main > * { max-width: 100% !important; width: 100% !important; }
+    /* Gutter (direct child of main): force full width, prevent flex min-width expansion */
+    main > * { max-width: 100% !important; width: 100% !important; min-width: 0 !important; }
+    /* Page root divs (children of Gutter): min-width:auto by default lets flex items
+       expand wider than the Gutter if content (e.g. a table) has a wide min-content.
+       Force min-width:0 so they stay within the Gutter, clip overflow. */
+    main > * > * { min-width: 0 !important; overflow-x: hidden !important; box-sizing: border-box !important; }
 
     /* Hide Medusa built-in nav items */
     a[href="/app/orders"],
@@ -152,20 +157,22 @@ function injectNavCSS() {
 function fixMobileScrollContainers() {
   if (window.innerWidth > 1024) return
 
-  // Use structural selectors instead of class names — class names may differ across builds.
-  // <main> is the only <main> in the Medusa admin shell.
   const mainEl = document.querySelector<HTMLElement>("main")
-  if (mainEl) {
-    // Fix items-center centering: anchor content to left on mobile
-    mainEl.style.setProperty("align-items", "flex-start", "important")
-    mainEl.style.setProperty("overflow-x", "hidden", "important")
+  if (!mainEl) return
 
-    // Fix the direct parent of <main> — this is the overflow-auto scroll wrapper
-    const wrapper = mainEl.parentElement
-    if (wrapper) {
-      wrapper.style.setProperty("overflow-x", "hidden", "important")
-      wrapper.style.setProperty("overscroll-behavior-x", "none", "important")
-    }
+  // Fix items-center centering: anchor content to left on mobile
+  mainEl.style.setProperty("align-items", "flex-start", "important")
+  mainEl.style.setProperty("overflow-x", "hidden", "important")
+  mainEl.scrollLeft = 0
+
+  // Walk ALL ancestors up to body — set overflow-x:hidden and reset scrollLeft on each.
+  // This catches any scroll container regardless of Medusa DOM depth changes.
+  let el: HTMLElement | null = mainEl.parentElement
+  while (el && el.tagName !== "BODY") {
+    el.style.setProperty("overflow-x", "hidden", "important")
+    el.style.setProperty("overscroll-behavior-x", "none", "important")
+    el.scrollLeft = 0
+    el = el.parentElement
   }
 }
 
@@ -222,6 +229,13 @@ function startNavObserver() {
     if (window.location.pathname !== lastPath) {
       lastPath = window.location.pathname
       setTimeout(injectBackNav, 50)
+      // Reset horizontal scroll on navigation so new page always starts at left edge
+      const mainEl = document.querySelector<HTMLElement>("main")
+      if (mainEl) {
+        mainEl.scrollLeft = 0
+        const wrapper = mainEl.parentElement
+        if (wrapper) wrapper.scrollLeft = 0
+      }
     }
   })
   observer.observe(document.body, { childList: true, subtree: true })

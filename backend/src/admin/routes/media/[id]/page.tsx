@@ -236,12 +236,12 @@ const MediaDetailPage = () => {
   const tdStyle: React.CSSProperties = { padding: "8px 12px", fontSize: "13px", color: COLORS.text, borderBottom: `1px solid ${COLORS.border}`, verticalAlign: "top" }
 
   if (loading) {
-    return (<div style={{ padding: "24px", background: COLORS.bg, minHeight: "100vh", color: COLORS.text }}><div style={{ color: COLORS.muted }}>Loading...</div></div>)
+    return (<div style={{ padding: "24px", background: COLORS.bg, minHeight: "100vh", color: COLORS.text, minWidth: 0, width: "100%", overflowX: "hidden", boxSizing: "border-box" }}><div style={{ color: COLORS.muted }}>Loading...</div></div>)
   }
 
   if (!release) {
     return (
-      <div style={{ padding: "24px", background: COLORS.bg, minHeight: "100vh", color: COLORS.text }}>
+      <div style={{ padding: "24px", background: COLORS.bg, minHeight: "100vh", color: COLORS.text, minWidth: 0, width: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
         <div style={{ color: COLORS.error }}>Release not found.</div>
         <a href="/app/media" style={{ color: COLORS.gold, textDecoration: "none", marginTop: "12px", display: "inline-block" }}>&larr; Back to Overview</a>
       </div>
@@ -269,7 +269,7 @@ const MediaDetailPage = () => {
   ]
 
   return (
-    <div style={{ padding: "24px", background: COLORS.bg, minHeight: "100vh", color: COLORS.text }}>
+    <div style={{ padding: "24px", background: COLORS.bg, minHeight: "100vh", color: COLORS.text, minWidth: 0, width: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
       <a href="/app/media" style={{ color: COLORS.gold, textDecoration: "none", fontSize: "14px", display: "inline-block", marginBottom: "16px" }}>&larr; Back to Overview</a>
 
       <h1 style={{ fontSize: "24px", fontWeight: 700, marginBottom: "4px" }}>

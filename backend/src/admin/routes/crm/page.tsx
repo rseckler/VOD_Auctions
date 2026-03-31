@@ -2171,7 +2171,7 @@ const CustomersPage = () => {
   })
 
   return (
-    <div style={{ padding: "24px", background: COLORS.bg, minHeight: "100vh", color: COLORS.text }}>
+    <div style={{ padding: "24px", background: COLORS.bg, minHeight: "100vh", color: COLORS.text, minWidth: 0, width: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
         <h1 style={{ fontSize: "24px", fontWeight: 700 }}>Customers</h1>

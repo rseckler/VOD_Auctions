@@ -289,7 +289,7 @@ function EntityContentInner() {
   }
 
   return (
-    <div style={{ padding: 24, background: C.bg, minHeight: "100vh", color: C.text }}>
+    <div style={{ padding: 24, background: C.bg, minHeight: "100vh", color: C.text, minWidth: 0, width: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 20 }}>Entity Content</h1>
 
       {/* ═══════════════════════════════════════════════════════════════════════
