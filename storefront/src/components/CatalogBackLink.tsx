@@ -4,21 +4,37 @@ import { useEffect, useState, type ReactNode } from "react"
 import Link from "next/link"
 
 /**
- * Breadcrumb link back to catalog that preserves the user's last filter/page state.
- * Reads the catalog URL from sessionStorage (set by the catalog page on every state change).
+ * Back link that uses window.history.back() when possible so the browser
+ * restores the exact scroll position on the catalog page.
+ * Falls back to the stored catalog URL when there is no history entry
+ * (e.g. user opened the product page directly via a link).
  */
 export function CatalogBackLink({ className, children }: { className?: string; children?: ReactNode }) {
-  const [href, setHref] = useState("/catalog")
+  const [fallbackHref, setFallbackHref] = useState("/catalog")
+  const [hasHistory, setHasHistory] = useState(false)
 
   useEffect(() => {
     try {
       const saved = sessionStorage.getItem("catalog_url")
-      if (saved) setHref(saved)
+      if (saved) setFallbackHref(saved)
     } catch {}
+    // history.length > 1 means there is something to go back to
+    setHasHistory(window.history.length > 1)
   }, [])
 
+  if (hasHistory) {
+    return (
+      <button
+        onClick={() => window.history.back()}
+        className={className}
+      >
+        {children || "Catalog"}
+      </button>
+    )
+  }
+
   return (
-    <Link href={href} className={className}>
+    <Link href={fallbackHref} className={className}>
       {children || "Catalog"}
     </Link>
   )
