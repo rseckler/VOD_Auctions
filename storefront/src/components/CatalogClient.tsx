@@ -304,6 +304,30 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
         </div>
       </div>
 
+      {/* For Sale toggle — own row on mobile, inline on sm+ */}
+      <div className="flex items-center gap-1 rounded-lg border border-[rgba(232,224,212,0.12)] p-0.5 mb-2 w-fit sm:hidden">
+        <button
+          onClick={() => { setForSale(false); setPage(1) }}
+          className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+            !forSale
+              ? "bg-gradient-to-r from-primary to-[#b8860b] text-[#1c1915]"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          All Items
+        </button>
+        <button
+          onClick={() => { setForSale(true); setPage(1) }}
+          className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+            forSale
+              ? "bg-gradient-to-r from-primary to-[#b8860b] text-[#1c1915]"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          For Sale
+        </button>
+      </div>
+
       {/* Category filter pills + For Sale toggle */}
       <div className="flex flex-nowrap overflow-x-auto scrollbar-hide lg:flex-wrap items-center gap-1.5 mb-3 pb-1">
         <Button
@@ -326,7 +350,7 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
           </Button>
         ))}
         <span className="hidden sm:block w-px h-5 bg-border/50 mx-1" />
-        <div className="flex items-center gap-1 rounded-lg border border-[rgba(232,224,212,0.12)] p-0.5 ml-auto sm:ml-0">
+        <div className="hidden sm:flex items-center gap-1 rounded-lg border border-[rgba(232,224,212,0.12)] p-0.5 ml-auto sm:ml-0">
           <button
             onClick={() => { setForSale(false); setPage(1) }}
             className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
@@ -343,7 +367,7 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
               forSale
                 ? "bg-gradient-to-r from-primary to-[#b8860b] text-[#1c1915]"
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+          }`}
           >
             For Sale
           </button>
