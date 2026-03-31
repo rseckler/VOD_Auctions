@@ -341,7 +341,7 @@ const TransactionsPage = () => {
   return (
     <Container>
       {/* Top Bar */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
         <div>
           <Heading level="h1">Orders</Heading>
           <Text className="text-ui-fg-subtle mt-1">All auction wins and direct purchases</Text>

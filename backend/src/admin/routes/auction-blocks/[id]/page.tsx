@@ -1243,7 +1243,7 @@ const BlockDetailPage = () => {
       </div>
 
       {/* Header with title, status badge, and action buttons */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-start justify-between mb-6 gap-3">
         <div className="flex items-center gap-3">
           <div>
             <Heading level="h1">
@@ -1265,7 +1265,7 @@ const BlockDetailPage = () => {
             </div>
           </div>
         </div>
-        <div className="flex gap-2 items-center">
+        <div className="flex flex-wrap gap-2 items-center">
           {!isNew && block.status === "draft" && (
             <Button
               variant="primary"

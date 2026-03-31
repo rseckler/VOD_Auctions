@@ -361,7 +361,7 @@ const AuctionBlocksPage = () => {
 
   return (
     <Container>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between mb-6 gap-3">
         <div>
           <Heading level="h1">Auction Blocks</Heading>
           <Text className="text-ui-fg-subtle mt-1">Manage themed auction blocks</Text>

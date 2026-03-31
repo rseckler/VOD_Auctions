@@ -774,7 +774,7 @@ const MediaPage = () => {
   return (
     <ErrorBoundary>
     <div style={{ padding: "24px", background: COLORS.bg, minHeight: "100vh", color: COLORS.text }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
         <h1 style={{ fontSize: "24px", fontWeight: 700, margin: 0 }}>
           Media Management
         </h1>

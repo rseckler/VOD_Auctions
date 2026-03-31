@@ -1691,7 +1691,7 @@ function CustomersListTab({
   return (
     <div>
       {/* Search + Summary + Export */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", gap: "12px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", gap: "12px", flexWrap: "wrap" }}>
         <input
           type="text"
           placeholder="Search by name or email..."
