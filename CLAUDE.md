@@ -4,7 +4,7 @@
 **Goal:** Eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Phase 1 fertig — RSE-77 (Testlauf) als nächster Schritt
 **Language:** Storefront + Admin-UI: Englisch
-**Last Updated:** 2026-04-04
+**Last Updated:** 2026-04-05
 
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
@@ -327,6 +327,22 @@ VOD_Auctions/
 **Backlog:** RSE-78 (Launch, offen: AGB-Anwalt) | RSE-79 (Erste öffentliche Auktionen) | RSE-80 (Marketing)
 
 ## Recent Changes
+
+### 2026-04-05 — Admin Mobile Overflow: Deep Fix (Medusa DOM + Deploy Bug)
+
+#### Deploy-Bug (Ursache aller vorherigen gescheiterten Fix-Runden)
+- `cp -r .medusa/server/public/admin public/admin` ohne vorheriges `rm -rf public/admin` legt den neuen Bundle als Unterverzeichnis `public/admin/admin/` ab — alter Bundle bleibt aktiv. Alle vorherigen Runs hatten damit keinerlei Wirkung.
+- **Korrekte Deploy-Sequenz** (jetzt in Gotchas dokumentiert): `rm -rf public/admin && cp -r .medusa/server/public/admin public/admin`
+
+#### CSS-Fix — `admin-nav.tsx` `injectNavCSS()`
+- Medusa's `<main>` nutzt `items-center` in `flex-col`: Flex-Children mit `min-width: auto` + breitem Tabelleninhalt expandieren über den Gutter → `items-center` zentriert den überbreiten Div → linker Rand unsichtbar im negativen x-Bereich.
+- Neue Regeln: `main { align-items: flex-start }` + `main > * { min-width: 0 }` + `main > * > * { min-width: 0; overflow-x: hidden }`.
+- JS `fixMobileScrollContainers()` setzt Inline-Styles direkt auf `<main>` und läuft alle Ancestors bis `<body>` durch (`overflow-x: hidden`, `scrollLeft = 0`).
+
+#### Per-Page Root Divs (7 Dateien)
+- `minWidth: 0, width: "100%", overflowX: "hidden", boxSizing: "border-box"` in: `media/page.tsx`, `crm/page.tsx`, `entity-content/page.tsx`, `musicians/page.tsx`, `sync/page.tsx`, `media/[id]/page.tsx`
+
+---
 
 ### 2026-04-04 — Admin Mobile Overflow Fix (5 Pages)
 

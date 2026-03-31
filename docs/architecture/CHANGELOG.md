@@ -4,6 +4,26 @@ Vollständiger Entwicklungs-Changelog. Aktuelle Änderungen stehen in CLAUDE.md.
 
 ---
 
+### 2026-04-05 — Admin Mobile Overflow: Deep Fix (Medusa DOM + Deploy Bug)
+
+#### Root Cause Discovery
+- **Deploy Bug:** `cp -r .medusa/server/public/admin public/admin` ohne vorheriges `rm -rf public/admin` legt den neuen Bundle als *Unterverzeichnis* `public/admin/admin/` ab — der Server bediente weiter die alten Dateien aus `public/admin/assets/`. Alle vorherigen Fix-Runden waren damit wirkungslos.
+- **Fix dokumentiert** in CLAUDE.md: `rm -rf public/admin && cp -r .medusa/server/public/admin public/admin # PFLICHT!`
+
+#### CSS Fix — `admin-nav.tsx` `injectNavCSS()`
+- **Root cause (CSS):** Medusa's `<main>` nutzt `items-center` in `flex-col`. Flex-Children haben `min-width: auto` — ein breiter Tabellen-Inhalt zwingt den Page-Root-Div auf eine Breite > Gutter. `items-center` zentriert dann diesen überbreiten Div, wodurch der linke Rand im negativen x-Bereich landet (nicht scrollbar, permanent unsichtbar).
+- **Neue CSS-Regeln:**
+  - `main { align-items: flex-start !important; overflow-x: hidden !important; }`
+  - `main > * { max-width: 100% !important; width: 100% !important; min-width: 0 !important; }` (Gutter)
+  - `main > * > * { min-width: 0 !important; overflow-x: hidden !important; box-sizing: border-box !important; }` (Page-Root-Divs)
+- **JS `fixMobileScrollContainers()`**: Setzt `align-items: flex-start` direkt als Inline-Style auf `<main>` + läuft alle DOM-Ancestors bis `<body>` durch und setzt `overflow-x: hidden`, `overscroll-behavior-x: none`, `scrollLeft = 0`.
+
+#### Per-Page Root Div Fix (7 Dateien)
+- `minWidth: 0, width: "100%", overflowX: "hidden", boxSizing: "border-box"` in:
+  - `media/page.tsx`, `crm/page.tsx`, `entity-content/page.tsx`, `musicians/page.tsx`, `sync/page.tsx` (2×), `media/[id]/page.tsx` (3×)
+
+---
+
 ### 2026-04-04 — Admin Mobile Overflow Fix (5 Pages)
 
 - **Problem:** Admin-Seiten auf Mobile zeigten horizontalen Overflow — Header-Rows mit `justify-between` ohne `flex-wrap` schoben Buttons aus dem Viewport.
