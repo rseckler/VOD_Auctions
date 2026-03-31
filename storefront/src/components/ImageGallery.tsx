@@ -46,6 +46,34 @@ export function ImageGallery({
     if (Math.abs(diff) > 50) goTo(diff > 0 ? "next" : "prev")
   }
 
+  // Touch swipe support for main image (mobile only)
+  const mainTouchStartX = useRef(0)
+  const mainTouchStartY = useRef(0)
+  const mainSwiped = useRef(false)
+  function handleMainTouchStart(e: React.TouchEvent) {
+    mainTouchStartX.current = e.touches[0].clientX
+    mainTouchStartY.current = e.touches[0].clientY
+    mainSwiped.current = false
+  }
+  function handleMainTouchEnd(e: React.TouchEvent) {
+    if (isDesktop || images.length <= 1) return
+    const dx = mainTouchStartX.current - e.changedTouches[0].clientX
+    const dy = mainTouchStartY.current - e.changedTouches[0].clientY
+    // Only trigger swipe if horizontal movement dominates and exceeds threshold
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      mainSwiped.current = true
+      e.preventDefault()
+      goTo(dx > 0 ? "next" : "prev")
+    }
+  }
+  function handleMainClick() {
+    if (mainSwiped.current) {
+      mainSwiped.current = false
+      return
+    }
+    setLightboxOpen(true)
+  }
+
   // Desktop zoom state for main image
   const [zoomActive, setZoomActive] = useState(false)
   const [zoomOrigin, setZoomOrigin] = useState({ x: 50, y: 50 })
@@ -93,10 +121,12 @@ export function ImageGallery({
         {/* Main Image */}
         <button
           ref={mainImageRef}
-          onClick={() => setLightboxOpen(true)}
+          onClick={handleMainClick}
           onMouseEnter={() => isDesktop && setZoomActive(true)}
           onMouseLeave={() => { setZoomActive(false) }}
           onMouseMove={isDesktop ? handleMouseMove : undefined}
+          onTouchStart={!isDesktop && images.length > 1 ? handleMainTouchStart : undefined}
+          onTouchEnd={!isDesktop && images.length > 1 ? handleMainTouchEnd : undefined}
           className="relative group w-full aspect-square rounded-xl overflow-hidden bg-[#2a2520] border border-[rgba(232,224,212,0.08)] cursor-zoom-in"
         >
           <AnimatePresence mode="wait">
@@ -130,6 +160,17 @@ export function ImageGallery({
           <div className={`absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center ${zoomActive ? "!bg-transparent" : ""}`}>
             <ZoomIn className={`h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity ${zoomActive ? "!opacity-0" : ""}`} />
           </div>
+          {/* Mobile swipe chevrons */}
+          {images.length > 1 && !isDesktop && (
+            <>
+              <div className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 text-white/70 pointer-events-none lg:hidden">
+                <ChevronLeft className="h-4 w-4" />
+              </div>
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 text-white/70 pointer-events-none lg:hidden">
+                <ChevronRight className="h-4 w-4" />
+              </div>
+            </>
+          )}
           {/* Image counter badge */}
           {images.length > 1 && (
             <span className="absolute bottom-2 right-2 text-[11px] font-mono bg-black/60 text-white/90 px-2 py-0.5 rounded-full backdrop-blur-sm">
