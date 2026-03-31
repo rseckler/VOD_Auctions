@@ -85,6 +85,17 @@ function injectNavCSS() {
     /* Prevent horizontal page scroll on mobile */
     html, body { overflow-x: hidden !important; }
 
+    /* Medusa's main content wrapper uses overflow-auto (both axes).
+       This allows independent horizontal scrolling even when body is locked.
+       Target it precisely: it's the only element that has both h-screen and overflow-auto. */
+    .h-screen.overflow-auto { overflow-x: hidden !important; }
+
+    /* Medusa's <main> uses items-center in flex-col, which horizontally centers
+       children. On narrow viewports this clips content on both sides.
+       Force children to fill available width instead. */
+    main.items-center { align-items: flex-start !important; }
+    main.items-center > * { max-width: 100% !important; }
+
     /* Hide Medusa built-in nav items */
     a[href="/app/orders"],
     a[href="/app/orders/drafts"],
