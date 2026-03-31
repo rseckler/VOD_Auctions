@@ -4,6 +4,50 @@ Vollständiger Entwicklungs-Changelog. Aktuelle Änderungen stehen in CLAUDE.md.
 
 ---
 
+### 2026-04-07 — Prio 1/2/3 Fix Session: 14 Fixes (Bugs, UX, Visual Polish)
+
+#### Newsletter Confirmation URL Fix (Prio 1.1) — `backend/src/api/store/newsletter/route.ts`
+- **Problem:** `BACKEND_URL` was hardcoded as `process.env.MEDUSA_BACKEND_URL || "http://localhost:9000"`. `MEDUSA_BACKEND_URL` was not set in the backend `.env`, so the confirmation link in newsletter emails pointed to `http://localhost:9000/store/newsletter/confirm?...` instead of `https://api.vod-auctions.com/...`.
+- **Fix:** Changed fallback chain to `process.env.BACKEND_URL ?? process.env.MEDUSA_BACKEND_URL ?? "https://api.vod-auctions.com"`. Add `BACKEND_URL=https://api.vod-auctions.com` to backend `.env` on VPS.
+
+#### Price Ascending Sort Fix (Prio 1.2) — `storefront/src/components/BlockItemsGrid.tsx`
+- **Problem:** `price_asc` / `price_desc` sort was comparing `a.start_price` instead of the live `current_price`. For active lots with bids, the starting price is stale — the current price should be used.
+- **Fix:** Sort now uses `Number(a.current_price) || Number(a.start_price)` — falls back to `start_price` for lots without bids.
+
+#### Country Filter: Text Input → Dropdown (Prio 2.1) — `storefront/src/components/CatalogClient.tsx`
+- Replaced `<Input>` text field with `<select>` dropdown offering 19 common countries + "Other", styled to match existing filter selects (`h-8 rounded-md border border-primary/25 bg-input`).
+
+#### Safari Number Input Spinners Removed (Prio 2.2) — `storefront/src/app/globals.css`
+- Added CSS rules to suppress native spinner arrows on `input[type="number"]` elements in Safari/WebKit and Firefox.
+
+#### Back Button on Catalog Detail Page (Prio 2.3) — `storefront/src/app/catalog/[id]/page.tsx`
+- Added a ghost "← Back" button above the breadcrumb nav using the existing `CatalogBackLink` client component (preserves catalog filter state via sessionStorage). Styled as `variant="ghost" size="sm"` with `ArrowLeft` icon.
+
+#### Footer Restructure (Prio 2.5 + 2.6 + 3.7) — `storefront/src/components/layout/Footer.tsx`
+- **Removed "Navigation" column** (links to Home, Auctions, Catalog, About, Contact).
+- **Added "Contact" column** with mailto link (`shop@vod-records.com`), opening hours (Mon–Fri 10:00–18:00), and "Open in Maps" link (`https://maps.google.com/?q=Eugenstrasse+57,+Friedrichshafen,+Germany`).
+- **Removed Instagram icon** — no URL available; the `<a href="#">` placeholder was removed entirely.
+- Cleaned up unused `Mail` and `Instagram` imports from lucide-react.
+
+#### Format Tags: Overlay → Card Body (Prio 3.3) — `BlockItemsGrid.tsx` + `CatalogClient.tsx`
+- **BlockItemsGrid:** Removed absolute-positioned format overlay (`absolute top-2 right-2`) from both preview-mode and normal-mode cards. Format now appears as a small inline text tag (`text-[9px] uppercase tracking-[1px]`) at the top of the card info section, below the image, with the same color from `FORMAT_COLORS`.
+- **CatalogClient:** Removed the `<Badge>` overlay from the image container. Format now appears as a small inline text span below the image, before the artist/title text.
+
+#### Pulse Animation Toned Down (Prio 3.1) — `storefront/src/app/globals.css`
+- Added custom `@keyframes pulse` override: opacity animates from 1 to **0.6** (was Tailwind default 0.0–1.0 cycle), duration **2s** (was 1s). Less aggressive blinking for "Highest Bid" and countdown indicators.
+
+#### User Avatar: Name Text Removed, Saved Badge Gold (Prio 3.5) — `HeaderAuth.tsx` + `Header.tsx`
+- **HeaderAuth.tsx:** Removed `<span>` with `displayName` text from the dropdown trigger — avatar circle only. Also removed the now-unused `displayName` variable.
+- **Header.tsx:** Changed saved-items count badge from `bg-rose-500 text-white` to `bg-[#d4a54a] text-[#1c1915]` (gold, matching brand primary color).
+
+#### Gallery Quote Text (Prio 3.6) — `storefront/src/app/gallery/page.tsx`
+- Changed closing section link text from "Browse the full catalogue →" to "Explore the archive →".
+
+#### Card Footer Text Readability (Prio 3.4) — `storefront/src/components/BlockItemsGrid.tsx`
+- Increased opacity of low-contrast card footer text from `/40` to `/70` for two elements: "Starting bid" label and view count text.
+
+---
+
 ### 2026-04-06 — Bug-Fix Session: 7 Fixes (Rendering, Bidding, Webhooks, UX)
 
 #### Stripe Webhook: charge.refunded Handler (Backend)

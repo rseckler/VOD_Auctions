@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Disc3, Mail, Instagram, Facebook, CheckCircle } from "lucide-react"
+import { Disc3, Facebook, CheckCircle } from "lucide-react"
 import { useState, type FormEvent } from "react"
 import { toast } from "sonner"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
@@ -77,33 +77,24 @@ export function Footer() {
             </form>
           </div>
 
-          {/* Navigation + Legal columns */}
+          {/* Contact + Gallery + Legal columns */}
           <nav aria-label="Footer navigation" className="flex gap-12 text-sm">
             <div className="flex flex-col gap-2">
-              <p className="text-foreground font-medium">Navigation</p>
-              <Link
-                href="/auctions"
-                className="text-muted-foreground hover:text-primary transition-colors"
-              >
-                Current Auctions
-              </Link>
-              <Link
-                href="/catalog"
-                className="text-muted-foreground hover:text-primary transition-colors"
-              >
-                Catalog
-              </Link>
-              <Link
-                href="/about"
-                className="text-muted-foreground hover:text-primary transition-colors"
-              >
-                About VOD Records
-              </Link>
+              <p className="text-foreground font-medium">Contact</p>
               <a
-                href="mailto:info@vod-records.com"
+                href="mailto:shop@vod-records.com"
                 className="text-muted-foreground hover:text-primary transition-colors"
               >
-                Contact
+                shop@vod-records.com
+              </a>
+              <p className="text-muted-foreground">Mon–Fri 10:00–18:00</p>
+              <a
+                href="https://maps.google.com/?q=Eugenstrasse+57,+Friedrichshafen,+Germany"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-muted-foreground hover:text-primary transition-colors"
+              >
+                Open in Maps
               </a>
             </div>
             <div className="flex flex-col gap-2">
@@ -167,15 +158,6 @@ export function Footer() {
         <div className="border-t border-[rgba(232,224,212,0.08)] mt-8 pt-8 flex flex-col sm:flex-row items-center justify-between gap-6">
           {/* Social media */}
           <div className="flex items-center gap-4">
-            <a
-              href="#"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-muted-foreground hover:text-primary transition-colors"
-              aria-label="Instagram"
-            >
-              <Instagram className="h-4 w-4" />
-            </a>
             <a
               href="https://www.facebook.com/vinylondemandrecords"
               target="_blank"

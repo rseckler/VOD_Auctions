@@ -1,0 +1,1778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VOD Auctions — Gallery Redesign Mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&display=swap" rel="stylesheet">
+<style>
+  /* =========================================================
+     DESIGN TOKENS
+     ========================================================= */
+  :root {
+    --bg: #1c1915;
+    --gold: #d4a54a;
+    --text: #e8e0d4;
+    --muted: rgba(232,224,212,0.5);
+    --card-border: rgba(232,224,212,0.08);
+    --card-bg: rgba(232,224,212,0.03);
+    --sidebar-width: 210px;
+    --radius: 8px;
+  }
+
+  /* =========================================================
+     RESET + BASE
+     ========================================================= */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* =========================================================
+     SIDEBAR
+     ========================================================= */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: var(--sidebar-width);
+    height: 100vh;
+    background: #141210;
+    border-right: 1px solid var(--card-border);
+    overflow-y: auto;
+    z-index: 100;
+    padding: 0 0 24px 0;
+  }
+
+  .sidebar-logo {
+    padding: 20px 16px 16px;
+    border-bottom: 1px solid var(--card-border);
+    margin-bottom: 8px;
+  }
+
+  .sidebar-logo span {
+    font-family: "DM Serif Display", Georgia, serif;
+    color: var(--gold);
+    font-size: 13px;
+    line-height: 1.3;
+    display: block;
+  }
+
+  .sidebar-logo small {
+    color: var(--muted);
+    font-size: 10px;
+    display: block;
+    margin-top: 4px;
+  }
+
+  .sidebar nav { padding: 0 8px; }
+
+  .nav-section {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 16px 8px 6px;
+  }
+
+  .sidebar a {
+    display: block;
+    padding: 6px 8px;
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 12px;
+    border-radius: 4px;
+    transition: all 0.15s;
+    line-height: 1.4;
+  }
+
+  .sidebar a:hover {
+    color: var(--text);
+    background: var(--card-bg);
+  }
+
+  .sidebar a.active {
+    color: var(--gold);
+    background: rgba(212,165,74,0.08);
+  }
+
+  /* =========================================================
+     MAIN CONTENT
+     ========================================================= */
+  .main {
+    margin-left: var(--sidebar-width);
+    flex: 1;
+    padding: 48px 48px 96px;
+    max-width: calc(100vw - var(--sidebar-width));
+  }
+
+  .page-title {
+    font-family: "DM Serif Display", Georgia, serif;
+    font-size: 28px;
+    color: var(--gold);
+    margin-bottom: 8px;
+  }
+
+  .page-subtitle {
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 48px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--card-border);
+  }
+
+  /* =========================================================
+     SECTIONS
+     ========================================================= */
+  .section {
+    margin-bottom: 80px;
+    padding-top: 8px;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+
+  .section-title {
+    font-family: "DM Serif Display", Georgia, serif;
+    font-size: 22px;
+    color: var(--text);
+  }
+
+  .section-desc {
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 32px;
+  }
+
+  .sub-section {
+    margin-bottom: 48px;
+  }
+
+  .sub-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 4px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--card-border);
+    margin-bottom: 16px;
+  }
+
+  .sub-desc {
+    color: var(--muted);
+    font-size: 12px;
+    margin-bottom: 16px;
+  }
+
+  /* =========================================================
+     BADGES
+     ========================================================= */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    flex-shrink: 0;
+  }
+
+  .badge-red {
+    background: rgba(220,50,50,0.15);
+    color: #e57373;
+    border: 1px solid rgba(220,50,50,0.3);
+  }
+
+  .badge-green {
+    background: rgba(50,180,100,0.15);
+    color: #66bb6a;
+    border: 1px solid rgba(50,180,100,0.3);
+  }
+
+  .badge-yellow {
+    background: rgba(220,170,30,0.15);
+    color: #ffca28;
+    border: 1px solid rgba(220,170,30,0.3);
+  }
+
+  .badge-blue {
+    background: rgba(50,120,220,0.15);
+    color: #64b5f6;
+    border: 1px solid rgba(50,120,220,0.3);
+  }
+
+  .badge-gold-small {
+    display: inline-block;
+    background: rgba(212,165,74,0.2);
+    color: var(--gold);
+    border: 1px solid rgba(212,165,74,0.3);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 3px;
+    margin-bottom: 6px;
+  }
+
+  /* =========================================================
+     NOTES / CALLOUTS
+     ========================================================= */
+  .note {
+    display: inline-flex;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    margin-top: 10px;
+  }
+
+  .note-red {
+    background: rgba(220,50,50,0.1);
+    border: 1px solid rgba(220,50,50,0.25);
+    color: #e57373;
+  }
+
+  .note-green {
+    background: rgba(50,180,100,0.08);
+    border: 1px solid rgba(50,180,100,0.2);
+    color: #66bb6a;
+  }
+
+  .note-yellow {
+    background: rgba(220,170,30,0.08);
+    border: 1px solid rgba(220,170,30,0.2);
+    color: #ffca28;
+  }
+
+  /* =========================================================
+     IMAGE PLACEHOLDERS
+     ========================================================= */
+  .img-placeholder {
+    background: linear-gradient(135deg, #2a2418 0%, #3d3020 50%, #2a2418 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius);
+    overflow: hidden;
+    position: relative;
+    width: 100%;
+  }
+
+  .img-placeholder::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image:
+      repeating-linear-gradient(
+        45deg,
+        rgba(212,165,74,0.03) 0px,
+        rgba(212,165,74,0.03) 1px,
+        transparent 1px,
+        transparent 8px
+      );
+  }
+
+  .img-label {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    color: rgba(212,165,74,0.5);
+    font-size: 11px;
+    line-height: 1.5;
+    padding: 8px;
+  }
+
+  .img-label strong {
+    display: block;
+    color: rgba(212,165,74,0.7);
+    font-size: 12px;
+    margin-bottom: 2px;
+  }
+
+  /* =========================================================
+     CARDS — GENERIC
+     ========================================================= */
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  /* =========================================================
+     SECTION 1A — MOSAIC GRID
+     ========================================================= */
+  .mosaic-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: auto auto;
+    gap: 8px;
+  }
+
+  .mosaic-hero {
+    grid-column: span 2;
+    grid-row: span 2;
+    aspect-ratio: 16/10;
+  }
+
+  .mosaic-cell {
+    aspect-ratio: 4/3;
+  }
+
+  /* =========================================================
+     SECTION 1B — OVERLAY CARDS
+     ========================================================= */
+  .overlay-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+
+  .overlay-card {
+    position: relative;
+    border-radius: var(--radius);
+    overflow: hidden;
+    aspect-ratio: 4/3;
+  }
+
+  .overlay-card .img-placeholder {
+    position: absolute;
+    inset: 0;
+    border-radius: 0;
+    height: 100%;
+  }
+
+  .overlay-card .overlay-content {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 20px 16px 16px;
+    background: linear-gradient(to top, rgba(28,25,21,0.95) 0%, rgba(28,25,21,0.6) 60%, transparent 100%);
+    z-index: 2;
+  }
+
+  .overlay-card .overlay-content .card-title {
+    font-family: "DM Serif Display", Georgia, serif;
+    font-size: 16px;
+    color: var(--text);
+    margin-bottom: 4px;
+    line-height: 1.3;
+  }
+
+  .overlay-card .overlay-content .card-desc {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+
+  /* =========================================================
+     SECTION 1C — HORIZONTAL ARCHIVE
+     ========================================================= */
+  .archive-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  .archive-card-horizontal {
+    display: flex;
+    flex-direction: row;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .archive-thumb {
+    width: 192px;
+    height: 192px;
+    flex-shrink: 0;
+  }
+
+  .archive-thumb .img-placeholder {
+    height: 100%;
+    border-radius: 0;
+  }
+
+  .archive-content {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    justify-content: center;
+  }
+
+  .archive-content .card-title {
+    font-family: "DM Serif Display", Georgia, serif;
+    font-size: 15px;
+    color: var(--text);
+    line-height: 1.3;
+  }
+
+  .archive-content .card-desc {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  .archive-link {
+    font-size: 12px;
+    color: var(--gold);
+    text-decoration: none;
+    margin-top: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* =========================================================
+     SECTION 1D — SINGLE / LISTENING ROOM
+     ========================================================= */
+  .listening-room {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+    align-items: center;
+  }
+
+  .listening-text .room-eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 12px;
+  }
+
+  .listening-text h3 {
+    font-family: "DM Serif Display", Georgia, serif;
+    font-size: 24px;
+    color: var(--text);
+    margin-bottom: 12px;
+    line-height: 1.3;
+  }
+
+  .listening-text p {
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.7;
+    margin-bottom: 16px;
+  }
+
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 18px;
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    border-radius: var(--radius);
+    font-size: 13px;
+    text-decoration: none;
+    cursor: pointer;
+    background: transparent;
+    transition: background 0.15s;
+  }
+
+  /* =========================================================
+     SECTION 2 — UNIFORM 3-COL + HERO OPTIONS
+     ========================================================= */
+  .uniform-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    max-width: 1400px;
+  }
+
+  .uniform-cell {
+    aspect-ratio: 4/3;
+    border-radius: var(--radius);
+    overflow: hidden;
+    transition: transform 0.2s;
+    cursor: pointer;
+  }
+
+  .uniform-cell .img-placeholder {
+    border-radius: 0;
+    height: 100%;
+  }
+
+  .uniform-cell:hover {
+    transform: scale(1.02);
+    outline: 1px solid rgba(212,165,74,0.3);
+  }
+
+  .hero-grid {
+    max-width: 1400px;
+  }
+
+  .hero-cell {
+    aspect-ratio: 16/9;
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin-bottom: 8px;
+  }
+
+  .hero-cell .img-placeholder {
+    height: 100%;
+    border-radius: 0;
+  }
+
+  .hero-sub-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
+  .hero-sub-cell {
+    aspect-ratio: 4/3;
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .hero-sub-cell .img-placeholder {
+    height: 100%;
+    border-radius: 0;
+  }
+
+  .listening-room-v2 {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 40px;
+    align-items: center;
+  }
+
+  .listening-img-v2 {
+    aspect-ratio: 3/2;
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .listening-img-v2 .img-placeholder {
+    height: 100%;
+    border-radius: 0;
+  }
+
+  /* =========================================================
+     SECTION 3 — EDITORIAL VERTICAL CARDS
+     ========================================================= */
+  .editorial-grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+
+  .editorial-grid-2 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  .editorial-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .editorial-card .card-img {
+    aspect-ratio: 4/3;
+    overflow: hidden;
+  }
+
+  .editorial-card .card-img .img-placeholder {
+    height: 100%;
+    border-radius: 0;
+  }
+
+  .editorial-card .card-body {
+    padding: 16px;
+  }
+
+  .editorial-card .card-body .card-title {
+    font-family: "DM Serif Display", Georgia, serif;
+    font-size: 16px;
+    color: var(--text);
+    margin: 6px 0 6px;
+    line-height: 1.3;
+  }
+
+  .editorial-card .card-body .card-desc {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  /* Full-width last card in 2-col */
+  .editorial-card.full-width {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .editorial-card.full-width .card-img {
+    aspect-ratio: unset;
+    height: auto;
+    min-height: 200px;
+  }
+
+  /* Archive vertical */
+  .archive-grid-v2 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  .archive-card-vertical {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .archive-card-vertical .card-img {
+    aspect-ratio: 4/3;
+    overflow: hidden;
+  }
+
+  .archive-card-vertical .card-img .img-placeholder {
+    height: 100%;
+    border-radius: 0;
+  }
+
+  .archive-card-vertical .card-body {
+    padding: 16px;
+  }
+
+  .archive-card-vertical .card-body .card-title {
+    font-family: "DM Serif Display", Georgia, serif;
+    font-size: 16px;
+    color: var(--text);
+    margin: 6px 0 6px;
+    line-height: 1.3;
+  }
+
+  .archive-card-vertical .card-body .card-desc {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+    margin-bottom: 10px;
+  }
+
+  /* =========================================================
+     SECTION 4 — EDGE CASES
+     ========================================================= */
+  .compare-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+
+  .compare-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px dashed var(--card-border);
+  }
+
+  .compare-label.bad { color: #e57373; }
+  .compare-label.good { color: #66bb6a; }
+
+  /* Mobile simulation */
+  .mobile-sim {
+    width: 375px;
+    border: 2px solid var(--card-border);
+    border-radius: 16px;
+    overflow: hidden;
+    background: var(--bg);
+  }
+
+  .mobile-sim-header {
+    background: #141210;
+    padding: 8px 16px;
+    font-size: 10px;
+    color: var(--muted);
+    text-align: center;
+    letter-spacing: 0.08em;
+    border-bottom: 1px solid var(--card-border);
+  }
+
+  .mobile-sim-content {
+    padding: 12px;
+    max-height: 520px;
+    overflow-y: auto;
+  }
+
+  .mobile-archive-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+
+  .mobile-archive-card .card-img {
+    aspect-ratio: 4/3;
+    overflow: hidden;
+  }
+
+  .mobile-archive-card .card-img .img-placeholder {
+    height: 100%;
+    border-radius: 0;
+  }
+
+  .mobile-archive-card .card-body {
+    padding: 12px;
+  }
+
+  .mobile-archive-card .card-body .card-title {
+    font-family: "DM Serif Display", Georgia, serif;
+    font-size: 14px;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  .mobile-archive-card .card-body .card-desc {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* Orphan edge case grid */
+  .orphan-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+
+  .orphan-cell {
+    aspect-ratio: 4/3;
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .orphan-cell .img-placeholder {
+    height: 100%;
+    border-radius: 0;
+  }
+
+  .orphan-cell.orphan {
+    outline: 2px dashed rgba(220,50,50,0.5);
+  }
+
+  .no-orphan-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  .no-orphan-cell {
+    aspect-ratio: 4/3;
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .no-orphan-cell .img-placeholder {
+    height: 100%;
+    border-radius: 0;
+  }
+
+  .no-orphan-cell.full-w {
+    grid-column: 1 / -1;
+    aspect-ratio: 16/5;
+  }
+
+  /* Hero comparison mini */
+  .mini-uniform {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+
+  .mini-cell {
+    aspect-ratio: 4/3;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .mini-cell .img-placeholder {
+    height: 100%;
+    border-radius: 0;
+    font-size: 9px;
+  }
+
+  .mini-hero-layout .hero {
+    aspect-ratio: 16/9;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 6px;
+  }
+
+  .mini-hero-layout .hero .img-placeholder {
+    height: 100%;
+    border-radius: 0;
+    font-size: 9px;
+  }
+
+  /* =========================================================
+     SECTION 5 — BEFORE/AFTER
+     ========================================================= */
+  .before-after {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    align-items: start;
+  }
+
+  .ba-panel {
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .ba-panel-header {
+    padding: 10px 16px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--card-border);
+  }
+
+  .ba-panel-header.before {
+    background: rgba(220,50,50,0.08);
+    color: #e57373;
+  }
+
+  .ba-panel-header.after {
+    background: rgba(50,180,100,0.08);
+    color: #66bb6a;
+  }
+
+  .ba-panel-body {
+    padding: 16px;
+    background: var(--card-bg);
+  }
+
+  /* =========================================================
+     DIVIDER
+     ========================================================= */
+  .divider {
+    border: none;
+    border-top: 1px solid var(--card-border);
+    margin: 32px 0;
+  }
+
+  /* =========================================================
+     MISC UTILITIES
+     ========================================================= */
+  .flex-col { display: flex; flex-direction: column; gap: 12px; }
+  .mt-2 { margin-top: 8px; }
+  .mt-3 { margin-top: 12px; }
+  .mt-4 { margin-top: 16px; }
+  .mb-2 { margin-bottom: 8px; }
+  .mb-3 { margin-bottom: 12px; }
+  .mb-4 { margin-bottom: 16px; }
+  .text-muted { color: var(--muted); font-size: 12px; }
+  .text-gold { color: var(--gold); }
+  .font-serif { font-family: "DM Serif Display", Georgia, serif; }
+
+  .orphan-arrow {
+    color: rgba(220,50,50,0.6);
+    font-size: 20px;
+    text-align: center;
+    margin-top: 4px;
+  }
+
+  .size-note {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    padding: 8px 12px;
+    background: rgba(50,120,220,0.06);
+    border: 1px solid rgba(50,120,220,0.15);
+    border-radius: 6px;
+    font-size: 11px;
+    color: #64b5f6;
+  }
+</style>
+</head>
+<body>
+
+<!-- =========================================================
+     SIDEBAR
+     ========================================================= -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <span>VOD Auctions</span>
+    <small>Gallery Redesign Mockups</small>
+  </div>
+  <nav>
+    <div class="nav-section">Sections</div>
+    <a href="#section-1">1 — Current State</a>
+    <a href="#sec-1a">&nbsp;&nbsp;1A Visual Mosaic</a>
+    <a href="#sec-1b">&nbsp;&nbsp;1B Overlay Cards</a>
+    <a href="#sec-1c">&nbsp;&nbsp;1C Horizontal Archive</a>
+    <a href="#sec-1d">&nbsp;&nbsp;1D Listening Room</a>
+
+    <div class="nav-section">New Formats</div>
+    <a href="#section-2">2 — Format 1: Atmosphere</a>
+    <a href="#sec-2a">&nbsp;&nbsp;2A Uniform 3-col</a>
+    <a href="#sec-2b">&nbsp;&nbsp;2B Hero First</a>
+    <a href="#sec-2c">&nbsp;&nbsp;2C Listening Room v2</a>
+    <a href="#section-3">3 — Format 2: Editorial</a>
+    <a href="#sec-3a">&nbsp;&nbsp;3A Collection Vertical</a>
+    <a href="#sec-3b">&nbsp;&nbsp;3B Archive Vertical</a>
+
+    <div class="nav-section">Analysis</div>
+    <a href="#section-4">4 — Edge Cases</a>
+    <a href="#ec-1">&nbsp;&nbsp;EC1: Orphan Card</a>
+    <a href="#ec-2">&nbsp;&nbsp;EC2: Mobile Height</a>
+    <a href="#ec-3">&nbsp;&nbsp;EC3: Hero Decision</a>
+    <a href="#section-5">5 — Before / After</a>
+    <a href="#sec-5b">&nbsp;&nbsp;5B Collection</a>
+    <a href="#sec-5c">&nbsp;&nbsp;5C Archive</a>
+  </nav>
+</aside>
+
+<!-- =========================================================
+     MAIN CONTENT
+     ========================================================= -->
+<main class="main">
+
+  <h1 class="page-title">VOD Auctions — Gallery Redesign Mockups</h1>
+  <p class="page-subtitle">Design review document · 4 current formats → 2 proposed redesigns · All image placeholders are synthetic</p>
+
+  <!-- ===============================================================
+       SECTION 1 — CURRENT STATE
+       =============================================================== -->
+  <section class="section" id="section-1">
+    <div class="section-header">
+      <h2 class="section-title">Section 1 — Current State</h2>
+      <span class="badge badge-red">CURRENT</span>
+    </div>
+    <p class="section-desc">The four layout variants currently used in the gallery. Shown at production dimensions.</p>
+
+    <!-- 1A — MOSAIC -->
+    <div class="sub-section" id="sec-1a">
+      <div class="sub-title">1A — Visual Gallery (Mosaic)</div>
+      <p class="sub-desc">2-col mobile / 3-col desktop. First image: col-span-2 row-span-2 at 16/10. Remaining 5 at 4/3.</p>
+
+      <div class="mosaic-grid">
+        <div class="mosaic-hero img-placeholder">
+          <div class="img-label"><strong>Gallery Photo 1</strong>16/10 · Hero</div>
+        </div>
+        <div class="mosaic-cell img-placeholder">
+          <div class="img-label"><strong>Gallery Photo 2</strong>4/3</div>
+        </div>
+        <div class="mosaic-cell img-placeholder">
+          <div class="img-label"><strong>Gallery Photo 3</strong>4/3</div>
+        </div>
+        <div class="mosaic-cell img-placeholder">
+          <div class="img-label"><strong>Gallery Photo 4</strong>4/3</div>
+        </div>
+        <div class="mosaic-cell img-placeholder">
+          <div class="img-label"><strong>Gallery Photo 5</strong>4/3</div>
+        </div>
+        <div class="mosaic-cell img-placeholder">
+          <div class="img-label"><strong>Gallery Photo 6</strong>4/3</div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- 1B — OVERLAY CARDS -->
+    <div class="sub-section" id="sec-1b">
+      <div class="sub-title">1B — The Collection (Overlay Cards)</div>
+      <p class="sub-desc">3-column grid. Each card: full image background, dark gradient overlay at bottom. Text (gold badge + serif title + desc) sits on gradient.</p>
+
+      <div class="overlay-grid">
+
+        <div class="overlay-card card">
+          <div class="img-placeholder" style="position:absolute;inset:0;height:100%;border-radius:0;"></div>
+          <div class="overlay-content">
+            <span class="badge-gold-small">Industrial</span>
+            <div class="card-title">Industrial Icons</div>
+            <div class="card-desc">Rare first pressings from the founding labels of industrial music.</div>
+          </div>
+        </div>
+
+        <div class="overlay-card card">
+          <div class="img-placeholder" style="position:absolute;inset:0;height:100%;border-radius:0;"></div>
+          <div class="overlay-content">
+            <span class="badge-gold-small">Vinyl</span>
+            <div class="card-title">Rare Pressings</div>
+            <div class="card-desc">Factory originals, test pressings, and coloured variants.</div>
+          </div>
+        </div>
+
+        <div class="overlay-card card">
+          <div class="img-placeholder" style="position:absolute;inset:0;height:100%;border-radius:0;"></div>
+          <div class="overlay-content">
+            <span class="badge-gold-small">Limited</span>
+            <div class="card-title">Limited Editions</div>
+            <div class="card-desc">Numbered editions, box sets, and concert exclusives.</div>
+          </div>
+        </div>
+
+        <div class="overlay-card card">
+          <div class="img-placeholder" style="position:absolute;inset:0;height:100%;border-radius:0;"></div>
+          <div class="overlay-content">
+            <span class="badge-gold-small">Archive</span>
+            <div class="card-title">Archive Series</div>
+            <div class="card-desc">Recovered recordings and archival documentation.</div>
+          </div>
+        </div>
+
+        <div class="overlay-card card">
+          <div class="img-placeholder" style="position:absolute;inset:0;height:100%;border-radius:0;"></div>
+          <div class="overlay-content">
+            <span class="badge-gold-small">Special</span>
+            <div class="card-title">Special Collection</div>
+            <div class="card-desc">Curated thematic selection for the discerning collector.</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- 1C — HORIZONTAL ARCHIVE -->
+    <div class="sub-section" id="sec-1c">
+      <div class="sub-title">1C — From the Archive (Horizontal)</div>
+      <p class="sub-desc">2-column grid. Each card: 192px × 192px thumbnail left, text content right. Badge, serif title, description, link.</p>
+
+      <div class="archive-grid">
+
+        <div class="archive-card-horizontal">
+          <div class="archive-thumb">
+            <div class="img-placeholder" style="height:100%;border-radius:0;">
+              <div class="img-label"><strong>Archive 1</strong>192×192px</div>
+            </div>
+          </div>
+          <div class="archive-content">
+            <span class="badge-gold-small">Throbbing Gristle</span>
+            <div class="card-title">Second Annual Report</div>
+            <p class="card-desc">Original 1977 Industrial Records pressing. One of 785 copies. Near mint condition, original inner sleeve included.</p>
+            <a class="archive-link" href="#">View in Catalog →</a>
+          </div>
+        </div>
+
+        <div class="archive-card-horizontal">
+          <div class="archive-thumb">
+            <div class="img-placeholder" style="height:100%;border-radius:0;">
+              <div class="img-label"><strong>Archive 2</strong>192×192px</div>
+            </div>
+          </div>
+          <div class="archive-content">
+            <span class="badge-gold-small">Einstürzende Neubauten</span>
+            <div class="card-title">Kollaps</div>
+            <p class="card-desc">First West German pressing, ZickZack label, 1981. Gatefold sleeve, original insert. Plays VG+.</p>
+            <a class="archive-link" href="#">View in Catalog →</a>
+          </div>
+        </div>
+
+        <div class="archive-card-horizontal">
+          <div class="archive-thumb">
+            <div class="img-placeholder" style="height:100%;border-radius:0;">
+              <div class="img-label"><strong>Archive 3</strong>192×192px</div>
+            </div>
+          </div>
+          <div class="archive-content">
+            <span class="badge-gold-small">Cabaret Voltaire</span>
+            <div class="card-title">Mix-Up</div>
+            <p class="card-desc">Rough Trade UK first pressing 1979. Factory original with hand-stamped rear sleeve. One of few known surviving copies.</p>
+            <a class="archive-link" href="#">View in Catalog →</a>
+          </div>
+        </div>
+
+        <div class="archive-card-horizontal">
+          <div class="archive-thumb">
+            <div class="img-placeholder" style="height:100%;border-radius:0;">
+              <div class="img-label"><strong>Archive 4</strong>192×192px</div>
+            </div>
+          </div>
+          <div class="archive-content">
+            <span class="badge-gold-small">SPK</span>
+            <div class="card-title">Information Overload Unit</div>
+            <p class="card-desc">Side Effects Australia, 1981. Only Australian pressing of this foundational industrial document.</p>
+            <a class="archive-link" href="#">View in Catalog →</a>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="note note-red mt-3">
+        ⚠️ Thumbnail ist nur 192px — auf Desktop sehr klein. Bei 2-Spalten-Grid auf 1400px Breite entspricht das ~13% der Kartenbreite. Bild wirkt winzig neben dem Textblock.
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- 1D — LISTENING ROOM -->
+    <div class="sub-section" id="sec-1d">
+      <div class="sub-title">1D — Listening Room (Single Feature)</div>
+      <p class="sub-desc">2-column layout: text left, single image right at 4/3.</p>
+
+      <div class="listening-room">
+        <div class="listening-text">
+          <div class="room-eyebrow">Featured Space</div>
+          <h3>The Listening Room</h3>
+          <p>Where every record has a story. Our carefully curated listening space brings together rare pressings, forgotten masterworks, and the documents of a musical underground that changed everything.</p>
+          <p>Browse the full archive of industrial, post-punk, and experimental releases spanning five decades of uncompromising sound.</p>
+          <a href="#" class="btn-ghost">Enter the Archive →</a>
+        </div>
+        <div>
+          <div class="img-placeholder" style="aspect-ratio:4/3;">
+            <div class="img-label"><strong>Featured Image</strong>4/3 · Listening Room</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===============================================================
+       SECTION 2 — FORMAT 1: ATMOSPHERE TILE
+       =============================================================== -->
+  <section class="section" id="section-2">
+    <div class="section-header">
+      <h2 class="section-title">Section 2 — Proposed Format 1: Atmosphere Tile</h2>
+      <span class="badge badge-green">NEW FORMAT 1</span>
+    </div>
+    <p class="section-desc">Full-bleed atmosphere images, consistent aspect ratios, hover zoom. Two options for the Visual Gallery section.</p>
+
+    <!-- 2A — UNIFORM 3-COL -->
+    <div class="sub-section" id="sec-2a">
+      <div class="sub-title">Option A — Uniform 3-Column Grid (No Hero)</div>
+      <p class="sub-desc">All 6 tiles at 4/3. max-width: 1400px. Hover: scale(1.02). No mixed aspect ratios.</p>
+
+      <div class="uniform-grid">
+        <div class="uniform-cell">
+          <div class="img-placeholder" style="height:100%;border-radius:0;">
+            <div class="img-label"><strong>Photo 1</strong>4/3 · hover: scale 1.02</div>
+          </div>
+        </div>
+        <div class="uniform-cell">
+          <div class="img-placeholder" style="height:100%;border-radius:0;">
+            <div class="img-label"><strong>Photo 2</strong>4/3</div>
+          </div>
+        </div>
+        <div class="uniform-cell">
+          <div class="img-placeholder" style="height:100%;border-radius:0;">
+            <div class="img-label"><strong>Photo 3</strong>4/3</div>
+          </div>
+        </div>
+        <div class="uniform-cell">
+          <div class="img-placeholder" style="height:100%;border-radius:0;">
+            <div class="img-label"><strong>Photo 4</strong>4/3</div>
+          </div>
+        </div>
+        <div class="uniform-cell">
+          <div class="img-placeholder" style="height:100%;border-radius:0;">
+            <div class="img-label"><strong>Photo 5</strong>4/3</div>
+          </div>
+        </div>
+        <div class="uniform-cell">
+          <div class="img-placeholder" style="height:100%;border-radius:0;">
+            <div class="img-label"><strong>Photo 6</strong>4/3</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="note note-green mt-3">
+        ✓ Konsistent, kein gemischtes Seitenverhältnis. Alle Bilder gleichwertig, kein erzwungenes Hero-Bild.
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- 2B — HERO FIRST -->
+    <div class="sub-section" id="sec-2b">
+      <div class="sub-title">Option B — With Hero First Image</div>
+      <p class="sub-desc">First image: 16/9 full width. Remaining 5: 3-column grid at 4/3. Hero emphasis preserved for Photo 1.</p>
+
+      <div class="hero-grid">
+        <div class="hero-cell">
+          <div class="img-placeholder" style="height:100%;border-radius:0;">
+            <div class="img-label"><strong>Photo 1 — Hero</strong>16/9 · Full width</div>
+          </div>
+        </div>
+        <div class="hero-sub-grid">
+          <div class="hero-sub-cell">
+            <div class="img-placeholder" style="height:100%;border-radius:0;">
+              <div class="img-label"><strong>Photo 2</strong>4/3</div>
+            </div>
+          </div>
+          <div class="hero-sub-cell">
+            <div class="img-placeholder" style="height:100%;border-radius:0;">
+              <div class="img-label"><strong>Photo 3</strong>4/3</div>
+            </div>
+          </div>
+          <div class="hero-sub-cell">
+            <div class="img-placeholder" style="height:100%;border-radius:0;">
+              <div class="img-label"><strong>Photo 4</strong>4/3</div>
+            </div>
+          </div>
+          <div class="hero-sub-cell">
+            <div class="img-placeholder" style="height:100%;border-radius:0;">
+              <div class="img-label"><strong>Photo 5</strong>4/3</div>
+            </div>
+          </div>
+          <div class="hero-sub-cell">
+            <div class="img-placeholder" style="height:100%;border-radius:0;">
+              <div class="img-label"><strong>Photo 6</strong>4/3</div>
+            </div>
+          </div>
+          <!-- Empty spacer for 3-col grid with 5 items — shows orphan risk if not handled -->
+          <div style="aspect-ratio:4/3;border-radius:var(--radius);background:rgba(232,224,212,0.02);border:1px dashed var(--card-border);display:flex;align-items:center;justify-content:center;">
+            <span style="font-size:11px;color:var(--card-border);">(empty)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="note note-green mt-3">
+        ✓ Beibehaltene Hero-Betonung für Bild #1. Gute Lösung wenn Photo 1 immer editorial ausgewählt wird.
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- 2C — LISTENING ROOM v2 -->
+    <div class="sub-section" id="sec-2c">
+      <div class="sub-title">Format 1 — Listening Room Variant</div>
+      <p class="sub-desc">Asymmetric 2-column layout: 1fr text left, 1.2fr image right. Image at 3/2 (wider than before).</p>
+
+      <div class="listening-room-v2">
+        <div class="listening-text">
+          <div class="room-eyebrow">Featured Space</div>
+          <h3>The Listening Room</h3>
+          <p>Where every record has a story. Our carefully curated listening space brings together rare pressings, forgotten masterworks, and the documents of a musical underground that changed everything.</p>
+          <p>Browse the full archive of industrial, post-punk, and experimental releases spanning five decades of uncompromising sound.</p>
+          <a href="#" class="btn-ghost">Enter the Archive →</a>
+        </div>
+        <div class="listening-img-v2">
+          <div class="img-placeholder" style="height:100%;border-radius:0;">
+            <div class="img-label"><strong>Featured Image</strong>3/2 · 1.2fr column</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="note note-green mt-3">
+        ✓ 1.2fr gibt dem Bild etwas mehr Gewicht. 3/2 statt 4/3 wirkt breiter und filmischer.
+      </div>
+    </div>
+  </section>
+
+  <!-- ===============================================================
+       SECTION 3 — FORMAT 2: EDITORIAL CARD
+       =============================================================== -->
+  <section class="section" id="section-3">
+    <div class="section-header">
+      <h2 class="section-title">Section 3 — Proposed Format 2: Editorial Card</h2>
+      <span class="badge badge-green">NEW FORMAT 2</span>
+    </div>
+    <p class="section-desc">Vertical card layout: image on top (full card width), text block below. Replaces overlay and horizontal-thumbnail approaches.</p>
+
+    <!-- 3A — COLLECTION VERTICAL -->
+    <div class="sub-section" id="sec-3a">
+      <div class="sub-title">3A — The Collection (Vertical Card Layout)</div>
+      <p class="sub-desc">2-col (md) / 3-col (xl) grid. Each card: 4/3 image top + text block bottom. Gold badge + serif title + description.</p>
+      <p class="sub-desc"><strong>Attempt 1:</strong> 5 cards in 3-column grid.</p>
+
+      <div class="editorial-grid-3">
+        <div class="editorial-card">
+          <div class="card-img"><div class="img-placeholder" style="height:100%;border-radius:0;"><div class="img-label"><strong>Photo 1</strong>4/3</div></div></div>
+          <div class="card-body">
+            <span class="badge-gold-small">Industrial</span>
+            <div class="card-title">Industrial Icons</div>
+            <div class="card-desc">Rare first pressings from the founding labels of industrial music.</div>
+          </div>
+        </div>
+        <div class="editorial-card">
+          <div class="card-img"><div class="img-placeholder" style="height:100%;border-radius:0;"><div class="img-label"><strong>Photo 2</strong>4/3</div></div></div>
+          <div class="card-body">
+            <span class="badge-gold-small">Vinyl</span>
+            <div class="card-title">Rare Pressings</div>
+            <div class="card-desc">Factory originals, test pressings, and coloured variants from global labels.</div>
+          </div>
+        </div>
+        <div class="editorial-card">
+          <div class="card-img"><div class="img-placeholder" style="height:100%;border-radius:0;"><div class="img-label"><strong>Photo 3</strong>4/3</div></div></div>
+          <div class="card-body">
+            <span class="badge-gold-small">Limited</span>
+            <div class="card-title">Limited Editions</div>
+            <div class="card-desc">Numbered editions, box sets, and concert exclusives.</div>
+          </div>
+        </div>
+        <div class="editorial-card">
+          <div class="card-img"><div class="img-placeholder" style="height:100%;border-radius:0;"><div class="img-label"><strong>Photo 4</strong>4/3</div></div></div>
+          <div class="card-body">
+            <span class="badge-gold-small">Archive</span>
+            <div class="card-title">Archive Series</div>
+            <div class="card-desc">Recovered recordings and archival documentation from private collections.</div>
+          </div>
+        </div>
+        <!-- 5th card: orphan in 3-col -->
+        <div class="editorial-card" style="outline:2px dashed rgba(220,50,50,0.5);">
+          <div class="card-img"><div class="img-placeholder" style="height:100%;border-radius:0;background:linear-gradient(135deg,#2a1818,#3d2020,#2a1818);"><div class="img-label" style="color:rgba(220,100,100,0.5);"><strong style="color:rgba(220,100,100,0.7);">Photo 5 — Orphan</strong>4/3 · Left-aligned</div></div></div>
+          <div class="card-body">
+            <span class="badge-gold-small" style="background:rgba(220,50,50,0.1);color:#e57373;border-color:rgba(220,50,50,0.3);">Problem</span>
+            <div class="card-title">Special Collection</div>
+            <div class="card-desc">Curated thematic selection — but this card is a visual orphan in 3-col.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="note note-yellow mt-3">
+        ⚠️ Edge Case: 5 Cards in 3-Spalten → Waise. Letzte Karte hängt links-unten ohne Partner. Wirkt unvollständig.
+      </div>
+
+      <hr class="divider">
+
+      <p class="sub-desc mb-4"><strong>Alternative:</strong> 5 cards in 2-column grid — last card full-width.</p>
+
+      <div class="editorial-grid-2">
+        <div class="editorial-card">
+          <div class="card-img"><div class="img-placeholder" style="height:100%;border-radius:0;"><div class="img-label"><strong>Photo 1</strong>4/3</div></div></div>
+          <div class="card-body">
+            <span class="badge-gold-small">Industrial</span>
+            <div class="card-title">Industrial Icons</div>
+            <div class="card-desc">Rare first pressings from the founding labels of industrial music.</div>
+          </div>
+        </div>
+        <div class="editorial-card">
+          <div class="card-img"><div class="img-placeholder" style="height:100%;border-radius:0;"><div class="img-label"><strong>Photo 2</strong>4/3</div></div></div>
+          <div class="card-body">
+            <span class="badge-gold-small">Vinyl</span>
+            <div class="card-title">Rare Pressings</div>
+            <div class="card-desc">Factory originals, test pressings, and coloured variants.</div>
+          </div>
+        </div>
+        <div class="editorial-card">
+          <div class="card-img"><div class="img-placeholder" style="height:100%;border-radius:0;"><div class="img-label"><strong>Photo 3</strong>4/3</div></div></div>
+          <div class="card-body">
+            <span class="badge-gold-small">Limited</span>
+            <div class="card-title">Limited Editions</div>
+            <div class="card-desc">Numbered editions, box sets, and concert exclusives.</div>
+          </div>
+        </div>
+        <div class="editorial-card">
+          <div class="card-img"><div class="img-placeholder" style="height:100%;border-radius:0;"><div class="img-label"><strong>Photo 4</strong>4/3</div></div></div>
+          <div class="card-body">
+            <span class="badge-gold-small">Archive</span>
+            <div class="card-title">Archive Series</div>
+            <div class="card-desc">Recovered recordings and archival documentation from private collections.</div>
+          </div>
+        </div>
+        <!-- Last card: full width -->
+        <div class="editorial-card full-width">
+          <div class="card-img" style="min-height:220px;">
+            <div class="img-placeholder" style="height:100%;border-radius:0;">
+              <div class="img-label"><strong>Photo 5 — Full Width</strong>2-col span · no orphan</div>
+            </div>
+          </div>
+          <div class="card-body" style="display:flex;flex-direction:column;justify-content:center;">
+            <span class="badge-gold-small">Special</span>
+            <div class="card-title">Special Collection</div>
+            <div class="card-desc">Curated thematic selection for the discerning collector. The full-width treatment gives this card editorial emphasis and solves the orphan problem.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="note note-green mt-3">
+        ✓ Alternative: 2 Spalten, letztes Element full-width. Kein Waise, letztes Element bekommt sogar editoriales Gewicht.
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- 3B — ARCHIVE VERTICAL -->
+    <div class="sub-section" id="sec-3b">
+      <div class="sub-title">3B — From the Archive (Vertical Card Layout)</div>
+      <p class="sub-desc">2-column grid. Each card: full-width image on top (4/3), text block below. Replaces the 192px horizontal thumbnail.</p>
+
+      <div class="archive-grid-v2">
+
+        <div class="archive-card-vertical">
+          <div class="card-img"><div class="img-placeholder" style="height:100%;border-radius:0;"><div class="img-label"><strong>Archive Photo 1</strong>4/3 · ~580px wide</div></div></div>
+          <div class="card-body">
+            <span class="badge-gold-small">Throbbing Gristle</span>
+            <div class="card-title">Second Annual Report</div>
+            <div class="card-desc">Original 1977 Industrial Records pressing. One of 785 copies. Near mint condition, original inner sleeve included.</div>
+            <a class="archive-link" href="#">View in Catalog →</a>
+          </div>
+        </div>
+
+        <div class="archive-card-vertical">
+          <div class="card-img"><div class="img-placeholder" style="height:100%;border-radius:0;"><div class="img-label"><strong>Archive Photo 2</strong>4/3 · ~580px wide</div></div></div>
+          <div class="card-body">
+            <span class="badge-gold-small">Einstürzende Neubauten</span>
+            <div class="card-title">Kollaps</div>
+            <div class="card-desc">First West German pressing, ZickZack label, 1981. Gatefold sleeve, original insert. Plays VG+.</div>
+            <a class="archive-link" href="#">View in Catalog →</a>
+          </div>
+        </div>
+
+        <div class="archive-card-vertical">
+          <div class="card-img"><div class="img-placeholder" style="height:100%;border-radius:0;"><div class="img-label"><strong>Archive Photo 3</strong>4/3 · ~580px wide</div></div></div>
+          <div class="card-body">
+            <span class="badge-gold-small">Cabaret Voltaire</span>
+            <div class="card-title">Mix-Up</div>
+            <div class="card-desc">Rough Trade UK first pressing 1979. Factory original with hand-stamped rear sleeve.</div>
+            <a class="archive-link" href="#">View in Catalog →</a>
+          </div>
+        </div>
+
+        <div class="archive-card-vertical">
+          <div class="card-img"><div class="img-placeholder" style="height:100%;border-radius:0;"><div class="img-label"><strong>Archive Photo 4</strong>4/3 · ~580px wide</div></div></div>
+          <div class="card-body">
+            <span class="badge-gold-small">SPK</span>
+            <div class="card-title">Information Overload Unit</div>
+            <div class="card-desc">Side Effects Australia, 1981. Only Australian pressing of this foundational industrial document.</div>
+            <a class="archive-link" href="#">View in Catalog →</a>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="size-note mt-3">
+        ✓ Bild jetzt ~580px statt 192px — ca. 3× größer. Produkt-Cover wird klar erkennbar und wirkungsvoll präsentiert.
+      </div>
+    </div>
+  </section>
+
+  <!-- ===============================================================
+       SECTION 4 — EDGE CASES
+       =============================================================== -->
+  <section class="section" id="section-4">
+    <div class="section-header">
+      <h2 class="section-title">Section 4 — Edge Cases &amp; Risiken</h2>
+      <span class="badge badge-yellow">⚠️ EDGE CASES</span>
+    </div>
+    <p class="section-desc">Potential layout problems to address before implementation.</p>
+
+    <!-- EC1 — ORPHAN CARD -->
+    <div class="sub-section" id="ec-1">
+      <div class="sub-title">Edge Case 1 — 5 Cards in 3-Spalten-Grid (Orphan)</div>
+      <p class="sub-desc">Comparing the orphan problem in 3-col vs. the 2-col full-width solution.</p>
+
+      <div class="compare-grid">
+        <div>
+          <div class="compare-label bad">❌ Problem: 5 Cards in 3-Spalten → Orphan</div>
+          <div class="orphan-grid">
+            <div class="orphan-cell"><div class="img-placeholder" style="height:100%;border-radius:0;"><div class="img-label"><strong>Card 1</strong></div></div></div>
+            <div class="orphan-cell"><div class="img-placeholder" style="height:100%;border-radius:0;"><div class="img-label"><strong>Card 2</strong></div></div></div>
+            <div class="orphan-cell"><div class="img-placeholder" style="height:100%;border-radius:0;"><div class="img-label"><strong>Card 3</strong></div></div></div>
+            <div class="orphan-cell orphan" style="outline:2px dashed rgba(220,50,50,0.5);">
+              <div class="img-placeholder" style="height:100%;border-radius:0;background:linear-gradient(135deg,#2a1818,#3d2020,#2a1818);">
+                <div class="img-label" style="color:rgba(220,100,100,0.6);"><strong style="color:rgba(220,100,100,0.8);">Card 4</strong>Orphan ←</div>
+              </div>
+            </div>
+            <div class="orphan-cell orphan" style="outline:2px dashed rgba(220,50,50,0.5);">
+              <div class="img-placeholder" style="height:100%;border-radius:0;background:linear-gradient(135deg,#2a1818,#3d2020,#2a1818);">
+                <div class="img-label" style="color:rgba(220,100,100,0.6);"><strong style="color:rgba(220,100,100,0.8);">Card 5</strong>Orphan →</div>
+              </div>
+            </div>
+          </div>
+          <div class="note note-red mt-2">Cards 4+5 hängen in Row 2 links, rechts bleibt eine leere Zelle sichtbar.</div>
+        </div>
+
+        <div>
+          <div class="compare-label good">✓ Lösung: 2-Spalten, Card 5 = Full-Width</div>
+          <div class="no-orphan-grid">
+            <div class="no-orphan-cell"><div class="img-placeholder" style="height:100%;border-radius:0;"><div class="img-label"><strong>Card 1</strong></div></div></div>
+            <div class="no-orphan-cell"><div class="img-placeholder" style="height:100%;border-radius:0;"><div class="img-label"><strong>Card 2</strong></div></div></div>
+            <div class="no-orphan-cell"><div class="img-placeholder" style="height:100%;border-radius:0;"><div class="img-label"><strong>Card 3</strong></div></div></div>
+            <div class="no-orphan-cell"><div class="img-placeholder" style="height:100%;border-radius:0;"><div class="img-label"><strong>Card 4</strong></div></div></div>
+            <div class="no-orphan-cell full-w"><div class="img-placeholder" style="height:100%;border-radius:0;"><div class="img-label"><strong>Card 5 — Full Width (grid-column: 1/-1)</strong>Editorial emphasis, no orphan</div></div></div>
+          </div>
+          <div class="note note-green mt-2">Sauberes Layout. Card 5 bekommt mehr Fläche statt weniger.</div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- EC2 — MOBILE HEIGHT -->
+    <div class="sub-section" id="ec-2">
+      <div class="sub-title">Edge Case 2 — Mobile: Archive Karten (375px)</div>
+      <p class="sub-desc">Vertikale Karten werden auf Mobile sehr hoch. Simulation bei 375px Breite.</p>
+
+      <div style="display:flex;gap:32px;align-items:flex-start;flex-wrap:wrap;">
+        <div>
+          <p class="text-muted mb-3">Simulated 375px viewport — 2 Archive cards stacked:</p>
+          <div class="mobile-sim">
+            <div class="mobile-sim-header">iPhone 14 · 375px · Archive Section</div>
+            <div class="mobile-sim-content">
+              <div class="mobile-archive-card">
+                <div class="card-img">
+                  <div class="img-placeholder" style="height:100%;border-radius:0;">
+                    <div class="img-label"><strong>Archive Photo 1</strong>4/3 of 351px ≈ 263px tall</div>
+                  </div>
+                </div>
+                <div class="card-body">
+                  <span class="badge-gold-small">Throbbing Gristle</span>
+                  <div class="card-title">Second Annual Report</div>
+                  <div class="card-desc">Original 1977 Industrial Records pressing. One of 785 copies. Near mint.</div>
+                  <a class="archive-link" href="#" style="font-size:11px;">View in Catalog →</a>
+                </div>
+              </div>
+              <div class="mobile-archive-card">
+                <div class="card-img">
+                  <div class="img-placeholder" style="height:100%;border-radius:0;">
+                    <div class="img-label"><strong>Archive Photo 2</strong>4/3 of 351px ≈ 263px tall</div>
+                  </div>
+                </div>
+                <div class="card-body">
+                  <span class="badge-gold-small">Einstürzende Neubauten</span>
+                  <div class="card-title">Kollaps</div>
+                  <div class="card-desc">First West German pressing, 1981. Gatefold sleeve with original insert.</div>
+                  <a class="archive-link" href="#" style="font-size:11px;">View in Catalog →</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="max-width:380px;">
+          <p class="text-muted mb-3">Analyse:</p>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <div class="note note-yellow">
+              Karten werden auf Mobile sehr lang — bei 4/3 auf 375px Breite ist das Bild ~263px hoch. 2 Karten = ~700px scroll nur für Bilder + Text.
+            </div>
+            <div class="note note-green">
+              ✓ Prüfen ob auf Mobile 16/9 statt 4/3 gewählt werden sollte (gleiche Breite, weniger Höhe). Alternativ: single-column mit kleinerer Thumbnail-Zeile.
+            </div>
+            <div class="note note-green">
+              ✓ Grundsätzlich besser als die 192px-Horizontal-Karten die auf Mobile gar nicht funktionieren.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- EC3 — HERO DECISION -->
+    <div class="sub-section" id="ec-3">
+      <div class="sub-title">Edge Case 3 — Hero-Bild Entscheidung (Visual Gallery)</div>
+      <p class="sub-desc">Side-by-side: Uniform 3-col ohne Hero vs. 16/9 Hero + 5 uniform tiles.</p>
+
+      <div class="compare-grid">
+        <div>
+          <div class="compare-label" style="color:var(--muted);">Ohne Hero — Alle gleich</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;">
+            <div class="mini-cell"><div class="img-placeholder" style="height:100%;border-radius:4px;"><div class="img-label"><strong>1</strong>4/3</div></div></div>
+            <div class="mini-cell"><div class="img-placeholder" style="height:100%;border-radius:4px;"><div class="img-label"><strong>2</strong>4/3</div></div></div>
+            <div class="mini-cell"><div class="img-placeholder" style="height:100%;border-radius:4px;"><div class="img-label"><strong>3</strong>4/3</div></div></div>
+            <div class="mini-cell"><div class="img-placeholder" style="height:100%;border-radius:4px;"><div class="img-label"><strong>4</strong>4/3</div></div></div>
+            <div class="mini-cell"><div class="img-placeholder" style="height:100%;border-radius:4px;"><div class="img-label"><strong>5</strong>4/3</div></div></div>
+            <div class="mini-cell"><div class="img-placeholder" style="height:100%;border-radius:4px;"><div class="img-label"><strong>6</strong>4/3</div></div></div>
+          </div>
+          <div class="note note-green mt-2">✓ Konsistent, gleichmäßige Wirkung. Kein Bias zu Photo 1.</div>
+        </div>
+
+        <div>
+          <div class="compare-label" style="color:var(--muted);">Mit Hero — Photo 1 dominant</div>
+          <div class="mini-hero-layout">
+            <div class="hero">
+              <div class="img-placeholder" style="height:100%;border-radius:4px;">
+                <div class="img-label"><strong>1 — Hero</strong>16/9 · Full width</div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;">
+              <div class="mini-cell"><div class="img-placeholder" style="height:100%;border-radius:4px;"><div class="img-label"><strong>2</strong>4/3</div></div></div>
+              <div class="mini-cell"><div class="img-placeholder" style="height:100%;border-radius:4px;"><div class="img-label"><strong>3</strong>4/3</div></div></div>
+              <div class="mini-cell"><div class="img-placeholder" style="height:100%;border-radius:4px;"><div class="img-label"><strong>4</strong>4/3</div></div></div>
+              <div class="mini-cell"><div class="img-placeholder" style="height:100%;border-radius:4px;"><div class="img-label"><strong>5</strong>4/3</div></div></div>
+              <div class="mini-cell"><div class="img-placeholder" style="height:100%;border-radius:4px;"><div class="img-label"><strong>6</strong>4/3</div></div></div>
+              <div style="aspect-ratio:4/3;border-radius:4px;background:rgba(232,224,212,0.01);border:1px dashed var(--card-border);display:flex;align-items:center;justify-content:center;">
+                <span style="font-size:9px;color:rgba(232,224,212,0.15);">empty</span>
+              </div>
+            </div>
+          </div>
+          <div class="note note-yellow mt-2">⚠️ 5 Tiles nach Hero → 3-col → Waise. Benötigt spezielles Handling für die leere 6. Zelle.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===============================================================
+       SECTION 5 — BEFORE / AFTER
+       =============================================================== -->
+  <section class="section" id="section-5">
+    <div class="section-header">
+      <h2 class="section-title">Section 5 — Side-by-Side Comparison</h2>
+      <span class="badge badge-blue">COMPARISON</span>
+    </div>
+    <p class="section-desc">Direct before/after for each affected format. Left = current, Right = proposed.</p>
+
+    <!-- 5B — COLLECTION -->
+    <div class="sub-section" id="sec-5b">
+      <div class="sub-title">B — The Collection: Overlay Cards → Vertical Editorial Cards</div>
+
+      <div class="before-after">
+        <div class="ba-panel">
+          <div class="ba-panel-header before">Before — Overlay Cards (Current 1B)</div>
+          <div class="ba-panel-body">
+            <p class="text-muted mb-3" style="font-size:11px;">3-col grid, text overlaid on dark gradient over image</p>
+            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;">
+              <div style="position:relative;border-radius:6px;overflow:hidden;aspect-ratio:4/3;">
+                <div class="img-placeholder" style="position:absolute;inset:0;height:100%;border-radius:0;"></div>
+                <div style="position:absolute;bottom:0;left:0;right:0;padding:12px;background:linear-gradient(to top,rgba(28,25,21,0.95),transparent);z-index:2;">
+                  <div style="font-size:8px;color:var(--gold);font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:3px;">Industrial</div>
+                  <div style="font-family:'DM Serif Display',Georgia,serif;font-size:13px;color:var(--text);">Industrial Icons</div>
+                  <div style="font-size:10px;color:var(--muted);margin-top:2px;">Rare first pressings from the founding labels.</div>
+                </div>
+              </div>
+              <div style="position:relative;border-radius:6px;overflow:hidden;aspect-ratio:4/3;">
+                <div class="img-placeholder" style="position:absolute;inset:0;height:100%;border-radius:0;"></div>
+                <div style="position:absolute;bottom:0;left:0;right:0;padding:12px;background:linear-gradient(to top,rgba(28,25,21,0.95),transparent);z-index:2;">
+                  <div style="font-size:8px;color:var(--gold);font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:3px;">Vinyl</div>
+                  <div style="font-family:'DM Serif Display',Georgia,serif;font-size:13px;color:var(--text);">Rare Pressings</div>
+                  <div style="font-size:10px;color:var(--muted);margin-top:2px;">Factory originals and coloured variants.</div>
+                </div>
+              </div>
+            </div>
+            <div class="note note-red mt-3" style="font-size:11px;">Text lesbar nur wenn Bild dunkel genug. Helle Bilder → Kontrast-Problem. Kein Platz für längere Beschreibungen.</div>
+          </div>
+        </div>
+
+        <div class="ba-panel">
+          <div class="ba-panel-header after">After — Vertical Editorial Cards (New Format 2)</div>
+          <div class="ba-panel-body">
+            <p class="text-muted mb-3" style="font-size:11px;">2-col grid, image top + dedicated text area below</p>
+            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;">
+              <div style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:6px;overflow:hidden;">
+                <div style="aspect-ratio:4/3;overflow:hidden;"><div class="img-placeholder" style="height:100%;border-radius:0;"><div class="img-label"><strong>Photo 1</strong></div></div></div>
+                <div style="padding:12px;">
+                  <div style="font-size:8px;color:var(--gold);font-weight:700;letter-spacing:0.1em;text-transform:uppercase;background:rgba(212,165,74,0.1);border:1px solid rgba(212,165,74,0.2);padding:2px 6px;border-radius:3px;display:inline-block;margin-bottom:5px;">Industrial</div>
+                  <div style="font-family:'DM Serif Display',Georgia,serif;font-size:14px;color:var(--text);margin-bottom:4px;">Industrial Icons</div>
+                  <div style="font-size:11px;color:var(--muted);">Rare first pressings from the founding labels of industrial music.</div>
+                </div>
+              </div>
+              <div style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:6px;overflow:hidden;">
+                <div style="aspect-ratio:4/3;overflow:hidden;"><div class="img-placeholder" style="height:100%;border-radius:0;"><div class="img-label"><strong>Photo 2</strong></div></div></div>
+                <div style="padding:12px;">
+                  <div style="font-size:8px;color:var(--gold);font-weight:700;letter-spacing:0.1em;text-transform:uppercase;background:rgba(212,165,74,0.1);border:1px solid rgba(212,165,74,0.2);padding:2px 6px;border-radius:3px;display:inline-block;margin-bottom:5px;">Vinyl</div>
+                  <div style="font-family:'DM Serif Display',Georgia,serif;font-size:14px;color:var(--text);margin-bottom:4px;">Rare Pressings</div>
+                  <div style="font-size:11px;color:var(--muted);">Factory originals, test pressings, and coloured variants from global labels.</div>
+                </div>
+              </div>
+            </div>
+            <div class="note note-green mt-3" style="font-size:11px;">✓ Kontrast immer garantiert — Text ist nie über Bild. Mehr Platz für Beschreibung. Klare Hierarchie.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- 5C — ARCHIVE -->
+    <div class="sub-section" id="sec-5c">
+      <div class="sub-title">C — From the Archive: Horizontal Thumbnail → Vertical Large Image</div>
+
+      <div class="before-after">
+        <div class="ba-panel">
+          <div class="ba-panel-header before">Before — Horizontal Thumbnail (Current 1C)</div>
+          <div class="ba-panel-body">
+            <p class="text-muted mb-3" style="font-size:11px;">192×192px thumbnail left, text right. Fixed height card.</p>
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              <div style="display:flex;border:1px solid var(--card-border);border-radius:6px;overflow:hidden;background:var(--card-bg);">
+                <div style="width:120px;height:120px;flex-shrink:0;">
+                  <div class="img-placeholder" style="height:100%;border-radius:0;">
+                    <div class="img-label" style="font-size:9px;"><strong style="font-size:10px;">Photo 1</strong>192px</div>
+                  </div>
+                </div>
+                <div style="padding:12px;">
+                  <div style="font-size:8px;color:var(--gold);font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:4px;">Throbbing Gristle</div>
+                  <div style="font-family:'DM Serif Display',Georgia,serif;font-size:13px;color:var(--text);margin-bottom:4px;">Second Annual Report</div>
+                  <div style="font-size:11px;color:var(--muted);">1977 pressing. One of 785 copies.</div>
+                  <a style="font-size:11px;color:var(--gold);margin-top:6px;display:block;">View →</a>
+                </div>
+              </div>
+              <div style="display:flex;border:1px solid var(--card-border);border-radius:6px;overflow:hidden;background:var(--card-bg);">
+                <div style="width:120px;height:120px;flex-shrink:0;">
+                  <div class="img-placeholder" style="height:100%;border-radius:0;">
+                    <div class="img-label" style="font-size:9px;"><strong style="font-size:10px;">Photo 2</strong>192px</div>
+                  </div>
+                </div>
+                <div style="padding:12px;">
+                  <div style="font-size:8px;color:var(--gold);font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:4px;">Einstürzende Neubauten</div>
+                  <div style="font-family:'DM Serif Display',Georgia,serif;font-size:13px;color:var(--text);margin-bottom:4px;">Kollaps</div>
+                  <div style="font-size:11px;color:var(--muted);">ZickZack, 1981. Gatefold, VG+.</div>
+                  <a style="font-size:11px;color:var(--gold);margin-top:6px;display:block;">View →</a>
+                </div>
+              </div>
+            </div>
+            <div class="note note-red mt-3" style="font-size:11px;">Thumbnail nur 192px — auf Desktop sehr klein. Bild dient kaum als visueller Anchor. Albumcover nicht erkennbar.</div>
+          </div>
+        </div>
+
+        <div class="ba-panel">
+          <div class="ba-panel-header after">After — Vertical Large Image (New Format 2)</div>
+          <div class="ba-panel-body">
+            <p class="text-muted mb-3" style="font-size:11px;">Full card-width image (4/3) on top, text block below. ~580px image width.</p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <div style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:6px;overflow:hidden;">
+                <div style="aspect-ratio:4/3;overflow:hidden;"><div class="img-placeholder" style="height:100%;border-radius:0;"><div class="img-label" style="font-size:9px;"><strong style="font-size:10px;">Photo 1</strong>~290px wide</div></div></div>
+                <div style="padding:10px;">
+                  <div style="font-size:8px;color:var(--gold);font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:3px;">Throbbing Gristle</div>
+                  <div style="font-family:'DM Serif Display',Georgia,serif;font-size:13px;color:var(--text);margin-bottom:3px;">Second Annual Report</div>
+                  <div style="font-size:10px;color:var(--muted);margin-bottom:6px;">1977 pressing. One of 785 copies.</div>
+                  <a style="font-size:10px;color:var(--gold);">View →</a>
+                </div>
+              </div>
+              <div style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:6px;overflow:hidden;">
+                <div style="aspect-ratio:4/3;overflow:hidden;"><div class="img-placeholder" style="height:100%;border-radius:0;"><div class="img-label" style="font-size:9px;"><strong style="font-size:10px;">Photo 2</strong>~290px wide</div></div></div>
+                <div style="padding:10px;">
+                  <div style="font-size:8px;color:var(--gold);font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:3px;">Einstürzende Neubauten</div>
+                  <div style="font-family:'DM Serif Display',Georgia,serif;font-size:13px;color:var(--text);margin-bottom:3px;">Kollaps</div>
+                  <div style="font-size:10px;color:var(--muted);margin-bottom:6px;">ZickZack, 1981. Gatefold, VG+.</div>
+                  <a style="font-size:10px;color:var(--gold);">View →</a>
+                </div>
+              </div>
+            </div>
+            <div class="note note-green mt-3" style="font-size:11px;">✓ Albumcover ist das erste was der Nutzer sieht. Deutlich mehr Impact. Bild ~3× größer als vorher.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- Footer -->
+  <div style="padding:32px 0 16px;border-top:1px solid var(--card-border);margin-top:32px;">
+    <p style="color:var(--muted);font-size:12px;">VOD Auctions · Gallery Redesign Mockups · Design Review Document · robin@vod-records.com</p>
+  </div>
+
+</main>
+
+</body>
+</html>

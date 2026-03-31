@@ -4,7 +4,7 @@ import { sendEmail } from "../../../lib/email"
 import { newsletterConfirmEmail } from "../../../emails/newsletter-confirm"
 
 const STOREFRONT_URL = process.env.STOREFRONT_URL || "http://localhost:3000"
-const BACKEND_URL = process.env.MEDUSA_BACKEND_URL || "http://localhost:9000"
+const BACKEND_URL = process.env.BACKEND_URL ?? process.env.MEDUSA_BACKEND_URL ?? "https://api.vod-auctions.com"
 
 /**
  * Generate a daily HMAC token for newsletter double opt-in.

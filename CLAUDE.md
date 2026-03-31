@@ -328,6 +328,20 @@ VOD_Auctions/
 
 ## Recent Changes
 
+### 2026-04-07 — Prio 1/2/3 Fix Session: 14 Fixes (Bugs, UX, Visual Polish)
+
+- **Newsletter URL fix:** `newsletter/route.ts` — confirmation link used `localhost:9000` in production; now uses `BACKEND_URL ?? MEDUSA_BACKEND_URL ?? "https://api.vod-auctions.com"`
+- **BlockItemsGrid price sort:** "Price ↑" was sorting by `start_price`; now sorts by `current_price || start_price` (correct live auction price)
+- **Catalog country filter:** Changed text input to `<select>` dropdown with 19 countries + "Other"
+- **Safari number spinners:** Added CSS to remove native spinner arrows on number inputs (`-webkit-appearance: none`, `-moz-appearance: textfield`)
+- **Back button on catalog detail:** Added "← Back" button above breadcrumb using existing `CatalogBackLink` client component
+- **Footer:** Removed "Navigation" column; added "Contact" section (shop@vod-records.com, Mon–Fri hours, Open in Maps); removed Instagram icon
+- **Format tags moved:** Removed absolute-positioned image overlay badges in BlockItemsGrid + CatalogClient; format now appears as inline text tag below the image in the card body
+- **Pulse animation toned down:** Custom `@keyframes pulse` in globals.css — opacity 1→0.6 (was 1→0.1), duration 2s (was 1s)
+- **User avatar:** Removed name text from HeaderAuth dropdown trigger (avatar circle only); saved-count badge changed from rose-500 to gold (`#d4a54a`)
+- **Gallery quote:** "Browse the full catalogue →" → "Explore the archive →"
+- **Card text readability:** Increased low-opacity card footer text from `/40` to `/70`
+
 ### 2026-04-06 — Bug-Fix Session: 7 Fixes (Rendering, Bidding, Webhooks, UX)
 
 #### Stripe Webhook: charge.refunded Handler

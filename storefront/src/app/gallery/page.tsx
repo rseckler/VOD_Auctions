@@ -331,21 +331,32 @@ export default async function GalleryPage() {
 
       {/* ── Section 3: Visual Gallery ── */}
       <section className="pb-20 md:pb-28">
-        <div className="mx-auto max-w-6xl px-6">
+        <div className="mx-auto max-w-7xl px-6">
+          {/* Hero image — full width */}
+          {galleryImages[0] && (
+            <div className="relative overflow-hidden rounded-lg group aspect-[16/9] mb-3 md:mb-4">
+              <Image
+                src={galleryImages[0].url}
+                alt={galleryImages[0].alt_text}
+                fill
+                className="object-cover transition-transform duration-500 group-hover:scale-[1.02]"
+                sizes="100vw"
+              />
+            </div>
+          )}
+          {/* Remaining 5 tiles — uniform 3-column grid */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
-            {galleryImages.map((img, i) => (
+            {galleryImages.slice(1).map((img) => (
               <div
                 key={img.id}
-                className={`relative overflow-hidden rounded-lg group ${
-                  i === 0 ? "col-span-2 row-span-2 aspect-[16/10]" : "aspect-[4/3]"
-                }`}
+                className="relative overflow-hidden rounded-lg group aspect-[4/3]"
               >
                 <Image
                   src={img.url}
                   alt={img.alt_text}
                   fill
-                  className="object-cover transition-transform duration-700 group-hover:scale-[1.03]"
-                  sizes={i === 0 ? "(max-width: 768px) 100vw, 66vw" : "(max-width: 768px) 50vw, 33vw"}
+                  className="object-cover transition-transform duration-500 group-hover:scale-[1.02]"
+                  sizes="(max-width: 768px) 50vw, (max-width: 1400px) 33vw, 480px"
                 />
               </div>
             ))}
@@ -363,21 +374,32 @@ export default async function GalleryPage() {
             Five categories spanning the full material culture of industrial and
             experimental music — from sound carriers to one-of-a-kind artefacts.
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {collectionItems.map((cat) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {collectionItems.map((cat, i) => (
               <div
                 key={cat.id}
-                className="group relative overflow-hidden rounded-lg aspect-[4/3] cursor-default"
+                className={`group rounded-lg overflow-hidden border border-[rgba(232,224,212,0.08)] cursor-default${
+                  i === collectionItems.length - 1 && collectionItems.length % 2 !== 0
+                    ? " md:col-span-2"
+                    : ""
+                }`}
               >
-                <Image
-                  src={cat.url}
-                  alt={cat.alt_text}
-                  fill
-                  className="object-cover transition-transform duration-700 group-hover:scale-[1.03]"
-                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#1c1915]/90 via-[#1c1915]/30 to-transparent" />
-                <div className="absolute bottom-0 left-0 right-0 p-5">
+                {/* Image on top */}
+                <div className={`relative overflow-hidden${
+                  i === collectionItems.length - 1 && collectionItems.length % 2 !== 0
+                    ? " aspect-[5/2]"
+                    : " aspect-[5/4]"
+                }`}>
+                  <Image
+                    src={cat.url}
+                    alt={cat.alt_text}
+                    fill
+                    className="object-cover transition-transform duration-500 group-hover:scale-[1.02]"
+                    sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 620px"
+                  />
+                </div>
+                {/* Text block below */}
+                <div className="p-5 bg-[rgba(232,224,212,0.02)]">
                   <h3 className="font-serif text-lg text-foreground mb-1">
                     {cat.title}
                   </h3>
@@ -401,18 +423,20 @@ export default async function GalleryPage() {
             {featuredItems.map((item) => (
               <div
                 key={item.id}
-                className="flex flex-col sm:flex-row gap-5 p-5 rounded-lg border border-[rgba(232,224,212,0.08)] bg-[rgba(232,224,212,0.02)]"
+                className="group rounded-lg overflow-hidden border border-[rgba(232,224,212,0.08)]"
               >
-                <div className="relative w-full sm:w-48 aspect-square rounded-md overflow-hidden flex-shrink-0">
+                {/* Full-width image on top */}
+                <div className="relative aspect-[4/3] overflow-hidden">
                   <Image
                     src={item.url}
                     alt={item.alt_text}
                     fill
-                    className="object-cover"
-                    sizes="(max-width: 640px) 100vw, 192px"
+                    className="object-cover transition-transform duration-500 group-hover:scale-[1.02]"
+                    sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 580px"
                   />
                 </div>
-                <div className="flex flex-col justify-center">
+                {/* Text block below */}
+                <div className="p-5 bg-[rgba(232,224,212,0.02)]">
                   {item.subtitle && (
                     <p className="text-xs text-primary font-medium uppercase tracking-wider mb-2">
                       {item.subtitle}
@@ -427,7 +451,7 @@ export default async function GalleryPage() {
                   {item.link_url && (
                     <Link
                       href={item.link_url}
-                      className="text-sm text-primary hover:text-primary/80 transition-colors mt-3"
+                      className="text-sm text-primary hover:text-primary/80 transition-colors mt-3 inline-block"
                     >
                       {item.link_label || "View in catalogue"} &rarr;
                     </Link>
@@ -442,7 +466,7 @@ export default async function GalleryPage() {
       {/* ── Section 6: The Listening Room ── */}
       <section className="py-20 md:py-28 border-t border-[rgba(232,224,212,0.08)]">
         <div className="mx-auto max-w-6xl px-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_1.2fr] gap-12 items-center">
             <div>
               <h2 className="font-serif text-3xl md:text-4xl text-foreground mb-6">
                 {listening.title}
@@ -453,13 +477,13 @@ export default async function GalleryPage() {
                 </p>
               ))}
             </div>
-            <div className="relative aspect-[4/3] rounded-lg overflow-hidden">
+            <div className="relative aspect-[3/2] rounded-lg overflow-hidden">
               <Image
                 src={listeningImage.url}
                 alt={listeningImage.alt_text}
                 fill
                 className="object-cover"
-                sizes="(max-width: 768px) 100vw, 50vw"
+                sizes="(max-width: 768px) 100vw, 60vw"
               />
             </div>
           </div>
@@ -628,7 +652,7 @@ export default async function GalleryPage() {
             href="/catalog"
             className="inline-block mt-8 text-sm text-muted-foreground hover:text-primary transition-colors"
           >
-            Browse the full catalogue &rarr;
+            Explore the archive &rarr;
           </Link>
         </div>
       </section>

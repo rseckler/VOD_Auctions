@@ -443,12 +443,32 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6 p-4 rounded-lg border border-border/50 bg-secondary/30">
           <div>
             <label className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1 block">Country</label>
-            <Input
+            <select
               value={country}
               onChange={(e) => { setCountry(e.target.value); setPage(1) }}
-              placeholder="e.g. Germany"
-              className="h-8 text-xs"
-            />
+              className="h-8 w-full rounded-md border border-primary/25 bg-input px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              <option value="">All Countries</option>
+              <option value="DE">Germany</option>
+              <option value="US">United States</option>
+              <option value="GB">United Kingdom</option>
+              <option value="FR">France</option>
+              <option value="IT">Italy</option>
+              <option value="NL">Netherlands</option>
+              <option value="BE">Belgium</option>
+              <option value="AT">Austria</option>
+              <option value="CH">Switzerland</option>
+              <option value="JP">Japan</option>
+              <option value="CA">Canada</option>
+              <option value="AU">Australia</option>
+              <option value="SE">Sweden</option>
+              <option value="NO">Norway</option>
+              <option value="DK">Denmark</option>
+              <option value="PL">Poland</option>
+              <option value="CZ">Czech Republic</option>
+              <option value="ES">Spain</option>
+              <option value="other">Other</option>
+            </select>
           </div>
           <div>
             <label className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1 block">Label</label>
@@ -512,14 +532,6 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
                         <Disc3 className="h-12 w-12 text-muted-foreground/30" />
                       </div>
                     )}
-                    {(release.format_name || release.format) && (
-                      <Badge
-                        variant="outline"
-                        className={`absolute top-1.5 right-1.5 text-[10px] px-1.5 py-0 backdrop-blur-sm ${FORMAT_COLORS[release.format] || "bg-secondary/80 text-muted-foreground"}`}
-                      >
-                        {release.format_name || release.format}
-                      </Badge>
-                    )}
                     {release.legacy_condition && (
                       <span className="absolute bottom-1.5 left-1.5 text-[10px] font-mono bg-black/60 text-foreground/80 px-1.5 py-0.5 rounded backdrop-blur-sm uppercase">
                         {release.legacy_condition}
@@ -527,6 +539,11 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
                     )}
                   </div>
 
+                  {(release.format_name || release.format) && (
+                    <span className={`inline-block text-[9px] uppercase tracking-[1px] font-medium mb-0.5 ${FORMAT_COLORS[release.format] ? FORMAT_COLORS[release.format].split(" ").find(c => c.startsWith("text-")) : "text-muted-foreground"}`}>
+                      {release.format_name || release.format}
+                    </span>
+                  )}
                   <p className="text-xs text-muted-foreground truncate">
                     {release.product_category === "press_literature"
                       ? (release.press_orga_name || "")

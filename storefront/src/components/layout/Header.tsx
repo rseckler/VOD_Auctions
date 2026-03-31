@@ -69,7 +69,7 @@ export function Header() {
             >
               <Heart className="h-5 w-5" />
               {isAuthenticated && savedCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                <span className="absolute -top-1.5 -right-1.5 bg-[#d4a54a] text-[#1c1915] text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
                   {savedCount}
                 </span>
               )}

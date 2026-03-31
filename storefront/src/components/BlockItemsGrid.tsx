@@ -127,9 +127,9 @@ export function BlockItemsGrid({
         case "lot":
           return (a.lot_number || 0) - (b.lot_number || 0)
         case "price_asc":
-          return a.start_price - b.start_price
+          return (Number(a.current_price) || Number(a.start_price)) - (Number(b.current_price) || Number(b.start_price))
         case "price_desc":
-          return b.start_price - a.start_price
+          return (Number(b.current_price) || Number(b.start_price)) - (Number(a.current_price) || Number(a.start_price))
         case "artist": {
           const getCtx = (item: BlockItem) => {
             const r = item.release
@@ -241,12 +241,6 @@ export function BlockItemsGrid({
                             #{String(item.lot_number).padStart(2, "0")}
                           </span>
                         )}
-                        {/* Format overlay */}
-                        {item.release?.format && (
-                          <span className={`absolute top-2 right-2 px-2 py-0.5 rounded bg-[rgba(28,25,21,0.85)] backdrop-blur-sm text-[10px] uppercase tracking-[1px] font-medium ${FORMAT_COLORS[item.release.format] || "text-muted-foreground"}`}>
-                            {item.release.format}
-                          </span>
-                        )}
                         {/* Watchlist button — stop link propagation */}
                         <div
                           className="absolute bottom-2 right-2"
@@ -258,6 +252,11 @@ export function BlockItemsGrid({
 
                       {/* Info */}
                       <div className="p-3">
+                        {item.release?.format && (
+                          <span className={`inline-block text-[9px] uppercase tracking-[1px] font-medium mb-1 ${FORMAT_COLORS[item.release.format] || "text-muted-foreground"}`}>
+                            {item.release.format}
+                          </span>
+                        )}
                         <p className="text-xs text-muted-foreground/60 truncate">
                           {item.release?.product_category === "release" || item.release?.product_category === "band_literature"
   ? (item.release.artist_name || "")
@@ -270,7 +269,7 @@ export function BlockItemsGrid({
                         </p>
                         <div className="flex items-center justify-between mt-2">
                           <div>
-                            <p className="text-[9px] text-muted-foreground/40 uppercase tracking-[0.5px]">Starting bid</p>
+                            <p className="text-[9px] text-muted-foreground/70 uppercase tracking-[0.5px]">Starting bid</p>
                             <span className="font-serif text-lg font-bold text-amber-400">
                               &euro;{Number(item.start_price).toFixed(0)}
                             </span>
@@ -319,12 +318,6 @@ export function BlockItemsGrid({
                             #{String(item.lot_number).padStart(2, "0")}
                           </span>
                         )}
-                        {/* Format overlay */}
-                        {item.release?.format && (
-                          <span className={`absolute top-2 right-2 px-2 py-0.5 rounded bg-[rgba(28,25,21,0.85)] backdrop-blur-sm text-[10px] uppercase tracking-[1px] font-medium ${FORMAT_COLORS[item.release.format] || "text-muted-foreground"}`}>
-                            {item.release.format}
-                          </span>
-                        )}
                         {/* Bid status indicator */}
                         {userWinningItemIds.has(item.id) ? (
                           <span className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded bg-[rgba(34,197,94,0.9)] backdrop-blur-sm text-xs font-semibold text-[#1c1915] uppercase tracking-wide shadow-lg shadow-green-500/20 ring-2 ring-green-400/50 animate-pulse">
@@ -341,6 +334,11 @@ export function BlockItemsGrid({
 
                       {/* Info */}
                       <div className="p-3">
+                        {item.release?.format && (
+                          <span className={`inline-block text-[9px] uppercase tracking-[1px] font-medium mb-1 ${FORMAT_COLORS[item.release.format] || "text-muted-foreground"}`}>
+                            {item.release.format}
+                          </span>
+                        )}
                         <p className="text-xs text-muted-foreground/60 truncate">
                           {item.release?.product_category === "release" || item.release?.product_category === "band_literature"
   ? (item.release.artist_name || "")
@@ -386,7 +384,7 @@ export function BlockItemsGrid({
                           )
                         })()}
                         {item.view_count != null && item.view_count > 10 && (
-                          <p className="text-[9px] text-muted-foreground/40 mt-0.5 flex items-center gap-0.5">
+                          <p className="text-[9px] text-muted-foreground/70 mt-0.5 flex items-center gap-0.5">
                             <Eye className="h-2 w-2 flex-shrink-0" />
                             {item.view_count}
                           </p>

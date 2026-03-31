@@ -24,7 +24,6 @@ export function HeaderAuth() {
   if (isAuthenticated && customer) {
     const initials =
       (customer.first_name?.[0] || "") + (customer.last_name?.[0] || "")
-    const displayName = customer.first_name || customer.email
 
     return (
       <DropdownMenu>
@@ -35,9 +34,6 @@ export function HeaderAuth() {
                 {initials || "U"}
               </AvatarFallback>
             </Avatar>
-            <span className="text-sm text-muted-foreground hidden sm:inline">
-              {displayName}
-            </span>
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">

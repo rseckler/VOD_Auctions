@@ -177,6 +177,16 @@ export default async function CatalogDetailPage({
         itemCategory={release.product_category || "release"}
         price={release.legacy_price ?? undefined}
       />
+      {/* Back button */}
+      <div className="mb-4">
+        <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground -ml-2 gap-1" asChild>
+          <CatalogBackLink>
+            <ArrowLeft className="h-4 w-4" />
+            Back
+          </CatalogBackLink>
+        </Button>
+      </div>
+
       {/* Breadcrumb — preserves catalog filter state via sessionStorage */}
       <nav className="text-sm text-muted-foreground mb-8 flex items-center gap-1 flex-wrap">
         <CatalogBackLink className="hover:text-foreground transition-colors" />

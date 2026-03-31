@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { cookies } from "next/headers"
+import { Suspense } from "react"
 import { DM_Sans, DM_Serif_Display } from "next/font/google"
 import { AuthProvider } from "@/components/AuthProvider"
 import { Header } from "@/components/layout/Header"
@@ -12,6 +13,7 @@ import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { HotjarProvider } from "@/components/providers/HotjarProvider"
 import RudderstackProvider from "@/components/RudderstackProvider"
+import { TopLoadingBar } from "@/components/TopLoadingBar"
 import "./globals.css"
 
 const dmSans = DM_Sans({
@@ -105,6 +107,9 @@ export default async function RootLayout({
         >
           Skip to content
         </a>
+        <Suspense fallback={null}>
+          <TopLoadingBar />
+        </Suspense>
         <AuthProvider>
           <TooltipProvider>
             <Header />
