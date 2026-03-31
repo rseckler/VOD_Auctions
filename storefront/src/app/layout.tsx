@@ -11,7 +11,7 @@ import { CookieConsent } from "@/components/CookieConsent"
 import { BackToTop } from "@/components/BackToTop"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { HotjarProvider } from "@/components/providers/HotjarProvider"
+import { ClarityProvider } from "@/components/providers/ClarityProvider"
 import RudderstackProvider from "@/components/RudderstackProvider"
 import { TopLoadingBar } from "@/components/TopLoadingBar"
 import "./globals.css"
@@ -119,7 +119,7 @@ export default async function RootLayout({
             <BackToTop />
             <BrevoTracker />
             <CookieConsent />
-            <HotjarProvider />
+            <ClarityProvider />
             <RudderstackProvider />
           </TooltipProvider>
         </AuthProvider>

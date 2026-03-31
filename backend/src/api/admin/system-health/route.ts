@@ -189,12 +189,12 @@ export async function GET(
     }
   }
 
-  function checkContentSquare(): ServiceCheck {
-    const csSiteId = process.env.NEXT_PUBLIC_CS_SITE_ID
-    if (!csSiteId) {
-      return { name: "contentsquare", label: "ContentSquare (UXA)", status: "unconfigured", message: "NEXT_PUBLIC_CS_SITE_ID not set", latency_ms: null, url: "https://app.contentsquare.com" }
+  function checkClarity(): ServiceCheck {
+    const clarityId = process.env.CLARITY_ID || process.env.NEXT_PUBLIC_CLARITY_ID
+    if (!clarityId) {
+      return { name: "clarity", label: "Microsoft Clarity (UXA)", status: "unconfigured", message: "NEXT_PUBLIC_CLARITY_ID not set — get ID at clarity.microsoft.com", latency_ms: null, url: "https://clarity.microsoft.com" }
     }
-    return { name: "contentsquare", label: "ContentSquare (UXA)", status: "ok", message: `Site ID: ${csSiteId} (loads on marketing consent)`, latency_ms: null, url: "https://app.contentsquare.com" }
+    return { name: "clarity", label: "Microsoft Clarity (UXA)", status: "ok", message: `Project ID: ${clarityId} (session recordings + heatmaps, loads on marketing consent)`, latency_ms: null, url: `https://clarity.microsoft.com/projects/view/${clarityId}` }
   }
 
   function checkGA4(): ServiceCheck {
@@ -317,7 +317,7 @@ export async function GET(
     checkBrevo(),
     checkStorefront(),
     Promise.resolve(checkSentry()),
-    Promise.resolve(checkContentSquare()),
+    Promise.resolve(checkClarity()),
     Promise.resolve(checkGA4()),
     Promise.resolve(checkRudderStack()),
     checkUpstash(),
