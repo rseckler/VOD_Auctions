@@ -152,17 +152,20 @@ function injectNavCSS() {
 function fixMobileScrollContainers() {
   if (window.innerWidth > 1024) return
 
-  // Fix the main content wrapper (flex h-screen w-full flex-col overflow-auto)
-  document.querySelectorAll<HTMLElement>(".h-screen.overflow-auto").forEach((el) => {
-    el.style.setProperty("overflow-x", "hidden", "important")
-    el.style.setProperty("overscroll-behavior-x", "none", "important")
-  })
-
-  // Fix <main> centering (items-center clips content on both sides on mobile)
+  // Use structural selectors instead of class names — class names may differ across builds.
+  // <main> is the only <main> in the Medusa admin shell.
   const mainEl = document.querySelector<HTMLElement>("main")
   if (mainEl) {
+    // Fix items-center centering: anchor content to left on mobile
     mainEl.style.setProperty("align-items", "flex-start", "important")
     mainEl.style.setProperty("overflow-x", "hidden", "important")
+
+    // Fix the direct parent of <main> — this is the overflow-auto scroll wrapper
+    const wrapper = mainEl.parentElement
+    if (wrapper) {
+      wrapper.style.setProperty("overflow-x", "hidden", "important")
+      wrapper.style.setProperty("overscroll-behavior-x", "none", "important")
+    }
   }
 }
 

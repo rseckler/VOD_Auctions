@@ -796,7 +796,7 @@ const MediaPage = () => {
       </div>
 
       {/* Stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px", marginBottom: "24px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "16px", marginBottom: "24px" }}>
         <div style={cardStyle}>
           <div style={{ fontSize: "12px", color: COLORS.muted, marginBottom: "4px", textTransform: "uppercase" }}>Total Releases</div>
           <div style={{ fontSize: "28px", fontWeight: 700, color: COLORS.gold }}>
