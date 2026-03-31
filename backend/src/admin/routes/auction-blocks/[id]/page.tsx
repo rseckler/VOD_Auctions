@@ -15,6 +15,7 @@ import { Trash, Plus } from "@medusajs/icons"
 import React, { useEffect, useState, useRef, useCallback } from "react"
 import { useParams } from "react-router-dom"
 import RichTextEditor from "../../../components/rich-text-editor"
+import { useAdminNav } from "../../../components/admin-nav"
 
 type BlockItem = {
   id: string
@@ -581,6 +582,7 @@ function EndedStateDashboard({
 }
 
 const BlockDetailPage = () => {
+  useAdminNav()
   const { id } = useParams()
   const isNew = id === "create"
 
