@@ -4,6 +4,23 @@ Vollständiger Entwicklungs-Changelog. Aktuelle Änderungen stehen in CLAUDE.md.
 
 ---
 
+## 2026-04-07 — Session 2: My Bids Badge, Swipe, Back Button (3 Fixes)
+
+### My Bids Nav Badge
+- `backend/src/api/store/account/status/route.ts`: `active_bids_count` gefiltert auf `bid.is_winning = true` — zeigt jetzt nur Lots wo User aktuell Highest Bidder ist (vorher: alle platzierten Gebote in aktiven Auktionen)
+- `storefront/src/app/account/AccountLayoutClient.tsx`: `bidsCount` aus `useAuth()` ergänzt, Gold-Badge auf "My Bids" Nav-Item (gleicher Stil wie Orders-Badge)
+
+### Image Gallery: Touch-Swipe auf Hauptbild (Mobile)
+- `storefront/src/components/ImageGallery.tsx`: Swipe links/rechts auf dem großen Produktbild navigiert zwischen Bildern (nur Mobile — Desktop behält Zoom-on-Hover)
+- Unterscheidet Swipe (dx > 40px, horizontal dominiert) von Tap (öffnet Lightbox)
+- Subtile Chevron-Pfeile links/rechts als Swipe-Hinweis (nur Mobile, `pointer-events-none`)
+
+### Back Button: Scroll-Position Wiederherstellung
+- `storefront/src/components/CatalogBackLink.tsx`: Statt `<Link href={catalogUrl}>` (neue Navigation → scroll top) jetzt `window.history.back()` → Browser restored exakte Scroll-Position wie beim nativen Back-Button
+- Fallback auf gespeicherte Catalog-URL wenn `history.length <= 1` (direkter Link auf Produktseite ohne Vorgeschichte)
+
+---
+
 ## 2026-04-07 — Prio 1–4: UX, Loading, Gallery Redesign (19 Fixes)
 
 ### Prio 1 — Functional Bugs
