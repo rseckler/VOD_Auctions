@@ -377,6 +377,57 @@ export async function POST(
         }
         break
       }
+
+      // ── Refund initiated from Stripe dashboard or via admin ──
+      case "charge.refunded": {
+        const charge = event.data.object as any
+        const paymentIntentId = charge.payment_intent as string
+        if (!paymentIntentId) break
+
+        const tx = await pgConnection("transaction")
+          .where("stripe_payment_intent_id", paymentIntentId)
+          .where("status", "paid")
+          .first()
+
+        if (!tx) {
+          console.log(`[stripe-webhook] charge.refunded: no paid tx for PI ${paymentIntentId} — skipping`)
+          break
+        }
+
+        const orderGroupId = tx.order_group_id || tx.id
+        const transactions = tx.order_group_id
+          ? await pgConnection("transaction").where("order_group_id", orderGroupId)
+          : [tx]
+
+        for (const t of transactions) {
+          await pgConnection("transaction")
+            .where("id", t.id)
+            .update({ status: "refunded", updated_at: new Date() })
+
+          if (t.release_id) {
+            await pgConnection("Release")
+              .where("id", t.release_id)
+              .update({ auction_status: "available", updatedAt: new Date() })
+          }
+        }
+
+        await pgConnection("order_event").insert({
+          id: generateEntityId(),
+          order_group_id: orderGroupId,
+          event_type: "refund",
+          title: "Refunded via Stripe (charge.refunded webhook)",
+          details: JSON.stringify({
+            payment_intent_id: paymentIntentId,
+            charge_id: charge.id,
+            transactions_refunded: transactions.length,
+          }),
+          actor: "system",
+          created_at: new Date(),
+        })
+
+        console.log(`[stripe-webhook] charge.refunded — PI ${paymentIntentId}, group ${orderGroupId}, ${transactions.length} tx(s) reset`)
+        break
+      }
     }
 
     res.json({ received: true })
