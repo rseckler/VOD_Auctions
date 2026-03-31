@@ -173,18 +173,19 @@ export async function GET(
   }
 
   function checkSentry(): ServiceCheck {
+    // NEXT_PUBLIC_SENTRY_DSN is the storefront var; SENTRY_DSN is the backend mirror
     const sentryDsn = process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN
-    const sentryOrg = process.env.SENTRY_ORG
-    const sentryProject = process.env.SENTRY_PROJECT
+    const sentryOrg = process.env.SENTRY_ORG || "vod-records"
+    const sentryProject = process.env.SENTRY_PROJECT || "vod-auctions-storefront"
     if (!sentryDsn) {
-      return { name: "sentry", label: "Sentry (Error Tracking)", status: "unconfigured", message: "SENTRY_DSN not set", latency_ms: null, url: "https://sentry.io" }
+      return { name: "sentry", label: "Sentry (Error Tracking)", status: "unconfigured", message: "SENTRY_DSN not set in backend .env", latency_ms: null, url: "https://vod-records.sentry.io" }
     }
     return {
       name: "sentry", label: "Sentry (Error Tracking)",
       status: "ok",
-      message: `DSN configured — org: ${sentryOrg || "?"}, project: ${sentryProject || "?"}`,
+      message: `Active — org: ${sentryOrg}, project: ${sentryProject}`,
       latency_ms: null,
-      url: `https://vod-records.sentry.io/issues/?project=${sentryProject || ""}`,
+      url: `https://vod-records.sentry.io/issues/`,
     }
   }
 
