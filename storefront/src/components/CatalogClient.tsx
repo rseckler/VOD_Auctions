@@ -35,6 +35,7 @@ type CatalogRelease = {
   press_orga_name?: string | null
   press_orga_slug?: string | null
   is_purchasable: boolean
+  auction_status?: string | null
 }
 
 type CatalogResponse = {
@@ -555,7 +556,9 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
                     {release.title}
                   </p>
                   <div className="flex items-center justify-between mt-0.5">
-                    {release.is_purchasable ? (
+                    {release.auction_status === "reserved" ? (
+                      <span className="text-[10px] font-semibold text-amber-400 italic">In Auction</span>
+                    ) : release.is_purchasable ? (
                       <span className="text-xs font-mono text-primary">
                         &euro;{Number(release.legacy_price).toFixed(2)}
                       </span>

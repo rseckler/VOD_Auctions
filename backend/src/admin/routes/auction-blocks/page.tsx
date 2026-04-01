@@ -366,9 +366,14 @@ const AuctionBlocksPage = () => {
           <Heading level="h1">Auction Blocks</Heading>
           <Text className="text-ui-fg-subtle mt-1">Manage themed auction blocks</Text>
         </div>
-        <a href="/app/auction-blocks/create">
-          <Button>Create New Auction</Button>
-        </a>
+        <div style={{ display: "flex", gap: 8 }}>
+          <a href="/app/auction-blocks/ai-create">
+            <Button variant="secondary">✨ AI Create</Button>
+          </a>
+          <a href="/app/auction-blocks/create">
+            <Button>Create New Auction</Button>
+          </a>
+        </div>
       </div>
 
       {loading && <Text>Loading…</Text>}

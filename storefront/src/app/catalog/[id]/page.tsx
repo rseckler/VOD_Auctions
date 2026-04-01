@@ -41,6 +41,7 @@ type CatalogRelease = Release & {
   discogs_num_for_sale?: number | null
   related_by_artist?: RelatedRelease[]
   related_by_label?: RelatedRelease[]
+  auction_lot?: { block_slug: string; block_item_id: string } | null
 }
 
 async function getRelease(id: string): Promise<{ release: CatalogRelease } | null> {
@@ -241,6 +242,24 @@ export default async function CatalogDetailPage({
 
           {/* Price info */}
           <div className="mt-6 bg-card border border-border/50 rounded-lg p-4 space-y-2">
+            {release.auction_status === "reserved" && (
+              <div className="flex items-center justify-between">
+                {release.auction_lot ? (
+                  <Link
+                    href={`/auctions/${release.auction_lot.block_slug}/${release.auction_lot.block_item_id}`}
+                    className="inline-flex items-center gap-2 text-amber-400 font-semibold text-sm hover:text-amber-300 transition-colors"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse inline-block" />
+                    Currently in Auction →
+                  </Link>
+                ) : (
+                  <span className="inline-flex items-center gap-2 text-amber-400/70 text-sm italic">
+                    <span className="w-2 h-2 rounded-full bg-amber-400/50 inline-block" />
+                    Coming to Auction Soon
+                  </span>
+                )}
+              </div>
+            )}
             {release.is_purchasable ? (
               <div>
                 <div className="flex justify-between items-center">

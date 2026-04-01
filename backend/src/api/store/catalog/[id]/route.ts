@@ -146,10 +146,28 @@ export async function GET(
 
   const is_purchasable = release.legacy_price != null && Number(release.legacy_price) > 0
 
+  // Auction lot link — only for publicly visible blocks (preview/active)
+  let auction_lot: { block_slug: string; block_item_id: string } | null = null
+  if (release.auction_status === "reserved") {
+    const lotRow = await pgConnection("block_item")
+      .select(
+        "block_item.id as block_item_id",
+        "auction_block.slug as block_slug"
+      )
+      .join("auction_block", "auction_block.id", "block_item.auction_block_id")
+      .where("block_item.release_id", id)
+      .whereIn("auction_block.status", ["preview", "active"])
+      .first()
+    if (lotRow) {
+      auction_lot = { block_slug: lotRow.block_slug, block_item_id: lotRow.block_item_id }
+    }
+  }
+
   res.json({
     release: {
       ...release,
       is_purchasable,
+      auction_lot,
       images,
       various_artists,
       comments,

@@ -71,6 +71,7 @@ type Release = {
   coverImage: string | null
   auction_status: string | null
   estimated_value: number | null
+  legacy_price: number | null
 }
 
 type FilterOption = { value: string | number; count: number }
@@ -972,6 +973,8 @@ const BlockDetailPage = () => {
           release_id: release.id,
           start_price: release.estimated_value
             ? release.estimated_value * (block.default_start_price_percent || 50) / 100
+            : release.legacy_price
+            ? Math.round(release.legacy_price * 0.5)
             : 1,
           estimated_value: release.estimated_value,
           lot_number: (block.items?.length || 0) + 1,
@@ -1327,7 +1330,7 @@ const BlockDetailPage = () => {
             <Button variant="secondary">Back</Button>
           </a>
           <Button onClick={handleSave} isLoading={saving}>
-            Save
+            {isNew || block.status === "draft" ? "Save Draft" : "Save"}
           </Button>
         </div>
       </div>
