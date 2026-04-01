@@ -327,10 +327,6 @@ export default async function ItemDetailPage({
                   </p>
                 )}
                 <p className="text-xs text-muted-foreground mt-2">incl. VAT, plus <a href="/agb" className="underline">shipping</a> &middot; <a href="/widerruf" className="underline">14-day return policy</a></p>
-                <p className="flex items-center gap-1 text-xs text-green-400/80 mt-1.5">
-                  <CheckCircle className="h-3 w-3 flex-shrink-0" />
-                  No buyer&apos;s premium — you pay exactly what you bid
-                </p>
               </>
             )}
           </div>

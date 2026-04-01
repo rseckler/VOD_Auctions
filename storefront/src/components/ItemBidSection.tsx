@@ -476,8 +476,15 @@ function BidForm({
 
       const data = await res.json()
       if (!res.ok) {
-        const msg = data.message || "Bid failed"
-        toast.error(msg, { duration: 8000 })
+        if (data.code === "email_not_verified") {
+          toast.error("Email not verified", {
+            duration: 10000,
+            description: "Please check your inbox and verify your email address before placing bids.",
+          })
+        } else {
+          const msg = data.message || "Bid failed"
+          toast.error(msg, { duration: 8000 })
+        }
       } else if (data.outbid) {
         toast.error("You are not the highest bidder", {
           duration: 8000,

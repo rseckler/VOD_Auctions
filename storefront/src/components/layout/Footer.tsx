@@ -52,11 +52,6 @@ export function Footer() {
               Curated auctions for rare records from the
               Industrial, Experimental and Electronic Music genres.
             </p>
-            <p className="flex items-center gap-1.5 text-xs text-green-400/70 mb-4">
-              <CheckCircle className="h-3 w-3 flex-shrink-0" />
-              No buyer&apos;s premium — ever
-            </p>
-
             {/* Newsletter signup */}
             <form onSubmit={handleNewsletterSubmit} className="flex gap-2">
               <input

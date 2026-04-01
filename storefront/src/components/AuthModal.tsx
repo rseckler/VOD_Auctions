@@ -23,11 +23,12 @@ type PasswordStrength = "weak" | "medium" | "strong"
 
 function getPasswordStrength(pw: string): PasswordStrength | null {
   if (!pw) return null
-  const hasLetters = /[a-zA-Z]/.test(pw)
+  const hasUpper = /[A-Z]/.test(pw)
+  const hasLower = /[a-z]/.test(pw)
   const hasNumbers = /[0-9]/.test(pw)
   const hasSpecial = /[^a-zA-Z0-9]/.test(pw)
-  if (pw.length >= 8 && hasLetters && hasNumbers && hasSpecial) return "strong"
-  if (pw.length >= 8 && hasLetters && hasNumbers) return "medium"
+  if (pw.length >= 10 && hasUpper && hasLower && hasNumbers && hasSpecial) return "strong"
+  if (pw.length >= 8 && (hasUpper || hasLower) && hasNumbers) return "medium"
   return "weak"
 }
 
@@ -278,7 +279,7 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
                   type="checkbox"
                   checked={agbAccepted}
                   onChange={(e) => setAgbAccepted(e.target.checked)}
-                  className="mt-1 accent-primary"
+                  className="mt-0.5 w-4 h-4 shrink-0 accent-primary"
                 />
                 <span className="text-xs text-muted-foreground leading-tight">
                   I have read and accept the <a href="/agb" target="_blank" className="text-primary underline">Terms &amp; Conditions</a> and <a href="/datenschutz" target="_blank" className="text-primary underline">Privacy Policy</a>. *
@@ -289,7 +290,7 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
                   type="checkbox"
                   checked={newsletterOptin}
                   onChange={(e) => setNewsletterOptin(e.target.checked)}
-                  className="mt-0.5 accent-primary"
+                  className="mt-0.5 w-4 h-4 shrink-0 accent-primary"
                 />
                 <span className="text-xs text-muted-foreground leading-tight">
                   Subscribe to the VOD Auctions newsletter for auction updates, new arrivals, and exclusive offers. You can unsubscribe at any time.

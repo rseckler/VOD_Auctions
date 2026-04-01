@@ -138,6 +138,16 @@ export async function POST(
     return
   }
 
+  // Require email verification before bidding
+  const customerRow = await pgConnection("customer")
+    .where("id", customerId)
+    .select("email_verified")
+    .first()
+  if (!customerRow?.email_verified) {
+    res.status(403).json({ message: "Please verify your email address before placing bids.", code: "email_not_verified" })
+    return
+  }
+
   const { slug, itemId } = req.params
   const { amount, max_amount } = req.body as {
     amount: number
