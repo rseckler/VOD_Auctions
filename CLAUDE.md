@@ -4,7 +4,7 @@
 **Goal:** Eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Phase 1 fertig — RSE-77 (Testlauf) als nächster Schritt
 **Language:** Storefront + Admin-UI: Englisch
-**Last Updated:** 2026-04-07
+**Last Updated:** 2026-04-08
 
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
@@ -327,6 +327,14 @@ VOD_Auctions/
 **Backlog:** RSE-78 (Launch, offen: AGB-Anwalt) | RSE-79 (Erste öffentliche Auktionen) | RSE-80 (Marketing)
 
 ## Recent Changes
+
+### 2026-04-08 — 5 Fixes aus Testlauf-Feedback (UX + Security)
+
+- **cursor-pointer auf allen Buttons:** `ui/button.tsx` Base-Class ergänzt — fehlte in shadcn/ui Konfiguration
+- **Passwort-Stärke verbessert:** Strong = >=10 Zeichen + Upper+Lower+Zahl+Special; Medium = >=8 + Buchstaben+Zahlen — vorher zu lax
+- **Checkboxen größer:** Registration-Form Terms + Newsletter Checkboxen: `w-4 h-4 shrink-0` (16px statt Browser-Default)
+- **"No buyer's premium" entfernt:** Aus Lot-Seite, Checkout (2×), Footer — Auktionshaus-Fachjargon verwirrt normale Nutzer
+- **!! Security — E-Mail-Verifizierung vor Bieten:** Backend prüft `customer.email_verified` vor Gebot-Annahme (403 + `code: "email_not_verified"`); Storefront zeigt klaren Toast mit Anweisung
 
 ### 2026-04-07 — Prio 1/2/3 Fix Session: 14 Fixes (Bugs, UX, Visual Polish)
 

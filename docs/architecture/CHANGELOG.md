@@ -4,6 +4,34 @@ Vollständiger Entwicklungs-Changelog. Aktuelle Änderungen stehen in CLAUDE.md.
 
 ---
 
+## 2026-04-08 — 5 Fixes aus Testlauf-Feedback (UX + Security)
+
+### Fix 1 — Login Button: cursor-pointer
+- `storefront/src/components/ui/button.tsx` — `cursor-pointer` zur Base-Class von `buttonVariants` hinzugefügt
+- Betrifft alle Buttons sitewide — fehlte komplett in der shadcn/ui Basis-Konfiguration
+
+### Fix 2 — Passwort-Stärke verbessert
+- `storefront/src/components/AuthModal.tsx` — `getPasswordStrength()` mit strengerer Logik:
+  - **Strong:** >= 10 Zeichen + Uppercase + Lowercase + Zahlen + Sonderzeichen
+  - **Medium:** >= 8 Zeichen + Buchstaben + Zahlen
+  - **Weak:** alles andere
+- Vorher: "password1!" → Strong (falsch) — jetzt: "password1!" → Medium (korrekt, kein Uppercase)
+
+### Fix 3 — Checkboxen zu klein bei Registrierung
+- `storefront/src/components/AuthModal.tsx` — beide Checkboxen (Terms & Newsletter) auf `w-4 h-4 shrink-0` vergrößert (von nativer Browser-Defaultgröße ~12px auf 16px)
+
+### Fix 4 — "No buyer's premium" entfernt
+- `storefront/src/app/auctions/[slug]/[itemId]/page.tsx` — Badge auf Lot-Seite entfernt
+- `storefront/src/app/account/checkout/page.tsx` — 2× Stellen entfernt
+- `storefront/src/components/layout/Footer.tsx` — Footer-Zeile entfernt
+- Grund: "Buyer's Premium" ist Auktionshaus-Fachjargon (15-25% Aufschlag bei Christie's etc.), verwirrt normale Nutzer mehr als es hilft
+
+### Fix 5 — !! Security: E-Mail-Verifizierung vor Bieten erforderlich
+- `backend/src/api/store/auction-blocks/[slug]/items/[itemId]/bids/route.ts` — Knex-Query auf `customer.email_verified` nach Auth-Check; gibt `403` + `code: "email_not_verified"` zurück wenn nicht verifiziert
+- `storefront/src/components/ItemBidSection.tsx` — 403-Fehler mit `code === "email_not_verified"` zeigt klaren Toast: "Email not verified — Please check your inbox and verify your email address before placing bids."
+
+---
+
 ## 2026-04-08 — System Health Redesign + Sentry Server-Side Fix
 
 ### Sentry: Server-Side Error Capture aktiviert
