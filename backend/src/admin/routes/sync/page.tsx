@@ -111,6 +111,34 @@ type DiscogsHealthAction = {
   disabled?: boolean
 }
 
+type ChangeLogRun = {
+  sync_run_id: string
+  synced_at: string
+  total: number
+  price_changes: number
+  avail_changes: number
+  title_changes: number
+  cover_changes: number
+  inserted: number
+}
+
+type ChangeLogEntry = {
+  id: string
+  sync_run_id: string
+  synced_at: string
+  release_id: string
+  change_type: "inserted" | "updated"
+  changes: Record<string, { old: unknown; new: unknown }>
+  release_title: string | null
+  artist_name: string | null
+}
+
+type ChangeLogData = {
+  runs: ChangeLogRun[]
+  entries: ChangeLogEntry[]
+  total: number
+}
+
 type DiscogsHealth = {
   health: {
     status: string
@@ -177,7 +205,12 @@ const SyncDashboardPage = () => {
   const [loading, setLoading] = useState(true)
   const [legacyLoading, setLegacyLoading] = useState(false)
   const [discogsLoading, setDiscogsLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState<"log" | "legacy" | "discogs">("log")
+  const [activeTab, setActiveTab] = useState<"log" | "legacy" | "discogs" | "changes">("log")
+  const [changeLogData, setChangeLogData] = useState<ChangeLogData | null>(null)
+  const [changeLoading, setChangeLoading] = useState(false)
+  const [changeRunFilter, setChangeRunFilter] = useState<string | null>(null)
+  const [changeFieldFilter, setChangeFieldFilter] = useState<string>("all")
+  const [changePage, setChangePage] = useState(0)
 
   // Fetch overview
   useEffect(() => {
@@ -294,6 +327,23 @@ const SyncDashboardPage = () => {
         })
     }
   }, [activeTab, discogsData])
+
+  // Fetch change log data on tab switch or filter change
+  const fetchChangeLog = useCallback(() => {
+    if (activeTab !== "changes") return
+    setChangeLoading(true)
+    const params = new URLSearchParams({ limit: "100", offset: String(changePage * 100) })
+    if (changeRunFilter) params.set("run_id", changeRunFilter)
+    if (changeFieldFilter !== "all") params.set("field", changeFieldFilter)
+    fetch(`/admin/sync/change-log?${params}`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => { setChangeLogData(d); setChangeLoading(false) })
+      .catch((err) => { console.error("Change log error:", err); setChangeLoading(false) })
+  }, [activeTab, changeRunFilter, changeFieldFilter, changePage])
+
+  useEffect(() => {
+    fetchChangeLog()
+  }, [fetchChangeLog])
 
   // Styles
   const cardStyle: React.CSSProperties = {
@@ -969,6 +1019,9 @@ const SyncDashboardPage = () => {
         <button style={tabStyle(activeTab === "discogs")} onClick={() => setActiveTab("discogs")}>
           Discogs Details
         </button>
+        <button style={tabStyle(activeTab === "changes")} onClick={() => setActiveTab("changes")}>
+          Change Log
+        </button>
       </div>
 
       {/* Sync-Log Tab */}
@@ -1373,6 +1426,222 @@ const SyncDashboardPage = () => {
           )}
         </div>
       )}
+      {/* Change Log Tab */}
+      {activeTab === "changes" && (
+        <div>
+          {/* Run selector */}
+          <div style={{ ...cardStyle, marginBottom: "16px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              <span style={{ fontSize: "13px", color: COLORS.muted, marginRight: "4px" }}>Run:</span>
+              <button
+                style={{
+                  padding: "4px 12px", borderRadius: "4px", border: "none", cursor: "pointer", fontSize: "12px",
+                  background: !changeRunFilter ? COLORS.gold : COLORS.border,
+                  color: !changeRunFilter ? "#1c1915" : COLORS.text,
+                  fontWeight: !changeRunFilter ? 600 : 400,
+                }}
+                onClick={() => { setChangeRunFilter(null); setChangePage(0) }}
+              >
+                All runs
+              </button>
+              {changeLogData?.runs.slice(0, 20).map((run) => (
+                <button
+                  key={run.sync_run_id}
+                  style={{
+                    padding: "4px 12px", borderRadius: "4px", border: "none", cursor: "pointer", fontSize: "12px",
+                    background: changeRunFilter === run.sync_run_id ? COLORS.gold : COLORS.border,
+                    color: changeRunFilter === run.sync_run_id ? "#1c1915" : COLORS.text,
+                    fontWeight: changeRunFilter === run.sync_run_id ? 600 : 400,
+                  }}
+                  onClick={() => { setChangeRunFilter(run.sync_run_id); setChangePage(0) }}
+                >
+                  {new Date(run.synced_at).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                  {" "}
+                  <span style={{ opacity: 0.7 }}>({run.total})</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Selected run stats */}
+            {changeRunFilter && (() => {
+              const run = changeLogData?.runs.find((r) => r.sync_run_id === changeRunFilter)
+              if (!run) return null
+              return (
+                <div style={{ display: "flex", gap: "20px", marginTop: "12px", flexWrap: "wrap" }}>
+                  {[
+                    { label: "Total changes", value: run.total, color: COLORS.gold },
+                    { label: "Price", value: run.price_changes, color: COLORS.blue },
+                    { label: "Availability", value: run.avail_changes, color: run.avail_changes > 0 ? COLORS.error : COLORS.muted },
+                    { label: "Title", value: run.title_changes, color: COLORS.muted },
+                    { label: "New cover", value: run.cover_changes, color: COLORS.muted },
+                    { label: "New releases", value: run.inserted, color: COLORS.success },
+                  ].map(({ label, value, color }) => (
+                    <div key={label}>
+                      <div style={{ fontSize: "11px", color: COLORS.muted, textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</div>
+                      <div style={{ fontSize: "20px", fontWeight: 700, color }}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+              )
+            })()}
+          </div>
+
+          {/* Field filter */}
+          <div style={{ display: "flex", gap: "8px", marginBottom: "16px", flexWrap: "wrap" }}>
+            {[
+              { key: "all", label: "All fields" },
+              { key: "legacy_price", label: "💰 Price" },
+              { key: "legacy_available", label: "🔒 Availability" },
+              { key: "title", label: "✏️ Title" },
+              { key: "coverImage", label: "🖼 Cover" },
+            ].map(({ key, label }) => (
+              <button
+                key={key}
+                style={{
+                  padding: "6px 14px", borderRadius: "20px", border: `1px solid ${changeFieldFilter === key ? COLORS.gold : COLORS.border}`,
+                  background: changeFieldFilter === key ? "#d4a54a15" : "transparent",
+                  color: changeFieldFilter === key ? COLORS.gold : COLORS.muted,
+                  cursor: "pointer", fontSize: "13px", fontWeight: changeFieldFilter === key ? 600 : 400,
+                }}
+                onClick={() => { setChangeFieldFilter(key); setChangePage(0) }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Entries table */}
+          <div style={cardStyle}>
+            {changeLoading ? (
+              <div style={{ color: COLORS.muted, textAlign: "center", padding: "40px 0" }}>Loading...</div>
+            ) : !changeLogData?.entries.length ? (
+              <div style={{ color: COLORS.muted, textAlign: "center", padding: "40px 0" }}>
+                {changeRunFilter ? "No changes for this run." : "No changes logged yet. Changes appear after the next sync."}
+              </div>
+            ) : (
+              <>
+                <div style={{ fontSize: "13px", color: COLORS.muted, marginBottom: "12px" }}>
+                  {changeLogData.total.toLocaleString("en-US")} entries
+                  {changeLogData.total > 100 && (
+                    <span> · Page {changePage + 1} of {Math.ceil(changeLogData.total / 100)}</span>
+                  )}
+                </div>
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr>
+                        <th style={thStyle}>Date</th>
+                        <th style={thStyle}>Release</th>
+                        <th style={thStyle}>Type</th>
+                        <th style={thStyle}>Changes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {changeLogData.entries.map((entry) => (
+                        <tr
+                          key={entry.id}
+                          style={{ cursor: "pointer" }}
+                          onClick={() => (window.location.href = `/app/media/${entry.release_id}`)}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = COLORS.hover)}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                        >
+                          <td style={{ ...tdStyle, whiteSpace: "nowrap", fontSize: "12px", color: COLORS.muted }}>
+                            {formatDate(entry.synced_at)}
+                          </td>
+                          <td style={{ ...tdStyle, maxWidth: "220px" }}>
+                            <div style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {entry.release_title || entry.release_id}
+                            </div>
+                            {entry.artist_name && (
+                              <div style={{ fontSize: "12px", color: COLORS.muted }}>{entry.artist_name}</div>
+                            )}
+                          </td>
+                          <td style={tdStyle}>
+                            <span style={{
+                              padding: "2px 7px", borderRadius: "4px", fontSize: "11px", fontWeight: 600,
+                              background: entry.change_type === "inserted" ? "#22c55e20" : "#3b82f620",
+                              color: entry.change_type === "inserted" ? COLORS.success : COLORS.blue,
+                            }}>
+                              {entry.change_type === "inserted" ? "NEW" : "UPDATED"}
+                            </span>
+                          </td>
+                          <td style={{ ...tdStyle, maxWidth: "340px" }}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                              {Object.entries(entry.changes).map(([field, delta]) => {
+                                if (field === "_new") return null
+                                const fieldLabel: Record<string, string> = {
+                                  legacy_price: "Price",
+                                  legacy_available: "Available",
+                                  title: "Title",
+                                  coverImage: "Cover",
+                                }
+                                const fmt = (v: unknown) => {
+                                  if (field === "legacy_price") return v != null ? `€${Number(v).toFixed(2)}` : "—"
+                                  if (field === "legacy_available") return v ? "✓ Available" : "✗ Blocked"
+                                  if (field === "coverImage") return v ? "set" : "—"
+                                  return String(v ?? "—").slice(0, 60)
+                                }
+                                return (
+                                  <div key={field} style={{ fontSize: "12px", display: "flex", gap: "6px", alignItems: "center" }}>
+                                    <span style={{ color: COLORS.muted, minWidth: "60px" }}>{fieldLabel[field] ?? field}</span>
+                                    <span style={{ color: COLORS.error, textDecoration: "line-through" }}>{fmt((delta as any).old)}</span>
+                                    <span style={{ color: COLORS.muted }}>→</span>
+                                    <span style={{ color: COLORS.success }}>{fmt((delta as any).new)}</span>
+                                  </div>
+                                )
+                              })}
+                              {entry.change_type === "inserted" && (
+                                <div style={{ fontSize: "12px", color: COLORS.muted }}>
+                                  {entry.changes.legacy_price != null
+                                    ? `€${Number((entry.changes.legacy_price as any)).toFixed(2)}`
+                                    : "No price"}
+                                  {" · "}
+                                  {(entry.changes.legacy_available as any) ? "Available" : "Unavailable"}
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {/* Pagination */}
+                {changeLogData.total > 100 && (
+                  <div style={{ display: "flex", gap: "8px", marginTop: "16px", justifyContent: "center" }}>
+                    <button
+                      disabled={changePage === 0}
+                      style={{
+                        padding: "6px 16px", borderRadius: "4px", border: `1px solid ${COLORS.border}`,
+                        background: "transparent", color: changePage === 0 ? COLORS.muted : COLORS.text,
+                        cursor: changePage === 0 ? "not-allowed" : "pointer",
+                      }}
+                      onClick={() => setChangePage((p) => Math.max(0, p - 1))}
+                    >
+                      ← Prev
+                    </button>
+                    <span style={{ lineHeight: "34px", fontSize: "13px", color: COLORS.muted }}>
+                      {changePage + 1} / {Math.ceil(changeLogData.total / 100)}
+                    </span>
+                    <button
+                      disabled={(changePage + 1) * 100 >= changeLogData.total}
+                      style={{
+                        padding: "6px 16px", borderRadius: "4px", border: `1px solid ${COLORS.border}`,
+                        background: "transparent", color: (changePage + 1) * 100 >= changeLogData.total ? COLORS.muted : COLORS.text,
+                        cursor: (changePage + 1) * 100 >= changeLogData.total ? "not-allowed" : "pointer",
+                      }}
+                      onClick={() => setChangePage((p) => p + 1)}
+                    >
+                      Next →
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
