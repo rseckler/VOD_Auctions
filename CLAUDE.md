@@ -328,6 +328,14 @@ VOD_Auctions/
 
 ## Recent Changes
 
+### 2026-04-08 — Bid History Raise + UI Kompakt (v1.0.0-rc4)
+
+- **"Raised bid" in History:** Wenn Höchstbietender Max erhöht → neuer `is_max_raise` Bid-Record. Andere sehen "↑ raised bid", Owner sieht "↑ Your max: €X.XX" (max_amount nie öffentlich). DB-Spalte `bid.is_max_raise` migriert.
+- **Email-Fix:** 9 Pre-Launch Accounts auf `email_verified = true` — behebt Block durch neuen Verifizierungs-Check
+- **Bid-Card 20% kompakter:** `p-5→p-4`, `text-3xl→text-2xl`, Spacings reduziert
+- **"Set maximum bid" prominent:** Gold-Border-Button mit `↑` statt unsichtbarem Ghost-Text
+- **"N people watching" sichtbar:** `text-sm font-medium` statt `text-xs/50`
+
 ### 2026-04-08 — 5 Fixes aus Testlauf-Feedback (UX + Security)
 
 - **cursor-pointer auf allen Buttons:** `ui/button.tsx` Base-Class ergänzt — fehlte in shadcn/ui Konfiguration

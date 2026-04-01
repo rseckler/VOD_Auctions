@@ -4,6 +4,26 @@ Vollständiger Entwicklungs-Changelog. Aktuelle Änderungen stehen in CLAUDE.md.
 
 ---
 
+## 2026-04-08 — Bid History Raise Feature + UI Kompakt (v1.0.0-rc4)
+
+### "Raised Bid" Eintrag in der Bid History (Psychological Pressure)
+- **DB Migration:** `bid.is_max_raise BOOLEAN DEFAULT false` (Supabase, `bofblwqieuvmqybzxapx`)
+- **Backend POST bids:** Wenn Höchstbietender sein Max erhöht → zusätzlicher Bid-Record mit `is_max_raise = true`, `amount = current_price` (öffentlich), `max_amount = newMax` (privat, nur für Owner sichtbar)
+- **GET /store/.../bids:** `is_max_raise` in öffentlicher Response — `max_amount` nie exponiert
+- **GET /store/account/bids:** `is_max_raise` + `max_amount` im privaten Response
+- **BidHistoryTable.tsx:** Auth-aware — fetcht eigene Bids, baut `Map<bidId, max_amount>`. Raise-Einträge: Anderen zeigt `↑ raised bid` (gold), eigenem User zeigt `↑ Your max: €X.XX`. Raise-Row: gold border statt grüner Winning-Row
+
+### Email-Verifizierungs-Fix
+- **Security:** 9 bestehende Kunden auf `email_verified = true` gesetzt (alle Pre-Launch Testaccounts)
+- Behebt Block für bestehende Accounts durch den neuen Verifizierungs-Check beim Bieten
+
+### UI: Bid-Card kompakter + Proxy-Button + View Count
+- **Bid-Card:** `p-5 → p-4`, `text-3xl → text-2xl` Preis, `mb-3 → mb-2`, `mt-3 → mt-2`, `gap-3 → gap-2.5` — ca. 20% weniger Höhe
+- **"Set maximum bid" Button:** War kaum sichtbar (ghost/muted) → gold-umrandeter Button mit `↑`-Pfeil, deutlich prominent
+- **"N people are watching":** `text-xs/50 → text-sm font-medium /70`, Icon `h-3 → h-4` — deutlich lesbarer
+
+---
+
 ## 2026-04-08 — 5 Fixes aus Testlauf-Feedback (UX + Security)
 
 ### Fix 1 — Login Button: cursor-pointer
