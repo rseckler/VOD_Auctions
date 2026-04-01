@@ -4,7 +4,7 @@
 **Goal:** Eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Phase 1 fertig — RSE-77 (Testlauf) als nächster Schritt
 **Language:** Storefront + Admin-UI: Englisch
-**Last Updated:** 2026-04-09
+**Last Updated:** 2026-04-09 (2)
 
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
@@ -328,6 +328,21 @@ VOD_Auctions/
 **Backlog:** RSE-78 (Launch, offen: AGB-Anwalt) | RSE-79 (Erste öffentliche Auktionen) | RSE-80 (Marketing)
 
 ## Recent Changes
+
+### 2026-04-09 — AI Creator Fixes + Drafts Table Redesign
+
+#### AI Auction Creator — Bugfixes
+- `create_auction_draft` nutzt jetzt **Knex direkt** statt ORM-Service → `start_time`/`end_time` NOT NULL Constraint-Fehler behoben. Defaults: +7d Start, +14d Ende, 10:00 UTC.
+- Feldname-Fix: `description` → `long_description` (DB-Spaltenname)
+- Tool-Schema: `start_time`, `end_time`, `long_description` explizit ergänzt; `AuctionModuleService` entfernt (nicht mehr nötig)
+- System Prompt: Claude lässt Datum weg wenn User nicht angibt, fragt nie nach
+
+#### Drafts Table Redesign
+- Neue `DraftsTable` Komponente mit **Created** + **Last Modified** statt Start/End
+- E2E-Drafts (`title.startsWith("E2E")`) → eigener "Test Blocks" Abschnitt am Ende, stark ausgeblendet
+- `AuctionBlock` Typ: `updated_at` ergänzt
+
+---
 
 ### 2026-04-09 — Draft Mode, AI Auction Creator, Catalog Auction Status
 

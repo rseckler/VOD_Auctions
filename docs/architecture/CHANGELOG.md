@@ -4,6 +4,21 @@ Vollständiger Entwicklungs-Changelog. Aktuelle Änderungen stehen in CLAUDE.md.
 
 ---
 
+## 2026-04-09 — AI Creator Fixes + Drafts Table Redesign
+
+### AI Auction Creator — Bugfixes
+- **Root Cause 1 — DB NOT NULL:** `start_time`/`end_time` sind im Medusa-Modell nicht nullable → `auctionService.createAuctionBlocks()` ohne diese Felder warf Postgres-Constraint-Fehler. Fix: `create_auction_draft` nutzt jetzt **Knex direkt** (bypasses ORM), setzt Default-Daten wenn weggelassen (+7d Start, +14d Ende, 10:00 UTC).
+- **Root Cause 2 — falscher Feldname:** Code übergab `description`, DB-Spalte heißt `long_description` → wurde silent ignoriert. Fix: korrekte Spaltenname.
+- **Tool-Schema ergänzt:** `start_time`, `end_time`, `long_description` sind jetzt explizit im Tool-Schema. Nicht mehr benötigt: `AuctionModuleService` Import/Param aus `executeTool` entfernt.
+- **System Prompt:** Claude lässt `start_time`/`end_time` weg wenn User keine Daten nennt (Tool-Defaults greifen). Claude fragt nie nach Daten sondern macht weiter.
+
+### Drafts Table Redesign
+- **Neue `DraftsTable` Komponente:** Zeigt **Created** + **Last Modified** statt Start/End — für Drafts inhaltlich sinnvoller. Format: `"15 Apr 26, 10:00"`.
+- **`AuctionBlock` Typ:** `updated_at` ergänzt.
+- **E2E Test Blocks:** Drafts mit Titel-Präfix `"E2E"` werden in einem separaten, stark ausgeblendeten "Test Blocks"-Abschnitt ganz unten angezeigt — weg aus dem echten Drafts-Bereich.
+
+---
+
 ## 2026-04-09 — Draft Mode, AI Auction Creator, Catalog Auction Status
 
 ### Feature 1 — Draft Mode
