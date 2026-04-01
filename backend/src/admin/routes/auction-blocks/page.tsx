@@ -15,6 +15,7 @@ type AuctionBlock = {
   end_time: string
   items?: { id: string }[]
   created_at: string
+  updated_at: string
 }
 
 type BlockSummary = {
@@ -143,6 +144,75 @@ function BlocksTable({
                 {DELETABLE.includes(block.status) && (
                   <Button variant="danger" size="small" onClick={() => onDelete(block)}>Delete</Button>
                 )}
+              </div>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+// ─── Drafts table — shows Created/Modified instead of Start/End ──────────────
+
+function DraftsTable({
+  rows,
+  onDelete,
+}: {
+  rows: AuctionBlock[]
+  onDelete: (block: AuctionBlock) => void
+}) {
+  const fmt = (d: string) =>
+    new Date(d).toLocaleString("en-GB", { day: "numeric", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit" })
+
+  return (
+    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+      <thead>
+        <tr style={{ borderBottom: "1px solid #e5e7eb", background: "#f9fafb" }}>
+          {["Title", "Type", "Created", "Last Modified", "Items", ""].map(h => (
+            <th key={h} style={{
+              textAlign: "left", padding: "8px 14px",
+              fontSize: 10, fontWeight: 700, color: "#9ca3af",
+              textTransform: "uppercase", letterSpacing: "0.05em",
+            }}>{h}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((block) => (
+          <tr
+            key={block.id}
+            style={{ borderBottom: "1px solid #f3f4f6", cursor: "pointer", transition: "background 0.1s" }}
+            onClick={() => { window.location.href = `/app/auction-blocks/${block.id}` }}
+            onMouseEnter={e => (e.currentTarget.style.background = "#f9fafb")}
+            onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+          >
+            <td style={{ padding: "12px 14px", maxWidth: 280 }}>
+              <div style={{ fontWeight: 600, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {block.title}
+              </div>
+              {block.subtitle && (
+                <div style={{ fontSize: 11, color: "#9ca3af", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {block.subtitle}
+                </div>
+              )}
+            </td>
+            <td style={{ padding: "12px 14px" }}>
+              <Badge>{block.block_type}</Badge>
+            </td>
+            <td style={{ padding: "12px 14px", color: "#6b7280", fontSize: 12, whiteSpace: "nowrap" }}>
+              {fmt(block.created_at)}
+            </td>
+            <td style={{ padding: "12px 14px", color: "#6b7280", fontSize: 12, whiteSpace: "nowrap" }}>
+              {fmt(block.updated_at)}
+            </td>
+            <td style={{ padding: "12px 14px", color: "#6b7280" }}>{block.items?.length || 0}</td>
+            <td style={{ padding: "12px 14px" }} onClick={e => e.stopPropagation()}>
+              <div style={{ display: "flex", gap: 6 }}>
+                <a href={`/app/auction-blocks/${block.id}`}>
+                  <Button variant="secondary" size="small">Edit</Button>
+                </a>
+                <Button variant="danger" size="small" onClick={() => onDelete(block)}>Delete</Button>
               </div>
             </td>
           </tr>
@@ -350,7 +420,9 @@ const AuctionBlocksPage = () => {
   const live     = blocks.filter(b => b.status === "active")
   const upcoming = blocks.filter(b => ["scheduled", "preview"].includes(b.status))
   const ended    = blocks.filter(b => b.status === "ended")
-  const drafts   = blocks.filter(b => b.status === "draft")
+  const allDrafts = blocks.filter(b => b.status === "draft")
+  const drafts   = allDrafts.filter(b => !b.title.startsWith("E2E"))
+  const e2eDrafts = allDrafts.filter(b => b.title.startsWith("E2E"))
   const archived = blocks.filter(b => b.status === "archived")
 
   // How many ended blocks still have open tasks
@@ -459,9 +531,26 @@ const AuctionBlocksPage = () => {
                   Drafts — {drafts.length}
                 </span>
               </div>
-              <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden", opacity: 0.8 }}>
+              <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden", opacity: 0.85 }}>
                 <div style={{ overflowX: "auto" }}>
-                  <BlocksTable rows={drafts} onDelete={handleDelete} />
+                  <DraftsTable rows={drafts} onDelete={handleDelete} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── E2E / TEST BLOCKS ─────────────────────────────── */}
+          {e2eDrafts.length > 0 && (
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#e5e7eb", display: "inline-block" }} />
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#d1d5db", textTransform: "uppercase", letterSpacing: "0.07em" }}>
+                  Test Blocks — {e2eDrafts.length}
+                </span>
+              </div>
+              <div style={{ border: "1px solid #f3f4f6", borderRadius: 8, overflow: "hidden", opacity: 0.5 }}>
+                <div style={{ overflowX: "auto" }}>
+                  <DraftsTable rows={e2eDrafts} onDelete={handleDelete} />
                 </div>
               </div>
             </div>

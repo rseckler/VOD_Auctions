@@ -276,7 +276,7 @@ Guidelines:
 - Aim for 10–25 items unless the brief specifies otherwise.
 - Only include items with auction_status = "available" (the search already filters this).
 - Create a compelling title, slug, and long_description that fits the theme.
-- For start_time/end_time: extract from the user's brief if provided (convert to ISO 8601). If not provided, use the defaults described in the tool (7 days from now, 7-day duration).
+- For start_time/end_time: extract from the user's brief if provided (convert to ISO 8601 UTC). If the user does NOT mention dates or times, omit start_time and end_time entirely — the tool will apply sensible defaults automatically. Never ask the user for dates; just proceed.
 - For start_price: use estimated_value × 50% if available, otherwise legacy_price × 50%, minimum €1. Round to whole euros.
 - After adding items, report what you created and list the items with titles and start prices.
 - Always call create_auction_draft before add_items_to_block.
