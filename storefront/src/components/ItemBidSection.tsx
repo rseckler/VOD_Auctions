@@ -266,7 +266,7 @@ export function ItemBidSection({
         )}
 
         {/* Current Price */}
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-1">
           <span className="text-sm text-muted-foreground">
             {bidCount > 0 ? "Current Bid" : "Starting Price"}
           </span>
@@ -281,7 +281,7 @@ export function ItemBidSection({
         </div>
 
         {bidCount > 0 && (
-          <div className="flex items-center justify-between text-sm mb-1">
+          <div className="flex items-center justify-between text-sm mb-0.5">
             <span className="text-muted-foreground">Bids</span>
             <Badge variant="secondary">{bidCount}</Badge>
           </div>
@@ -289,7 +289,7 @@ export function ItemBidSection({
 
         {/* Countdown */}
         {lotEndTime && (
-          <div className="mt-2 mb-2">
+          <div className="mt-1.5 mb-1.5">
             <CountdownTimer endTime={lotEndTime} />
             {currentExtensionCount > 0 && (
               <p className="text-xs text-muted-foreground/70 mt-1 flex items-center gap-1">
@@ -515,7 +515,7 @@ function BidForm({
 
   return (
     <>
-      <div className="mt-3 flex flex-col gap-2.5">
+      <div className="mt-2 flex flex-col gap-2">
         <div className="space-y-1.5">
           <Label className="text-xs">Your Bid</Label>
           <div className="relative">
