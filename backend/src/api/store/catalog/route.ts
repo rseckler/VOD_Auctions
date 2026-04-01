@@ -171,6 +171,7 @@ export async function GET(
       "Release.article_number",
       "Release.legacy_condition",
       "Release.legacy_price",
+      "Release.legacy_available",
       "Release.legacy_format_detail",
       "Release.auction_status",
       "Release.sale_mode",
@@ -307,8 +308,8 @@ export async function GET(
   // For-sale filter: only show purchasable items (with price)
   const { for_sale } = req.query as Record<string, string>
   if (for_sale === "true") {
-    query = query.whereNotNull("Release.legacy_price").where("Release.legacy_price", ">", 0)
-    countQuery = countQuery.whereNotNull("Release.legacy_price").where("Release.legacy_price", ">", 0)
+    query = query.whereNotNull("Release.legacy_price").where("Release.legacy_price", ">", 0).where("Release.legacy_available", true)
+    countQuery = countQuery.whereNotNull("Release.legacy_price").where("Release.legacy_price", ">", 0).where("Release.legacy_available", true)
   }
 
   // Count total
@@ -338,7 +339,7 @@ export async function GET(
   // Add is_purchasable flag to each release
   const enrichedReleases = releases.map((r: any) => ({
     ...r,
-    is_purchasable: r.legacy_price != null && Number(r.legacy_price) > 0,
+    is_purchasable: r.legacy_price != null && Number(r.legacy_price) > 0 && r.legacy_available !== false,
   }))
 
   res.json({

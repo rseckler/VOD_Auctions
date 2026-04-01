@@ -291,6 +291,10 @@ def sync_releases(mysql_conn, pg_conn):
                 condition = decode_entities(row.get("spezifikation")) if row.get("spezifikation") else None
                 format_detail = decode_entities(row.get("format_name")) if row.get("format_name") else None
 
+                # frei=1 → available, frei=0 → blocked, frei>1 (Unix timestamp) → sold on tape-mag
+                frei = row.get("frei")
+                legacy_available = (frei == 1)
+
                 release_values.append((
                     release_id,
                     slug,
@@ -307,6 +311,7 @@ def sync_releases(mysql_conn, pg_conn):
                     price,
                     condition,
                     format_detail,
+                    legacy_available,
                 ))
 
                 # Image record
@@ -325,7 +330,7 @@ def sync_releases(mysql_conn, pg_conn):
                 """INSERT INTO "Release" (
                     id, slug, title, description, year, format, format_id,
                     "catalogNumber", country, "artistId", "labelId", "coverImage",
-                    legacy_price, legacy_condition, legacy_format_detail,
+                    legacy_price, legacy_condition, legacy_format_detail, legacy_available,
                     "createdAt", "updatedAt", legacy_last_synced
                 ) VALUES %s
                 ON CONFLICT (id) DO UPDATE SET
@@ -345,10 +350,11 @@ def sync_releases(mysql_conn, pg_conn):
                     legacy_price = EXCLUDED.legacy_price,
                     legacy_condition = EXCLUDED.legacy_condition,
                     legacy_format_detail = EXCLUDED.legacy_format_detail,
+                    legacy_available = EXCLUDED.legacy_available,
                     "updatedAt" = NOW(),
                     legacy_last_synced = NOW()""",
                 release_values,
-                template="(%s, %s, %s, %s, %s, %s::\"ReleaseFormat\", %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW())",
+                template="(%s, %s, %s, %s, %s, %s::\"ReleaseFormat\", %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW())",
             )
 
         # Insert new images (skip existing)

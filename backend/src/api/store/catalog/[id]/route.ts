@@ -31,6 +31,7 @@ export async function GET(
       "Release.media_condition",
       "Release.sleeve_condition",
       "Release.legacy_price",
+      "Release.legacy_available",
       "Release.legacy_condition",
       "Release.legacy_format_detail",
       "Release.tracklist",
@@ -144,7 +145,7 @@ export async function GET(
         .limit(50)
     : []
 
-  const is_purchasable = release.legacy_price != null && Number(release.legacy_price) > 0
+  const is_purchasable = release.legacy_price != null && Number(release.legacy_price) > 0 && release.legacy_available !== false
 
   // Auction lot link — only for publicly visible blocks (preview/active)
   let auction_lot: { block_slug: string; block_item_id: string } | null = null
