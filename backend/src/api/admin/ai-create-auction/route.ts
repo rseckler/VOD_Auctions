@@ -2,8 +2,6 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, generateEntityId } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import Anthropic from "@anthropic-ai/sdk"
-import AuctionModuleService from "../../../modules/auction/service"
-import { AUCTION_MODULE } from "../../../modules/auction"
 
 // ─── Tools for the AI auction creator ────────────────────────────────────────
 
@@ -32,13 +30,21 @@ const TOOLS: Anthropic.Tool[] = [
       type: "object",
       properties: {
         title: { type: "string", description: "Block title" },
-        slug: { type: "string", description: "URL slug (lowercase, hyphens)" },
-        subtitle: { type: "string", description: "Short subtitle" },
-        description: { type: "string", description: "Long description for the block" },
+        slug: { type: "string", description: "URL slug (lowercase, hyphens only)" },
+        subtitle: { type: "string", description: "Short subtitle (1 sentence)" },
+        long_description: { type: "string", description: "Full editorial description for the block page" },
         block_type: {
           type: "string",
           enum: ["standard", "highlight", "clearance", "flash"],
           description: "Block type, default standard"
+        },
+        start_time: {
+          type: "string",
+          description: "Auction start as ISO 8601 datetime, e.g. 2026-04-15T10:00:00Z. If not specified by user, default to 7 days from now at 10:00 UTC."
+        },
+        end_time: {
+          type: "string",
+          description: "Auction end as ISO 8601 datetime. If not specified, default to start_time + 7 days."
         },
       },
       required: ["title", "slug"],
@@ -74,8 +80,7 @@ const TOOLS: Anthropic.Tool[] = [
 async function executeTool(
   name: string,
   input: Record<string, unknown>,
-  pg: Knex,
-  auctionService: AuctionModuleService
+  pg: Knex
 ): Promise<unknown> {
   switch (name) {
     case "search_catalog": {
@@ -134,20 +139,51 @@ async function executeTool(
         .replace(/-+/g, "-")
         .slice(0, 200)
 
-      const block = await auctionService.createAuctionBlocks({
+      // Default dates: start = 7 days from now at 10:00 UTC, end = start + 7 days
+      const now = new Date()
+      const defaultStart = new Date(now)
+      defaultStart.setUTCDate(defaultStart.getUTCDate() + 7)
+      defaultStart.setUTCHours(10, 0, 0, 0)
+      const defaultEnd = new Date(defaultStart)
+      defaultEnd.setUTCDate(defaultEnd.getUTCDate() + 7)
+
+      const startTime = input.start_time
+        ? new Date(input.start_time as string)
+        : defaultStart
+      const endTime = input.end_time
+        ? new Date(input.end_time as string)
+        : new Date(startTime.getTime() + 7 * 24 * 60 * 60 * 1000)
+
+      const blockId = generateEntityId("", "aublk")
+      const insertNow = new Date()
+      await pg("auction_block").insert({
+        id: blockId,
         title: input.title as string,
         slug,
         subtitle: (input.subtitle as string | undefined) || null,
-        description: (input.description as string | undefined) || null,
+        long_description: (input.long_description as string | undefined) || null,
+        short_description: null,
         block_type: (input.block_type as string | undefined) || "standard",
         status: "draft",
-      } as any)
+        start_time: startTime,
+        end_time: endTime,
+        preview_from: null,
+        staggered_ending: false,
+        stagger_interval_seconds: 120,
+        default_start_price_percent: 50,
+        auto_extend: true,
+        extension_minutes: 5,
+        created_at: insertNow,
+        updated_at: insertNow,
+      })
 
       return {
-        block_id: block.id,
-        slug: block.slug,
-        title: block.title,
-        admin_url: `/app/auction-blocks/${block.id}`,
+        block_id: blockId,
+        slug,
+        title: input.title as string,
+        start_time: startTime.toISOString(),
+        end_time: endTime.toISOString(),
+        admin_url: `/app/auction-blocks/${blockId}`,
       }
     }
 
@@ -239,9 +275,10 @@ Guidelines:
 - Prefer items with estimated_value set — they are better curated for auction.
 - Aim for 10–25 items unless the brief specifies otherwise.
 - Only include items with auction_status = "available" (the search already filters this).
-- Create a compelling title, slug, and description that fits the theme.
+- Create a compelling title, slug, and long_description that fits the theme.
+- For start_time/end_time: extract from the user's brief if provided (convert to ISO 8601). If not provided, use the defaults described in the tool (7 days from now, 7-day duration).
 - For start_price: use estimated_value × 50% if available, otherwise legacy_price × 50%, minimum €1. Round to whole euros.
-- After adding items, report what you created and list the items.
+- After adding items, report what you created and list the items with titles and start prices.
 - Always call create_auction_draft before add_items_to_block.
 - Be efficient: search 2–4 times max, then commit.`
 
@@ -252,7 +289,6 @@ export async function POST(
   res: MedusaResponse
 ): Promise<void> {
   const pg: Knex = req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
-  const auctionService: AuctionModuleService = req.scope.resolve(AUCTION_MODULE)
 
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {
@@ -318,8 +354,7 @@ export async function POST(
               const result = await executeTool(
                 block.name,
                 block.input as Record<string, unknown>,
-                pg,
-                auctionService
+                pg
               )
               send({ type: "tool_result", tool: block.name, result })
               toolResults.push({
