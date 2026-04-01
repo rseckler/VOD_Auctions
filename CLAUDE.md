@@ -4,7 +4,7 @@
 **Goal:** Eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Phase 1 fertig — RSE-77 (Testlauf) als nächster Schritt
 **Language:** Storefront + Admin-UI: Englisch
-**Last Updated:** 2026-04-09 (2)
+**Last Updated:** 2026-04-10
 
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
@@ -88,7 +88,8 @@ npm run build && pm2 restart vodauction-storefront
 ## Database Schema
 
 ### Legacy Tabellen (camelCase, Knex-Only)
-- `Release` — ~41.500 Produkte (product_category: release/band_literature/label_literature/press_literature). Visibility: `coverImage IS NOT NULL`. Kaufbar: `legacy_price > 0`.
+- `Release` — ~41.500 Produkte (product_category: release/band_literature/label_literature/press_literature). Visibility: `coverImage IS NOT NULL`. Kaufbar: `legacy_price > 0 AND legacy_available = true`.
+- `sync_change_log` — Change-Log des Legacy-Sync (sync_run_id, release_id, change_type: inserted/updated, changes JSONB mit old/new je Feld). Befüllt täglich durch `legacy_sync.py`. Admin: `/app/sync` → Tab "Change Log".
 - `Artist`, `Label`, `PressOrga`, `Format` (39 Einträge), `Image` (+`rang` für Ordering), `Track`, `ReleaseArtist`
 - `entity_content` — CMS für Band/Label/Press Seiten (description, short_description, genre_tags TEXT[], external_links JSONB, is_published, ai_generated)
 - `gallery_media` — Gallery CMS (section, position, is_active). 9 Sektionen.
@@ -156,6 +157,7 @@ npm run build && pm2 restart vodauction-storefront
 - `GET /admin/media` — 41k Releases (q, category, format, country, label, has_discogs, sort field:dir)
 - `GET /admin/entity-content/overhaul-status` — Entity Overhaul Status + Budget
 - `GET /admin/sync/discogs-health` | `POST` — Discogs Sync Health + Actions
+- `GET /admin/sync/change-log` — Legacy Sync Change Log (?run_id, ?field, limit, offset) — Runs-Übersicht + paginierte Einträge mit old/new Werten
 - `GET /admin/customers/list` — Paginated Customer-Liste mit Stats (?q, sort, limit, offset)
 - `GET|PATCH /admin/customers/:id` — Customer-Detail + Edit (name/email/phone/tags/is_vip)
 - `POST /admin/customers/recalc-stats` — Force-Recalc aller customer_stats aus live Daten
@@ -318,7 +320,8 @@ VOD_Auctions/
 
 **Password Gate:** `middleware.ts` + `gate/page.tsx`. Entfernen beim Launch: `middleware.ts` löschen + `layout.tsx` Cookie-Check entfernen.
 
-**Catalog Visibility:** Artikel mit `coverImage IS NOT NULL` = sichtbar. `legacy_price > 0` = kaufbar (`is_purchasable`).
+**Catalog Visibility:** Artikel mit `coverImage IS NOT NULL` = sichtbar. `legacy_price > 0 AND legacy_available = true` = kaufbar (`is_purchasable`).
+**legacy_available:** Spiegelt MySQL `frei`-Feld — `frei=1` → true (verfügbar), `frei=0` → false (gesperrt), `frei>1` (Unix-Timestamp) → false (auf tape-mag verkauft). Wird täglich per Legacy-Sync aktualisiert.
 
 ## Linear
 
@@ -328,6 +331,28 @@ VOD_Auctions/
 **Backlog:** RSE-78 (Launch, offen: AGB-Anwalt) | RSE-79 (Erste öffentliche Auktionen) | RSE-80 (Marketing)
 
 ## Recent Changes
+
+### 2026-04-10 — Legacy Sync: frei-Feld, Change Log, Venv-Fix
+
+#### Legacy Sync Venv-Fix
+- `scripts/venv/` war seit ~09.03.2026 defekt (kein `bin/`-Verzeichnis) → täglicher Cron schlug still fehl seit 5+ Wochen. Fix: `rm -rf venv && python3 -m venv venv && pip install -r requirements.txt`.
+
+#### legacy_available — frei-Feld Sync
+- **MySQL `frei`-Semantik:** `0` = gesperrt, `1` = verfügbar, `>1` (Unix-Timestamp) = auf tape-mag.com verkauft.
+- **Supabase Migration:** `ALTER TABLE "Release" ADD COLUMN legacy_available BOOLEAN NOT NULL DEFAULT true`.
+- **`legacy_sync.py`:** `frei == 1 → True`, sonst `False` → wird als `legacy_available` ins ON CONFLICT DO UPDATE SET geschrieben (kein geschütztes Feld).
+- **Backend `catalog/route.ts`:** `for_sale` Filter + `is_purchasable` erfordern jetzt `legacy_available = true`.
+- **Backend `catalog/[id]/route.ts`:** `is_purchasable` erfordert `legacy_available !== false`.
+- **Ergebnis:** 373 Releases (102 gesperrt + 271 verkauft) korrekt als nicht-kaufbar markiert.
+- **tape-mag `mapper.ts`:** Bug gefixt — `Math.min(frei, 999999999)` machte aus Unix-Timestamps 999M Inventory → jetzt `frei === 1 ? 1 : 0`.
+
+#### sync_change_log — Change Detection
+- **`sync_change_log` Tabelle** (Supabase): `sync_run_id`, `release_id`, `change_type` (inserted/updated), `changes` JSONB `{field: {old, new}}`. Indizes auf `run_id`, `release_id`, `synced_at DESC`.
+- **`legacy_sync.py`:** Vor jedem Batch: SELECT aktueller Werte (`legacy_price`, `legacy_available`, `title`, `coverImage`). Nach UPSERT: Vergleich alt/neu → Bulk-Insert in `sync_change_log`. Summary zeigt "Changes logged: N" + Run ID.
+- **`GET /admin/sync/change-log`** (NEU): Runs-Übersicht (pro Run: total, price/avail/title/cover/inserted Counts) + paginierte Einträge mit Release-Titel JOIN. Filter: `run_id`, `field`, `limit/offset`.
+- **Admin Sync Dashboard:** Neuer Tab "Change Log" — Run-Picker (Chips mit Datum + Anzahl), Stats-Bar, Feld-Filter (All/Price/Availability/Title/Cover), Tabelle mit old→new Diffs. Pagination bei >100 Einträgen.
+
+---
 
 ### 2026-04-09 — AI Creator Fixes + Drafts Table Redesign
 

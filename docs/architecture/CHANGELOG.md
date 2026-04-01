@@ -4,6 +4,28 @@ Vollständiger Entwicklungs-Changelog. Aktuelle Änderungen stehen in CLAUDE.md.
 
 ---
 
+## 2026-04-10 — Legacy Sync: frei-Feld, Change Log, Venv-Fix
+
+### Legacy Sync Venv-Fix
+- `scripts/venv/` war seit ~09.03.2026 defekt (kein `bin/`-Verzeichnis) → täglicher Cron schlug still fehl. Fix: `rm -rf venv && python3 -m venv venv && pip install -r requirements.txt`.
+
+### legacy_available — frei-Feld Sync
+- **MySQL `frei`-Semantik:** `0` = gesperrt, `1` = verfügbar, `>1` (Unix-Timestamp) = auf tape-mag.com verkauft
+- **Supabase:** `ALTER TABLE "Release" ADD COLUMN legacy_available BOOLEAN NOT NULL DEFAULT true`
+- **`legacy_sync.py`:** `frei == 1 → True`, sonst `False` → täglich als `legacy_available` gesynct (nicht geschützt)
+- **Backend `catalog/route.ts`:** `for_sale`-Filter und `is_purchasable` erfordern jetzt `legacy_available = true`
+- **Backend `catalog/[id]/route.ts`:** `is_purchasable` erfordert `legacy_available !== false`
+- **Ergebnis:** 373 Releases (102 gesperrt + 271 auf tape-mag verkauft) korrekt als nicht-kaufbar markiert
+- **tape-mag `mapper.ts`:** Bug: `Math.min(frei, 999999999)` → Unix-Timestamps wurden 999M Inventory. Fix: `frei === 1 ? 1 : 0`
+
+### sync_change_log — Change Detection + Admin UI
+- **`sync_change_log` Tabelle** (Supabase): `sync_run_id TEXT`, `release_id TEXT`, `change_type` (inserted/updated), `changes JSONB` `{field: {old, new}}`. Indizes auf `run_id`, `release_id`, `synced_at DESC`.
+- **`legacy_sync.py`:** Pre-fetch aktueller DB-Werte vor jedem Batch → Vergleich → Bulk-Insert in `sync_change_log`. Geloggte Felder: `legacy_price`, `legacy_available`, `title`, `coverImage`. Summary zeigt "Changes logged: N" + Run ID.
+- **`GET /admin/sync/change-log`** (NEU): Runs-Übersicht mit pro-Feld Counts + paginierte Einträge (Release-Titel JOIN). Filter: `run_id`, `field`, `limit/offset`.
+- **Admin `/app/sync` → Tab "Change Log"** (NEU): Run-Picker Chips, Stats-Bar, Feld-Filter, Tabelle mit old→new Diffs (formatiert: Preis €, Availability ✓/✗, Titel-Text). Pagination bei >100 Einträgen.
+
+---
+
 ## 2026-04-09 — AI Creator Fixes + Drafts Table Redesign
 
 ### AI Auction Creator — Bugfixes
