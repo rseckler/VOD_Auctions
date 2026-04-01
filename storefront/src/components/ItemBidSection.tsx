@@ -18,15 +18,25 @@ import { brevoBidPlaced } from "@/lib/brevo-tracking"
 import { rudderTrack } from "@/lib/rudderstack"
 
 /**
- * Tiered bid increment table (mirrors backend logic).
+ * Bid config (mirrors backend/src/lib/bid-config.ts).
+ * Update both files together when changing bidding behaviour.
  */
+const BID_CONFIG = {
+  whole_euros_only: true,
+  min_bid_amount: 1,
+  increment_table: [
+    { below: 10,       increment_std: 0.50, increment_whole: 1  },
+    { below: 50,       increment_std: 1.00, increment_whole: 1  },
+    { below: 200,      increment_std: 2.50, increment_whole: 3  },
+    { below: 500,      increment_std: 5.00, increment_whole: 5  },
+    { below: 2000,     increment_std: 10.0, increment_whole: 10 },
+    { below: Infinity, increment_std: 25.0, increment_whole: 25 },
+  ],
+}
+
 function getMinIncrement(currentPrice: number): number {
-  if (currentPrice < 10)   return 0.50
-  if (currentPrice < 50)   return 1.00
-  if (currentPrice < 200)  return 2.50
-  if (currentPrice < 500)  return 5.00
-  if (currentPrice < 2000) return 10.00
-  return 25.00
+  const row = BID_CONFIG.increment_table.find((r) => currentPrice < r.below)!
+  return BID_CONFIG.whole_euros_only ? row.increment_whole : row.increment_std
 }
 
 type BidRecord = {
@@ -411,23 +421,30 @@ function BidForm({
   // Track whether the initial amount has been set once
   const suggestedBidUsed = useRef(false)
 
+  // Round minimumBid up to whole euro if config requires it
+  const effectiveMinimumBid = BID_CONFIG.whole_euros_only
+    ? Math.max(BID_CONFIG.min_bid_amount, Math.ceil(minimumBid))
+    : minimumBid
+
   useEffect(() => {
     if (!suggestedBidUsed.current) {
-      // First mount: initialise with suggestedBid (from URL) or minimumBid
-      setAmount(
-        suggestedBid && suggestedBid >= minimumBid
-          ? suggestedBid.toFixed(2)
-          : minimumBid.toFixed(2)
-      )
+      const initial = suggestedBid && suggestedBid >= effectiveMinimumBid
+        ? suggestedBid
+        : effectiveMinimumBid
+      setAmount(BID_CONFIG.whole_euros_only ? String(Math.ceil(initial)) : initial.toFixed(2))
       suggestedBidUsed.current = true
       return
     }
-    // Price changed via realtime: bump up only if user's current value is now below minimum
     setAmount((prev) => {
       const n = parseFloat(prev)
-      return isNaN(n) || n < minimumBid ? minimumBid.toFixed(2) : prev
+      if (isNaN(n) || n < effectiveMinimumBid) {
+        return BID_CONFIG.whole_euros_only
+          ? String(Math.ceil(effectiveMinimumBid))
+          : effectiveMinimumBid.toFixed(2)
+      }
+      return prev
     })
-  }, [minimumBid, suggestedBid])
+  }, [effectiveMinimumBid, suggestedBid])
 
   function handleSubmitClick() {
     if (!isAuthenticated) {
@@ -442,8 +459,12 @@ function BidForm({
     }
 
     const val = parseFloat(amount)
-    if (isNaN(val) || val < minimumBid) {
-      toast.error(`Minimum bid is €${minimumBid.toFixed(2)}`, { duration: 5000 })
+    if (isNaN(val) || val < effectiveMinimumBid) {
+      toast.error(`Minimum bid is €${BID_CONFIG.whole_euros_only ? Math.ceil(effectiveMinimumBid) : effectiveMinimumBid.toFixed(2)}`, { duration: 5000 })
+      return
+    }
+    if (BID_CONFIG.whole_euros_only && !Number.isInteger(val)) {
+      toast.error("Only whole Euro amounts are accepted (no cents).", { duration: 5000 })
       return
     }
 
@@ -524,17 +545,22 @@ function BidForm({
             </span>
             <Input
               type="number"
-              step="0.01"
+              step={BID_CONFIG.whole_euros_only ? "1" : "0.01"}
+              min={BID_CONFIG.min_bid_amount}
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               className="pl-7 font-mono"
             />
           </div>
           <p className="text-xs text-muted-foreground/60 font-mono">
-            Min. bid: &euro;{minimumBid.toFixed(2)}
+            Min. bid: &euro;{BID_CONFIG.whole_euros_only
+              ? Math.ceil(effectiveMinimumBid)
+              : minimumBid.toFixed(2)}
             {bidCount > 0 && (
               <span className="ml-1.5 text-muted-foreground/40">
-                (+&euro;{minIncrement.toFixed(2)})
+                (+&euro;{BID_CONFIG.whole_euros_only
+                  ? Math.ceil(minIncrement)
+                  : minIncrement.toFixed(2)})
               </span>
             )}
           </p>

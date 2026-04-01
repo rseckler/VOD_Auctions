@@ -11,19 +11,7 @@ import { sendOutbidEmail, sendBidPlacedEmail } from "../../../../../../../lib/em
 import { crmSyncBidPlaced } from "../../../../../../../lib/crm-sync"
 import { getSupabaseAdminClient } from "../../../../../../../lib/supabase"
 import { rudderTrack } from "../../../../../../../lib/rudderstack"
-
-/**
- * Tiered bid increment table.
- * Returns the minimum increment that must be added to currentPrice.
- */
-function getMinIncrement(currentPrice: number): number {
-  if (currentPrice < 10)   return 0.50
-  if (currentPrice < 50)   return 1.00
-  if (currentPrice < 200)  return 2.50
-  if (currentPrice < 500)  return 5.00
-  if (currentPrice < 2000) return 10.00
-  return 25.00
-}
+import { getMinIncrement, validateBidAmount } from "../../../../../../../lib/bid-config"
 
 // GET /store/auction-blocks/:slug/items/:itemId/bids — Public: bid history
 export async function GET(
@@ -158,6 +146,11 @@ export async function POST(
   // Input validation
   if (!amount || typeof amount !== "number" || amount <= 0) {
     res.status(400).json({ message: "Invalid bid amount" })
+    return
+  }
+  const bidValidationError = validateBidAmount(amount)
+  if (bidValidationError) {
+    res.status(400).json({ message: bidValidationError })
     return
   }
   if (max_amount !== undefined && max_amount < amount) {
