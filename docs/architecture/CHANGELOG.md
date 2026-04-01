@@ -4,6 +4,26 @@ Vollständiger Entwicklungs-Changelog. Aktuelle Änderungen stehen in CLAUDE.md.
 
 ---
 
+## 2026-04-09 — Draft Mode, AI Auction Creator, Catalog Auction Status
+
+### Feature 1 — Draft Mode
+- **Save button label:** `[id]/page.tsx` — Button zeigt "Save Draft" wenn `isNew || block.status === "draft"`, sonst "Save". Klare Trennung zwischen Draft-Speichern und Status-Wechseln (Schedule-Button bleibt separat).
+
+### Feature 2 — AI Auction Creator
+- **`POST /admin/ai-create-auction`** (NEU) — SSE-Endpoint mit 3 Tools: `search_catalog` (sucht nur `auction_status=available`, sortiert nach `estimated_value`), `create_auction_draft` (ruft `auctionService.createAuctionBlocks()` direkt auf — kein HTTP-Validierungs-Layer), `add_items_to_block` (Knex-Insert in `block_item`, setzt `auction_status=reserved` auf Release). Verwendet `claude-sonnet-4-6`.
+- **`/app/auction-blocks/ai-create`** (NEU) — Admin-Seite mit Textarea für den "Brief", Live-Activity-Log mit farbigen Tool-Chips, "Open Draft Block →" Link nach Fertigstellung.
+- **"✨ AI Create" Button** auf der Auction-Blocks-Listenseite neben "Create New Auction".
+- System Prompt: 2–4 Suchen, 10–25 Items, start_price = `estimated_value × 50%` oder `legacy_price × 50%`, Minimum €1, ganze Euros.
+
+### Feature 3 — Catalog Auction Status
+- **`GET /admin/releases`:** `Release.legacy_price` ins SELECT ergänzt — war bisher nicht dabei.
+- **`GET /store/catalog/:id`:** Nach der Hauptquery: Lookup von `block_item JOIN auction_block` für `auction_status = reserved`. Gibt `auction_lot: { block_slug, block_item_id }` zurück — nur wenn Block-Status `preview` oder `active` (kein Link zu draft/scheduled → würde 404 liefern).
+- **`[id]/page.tsx` (Admin):** `Release`-Typ um `legacy_price` ergänzt. `handleAddItem`: Start-Price-Fallback war `1` — jetzt `Math.round(legacy_price × 0.5)` wenn `estimated_value` fehlt, sonst `1`.
+- **`CatalogClient.tsx`:** `auction_status` zum `CatalogRelease`-Typ ergänzt. Preis-Badge: `auction_status === "reserved"` → amber "In Auction" statt Preis.
+- **`catalog/[id]/page.tsx`:** `auction_lot` zum `CatalogRelease`-Typ ergänzt. Neuer Block in der Preis-Box: bei `reserved + auction_lot` → animierter Pulse-Dot + "Currently in Auction →" Link; bei `reserved + kein auction_lot` → "Coming to Auction Soon" (kein Link).
+
+---
+
 ## 2026-04-08 — Bid History Raise Feature + UI Kompakt (v1.0.0-rc4)
 
 ### "Raised Bid" Eintrag in der Bid History (Psychological Pressure)

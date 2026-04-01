@@ -4,7 +4,7 @@
 **Goal:** Eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Phase 1 fertig — RSE-77 (Testlauf) als nächster Schritt
 **Language:** Storefront + Admin-UI: Englisch
-**Last Updated:** 2026-04-08
+**Last Updated:** 2026-04-09
 
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
@@ -143,6 +143,7 @@ npm run build && pm2 restart vodauction-storefront
 
 ### Admin (credentials required)
 - `POST /admin/ai-chat` — AI Assistant Chat (SSE Streaming, Claude Haiku, 5 read-only Tools)
+- `POST /admin/ai-create-auction` — AI Auction Creator (SSE, Claude Sonnet, 3 write Tools: search_catalog, create_auction_draft, add_items_to_block)
 - `GET/POST /admin/auction-blocks` — Blocks CRUD
 - `DELETE /admin/auction-blocks/:id` — Löschen (nur draft/ended/archived, Releases → available)
 - `GET /admin/auction-blocks/:id/live-bids` — Live Bid Monitor (volle Namen)
@@ -327,6 +328,25 @@ VOD_Auctions/
 **Backlog:** RSE-78 (Launch, offen: AGB-Anwalt) | RSE-79 (Erste öffentliche Auktionen) | RSE-80 (Marketing)
 
 ## Recent Changes
+
+### 2026-04-09 — Draft Mode, AI Auction Creator, Catalog Auction Status
+
+#### Feature 1 — Draft Mode
+- Save button zeigt "Save Draft" wenn `isNew || block.status === "draft"` — klare Trennung von Draft-Speichern und Schedule/Activate
+
+#### Feature 2 — AI Auction Creator
+- **`POST /admin/ai-create-auction`** (NEU) — SSE + Claude Sonnet `claude-sonnet-4-6`, 3 Tools: `search_catalog` (available only, sortiert nach estimated_value), `create_auction_draft` (ruft Service direkt auf, nicht HTTP-Layer), `add_items_to_block` (Knex-Insert + setzt auction_status=reserved). start_price: estimated_value×50% → legacy_price×50% → €1.
+- **`/app/auction-blocks/ai-create`** (NEU) — Admin UI: Brief-Textarea, Live-Log mit Tool-Chips, "Open Draft Block →" nach Fertigstellung
+- **"✨ AI Create" Button** auf Auction-Blocks-Listenseite
+
+#### Feature 3 — Catalog Auction Status
+- `GET /admin/releases`: `legacy_price` im SELECT ergänzt
+- `GET /store/catalog/:id`: `auction_lot: { block_slug, block_item_id }` — nur wenn Block preview/active (kein Link zu draft/scheduled → 404)
+- Admin `[id]/page.tsx` `Release`-Typ: `legacy_price` ergänzt; `handleAddItem` Fallback: `legacy_price × 50%` statt `1`
+- `CatalogClient.tsx`: `auction_status` im Typ; Preis-Badge zeigt "In Auction" (amber) für reserved
+- `catalog/[id]/page.tsx`: `auction_lot` im Typ; Preis-Box: "Currently in Auction →" Link oder "Coming to Auction Soon"
+
+---
 
 ### 2026-04-08 — Bid History Raise + UI Kompakt (v1.0.0-rc4)
 
