@@ -2,13 +2,16 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Gavel, ChevronDown, ChevronUp } from "lucide-react"
+import { Gavel, ChevronDown, ChevronUp, TrendingUp } from "lucide-react"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
+import { useAuth } from "@/components/AuthProvider"
+import { getToken } from "@/lib/auth"
 
 type BidRecord = {
   id: string
   amount: number
   is_winning: boolean
+  is_max_raise?: boolean
   user_hint?: string
   user_id?: string
   created_at: string
@@ -47,6 +50,7 @@ export function BidHistoryTable({
   blockStatus,
   initialBidCount = 0,
 }: BidHistoryTableProps) {
+  const { isAuthenticated } = useAuth()
   const [bids, setBids] = useState<BidRecord[]>([])
   const [count, setCount] = useState(initialBidCount)
   const [loading, setLoading] = useState(true)
@@ -54,6 +58,8 @@ export function BidHistoryTable({
   const [newIds, setNewIds] = useState<Set<string>>(new Set())
   const prevIdsRef = useRef<Set<string>>(new Set())
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Map of bidId → max_amount for own bids (from authenticated endpoint)
+  const [myBidMaxMap, setMyBidMaxMap] = useState<Map<string, number>>(new Map())
 
   const isActive = blockStatus === "active"
 
@@ -104,6 +110,31 @@ export function BidHistoryTable({
       if (intervalRef.current) clearInterval(intervalRef.current)
     }
   }, [isActive, fetchBids])
+
+  // Fetch own bids to build max_amount map (only shown to the owner)
+  useEffect(() => {
+    if (!isAuthenticated) return
+    const token = getToken()
+    if (!token) return
+    fetch(`${MEDUSA_URL}/store/account/bids`, {
+      headers: {
+        "x-publishable-api-key": PUBLISHABLE_KEY,
+        Authorization: `Bearer ${token}`,
+      },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data?.bids) return
+        const map = new Map<string, number>()
+        for (const b of data.bids) {
+          if (b.is_max_raise && b.max_amount != null) {
+            map.set(b.id, b.max_amount)
+          }
+        }
+        setMyBidMaxMap(map)
+      })
+      .catch(() => {})
+  }, [isAuthenticated, bids])
 
   // Assign stable sequential "Bidder #N" labels based on first appearance order
   const bidderMap = useRef<Map<string, number>>(new Map())
@@ -191,6 +222,9 @@ export function BidHistoryTable({
             {visibleBids.map((bid, index) => {
               const isWinning = bid.is_winning
               const isNew = newIds.has(bid.id)
+              const isRaise = bid.is_max_raise === true
+              const myMax = myBidMaxMap.get(bid.id)
+              const isMyRaise = isRaise && myMax != null
 
               return (
                 <motion.div
@@ -200,9 +234,11 @@ export function BidHistoryTable({
                   transition={{ duration: 0.25 }}
                   className={[
                     "relative flex items-center justify-between text-sm py-2 px-3 rounded-lg transition-colors",
-                    isWinning
-                      ? "bg-green-500/[0.08] border border-green-500/20"
-                      : "bg-[rgba(232,224,212,0.04)] border border-transparent",
+                    isRaise
+                      ? "bg-[#d4a54a]/[0.06] border border-[#d4a54a]/20"
+                      : isWinning
+                        ? "bg-green-500/[0.08] border border-green-500/20"
+                        : "bg-[rgba(232,224,212,0.04)] border border-transparent",
                     isNew ? "ring-1 ring-[#d4a54a]/40" : "",
                   ]
                     .filter(Boolean)
@@ -218,13 +254,22 @@ export function BidHistoryTable({
                     {getBidderLabel(bid)}
                   </span>
 
-                  {/* Right side: amount + status badge + time */}
+                  {/* Right side: raise indicator OR amount + badge + time */}
                   <div className="flex items-center gap-3">
-                    <span className={`font-mono font-semibold text-sm ${isWinning ? "text-green-400" : "text-foreground"}`}>
-                      &euro;{Number(bid.amount).toFixed(2)}
-                    </span>
+                    {isRaise ? (
+                      <span className="flex items-center gap-1 text-[#d4a54a] font-medium text-xs">
+                        <TrendingUp className="h-3.5 w-3.5" />
+                        {isMyRaise
+                          ? `Your max: \u20ac${myMax!.toFixed(2)}`
+                          : "raised bid"}
+                      </span>
+                    ) : (
+                      <span className={`font-mono font-semibold text-sm ${isWinning ? "text-green-400" : "text-foreground"}`}>
+                        &euro;{Number(bid.amount).toFixed(2)}
+                      </span>
+                    )}
 
-                    {isWinning && (
+                    {isWinning && !isRaise && (
                       <span className="hidden sm:inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded bg-green-500/15 text-green-400 border border-green-500/25 whitespace-nowrap">
                         Current
                       </span>

@@ -24,6 +24,7 @@ export async function GET(
       "bid.max_amount",
       "bid.is_winning",
       "bid.is_outbid",
+      "bid.is_max_raise",
       "bid.created_at",
       "block_item.id as item_id",
       "block_item.release_id",
@@ -66,8 +67,10 @@ export async function GET(
     return {
       id: bid.id,
       amount: parseFloat(bid.amount),
+      max_amount: bid.max_amount ? parseFloat(bid.max_amount) : null,
       is_winning: bid.is_winning,
       is_outbid: bid.is_outbid,
+      is_max_raise: bid.is_max_raise || false,
       created_at: bid.created_at,
       item: {
         id: bid.item_id,

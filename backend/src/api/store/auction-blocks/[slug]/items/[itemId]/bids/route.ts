@@ -77,11 +77,12 @@ export async function GET(
     customerMap[userId as string] = `Bidder ${hash}`
   })
 
-  // Anonymize for public view — no internal user_id in response
+  // Anonymize for public view — no internal user_id or max_amount in response
   const anonymized = bids.map((bid: any) => ({
     id: bid.id,
     amount: parseFloat(bid.amount),
     is_winning: bid.is_winning,
+    is_max_raise: bid.is_max_raise || false,
     user_hint: customerMap[bid.user_id] || "Bidder 000000",
     created_at: bid.created_at,
   }))
@@ -235,9 +236,26 @@ export async function POST(
         const existingMax = parseFloat(existingWinning.max_amount) || 0
 
         if (newMax > existingMax) {
+          // Update max_amount on existing winning bid
           await trx("bid")
             .where("id", existingWinning.id)
             .update({ max_amount: newMax, updated_at: now })
+
+          // Insert a new raise-event bid for the history (stores max privately, never exposed in public API)
+          const raiseId = generateEntityId("", "bid")
+          await trx("bid").insert({
+            id: raiseId,
+            block_item_id: itemId,
+            user_id: customerId,
+            amount: currentPrice,
+            max_amount: newMax,
+            is_winning: true,
+            is_outbid: false,
+            is_max_raise: true,
+            created_at: now,
+            updated_at: now,
+          })
+
           return {
             status: 200,
             bid_id: existingWinning.id,
