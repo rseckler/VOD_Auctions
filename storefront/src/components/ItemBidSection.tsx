@@ -249,10 +249,10 @@ export function ItemBidSection({
 
   return (
     <>
-      <Card className="p-5">
+      <Card className="p-4">
         {/* Bid status indicator for authenticated user */}
         {isAuthenticated && userIsWinning !== null && (
-          <div className={`flex items-center gap-2 px-3 py-2 rounded-lg mb-3 text-sm font-medium ${
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg mb-2.5 text-sm font-medium ${
             userIsWinning
               ? "bg-green-500/10 text-green-400 border border-green-500/20"
               : "bg-red-500/10 text-red-400 border border-red-500/20"
@@ -266,7 +266,7 @@ export function ItemBidSection({
         )}
 
         {/* Current Price */}
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-2">
           <span className="text-sm text-muted-foreground">
             {bidCount > 0 ? "Current Bid" : "Starting Price"}
           </span>
@@ -274,7 +274,7 @@ export function ItemBidSection({
             key={currentPrice}
             initial={newBidPulse ? { scale: 1.1 } : false}
             animate={{ scale: 1 }}
-            className="text-3xl font-mono font-bold text-primary"
+            className="text-2xl font-mono font-bold text-primary"
           >
             &euro;{currentPrice.toFixed(2)}
           </motion.span>
@@ -289,7 +289,7 @@ export function ItemBidSection({
 
         {/* Countdown */}
         {lotEndTime && (
-          <div className="mt-3 mb-3">
+          <div className="mt-2 mb-2">
             <CountdownTimer endTime={lotEndTime} />
             {currentExtensionCount > 0 && (
               <p className="text-xs text-muted-foreground/70 mt-1 flex items-center gap-1">
@@ -515,7 +515,7 @@ function BidForm({
 
   return (
     <>
-      <div className="mt-4 flex flex-col gap-3">
+      <div className="mt-3 flex flex-col gap-2.5">
         <div className="space-y-1.5">
           <Label className="text-xs">Your Bid</Label>
           <div className="relative">
@@ -540,17 +540,15 @@ function BidForm({
           </p>
         </div>
 
-        <Button
+        <button
           type="button"
-          variant="ghost"
-          size="sm"
-          className="text-xs text-muted-foreground"
           onClick={() => setShowProxy(!showProxy)}
+          className="flex items-center justify-center gap-1.5 w-full text-xs font-medium text-[#d4a54a]/80 hover:text-[#d4a54a] border border-[#d4a54a]/25 hover:border-[#d4a54a]/50 rounded-md py-1.5 transition-colors"
         >
           {showProxy
             ? "Hide maximum bid"
-            : "Set maximum bid (proxy bidding)"}
-        </Button>
+            : "↑ Set maximum bid (proxy bidding)"}
+        </button>
 
         <AnimatePresence initial={false}>
           {showProxy && (

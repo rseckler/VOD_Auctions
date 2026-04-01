@@ -344,8 +344,8 @@ export default async function ItemDetailPage({
 
           {/* View Count — social proof */}
           {item.view_count != null && item.view_count > 5 && (
-            <p className="flex items-center gap-1 text-xs text-muted-foreground/50 mt-2">
-              <Eye className="h-3 w-3" />
+            <p className="flex items-center gap-1.5 text-sm font-medium text-foreground/70 mt-3">
+              <Eye className="h-4 w-4 text-muted-foreground" />
               {item.view_count >= 100
                 ? `🔥 ${item.view_count} people are watching this lot`
                 : item.view_count >= 20
