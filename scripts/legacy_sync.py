@@ -213,7 +213,7 @@ def sync_labels(mysql_conn, pg_conn):
     return inserted
 
 
-def sync_releases(mysql_conn, pg_conn):
+def sync_releases(mysql_conn, pg_conn, run_id):
     """Sync releases: upsert content fields, protect auction/discogs fields."""
     print("\n=== Syncing Releases ===")
     cursor = mysql_conn.cursor(dictionary=True)
@@ -228,6 +228,7 @@ def sync_releases(mysql_conn, pg_conn):
     processed = 0
     errors = 0
     image_count = 0
+    change_count = 0
 
     while offset < total:
         cursor.execute(
@@ -323,6 +324,25 @@ def sync_releases(mysql_conn, pg_conn):
                 errors += 1
                 print(f"\n  ERROR on release #{row['id']}: {e}")
 
+        # Pre-fetch current state for change detection (price, availability, title, cover)
+        existing_state = {}
+        if release_values:
+            batch_ids = [rv[0] for rv in release_values]
+            fetch_cur = pg_conn.cursor()
+            fetch_cur.execute(
+                """SELECT id, legacy_price, legacy_available, title, "coverImage"
+                   FROM "Release" WHERE id = ANY(%s)""",
+                (batch_ids,)
+            )
+            for row in fetch_cur.fetchall():
+                existing_state[row[0]] = {
+                    "legacy_price": row[1],
+                    "legacy_available": row[2],
+                    "title": row[3],
+                    "coverImage": row[4],
+                }
+            fetch_cur.close()
+
         # Upsert releases (content fields only, protect discogs/auction fields)
         if release_values:
             psycopg2.extras.execute_values(
@@ -357,6 +377,57 @@ def sync_releases(mysql_conn, pg_conn):
                 template="(%s, %s, %s, %s, %s, %s::\"ReleaseFormat\", %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW())",
             )
 
+            # Detect and log changes
+            change_entries = []
+            for rv in release_values:
+                rid       = rv[0]
+                new_title = rv[2]
+                new_cover = rv[11]
+                new_price = rv[12]
+                new_avail = rv[15]
+
+                if rid in existing_state:
+                    old = existing_state[rid]
+                    delta = {}
+
+                    # legacy_price: compare as rounded floats to avoid Decimal/float noise
+                    old_p = round(float(old["legacy_price"]), 2) if old["legacy_price"] is not None else None
+                    new_p = round(float(new_price), 2) if new_price is not None else None
+                    if old_p != new_p:
+                        delta["legacy_price"] = {"old": old_p, "new": new_p}
+
+                    # legacy_available
+                    if old["legacy_available"] != new_avail:
+                        delta["legacy_available"] = {"old": old["legacy_available"], "new": new_avail}
+
+                    # title
+                    if (old["title"] or "") != (new_title or ""):
+                        delta["title"] = {"old": old["title"], "new": new_title}
+
+                    # coverImage (new image added / changed)
+                    if (old["coverImage"] or "") != (new_cover or ""):
+                        delta["coverImage"] = {"old": old["coverImage"], "new": new_cover}
+
+                    if delta:
+                        change_entries.append((run_id, rid, "updated", psycopg2.extras.Json(delta)))
+                else:
+                    # New release — log initial values
+                    change_entries.append((run_id, rid, "inserted", psycopg2.extras.Json({
+                        "legacy_price": round(float(new_price), 2) if new_price is not None else None,
+                        "legacy_available": new_avail,
+                        "title": new_title,
+                    })))
+
+            if change_entries:
+                psycopg2.extras.execute_values(
+                    pg_cur,
+                    """INSERT INTO sync_change_log (sync_run_id, release_id, change_type, changes, synced_at)
+                       VALUES %s""",
+                    change_entries,
+                    template="(%s, %s, %s, %s, NOW())",
+                )
+                change_count += len(change_entries)
+
         # Insert new images (skip existing)
         if image_values:
             psycopg2.extras.execute_values(
@@ -373,9 +444,9 @@ def sync_releases(mysql_conn, pg_conn):
         offset += BATCH_SIZE
         print(f"  Synced {processed}/{total} releases ({errors} errors)...", end="\r")
 
-    print(f"\n  Done: {processed} releases synced, {image_count} images, {errors} errors")
+    print(f"\n  Done: {processed} releases synced, {image_count} images, {errors} errors, {change_count} changes logged")
     cursor.close()
-    return {"processed": processed, "images": image_count, "errors": errors}
+    return {"processed": processed, "images": image_count, "errors": errors, "changes": change_count}
 
 
 def sync_pressorga(mysql_conn, pg_conn):
@@ -567,6 +638,7 @@ def sync_literature(mysql_conn, pg_conn, table, category, id_prefix, ref_field, 
 def main():
     start_time = time.time()
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    run_id = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
 
     print("=" * 60)
     print(f"Legacy MySQL -> Supabase Incremental Sync")
@@ -598,7 +670,7 @@ def main():
         new_pressorga = sync_pressorga(mysql_conn, pg_conn)
 
         # Sync releases (full upsert)
-        release_stats = sync_releases(mysql_conn, pg_conn)
+        release_stats = sync_releases(mysql_conn, pg_conn, run_id)
 
         # Sync literature tables
         band_lit = sync_literature(
@@ -634,6 +706,7 @@ def main():
             "press_lit_processed": press_lit["processed"],
             "new_images": (release_stats["images"] + band_lit["images"]
                            + labels_lit["images"] + press_lit["images"]),
+            "release_changes_logged": release_stats["changes"],
             "errors": total_errors,
             "duration_seconds": round(elapsed, 1),
         }
@@ -648,6 +721,7 @@ def main():
         print(f"\n{'=' * 60}")
         print("SYNC SUMMARY")
         print(f"{'=' * 60}")
+        print(f"  Run ID:            {run_id}")
         print(f"  New artists:       {new_artists}")
         print(f"  New labels:        {new_labels}")
         print(f"  New PressOrga:     {new_pressorga}")
@@ -655,6 +729,7 @@ def main():
         print(f"  Band Literature:   {band_lit['processed']}")
         print(f"  Labels Literature: {labels_lit['processed']}")
         print(f"  Press Literature:  {press_lit['processed']}")
+        print(f"  Changes logged:    {release_stats['changes']}")
         print(f"  Total errors:      {total_errors}")
         print(f"  Duration:          {elapsed:.1f}s ({elapsed / 60:.1f} min)")
         print(f"{'=' * 60}")
