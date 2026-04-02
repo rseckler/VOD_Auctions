@@ -4,31 +4,59 @@ Vollständiger Entwicklungs-Changelog. Neue Einträge werden direkt hier ergänz
 
 ---
 
-## 2026-04-02 — Admin Config Panel + Pre-Launch System (Stufe 1)
+## 2026-04-02 — Admin Config Panel, Pre-Launch System, Dashboard, Design Overhaul
 
 ### Admin Configuration Panel — `/admin/config`
-- **Neue Seite** `/admin/config` mit 4 Tabs: General, Access/Launch, Auction, Change History
-- **Platform Mode** (`pre_launch`/`preview`/`live`/`maintenance`) — farbiger Badge im Admin-Header
-- **Go-Live Pre-Flight Checklist** — 6 automatische Checks (Shipping, Stripe, PayPal, Auktionen, Legal, Support), typed "GO LIVE" Bestätigung, E-Mail-Benachrichtigung an frank@vod-records.com
+- **Neue Seite** `/admin/config` mit 3 Tabs: Access/Launch (default), Auction, Change History
+- **5 Platform Modes:** `beta_test` (aktuell) → `pre_launch` → `preview` → `live` → `maintenance`
+- `beta_test` Mode hinzugefügt (= aktueller Zustand: nur Passwort-Gate, kein Invite-System)
+- **Go-Live Pre-Flight Checklist** — 6 automatische Checks, typed "GO LIVE" Bestätigung, E-Mail an frank@vod-records.com
 - **site_config erweitert** um 11 neue Spalten (platform_mode, gate_password, invite toggles, auction settings)
-- **Config Audit Log** — `config_audit_log` Tabelle + Change History Tab zeigt wer wann was geändert hat
-- **In-Memory-Cache** mit 5-min TTL für site_config (reduziert DB-Calls bei jedem Request)
+- **Config Audit Log** — `config_audit_log` Tabelle + Change History Tab
+- **In-Memory-Cache** mit 5-min TTL für site_config
+- **Stats-Row** über Tabs: Platform Mode Badge, Catalog, Direct Purchase, Bid Reminders
 - **API-Routes:** `GET/POST /admin/site-config`, `GET /admin/site-config/audit-log`, `GET/POST /admin/site-config/go-live`, `GET /store/site-mode`
 
 ### Pre-Launch Waitlist & Invite System
-- **Bewerbungsformular** `/apply` — öffentlich erreichbar (Middleware-Whitelist): Name, Email, Land, Genre-Checkboxen, Kaufverhalten, Referrer. Vinyl Culture Dark Design.
+- **Bewerbungsformular** `/apply` — öffentlich erreichbar (Middleware-Whitelist): Name, Email, Land, Genre-Checkboxen, Kaufverhalten, Referrer
 - **Bestätigungsseite** `/apply/confirm` — nach erfolgreicher Bewerbung
-- **Token-Einlösung** `/invite/[token]` — validiert Token, zeigt Registrierungsformular mit vorausgefüllter E-Mail, erstellt Medusa-Account, setzt `vod_invite_session` Cookie
+- **Bestätigungs-E-Mail** wird automatisch gesendet nach Bewerbung
+- **Token-Einlösung** `/invite/[token]` — validiert Token, Registrierungsformular mit vorausgefüllter E-Mail, erstellt Medusa-Account, setzt `vod_invite_session` Cookie
 - **Token-Format:** `VOD-XXXXX-XXXXX` (10 Zeichen Base62, crypto.randomBytes, 62^10 Kombinationen)
 - **Token-Gültigkeit:** 21 Tage, einmalig nutzbar, Security-Log in `invite_token_attempts`
-- **Admin Waitlist** `/admin/waitlist` — Stats-Header, filterbarer Tabelle, Bulk-Approve + Invite, Token-Tab
+- **Admin Waitlist** `/admin/waitlist` — Stats-Header, filtrierbare Tabelle mit expandierbaren Rows, Bulk-Approve + Invite, Token-Tab mit Revoke
 - **Admin Invite Tokens** `/admin/invite-tokens` — Token-Übersicht, manuelles Token erstellen, Revoke
-- **2 neue E-Mail-Templates:** `waitlist-confirm` ("Application received") + `invite-welcome` ("[Name], your access is ready") — registriert in `/app/emails` mit Preview + Send Test
-- **Middleware Upgrade:** Akzeptiert sowohl `vod_access` (Passwort-Gate) als auch `vod_invite_session` (Invite) Cookies
+- **2 neue E-Mail-Templates:** `waitlist-confirm` ("Application received") + `invite-welcome` ("[Name], your access is ready")
+- **Middleware Upgrade:** Liest `platform_mode` aus Backend-API (5-min Cache), `beta_test`/`pre_launch`/`live`/`maintenance` steuern Gate-Verhalten. Akzeptiert `vod_access` + `vod_invite_session` Cookies. Fallback auf `GATE_PASSWORD` env var wenn Backend nicht erreichbar.
+- **Invite Redeem:** Validiert `MEDUSA_BACKEND_URL`, behandelt existierende Accounts
+
+### Dashboard — `/admin/dashboard` (komplett neu)
+- **Neuer API-Endpoint** `GET /admin/dashboard` — aggregiert Daten aus 8+ Tabellen in einem Call
+- **Phasen-adaptiv:** Stats, Sektionen und Aktionen passen sich an `platform_mode` an
+- `beta_test`: Overdue Payments, Ready to Pack, Labels Pending, Active Auctions, Shipped This Week + Launch Readiness Checklist + Catalog Health
+- `pre_launch`: Waitlist Pending, Invited, Registered, Active Auctions, New Users
+- `live`: Revenue, Orders, Active Auctions, Bids Today, Shipped
+- **Action Required** — rot/gelb Alerts für überfällige Zahlungen, fehlende Preise, pack-bereite Orders
+- **Live Auctions** — aktive Blocks mit Countdown, Bid-Count, Top-Bid, Quick-Actions
+- **Recent Activity** — letzte 10 Events (Bids, Orders) chronologisch
+- **Weekly Summary** — Revenue, Orders, Shipped, Pending
+- **Auto-Refresh** alle 60 Sekunden
+
+### Light-Mode Design Overhaul — alle Admin-Seiten
+- **Root Cause behoben:** Custom Admin-Seiten verwendeten Dark-Mode-Farben (#f5f0eb Text, #1c1915 Hintergründe, rgba(255,255,255,*) Borders) in Medusa's Light-Mode Shell
+- **~25 Seiten gefixt** in 3 Batches:
+  - Batch 1 (Critical): config, waitlist, entity-content — komplette Palette ersetzt
+  - Batch 2 (Critical): media, musicians, sync — komplette Palette ersetzt
+  - Batch 3 (High): dashboard, emails, gallery, catalog, marketing, ai-assistant, auction-blocks, crm, operations — Text + Borders gefixt
+  - Nachfixes: transactions (Liste + Detail), system-health, auction-blocks Detail/Post-Auction/AI-Create, test-runner, media Detail
+- **Neue Light-Mode Palette:** `#1a1714` Text, `#78716c` Muted, `#f8f7f6` Cards, `#e7e5e4` Borders, `rgba(0,0,0,0.08)` statt `rgba(255,255,255,0.1)`
+- **4 fontFamily-Bugs gefixt** (Farbwert `#d1d5db` als font-family verwendet)
+- Config + Waitlist Pages 2x komplett rewritten für bessere UX (CRM-Designsystem)
 
 ### Datenbank
 - **4 neue Tabellen:** `config_audit_log`, `waitlist_applications`, `invite_tokens`, `invite_token_attempts`
-- **11 neue Spalten** in `site_config` (Stufe 1 — Stufe 2 zurückgestellt)
+- **11 neue Spalten** in `site_config` (Stufe 1)
+- `platform_mode` auf `beta_test` gesetzt (aktueller Zustand)
 
 ### Bid-Ending-Soon Reminder E-Mails
 - **4 neue Timer-E-Mails** an alle aktiven Bidder: 24h, 8h, 1h, 5 Minuten vor Lot-Ende
@@ -36,11 +64,22 @@ Vollständiger Entwicklungs-Changelog. Neue Einträge werden direkt hier ergänz
 - **Cron-Job** `bid-ending-reminder.ts` — läuft jede Minute, `bid_ending_reminder` Tabelle verhindert Duplikate
 - Registriert in `/app/emails` (4 Einträge mit Preview + Send Test)
 
+### Design Guides (neu)
+- `docs/DESIGN_GUIDE_BACKEND.md` — verbindliche Farbpalette, Typografie-Skala, 13 Komponenten-Patterns, Anti-Patterns-Liste
+- `docs/DESIGN_GUIDE_FRONTEND.md` — Vinyl Culture Design-System, CSS Custom Properties, shadcn/ui Patterns, Motion Presets
+
 ### Konzept-Dokumente
-- `docs/PRE_LAUNCH_KONZEPT.md` — vollständiger Plan mit Flow, DB-Schema, E-Mail-Kampagne, Wave-Strategie
-- `docs/ADMIN_CONFIG_KONZEPT.md` — Stufe 1/2 Trennung, 6 Sektionen, Toggle-Risiko-Stufen
+- `docs/PRE_LAUNCH_KONZEPT.md` — Flow, DB-Schema, E-Mail-Kampagne, Wave-Strategie
+- `docs/ADMIN_CONFIG_KONZEPT.md` — Stufe 1/2 Trennung, 5 Platform Modes (mit beta_test)
+- `docs/DASHBOARD_KONZEPT.md` — 3-Phasen-adaptives Dashboard (beta_test/pre_launch/live)
 - `docs/mockups/pre-launch-flow.html` — 7-Sektionen HTML-Präsentation für Marketing
 - `docs/mockups/admin-config-panel.html` — 7-Sektionen HTML-Präsentation
+
+### Bug-Fixes
+- Dashboard 500: `shipping_method` hat kein `deleted_at` → `.whereNull("deleted_at")` entfernt
+- Dashboard 500: `sync_change_log` hat `synced_at` nicht `created_at` → Spaltenname korrigiert
+- Waitlist POST: `sendWaitlistConfirmEmail()` war nur TODO-Kommentar → tatsächlicher Aufruf hinzugefügt
+- Invite Redeem: `MEDUSA_BACKEND_URL` Validierung + bessere Fehlerbehandlung für existierende Accounts
 
 ---
 
