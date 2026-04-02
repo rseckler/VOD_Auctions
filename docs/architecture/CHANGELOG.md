@@ -10,7 +10,12 @@ Vollständiger Entwicklungs-Changelog. Neue Einträge werden direkt hier ergänz
 - **3 neue Shared-Component-Dateien:** `admin-tokens.ts` (Farben, Typo, Spacing, Formatter), `admin-layout.tsx` (PageHeader, SectionHeader, PageShell, Tabs, StatsGrid), `admin-ui.tsx` (Badge, Toggle, Toast, Alert, EmptyState, Btn, ConfigRow, Modal)
 - **17 Admin-Seiten migriert** auf Shared Components — lokale `const C` entfernt, Duplikation eliminiert (-773 Zeilen netto)
 - **Einheitliche PageHeader** auf jeder Seite: 20px bold Titel + 13px Subtitle (keine Emojis, kein "Admin" Label)
+- **Auction Blocks + Orders:** Medusa `<Container>` durch `<PageShell>` ersetzt (kein Rahmen mehr um Header)
+- **Navigation bereinigt:** Sidebar zeigt nur 7 Items: Dashboard, Auction Blocks, Orders, Catalog, Marketing, Operations, AI Assistant
 - **Navigation-Fixes:** CRM, Config, Waitlist `defineRouteConfig` entfernt → erscheinen nicht mehr als separate Sidebar-Items, nur über Hub-Seiten erreichbar
+- **Hub-Seiten vervollständigt:**
+  - Marketing Hub: Waitlist-Karte hinzugefügt + CRM Link korrigiert (`/app/customers` → `/app/crm`)
+  - Operations Hub: Configuration-Karte hinzugefügt (war nach defineRouteConfig-Entfernung unerreichbar)
 - **Design Guide v2.0:** `DESIGN_GUIDE_BACKEND.md` komplett überarbeitet — Shared Component Architektur, Pflicht-Imports, Anti-Patterns, Checkliste
 - **Design Guide Mockup:** `docs/mockups/design-guide-backend.html` — 20-Sektionen Component Library
 
