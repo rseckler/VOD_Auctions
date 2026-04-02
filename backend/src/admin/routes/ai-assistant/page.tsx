@@ -79,7 +79,7 @@ function ToolChip({ tool, result }: { tool: string; result?: unknown }) {
           background: "transparent",
           color: "#9ca3af",
           cursor: "pointer",
-          fontFamily: "inherit",
+          fontFamily: "#d1d5db",
         }}
       >
         {icons[tool] || "🔧"} {tool} {open ? "▲" : "▼"}
@@ -277,7 +277,7 @@ export default function AIAssistantPage() {
             fontSize: 18,
           }}>✦</div>
           <div>
-            <div style={{ fontWeight: 600, fontSize: 16, color: "inherit" }}>VOD AI Assistant</div>
+            <div style={{ fontWeight: 600, fontSize: 16, color: "#d1d5db" }}>VOD AI Assistant</div>
             <div style={{ fontSize: 12, color: "#9ca3af" }}>Powered by Claude · Read-only</div>
           </div>
         </div>
@@ -290,7 +290,7 @@ export default function AIAssistantPage() {
         {isEmpty && (
           <div style={{ maxWidth: 560, margin: "40px auto", textAlign: "center" }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>✦</div>
-            <div style={{ fontSize: 18, fontWeight: 600, color: "inherit", marginBottom: 8 }}>
+            <div style={{ fontSize: 18, fontWeight: 600, color: "#d1d5db", marginBottom: 8 }}>
               Was kann ich für dich tun?
             </div>
             <div style={{ fontSize: 14, color: "#9ca3af", marginBottom: 28 }}>
@@ -310,7 +310,7 @@ export default function AIAssistantPage() {
                     fontSize: 13,
                     cursor: "pointer",
                     transition: "all 0.15s",
-                    fontFamily: "inherit",
+                    fontFamily: "#d1d5db",
                   }}
                   onMouseOver={(e) => {
                     ;(e.currentTarget as HTMLElement).style.background = "#ede9fe"
@@ -368,7 +368,7 @@ export default function AIAssistantPage() {
                     padding: "10px 14px",
                     borderRadius: msg.role === "user" ? "18px 18px 4px 18px" : "4px 18px 18px 18px",
                     background: msg.role === "user" ? "#6366f1" : "#f9fafb",
-                    color: msg.role === "user" ? "#fff" : "#111827",
+                    color: msg.role === "user" ? "#fff" : "#d1d5db",
                     border: msg.role === "assistant" ? "1px solid rgba(255,255,255,0.1)" : "none",
                     fontSize: 14,
                     lineHeight: 1.6,
@@ -436,9 +436,9 @@ export default function AIAssistantPage() {
               outline: "none",
               resize: "none",
               fontSize: 14,
-              color: "inherit",
+              color: "#d1d5db",
               background: "transparent",
-              fontFamily: "inherit",
+              fontFamily: "#d1d5db",
               lineHeight: 1.5,
               maxHeight: 120,
               overflowY: "auto",
@@ -455,7 +455,7 @@ export default function AIAssistantPage() {
             style={{
               width: 34, height: 34,
               borderRadius: 8,
-              background: input.trim() && !isLoading ? "#6366f1" : "#e5e7eb",
+              background: input.trim() && !isLoading ? "#6366f1" : "rgba(255,255,255,0.1)",
               border: "none",
               cursor: input.trim() && !isLoading ? "pointer" : "not-allowed",
               color: input.trim() && !isLoading ? "#fff" : "#9ca3af",

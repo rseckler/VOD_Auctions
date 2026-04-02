@@ -72,7 +72,7 @@ function HubCard({
         </span>
       )}
       <div style={{ fontSize: 24, marginBottom: 12 }}>{icon}</div>
-      <div style={{ fontSize: 15, fontWeight: 700, color: "inherit", marginBottom: 4 }}>{title}</div>
+      <div style={{ fontSize: 15, fontWeight: 700, color: "#d1d5db", marginBottom: 4 }}>{title}</div>
       <div style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.5, marginBottom: 12 }}>{description}</div>
       <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 14 }}>{meta}</div>
       <button style={{
@@ -126,7 +126,7 @@ function CatalogHub() {
     <div style={{ padding: "32px 36px", maxWidth: 900, fontFamily: "var(--font-sans, system-ui, sans-serif)" }}>
       {/* Header */}
       <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 20 }}>Admin</div>
-      <div style={{ fontSize: 24, fontWeight: 800, color: "inherit", marginBottom: 4 }}>
+      <div style={{ fontSize: 24, fontWeight: 800, color: "#d1d5db", marginBottom: 4 }}>
         🗃️ Catalog
       </div>
       <div style={{ fontSize: 14, color: "#9ca3af", marginBottom: 28 }}>
@@ -145,7 +145,7 @@ function CatalogHub() {
             background: "var(--bg-component, #1a1714)", border: "1px solid rgba(255,255,255,0.1)",
             borderRadius: 8, padding: "10px 16px",
           }}>
-            <div style={{ fontSize: 20, fontWeight: 800, color: i === 2 ? "#6366f1" : "#111827" }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: i === 2 ? "#6366f1" : "#d1d5db" }}>
               {String(s.num)}
             </div>
             <div style={{ fontSize: 11, color: "#9ca3af" }}>{s.label}</div>

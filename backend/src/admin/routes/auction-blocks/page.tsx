@@ -101,7 +101,7 @@ function BlocksTable({
             onMouseLeave={e => (e.currentTarget.style.background = isLive ? "rgba(22,163,74,0.04)" : "transparent")}
           >
             <td style={{ padding: "12px 14px", maxWidth: 280 }}>
-              <div style={{ fontWeight: 600, color: "inherit", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              <div style={{ fontWeight: 600, color: "#d1d5db", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {block.title}
               </div>
               {block.subtitle && (
@@ -188,7 +188,7 @@ function DraftsTable({
             onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
           >
             <td style={{ padding: "12px 14px", maxWidth: 280 }}>
-              <div style={{ fontWeight: 600, color: "inherit", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              <div style={{ fontWeight: 600, color: "#d1d5db", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {block.title}
               </div>
               {block.subtitle && (
@@ -269,7 +269,7 @@ function EndedBlockCard({
       {/* Left: info */}
       <div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: "inherit" }}>{block.title}</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: "#d1d5db" }}>{block.title}</span>
           <span style={{ fontSize: 10, color: "#9ca3af" }}>{endedAgo}</span>
           <Badge>{block.block_type}</Badge>
         </div>
@@ -285,7 +285,7 @@ function EndedBlockCard({
           {summary && allDone && (
             <span style={{
               display: "inline-flex", alignItems: "center", gap: 4,
-              background: "#dcfce7", color: "#15803d",
+              background: "rgba(34,197,94,0.15)", color: "#15803d",
               borderRadius: 12, padding: "3px 10px", fontSize: 11, fontWeight: 700,
             }}>✓ All processed</span>
           )}
@@ -293,7 +293,7 @@ function EndedBlockCard({
             <>
               {summary.unpaid > 0 && (
                 <span style={{
-                  background: "#fee2e2", color: "#b91c1c",
+                  background: "rgba(239,68,68,0.15)", color: "#b91c1c",
                   borderRadius: 12, padding: "3px 10px", fontSize: 11, fontWeight: 700,
                 }}>⚠ {summary.unpaid} unpaid</span>
               )}
@@ -305,7 +305,7 @@ function EndedBlockCard({
               )}
               {summary.paid - summary.shipped > 0 && (
                 <span style={{
-                  background: "#fef3c7", color: "#b45309",
+                  background: "rgba(245,158,11,0.15)", color: "#b45309",
                   borderRadius: 12, padding: "3px 10px", fontSize: 11, fontWeight: 700,
                 }}>📦 {summary.paid - summary.shipped} to pack/ship</span>
               )}

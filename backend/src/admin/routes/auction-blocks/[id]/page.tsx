@@ -324,7 +324,7 @@ function EndedStateDashboard({
           {/* Step 1: Winner emails */}
           <div style={{ ...s.card }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-              <span style={{ ...s.stepNum, background: "#dcfce7", color: "#16a34a" }}>1</span>
+              <span style={{ ...s.stepNum, background: "rgba(34,197,94,0.15)", color: "#16a34a" }}>1</span>
               <span style={{ fontSize: 13, fontWeight: 600, color: "#d1d5db" }}>Winner Emails</span>
             </div>
             <div style={{ fontSize: 12, color: "#16a34a", fontWeight: 500 }}>✓ Sent automatically</div>
@@ -428,14 +428,14 @@ function EndedStateDashboard({
                           </td>
                           <td style={s.td}>
                             <div style={{ maxWidth: 200 }}>
-                              <div style={{ fontSize: 12, fontWeight: 600, color: "inherit", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lot.artist_name}</div>
+                              <div style={{ fontSize: 12, fontWeight: 600, color: "#d1d5db", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lot.artist_name}</div>
                               <div style={{ fontSize: 11, color: "#9ca3af", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lot.release_title}</div>
                             </div>
                           </td>
                           <td style={s.td}>
                             {lot.winner ? (
                               <div>
-                                <div style={{ fontSize: 12, fontWeight: 500, color: "inherit" }}>{lot.winner.name}</div>
+                                <div style={{ fontSize: 12, fontWeight: 500, color: "#d1d5db" }}>{lot.winner.name}</div>
                                 <div style={{ fontSize: 11, color: "#9ca3af" }}>{lot.winner.email}</div>
                               </div>
                             ) : <span style={{ color: "#9ca3af" }}>—</span>}
@@ -504,7 +504,7 @@ function EndedStateDashboard({
                           </td>
                           <td style={s.td}>
                             <div style={{ maxWidth: 280 }}>
-                              <div style={{ fontSize: 12, fontWeight: 600, color: "inherit", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lot.artist_name}</div>
+                              <div style={{ fontSize: 12, fontWeight: 600, color: "#d1d5db", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lot.artist_name}</div>
                               <div style={{ fontSize: 11, color: "#9ca3af", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lot.release_title}</div>
                             </div>
                           </td>
@@ -536,25 +536,25 @@ function EndedStateDashboard({
       {relistModal.open && relistModal.lot && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ background: "var(--bg-component, #1a1714)", borderRadius: 10, padding: 28, width: 440, maxWidth: "90vw", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
-            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4, color: "inherit" }}>Relist Lot</div>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4, color: "#d1d5db" }}>Relist Lot</div>
             <div style={{ fontSize: 13, color: "#9ca3af", marginBottom: 20 }}>
               {relistModal.lot.artist_name} — {relistModal.lot.release_title}
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "10px 14px", borderRadius: 6, border: `2px solid ${relistTarget === "available" ? "#d4a54a" : "#e5e7eb"}`, background: relistTarget === "available" ? "#fffbf0" : "#fff" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "10px 14px", borderRadius: 6, border: `2px solid ${relistTarget === "available" ? "#d4a54a" : "#e5e7eb"}`, background: relistTarget === "available" ? "rgba(212,165,74,0.08)" : "transparent" }}>
                 <input type="radio" name="relistTarget" value="available" checked={relistTarget === "available"} onChange={() => setRelistTarget("available")} />
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "inherit" }}>Make Available</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#d1d5db" }}>Make Available</div>
                   <div style={{ fontSize: 12, color: "#9ca3af" }}>Return to catalog, available for future auctions</div>
                 </div>
               </label>
 
               {availableBlocks.length > 0 && availableBlocks.map(ab => (
-                <label key={ab.id} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "10px 14px", borderRadius: 6, border: `2px solid ${relistTarget === ab.id ? "#d4a54a" : "#e5e7eb"}`, background: relistTarget === ab.id ? "#fffbf0" : "#fff" }}>
+                <label key={ab.id} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "10px 14px", borderRadius: 6, border: `2px solid ${relistTarget === ab.id ? "#d4a54a" : "#e5e7eb"}`, background: relistTarget === ab.id ? "rgba(212,165,74,0.08)" : "transparent" }}>
                   <input type="radio" name="relistTarget" value={ab.id} checked={relistTarget === ab.id} onChange={() => setRelistTarget(ab.id)} />
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "inherit" }}>{ab.title}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#d1d5db" }}>{ab.title}</div>
                     <div style={{ fontSize: 11, color: "#9ca3af", textTransform: "capitalize" }}>{ab.status}</div>
                   </div>
                 </label>
@@ -1234,7 +1234,7 @@ const BlockDetailPage = () => {
         <button
           onClick={() => (window.location.href = "/app/auction-blocks")}
           style={{ color: "#9ca3af", textDecoration: "none", cursor: "pointer", background: "none", border: "none", padding: 0, fontSize: 12 }}
-          onMouseEnter={e => (e.currentTarget.style.color = "#111827")}
+          onMouseEnter={e => (e.currentTarget.style.color = "inherit")}
           onMouseLeave={e => (e.currentTarget.style.color = "#6b7280")}
         >
           ← Auction Blocks

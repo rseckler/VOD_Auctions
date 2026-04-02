@@ -52,16 +52,16 @@ type Transaction = {
 const CARRIERS = ["DHL", "DPD", "Hermes", "GLS", "UPS", "FedEx", "Deutsche Post"]
 
 const STATUS_PILL: Record<string, { bg: string; color: string }> = {
-  pending:            { bg: "#f3f4f6", color: "#9ca3af" },
+  pending:            { bg: "transparent", color: "#9ca3af" },
   paid:               { bg: "#dcfce7", color: "#15803d" },
   failed:             { bg: "#fee2e2", color: "#b91c1c" },
   refunded:           { bg: "#ede9fe", color: "#6d28d9" },
-  cancelled:          { bg: "#f3f4f6", color: "#9ca3af" },
+  cancelled:          { bg: "transparent", color: "#9ca3af" },
   partially_refunded: { bg: "#fef3c7", color: "#92400e" },
 }
 
 const FULFILLMENT_PILL: Record<string, { bg: string; color: string }> = {
-  unfulfilled: { bg: "#f3f4f6", color: "#9ca3af" },
+  unfulfilled: { bg: "transparent", color: "#9ca3af" },
   packing:     { bg: "#dbeafe", color: "#1d4ed8" },
   shipped:     { bg: "#dbeafe", color: "#1d4ed8" },
   delivered:   { bg: "#dcfce7", color: "#15803d" },
@@ -369,7 +369,7 @@ const TransactionsPage = () => {
             style={{
               padding: "8px 16px", fontSize: 13,
               fontWeight: activeTab === tab.id ? 600 : 400,
-              color: activeTab === tab.id ? "#111827" : "#6b7280",
+              color: activeTab === tab.id ? "#e8e0d4" : "#9ca3af",
               background: "none", border: "none",
               borderBottom: activeTab === tab.id ? "2px solid #111827" : "2px solid transparent",
               cursor: "pointer", marginBottom: -1, transition: "color 0.1s",
@@ -390,7 +390,7 @@ const TransactionsPage = () => {
             style={{
               width: "100%", padding: "7px 12px", fontSize: 13,
               border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6,
-              background: "var(--bg-component, #1a1714)", color: "inherit", outline: "none",
+              background: "var(--bg-component, #1a1714)", color: "#d1d5db", outline: "none",
               boxSizing: "border-box",
             }}
           />
@@ -399,10 +399,10 @@ const TransactionsPage = () => {
           onClick={() => setShowFilters(v => !v)}
           style={{
             padding: "7px 14px", fontSize: 13, fontWeight: 500,
-            background: showFilters || hasAdvancedFilters ? "#f0f0ff" : "#fff",
-            border: showFilters || hasAdvancedFilters ? "1px solid #c7d2fe" : "1px solid rgba(255,255,255,0.1)",
+            background: showFilters || hasAdvancedFilters ? "rgba(99,102,241,0.15)" : "transparent",
+            border: showFilters || hasAdvancedFilters ? "1px solid rgba(99,102,241,0.5)" : "1px solid rgba(255,255,255,0.1)",
             borderRadius: 6, cursor: "pointer",
-            color: showFilters || hasAdvancedFilters ? "#4338ca" : "#374151",
+            color: showFilters || hasAdvancedFilters ? "#818cf8" : "#9ca3af",
             display: "flex", alignItems: "center", gap: 6,
           }}
         >
@@ -547,14 +547,14 @@ const TransactionsPage = () => {
 
                   {/* Order # */}
                   <td style={{ padding: "12px 14px", whiteSpace: "nowrap" }}>
-                    <span style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 600, color: "inherit" }}>
+                    <span style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 600, color: "#d1d5db" }}>
                       {tx.order_number || tx.id.slice(0, 12) + "…"}
                     </span>
                   </td>
 
                   {/* Item */}
                   <td style={{ padding: "12px 14px", maxWidth: 200 }}>
-                    <div style={{ fontWeight: 600, color: "inherit", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    <div style={{ fontWeight: 600, color: "#d1d5db", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {itemLabel(tx)}
                     </div>
                     {tx.article_number && (
@@ -569,7 +569,7 @@ const TransactionsPage = () => {
 
                   {/* Customer */}
                   <td style={{ padding: "12px 14px" }}>
-                    <div style={{ fontWeight: 500, color: "inherit", fontSize: 13 }}>
+                    <div style={{ fontWeight: 500, color: "#d1d5db", fontSize: 13 }}>
                       {tx.customer_name || tx.shipping_name || "—"}
                     </div>
                     {tx.customer_email && (
@@ -582,7 +582,7 @@ const TransactionsPage = () => {
 
                   {/* Amount */}
                   <td style={{ padding: "12px 14px", whiteSpace: "nowrap" }}>
-                    <span style={{ fontFamily: "monospace", fontWeight: 700, color: "inherit" }}>
+                    <span style={{ fontFamily: "monospace", fontWeight: 700, color: "#d1d5db" }}>
                       €{Number(tx.total_amount).toFixed(2)}
                     </span>
                     {tx.payment_provider && (
@@ -592,14 +592,14 @@ const TransactionsPage = () => {
 
                   {/* Payment status */}
                   <td style={{ padding: "12px 14px" }}>
-                    <Pill label={tx.status} style={STATUS_PILL[tx.status] || { bg: "#f3f4f6", color: "#9ca3af" }} />
+                    <Pill label={tx.status} style={STATUS_PILL[tx.status] || { bg: "transparent", color: "#9ca3af" }} />
                   </td>
 
                   {/* Fulfillment status */}
                   <td style={{ padding: "12px 14px" }}>
                     {(() => {
                       const fs = tx.fulfillment_status || tx.shipping_status || "unfulfilled"
-                      return <Pill label={fs} style={FULFILLMENT_PILL[fs] || { bg: "#f3f4f6", color: "#9ca3af" }} />
+                      return <Pill label={fs} style={FULFILLMENT_PILL[fs] || { bg: "transparent", color: "#9ca3af" }} />
                     })()}
                   </td>
 
@@ -646,7 +646,7 @@ const TransactionsPage = () => {
                           ) : (
                             <span
                               onClick={() => setShippingDialog(tx.id)}
-                              style={{ display: "inline-block", padding: "4px 10px", fontSize: 12, fontWeight: 600, background: "#111827", color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", whiteSpace: "nowrap", lineHeight: "18px" }}
+                              style={{ display: "inline-block", padding: "4px 10px", fontSize: 12, fontWeight: 600, background: "#d1d5db", color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", whiteSpace: "nowrap", lineHeight: "18px" }}
                             >
                               Ship →
                             </span>
@@ -665,7 +665,7 @@ const TransactionsPage = () => {
                         <div style={{ display: "flex", gap: 4 }}>
                           <span
                             onClick={() => !refunding && refundTransaction(tx.id)}
-                            style={{ display: "inline-block", padding: "4px 10px", fontSize: 12, background: "#fee2e2", color: "#b91c1c", border: "1px solid #fca5a5", borderRadius: 5, cursor: refunding ? "default" : "pointer", whiteSpace: "nowrap", lineHeight: "18px", opacity: refunding === tx.id ? 0.5 : 1 }}
+                            style={{ display: "inline-block", padding: "4px 10px", fontSize: 12, background: "rgba(239,68,68,0.15)", color: "#b91c1c", border: "1px solid #fca5a5", borderRadius: 5, cursor: refunding ? "default" : "pointer", whiteSpace: "nowrap", lineHeight: "18px", opacity: refunding === tx.id ? 0.5 : 1 }}
                           >
                             {refunding === tx.id ? "..." : "Refund"}
                           </span>
@@ -726,7 +726,7 @@ const TransactionsPage = () => {
       {selected.size > 0 && (
         <div style={{
           position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
-          background: "#111827", color: "#fff", borderRadius: 10,
+          background: "#d1d5db", color: "#fff", borderRadius: 10,
           padding: "12px 24px", display: "flex", alignItems: "center", gap: 16,
           boxShadow: "0 4px 24px rgba(0,0,0,0.2)", zIndex: 50, whiteSpace: "nowrap",
         }}>
@@ -734,7 +734,7 @@ const TransactionsPage = () => {
           <div style={{ width: 1, height: 20, background: "rgba(255,255,255,0.2)" }} />
           <button
             onClick={() => setBulkShipDialog(true)}
-            style={{ padding: "6px 14px", fontSize: 13, fontWeight: 600, background: "var(--bg-component, #1a1714)", color: "inherit", border: "none", borderRadius: 6, cursor: "pointer" }}
+            style={{ padding: "6px 14px", fontSize: 13, fontWeight: 600, background: "var(--bg-component, #1a1714)", color: "#d1d5db", border: "none", borderRadius: 6, cursor: "pointer" }}
           >
             Mark as Shipped
           </button>

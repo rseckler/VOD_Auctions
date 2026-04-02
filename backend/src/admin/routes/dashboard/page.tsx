@@ -108,10 +108,10 @@ function blockTypeLabel(type: string): string {
 const S = {
   page: {
     fontFamily: "-apple-system, BlinkMacSystemFont, 'Inter', sans-serif",
-    backgroundColor: "#f9fafb",
+    backgroundColor: "transparent",
     minHeight: "100vh",
     padding: "20px 16px 48px",
-    color: "inherit",
+    color: "#d1d5db",
   } as React.CSSProperties,
 
   header: {
@@ -126,7 +126,7 @@ const S = {
   title: {
     fontSize: "24px",
     fontWeight: 700,
-    color: "inherit",
+    color: "#d1d5db",
     margin: 0,
     lineHeight: "1.2",
   } as React.CSSProperties,
@@ -220,7 +220,7 @@ const S = {
   cardTitle: {
     fontSize: "14px",
     fontWeight: 600,
-    color: "inherit",
+    color: "#d1d5db",
     whiteSpace: "nowrap" as const,
     overflow: "hidden",
     textOverflow: "ellipsis",
@@ -256,8 +256,8 @@ const S = {
     lineHeight: "1.4",
     ...(variant === "primary"
       ? {
-          backgroundColor: "#111827",
-          borderColor: "#111827",
+          backgroundColor: "#d1d5db",
+          borderColor: "#d1d5db",
           color: "#ffffff",
         }
       : {
@@ -288,7 +288,7 @@ const S = {
       clearance: { bg: "#f0fdf4", text: "#166534" },
       flash:     { bg: "#fdf2f8", text: "#9d174d" },
     }
-    const c = colors[type] ?? { bg: "#f3f4f6", text: "#374151" }
+    const c = colors[type] ?? { bg: "transparent", text: "#d1d5db" }
     return {
       display: "inline-block",
       padding: "2px 8px",
@@ -663,8 +663,8 @@ function DashboardPage() {
                         fontSize: "11px",
                         padding: "2px 8px",
                         borderRadius: "4px",
-                        backgroundColor: block.status === "preview" ? "#fff7ed" : "#eff6ff",
-                        color: block.status === "preview" ? "#92400e" : "#1d4ed8",
+                        backgroundColor: block.status === "preview" ? "rgba(251,146,60,0.15)" : "rgba(59,130,246,0.15)",
+                        color: block.status === "preview" ? "#fb923c" : "#60a5fa",
                         fontWeight: 600,
                       }}
                     >

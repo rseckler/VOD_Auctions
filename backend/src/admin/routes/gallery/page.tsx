@@ -63,11 +63,11 @@ const STOREFRONT_URL = "https://vod-auctions.com"
 
 const COLORS = {
   bg: "#ffffff",
-  card: "#f9fafb",
-  text: "#111827",
+  card: "transparent",
+  text: "#d1d5db",
   muted: "#6b7280",
   gold: "#b8860b",
-  border: "#e5e7eb",
+  border: "rgba(255,255,255,0.1)",
   hover: "#f3f4f6",
   danger: "#ef4444",
   success: "#22c55e",

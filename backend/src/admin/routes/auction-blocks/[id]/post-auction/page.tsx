@@ -55,11 +55,11 @@ type StepInfo = { step: number; label: string; color: string; bg: string }
 function getCurrentStep(lot: Lot): StepInfo {
   const tx = lot.transaction
   if (!lot.winner || !tx) {
-    return { step: 0, label: "No Bid", color: "#9ca3af", bg: "#f3f4f6" }
+    return { step: 0, label: "No Bid", color: "#9ca3af", bg: "transparent" }
   }
   // Terminal states — check before fulfillment
   if (tx.status === "refunded")  return { step: -1, label: "Refunded",       color: "#7c3aed", bg: "#ede9fe" }
-  if (tx.status === "cancelled") return { step: -1, label: "Cancelled",      color: "#9ca3af", bg: "#f3f4f6" }
+  if (tx.status === "cancelled") return { step: -1, label: "Cancelled",      color: "#9ca3af", bg: "transparent" }
   if (tx.status === "failed")    return { step: -1, label: "Payment Failed", color: "#dc2626", bg: "#fee2e2" }
 
   const paid = tx.status === "paid"
@@ -300,7 +300,7 @@ export default function PostAuctionPage() {
       margin: "0 auto",
       fontFamily: "-apple-system, BlinkMacSystemFont, 'Inter', sans-serif",
       fontSize: 14,
-      color: "inherit",
+      color: "#d1d5db",
     }}>
 
       {/* Breadcrumb */}
@@ -316,12 +316,12 @@ export default function PostAuctionPage() {
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-            <div style={{ fontSize: 22, fontWeight: 800, color: "inherit" }}>
+            <div style={{ fontSize: 22, fontWeight: 800, color: "#d1d5db" }}>
               {block?.title ?? "Post-Auction"}
             </div>
             <span style={{
               display: "inline-block",
-              background: "#fee2e2", color: "#b91c1c",
+              background: "rgba(239,68,68,0.15)", color: "#b91c1c",
               borderRadius: 6, padding: "3px 10px",
               fontSize: 12, fontWeight: 700,
             }}>
@@ -379,10 +379,10 @@ export default function PostAuctionPage() {
           {/* Stats row — 7 cards */}
           <div style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
             {[
-              { label: "Total Lots",  value: String(summary?.total ?? 0),   numColor: "#111827" },
+              { label: "Total Lots",  value: String(summary?.total ?? 0),   numColor: "#e8e0d4" },
               { label: "Paid",        value: String(summary?.paid ?? 0),    numColor: "#16a34a" },
               { label: "Unpaid",      value: String(summary?.unpaid ?? 0),  numColor: "#dc2626" },
-              { label: "No Bid",      value: String(summary?.no_bid ?? 0),  numColor: "#111827" },
+              { label: "No Bid",      value: String(summary?.no_bid ?? 0),  numColor: "#e8e0d4" },
               { label: "Shipped",     value: String(summary?.shipped ?? 0), numColor: "#2563eb" },
               { label: "Total Revenue", value: fmtCurrency(totalRevenue),   numColor: "#b45309", minWidth: 140 },
               { label: "Conversion",  value: `${conversionPct}%`,           numColor: "#374151" },
@@ -417,7 +417,7 @@ export default function PostAuctionPage() {
                 {/* Unpaid near deadline */}
                 {unpaidCount > 0 && (
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                    <div style={{ width: 16, height: 16, border: "2px solid #dc2626", borderRadius: 3, background: "#fee2e2", flexShrink: 0, marginTop: 1 }} />
+                    <div style={{ width: 16, height: 16, border: "2px solid #dc2626", borderRadius: 3, background: "rgba(239,68,68,0.15)", flexShrink: 0, marginTop: 1 }} />
                     <div>
                       <div style={{ fontSize: 12, color: "#d1d5db", lineHeight: 1.4 }}>
                         <span style={{ fontWeight: 700, color: "#dc2626" }}>{unpaidCount} lots unpaid</span> — check deadlines
@@ -474,7 +474,7 @@ export default function PostAuctionPage() {
                 {/* No overdue payments — greyed out when unpaid === 0 */}
                 {unpaidCount === 0 && (
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 0", opacity: 0.5 }}>
-                    <div style={{ width: 16, height: 16, border: "2px solid #16a34a", borderRadius: 3, background: "#dcfce7", flexShrink: 0, marginTop: 1 }} />
+                    <div style={{ width: 16, height: 16, border: "2px solid #16a34a", borderRadius: 3, background: "rgba(34,197,94,0.15)", flexShrink: 0, marginTop: 1 }} />
                     <div>
                       <div style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.4 }}>No overdue payments</div>
                     </div>
@@ -621,7 +621,7 @@ export default function PostAuctionPage() {
 
                     {/* Release */}
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 500, color: "inherit", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: "#d1d5db", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                         {lot.release_title || "—"}
                       </div>
                       {lot.artist_name && (
@@ -640,7 +640,7 @@ export default function PostAuctionPage() {
                     <div>
                       {lot.winner ? (
                         <>
-                          <div style={{ fontSize: 11, fontWeight: 500, color: "inherit", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          <div style={{ fontSize: 11, fontWeight: 500, color: "#d1d5db", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                             {lot.winner.name}
                           </div>
                           <div style={{ fontSize: 10, color: "#9ca3af", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -658,7 +658,7 @@ export default function PostAuctionPage() {
                     </div>
 
                     {/* Amount */}
-                    <div style={{ fontSize: 13, fontWeight: 600, color: lot.final_price !== null ? "#111827" : "#9ca3af" }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: lot.final_price !== null ? "#e8e0d4" : "#9ca3af" }}>
                       {lot.final_price !== null ? `€${Number(lot.final_price).toFixed(2)}` : "—"}
                     </div>
 

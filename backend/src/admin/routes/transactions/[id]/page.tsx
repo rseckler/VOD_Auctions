@@ -143,7 +143,7 @@ const s = {
     minHeight: "100vh",
     fontFamily: "-apple-system, BlinkMacSystemFont, 'Inter', sans-serif",
     fontSize: 14,
-    color: "inherit",
+    color: "#d1d5db",
   } as React.CSSProperties,
   breadcrumb: {
     fontSize: 12,
@@ -174,7 +174,7 @@ const s = {
   orderNum: {
     fontSize: 22,
     fontWeight: 800,
-    color: "inherit",
+    color: "#d1d5db",
     fontFamily: "monospace",
   } as React.CSSProperties,
   headerLeft: { display: "flex", flexDirection: "column" as const, gap: 6 } as React.CSSProperties,
@@ -183,19 +183,19 @@ const s = {
     display: "inline-flex", alignItems: "center", gap: 5,
     padding: "3px 10px", borderRadius: 12,
     fontSize: 11, fontWeight: 700,
-    background: "#dcfce7", color: "#15803d",
+    background: "rgba(34,197,94,0.15)", color: "#15803d",
   } as React.CSSProperties,
   pillPending: {
     display: "inline-flex", alignItems: "center", gap: 5,
     padding: "3px 10px", borderRadius: 12,
     fontSize: 11, fontWeight: 700,
-    background: "#fef3c7", color: "#b45309",
+    background: "rgba(245,158,11,0.15)", color: "#b45309",
   } as React.CSSProperties,
   pillRed: {
     display: "inline-flex", alignItems: "center", gap: 5,
     padding: "3px 10px", borderRadius: 12,
     fontSize: 11, fontWeight: 700,
-    background: "#fee2e2", color: "#b91c1c",
+    background: "rgba(239,68,68,0.15)", color: "#b91c1c",
   } as React.CSSProperties,
   pillBlue: {
     display: "inline-flex", alignItems: "center", gap: 5,
@@ -204,7 +204,7 @@ const s = {
     background: "#dbeafe", color: "#1d4ed8",
   } as React.CSSProperties,
   fulfillmentPill: {
-    background: "#fef3c7", color: "#92400e",
+    background: "rgba(245,158,11,0.15)", color: "#92400e",
     padding: "3px 10px", borderRadius: 12,
     fontSize: 11, fontWeight: 600,
   } as React.CSSProperties,
@@ -289,8 +289,8 @@ const s = {
       fontSize: 11, fontWeight: 700,
     }
     const states = {
-      done: { background: "#dcfce7", color: "#15803d", border: "2px solid #16a34a" },
-      current: { background: "#fef3c7", color: "#b45309", border: "2px solid #d97706" },
+      done: { background: "rgba(34,197,94,0.15)", color: "#15803d", border: "2px solid #16a34a" },
+      current: { background: "rgba(245,158,11,0.15)", color: "#b45309", border: "2px solid #d97706" },
       todo: { background: "transparent", color: "#9ca3af", border: "2px solid rgba(255,255,255,0.1)" },
     }
     return { ...base, ...states[state] }
@@ -305,7 +305,7 @@ const s = {
     margin: "0 4px", marginTop: -12,
   }) as React.CSSProperties,
   stepInfoBox: {
-    background: "#fef3c7", border: "1px solid #fde68a",
+    background: "rgba(245,158,11,0.15)", border: "1px solid #fde68a",
     borderRadius: 6, padding: "10px 14px",
     margin: "12px 0", fontSize: 12, color: "#92400e",
   } as React.CSSProperties,
@@ -877,7 +877,7 @@ const TransactionDetailPage = () => {
         {/* Customer */}
         <div style={s.panel}>
           <div style={s.panelTitle}>Customer</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "inherit", marginBottom: 2 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "#d1d5db", marginBottom: 2 }}>
             {tx.customer_name || tx.shipping_name || "—"}
           </div>
           <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 10 }}>
@@ -908,7 +908,7 @@ const TransactionDetailPage = () => {
         {/* Shipping Address */}
         <div style={s.panel}>
           <div style={s.panelTitle}>Shipping Address</div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "inherit", marginBottom: 6 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#d1d5db", marginBottom: 6 }}>
             {tx.shipping_name || "—"}
           </div>
           <div style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.7 }}>
@@ -927,7 +927,7 @@ const TransactionDetailPage = () => {
             </div>
             <div style={{ ...s.infoRow, borderBottom: "none" }}>
               <span style={s.infoLabel}>Tracking #</span>
-              <span style={{ ...s.infoValue, color: tx.tracking_number ? "#374151" : "#9ca3af" }}>
+              <span style={{ ...s.infoValue, color: tx.tracking_number ? "#e8e0d4" : "#9ca3af" }}>
                 {tx.tracking_number || "not yet"}
               </span>
             </div>
@@ -1000,7 +1000,7 @@ const TransactionDetailPage = () => {
           <div style={s.itemCard}>
             <div style={s.itemCover}>💿</div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "inherit" }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#d1d5db" }}>
                 {tx.release_title || "—"}
               </div>
               <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 1 }}>
@@ -1044,11 +1044,11 @@ const TransactionDetailPage = () => {
               <div style={{ display: "flex", gap: 16, marginTop: 8 }}>
                 <div style={{ textAlign: "right" }}>
                   <div style={{ fontSize: 10, color: "#9ca3af", textTransform: "uppercase" }}>Bid</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "inherit" }}>{formatAmount(tx.amount)}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#d1d5db" }}>{formatAmount(tx.amount)}</div>
                 </div>
                 <div style={{ textAlign: "right" }}>
                   <div style={{ fontSize: 10, color: "#9ca3af", textTransform: "uppercase" }}>Shipping</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "inherit" }}>{formatAmount(tx.shipping_cost)}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#d1d5db" }}>{formatAmount(tx.shipping_cost)}</div>
                 </div>
                 <div style={{ textAlign: "right" }}>
                   <div style={{ fontSize: 10, color: "#9ca3af", textTransform: "uppercase" }}>Total</div>
@@ -1127,7 +1127,7 @@ const TransactionDetailPage = () => {
           <div style={{ marginTop: 4 }}>
             <div style={s.infoRow}>
               <span style={s.infoLabel}>Packed at</span>
-              <span style={{ ...s.infoValue, color: isPacking || tx.label_printed_at ? "#374151" : "#9ca3af" }}>
+              <span style={{ ...s.infoValue, color: isPacking || tx.label_printed_at ? "#e8e0d4" : "#9ca3af" }}>
                 {isPacking || tx.label_printed_at || isShipped || isDelivered
                   ? (tx.paid_at ? formatDate(tx.paid_at) : "—")
                   : "—"}
@@ -1135,19 +1135,19 @@ const TransactionDetailPage = () => {
             </div>
             <div style={s.infoRow}>
               <span style={s.infoLabel}>Label printed</span>
-              <span style={{ ...s.infoValue, color: tx.label_printed_at ? "#374151" : "#9ca3af" }}>
+              <span style={{ ...s.infoValue, color: tx.label_printed_at ? "#e8e0d4" : "#9ca3af" }}>
                 {tx.label_printed_at ? formatDate(tx.label_printed_at) : "—"}
               </span>
             </div>
             <div style={s.infoRow}>
               <span style={s.infoLabel}>Shipped at</span>
-              <span style={{ ...s.infoValue, color: tx.shipped_at ? "#374151" : "#9ca3af" }}>
+              <span style={{ ...s.infoValue, color: tx.shipped_at ? "#e8e0d4" : "#9ca3af" }}>
                 {tx.shipped_at ? formatDate(tx.shipped_at) : "—"}
               </span>
             </div>
             <div style={{ ...s.infoRow, borderBottom: "none" }}>
               <span style={s.infoLabel}>Tracking #</span>
-              <span style={{ ...s.infoValue, color: tx.tracking_number ? "#374151" : "#9ca3af" }}>
+              <span style={{ ...s.infoValue, color: tx.tracking_number ? "#e8e0d4" : "#9ca3af" }}>
                 {tx.tracking_number
                   ? `${tx.carrier ? tx.carrier + " · " : ""}${tx.tracking_number}`
                   : "—"}

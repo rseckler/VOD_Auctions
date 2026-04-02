@@ -30,9 +30,9 @@ type PreviewData = {
 
 const C = {
   bg: "#ffffff",
-  card: "#f9fafb",
-  border: "#e5e7eb",
-  text: "#111827",
+  card: "transparent",
+  border: "rgba(255,255,255,0.1)",
+  text: "#d1d5db",
   muted: "#6b7280",
   gold: "#b8860b",
   success: "#16a34a",
@@ -41,7 +41,7 @@ const C = {
   chip: {
     resend: { bg: "#eff6ff", text: "#1d4ed8", border: "#bfdbfe" },
     brevo: { bg: "#ecfdf5", text: "#065f46", border: "#6ee7b7" },
-    transactional: { bg: "#fafafa", text: "#374151", border: "#e5e7eb" },
+    transactional: { bg: "transparent", text: "#d1d5db", border: "rgba(255,255,255,0.1)" },
     newsletter: { bg: "#fdf4ff", text: "#6b21a8", border: "#e9d5ff" },
   },
 }
@@ -305,7 +305,7 @@ function PreviewDrawer({
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Internal notes, desired changes, copy feedback…"
                   rows={4}
-                  style={{ width: "100%", padding: "9px 12px", fontSize: 14, border: `1px solid ${C.border}`, borderRadius: 6, outline: "none", boxSizing: "border-box" as const, resize: "vertical" as const, color: C.text, fontFamily: "inherit" }}
+                  style={{ width: "100%", padding: "9px 12px", fontSize: 14, border: `1px solid ${C.border}`, borderRadius: 6, outline: "none", boxSizing: "border-box" as const, resize: "vertical" as const, color: C.text, fontFamily: "#d1d5db" }}
                 />
               </div>
 
