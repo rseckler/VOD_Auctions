@@ -14,6 +14,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { ClarityProvider } from "@/components/providers/ClarityProvider"
 import RudderstackProvider from "@/components/RudderstackProvider"
 import { TopLoadingBar } from "@/components/TopLoadingBar"
+import { SentryInit } from "@/components/SentryInit"
 import "./globals.css"
 
 const dmSans = DM_Sans({
@@ -107,6 +108,7 @@ export default async function RootLayout({
         >
           Skip to content
         </a>
+        <SentryInit />
         <Suspense fallback={null}>
           <TopLoadingBar />
         </Suspense>
