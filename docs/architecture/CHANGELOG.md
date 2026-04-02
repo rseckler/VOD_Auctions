@@ -4,6 +4,47 @@ Vollständiger Entwicklungs-Changelog. Neue Einträge werden direkt hier ergänz
 
 ---
 
+## 2026-04-02 — Microsoft Clarity (UXA) Integration
+
+### Microsoft Clarity — aktiviert
+- **`ClarityProvider.tsx`** (`storefront/src/components/providers/`) — lädt Clarity-Snippet nur wenn `marketing: true` im `cookie-consent` localStorage-Eintrag. Double-injection guard via `window.clarity` Check.
+- In `storefront/src/app/layout.tsx` eingebunden.
+- **Backend System Health** prüft bereits `CLARITY_ID` / `NEXT_PUBLIC_CLARITY_ID` → zeigt grün wenn gesetzt.
+- **Project ID:** `w4hj9xmkky` (Projekt: VOD-Auctions auf clarity.microsoft.com)
+- **Env vars gesetzt:** `NEXT_PUBLIC_CLARITY_ID` in `storefront/.env.local`, `CLARITY_ID` in `backend/.env` — lokal + VPS.
+- Dashboard füllt sich sobald erste User mit Marketing-Consent die Seite besuchen.
+
+---
+
+## 2026-04-02 — Sentry + System Health + Dark Mode + JWT Session
+
+### Sentry Error Tracking — vollständig eingerichtet
+- **Root Cause (warum 0 Events):** Turbopack injiziert `sentry.client.config.ts` NICHT automatisch in den Client-Bundle (kein Webpack-Plugin-Support). DSN war nie im Browser-Bundle → SDK nie initialisiert → alle `captureException`/`captureMessage` Calls silently ignored.
+- **Fix 1:** DSN in `sentry.client.config.ts`, `sentry.server.config.ts`, `sentry.edge.config.ts` hardcoded (statt `process.env.NEXT_PUBLIC_SENTRY_DSN` — wird von Turbopack nicht inlined).
+- **Fix 2:** Neues `SentryInit` Client-Component (`src/components/SentryInit.tsx`) importiert `sentry.client.config.ts` explizit. In `layout.tsx` eingebunden → zwingt Turbopack die Client-Config ins Browser-Bundle.
+- **Tunnel `/monitoring`:** `withSentryConfig tunnelRoute` erstellt API-Route nicht automatisch mit Turbopack. Manuelle App-Router-Route `src/app/monitoring/route.ts` erstellt — proxied Sentry-Envelopes an `ingest.de.sentry.io` (EU-Region). Leitet `Content-Encoding` Header weiter.
+- **Middleware-Fix:** `/monitoring` zu Password-Gate-Whitelist hinzugefügt (sonst würde der Tunnel-Endpoint zur Gate-Page redirected).
+- **Ergebnis:** 2 Test-Issues in Sentry bestätigt. SDK sendet via `/monitoring` Tunnel, Sentry empfängt Events.
+
+### System Health — Alerts Panel
+- **Neuer API-Endpoint** `GET /admin/system-health/alerts`: Holt Sentry Issues (letzte 7 Tage) via Personal API Token + prüft `sync_change_log` auf letzten Sync-Run (Warning >26h, Error >28h).
+- **Alerts Panel** in `/app/system-health`: Sync-Status-Bar (grün/amber/rot) + Sentry Issues Liste mit Level-Badges, Occurrence-Count, Last-Seen, direkter Link zu Sentry Permalink.
+- `SENTRY_API_TOKEN` zu Backend `.env` hinzugefügt.
+
+### Admin Dark Mode — vollständige Farbkorrektur
+- 461+ hardcodierte Light-Mode-Farben in 14 Admin-Seiten ersetzt: `#111827` → `inherit`, `#f9fafb` → `transparent`, `background: "#fff"` → `var(--bg-component, #1a1714)`, Border `#e5e7eb` → `rgba(255,255,255,0.1)`.
+- Betroffene Seiten: `auction-blocks/`, `catalog/`, `dashboard/`, `emails/`, `gallery/`, `marketing/`, `operations/`, `system-health/`, `transactions/`, `ai-assistant/`.
+- Spezialfall Transactions Filters-Button: Ternary-Pattern `? "#f0f0ff" : "#fff"` manuell korrigiert.
+
+### JWT Session — 30-Tage Login
+- `jwtExpiresIn: "30d"` in `medusa-config.ts` `http`-Config ergänzt. Admin-Login bleibt 30 Tage aktiv statt täglich ablaufen.
+
+### Bug-Fixes (Testlauf Marius Luber)
+- **Newsletter Confirm:** `confirmUrl` zeigt jetzt auf Storefront (`/newsletter/confirm`), neue Server-Component macht API-Call mit Publishable Key. Backend gibt JSON zurück statt HTTP-Redirect.
+- **Address Delete:** Hard Delete statt Soft Delete in `addresses/[id]/route.ts` — verhindert "Customer_address already exists" nach Löschen und Neuanlegen einer Adresse.
+
+---
+
 ## 2026-04-10 — Newsletter Confirm Fix + Address Delete Fix (Testlauf-Bugs)
 
 ### Bug 1 — Newsletter Confirm: Publishable API Key Error
