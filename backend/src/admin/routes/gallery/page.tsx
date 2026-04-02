@@ -1,5 +1,7 @@
 import { Component, useEffect, useState, useCallback } from "react"
 import { useAdminNav } from "../../components/admin-nav"
+import { C } from "../../components/admin-tokens"
+import { PageHeader, PageShell } from "../../components/admin-layout"
 import type { ErrorInfo, ReactNode } from "react"
 
 // ─── Error Boundary ─────────────────────────────────────────────────────────
@@ -60,21 +62,6 @@ type ContentBlock = {
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const STOREFRONT_URL = "https://vod-auctions.com"
-
-const C = {
-  bg: "transparent",
-  card: "#f8f7f6",
-  text: "#1a1714",
-  muted: "#78716c",
-  gold: "#b8860b",
-  border: "#e7e5e4",
-  hover: "#f5f4f3",
-  success: "#16a34a",
-  error: "#dc2626",
-  blue: "#2563eb",
-  purple: "#7c3aed",
-  warning: "#d97706",
-}
 
 const SECTIONS = [
   { value: "hero", label: "Hero" },
@@ -159,28 +146,6 @@ const CONTENT_SECTIONS: ContentSectionConfig[] = [
 // ─── Styles ─────────────────────────────────────────────────────────────────
 
 const styles = {
-  page: {
-    padding: 24,
-    color: C.text,
-    minHeight: "100vh",
-  } as React.CSSProperties,
-  header: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 24,
-  } as React.CSSProperties,
-  heading: {
-    fontSize: 24,
-    fontWeight: 700,
-    color: C.text,
-    margin: 0,
-  } as React.CSSProperties,
-  subtitle: {
-    fontSize: 14,
-    color: C.muted,
-    marginTop: 4,
-  } as React.CSSProperties,
   tabBar: {
     display: "flex",
     gap: 0,
@@ -1145,16 +1110,8 @@ const GalleryPage = () => {
 
   return (
     <ErrorBoundary>
-      <div style={styles.page}>
-        {/* Header */}
-        <div style={styles.header}>
-          <div>
-            <h1 style={styles.heading}>Gallery Management</h1>
-            <p style={styles.subtitle}>
-              Manage gallery images and content for the VOD Gallery page.
-            </p>
-          </div>
-        </div>
+      <PageShell>
+        <PageHeader title="Gallery" subtitle="Manage gallery media sections" />
 
         {/* Tab Bar */}
         <div style={styles.tabBar}>
@@ -1175,7 +1132,7 @@ const GalleryPage = () => {
         {/* Tab Content */}
         {activeTab === "media" && <MediaTab />}
         {activeTab === "content" && <ContentTab />}
-      </div>
+      </PageShell>
     </ErrorBoundary>
   )
 }

@@ -1,6 +1,7 @@
-import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { Component, useEffect, useState, useCallback, useRef } from "react"
 import { useAdminNav } from "../../components/admin-nav"
+import { C } from "../../components/admin-tokens"
+import { PageHeader, PageShell } from "../../components/admin-layout"
 
 class ErrorBoundary extends Component<{children: React.ReactNode},{error:string|null}> {
   state = { error: null }
@@ -10,10 +11,6 @@ class ErrorBoundary extends Component<{children: React.ReactNode},{error:string|
     return this.props.children
   }
 }
-
-export const config = defineRouteConfig({
-  label: "Customers",
-})
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -170,21 +167,6 @@ type SavedAddress = {
 }
 
 // ── Constants ────────────────────────────────────────────────────────────────
-
-const C = {
-  bg: "transparent",
-  card: "#f8f7f6",
-  text: "#1a1714",
-  muted: "#78716c",
-  gold: "#b8860b",
-  border: "#e7e5e4",
-  hover: "#f5f4f3",
-  success: "#16a34a",
-  error: "#dc2626",
-  blue: "#2563eb",
-  purple: "#7c3aed",
-  warning: "#d97706",
-}
 
 const SEGMENT_COLORS: Record<string, string> = {
   registered: C.blue,
@@ -2171,11 +2153,8 @@ const CustomersPage = () => {
   })
 
   return (
-    <div style={{ padding: "24px", background: C.bg, minHeight: "100vh", color: C.text, minWidth: 0, width: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-        <h1 style={{ fontSize: "24px", fontWeight: 700 }}>Customers</h1>
-      </div>
+    <PageShell>
+      <PageHeader title="Customers" subtitle="Customer management and CRM" />
 
       {/* Tabs */}
       <div style={{ borderBottom: `1px solid ${C.border}`, marginBottom: "24px", display: "flex" }}>
@@ -2199,7 +2178,7 @@ const CustomersPage = () => {
         onClose={() => setSelectedCustomerId(null)}
         onCustomerChanged={() => setRefreshKey((k) => k + 1)}
       />
-    </div>
+    </PageShell>
   )
 }
 

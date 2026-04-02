@@ -2,21 +2,8 @@ import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { FolderOpen } from "@medusajs/icons"
 import { useEffect, useState } from "react"
 import { useAdminNav } from "../../components/admin-nav"
-
-const C = {
-  bg: "transparent",
-  card: "#f8f7f6",
-  text: "#1a1714",
-  muted: "#78716c",
-  gold: "#b8860b",
-  border: "#e7e5e4",
-  hover: "#f5f4f3",
-  success: "#16a34a",
-  error: "#dc2626",
-  blue: "#2563eb",
-  purple: "#7c3aed",
-  warning: "#d97706",
-}
+import { C } from "../../components/admin-tokens"
+import { PageHeader, PageShell } from "../../components/admin-layout"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -138,15 +125,8 @@ function CatalogHub() {
     : 16
 
   return (
-    <div style={{ padding: "32px 36px", maxWidth: 900, fontFamily: "var(--font-sans, system-ui, sans-serif)" }}>
-      {/* Header */}
-      <div style={{ fontSize: 12, color: C.muted, marginBottom: 20 }}>Admin</div>
-      <div style={{ fontSize: 24, fontWeight: 800, color: C.text, marginBottom: 4 }}>
-        🗃️ Catalog
-      </div>
-      <div style={{ fontSize: 14, color: C.muted, marginBottom: 28 }}>
-        Browse and enrich the {total}-release catalog — releases, artists, labels, and press
-      </div>
+    <PageShell maxWidth={900}>
+      <PageHeader title="Catalog" subtitle="Browse and enrich the 41,529-release catalog — releases, artists, labels, press" />
 
       {/* Stats bar */}
       <div style={{ display: "flex", gap: 12, marginBottom: 32, flexWrap: "wrap" }}>
@@ -207,7 +187,7 @@ function CatalogHub() {
           href="/app/musicians"
         />
       </div>
-    </div>
+    </PageShell>
   )
 }
 

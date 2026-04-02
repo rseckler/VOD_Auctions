@@ -2,6 +2,9 @@ import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { House } from "@medusajs/icons"
 import { useAdminNav } from "../../components/admin-nav"
 import { useEffect, useState, useCallback, useRef } from "react"
+import { C, fmtMoney, fmtNum, fmtDate, relativeTime } from "../../components/admin-tokens"
+import { PageHeader, SectionHeader, PageShell, StatsGrid } from "../../components/admin-layout"
+import { Toast, Alert, ColorBadge } from "../../components/admin-ui"
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -52,58 +55,7 @@ type DashboardData = {
   last_sync: string | null
 }
 
-// ── Color Palette ─────────────────────────────────────────────────────────────
-
-const C = {
-  bg: "transparent",
-  card: "#f8f7f6",
-  text: "#1a1714",
-  muted: "#78716c",
-  gold: "#b8860b",
-  border: "#e7e5e4",
-  hover: "#f5f4f3",
-  success: "#16a34a",
-  error: "#dc2626",
-  blue: "#2563eb",
-  purple: "#7c3aed",
-  warning: "#d97706",
-  orange: "#ea580c",
-}
-
-// ── Formatters ────────────────────────────────────────────────────────────────
-
-function fmtMoney(value: number): string {
-  return new Intl.NumberFormat("de-DE", {
-    style: "currency",
-    currency: "EUR",
-    minimumFractionDigits: 2,
-  }).format(value)
-}
-
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  })
-}
-
-function fmtNum(n: number): string {
-  return n.toLocaleString("de-DE")
-}
-
-function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 1) return "Just now"
-  if (mins < 60) return `${mins} min ago`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours} hour${hours > 1 ? "s" : ""} ago`
-  const days = Math.floor(hours / 24)
-  if (days === 1) return "Yesterday"
-  return `${days} days ago`
-}
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function currentDateLabel(): string {
   return new Date().toLocaleDateString("en-GB", {
@@ -124,32 +76,6 @@ function blockTypeLabel(type: string): string {
   return map[type] ?? type
 }
 
-// ── Platform mode badge ───────────────────────────────────────────────────────
-
-function modeBadgeStyle(mode: string): React.CSSProperties {
-  const colors: Record<string, { bg: string; text: string; border: string }> = {
-    beta_test: { bg: "#fef3c7", text: "#92400e", border: "#fbbf24" },
-    pre_launch: { bg: "#ede9fe", text: "#5b21b6", border: "#a78bfa" },
-    preview: { bg: "#e0f2fe", text: "#075985", border: "#7dd3fc" },
-    live: { bg: "#dcfce7", text: "#166534", border: "#4ade80" },
-    maintenance: { bg: "#fee2e2", text: "#991b1b", border: "#f87171" },
-  }
-  const c = colors[mode] ?? colors.beta_test
-  return {
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "4px 12px",
-    fontSize: 11,
-    fontWeight: 700,
-    borderRadius: 20,
-    backgroundColor: c.bg,
-    color: c.text,
-    border: `1px solid ${c.border}`,
-    textTransform: "uppercase",
-    letterSpacing: "0.05em",
-  }
-}
-
 function modeLabel(mode: string): string {
   const map: Record<string, string> = {
     beta_test: "Beta Test",
@@ -159,6 +85,17 @@ function modeLabel(mode: string): string {
     maintenance: "Maintenance",
   }
   return map[mode] ?? mode
+}
+
+function modeBadgeColor(mode: string): string {
+  const colors: Record<string, string> = {
+    beta_test: "#f97316",
+    pre_launch: "#7c3aed",
+    preview: "#2563eb",
+    live: "#16a34a",
+    maintenance: "#dc2626",
+  }
+  return colors[mode] ?? colors.beta_test
 }
 
 // ── Skeleton Card ─────────────────────────────────────────────────────────────
@@ -196,116 +133,16 @@ function SkeletonCard() {
   )
 }
 
-// ── Stat Card ─────────────────────────────────────────────────────────────────
-
-function StatCard({
-  dotColor,
-  label,
-  value,
-  valueColor,
-  sub,
-}: {
-  dotColor: string
-  label: string
-  value: string | number
-  valueColor?: string
-  sub?: string
-}) {
-  return (
-    <div style={{ background: "#fff", padding: "14px 16px" }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          marginBottom: 8,
-        }}
-      >
-        <div
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: "50%",
-            backgroundColor: dotColor,
-            flexShrink: 0,
-          }}
-        />
-        <div
-          style={{
-            fontSize: 10,
-            fontWeight: 700,
-            textTransform: "uppercase",
-            letterSpacing: "0.06em",
-            color: C.muted,
-          }}
-        >
-          {label}
-        </div>
-      </div>
-      <div
-        style={{
-          fontSize: 24,
-          fontWeight: 700,
-          color: valueColor || C.text,
-          lineHeight: 1,
-        }}
-      >
-        {value}
-      </div>
-      {sub && (
-        <div style={{ fontSize: 11, color: C.muted, marginTop: 5 }}>
-          {sub}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Section Header ────────────────────────────────────────────────────────────
-
-function SectionHeader({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      style={{
-        fontSize: 11,
-        fontWeight: 700,
-        textTransform: "uppercase",
-        letterSpacing: "0.06em",
-        color: C.muted,
-        marginBottom: 10,
-        marginTop: 28,
-      }}
-    >
-      {children}
-    </div>
-  )
-}
-
 // ── Auction type badge ────────────────────────────────────────────────────────
 
 function TypeBadge({ type }: { type: string }) {
-  const colors: Record<string, { bg: string; text: string }> = {
-    themed: { bg: "#eff6ff", text: "#1d4ed8" },
-    highlight: { bg: "#fef3c7", text: "#92400e" },
-    clearance: { bg: "#f0fdf4", text: "#166534" },
-    flash: { bg: "#fdf2f8", text: "#9d174d" },
+  const colors: Record<string, string> = {
+    themed: "#1d4ed8",
+    highlight: "#92400e",
+    clearance: "#166534",
+    flash: "#9d174d",
   }
-  const c = colors[type] ?? { bg: C.card, text: C.text }
-  return (
-    <span
-      style={{
-        display: "inline-block",
-        padding: "2px 8px",
-        borderRadius: 4,
-        fontSize: 11,
-        fontWeight: 600,
-        backgroundColor: c.bg,
-        color: c.text,
-      }}
-    >
-      {blockTypeLabel(type)}
-    </span>
-  )
+  return <ColorBadge label={blockTypeLabel(type)} color={colors[type] ?? C.text} />
 }
 
 // ── Small outlined button ─────────────────────────────────────────────────────
@@ -377,45 +214,12 @@ function DashboardPage() {
     }
   }, [fetchDashboard])
 
-  // ── Page wrapper style ──────────────────────────────────────────────────────
-
-  const pageStyle: React.CSSProperties = {
-    fontFamily: "-apple-system, BlinkMacSystemFont, 'Inter', sans-serif",
-    backgroundColor: C.bg,
-    minHeight: "100vh",
-    padding: "20px 16px 48px",
-    color: C.text,
-  }
-
   // ── Loading state ───────────────────────────────────────────────────────────
 
   if (loading) {
     return (
-      <div style={pageStyle}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-            marginBottom: 24,
-          }}
-        >
-          <div>
-            <h1
-              style={{
-                fontSize: 22,
-                fontWeight: 700,
-                color: C.text,
-                margin: 0,
-              }}
-            >
-              Dashboard
-            </h1>
-            <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>
-              {currentDateLabel()}
-            </div>
-          </div>
-        </div>
+      <PageShell>
+        <PageHeader title="Dashboard" subtitle={currentDateLabel()} />
         <div
           style={{
             display: "grid",
@@ -443,7 +247,7 @@ function DashboardPage() {
             />
           ))}
         </div>
-      </div>
+      </PageShell>
     )
   }
 
@@ -451,71 +255,36 @@ function DashboardPage() {
 
   if (error) {
     return (
-      <div style={pageStyle}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-            marginBottom: 24,
-          }}
-        >
-          <div>
-            <h1
+      <PageShell>
+        <PageHeader title="Dashboard" subtitle={currentDateLabel()} />
+        <Alert type="error">
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>Failed to load dashboard</div>
+              <div style={{ fontSize: 12, marginTop: 2 }}>{error}</div>
+            </div>
+            <button
+              onClick={() => {
+                setLoading(true)
+                setError(null)
+                fetchDashboard()
+              }}
               style={{
-                fontSize: 22,
-                fontWeight: 700,
-                color: C.text,
-                margin: 0,
+                padding: "6px 16px",
+                fontSize: 12,
+                fontWeight: 600,
+                borderRadius: 6,
+                background: C.error,
+                color: "#fff",
+                border: "none",
+                cursor: "pointer",
               }}
             >
-              Dashboard
-            </h1>
-            <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>
-              {currentDateLabel()}
-            </div>
+              Retry
+            </button>
           </div>
-        </div>
-        <div
-          style={{
-            background: "#fef2f2",
-            border: `1px solid #fecaca`,
-            borderRadius: 8,
-            padding: "16px 20px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <div>
-            <div style={{ fontWeight: 600, color: C.error, fontSize: 14 }}>
-              Failed to load dashboard
-            </div>
-            <div style={{ fontSize: 12, color: "#991b1b", marginTop: 2 }}>
-              {error}
-            </div>
-          </div>
-          <button
-            onClick={() => {
-              setLoading(true)
-              setError(null)
-              fetchDashboard()
-            }}
-            style={{
-              padding: "6px 16px",
-              fontSize: 12,
-              fontWeight: 600,
-              borderRadius: 6,
-              background: C.error,
-              color: "#fff",
-              border: "none",
-              cursor: "pointer",
-            }}
-          >
-            Retry
-          </button>
-        </div>
-      </div>
+        </Alert>
+      </PageShell>
     )
   }
 
@@ -528,50 +297,44 @@ function DashboardPage() {
   // ── Determine which stats to show based on mode ─────────────────────────────
 
   type StatDef = {
-    dotColor: string
     label: string
     value: string | number
-    valueColor?: string
-    sub?: string
+    color?: string
+    subtitle?: string
   }
 
   function getStatsForMode(): StatDef[] {
     if (mode === "beta_test") {
       return [
         {
-          dotColor: s.overdue_payments > 0 ? C.error : C.success,
           label: "Overdue Payments",
           value: s.overdue_payments > 0 ? s.overdue_payments : "\u2713",
-          valueColor: s.overdue_payments > 0 ? C.error : C.success,
-          sub: s.overdue_payments > 0 ? "Older than 3 days" : "None overdue",
+          color: s.overdue_payments > 0 ? C.error : C.success,
+          subtitle: s.overdue_payments > 0 ? "Older than 3 days" : "None overdue",
         },
         {
-          dotColor: s.ready_to_pack > 0 ? C.warning : C.success,
           label: "Ready to Pack",
           value: s.ready_to_pack,
-          valueColor: s.ready_to_pack > 0 ? C.warning : C.success,
-          sub: "Paid, not started",
+          color: s.ready_to_pack > 0 ? C.warning : C.success,
+          subtitle: "Paid, not started",
         },
         {
-          dotColor: s.labels_pending > 0 ? C.purple : C.success,
           label: "Labels Pending",
           value: s.labels_pending,
-          valueColor: s.labels_pending > 0 ? C.purple : C.success,
-          sub: "In packing, no label",
+          color: s.labels_pending > 0 ? C.purple : C.success,
+          subtitle: "In packing, no label",
         },
         {
-          dotColor: s.active_auctions > 0 ? C.success : C.muted,
           label: "Active Auctions",
           value: s.active_auctions,
-          valueColor: s.active_auctions > 0 ? C.success : C.muted,
-          sub: s.active_auctions > 0 ? `${fmtNum(s.active_items)} items live` : "None live",
+          color: s.active_auctions > 0 ? C.success : C.muted,
+          subtitle: s.active_auctions > 0 ? `${fmtNum(s.active_items)} items live` : "None live",
         },
         {
-          dotColor: w.shipped > 0 ? C.blue : C.muted,
           label: "Shipped This Week",
           value: w.shipped,
-          valueColor: w.shipped > 0 ? C.blue : C.muted,
-          sub: "Last 7 days",
+          color: w.shipped > 0 ? C.blue : C.muted,
+          subtitle: "Last 7 days",
         },
       ]
     }
@@ -579,39 +342,34 @@ function DashboardPage() {
     if (mode === "pre_launch") {
       return [
         {
-          dotColor: (s.waitlist.pending || 0) > 0 ? C.orange : C.muted,
           label: "Waitlist Pending",
           value: s.waitlist.pending || 0,
-          valueColor: (s.waitlist.pending || 0) > 0 ? C.orange : C.muted,
-          sub: "Awaiting review",
+          color: (s.waitlist.pending || 0) > 0 ? "#ea580c" : C.muted,
+          subtitle: "Awaiting review",
         },
         {
-          dotColor: (s.waitlist.invited || 0) > 0 ? C.blue : C.muted,
           label: "Invited",
           value: s.waitlist.invited || 0,
-          valueColor: (s.waitlist.invited || 0) > 0 ? C.blue : C.muted,
-          sub: "Invite sent",
+          color: (s.waitlist.invited || 0) > 0 ? C.blue : C.muted,
+          subtitle: "Invite sent",
         },
         {
-          dotColor: (s.waitlist.registered || 0) > 0 ? C.success : C.muted,
           label: "Registered",
           value: s.waitlist.registered || 0,
-          valueColor: (s.waitlist.registered || 0) > 0 ? C.success : C.muted,
-          sub: "Account created",
+          color: (s.waitlist.registered || 0) > 0 ? C.success : C.muted,
+          subtitle: "Account created",
         },
         {
-          dotColor: s.active_auctions > 0 ? C.success : C.muted,
           label: "Active Auctions",
           value: s.active_auctions,
-          valueColor: s.active_auctions > 0 ? C.success : C.muted,
-          sub: s.active_auctions > 0 ? `${fmtNum(s.active_items)} items` : "None",
+          color: s.active_auctions > 0 ? C.success : C.muted,
+          subtitle: s.active_auctions > 0 ? `${fmtNum(s.active_items)} items` : "None",
         },
         {
-          dotColor: s.new_users_week > 0 ? C.purple : C.muted,
           label: "New Users",
           value: s.new_users_week,
-          valueColor: s.new_users_week > 0 ? C.purple : C.muted,
-          sub: "This week",
+          color: s.new_users_week > 0 ? C.purple : C.muted,
+          subtitle: "This week",
         },
       ]
     }
@@ -619,39 +377,34 @@ function DashboardPage() {
     // live / preview / maintenance — revenue-focused
     return [
       {
-        dotColor: w.revenue > 0 ? C.gold : C.muted,
         label: "Revenue",
         value: fmtMoney(w.revenue),
-        valueColor: C.gold,
-        sub: "This week",
+        color: C.gold,
+        subtitle: "This week",
       },
       {
-        dotColor: w.orders > 0 ? C.success : C.muted,
         label: "Orders",
         value: w.orders,
-        valueColor: w.orders > 0 ? C.success : C.muted,
-        sub: "This week",
+        color: w.orders > 0 ? C.success : C.muted,
+        subtitle: "This week",
       },
       {
-        dotColor: s.active_auctions > 0 ? C.success : C.muted,
         label: "Active Auctions",
         value: s.active_auctions,
-        valueColor: s.active_auctions > 0 ? C.success : C.muted,
-        sub: `${fmtNum(s.active_items)} items`,
+        color: s.active_auctions > 0 ? C.success : C.muted,
+        subtitle: `${fmtNum(s.active_items)} items`,
       },
       {
-        dotColor: s.bids_today > 0 ? C.blue : C.muted,
         label: "Bids Today",
         value: s.bids_today,
-        valueColor: s.bids_today > 0 ? C.blue : C.muted,
-        sub: s.top_bid > 0 ? `Top: ${fmtMoney(s.top_bid)}` : "No bids",
+        color: s.bids_today > 0 ? C.blue : C.muted,
+        subtitle: s.top_bid > 0 ? `Top: ${fmtMoney(s.top_bid)}` : "No bids",
       },
       {
-        dotColor: w.shipped > 0 ? C.blue : C.muted,
         label: "Shipped",
         value: w.shipped,
-        valueColor: w.shipped > 0 ? C.blue : C.muted,
-        sub: "This week",
+        color: w.shipped > 0 ? C.blue : C.muted,
+        subtitle: "This week",
       },
     ]
   }
@@ -659,28 +412,13 @@ function DashboardPage() {
   const statCards = getStatsForMode()
 
   return (
-    <div style={pageStyle}>
+    <PageShell>
       {/* ── Header Row ── */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "flex-start",
-          justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: 12,
-          marginBottom: 24,
-        }}
-      >
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: C.text, margin: 0, lineHeight: 1.2 }}>
-            Dashboard
-          </h1>
-          <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>
-            {currentDateLabel()}
-          </div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={modeBadgeStyle(mode)}>{modeLabel(mode)}</span>
+      <PageHeader
+        title="Dashboard"
+        subtitle={currentDateLabel()}
+        badge={{ label: modeLabel(mode), color: modeBadgeColor(mode) }}
+        actions={
           <span style={{ fontSize: 11, color: C.muted }}>
             Auto-refresh 60s{" \u00B7 "}Last:{" "}
             {lastRefreshed.toLocaleTimeString("en-GB", {
@@ -689,54 +427,22 @@ function DashboardPage() {
               second: "2-digit",
             })}
           </span>
-        </div>
-      </div>
+        }
+      />
 
       {/* ── Stats Row ── */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(5, 1fr)",
-          gap: 1,
-          background: C.border,
-          borderRadius: 8,
-          overflow: "hidden",
-          marginBottom: 0,
-        }}
-      >
-        {statCards.map((card, i) => (
-          <StatCard
-            key={i}
-            dotColor={card.dotColor}
-            label={card.label}
-            value={card.value}
-            valueColor={card.valueColor}
-            sub={card.sub}
-          />
-        ))}
-      </div>
+      <StatsGrid stats={statCards} />
 
       {/* ── Action Required ── */}
-      <SectionHeader>Action Required</SectionHeader>
+      <SectionHeader title="Action Required" />
 
       {data.actions.length === 0 ? (
-        <div
-          style={{
-            background: "#f0fdf4",
-            border: "1px solid #bbf7d0",
-            borderRadius: 8,
-            padding: "12px 16px",
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            fontSize: 13,
-            color: C.success,
-            fontWeight: 500,
-          }}
-        >
-          <span style={{ fontSize: 16 }}>{"\u2713"}</span>
-          Nothing needs your attention — all caught up!
-        </div>
+        <Alert type="success" style={{ marginBottom: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 16 }}>{"\u2713"}</span>
+            Nothing needs your attention — all caught up!
+          </div>
+        </Alert>
       ) : (
         <div>
           {data.actions.map((action, i) => {
@@ -788,7 +494,7 @@ function DashboardPage() {
       {/* ── Launch Readiness (beta_test only) ── */}
       {mode === "beta_test" && data.launch_readiness && (
         <>
-          <SectionHeader>Launch Readiness</SectionHeader>
+          <SectionHeader title="Launch Readiness" />
 
           {/* Progress bar */}
           <div
@@ -856,7 +562,7 @@ function DashboardPage() {
       {/* ── Live Auctions ── */}
       {data.auctions.length > 0 && (
         <>
-          <SectionHeader>Live Auctions</SectionHeader>
+          <SectionHeader title="Live Auctions" />
 
           {data.auctions.map((auction) => (
             <div
@@ -965,7 +671,7 @@ function DashboardPage() {
       {/* ── Recent Activity ── */}
       {data.activity.length > 0 && (
         <>
-          <SectionHeader>Recent Activity</SectionHeader>
+          <SectionHeader title="Recent Activity" />
 
           <div>
             {data.activity.slice(0, 10).map((event, i) => (
@@ -1017,58 +723,18 @@ function DashboardPage() {
       {/* ── Catalog Health (beta_test only) ── */}
       {mode === "beta_test" && (
         <>
-          <SectionHeader>Catalog Health</SectionHeader>
+          <SectionHeader title="Catalog Health" />
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(4, 1fr)",
-              gap: 1,
-              background: C.border,
-              borderRadius: 8,
-              overflow: "hidden",
-            }}
-          >
-            {[
-              { label: "Releases", count: s.releases, pct: 97 },
-              { label: "Band Lit", count: s.band_lit, pct: 93 },
-              { label: "Label Lit", count: s.label_lit, pct: 95 },
-              { label: "Press Lit", count: s.press_lit, pct: 94 },
-            ].map((cat) => (
-              <div
-                key={cat.label}
-                style={{ background: "#fff", padding: "14px 16px" }}
-              >
-                <div
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.06em",
-                    color: C.muted,
-                    marginBottom: 6,
-                  }}
-                >
-                  {cat.label}
-                </div>
-                <div
-                  style={{
-                    fontSize: 20,
-                    fontWeight: 700,
-                    color: C.text,
-                    lineHeight: 1,
-                  }}
-                >
-                  {fmtNum(cat.count)}
-                </div>
-                <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
-                  {cat.pct}% images
-                </div>
-              </div>
-            ))}
-          </div>
+          <StatsGrid
+            stats={[
+              { label: "Releases", value: fmtNum(s.releases), subtitle: "97% images" },
+              { label: "Band Lit", value: fmtNum(s.band_lit), subtitle: "93% images" },
+              { label: "Label Lit", value: fmtNum(s.label_lit), subtitle: "95% images" },
+              { label: "Press Lit", value: fmtNum(s.press_lit), subtitle: "94% images" },
+            ]}
+          />
 
-          <div style={{ fontSize: 11, color: C.muted, marginTop: 8 }}>
+          <div style={{ fontSize: 11, color: C.muted, marginTop: -12 }}>
             {fmtNum(s.for_sale)} for sale ({s.cover_pct}% with cover)
             {data.last_sync && (
               <span>
@@ -1107,7 +773,7 @@ function DashboardPage() {
         <strong style={{ color: C.text }}>{w.pending}</strong>
         <span>pending</span>
       </div>
-    </div>
+    </PageShell>
   )
 }
 

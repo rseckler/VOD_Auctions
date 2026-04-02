@@ -1,5 +1,7 @@
 import { Component, useEffect, useState, useCallback, useRef } from "react"
 import { useAdminNav } from "../../components/admin-nav"
+import { C } from "../../components/admin-tokens"
+import { PageHeader, PageShell } from "../../components/admin-layout"
 import type { ErrorInfo, ReactNode } from "react"
 
 // ─── ErrorBoundary ────────────────────────────────────────────────────────────
@@ -124,21 +126,6 @@ type EditForm = {
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const C = {
-  bg: "transparent",
-  card: "#f8f7f6",
-  text: "#1a1714",
-  muted: "#78716c",
-  gold: "#b8860b",
-  border: "#e7e5e4",
-  hover: "#f5f4f3",
-  success: "#16a34a",
-  error: "#dc2626",
-  blue: "#2563eb",
-  purple: "#7c3aed",
-  warning: "#d97706",
-}
 
 const TABS = [
   { key: "artist", label: "Bands", entityLabel: "Bands" },
@@ -289,8 +276,8 @@ function EntityContentInner() {
   }
 
   return (
-    <div style={{ padding: 24, background: C.bg, minHeight: "100vh", color: C.text, minWidth: 0, width: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
-      <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 20 }}>Entity Content</h1>
+    <PageShell>
+      <PageHeader title="Entity Content" subtitle="AI-generated content for artists, labels, and press" />
 
       {/* ═══════════════════════════════════════════════════════════════════════
           PIPELINE PROGRESS — Hero section, always visible
@@ -739,7 +726,7 @@ function EntityContentInner() {
           </button>
         </div>
       )}
-    </div>
+    </PageShell>
   )
 }
 

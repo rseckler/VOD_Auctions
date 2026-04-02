@@ -1,5 +1,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { useAdminNav } from "../../components/admin-nav"
+import { C } from "../../components/admin-tokens"
+import { PageHeader, PageShell } from "../../components/admin-layout"
 
 type SyncOverview = {
   overview: {
@@ -160,21 +162,6 @@ type DiscogsHealth = {
     updated_at: string
   } | null
   actions: DiscogsHealthAction[]
-}
-
-const C = {
-  bg: "transparent",
-  card: "#f8f7f6",
-  text: "#1a1714",
-  muted: "#78716c",
-  gold: "#b8860b",
-  border: "#e7e5e4",
-  hover: "#f5f4f3",
-  success: "#16a34a",
-  error: "#dc2626",
-  blue: "#2563eb",
-  purple: "#7c3aed",
-  warning: "#d97706",
 }
 
 const formatDate = (d: string | null) => {
@@ -445,9 +432,8 @@ const SyncDashboardPage = () => {
   const batchRunning = bp && bp.processed > 0
 
   return (
-    <div style={{ padding: "24px", background: C.bg, minHeight: "100vh", color: C.text, minWidth: 0, width: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
-      {/* Page Title */}
-      <h1 style={{ fontSize: "24px", fontWeight: 700, marginBottom: "20px" }}>Sync Dashboard</h1>
+    <PageShell>
+      <PageHeader title="Data Sync" subtitle="Legacy sync and Discogs daily update status" />
 
       {/* Header Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "20px" }}>
@@ -1643,7 +1629,7 @@ const SyncDashboardPage = () => {
         </div>
       )}
 
-    </div>
+    </PageShell>
   )
 }
 

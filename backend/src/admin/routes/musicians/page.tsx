@@ -1,20 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react"
 import { useAdminNav } from "../../components/admin-nav"
-
-const C = {
-  bg: "transparent",
-  card: "#f8f7f6",
-  text: "#1a1714",
-  muted: "#78716c",
-  gold: "#b8860b",
-  border: "#e7e5e4",
-  hover: "#f5f4f3",
-  success: "#16a34a",
-  error: "#dc2626",
-  blue: "#2563eb",
-  purple: "#7c3aed",
-  warning: "#d97706",
-}
+import { C } from "../../components/admin-tokens"
+import { PageHeader, PageShell } from "../../components/admin-layout"
 
 type Musician = {
   id: string
@@ -90,8 +77,8 @@ function MusiciansPage() {
   useEffect(() => { fetchData() }, [fetchData])
 
   return (
-    <div style={{ padding: 24, background: C.bg, minHeight: "100vh", color: C.text, minWidth: 0, width: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
-      <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 20 }}>Musicians</h1>
+    <PageShell>
+      <PageHeader title="Musicians" subtitle="Musicians database — 897 musicians, 189 bands" />
 
       {/* Stats */}
       {stats && (
@@ -254,7 +241,7 @@ function MusiciansPage() {
           )}
         </>
       )}
-    </div>
+    </PageShell>
   )
 }
 

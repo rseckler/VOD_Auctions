@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useAdminNav } from "../../components/admin-nav"
+import { C } from "../../components/admin-tokens"
+import { PageHeader, PageShell } from "../../components/admin-layout"
+import { ColorBadge } from "../../components/admin-ui"
 import { EnvelopeSolid } from "@medusajs/icons"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -26,37 +29,13 @@ type PreviewData = {
   }
 }
 
-// ─── Constants ──────────────────────────────────────────────────────────────
+// ─── Chip Colors ────────────────────────────────────────────────────────────
 
-const C = {
-  bg: "transparent",
-  card: "#f8f7f6",
-  text: "#1a1714",
-  muted: "#78716c",
-  gold: "#b8860b",
-  border: "#e7e5e4",
-  hover: "#f5f4f3",
-  success: "#16a34a",
-  error: "#dc2626",
-  blue: "#2563eb",
-  purple: "#7c3aed",
-  warning: "#d97706",
-  chip: {
-    resend: { bg: "#2563eb15", text: "#2563eb", border: "#2563eb15" },
-    brevo: { bg: "#16a34a15", text: "#16a34a", border: "#16a34a15" },
-    transactional: { bg: "transparent", text: "#1a1714", border: "#e7e5e4" },
-    newsletter: { bg: "#7c3aed15", text: "#7c3aed", border: "#7c3aed15" },
-  },
-}
-
-// ─── Badge ───────────────────────────────────────────────────────────────────
-
-function Badge({ label, style }: { label: string; style: { bg: string; text: string; border: string } }) {
-  return (
-    <span style={{ display: "inline-block", fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 4, backgroundColor: style.bg, color: style.text, border: `1px solid ${style.border}`, letterSpacing: "0.03em", textTransform: "uppercase" as const }}>
-      {label}
-    </span>
-  )
+const CHIP = {
+  resend: C.blue,
+  brevo: C.success,
+  transactional: C.muted,
+  newsletter: C.purple,
 }
 
 // ─── Preview Drawer ───────────────────────────────────────────────────────────
@@ -184,8 +163,8 @@ function PreviewDrawer({
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
                 <p style={{ margin: 0, fontSize: 17, fontWeight: 700, color: C.text }}>{template.name}</p>
-                <Badge label={template.channel === "resend" ? "Resend" : "Brevo"} style={template.channel === "resend" ? C.chip.resend : C.chip.brevo} />
-                <Badge label={template.category} style={template.category === "transactional" ? C.chip.transactional : C.chip.newsletter} />
+                <ColorBadge label={template.channel === "resend" ? "Resend" : "Brevo"} color={CHIP[template.channel]} />
+                <ColorBadge label={template.category} color={CHIP[template.category]} />
               </div>
               <p style={{ margin: 0, fontSize: 13, color: C.muted }}>{template.description}</p>
               {preview && (
@@ -436,8 +415,8 @@ function TemplateCard({
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
           <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.text }}>{template.name}</p>
-          <Badge label={template.channel === "resend" ? "Resend" : "Brevo"} style={template.channel === "resend" ? C.chip.resend : C.chip.brevo} />
-          <Badge label={template.category} style={template.category === "transactional" ? C.chip.transactional : C.chip.newsletter} />
+          <ColorBadge label={template.channel === "resend" ? "Resend" : "Brevo"} color={CHIP[template.channel]} />
+          <ColorBadge label={template.category} color={CHIP[template.category]} />
         </div>
         <p style={{ margin: "0 0 4px", fontSize: 13, color: C.muted }}>{template.description}</p>
         <p style={{ margin: 0, fontSize: 12, color: C.muted }}>
@@ -484,14 +463,11 @@ export default function EmailsPage() {
   const brevoCount = templates.filter((t) => t.channel === "brevo").length
 
   return (
-    <div style={{ padding: "24px 32px", maxWidth: 900 }}>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ margin: "0 0 6px", fontSize: 22, fontWeight: 700, color: C.text }}>Email Templates</h1>
-        <p style={{ margin: 0, fontSize: 14, color: C.muted }}>
-          {templates.length} templates — {resendCount} via Resend (transactional), {brevoCount} via Brevo (newsletter)
-          <span style={{ marginLeft: 12, color: C.gold }}>Click a template to preview or edit</span>
-        </p>
-      </div>
+    <PageShell maxWidth={900}>
+      <PageHeader
+        title="Email Templates"
+        subtitle={`${templates.length} templates — ${resendCount} via Resend (transactional), ${brevoCount} via Brevo (newsletter)`}
+      />
 
       <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
         {(["all", "resend", "brevo"] as const).map((f) => (
@@ -529,6 +505,6 @@ export default function EmailsPage() {
       {selected && (
         <PreviewDrawer template={selected} onClose={() => setSelected(null)} />
       )}
-    </div>
+    </PageShell>
   )
 }

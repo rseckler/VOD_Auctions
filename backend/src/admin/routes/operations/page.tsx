@@ -2,21 +2,8 @@ import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { CogSixTooth } from "@medusajs/icons"
 import { useEffect, useState } from "react"
 import { useAdminNav } from "../../components/admin-nav"
-
-const C = {
-  bg: "transparent",
-  card: "#f8f7f6",
-  text: "#1a1714",
-  muted: "#78716c",
-  gold: "#b8860b",
-  border: "#e7e5e4",
-  hover: "#f5f4f3",
-  success: "#16a34a",
-  error: "#dc2626",
-  blue: "#2563eb",
-  purple: "#7c3aed",
-  warning: "#d97706",
-}
+import { C } from "../../components/admin-tokens"
+import { PageHeader, PageShell } from "../../components/admin-layout"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -388,15 +375,8 @@ function OperationsHub() {
     : C.success
 
   return (
-    <div style={{ padding: "32px 36px", maxWidth: 960, fontFamily: "var(--font-sans, system-ui, sans-serif)" }}>
-      {/* Header */}
-      <div style={{ fontSize: 12, color: C.muted, marginBottom: 20 }}>Admin</div>
-      <div style={{ fontSize: 24, fontWeight: 800, color: "inherit", marginBottom: 4 }}>
-        ⚙️ Operations
-      </div>
-      <div style={{ fontSize: 14, color: C.muted, marginBottom: 28 }}>
-        Platform monitoring, configuration, and technical tools
-      </div>
+    <PageShell>
+      <PageHeader title="Operations" subtitle="Shipping, syncs, system health, configuration, and test tools" />
 
       {/* Live auction banner — shown when auctions are active */}
       {hasLive && (
@@ -518,7 +498,7 @@ function OperationsHub() {
               title="Live Monitor"
               description="Real-time auction dashboard — active bidders, live bid stream, lot countdown timers. Shown prominently when auctions are active."
               statusLine="No active auctions"
-              statusColor=C.muted
+              statusColor={C.muted}
               meta="Auto-refresh 10s"
               href="/app/live-monitor"
             />
@@ -532,7 +512,7 @@ function OperationsHub() {
           50% { opacity: 0.7; transform: scale(1.3); }
         }
       `}</style>
-    </div>
+    </PageShell>
   )
 }
 

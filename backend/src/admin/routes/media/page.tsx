@@ -1,5 +1,7 @@
 import { Component, useEffect, useState } from "react"
 import { useAdminNav } from "../../components/admin-nav"
+import { C } from "../../components/admin-tokens"
+import { PageHeader, PageShell } from "../../components/admin-layout"
 import type { ErrorInfo, ReactNode } from "react"
 
 class ErrorBoundary extends Component<
@@ -63,21 +65,6 @@ type Stats = {
   formats: { format: string; count: number }[]
   categories: { value: string; count: number }[]
   price_stats: { min: number; max: number; avg: number; median: number } | null
-}
-
-const C = {
-  bg: "transparent",
-  card: "#f8f7f6",
-  text: "#1a1714",
-  muted: "#78716c",
-  gold: "#b8860b",
-  border: "#e7e5e4",
-  hover: "#f5f4f3",
-  success: "#16a34a",
-  error: "#dc2626",
-  blue: "#2563eb",
-  purple: "#7c3aed",
-  warning: "#d97706",
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -778,27 +765,28 @@ const MediaPage = () => {
 
   return (
     <ErrorBoundary>
-    <div style={{ padding: "24px", background: C.bg, minHeight: "100vh", color: C.text, minWidth: 0, width: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
-        <h1 style={{ fontSize: "24px", fontWeight: 700, margin: 0 }}>
-          Media Management
-        </h1>
-        <button
-          onClick={() => setGalleryOpen(true)}
-          style={{
-            padding: "8px 18px", borderRadius: "6px",
-            border: `1px solid ${C.gold}`,
-            background: "transparent", color: C.gold,
-            fontSize: "14px", fontWeight: 600, cursor: "pointer",
-            display: "flex", alignItems: "center", gap: "8px",
-            transition: "background 0.15s",
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = `${C.gold}15` }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent" }}
-        >
-          &#9635; Browse Images
-        </button>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Media Catalog"
+        subtitle="Browse and manage release media and metadata"
+        actions={
+          <button
+            onClick={() => setGalleryOpen(true)}
+            style={{
+              padding: "8px 18px", borderRadius: "6px",
+              border: `1px solid ${C.gold}`,
+              background: "transparent", color: C.gold,
+              fontSize: "14px", fontWeight: 600, cursor: "pointer",
+              display: "flex", alignItems: "center", gap: "8px",
+              transition: "background 0.15s",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = `${C.gold}15` }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent" }}
+          >
+            &#9635; Browse Images
+          </button>
+        }
+      />
 
       {/* Stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "16px", marginBottom: "24px" }}>
@@ -1256,7 +1244,7 @@ const MediaPage = () => {
           </div>
         </div>
       )}
-    </div>
+    </PageShell>
     {galleryOpen && <ImageGalleryOverlay onClose={() => setGalleryOpen(false)} />}
     </ErrorBoundary>
   )

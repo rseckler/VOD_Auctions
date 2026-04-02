@@ -1,23 +1,8 @@
-import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { Component, useEffect, useState, useCallback, useRef } from "react"
 import { useAdminNav } from "../../components/admin-nav"
-
-// ── Design System ───────────────────────────────────────────────────────────
-
-const C = {
-  bg: "transparent",
-  card: "#f8f7f6",
-  text: "#1a1714",
-  muted: "#78716c",
-  gold: "#b8860b",
-  border: "#e7e5e4",
-  hover: "#f5f4f3",
-  success: "#16a34a",
-  error: "#dc2626",
-  blue: "#2563eb",
-  purple: "#7c3aed",
-  warning: "#d97706",
-}
+import { C, T, fmtDate, fmtDatetime } from "../../components/admin-tokens"
+import { PageHeader, SectionHeader, PageShell, StatsGrid, Tabs } from "../../components/admin-layout"
+import { Badge, ColorBadge, Toast, EmptyState, Btn } from "../../components/admin-ui"
 
 // ── Error Boundary ──────────────────────────────────────────────────────────
 
@@ -92,102 +77,37 @@ interface WaitlistStats {
   rejected: number
 }
 
-// ── Status Badge Styles ─────────────────────────────────────────────────────
+// ── Status → Badge variant mapping ──────────────────────────────────────────
 
-const STATUS_STYLE: Record<string, { bg: string; color: string; border: string }> = {
-  pending:    { bg: C.warning + "12", color: C.warning, border: C.warning + "40" },
-  approved:   { bg: C.blue + "12",    color: C.blue,    border: C.blue + "40" },
-  invited:    { bg: C.purple + "12",  color: C.purple,  border: C.purple + "40" },
-  registered: { bg: C.success + "12", color: C.success, border: C.success + "40" },
-  rejected:   { bg: C.error + "12",   color: C.error,   border: C.error + "40" },
-  active:     { bg: C.success + "12", color: C.success, border: C.success + "40" },
-  used:       { bg: C.muted + "12",   color: C.muted,   border: C.muted + "40" },
-  expired:    { bg: C.warning + "12", color: C.warning, border: C.warning + "40" },
-  revoked:    { bg: C.error + "12",   color: C.error,   border: C.error + "40" },
+const STATUS_VARIANT: Record<string, string> = {
+  pending: C.warning,
+  approved: C.blue,
+  invited: C.purple,
+  registered: C.success,
+  rejected: C.error,
+  active: C.success,
+  used: C.muted,
+  expired: C.warning,
+  revoked: C.error,
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-function fmtDate(d: string | null) {
+function fmtDateNull(d: string | null) {
   if (!d) return "\u2014"
-  return new Date(d).toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  })
+  return fmtDate(d)
 }
 
-function fmtDateTime(d: string | null) {
+function fmtDatetimeNull(d: string | null) {
   if (!d) return "\u2014"
-  const dt = new Date(d)
-  return (
-    dt.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) +
-    " " +
-    dt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
-  )
+  return fmtDatetime(d)
 }
 
 // ── Micro Components ────────────────────────────────────────────────────────
 
-function Badge({ status }: { status: string }) {
-  const s = STATUS_STYLE[status] || STATUS_STYLE.pending
-  return (
-    <span
-      style={{
-        display: "inline-block",
-        fontSize: 11,
-        fontWeight: 700,
-        padding: "2px 8px",
-        borderRadius: 4,
-        letterSpacing: "0.03em",
-        textTransform: "uppercase",
-        backgroundColor: s.bg,
-        color: s.color,
-        border: `1px solid ${s.border}`,
-      }}
-    >
-      {status}
-    </span>
-  )
-}
-
-function Toast({
-  message,
-  type,
-  onClose,
-}: {
-  message: string
-  type: "success" | "error"
-  onClose: () => void
-}) {
-  useEffect(() => {
-    const t = setTimeout(onClose, 4000)
-    return () => clearTimeout(t)
-  }, [onClose])
-
-  const borderColor = type === "success" ? C.success : C.error
-  const textColor = type === "success" ? C.success : C.error
-
-  return (
-    <div
-      style={{
-        position: "fixed",
-        bottom: 24,
-        right: 24,
-        background: "#fff",
-        border: `1px solid ${borderColor}`,
-        color: textColor,
-        padding: "10px 18px",
-        borderRadius: 8,
-        fontSize: 12,
-        fontWeight: 600,
-        zIndex: 9999,
-        boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
-      }}
-    >
-      {message}
-    </div>
-  )
+function StatusBadge({ status }: { status: string }) {
+  const color = STATUS_VARIANT[status] || C.muted
+  return <ColorBadge label={status} color={color} />
 }
 
 function Tag({ children }: { children: React.ReactNode }) {
@@ -451,15 +371,6 @@ function WaitlistPage() {
   const tokenPages = Math.ceil(tokenCount / LIMIT)
   const tokenPage = Math.floor(tokenOffset / LIMIT) + 1
 
-  // ── Stat Cards Data ─────────────────────────────────────────────────────────
-
-  const statCards = [
-    { label: "Pending", count: stats.pending, color: C.warning },
-    { label: "Approved", count: stats.approved, color: C.blue },
-    { label: "Invited", count: stats.invited, color: C.purple },
-    { label: "Registered", count: stats.registered, color: C.success },
-  ]
-
   // ── App Status Filters ──────────────────────────────────────────────────────
 
   const appFilters = [
@@ -482,70 +393,24 @@ function WaitlistPage() {
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <div
-      style={{
-        padding: "24px max(16px, min(36px, 4vw))",
-        color: C.text,
-        fontFamily: "var(--font-sans, system-ui, sans-serif)",
-      }}
-    >
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+    <PageShell maxWidth={1100}>
+      {toast && <Toast message={toast.message} type={toast.type} onDone={() => setToast(null)} />}
 
       {/* ── Page Header ────────────────────────────────────────────────────── */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 20,
-        }}
-      >
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: C.text, margin: 0 }}>
-            Waitlist Management
-          </h1>
-          <p style={{ fontSize: 13, color: C.muted, margin: "4px 0 0" }}>
-            Pre-launch applications and invite tokens
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Waitlist Management"
+        subtitle="Pre-launch applications and invite tokens"
+      />
 
       {/* ── Stats Cards ────────────────────────────────────────────────────── */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          gap: 1,
-          background: C.border,
-          borderRadius: 8,
-          overflow: "hidden",
-          marginBottom: 20,
-        }}
-      >
-        {statCards.map((s) => (
-          <div
-            key={s.label}
-            style={{
-              background: C.card,
-              padding: "14px 18px",
-              textAlign: "center",
-            }}
-          >
-            <div style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{s.count}</div>
-            <div
-              style={{
-                fontSize: 11,
-                color: C.muted,
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-                marginTop: 2,
-              }}
-            >
-              {s.label}
-            </div>
-          </div>
-        ))}
-      </div>
+      <StatsGrid
+        stats={[
+          { label: "Pending", value: stats.pending, color: C.warning },
+          { label: "Approved", value: stats.approved, color: C.blue },
+          { label: "Invited", value: stats.invited, color: C.purple },
+          { label: "Registered", value: stats.registered, color: C.success },
+        ]}
+      />
 
       {/* ── Tabs ───────────────────────────────────────────────────────────── */}
       <div
@@ -650,20 +515,11 @@ function WaitlistPage() {
 
           {/* ── Table ────────────────────────────────────────────────────────── */}
           {!appLoading && apps.length === 0 ? (
-            <div
-              style={{
-                textAlign: "center",
-                padding: "48px 20px",
-                color: C.muted,
-                fontSize: 13,
-              }}
-            >
-              <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.5 }}>{"\u{1F4CB}"}</div>
-              <div style={{ fontWeight: 600, marginBottom: 4 }}>No applications yet</div>
-              <div style={{ fontSize: 12 }}>
-                Applications will appear here once users sign up for the waitlist.
-              </div>
-            </div>
+            <EmptyState
+              icon={"\u{1F4CB}"}
+              title="No applications yet"
+              description="Applications will appear here once users sign up for the waitlist."
+            />
           ) : (
             <div
               style={{
@@ -776,38 +632,18 @@ function WaitlistPage() {
                 Page {appPage} of {appPages} ({appCount} total)
               </span>
               <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  onClick={() => setAppOffset(Math.max(0, appOffset - LIMIT))}
+                <Btn
+                  label="Prev"
+                  variant="ghost"
                   disabled={appOffset === 0}
-                  style={{
-                    padding: "5px 14px",
-                    borderRadius: 5,
-                    border: `1px solid ${C.border}`,
-                    background: "transparent",
-                    color: C.text,
-                    cursor: appOffset === 0 ? "default" : "pointer",
-                    opacity: appOffset === 0 ? 0.3 : 1,
-                    fontSize: 12,
-                  }}
-                >
-                  Prev
-                </button>
-                <button
-                  onClick={() => setAppOffset(appOffset + LIMIT)}
+                  onClick={() => setAppOffset(Math.max(0, appOffset - LIMIT))}
+                />
+                <Btn
+                  label="Next"
+                  variant="ghost"
                   disabled={appOffset + LIMIT >= appCount}
-                  style={{
-                    padding: "5px 14px",
-                    borderRadius: 5,
-                    border: `1px solid ${C.border}`,
-                    background: "transparent",
-                    color: C.text,
-                    cursor: appOffset + LIMIT >= appCount ? "default" : "pointer",
-                    opacity: appOffset + LIMIT >= appCount ? 0.3 : 1,
-                    fontSize: 12,
-                  }}
-                >
-                  Next
-                </button>
+                  onClick={() => setAppOffset(appOffset + LIMIT)}
+                />
               </div>
             </div>
           )}
@@ -831,23 +667,12 @@ function WaitlistPage() {
               <span style={{ fontSize: 13, color: C.muted }}>
                 {selectedIds.size} selected
               </span>
-              <button
-                onClick={bulkApproveInvite}
+              <Btn
+                label={bulkLoading ? "Processing..." : `Approve & Invite Selected (${selectedIds.size})`}
+                variant="gold"
                 disabled={bulkLoading}
-                style={{
-                  background: C.gold,
-                  color: "#fff",
-                  border: "none",
-                  padding: "6px 16px",
-                  fontSize: 12,
-                  fontWeight: 700,
-                  borderRadius: 5,
-                  cursor: bulkLoading ? "wait" : "pointer",
-                  opacity: bulkLoading ? 0.6 : 1,
-                }}
-              >
-                {bulkLoading ? "Processing..." : `Approve & Invite Selected (${selectedIds.size})`}
-              </button>
+                onClick={bulkApproveInvite}
+              />
             </div>
           )}
         </div>
@@ -916,20 +741,11 @@ function WaitlistPage() {
 
           {/* ── Token Table ──────────────────────────────────────────────────── */}
           {!tokenLoading && tokens.length === 0 ? (
-            <div
-              style={{
-                textAlign: "center",
-                padding: "48px 20px",
-                color: C.muted,
-                fontSize: 13,
-              }}
-            >
-              <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.5 }}>{"\u{1F511}"}</div>
-              <div style={{ fontWeight: 600, marginBottom: 4 }}>No tokens found</div>
-              <div style={{ fontSize: 12 }}>
-                Invite tokens are generated when you approve and invite applicants.
-              </div>
-            </div>
+            <EmptyState
+              icon={"\u{1F511}"}
+              title="No tokens found"
+              description="Invite tokens are generated when you approve and invite applicants."
+            />
           ) : (
             <div
               style={{
@@ -1029,7 +845,7 @@ function WaitlistPage() {
                             verticalAlign: "middle",
                           }}
                         >
-                          <Badge status={tok.status} />
+                          <StatusBadge status={tok.status} />
                         </td>
                         <td
                           style={{
@@ -1049,7 +865,7 @@ function WaitlistPage() {
                             verticalAlign: "middle",
                           }}
                         >
-                          {fmtDateTime(tok.issued_at)}
+                          {fmtDatetimeNull(tok.issued_at)}
                         </td>
                         <td
                           style={{
@@ -1059,7 +875,7 @@ function WaitlistPage() {
                             verticalAlign: "middle",
                           }}
                         >
-                          {fmtDateTime(tok.expires_at)}
+                          {fmtDatetimeNull(tok.expires_at)}
                         </td>
                         <td
                           style={{
@@ -1069,7 +885,7 @@ function WaitlistPage() {
                             verticalAlign: "middle",
                           }}
                         >
-                          {fmtDateTime(tok.used_at)}
+                          {fmtDatetimeNull(tok.used_at)}
                         </td>
                         <td
                           style={{
@@ -1124,44 +940,24 @@ function WaitlistPage() {
                 Page {tokenPage} of {tokenPages} ({tokenCount} total)
               </span>
               <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  onClick={() => setTokenOffset(Math.max(0, tokenOffset - LIMIT))}
+                <Btn
+                  label="Prev"
+                  variant="ghost"
                   disabled={tokenOffset === 0}
-                  style={{
-                    padding: "5px 14px",
-                    borderRadius: 5,
-                    border: `1px solid ${C.border}`,
-                    background: "transparent",
-                    color: C.text,
-                    cursor: tokenOffset === 0 ? "default" : "pointer",
-                    opacity: tokenOffset === 0 ? 0.3 : 1,
-                    fontSize: 12,
-                  }}
-                >
-                  Prev
-                </button>
-                <button
-                  onClick={() => setTokenOffset(tokenOffset + LIMIT)}
+                  onClick={() => setTokenOffset(Math.max(0, tokenOffset - LIMIT))}
+                />
+                <Btn
+                  label="Next"
+                  variant="ghost"
                   disabled={tokenOffset + LIMIT >= tokenCount}
-                  style={{
-                    padding: "5px 14px",
-                    borderRadius: 5,
-                    border: `1px solid ${C.border}`,
-                    background: "transparent",
-                    color: C.text,
-                    cursor: tokenOffset + LIMIT >= tokenCount ? "default" : "pointer",
-                    opacity: tokenOffset + LIMIT >= tokenCount ? 0.3 : 1,
-                    fontSize: 12,
-                  }}
-                >
-                  Next
-                </button>
+                  onClick={() => setTokenOffset(tokenOffset + LIMIT)}
+                />
               </div>
             </div>
           )}
         </div>
       )}
-    </div>
+    </PageShell>
   )
 }
 
@@ -1267,7 +1063,7 @@ function AppRow({
 
         {/* Status */}
         <td style={cellBase} onClick={onToggleExpand}>
-          <Badge status={app.status} />
+          <StatusBadge status={app.status} />
         </td>
 
         {/* Source */}
@@ -1282,7 +1078,7 @@ function AppRow({
 
         {/* Applied */}
         <td style={{ ...cellBase, fontSize: 11, color: C.muted }} onClick={onToggleExpand}>
-          {fmtDate(app.created_at)}
+          {fmtDateNull(app.created_at)}
         </td>
 
         {/* Actions */}
@@ -1405,10 +1201,10 @@ function AppRow({
               <DetailField label="Referred By" value={app.referred_by || "\u2014"} mono />
 
               {/* Timestamps */}
-              <DetailField label="Applied" value={fmtDateTime(app.created_at)} />
-              <DetailField label="Approved" value={fmtDateTime(app.approved_at)} />
-              <DetailField label="Invited" value={fmtDateTime(app.invited_at)} />
-              <DetailField label="Registered" value={fmtDateTime(app.registered_at)} />
+              <DetailField label="Applied" value={fmtDatetimeNull(app.created_at)} />
+              <DetailField label="Approved" value={fmtDatetimeNull(app.approved_at)} />
+              <DetailField label="Invited" value={fmtDatetimeNull(app.invited_at)} />
+              <DetailField label="Registered" value={fmtDatetimeNull(app.registered_at)} />
 
               {/* Admin Notes (full width) */}
               <div style={{ gridColumn: "1 / -1" }}>
@@ -1469,7 +1265,3 @@ export default function WaitlistPageWrapper() {
     </ErrorBoundary>
   )
 }
-
-export const config = defineRouteConfig({
-  label: "Waitlist",
-})

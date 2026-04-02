@@ -1,5 +1,7 @@
 import { ServerStack } from "@medusajs/icons"
 import { useAdminNav } from "../../components/admin-nav"
+import { C } from "../../components/admin-tokens"
+import { PageHeader, PageShell } from "../../components/admin-layout"
 import { useEffect, useState, useCallback } from "react"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -229,21 +231,6 @@ const SERVICE_META: Record<string, ServiceMeta> = {
 }
 
 // ─── Design Palette ──────────────────────────────────────────────────────────
-
-const C = {
-  bg: "transparent",
-  card: "#f8f7f6",
-  text: "#1a1714",
-  muted: "#78716c",
-  gold: "#b8860b",
-  border: "#e7e5e4",
-  hover: "#f5f4f3",
-  success: "#16a34a",
-  error: "#dc2626",
-  blue: "#2563eb",
-  purple: "#7c3aed",
-  warning: "#d97706",
-}
 
 // ─── Status helpers ───────────────────────────────────────────────────────────
 
@@ -569,38 +556,35 @@ export default function SystemHealthPage() {
   const orphanServices = data?.services.filter((s) => !categorisedNames.has(s.name)) ?? []
 
   return (
-    <div style={{ padding: "24px 28px", maxWidth: 1200, margin: "0 auto", minWidth: 0, width: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
+    <PageShell maxWidth={1200}>
       <style>{`
         @keyframes ping { 75%, 100% { transform: scale(2); opacity: 0; } }
       `}</style>
 
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: "inherit" }}>System Health</h1>
-          <p style={{ margin: "4px 0 0", fontSize: 13, color: C.muted }}>
-            {checkedAt ? `Last checked: ${checkedAt}` : "Checking all services…"}
-          </p>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.muted, cursor: "pointer" }}>
-            <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} style={{ accentColor: C.gold }} />
-            Auto-refresh (30s)
-          </label>
-          <button
-            onClick={fetchHealth}
-            disabled={loading}
-            style={{
-              background: C.gold, color: "#fff", border: "none", borderRadius: 6,
-              padding: "8px 16px", fontWeight: 600, fontSize: 13,
-              cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.6 : 1,
-              transition: "opacity 0.2s",
-            }}
-          >
-            {loading ? "Checking…" : "↻ Refresh"}
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="System Health"
+        subtitle={checkedAt ? `Last checked: ${checkedAt}` : "Checking all services…"}
+        actions={
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.muted, cursor: "pointer" }}>
+              <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} style={{ accentColor: C.gold }} />
+              Auto-refresh (30s)
+            </label>
+            <button
+              onClick={fetchHealth}
+              disabled={loading}
+              style={{
+                background: C.gold, color: "#fff", border: "none", borderRadius: 6,
+                padding: "8px 16px", fontWeight: 600, fontSize: 13,
+                cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.6 : 1,
+                transition: "opacity 0.2s",
+              }}
+            >
+              {loading ? "Checking…" : "↻ Refresh"}
+            </button>
+          </div>
+        }
+      />
 
       {/* Error state */}
       {error && (
@@ -863,6 +847,6 @@ export default function SystemHealthPage() {
           ))}
         </div>
       </div>
-    </div>
+    </PageShell>
   )
 }

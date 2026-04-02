@@ -2,6 +2,7 @@ import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { Sparkles } from "@medusajs/icons"
 import { useEffect, useRef, useState } from "react"
 import { useAdminNav } from "../../components/admin-nav"
+import { C } from "../../components/admin-tokens"
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -13,23 +14,6 @@ interface ChatMessage {
   content: string
   toolCalls?: { tool: string; result?: unknown }[]
   isStreaming?: boolean
-}
-
-// ─── Colors ───────────────────────────────────────────────────────────────────
-
-const C = {
-  bg: "transparent",
-  card: "#f8f7f6",
-  text: "#1a1714",
-  muted: "#78716c",
-  gold: "#b8860b",
-  border: "#e7e5e4",
-  hover: "#f5f4f3",
-  success: "#16a34a",
-  error: "#dc2626",
-  blue: "#2563eb",
-  purple: "#7c3aed",
-  warning: "#d97706",
 }
 
 // ─── Markdown renderer (minimal, no deps) ─────────────────────────────────────

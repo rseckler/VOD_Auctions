@@ -1,6 +1,7 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { CurrencyDollar } from "@medusajs/icons"
 import { useAdminNav } from "../../components/admin-nav"
+import { C } from "../../components/admin-tokens"
 import {
   Container,
   Heading,
@@ -50,21 +51,6 @@ type Transaction = {
 }
 
 const CARRIERS = ["DHL", "DPD", "Hermes", "GLS", "UPS", "FedEx", "Deutsche Post"]
-
-const C = {
-  bg: "transparent",
-  card: "#f8f7f6",
-  text: "#1a1714",
-  muted: "#78716c",
-  gold: "#b8860b",
-  border: "#e7e5e4",
-  hover: "#f5f4f3",
-  success: "#16a34a",
-  error: "#dc2626",
-  blue: "#2563eb",
-  purple: "#7c3aed",
-  warning: "#d97706",
-}
 
 const STATUS_PILL: Record<string, { bg: string; color: string }> = {
   pending:            { bg: C.bg,             color: C.muted },
