@@ -1,0 +1,1511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VOD Auctions — Admin Configuration Panel</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d0b08;
+    color: #e8e0d4;
+    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  /* ── Page Header ── */
+  .page-header {
+    background: linear-gradient(135deg, #1c1915 0%, #0d0b08 100%);
+    border-bottom: 1px solid #2a2520;
+    padding: 48px 64px 40px;
+    text-align: center;
+  }
+  .page-header .eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #d4a54a;
+    margin-bottom: 12px;
+  }
+  .page-header h1 {
+    font-size: 36px;
+    font-weight: 700;
+    color: #e8e0d4;
+    letter-spacing: -0.01em;
+    margin-bottom: 8px;
+  }
+  .page-header .subtitle {
+    font-size: 14px;
+    color: #a39d96;
+  }
+  .page-header .gold-rule {
+    width: 60px;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #d4a54a, transparent);
+    margin: 24px auto 0;
+  }
+  /* ── Layout ── */
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 48px;
+  }
+  /* ── Section ── */
+  .section {
+    padding: 64px 0 48px;
+    border-bottom: 1px solid #1c1915;
+  }
+  .section-label {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+  .section-number {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #d4a54a;
+    background: rgba(212, 165, 74, 0.08);
+    border: 1px solid rgba(212, 165, 74, 0.2);
+    padding: 4px 10px;
+    border-radius: 4px;
+  }
+  .section-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #a39d96;
+  }
+  .section-rule {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, #2a2520, transparent);
+  }
+
+  /* ── Badges ── */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 4px;
+  }
+  .badge-yellow { background: rgba(234, 179, 8, 0.15); color: #eab308; border: 1px solid rgba(234, 179, 8, 0.3); }
+  .badge-blue   { background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3); }
+  .badge-green  { background: rgba(34, 197, 94, 0.15); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3); }
+  .badge-red    { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); }
+
+  /* ── Section 1: Mode Cards ── */
+  .mode-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+  .mode-card {
+    background: #1c1915;
+    border: 1px solid #2a2520;
+    border-radius: 10px;
+    padding: 24px 20px;
+    position: relative;
+    transition: transform 0.15s;
+  }
+  .mode-card.current {
+    border-color: rgba(234, 179, 8, 0.4);
+    background: linear-gradient(135deg, #1c1915 0%, #1e1b0f 100%);
+  }
+  .mode-card .current-indicator {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    font-weight: 600;
+    color: #eab308;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .mode-card .current-indicator .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #eab308;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .mode-card .mode-icon {
+    font-size: 28px;
+    margin-bottom: 10px;
+    display: block;
+  }
+  .mode-card .mode-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: #e8e0d4;
+    margin-bottom: 8px;
+    letter-spacing: 0.02em;
+  }
+  .mode-card .mode-desc {
+    font-size: 12px;
+    color: #a39d96;
+    line-height: 1.6;
+    margin-bottom: 14px;
+  }
+  .mode-card .mode-phase {
+    font-size: 11px;
+    font-weight: 600;
+    color: #6b6560;
+    letter-spacing: 0.04em;
+  }
+  .mode-card .badge { margin-bottom: 12px; }
+
+  /* ── Browser Chrome ── */
+  .browser-chrome {
+    background: #161310;
+    border: 1px solid #2a2520;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  }
+  .browser-titlebar {
+    background: #1a1714;
+    border-bottom: 1px solid #2a2520;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .browser-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+  .browser-dot.red    { background: #ef4444; }
+  .browser-dot.yellow { background: #eab308; }
+  .browser-dot.green  { background: #22c55e; }
+  .browser-url {
+    flex: 1;
+    background: #0d0b08;
+    border: 1px solid #2a2520;
+    border-radius: 5px;
+    padding: 4px 12px;
+    font-size: 12px;
+    color: #6b6560;
+    margin-left: 12px;
+  }
+
+  /* ── Admin Shell ── */
+  .admin-shell {
+    display: flex;
+    min-height: 520px;
+  }
+  .admin-sidebar {
+    width: 200px;
+    background: #100e0b;
+    border-right: 1px solid #2a2520;
+    padding: 0;
+    flex-shrink: 0;
+  }
+  .admin-sidebar .sidebar-logo {
+    padding: 18px 16px 14px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #d4a54a;
+    letter-spacing: 0.06em;
+    border-bottom: 1px solid #1c1915;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .admin-sidebar .sidebar-logo .logo-mark {
+    width: 24px;
+    height: 24px;
+    background: linear-gradient(135deg, #d4a54a, #b8883a);
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 900;
+    color: #0d0b08;
+  }
+  .sidebar-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    font-size: 12.5px;
+    color: #6b6560;
+    cursor: default;
+    border-left: 2px solid transparent;
+  }
+  .sidebar-item.active {
+    color: #d4a54a;
+    background: rgba(212, 165, 74, 0.06);
+    border-left-color: #d4a54a;
+  }
+  .sidebar-item .icon {
+    font-size: 14px;
+    width: 16px;
+    text-align: center;
+  }
+  /* ── Admin Main ── */
+  .admin-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #0f0d0a;
+  }
+  .admin-topbar {
+    background: #100e0b;
+    border-bottom: 1px solid #2a2520;
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .admin-topbar .page-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #e8e0d4;
+  }
+  .admin-topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .admin-content {
+    flex: 1;
+    padding: 20px 24px;
+    overflow: hidden;
+  }
+  /* Tabs */
+  .tab-bar {
+    display: flex;
+    gap: 2px;
+    border-bottom: 1px solid #2a2520;
+    margin-bottom: 24px;
+  }
+  .tab {
+    padding: 8px 16px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: #6b6560;
+    cursor: default;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .tab.active {
+    color: #d4a54a;
+    border-bottom-color: #d4a54a;
+  }
+  .tab .tab-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #22c55e;
+    display: inline-block;
+  }
+  /* Form elements */
+  .config-section {
+    margin-bottom: 20px;
+  }
+  .config-section-title {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #6b6560;
+    margin-bottom: 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #2a2520;
+  }
+  .config-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid #1a1714;
+  }
+  .config-row:last-child { border-bottom: none; }
+  .config-row-label {
+    font-size: 12.5px;
+    color: #e8e0d4;
+    font-weight: 500;
+  }
+  .config-row-hint {
+    font-size: 11px;
+    color: #6b6560;
+    margin-top: 2px;
+  }
+  .config-row-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  /* Toggle */
+  .toggle {
+    width: 36px;
+    height: 20px;
+    border-radius: 10px;
+    position: relative;
+    cursor: default;
+    flex-shrink: 0;
+  }
+  .toggle.on { background: #22c55e; }
+  .toggle.off { background: #2a2520; }
+  .toggle-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 7px;
+    background: white;
+    position: absolute;
+    top: 3px;
+    transition: left 0.2s;
+  }
+  .toggle.on .toggle-thumb { left: 19px; }
+  .toggle.off .toggle-thumb { left: 3px; }
+  /* Input */
+  .mock-input {
+    background: #1c1915;
+    border: 1px solid #2a2520;
+    border-radius: 5px;
+    padding: 5px 10px;
+    font-size: 12.5px;
+    color: #e8e0d4;
+    min-width: 60px;
+    text-align: center;
+  }
+  .mock-select {
+    background: #1c1915;
+    border: 1px solid #2a2520;
+    border-radius: 5px;
+    padding: 5px 12px;
+    font-size: 12.5px;
+    color: #e8e0d4;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: default;
+  }
+  .mock-select .arrow { color: #6b6560; font-size: 10px; }
+  .mock-input-pw {
+    background: #1c1915;
+    border: 1px solid #2a2520;
+    border-radius: 5px;
+    padding: 5px 10px;
+    font-size: 13px;
+    color: #e8e0d4;
+    letter-spacing: 0.18em;
+  }
+  .mock-btn {
+    background: #1c1915;
+    border: 1px solid #2a2520;
+    border-radius: 5px;
+    padding: 5px 10px;
+    font-size: 11px;
+    color: #a39d96;
+    cursor: default;
+  }
+  .btn-gold {
+    background: linear-gradient(135deg, #d4a54a, #b8883a);
+    color: #0d0b08;
+    font-weight: 700;
+    font-size: 13px;
+    padding: 10px 24px;
+    border-radius: 7px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: default;
+    letter-spacing: 0.02em;
+  }
+  .btn-danger {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #ef4444;
+    font-weight: 700;
+    font-size: 13px;
+    padding: 10px 24px;
+    border-radius: 7px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: default;
+  }
+  .btn-ghost {
+    background: transparent;
+    border: 1px solid #2a2520;
+    color: #a39d96;
+    font-size: 13px;
+    padding: 10px 20px;
+    border-radius: 7px;
+    cursor: default;
+  }
+  .warning-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    background: rgba(234, 179, 8, 0.06);
+    border: 1px solid rgba(234, 179, 8, 0.2);
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 11.5px;
+    color: #a39d96;
+    margin: 12px 0;
+  }
+  .warning-note .icon { color: #eab308; flex-shrink: 0; }
+  .go-live-row {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 16px;
+    margin-top: 4px;
+    border-top: 1px solid #2a2520;
+  }
+
+  /* ── Section 3: Auction Tab ── */
+  .mock-input-num {
+    background: #1c1915;
+    border: 1px solid #2a2520;
+    border-radius: 5px;
+    padding: 5px 10px;
+    font-size: 12.5px;
+    color: #e8e0d4;
+    width: 60px;
+    text-align: center;
+  }
+  .unit-label {
+    font-size: 12px;
+    color: #6b6560;
+  }
+
+  /* ── Section 4: Go Live Modal ── */
+  .modal-overlay {
+    background: rgba(13, 11, 8, 0.85);
+    border-radius: 10px;
+    padding: 2px;
+  }
+  .modal-box {
+    background: #1c1915;
+    border: 1px solid #2a2520;
+    border-radius: 12px;
+    overflow: hidden;
+    max-width: 560px;
+    margin: 0 auto;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.7);
+  }
+  .modal-header {
+    background: #161310;
+    border-bottom: 1px solid #2a2520;
+    padding: 20px 24px;
+  }
+  .modal-header h3 {
+    font-size: 17px;
+    font-weight: 700;
+    color: #e8e0d4;
+    margin-bottom: 4px;
+  }
+  .modal-header p {
+    font-size: 12.5px;
+    color: #a39d96;
+  }
+  .modal-body {
+    padding: 20px 24px;
+  }
+  .checklist-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid #1a1714;
+  }
+  .checklist-item:last-of-type { border-bottom: none; }
+  .check-icon {
+    font-size: 15px;
+    margin-top: 1px;
+    flex-shrink: 0;
+  }
+  .check-text .label {
+    font-size: 13px;
+    font-weight: 500;
+    color: #e8e0d4;
+  }
+  .check-text .detail {
+    font-size: 11.5px;
+    color: #6b6560;
+    margin-top: 1px;
+  }
+  .check-text .warn-detail {
+    font-size: 11.5px;
+    color: #eab308;
+    margin-top: 1px;
+  }
+  .confirm-block {
+    margin-top: 18px;
+    padding-top: 18px;
+    border-top: 1px solid #2a2520;
+  }
+  .confirm-block .confirm-label {
+    font-size: 12px;
+    color: #a39d96;
+    margin-bottom: 8px;
+  }
+  .confirm-input {
+    width: 100%;
+    background: #0f0d0a;
+    border: 1px solid #2a2520;
+    border-radius: 6px;
+    padding: 9px 14px;
+    font-size: 13px;
+    color: #e8e0d4;
+    margin-bottom: 14px;
+    font-family: 'Courier New', monospace;
+    letter-spacing: 0.06em;
+  }
+  .modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+
+  /* ── Section 5: Audit Table ── */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+  }
+  .data-table thead tr {
+    border-bottom: 1px solid #2a2520;
+  }
+  .data-table th {
+    padding: 10px 14px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #6b6560;
+    text-align: left;
+    background: #100e0b;
+  }
+  .data-table td {
+    padding: 11px 14px;
+    color: #a39d96;
+    border-bottom: 1px solid #1a1714;
+    vertical-align: top;
+  }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table tr:hover td { background: rgba(212, 165, 74, 0.02); }
+  .code-val {
+    font-family: 'Courier New', monospace;
+    font-size: 11.5px;
+    background: #0f0d0a;
+    padding: 2px 6px;
+    border-radius: 3px;
+    color: #d4a54a;
+  }
+  .val-hidden {
+    color: #6b6560;
+    letter-spacing: 0.12em;
+    font-size: 13px;
+  }
+  .actor-email {
+    font-size: 11px;
+    color: #6b6560;
+  }
+  .time-label { color: #e8e0d4; }
+  .time-sub { font-size: 11px; color: #6b6560; }
+
+  /* ── Section 6: Stage comparison ── */
+  .stage-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  .stage-card {
+    background: #1c1915;
+    border: 1px solid #2a2520;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .stage-card-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid #2a2520;
+  }
+  .stage-card-header .stage-eyebrow {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .stage-card-header .stage-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #e8e0d4;
+  }
+  .stage-card-body {
+    padding: 16px 20px;
+  }
+  .stage-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid #1a1714;
+    font-size: 13px;
+  }
+  .stage-item:last-child { border-bottom: none; }
+  .stage-item .si-icon { flex-shrink: 0; font-size: 14px; }
+  .stage-item .si-text { color: #e8e0d4; }
+  .stage-item .si-sub { font-size: 11.5px; color: #6b6560; margin-top: 2px; }
+  .stage-note {
+    background: rgba(212, 165, 74, 0.05);
+    border: 1px solid rgba(212, 165, 74, 0.15);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-top: 24px;
+    font-size: 13px;
+    color: #a39d96;
+    line-height: 1.6;
+  }
+  .stage-note strong { color: #d4a54a; }
+
+  /* ── Section 7: Mode Badge Rows ── */
+  .header-row {
+    background: #1c1915;
+    border: 1px solid #2a2520;
+    border-radius: 8px;
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .header-row .header-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .header-row .header-logo {
+    font-size: 13px;
+    font-weight: 700;
+    color: #d4a54a;
+    letter-spacing: 0.06em;
+  }
+  .header-row .nav-items {
+    display: flex;
+    gap: 16px;
+  }
+  .header-row .nav-item {
+    font-size: 12px;
+    color: #6b6560;
+  }
+  .header-row .header-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .status-desc {
+    font-size: 12px;
+    color: #a39d96;
+    font-style: italic;
+  }
+
+  /* ── Footer ── */
+  .page-footer {
+    text-align: center;
+    padding: 36px;
+    border-top: 1px solid #2a2520;
+    margin-top: 8px;
+    font-size: 12px;
+    color: #3a3530;
+    letter-spacing: 0.06em;
+  }
+  .page-footer strong { color: #4a4540; }
+
+  /* utility */
+  .flex-between {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .mt-4 { margin-top: 4px; }
+  .mt-8 { margin-top: 8px; }
+  .mt-12 { margin-top: 12px; }
+  .mt-16 { margin-top: 16px; }
+  .mt-20 { margin-top: 20px; }
+  .divider {
+    border: none;
+    border-top: 1px solid #2a2520;
+    margin: 16px 0;
+  }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════
+     PAGE HEADER
+════════════════════════════════════════════ -->
+<div class="page-header">
+  <div class="eyebrow">VOD Records / VOD Auctions</div>
+  <h1>Admin Configuration Panel</h1>
+  <div class="subtitle">Internal Concept &mdash; April 2026</div>
+  <div class="gold-rule"></div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     SECTION 1: PLATFORM MODE OVERVIEW
+════════════════════════════════════════════ -->
+<div class="section">
+  <div class="container">
+    <div class="section-label">
+      <span class="section-number">01</span>
+      <span class="section-title">Platform Mode Overview</span>
+      <div class="section-rule"></div>
+    </div>
+
+    <div class="mode-grid">
+
+      <!-- PRE-LAUNCH -->
+      <div class="mode-card current">
+        <div class="current-indicator">
+          <span class="dot"></span>
+          Current Mode
+        </div>
+        <span class="badge badge-yellow">🔒 PRE-LAUNCH</span>
+        <div class="mode-name">PRE-LAUNCH</div>
+        <div class="mode-desc">Password gate active. Only team members and invited testers can access the storefront. Full admin access enabled.</div>
+        <div class="mode-phase">Phase: Private Testing</div>
+      </div>
+
+      <!-- PREVIEW -->
+      <div class="mode-card">
+        <div class="current-indicator" style="opacity:0">placeholder</div>
+        <span class="badge badge-blue">👁 PREVIEW</span>
+        <div class="mode-name">PREVIEW</div>
+        <div class="mode-desc">Password gate active but with a wider invite circle. Useful for press previews and beta collector access before full launch.</div>
+        <div class="mode-phase">Phase: Soft Preview</div>
+      </div>
+
+      <!-- LIVE -->
+      <div class="mode-card">
+        <div class="current-indicator" style="opacity:0">placeholder</div>
+        <span class="badge badge-green">✅ LIVE</span>
+        <div class="mode-name">LIVE</div>
+        <div class="mode-desc">Password gate removed. Public access. All storefront features active. Auctions accepting real bids and payments.</div>
+        <div class="mode-phase">Phase: Public Launch</div>
+      </div>
+
+      <!-- MAINTENANCE -->
+      <div class="mode-card">
+        <div class="current-indicator" style="opacity:0">placeholder</div>
+        <span class="badge badge-red">🔧 MAINTENANCE</span>
+        <div class="mode-name">MAINTENANCE</div>
+        <div class="mode-desc">All users blocked including logged-in customers. Maintenance page shown. Used for deployments, migrations, or emergency stops.</div>
+        <div class="mode-phase">Phase: Planned Downtime</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════
+     SECTION 2: ADMIN PANEL — ACCESS/LAUNCH TAB
+════════════════════════════════════════════ -->
+<div class="section">
+  <div class="container">
+    <div class="section-label">
+      <span class="section-number">02</span>
+      <span class="section-title">Admin Panel — Access / Launch Tab</span>
+      <div class="section-rule"></div>
+    </div>
+
+    <div class="browser-chrome">
+      <!-- titlebar -->
+      <div class="browser-titlebar">
+        <div class="browser-dot red"></div>
+        <div class="browser-dot yellow"></div>
+        <div class="browser-dot green"></div>
+        <div class="browser-url">admin.vod-auctions.com/app/configuration</div>
+      </div>
+
+      <!-- admin shell -->
+      <div class="admin-shell">
+
+        <!-- sidebar -->
+        <div class="admin-sidebar">
+          <div class="sidebar-logo">
+            <div class="logo-mark">V</div>
+            VOD Admin
+          </div>
+          <div class="sidebar-item"><span class="icon">⊞</span> Dashboard</div>
+          <div class="sidebar-item"><span class="icon">🔨</span> Auction Blocks</div>
+          <div class="sidebar-item"><span class="icon">📦</span> Catalog</div>
+          <div class="sidebar-item"><span class="icon">💳</span> Transactions</div>
+          <div class="sidebar-item"><span class="icon">👥</span> CRM</div>
+          <div class="sidebar-item active"><span class="icon">⚙️</span> Configuration</div>
+          <div class="sidebar-item"><span class="icon">✉️</span> Emails</div>
+          <div class="sidebar-item"><span class="icon">🔄</span> Sync</div>
+        </div>
+
+        <!-- main content -->
+        <div class="admin-main">
+          <!-- topbar -->
+          <div class="admin-topbar">
+            <div class="page-title">Configuration</div>
+            <div class="admin-topbar-right">
+              <span class="badge badge-yellow">🔒 PRE-LAUNCH</span>
+              <div style="width:28px;height:28px;border-radius:50%;background:#2a2520;display:flex;align-items:center;justify-content:center;font-size:13px;">F</div>
+            </div>
+          </div>
+
+          <!-- tabs + content -->
+          <div class="admin-content">
+            <div class="tab-bar">
+              <div class="tab">General</div>
+              <div class="tab active">Access / Launch <span class="tab-dot"></span></div>
+              <div class="tab">Auction</div>
+              <div class="tab">Change History</div>
+            </div>
+
+            <!-- PLATFORM MODE -->
+            <div class="config-section">
+              <div class="config-section-title">Platform Mode</div>
+              <div class="config-row">
+                <div>
+                  <div class="config-row-label">Current Mode</div>
+                </div>
+                <div class="config-row-control">
+                  <div class="mock-select">
+                    <span class="badge badge-yellow" style="font-size:10px;padding:2px 7px;">🔒 PRE-LAUNCH</span>
+                    <span class="arrow">▼</span>
+                  </div>
+                </div>
+              </div>
+              <div class="warning-note">
+                <span class="icon">⚠️</span>
+                <span>Changing to <strong style="color:#eab308;">LIVE</strong> will remove the password gate for all users. Use the Go Live button below to run the pre-flight checklist first.</span>
+              </div>
+            </div>
+
+            <hr class="divider">
+
+            <!-- PASSWORD GATE -->
+            <div class="config-section">
+              <div class="config-section-title">Password Gate</div>
+              <div class="config-row">
+                <div>
+                  <div class="config-row-label">Gate Password</div>
+                  <div class="config-row-hint">Required to enter the storefront in PRE-LAUNCH and PREVIEW modes</div>
+                </div>
+                <div class="config-row-control">
+                  <div class="mock-input-pw">●●●●●●●●</div>
+                  <div class="mock-btn">Show</div>
+                  <div class="mock-btn" style="color:#d4a54a;border-color:rgba(212,165,74,0.3);">Save</div>
+                </div>
+              </div>
+            </div>
+
+            <hr class="divider">
+
+            <!-- INVITE SYSTEM -->
+            <div class="config-section">
+              <div class="config-section-title">Invite System</div>
+              <div class="config-row">
+                <div>
+                  <div class="config-row-label">Invite Mode Active</div>
+                  <div class="config-row-hint">Accept invite requests from the /apply page</div>
+                </div>
+                <div class="config-row-control">
+                  <div class="toggle on"><div class="toggle-thumb"></div></div>
+                </div>
+              </div>
+              <div class="config-row">
+                <div>
+                  <div class="config-row-label">/apply Page Visible</div>
+                  <div class="config-row-hint">Show the invite application page to the public</div>
+                </div>
+                <div class="config-row-control">
+                  <div class="toggle on"><div class="toggle-thumb"></div></div>
+                </div>
+              </div>
+              <div class="config-row">
+                <div>
+                  <div class="config-row-label">Show Waitlist Counter</div>
+                  <div class="config-row-hint">Display live applicant count on /apply page</div>
+                </div>
+                <div class="config-row-control">
+                  <div class="toggle on"><div class="toggle-thumb"></div></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- GO LIVE BUTTON -->
+            <div class="go-live-row">
+              <div class="btn-gold">🚀 Go Live — Launch Site →</div>
+            </div>
+
+          </div><!-- /admin-content -->
+        </div><!-- /admin-main -->
+      </div><!-- /admin-shell -->
+    </div><!-- /browser-chrome -->
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════
+     SECTION 3: AUCTION TAB
+════════════════════════════════════════════ -->
+<div class="section">
+  <div class="container">
+    <div class="section-label">
+      <span class="section-number">03</span>
+      <span class="section-title">Admin Panel — Auction Settings Tab</span>
+      <div class="section-rule"></div>
+    </div>
+
+    <div class="browser-chrome">
+      <div class="browser-titlebar">
+        <div class="browser-dot red"></div>
+        <div class="browser-dot yellow"></div>
+        <div class="browser-dot green"></div>
+        <div class="browser-url">admin.vod-auctions.com/app/configuration</div>
+      </div>
+      <div class="admin-shell">
+        <div class="admin-sidebar">
+          <div class="sidebar-logo"><div class="logo-mark">V</div> VOD Admin</div>
+          <div class="sidebar-item"><span class="icon">⊞</span> Dashboard</div>
+          <div class="sidebar-item"><span class="icon">🔨</span> Auction Blocks</div>
+          <div class="sidebar-item"><span class="icon">📦</span> Catalog</div>
+          <div class="sidebar-item"><span class="icon">💳</span> Transactions</div>
+          <div class="sidebar-item"><span class="icon">👥</span> CRM</div>
+          <div class="sidebar-item active"><span class="icon">⚙️</span> Configuration</div>
+          <div class="sidebar-item"><span class="icon">✉️</span> Emails</div>
+          <div class="sidebar-item"><span class="icon">🔄</span> Sync</div>
+        </div>
+        <div class="admin-main">
+          <div class="admin-topbar">
+            <div class="page-title">Configuration</div>
+            <div class="admin-topbar-right">
+              <span class="badge badge-yellow">🔒 PRE-LAUNCH</span>
+              <div style="width:28px;height:28px;border-radius:50%;background:#2a2520;display:flex;align-items:center;justify-content:center;font-size:13px;">F</div>
+            </div>
+          </div>
+          <div class="admin-content">
+            <div class="tab-bar">
+              <div class="tab">General</div>
+              <div class="tab">Access / Launch</div>
+              <div class="tab active">Auction</div>
+              <div class="tab">Change History</div>
+            </div>
+
+            <div class="config-section">
+              <div class="config-section-title">Auction Settings</div>
+
+              <div class="config-row">
+                <div>
+                  <div class="config-row-label">Anti-Sniping Window</div>
+                  <div class="config-row-hint">Extends lot end time if a bid is placed in the final X minutes</div>
+                </div>
+                <div class="config-row-control">
+                  <div class="mock-input-num">5</div>
+                  <span class="unit-label">minutes</span>
+                </div>
+              </div>
+
+              <div class="config-row">
+                <div>
+                  <div class="config-row-label">Default Block Duration</div>
+                  <div class="config-row-hint">Duration of a new auction block when created</div>
+                </div>
+                <div class="config-row-control">
+                  <div class="mock-input-num">168</div>
+                  <span class="unit-label">hours (7 days)</span>
+                </div>
+              </div>
+
+              <div class="config-row">
+                <div>
+                  <div class="config-row-label">Lot Stagger Interval</div>
+                  <div class="config-row-hint">Seconds between sequential lot end times within a block</div>
+                </div>
+                <div class="config-row-control">
+                  <div class="mock-input-num">120</div>
+                  <span class="unit-label">seconds</span>
+                </div>
+              </div>
+
+              <div class="config-row">
+                <div>
+                  <div class="config-row-label">Direct Purchase</div>
+                  <div class="config-row-hint">Allow buy-now alongside auction lots</div>
+                </div>
+                <div class="config-row-control">
+                  <div class="toggle on"><div class="toggle-thumb"></div></div>
+                </div>
+              </div>
+
+              <div class="config-row">
+                <div>
+                  <div class="config-row-label">Reserve Price Visible</div>
+                  <div class="config-row-hint">Show reserve price amount to bidders on the lot page</div>
+                </div>
+                <div class="config-row-control">
+                  <div class="toggle off"><div class="toggle-thumb"></div></div>
+                </div>
+              </div>
+
+              <div class="config-row">
+                <div>
+                  <div class="config-row-label">Bid Ending Reminders</div>
+                  <div class="config-row-hint">Send email reminders at 24h / 8h / 1h / 5min to active bidders</div>
+                </div>
+                <div class="config-row-control">
+                  <div class="toggle on"><div class="toggle-thumb"></div></div>
+                </div>
+              </div>
+            </div>
+
+            <div style="display:flex;justify-content:flex-end;padding-top:12px;border-top:1px solid #2a2520;">
+              <div class="btn-gold">Save Changes</div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════
+     SECTION 4: GO LIVE PRE-FLIGHT CHECKLIST
+════════════════════════════════════════════ -->
+<div class="section">
+  <div class="container">
+    <div class="section-label">
+      <span class="section-number">04</span>
+      <span class="section-title">Go Live — Pre-Flight Checklist Modal</span>
+      <div class="section-rule"></div>
+    </div>
+
+    <!-- outer browser chrome to give context -->
+    <div class="browser-chrome" style="position:relative;">
+      <div class="browser-titlebar">
+        <div class="browser-dot red"></div>
+        <div class="browser-dot yellow"></div>
+        <div class="browser-dot green"></div>
+        <div class="browser-url">admin.vod-auctions.com/app/configuration</div>
+      </div>
+
+      <!-- blurred background hint -->
+      <div style="padding: 32px; background: rgba(13,11,8,0.75); position:relative;">
+
+        <!-- modal box -->
+        <div class="modal-box">
+          <div class="modal-header">
+            <h3>Before you go live &mdash; checklist</h3>
+            <p>Review each item before removing the password gate. This action affects all public visitors.</p>
+          </div>
+          <div class="modal-body">
+
+            <div class="checklist-item">
+              <span class="check-icon">✅</span>
+              <div class="check-text">
+                <div class="label">Shipping methods configured</div>
+                <div class="detail">3 zones, 15 weight classes — all rates set</div>
+              </div>
+            </div>
+
+            <div class="checklist-item">
+              <span class="check-icon">✅</span>
+              <div class="check-text">
+                <div class="label">Stripe webhook active (Live Mode)</div>
+                <div class="detail">https://api.vod-auctions.com/webhooks/stripe — last ping: 2 min ago</div>
+              </div>
+            </div>
+
+            <div class="checklist-item">
+              <span class="check-icon">✅</span>
+              <div class="check-text">
+                <div class="label">PayPal webhook active (Live Mode)</div>
+                <div class="detail">Webhook ID 95847304EJ582074L — verified</div>
+              </div>
+            </div>
+
+            <div class="checklist-item">
+              <span class="check-icon">⚠️</span>
+              <div class="check-text">
+                <div class="label">Active auction block?</div>
+                <div class="warn-detail">No active blocks found — consider scheduling one before going live</div>
+              </div>
+            </div>
+
+            <div class="checklist-item">
+              <span class="check-icon">✅</span>
+              <div class="check-text">
+                <div class="label">AGB / Impressum / Datenschutz published</div>
+                <div class="detail">All 3 legal pages are visible on the storefront</div>
+              </div>
+            </div>
+
+            <div class="checklist-item">
+              <span class="check-icon">✅</span>
+              <div class="check-text">
+                <div class="label">Support email configured</div>
+                <div class="detail">frank@vod-records.com — confirmed active</div>
+              </div>
+            </div>
+
+            <div class="confirm-block">
+              <div class="confirm-label">To confirm, type <strong style="color:#ef4444;font-family:monospace;">GO LIVE</strong> below:</div>
+              <div class="confirm-input" style="color:#3a3530;">|</div>
+              <div class="modal-footer">
+                <div class="btn-ghost">Cancel</div>
+                <div class="btn-danger">🚀 Remove Password Gate &amp; Go Live</div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════
+     SECTION 5: CHANGE HISTORY / AUDIT LOG
+════════════════════════════════════════════ -->
+<div class="section">
+  <div class="container">
+    <div class="section-label">
+      <span class="section-number">05</span>
+      <span class="section-title">Change History — Audit Log Tab</span>
+      <div class="section-rule"></div>
+    </div>
+
+    <div class="browser-chrome">
+      <div class="browser-titlebar">
+        <div class="browser-dot red"></div>
+        <div class="browser-dot yellow"></div>
+        <div class="browser-dot green"></div>
+        <div class="browser-url">admin.vod-auctions.com/app/configuration</div>
+      </div>
+      <div class="admin-shell">
+        <div class="admin-sidebar">
+          <div class="sidebar-logo"><div class="logo-mark">V</div> VOD Admin</div>
+          <div class="sidebar-item"><span class="icon">⊞</span> Dashboard</div>
+          <div class="sidebar-item"><span class="icon">🔨</span> Auction Blocks</div>
+          <div class="sidebar-item"><span class="icon">📦</span> Catalog</div>
+          <div class="sidebar-item"><span class="icon">💳</span> Transactions</div>
+          <div class="sidebar-item"><span class="icon">👥</span> CRM</div>
+          <div class="sidebar-item active"><span class="icon">⚙️</span> Configuration</div>
+          <div class="sidebar-item"><span class="icon">✉️</span> Emails</div>
+          <div class="sidebar-item"><span class="icon">🔄</span> Sync</div>
+        </div>
+        <div class="admin-main">
+          <div class="admin-topbar">
+            <div class="page-title">Configuration</div>
+            <div class="admin-topbar-right">
+              <span class="badge badge-yellow">🔒 PRE-LAUNCH</span>
+              <div style="width:28px;height:28px;border-radius:50%;background:#2a2520;display:flex;align-items:center;justify-content:center;font-size:13px;">F</div>
+            </div>
+          </div>
+          <div class="admin-content">
+            <div class="tab-bar">
+              <div class="tab">General</div>
+              <div class="tab">Access / Launch</div>
+              <div class="tab">Auction</div>
+              <div class="tab active">Change History</div>
+            </div>
+
+            <div style="background:#100e0b;border-radius:8px;border:1px solid #2a2520;overflow:hidden;">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>When</th>
+                    <th>Setting</th>
+                    <th>Old Value</th>
+                    <th>New Value</th>
+                    <th>Changed by</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <div class="time-label">Today 14:32</div>
+                      <div class="time-sub">Apr 2, 2026</div>
+                    </td>
+                    <td><span class="code-val">auction_anti_snipe_minutes</span></td>
+                    <td style="color:#e8e0d4;">3</td>
+                    <td><span style="color:#22c55e;font-weight:600;">5</span></td>
+                    <td><span class="actor-email">frank@vod-records.com</span></td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div class="time-label">Today 10:15</div>
+                      <div class="time-sub">Apr 2, 2026</div>
+                    </td>
+                    <td><span class="code-val">platform_mode</span></td>
+                    <td style="color:#3b82f6;">preview</td>
+                    <td><span style="color:#eab308;font-weight:600;">pre_launch</span></td>
+                    <td><span class="actor-email">robin@seckler.de</span></td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div class="time-label">Yesterday</div>
+                      <div class="time-sub">Apr 1, 2026</div>
+                    </td>
+                    <td><span class="code-val">invite_mode_active</span></td>
+                    <td style="color:#ef4444;">false</td>
+                    <td><span style="color:#22c55e;font-weight:600;">true</span></td>
+                    <td><span class="actor-email">frank@vod-records.com</span></td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div class="time-label">3 days ago</div>
+                      <div class="time-sub">Mar 30, 2026</div>
+                    </td>
+                    <td><span class="code-val">gate_password</span></td>
+                    <td><span class="val-hidden">●●●●●</span></td>
+                    <td><span class="val-hidden">●●●●●</span></td>
+                    <td><span class="actor-email">frank@vod-records.com</span></td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div class="time-label">5 days ago</div>
+                      <div class="time-sub">Mar 28, 2026</div>
+                    </td>
+                    <td><span class="code-val">apply_page_visible</span></td>
+                    <td style="color:#ef4444;">false</td>
+                    <td><span style="color:#22c55e;font-weight:600;">true</span></td>
+                    <td><span class="actor-email">robin@seckler.de</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════
+     SECTION 6: STAGE 1 vs STAGE 2
+════════════════════════════════════════════ -->
+<div class="section">
+  <div class="container">
+    <div class="section-label">
+      <span class="section-number">06</span>
+      <span class="section-title">Scope — Stage 1 vs Stage 2</span>
+      <div class="section-rule"></div>
+    </div>
+
+    <div class="stage-grid">
+
+      <!-- Stage 1 -->
+      <div class="stage-card">
+        <div class="stage-card-header">
+          <div class="stage-eyebrow" style="color:#22c55e;">Building Now</div>
+          <div class="stage-title">Stage 1</div>
+        </div>
+        <div class="stage-card-body">
+          <div class="stage-item">
+            <span class="si-icon">✅</span>
+            <div>
+              <div class="si-text">General</div>
+              <div class="si-sub">Catalog visibility, default currency, platform name</div>
+            </div>
+          </div>
+          <div class="stage-item">
+            <span class="si-icon">✅</span>
+            <div>
+              <div class="si-text">Access / Launch</div>
+              <div class="si-sub">Platform mode, password gate, invite system, Go Live flow</div>
+            </div>
+          </div>
+          <div class="stage-item">
+            <span class="si-icon">✅</span>
+            <div>
+              <div class="si-text">Auction</div>
+              <div class="si-sub">Anti-snipe window, block duration, stagger, direct purchase, reminders</div>
+            </div>
+          </div>
+          <div class="stage-item">
+            <span class="si-icon">✅</span>
+            <div>
+              <div class="si-text">Change History</div>
+              <div class="si-sub">Full audit log with actor, old/new values, timestamps</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stage 2 -->
+      <div class="stage-card">
+        <div class="stage-card-header">
+          <div class="stage-eyebrow" style="color:#6b6560;">Deferred — Built When Needed</div>
+          <div class="stage-title">Stage 2</div>
+        </div>
+        <div class="stage-card-body">
+          <div class="stage-item">
+            <span class="si-icon">⏸️</span>
+            <div>
+              <div class="si-text">Payments</div>
+              <div class="si-sub">Stripe / PayPal toggle, accepted methods, fee visibility</div>
+            </div>
+          </div>
+          <div class="stage-item">
+            <span class="si-icon">⏸️</span>
+            <div>
+              <div class="si-text">Email Notifications</div>
+              <div class="si-sub">Per-email-type toggles (welcome, outbid, shipping, feedback)</div>
+            </div>
+          </div>
+          <div class="stage-item">
+            <span class="si-icon">⏸️</span>
+            <div>
+              <div class="si-text">Integrations</div>
+              <div class="si-sub">Discogs sync, Sentry error tracking, RudderStack analytics</div>
+            </div>
+          </div>
+          <div class="stage-item">
+            <span class="si-icon">⏸️</span>
+            <div>
+              <div class="si-text">Feature Flags</div>
+              <div class="si-sub">Granular per-feature toggles for gradual rollout</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="stage-note">
+      <strong>Note:</strong> Stage 2 is documented and designed — tabs will be present in the UI but marked "Coming Soon". Each will be activated when the operational need arises post-launch. No rework of Stage 1 required.
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════
+     SECTION 7: PLATFORM MODE BADGE DETAIL
+════════════════════════════════════════════ -->
+<div class="section">
+  <div class="container">
+    <div class="section-label">
+      <span class="section-number">07</span>
+      <span class="section-title">Platform Mode Badge — Admin Header Variants</span>
+      <div class="section-rule"></div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:10px;">
+
+      <!-- PRE-LAUNCH -->
+      <div class="header-row">
+        <div class="header-left">
+          <div class="header-logo">VOD Admin</div>
+          <div class="nav-items">
+            <span class="nav-item">Auction Blocks</span>
+            <span class="nav-item">Catalog</span>
+            <span class="nav-item">Transactions</span>
+            <span class="nav-item">CRM</span>
+            <span class="nav-item" style="color:#d4a54a;">Configuration</span>
+          </div>
+        </div>
+        <div class="header-right">
+          <span class="status-desc">Password gate active. Only invited users can access the storefront.</span>
+          <span class="badge badge-yellow">🔒 PRE-LAUNCH</span>
+        </div>
+      </div>
+
+      <!-- PREVIEW -->
+      <div class="header-row">
+        <div class="header-left">
+          <div class="header-logo">VOD Admin</div>
+          <div class="nav-items">
+            <span class="nav-item">Auction Blocks</span>
+            <span class="nav-item">Catalog</span>
+            <span class="nav-item">Transactions</span>
+            <span class="nav-item">CRM</span>
+            <span class="nav-item">Configuration</span>
+          </div>
+        </div>
+        <div class="header-right">
+          <span class="status-desc">Password gate active. Wider invite circle.</span>
+          <span class="badge badge-blue">👁 PREVIEW</span>
+        </div>
+      </div>
+
+      <!-- LIVE -->
+      <div class="header-row" style="border-color:rgba(34,197,94,0.2);background:linear-gradient(90deg,#1c1915,#111a12);">
+        <div class="header-left">
+          <div class="header-logo">VOD Admin</div>
+          <div class="nav-items">
+            <span class="nav-item">Auction Blocks</span>
+            <span class="nav-item">Catalog</span>
+            <span class="nav-item">Transactions</span>
+            <span class="nav-item">CRM</span>
+            <span class="nav-item">Configuration</span>
+          </div>
+        </div>
+        <div class="header-right">
+          <span class="status-desc">Public. Password gate removed.</span>
+          <span class="badge badge-green">✅ LIVE</span>
+        </div>
+      </div>
+
+      <!-- MAINTENANCE -->
+      <div class="header-row" style="border-color:rgba(239,68,68,0.2);background:linear-gradient(90deg,#1c1915,#1a1010);">
+        <div class="header-left">
+          <div class="header-logo">VOD Admin</div>
+          <div class="nav-items">
+            <span class="nav-item">Auction Blocks</span>
+            <span class="nav-item">Catalog</span>
+            <span class="nav-item">Transactions</span>
+            <span class="nav-item">CRM</span>
+            <span class="nav-item">Configuration</span>
+          </div>
+        </div>
+        <div class="header-right">
+          <span class="status-desc">All users blocked including logged-in customers.</span>
+          <span class="badge badge-red">🔧 MAINTENANCE</span>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════
+     PAGE FOOTER
+════════════════════════════════════════════ -->
+<div class="page-footer">
+  <strong>Confidential</strong> &mdash; VOD Records / VOD Auctions &nbsp;&bull;&nbsp; Internal Concept April 2026 &nbsp;&bull;&nbsp; Do not distribute
+</div>
+
+</body>
+</html>
