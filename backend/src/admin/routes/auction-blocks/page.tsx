@@ -1,3 +1,4 @@
+import React from "react"
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { ChatBubbleLeftRight } from "@medusajs/icons"
 import { Container, Heading, Badge, Button, Text } from "@medusajs/ui"
@@ -346,6 +347,40 @@ function EndedBlockCard({
   )
 }
 
+// ─── Collapsible section wrapper ─────────────────────────────────────────────
+
+function CollapsibleSection({
+  label,
+  dotColor,
+  labelColor,
+  children,
+}: {
+  label: string
+  dotColor: string
+  labelColor: string
+  children: React.ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: "flex", alignItems: "center", gap: 8, marginBottom: open ? 10 : 0,
+          background: "none", border: "none", cursor: "pointer", padding: 0,
+        }}
+      >
+        <span style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor, display: "inline-block", opacity: 0.6 }} />
+        <span style={{ fontSize: 11, fontWeight: 700, color: labelColor, textTransform: "uppercase", letterSpacing: "0.07em" }}>
+          {label}
+        </span>
+        <span style={{ fontSize: 11, color: labelColor, marginLeft: 2, opacity: 0.7 }}>{open ? "▲" : "▼"}</span>
+      </button>
+      {open && children}
+    </div>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 const AuctionBlocksPage = () => {
@@ -531,7 +566,7 @@ const AuctionBlocksPage = () => {
                   Drafts — {drafts.length}
                 </span>
               </div>
-              <div style={{ border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, overflow: "hidden", opacity: 0.85 }}>
+              <div style={{ border: "1.5px dashed rgba(255,255,255,0.15)", borderRadius: 8, overflow: "hidden" }}>
                 <div style={{ overflowX: "auto" }}>
                   <DraftsTable rows={drafts} onDelete={handleDelete} />
                 </div>
@@ -539,38 +574,34 @@ const AuctionBlocksPage = () => {
             </div>
           )}
 
-          {/* ── E2E / TEST BLOCKS ─────────────────────────────── */}
+          {/* ── E2E / TEST BLOCKS (collapsible, closed by default) ── */}
           {e2eDrafts.length > 0 && (
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#e5e7eb", display: "inline-block" }} />
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#d1d5db", textTransform: "uppercase", letterSpacing: "0.07em" }}>
-                  Test Blocks — {e2eDrafts.length}
-                </span>
-              </div>
-              <div style={{ border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, overflow: "hidden", opacity: 0.5 }}>
+            <CollapsibleSection
+              label={`Test Blocks — ${e2eDrafts.length}`}
+              dotColor="#6b7280"
+              labelColor="#6b7280"
+            >
+              <div style={{ border: "1px dashed rgba(255,255,255,0.08)", borderRadius: 8, overflow: "hidden", opacity: 0.6 }}>
                 <div style={{ overflowX: "auto" }}>
                   <DraftsTable rows={e2eDrafts} onDelete={handleDelete} />
                 </div>
               </div>
-            </div>
+            </CollapsibleSection>
           )}
 
-          {/* ── ARCHIVED ──────────────────────────────────────── */}
+          {/* ── ARCHIVED (collapsible, closed by default) ─────── */}
           {archived.length > 0 && (
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#c4b5fd", display: "inline-block" }} />
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.07em" }}>
-                  Archived — {archived.length}
-                </span>
-              </div>
-              <div style={{ border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, overflow: "hidden", opacity: 0.5 }}>
+            <CollapsibleSection
+              label={`Archived — ${archived.length}`}
+              dotColor="#7c3aed"
+              labelColor="#6b7280"
+            >
+              <div style={{ border: "1px solid rgba(124,58,237,0.2)", borderRadius: 8, overflow: "hidden", opacity: 0.6 }}>
                 <div style={{ overflowX: "auto" }}>
                   <BlocksTable rows={archived} onDelete={handleDelete} />
                 </div>
               </div>
-            </div>
+            </CollapsibleSection>
           )}
 
         </div>
