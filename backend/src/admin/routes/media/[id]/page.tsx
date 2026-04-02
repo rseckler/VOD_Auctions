@@ -438,7 +438,7 @@ const MediaDetailPage = () => {
       {lightboxIndex !== null && images.length > 0 && (
         <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.92)", backdropFilter: "blur(8px)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }} onClick={() => setLightboxIndex(null)}>
           {/* Close button */}
-          <button onClick={() => setLightboxIndex(null)} style={{ position: "absolute", top: "16px", right: "16px", background: "rgba(255,255,255,0.1)", border: "none", color: "white", fontSize: "24px", width: "40px", height: "40px", borderRadius: "8px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&times;</button>
+          <button onClick={() => setLightboxIndex(null)} style={{ position: "absolute", top: "16px", right: "16px", background: "rgba(0,0,0,0.08)", border: "none", color: "white", fontSize: "24px", width: "40px", height: "40px", borderRadius: "8px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&times;</button>
 
           {/* Main image */}
           <div style={{ position: "relative", maxWidth: "85vw", maxHeight: "75vh", display: "flex", alignItems: "center", justifyContent: "center" }} onClick={(e) => e.stopPropagation()}>
@@ -447,8 +447,8 @@ const MediaDetailPage = () => {
             {/* Prev/Next */}
             {images.length > 1 && (
               <>
-                <button onClick={() => goLightbox("prev")} style={{ position: "absolute", left: "-48px", top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.1)", border: "none", color: "white", fontSize: "20px", width: "36px", height: "36px", borderRadius: "50%", cursor: "pointer" }}>&lsaquo;</button>
-                <button onClick={() => goLightbox("next")} style={{ position: "absolute", right: "-48px", top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.1)", border: "none", color: "white", fontSize: "20px", width: "36px", height: "36px", borderRadius: "50%", cursor: "pointer" }}>&rsaquo;</button>
+                <button onClick={() => goLightbox("prev")} style={{ position: "absolute", left: "-48px", top: "50%", transform: "translateY(-50%)", background: "rgba(0,0,0,0.08)", border: "none", color: "white", fontSize: "20px", width: "36px", height: "36px", borderRadius: "50%", cursor: "pointer" }}>&lsaquo;</button>
+                <button onClick={() => goLightbox("next")} style={{ position: "absolute", right: "-48px", top: "50%", transform: "translateY(-50%)", background: "rgba(0,0,0,0.08)", border: "none", color: "white", fontSize: "20px", width: "36px", height: "36px", borderRadius: "50%", cursor: "pointer" }}>&rsaquo;</button>
               </>
             )}
           </div>

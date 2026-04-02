@@ -55,11 +55,11 @@ type StepInfo = { step: number; label: string; color: string; bg: string }
 function getCurrentStep(lot: Lot): StepInfo {
   const tx = lot.transaction
   if (!lot.winner || !tx) {
-    return { step: 0, label: "No Bid", color: "#9ca3af", bg: "transparent" }
+    return { step: 0, label: "No Bid", color: "#6b7280", bg: "transparent" }
   }
   // Terminal states — check before fulfillment
   if (tx.status === "refunded")  return { step: -1, label: "Refunded",       color: "#7c3aed", bg: "#ede9fe" }
-  if (tx.status === "cancelled") return { step: -1, label: "Cancelled",      color: "#9ca3af", bg: "transparent" }
+  if (tx.status === "cancelled") return { step: -1, label: "Cancelled",      color: "#6b7280", bg: "transparent" }
   if (tx.status === "failed")    return { step: -1, label: "Payment Failed", color: "#dc2626", bg: "#fee2e2" }
 
   const paid = tx.status === "paid"
@@ -115,7 +115,7 @@ function ActionButton({ lot, onAction, loading }: {
     </div>
   )
   if (step.step === 1) return (
-    <button disabled style={{ ...base, background: "transparent", color: "#9ca3af", cursor: "not-allowed" }}>
+    <button disabled style={{ ...base, background: "transparent", color: "#6b7280", cursor: "not-allowed" }}>
       Awaiting
     </button>
   )
@@ -300,23 +300,23 @@ export default function PostAuctionPage() {
       margin: "0 auto",
       fontFamily: "-apple-system, BlinkMacSystemFont, 'Inter', sans-serif",
       fontSize: 14,
-      color: "#d1d5db",
+      color: "#1f2937",
     }}>
 
       {/* Breadcrumb */}
-      <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 20, display: "flex", alignItems: "center", gap: 6 }}>
-        <a href="/app/auction-blocks" style={{ color: "#9ca3af", textDecoration: "none" }}>
+      <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 20, display: "flex", alignItems: "center", gap: 6 }}>
+        <a href="/app/auction-blocks" style={{ color: "#6b7280", textDecoration: "none" }}>
           ← Auction Blocks
         </a>
-        <span style={{ color: "#d1d5db" }}>›</span>
-        <span style={{ color: "#d1d5db", fontWeight: 500 }}>{block?.title ?? "Loading…"}</span>
+        <span style={{ color: "#1f2937" }}>›</span>
+        <span style={{ color: "#1f2937", fontWeight: 500 }}>{block?.title ?? "Loading…"}</span>
       </div>
 
       {/* Page header */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-            <div style={{ fontSize: 22, fontWeight: 800, color: "#d1d5db" }}>
+            <div style={{ fontSize: 22, fontWeight: 800, color: "#1f2937" }}>
               {block?.title ?? "Post-Auction"}
             </div>
             <span style={{
@@ -328,7 +328,7 @@ export default function PostAuctionPage() {
               {statusBadgeLabel}
             </span>
           </div>
-          <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 3 }}>
+          <div style={{ fontSize: 12, color: "#6b7280", marginTop: 3 }}>
             {block?.block_type ?? "Themen-Block"}
             {block?.ends_at ? ` · Ended ${fmtDate(block.ends_at)}` : ""}
             {summary ? ` · ${summary.total} lots` : ""}
@@ -339,8 +339,8 @@ export default function PostAuctionPage() {
             href={`/app/auction-blocks/${blockId}?tab=analytics`}
             style={{
               padding: "7px 14px", borderRadius: 6, fontSize: 12, fontWeight: 600,
-              cursor: "pointer", background: "var(--bg-component, #1a1714)", color: "#d1d5db",
-              border: "1px solid rgba(255,255,255,0.1)", textDecoration: "none", display: "inline-block",
+              cursor: "pointer", background: "var(--bg-component, #1a1714)", color: "#1f2937",
+              border: "1px solid rgba(0,0,0,0.08)", textDecoration: "none", display: "inline-block",
             }}
           >
             ← Analytics
@@ -388,14 +388,14 @@ export default function PostAuctionPage() {
               { label: "Conversion",  value: `${conversionPct}%`,           numColor: "#374151" },
             ].map((s) => (
               <div key={s.label} style={{
-                background: "var(--bg-component, #1a1714)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8,
+                background: "var(--bg-component, #1a1714)", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 8,
                 padding: "14px 20px", textAlign: "center",
                 minWidth: (s as any).minWidth ?? 100,
               }}>
                 <div style={{ fontSize: 26, fontWeight: 800, color: s.numColor, lineHeight: 1 }}>
                   {s.value}
                 </div>
-                <div style={{ fontSize: 10, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 4 }}>
+                <div style={{ fontSize: 10, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 4 }}>
                   {s.label}
                 </div>
               </div>
@@ -409,17 +409,17 @@ export default function PostAuctionPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
               {/* ── Open Tasks panel ────────────────────────────────── */}
-              <div style={{ background: "var(--bg-component, #1a1714)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: 18 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 14 }}>
+              <div style={{ background: "var(--bg-component, #1a1714)", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 10, padding: 18 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 14 }}>
                   Open Tasks
                 </div>
 
                 {/* Unpaid near deadline */}
                 {unpaidCount > 0 && (
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 0", borderBottom: "1px solid rgba(0,0,0,0.04)" }}>
                     <div style={{ width: 16, height: 16, border: "2px solid #dc2626", borderRadius: 3, background: "rgba(239,68,68,0.15)", flexShrink: 0, marginTop: 1 }} />
                     <div>
-                      <div style={{ fontSize: 12, color: "#d1d5db", lineHeight: 1.4 }}>
+                      <div style={{ fontSize: 12, color: "#1f2937", lineHeight: 1.4 }}>
                         <span style={{ fontWeight: 700, color: "#dc2626" }}>{unpaidCount} lots unpaid</span> — check deadlines
                       </div>
                       <div style={{ marginTop: 3 }}>
@@ -436,10 +436,10 @@ export default function PostAuctionPage() {
 
                 {/* Ready to pack */}
                 {readyToPackCount > 0 && (
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                    <div style={{ width: 16, height: 16, border: "2px solid #d1d5db", borderRadius: 3, flexShrink: 0, marginTop: 1 }} />
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 0", borderBottom: "1px solid rgba(0,0,0,0.04)" }}>
+                    <div style={{ width: 16, height: 16, border: "2px solid #1f2937", borderRadius: 3, flexShrink: 0, marginTop: 1 }} />
                     <div>
-                      <div style={{ fontSize: 12, color: "#d1d5db", lineHeight: 1.4 }}>
+                      <div style={{ fontSize: 12, color: "#1f2937", lineHeight: 1.4 }}>
                         <span style={{ fontWeight: 700 }}>{readyToPackCount} lots</span> ready to pack (paid, not started)
                       </div>
                       <div style={{ marginTop: 3 }}>
@@ -456,10 +456,10 @@ export default function PostAuctionPage() {
 
                 {/* Labels not printed */}
                 {labelsNotPrintedCount > 0 && (
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                    <div style={{ width: 16, height: 16, border: "2px solid #d1d5db", borderRadius: 3, flexShrink: 0, marginTop: 1 }} />
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 0", borderBottom: "1px solid rgba(0,0,0,0.04)" }}>
+                    <div style={{ width: 16, height: 16, border: "2px solid #1f2937", borderRadius: 3, flexShrink: 0, marginTop: 1 }} />
                     <div>
-                      <div style={{ fontSize: 12, color: "#d1d5db", lineHeight: 1.4 }}>
+                      <div style={{ fontSize: 12, color: "#1f2937", lineHeight: 1.4 }}>
                         <span style={{ fontWeight: 700 }}>{labelsNotPrintedCount} labels</span> not yet printed
                       </div>
                       <div style={{ marginTop: 3 }}>
@@ -476,20 +476,20 @@ export default function PostAuctionPage() {
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 0", opacity: 0.5 }}>
                     <div style={{ width: 16, height: 16, border: "2px solid #16a34a", borderRadius: 3, background: "rgba(34,197,94,0.15)", flexShrink: 0, marginTop: 1 }} />
                     <div>
-                      <div style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.4 }}>No overdue payments</div>
+                      <div style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.4 }}>No overdue payments</div>
                     </div>
                   </div>
                 )}
 
                 {/* All clear when no tasks */}
                 {unpaidCount === 0 && readyToPackCount === 0 && labelsNotPrintedCount === 0 && (
-                  <div style={{ fontSize: 12, color: "#9ca3af", paddingTop: 4 }}>All tasks complete ✓</div>
+                  <div style={{ fontSize: 12, color: "#6b7280", paddingTop: 4 }}>All tasks complete ✓</div>
                 )}
               </div>
 
               {/* ── Auction Info panel ───────────────────────────────── */}
-              <div style={{ background: "var(--bg-component, #1a1714)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: 18 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 14 }}>
+              <div style={{ background: "var(--bg-component, #1a1714)", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 10, padding: 18 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 14 }}>
                   Auction Info
                 </div>
                 {[
@@ -503,26 +503,26 @@ export default function PostAuctionPage() {
                   { label: "Going/Going/Gone", value: block?.going_going_gone_sent_at ? "✓ Triggered" : "—", green: !!block?.going_going_gone_sent_at },
                 ].map(({ label, value, green }) => (
                   <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #f9fafb", fontSize: 12 }}>
-                    <span style={{ color: "#9ca3af" }}>{label}</span>
+                    <span style={{ color: "#6b7280" }}>{label}</span>
                     <span style={{ fontWeight: 500, color: green ? "#16a34a" : "#374151" }}>{value}</span>
                   </div>
                 ))}
               </div>
 
               {/* ── Troubleshooting panel ────────────────────────────── */}
-              <div style={{ background: "var(--bg-component, #1a1714)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: 18 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 14 }}>
+              <div style={{ background: "var(--bg-component, #1a1714)", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 10, padding: 18 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 14 }}>
                   Troubleshooting
                 </div>
 
                 {paidWithoutOrderNumber.length > 0 && (
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.06)", fontSize: 12 }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 0", borderBottom: "1px solid rgba(0,0,0,0.04)", fontSize: 12 }}>
                     <div style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>⚠️</div>
                     <div>
                       <div style={{ fontWeight: 600, color: "#b45309" }}>
                         {paidWithoutOrderNumber.length} payment{paidWithoutOrderNumber.length > 1 ? "s" : ""} without order number
                       </div>
-                      <div style={{ color: "#9ca3af", fontSize: 11, marginTop: 2 }}>
+                      <div style={{ color: "#6b7280", fontSize: 11, marginTop: 2 }}>
                         {paidWithoutOrderNumber.map(l => l.transaction?.id).join(", ")} — capture succeeded but order number was not assigned.
                       </div>
                     </div>
@@ -534,7 +534,7 @@ export default function PostAuctionPage() {
                   "All PayPal captures verified",
                   "No anti-snipe extensions triggered",
                 ].map((msg) => (
-                  <div key={msg} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.06)", fontSize: 12 }}>
+                  <div key={msg} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 0", borderBottom: "1px solid rgba(0,0,0,0.04)", fontSize: 12 }}>
                     <div style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>✅</div>
                     <div style={{ color: "#16a34a", fontWeight: 500 }}>{msg}</div>
                   </div>
@@ -544,11 +544,11 @@ export default function PostAuctionPage() {
             </div>
 
             {/* Right column: Lots table panel */}
-            <div style={{ background: "var(--bg-component, #1a1714)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, overflow: "hidden" }}>
+            <div style={{ background: "var(--bg-component, #1a1714)", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 10, overflow: "hidden" }}>
 
               {/* Panel header with filter tabs */}
               <div style={{
-                padding: "14px 16px", borderBottom: "1px solid rgba(255,255,255,0.1)",
+                padding: "14px 16px", borderBottom: "1px solid rgba(0,0,0,0.08)",
                 display: "flex", alignItems: "center", justifyContent: "space-between",
               }}>
                 <div style={{ fontSize: 13, fontWeight: 700 }}>Lots Overview</div>
@@ -560,16 +560,16 @@ export default function PostAuctionPage() {
                         padding: "4px 12px", borderRadius: 5, fontSize: 11, fontWeight: isActive ? 700 : 500,
                         cursor: "pointer",
                         background: isActive ? "#6366f1" : "#fff",
-                        color: isActive ? "#1c1915" : "#9ca3af",
-                        border: isActive ? "1px solid #6366f1" : "1px solid rgba(255,255,255,0.1)",
+                        color: isActive ? "#1c1915" : "#6b7280",
+                        border: isActive ? "1px solid #6366f1" : "1px solid rgba(0,0,0,0.08)",
                       }}>
                         {tab.label} {tab.count}
                       </button>
                     )
                   })}
                   <button onClick={() => { fetchData(); fetchAnalytics() }} disabled={loading} style={{
-                    marginLeft: 4, background: "var(--bg-component, #1a1714)", color: "#9ca3af",
-                    border: "1px solid rgba(255,255,255,0.1)", borderRadius: 5,
+                    marginLeft: 4, background: "var(--bg-component, #1a1714)", color: "#6b7280",
+                    border: "1px solid rgba(0,0,0,0.08)", borderRadius: 5,
                     padding: "4px 10px", fontSize: 11, cursor: loading ? "not-allowed" : "pointer",
                     opacity: loading ? 0.6 : 1,
                   }}>↻</button>
@@ -581,10 +581,10 @@ export default function PostAuctionPage() {
                 display: "grid",
                 gridTemplateColumns: "48px 1fr 140px 80px 120px 180px",
                 gap: 10, padding: "8px 14px",
-                background: "transparent", borderBottom: "1px solid rgba(255,255,255,0.1)",
+                background: "transparent", borderBottom: "1px solid rgba(0,0,0,0.08)",
               }}>
                 {["Lot", "Release", "Winner", "Amount", "Status", "Action"].map((h) => (
-                  <span key={h} style={{ fontSize: 10, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  <span key={h} style={{ fontSize: 10, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     {h}
                   </span>
                 ))}
@@ -592,7 +592,7 @@ export default function PostAuctionPage() {
 
               {/* Lot rows */}
               {filteredLots.length === 0 ? (
-                <div style={{ padding: "32px 16px", textAlign: "center", color: "#9ca3af", fontSize: 13 }}>
+                <div style={{ padding: "32px 16px", textAlign: "center", color: "#6b7280", fontSize: 13 }}>
                   No lots found.
                 </div>
               ) : filteredLots.map((lot) => {
@@ -605,7 +605,7 @@ export default function PostAuctionPage() {
                     display: "grid",
                     gridTemplateColumns: "48px 1fr 140px 80px 120px 180px",
                     gap: 10, padding: "12px 14px", alignItems: "center",
-                    borderBottom: "1px solid rgba(255,255,255,0.06)",
+                    borderBottom: "1px solid rgba(0,0,0,0.04)",
                     opacity: isNoBid ? 0.5 : 1,
                     transition: "background 0.1s",
                     cursor: tx ? "pointer" : "default",
@@ -621,16 +621,16 @@ export default function PostAuctionPage() {
 
                     {/* Release */}
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 500, color: "#d1d5db", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: "#1f2937", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                         {lot.release_title || "—"}
                       </div>
                       {lot.artist_name && (
-                        <div style={{ fontSize: 11, color: "#9ca3af", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        <div style={{ fontSize: 11, color: "#6b7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                           {lot.artist_name}
                         </div>
                       )}
                       {tx?.order_number && (
-                        <div style={{ fontSize: 10, color: "#9ca3af", fontFamily: "monospace", marginTop: 1 }}>
+                        <div style={{ fontSize: 10, color: "#6b7280", fontFamily: "monospace", marginTop: 1 }}>
                           {tx.order_number}
                         </div>
                       )}
@@ -640,25 +640,25 @@ export default function PostAuctionPage() {
                     <div>
                       {lot.winner ? (
                         <>
-                          <div style={{ fontSize: 11, fontWeight: 500, color: "#d1d5db", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          <div style={{ fontSize: 11, fontWeight: 500, color: "#1f2937", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                             {lot.winner.name}
                           </div>
-                          <div style={{ fontSize: 10, color: "#9ca3af", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          <div style={{ fontSize: 10, color: "#6b7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                             {lot.winner.email}
                           </div>
                           {tx?.shipping_city && (
-                            <div style={{ fontSize: 10, color: "#9ca3af" }}>
+                            <div style={{ fontSize: 10, color: "#6b7280" }}>
                               {tx.shipping_country ? `${tx.shipping_country} · ` : ""}{tx.shipping_city}
                             </div>
                           )}
                         </>
                       ) : (
-                        <span style={{ fontSize: 11, color: "#9ca3af" }}>—</span>
+                        <span style={{ fontSize: 11, color: "#6b7280" }}>—</span>
                       )}
                     </div>
 
                     {/* Amount */}
-                    <div style={{ fontSize: 13, fontWeight: 600, color: lot.final_price !== null ? "#e8e0d4" : "#9ca3af" }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: lot.final_price !== null ? "#e8e0d4" : "#6b7280" }}>
                       {lot.final_price !== null ? `€${Number(lot.final_price).toFixed(2)}` : "—"}
                     </div>
 
@@ -686,7 +686,7 @@ export default function PostAuctionPage() {
 
               {/* Footer */}
               {filteredLots.length > 0 && (
-                <div style={{ padding: "10px 14px", textAlign: "center", color: "#9ca3af", fontSize: 11, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                <div style={{ padding: "10px 14px", textAlign: "center", color: "#6b7280", fontSize: 11, borderTop: "1px solid rgba(0,0,0,0.04)" }}>
                   Showing {filteredLots.length} of {summary?.total ?? 0} lots
                 </div>
               )}

@@ -131,7 +131,7 @@ function getStepDescription(step: number): { current: string; next: string } {
 function getEventDotColor(eventType: string): string {
   if (eventType === "payment") return "#16a34a"
   if (eventType === "refund" || eventType === "cancellation") return "#dc2626"
-  return "#9ca3af"
+  return "#6b7280"
 }
 
 // ── Styles ──────────────────────────────────────────────────────────────────
@@ -143,18 +143,18 @@ const s = {
     minHeight: "100vh",
     fontFamily: "-apple-system, BlinkMacSystemFont, 'Inter', sans-serif",
     fontSize: 14,
-    color: "#d1d5db",
+    color: "#1f2937",
   } as React.CSSProperties,
   breadcrumb: {
     fontSize: 12,
-    color: "#9ca3af",
+    color: "#6b7280",
     marginBottom: 20,
     display: "flex",
     alignItems: "center",
     gap: 6,
   } as React.CSSProperties,
   breadcrumbLink: {
-    color: "#9ca3af",
+    color: "#6b7280",
     textDecoration: "none",
     cursor: "pointer",
     background: "none",
@@ -162,7 +162,7 @@ const s = {
     padding: 0,
     fontSize: 12,
   } as React.CSSProperties,
-  sep: { color: "#d1d5db" } as React.CSSProperties,
+  sep: { color: "#1f2937" } as React.CSSProperties,
   orderHeader: {
     display: "flex",
     alignItems: "flex-start",
@@ -174,7 +174,7 @@ const s = {
   orderNum: {
     fontSize: 22,
     fontWeight: 800,
-    color: "#d1d5db",
+    color: "#1f2937",
     fontFamily: "monospace",
   } as React.CSSProperties,
   headerLeft: { display: "flex", flexDirection: "column" as const, gap: 6 } as React.CSSProperties,
@@ -209,7 +209,7 @@ const s = {
     fontSize: 11, fontWeight: 600,
   } as React.CSSProperties,
   orderMeta: {
-    fontSize: 12, color: "#9ca3af",
+    fontSize: 12, color: "#6b7280",
     display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" as const,
   } as React.CSSProperties,
   metaSep: { color: "#e5e7eb" } as React.CSSProperties,
@@ -221,7 +221,7 @@ const s = {
     }
     const variants = {
       primary: { background: "#6366f1", color: "#fff" },
-      secondary: { background: "var(--bg-component, #1a1714)", color: "#d1d5db", border: "1px solid rgba(255,255,255,0.1)" },
+      secondary: { background: "var(--bg-component, #1a1714)", color: "#1f2937", border: "1px solid rgba(0,0,0,0.08)" },
       blue: { background: "#2563eb", color: "#fff" },
       green: { background: "#16a34a", color: "#fff" },
       danger: { background: "var(--bg-component, #1a1714)", color: "#dc2626", border: "1px solid #fca5a5" },
@@ -235,7 +235,7 @@ const s = {
     }
     const variants = {
       primary: { background: "#6366f1", color: "#fff" },
-      secondary: { background: "var(--bg-component, #1a1714)", color: "#d1d5db", border: "1px solid rgba(255,255,255,0.1)" },
+      secondary: { background: "var(--bg-component, #1a1714)", color: "#1f2937", border: "1px solid rgba(0,0,0,0.08)" },
       blue: { background: "#2563eb", color: "#fff" },
       green: { background: "#16a34a", color: "#fff" },
       danger: { background: "var(--bg-component, #1a1714)", color: "#dc2626", border: "1px solid #fca5a5" },
@@ -243,12 +243,12 @@ const s = {
     return { ...base, ...variants[variant] }
   },
   actionsBar: {
-    background: "var(--bg-component, #1a1714)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10,
+    background: "var(--bg-component, #1a1714)", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 10,
     padding: "16px 20px", display: "flex", alignItems: "center",
     gap: 10, flexWrap: "wrap" as const, marginBottom: 14,
   } as React.CSSProperties,
   actionsLabel: {
-    fontSize: 10, fontWeight: 700, color: "#9ca3af",
+    fontSize: 10, fontWeight: 700, color: "#6b7280",
     textTransform: "uppercase" as const, letterSpacing: "0.06em", marginRight: 4,
   } as React.CSSProperties,
   topGrid: {
@@ -260,11 +260,11 @@ const s = {
     gap: 14, marginBottom: 14,
   } as React.CSSProperties,
   panel: {
-    background: "var(--bg-component, #1a1714)", border: "1px solid rgba(255,255,255,0.1)",
+    background: "var(--bg-component, #1a1714)", border: "1px solid rgba(0,0,0,0.08)",
     borderRadius: 10, padding: 18,
   } as React.CSSProperties,
   panelTitle: {
-    fontSize: 10, fontWeight: 700, color: "#9ca3af",
+    fontSize: 10, fontWeight: 700, color: "#6b7280",
     textTransform: "uppercase" as const, letterSpacing: "0.07em", marginBottom: 12,
   } as React.CSSProperties,
   infoRow: {
@@ -272,9 +272,9 @@ const s = {
     padding: "5px 0", borderBottom: "1px solid #f9fafb",
     fontSize: 12,
   } as React.CSSProperties,
-  infoLabel: { color: "#9ca3af" } as React.CSSProperties,
-  infoValue: { fontWeight: 500, color: "#d1d5db" } as React.CSSProperties,
-  infoValueMono: { fontWeight: 500, color: "#d1d5db", fontFamily: "monospace", fontSize: 11 } as React.CSSProperties,
+  infoLabel: { color: "#6b7280" } as React.CSSProperties,
+  infoValue: { fontWeight: 500, color: "#1f2937" } as React.CSSProperties,
+  infoValueMono: { fontWeight: 500, color: "#1f2937", fontFamily: "monospace", fontSize: 11 } as React.CSSProperties,
   stepperWrap: {
     display: "flex", alignItems: "center", margin: "12px 0",
   } as React.CSSProperties,
@@ -291,12 +291,12 @@ const s = {
     const states = {
       done: { background: "rgba(34,197,94,0.15)", color: "#15803d", border: "2px solid #16a34a" },
       current: { background: "rgba(245,158,11,0.15)", color: "#b45309", border: "2px solid #d97706" },
-      todo: { background: "transparent", color: "#9ca3af", border: "2px solid rgba(255,255,255,0.1)" },
+      todo: { background: "transparent", color: "#6b7280", border: "2px solid rgba(0,0,0,0.08)" },
     }
     return { ...base, ...states[state] }
   },
   stepLabel: {
-    fontSize: 9, color: "#9ca3af", marginTop: 4,
+    fontSize: 9, color: "#6b7280", marginTop: 4,
     textAlign: "center" as const, whiteSpace: "nowrap" as const,
   } as React.CSSProperties,
   stepLine: (done: boolean) => ({
@@ -311,44 +311,44 @@ const s = {
   } as React.CSSProperties,
   auditItem: {
     display: "flex", gap: 12, padding: "10px 0",
-    borderBottom: "1px solid rgba(255,255,255,0.06)",
+    borderBottom: "1px solid rgba(0,0,0,0.04)",
   } as React.CSSProperties,
   auditDot: (color: string) => ({
     width: 8, height: 8, borderRadius: "50%",
     background: color, flexShrink: 0, marginTop: 4,
   }) as React.CSSProperties,
-  auditTitle: { fontSize: 12, fontWeight: 600, color: "#d1d5db" } as React.CSSProperties,
-  auditDetail: { fontSize: 11, color: "#9ca3af", marginTop: 2 } as React.CSSProperties,
-  auditTime: { marginLeft: "auto", fontSize: 11, color: "#9ca3af", whiteSpace: "nowrap" as const } as React.CSSProperties,
+  auditTitle: { fontSize: 12, fontWeight: 600, color: "#1f2937" } as React.CSSProperties,
+  auditDetail: { fontSize: 11, color: "#6b7280", marginTop: 2 } as React.CSSProperties,
+  auditTime: { marginLeft: "auto", fontSize: 11, color: "#6b7280", whiteSpace: "nowrap" as const } as React.CSSProperties,
   formBox: {
-    background: "transparent", border: "1px solid rgba(255,255,255,0.1)",
+    background: "transparent", border: "1px solid rgba(0,0,0,0.08)",
     borderRadius: 8, padding: 14, marginTop: 8,
   } as React.CSSProperties,
   input: {
     width: "100%", padding: "6px 10px",
-    border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6,
-    fontSize: 12, color: "#d1d5db", background: "var(--bg-component, #1a1714)",
+    border: "1px solid rgba(0,0,0,0.08)", borderRadius: 6,
+    fontSize: 12, color: "#1f2937", background: "var(--bg-component, #1a1714)",
     outline: "none",
   } as React.CSSProperties,
   select: {
     width: "100%", padding: "6px 10px",
-    border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6,
-    fontSize: 12, color: "#d1d5db", background: "var(--bg-component, #1a1714)",
+    border: "1px solid rgba(0,0,0,0.08)", borderRadius: 6,
+    fontSize: 12, color: "#1f2937", background: "var(--bg-component, #1a1714)",
     outline: "none",
   } as React.CSSProperties,
   label: {
-    fontSize: 11, fontWeight: 600, color: "#9ca3af", marginBottom: 4, display: "block",
+    fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4, display: "block",
   } as React.CSSProperties,
   itemCard: {
     display: "flex", gap: 14, padding: "14px 0",
-    borderBottom: "1px solid rgba(255,255,255,0.06)",
+    borderBottom: "1px solid rgba(0,0,0,0.04)",
   } as React.CSSProperties,
   itemCover: {
     width: 60, height: 60, borderRadius: 6,
     background: "transparent", overflow: "hidden",
     flexShrink: 0, display: "flex",
     alignItems: "center", justifyContent: "center",
-    color: "#d1d5db", fontSize: 20,
+    color: "#1f2937", fontSize: 20,
   } as React.CSSProperties,
   link: {
     color: "#6366f1", textDecoration: "none", cursor: "pointer",
@@ -583,7 +583,7 @@ const TransactionDetailPage = () => {
   if (loading) {
     return (
       <div style={s.page}>
-        <p style={{ color: "#9ca3af", textAlign: "center", paddingTop: 60 }}>Loading order…</p>
+        <p style={{ color: "#6b7280", textAlign: "center", paddingTop: 60 }}>Loading order…</p>
       </div>
     )
   }
@@ -668,7 +668,7 @@ const TransactionDetailPage = () => {
           ← Orders
         </button>
         <span style={s.sep}>›</span>
-        <span style={{ color: "#d1d5db", fontWeight: 500 }}>{orderTitle}</span>
+        <span style={{ color: "#1f2937", fontWeight: 500 }}>{orderTitle}</span>
       </div>
 
       {/* Order Header */}
@@ -725,7 +725,7 @@ const TransactionDetailPage = () => {
         <div style={{ ...s.formBox, marginBottom: 14 }}>
           <label style={s.label}>Internal note</label>
           {tx.internal_note && (
-            <div style={{ marginBottom: 8, padding: "6px 10px", background: "transparent", borderRadius: 6, fontSize: 12, color: "#d1d5db" }}>
+            <div style={{ marginBottom: 8, padding: "6px 10px", background: "transparent", borderRadius: 6, fontSize: 12, color: "#1f2937" }}>
               {tx.internal_note}
             </div>
           )}
@@ -877,10 +877,10 @@ const TransactionDetailPage = () => {
         {/* Customer */}
         <div style={s.panel}>
           <div style={s.panelTitle}>Customer</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "#d1d5db", marginBottom: 2 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "#1f2937", marginBottom: 2 }}>
             {tx.customer_name || tx.shipping_name || "—"}
           </div>
-          <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 10 }}>
+          <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 10 }}>
             {tx.customer_email || "—"}
           </div>
           <div style={{ ...s.infoRow }}>
@@ -908,10 +908,10 @@ const TransactionDetailPage = () => {
         {/* Shipping Address */}
         <div style={s.panel}>
           <div style={s.panelTitle}>Shipping Address</div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "#d1d5db", marginBottom: 6 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#1f2937", marginBottom: 6 }}>
             {tx.shipping_name || "—"}
           </div>
-          <div style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.7 }}>
+          <div style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.7 }}>
             {tx.shipping_address_line1 || "—"}<br />
             {[tx.shipping_postal_code, tx.shipping_city].filter(Boolean).join(" ") || "—"}<br />
             {tx.shipping_country ? `${tx.shipping_country}` : "—"}
@@ -927,7 +927,7 @@ const TransactionDetailPage = () => {
             </div>
             <div style={{ ...s.infoRow, borderBottom: "none" }}>
               <span style={s.infoLabel}>Tracking #</span>
-              <span style={{ ...s.infoValue, color: tx.tracking_number ? "#e8e0d4" : "#9ca3af" }}>
+              <span style={{ ...s.infoValue, color: tx.tracking_number ? "#e8e0d4" : "#6b7280" }}>
                 {tx.tracking_number || "not yet"}
               </span>
             </div>
@@ -978,9 +978,9 @@ const TransactionDetailPage = () => {
             <span style={{ fontWeight: 500, color: "#16a34a" }}>✓ Server-side</span>
           </div>
           {tx.discount_amount != null && Number(tx.discount_amount) > 0 && (
-            <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid rgba(255,255,255,0.06)", fontSize: 12 }}>
+            <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid rgba(0,0,0,0.04)", fontSize: 12 }}>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={{ color: "#9ca3af" }}>
+                <span style={{ color: "#6b7280" }}>
                   Discount{tx.promo_code ? ` (${tx.promo_code})` : ""}
                 </span>
                 <span style={{ color: "#dc2626", fontWeight: 600 }}>−{formatAmount(tx.discount_amount)}</span>
@@ -1000,13 +1000,13 @@ const TransactionDetailPage = () => {
           <div style={s.itemCard}>
             <div style={s.itemCover}>💿</div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "#d1d5db" }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#1f2937" }}>
                 {tx.release_title || "—"}
               </div>
-              <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 1 }}>
+              <div style={{ fontSize: 12, color: "#6b7280", marginTop: 1 }}>
                 {tx.release_artist || ""}
               </div>
-              <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 4 }}>
+              <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
                 {tx.lot_number && tx.block_title && (
                   <>
                     <a
@@ -1043,15 +1043,15 @@ const TransactionDetailPage = () => {
             <div>
               <div style={{ display: "flex", gap: 16, marginTop: 8 }}>
                 <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: 10, color: "#9ca3af", textTransform: "uppercase" }}>Bid</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#d1d5db" }}>{formatAmount(tx.amount)}</div>
+                  <div style={{ fontSize: 10, color: "#6b7280", textTransform: "uppercase" }}>Bid</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#1f2937" }}>{formatAmount(tx.amount)}</div>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: 10, color: "#9ca3af", textTransform: "uppercase" }}>Shipping</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#d1d5db" }}>{formatAmount(tx.shipping_cost)}</div>
+                  <div style={{ fontSize: 10, color: "#6b7280", textTransform: "uppercase" }}>Shipping</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#1f2937" }}>{formatAmount(tx.shipping_cost)}</div>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: 10, color: "#9ca3af", textTransform: "uppercase" }}>Total</div>
+                  <div style={{ fontSize: 10, color: "#6b7280", textTransform: "uppercase" }}>Total</div>
                   <div style={{ fontSize: 15, fontWeight: 700, color: "#6366f1" }}>{formatAmount(tx.total_amount)}</div>
                 </div>
               </div>
@@ -1060,7 +1060,7 @@ const TransactionDetailPage = () => {
 
           {/* Invoice link */}
           {isPaid && tx.order_group_id && (
-            <div style={{ marginTop: 14, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+            <div style={{ marginTop: 14, paddingTop: 10, borderTop: "1px solid rgba(0,0,0,0.04)" }}>
               <a
                 href={`/admin/transactions/${tx.id}/invoice`}
                 target="_blank"
@@ -1127,7 +1127,7 @@ const TransactionDetailPage = () => {
           <div style={{ marginTop: 4 }}>
             <div style={s.infoRow}>
               <span style={s.infoLabel}>Packed at</span>
-              <span style={{ ...s.infoValue, color: isPacking || tx.label_printed_at ? "#e8e0d4" : "#9ca3af" }}>
+              <span style={{ ...s.infoValue, color: isPacking || tx.label_printed_at ? "#e8e0d4" : "#6b7280" }}>
                 {isPacking || tx.label_printed_at || isShipped || isDelivered
                   ? (tx.paid_at ? formatDate(tx.paid_at) : "—")
                   : "—"}
@@ -1135,19 +1135,19 @@ const TransactionDetailPage = () => {
             </div>
             <div style={s.infoRow}>
               <span style={s.infoLabel}>Label printed</span>
-              <span style={{ ...s.infoValue, color: tx.label_printed_at ? "#e8e0d4" : "#9ca3af" }}>
+              <span style={{ ...s.infoValue, color: tx.label_printed_at ? "#e8e0d4" : "#6b7280" }}>
                 {tx.label_printed_at ? formatDate(tx.label_printed_at) : "—"}
               </span>
             </div>
             <div style={s.infoRow}>
               <span style={s.infoLabel}>Shipped at</span>
-              <span style={{ ...s.infoValue, color: tx.shipped_at ? "#e8e0d4" : "#9ca3af" }}>
+              <span style={{ ...s.infoValue, color: tx.shipped_at ? "#e8e0d4" : "#6b7280" }}>
                 {tx.shipped_at ? formatDate(tx.shipped_at) : "—"}
               </span>
             </div>
             <div style={{ ...s.infoRow, borderBottom: "none" }}>
               <span style={s.infoLabel}>Tracking #</span>
-              <span style={{ ...s.infoValue, color: tx.tracking_number ? "#e8e0d4" : "#9ca3af" }}>
+              <span style={{ ...s.infoValue, color: tx.tracking_number ? "#e8e0d4" : "#6b7280" }}>
                 {tx.tracking_number
                   ? `${tx.carrier ? tx.carrier + " · " : ""}${tx.tracking_number}`
                   : "—"}
@@ -1162,7 +1162,7 @@ const TransactionDetailPage = () => {
       <div style={s.panel}>
         <div style={s.panelTitle}>Audit Trail</div>
         {sortedEvents.length === 0 ? (
-          <p style={{ color: "#9ca3af", fontSize: 12 }}>No events recorded yet.</p>
+          <p style={{ color: "#6b7280", fontSize: 12 }}>No events recorded yet.</p>
         ) : (
           sortedEvents.map((event, idx) => {
             const detailText = event.description || event.details || null

@@ -234,7 +234,7 @@ const STATUS_CONFIG: Record<ServiceStatus, { color: string; bg: string; dot: str
   ok:            { color: "#22c55e", bg: "rgba(34,197,94,0.12)",   dot: "#22c55e", label: "OK"       },
   degraded:      { color: "#f59e0b", bg: "rgba(245,158,11,0.12)",  dot: "#f59e0b", label: "Degraded" },
   error:         { color: "#ef4444", bg: "rgba(239,68,68,0.12)",   dot: "#ef4444", label: "Error"    },
-  unconfigured:  { color: "#9ca3af", bg: "rgba(107,114,128,0.12)", dot: "#6b7280", label: "Not set"  },
+  unconfigured:  { color: "#6b7280", bg: "rgba(107,114,128,0.12)", dot: "#6b7280", label: "Not set"  },
 }
 
 const SERVICE_ICONS: Record<string, string> = {
@@ -277,7 +277,7 @@ function LatencyBadge({ ms }: { ms: number | null }) {
   if (ms === null) return null
   const color = ms < 300 ? "#22c55e" : ms < 1000 ? "#f59e0b" : "#ef4444"
   return (
-    <span style={{ fontSize: 11, color, fontFamily: "monospace", background: "rgba(255,255,255,0.06)", padding: "2px 6px", borderRadius: 4 }}>
+    <span style={{ fontSize: 11, color, fontFamily: "monospace", background: "rgba(0,0,0,0.04)", padding: "2px 6px", borderRadius: 4 }}>
       {ms}ms
     </span>
   )
@@ -290,7 +290,7 @@ function ServiceCard({ service }: { service: ServiceCheck }) {
 
   return (
     <div style={{
-      background: "#1c1915",
+      background: "#f8f7f6",
       border: `1px solid ${cfg.color}44`,
       borderRadius: 10,
       display: "flex",
@@ -322,7 +322,7 @@ function ServiceCard({ service }: { service: ServiceCheck }) {
           }}>
             {cfg.label}
           </span>
-          <p style={{ margin: 0, fontSize: 11, color: "#9ca3af", lineHeight: 1.5 }}>
+          <p style={{ margin: 0, fontSize: 11, color: "#6b7280", lineHeight: 1.5 }}>
             {service.message}
           </p>
         </div>
@@ -338,7 +338,7 @@ function ServiceCard({ service }: { service: ServiceCheck }) {
       {/* Key Info section */}
       {meta && (
         <div style={{
-          borderTop: "1px solid rgba(255,255,255,0.06)",
+          borderTop: "1px solid rgba(0,0,0,0.04)",
           background: "rgba(0,0,0,0.2)",
           padding: "12px 16px",
           display: "flex",
@@ -352,26 +352,26 @@ function ServiceCard({ service }: { service: ServiceCheck }) {
 
           {/* Key Functions */}
           <div>
-            <p style={{ margin: "0 0 4px", fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            <p style={{ margin: "0 0 4px", fontSize: 10, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em" }}>
               Key Functions
             </p>
             <ul style={{ margin: 0, paddingLeft: 14, display: "flex", flexDirection: "column", gap: 2 }}>
               {meta.keyFunctions.map((fn) => (
-                <li key={fn} style={{ fontSize: 11, color: "#9ca3af", lineHeight: 1.4 }}>{fn}</li>
+                <li key={fn} style={{ fontSize: 11, color: "#6b7280", lineHeight: 1.4 }}>{fn}</li>
               ))}
             </ul>
           </div>
 
           {/* Key Metrics */}
           <div>
-            <p style={{ margin: "0 0 4px", fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            <p style={{ margin: "0 0 4px", fontSize: 10, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em" }}>
               Key Metrics
             </p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 8px" }}>
               {meta.keyMetrics.map((m) => (
                 <span key={m} style={{
-                  fontSize: 10, color: "#9ca3af", background: "rgba(255,255,255,0.04)",
-                  padding: "2px 7px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.06)",
+                  fontSize: 10, color: "#6b7280", background: "rgba(0,0,0,0.03)",
+                  padding: "2px 7px", borderRadius: 4, border: "1px solid rgba(0,0,0,0.04)",
                 }}>
                   {m}
                 </span>
@@ -388,26 +388,26 @@ function ServiceCard({ service }: { service: ServiceCheck }) {
 
 function ArchitectureFlow() {
   const boxStyle = (accent?: string): React.CSSProperties => ({
-    border: `1px solid ${accent ? accent + "44" : "rgba(255,255,255,0.1)"}`,
+    border: `1px solid ${accent ? accent + "44" : "rgba(0,0,0,0.08)"}`,
     borderRadius: 8,
     padding: "8px 14px",
     textAlign: "center" as const,
-    background: accent ? `${accent}0d` : "rgba(255,255,255,0.02)",
+    background: accent ? `${accent}0d` : "rgba(0,0,0,0.02)",
   })
-  const labelStyle: React.CSSProperties = { fontSize: 10, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 3 }
+  const labelStyle: React.CSSProperties = { fontSize: 10, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 3 }
   const nameStyle: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: "#f5f0e8" }
-  const subStyle: React.CSSProperties = { fontSize: 10, color: "#9ca3af", marginTop: 2 }
-  const arrowStyle: React.CSSProperties = { color: "#9ca3af", fontSize: 16, textAlign: "center" }
+  const subStyle: React.CSSProperties = { fontSize: 10, color: "#6b7280", marginTop: 2 }
+  const arrowStyle: React.CSSProperties = { color: "#6b7280", fontSize: 16, textAlign: "center" }
 
   return (
     <div style={{
       marginBottom: 28,
       padding: "18px 20px",
-      background: "#1c1915",
-      border: "1px solid rgba(255,255,255,0.08)",
+      background: "#f8f7f6",
+      border: "1px solid rgba(0,0,0,0.06)",
       borderRadius: 12,
     }}>
-      <p style={{ margin: "0 0 16px", fontSize: 11, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+      <p style={{ margin: "0 0 16px", fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.1em" }}>
         System Architecture
       </p>
 
@@ -426,9 +426,9 @@ function ArchitectureFlow() {
           <p style={labelStyle}>Frontend</p>
           <p style={nameStyle}>🌐 Storefront</p>
           <p style={subStyle}>vod-auctions.com</p>
-          <p style={{ ...subStyle, color: "#9ca3af", marginTop: 4, fontSize: 10 }}>Next.js 16 · React 19</p>
+          <p style={{ ...subStyle, color: "#6b7280", marginTop: 4, fontSize: 10 }}>Next.js 16 · React 19</p>
         </div>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#9ca3af", fontSize: 14, paddingTop: 4 }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#6b7280", fontSize: 14, paddingTop: 4 }}>
           →
         </div>
         <div style={{ ...boxStyle(), flex: 1 }}>
@@ -438,7 +438,7 @@ function ArchitectureFlow() {
               <div key={name} style={{ textAlign: "center" }}>
                 <div style={{ fontSize: 16 }}>{icon}</div>
                 <div style={{ fontSize: 11, color: "#f5f0e8", fontWeight: 600 }}>{name}</div>
-                <div style={{ fontSize: 10, color: "#9ca3af" }}>{role}</div>
+                <div style={{ fontSize: 10, color: "#6b7280" }}>{role}</div>
               </div>
             ))}
           </div>
@@ -486,7 +486,7 @@ function ArchitectureFlow() {
             {col.items.map(([icon, name, role]) => (
               <div key={name} style={{ marginBottom: 4 }}>
                 <div style={{ fontSize: 11, color: "#f5f0e8", fontWeight: 600 }}>{icon} {name}</div>
-                <div style={{ fontSize: 10, color: "#9ca3af" }}>{role}</div>
+                <div style={{ fontSize: 10, color: "#6b7280" }}>{role}</div>
               </div>
             ))}
           </div>
@@ -561,12 +561,12 @@ export default function SystemHealthPage() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: "inherit" }}>System Health</h1>
-          <p style={{ margin: "4px 0 0", fontSize: 13, color: "#9ca3af" }}>
+          <p style={{ margin: "4px 0 0", fontSize: 13, color: "#6b7280" }}>
             {checkedAt ? `Last checked: ${checkedAt}` : "Checking all services…"}
           </p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#9ca3af", cursor: "pointer" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#6b7280", cursor: "pointer" }}>
             <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} style={{ accentColor: "#d4a54a" }} />
             Auto-refresh (30s)
           </label>
@@ -574,7 +574,7 @@ export default function SystemHealthPage() {
             onClick={fetchHealth}
             disabled={loading}
             style={{
-              background: "#d4a54a", color: "#1c1915", border: "none", borderRadius: 6,
+              background: "#d4a54a", color: "#f8f7f6", border: "none", borderRadius: 6,
               padding: "8px 16px", fontWeight: 600, fontSize: 13,
               cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.6 : 1,
               transition: "opacity 0.2s",
@@ -595,19 +595,19 @@ export default function SystemHealthPage() {
       {/* Summary bar */}
       {data && (
         <div style={{
-          display: "flex", gap: 12, marginBottom: 24, background: "#1c1915",
-          border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10,
+          display: "flex", gap: 12, marginBottom: 24, background: "#f8f7f6",
+          border: "1px solid rgba(0,0,0,0.06)", borderRadius: 10,
           padding: "14px 20px", flexWrap: "wrap",
         }}>
           {[
             { label: "All Systems", value: data.summary.total, color: "#f5f0e8" },
             { label: "✓ Operational", value: data.summary.ok, color: "#22c55e" },
             { label: "✗ Errors", value: data.summary.errors, color: "#ef4444" },
-            { label: "— Not Configured", value: data.summary.unconfigured, color: "#9ca3af" },
+            { label: "— Not Configured", value: data.summary.unconfigured, color: "#6b7280" },
           ].map((s) => (
-            <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 8, paddingRight: 20, borderRight: "1px solid rgba(255,255,255,0.08)" }}>
+            <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 8, paddingRight: 20, borderRight: "1px solid rgba(0,0,0,0.06)" }}>
               <span style={{ fontSize: 22, fontWeight: 700, color: s.color, lineHeight: 1 }}>{s.value}</span>
-              <span style={{ fontSize: 12, color: "#9ca3af" }}>{s.label}</span>
+              <span style={{ fontSize: 12, color: "#6b7280" }}>{s.label}</span>
             </div>
           ))}
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center" }}>
@@ -631,7 +631,7 @@ export default function SystemHealthPage() {
           <div style={{
             marginBottom: 12,
             padding: "14px 18px",
-            background: "#1c1915",
+            background: "#f8f7f6",
             border: `1px solid ${
               alerts.sync.status === "error" ? "rgba(239,68,68,0.35)" :
               alerts.sync.status === "warning" ? "rgba(245,158,11,0.35)" :
@@ -646,7 +646,7 @@ export default function SystemHealthPage() {
             <span style={{ fontSize: 16 }}>🔄</span>
             <div style={{ flex: 1 }}>
               <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "#f5f0e8" }}>Daily Sync</p>
-              <p style={{ margin: "2px 0 0", fontSize: 12, color: "#9ca3af" }}>{alerts.sync.message || "No sync data"}</p>
+              <p style={{ margin: "2px 0 0", fontSize: 12, color: "#6b7280" }}>{alerts.sync.message || "No sync data"}</p>
             </div>
             <span style={{
               fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" as const,
@@ -666,8 +666,8 @@ export default function SystemHealthPage() {
           {/* Sentry Issues */}
           <div style={{
             padding: "14px 18px",
-            background: "#1c1915",
-            border: "1px solid rgba(255,255,255,0.08)",
+            background: "#f8f7f6",
+            border: "1px solid rgba(0,0,0,0.06)",
             borderRadius: 10,
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
@@ -690,7 +690,7 @@ export default function SystemHealthPage() {
             </div>
 
             {!alerts.sentry.configured && (
-              <p style={{ margin: 0, fontSize: 12, color: "#9ca3af" }}>SENTRY_API_TOKEN not configured</p>
+              <p style={{ margin: 0, fontSize: 12, color: "#6b7280" }}>SENTRY_API_TOKEN not configured</p>
             )}
 
             {alerts.sentry.error && (
@@ -700,7 +700,7 @@ export default function SystemHealthPage() {
             {alerts.sentry.issues.length > 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {alerts.sentry.issues.map((issue) => {
-                  const levelColor = issue.level === "fatal" ? "#ef4444" : issue.level === "error" ? "#f87171" : issue.level === "warning" ? "#f59e0b" : "#9ca3af"
+                  const levelColor = issue.level === "fatal" ? "#ef4444" : issue.level === "error" ? "#f87171" : issue.level === "warning" ? "#f59e0b" : "#6b7280"
                   const levelBg = issue.level === "fatal" ? "rgba(239,68,68,0.15)" : issue.level === "error" ? "rgba(248,113,113,0.12)" : issue.level === "warning" ? "rgba(245,158,11,0.12)" : "rgba(107,114,128,0.1)"
                   const lastSeen = new Date(issue.lastSeen).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
                   return (
@@ -709,7 +709,7 @@ export default function SystemHealthPage() {
                       padding: "10px 12px",
                       background: "rgba(0,0,0,0.2)",
                       borderRadius: 6,
-                      border: "1px solid rgba(255,255,255,0.05)",
+                      border: "1px solid rgba(0,0,0,0.04)",
                     }}>
                       <span style={{
                         fontSize: 9, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase" as const,
@@ -728,7 +728,7 @@ export default function SystemHealthPage() {
                           {issue.culprit}
                         </p>
                       </div>
-                      <div style={{ textAlign: "right" as const, flexShrink: 0, fontSize: 11, color: "#9ca3af" }}>
+                      <div style={{ textAlign: "right" as const, flexShrink: 0, fontSize: 11, color: "#6b7280" }}>
                         <div>{Number(issue.count).toLocaleString()}×</div>
                         <div style={{ marginTop: 2, color: "#6b7280" }}>{lastSeen}</div>
                       </div>
@@ -748,7 +748,7 @@ export default function SystemHealthPage() {
       {loading && !data && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 14 }}>
           {[...Array(14)].map((_, i) => (
-            <div key={i} style={{ background: "#1c1915", borderRadius: 10, height: 200, animation: "pulse 1.5s ease-in-out infinite", opacity: 0.5 }} />
+            <div key={i} style={{ background: "#f8f7f6", borderRadius: 10, height: 200, animation: "pulse 1.5s ease-in-out infinite", opacity: 0.5 }} />
           ))}
         </div>
       )}
@@ -765,16 +765,16 @@ export default function SystemHealthPage() {
             return (
               <div key={cat.id}>
                 {/* Section header */}
-                <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 12, borderBottom: "1px solid rgba(255,255,255,0.06)", paddingBottom: 10 }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 12, borderBottom: "1px solid rgba(0,0,0,0.04)", paddingBottom: 10 }}>
                   <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "inherit" }}>{cat.label}</h2>
-                  <p style={{ margin: 0, fontSize: 12, color: "#9ca3af" }}>{cat.description}</p>
+                  <p style={{ margin: 0, fontSize: 12, color: "#6b7280" }}>{cat.description}</p>
                   {catErrors > 0 && (
                     <span style={{ marginLeft: "auto", fontSize: 11, color: "#ef4444", background: "rgba(239,68,68,0.1)", padding: "2px 8px", borderRadius: 4 }}>
                       {catErrors} error{catErrors > 1 ? "s" : ""}
                     </span>
                   )}
                   {catErrors === 0 && catUnconfigured > 0 && (
-                    <span style={{ marginLeft: "auto", fontSize: 11, color: "#9ca3af", background: "rgba(107,114,128,0.1)", padding: "2px 8px", borderRadius: 4 }}>
+                    <span style={{ marginLeft: "auto", fontSize: 11, color: "#6b7280", background: "rgba(107,114,128,0.1)", padding: "2px 8px", borderRadius: 4 }}>
                       {catUnconfigured} not configured
                     </span>
                   )}
@@ -798,9 +798,9 @@ export default function SystemHealthPage() {
           {/* Orphan services (safety net) */}
           {orphanServices.length > 0 && (
             <div>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 12, borderBottom: "1px solid rgba(255,255,255,0.06)", paddingBottom: 10 }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 12, borderBottom: "1px solid rgba(0,0,0,0.04)", paddingBottom: 10 }}>
                 <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "inherit" }}>Other</h2>
-                <p style={{ margin: 0, fontSize: 12, color: "#9ca3af" }}>Uncategorised services</p>
+                <p style={{ margin: 0, fontSize: 12, color: "#6b7280" }}>Uncategorised services</p>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 14 }}>
                 {orphanServices.map((service) => (
@@ -813,7 +813,7 @@ export default function SystemHealthPage() {
       )}
 
       {/* Quick links */}
-      <div style={{ marginTop: 36, padding: "16px 20px", background: "#1c1915", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10 }}>
+      <div style={{ marginTop: 36, padding: "16px 20px", background: "#f8f7f6", border: "1px solid rgba(0,0,0,0.06)", borderRadius: 10 }}>
         <p style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 600, color: "#f5f0e8" }}>Quick Links</p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           {[

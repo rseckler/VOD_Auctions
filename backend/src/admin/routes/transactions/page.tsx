@@ -52,16 +52,16 @@ type Transaction = {
 const CARRIERS = ["DHL", "DPD", "Hermes", "GLS", "UPS", "FedEx", "Deutsche Post"]
 
 const STATUS_PILL: Record<string, { bg: string; color: string }> = {
-  pending:            { bg: "transparent", color: "#9ca3af" },
+  pending:            { bg: "transparent", color: "#6b7280" },
   paid:               { bg: "#dcfce7", color: "#15803d" },
   failed:             { bg: "#fee2e2", color: "#b91c1c" },
   refunded:           { bg: "#ede9fe", color: "#6d28d9" },
-  cancelled:          { bg: "transparent", color: "#9ca3af" },
+  cancelled:          { bg: "transparent", color: "#6b7280" },
   partially_refunded: { bg: "#fef3c7", color: "#92400e" },
 }
 
 const FULFILLMENT_PILL: Record<string, { bg: string; color: string }> = {
-  unfulfilled: { bg: "transparent", color: "#9ca3af" },
+  unfulfilled: { bg: "transparent", color: "#6b7280" },
   packing:     { bg: "#dbeafe", color: "#1d4ed8" },
   shipped:     { bg: "#dbeafe", color: "#1d4ed8" },
   delivered:   { bg: "#dcfce7", color: "#15803d" },
@@ -350,18 +350,18 @@ const TransactionsPage = () => {
           onClick={() => exportTransactions()}
           style={{
             padding: "6px 14px", fontSize: 13, fontWeight: 500,
-            background: "var(--bg-component, #1a1714)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6,
-            cursor: "pointer", color: "#d1d5db",
+            background: "var(--bg-component, #1a1714)", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 6,
+            cursor: "pointer", color: "#1f2937",
           }}
-          onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.04)")}
-          onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,255,255,0.04)")}
+          onMouseEnter={e => (e.currentTarget.style.background = "rgba(0,0,0,0.02)")}
+          onMouseLeave={e => (e.currentTarget.style.background = "rgba(0,0,0,0.02)")}
         >
           Export CSV
         </button>
       </div>
 
       {/* Quick Tabs */}
-      <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.1)", marginBottom: 16 }}>
+      <div style={{ display: "flex", borderBottom: "1px solid rgba(0,0,0,0.08)", marginBottom: 16 }}>
         {QUICK_TABS.map(tab => (
           <button
             key={tab.id}
@@ -369,7 +369,7 @@ const TransactionsPage = () => {
             style={{
               padding: "8px 16px", fontSize: 13,
               fontWeight: activeTab === tab.id ? 600 : 400,
-              color: activeTab === tab.id ? "#e8e0d4" : "#9ca3af",
+              color: activeTab === tab.id ? "#e8e0d4" : "#6b7280",
               background: "none", border: "none",
               borderBottom: activeTab === tab.id ? "2px solid #111827" : "2px solid transparent",
               cursor: "pointer", marginBottom: -1, transition: "color 0.1s",
@@ -389,8 +389,8 @@ const TransactionsPage = () => {
             onChange={e => setSearch(e.target.value)}
             style={{
               width: "100%", padding: "7px 12px", fontSize: 13,
-              border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6,
-              background: "var(--bg-component, #1a1714)", color: "#d1d5db", outline: "none",
+              border: "1px solid rgba(0,0,0,0.08)", borderRadius: 6,
+              background: "var(--bg-component, #1a1714)", color: "#1f2937", outline: "none",
               boxSizing: "border-box",
             }}
           />
@@ -400,9 +400,9 @@ const TransactionsPage = () => {
           style={{
             padding: "7px 14px", fontSize: 13, fontWeight: 500,
             background: showFilters || hasAdvancedFilters ? "rgba(99,102,241,0.15)" : "transparent",
-            border: showFilters || hasAdvancedFilters ? "1px solid rgba(99,102,241,0.5)" : "1px solid rgba(255,255,255,0.1)",
+            border: showFilters || hasAdvancedFilters ? "1px solid rgba(99,102,241,0.5)" : "1px solid rgba(0,0,0,0.08)",
             borderRadius: 6, cursor: "pointer",
-            color: showFilters || hasAdvancedFilters ? "#818cf8" : "#9ca3af",
+            color: showFilters || hasAdvancedFilters ? "#818cf8" : "#6b7280",
             display: "flex", alignItems: "center", gap: 6,
           }}
         >
@@ -413,21 +413,21 @@ const TransactionsPage = () => {
       {/* Advanced Filters (collapsible) */}
       {showFilters && (
         <div style={{
-          background: "transparent", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8,
+          background: "transparent", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 8,
           padding: "14px 16px", marginBottom: 16,
           display: "flex", flexWrap: "wrap", gap: "16px 32px", alignItems: "flex-end",
         }}>
           {/* Payment */}
           <div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Payment</div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Payment</div>
             <div style={{ display: "flex", gap: 4 }}>
               {PAYMENT_STATUSES.map(s => (
                 <button key={s.value} onClick={() => setStatusFilter(s.value)} style={{
                   padding: "4px 10px", fontSize: 12, borderRadius: 5, cursor: "pointer",
                   fontWeight: statusFilter === s.value ? 600 : 400,
                   background: statusFilter === s.value ? "#d4a54a" : "transparent",
-                  color: statusFilter === s.value ? "#1c1915" : "#9ca3af",
-                  border: statusFilter === s.value ? "1px solid #d4a54a" : "1px solid rgba(255,255,255,0.1)",
+                  color: statusFilter === s.value ? "#1c1915" : "#6b7280",
+                  border: statusFilter === s.value ? "1px solid #d4a54a" : "1px solid rgba(0,0,0,0.08)",
                 }}>
                   {s.label}
                 </button>
@@ -437,15 +437,15 @@ const TransactionsPage = () => {
 
           {/* Fulfillment */}
           <div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Fulfillment</div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Fulfillment</div>
             <div style={{ display: "flex", gap: 4 }}>
               {FULFILLMENT_STATUSES.map(s => (
                 <button key={s.value} onClick={() => setFulfillmentFilter(s.value)} style={{
                   padding: "4px 10px", fontSize: 12, borderRadius: 5, cursor: "pointer",
                   fontWeight: fulfillmentFilter === s.value ? 600 : 400,
                   background: fulfillmentFilter === s.value ? "#d4a54a" : "transparent",
-                  color: fulfillmentFilter === s.value ? "#1c1915" : "#9ca3af",
-                  border: fulfillmentFilter === s.value ? "1px solid #d4a54a" : "1px solid rgba(255,255,255,0.1)",
+                  color: fulfillmentFilter === s.value ? "#1c1915" : "#6b7280",
+                  border: fulfillmentFilter === s.value ? "1px solid #d4a54a" : "1px solid rgba(0,0,0,0.08)",
                 }}>
                   {s.label}
                 </button>
@@ -455,15 +455,15 @@ const TransactionsPage = () => {
 
           {/* Provider */}
           <div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Provider</div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Provider</div>
             <div style={{ display: "flex", gap: 4 }}>
               {PROVIDERS.map(p => (
                 <button key={p.value} onClick={() => setProviderFilter(p.value)} style={{
                   padding: "4px 10px", fontSize: 12, borderRadius: 5, cursor: "pointer",
                   fontWeight: providerFilter === p.value ? 600 : 400,
                   background: providerFilter === p.value ? "#d4a54a" : "transparent",
-                  color: providerFilter === p.value ? "#1c1915" : "#9ca3af",
-                  border: providerFilter === p.value ? "1px solid #d4a54a" : "1px solid rgba(255,255,255,0.1)",
+                  color: providerFilter === p.value ? "#1c1915" : "#6b7280",
+                  border: providerFilter === p.value ? "1px solid #d4a54a" : "1px solid rgba(0,0,0,0.08)",
                 }}>
                   {p.label}
                 </button>
@@ -473,21 +473,21 @@ const TransactionsPage = () => {
 
           {/* Date Range */}
           <div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Date Range</div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Date Range</div>
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
               <input
                 type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-                style={{ padding: "4px 8px", fontSize: 12, border: "1px solid rgba(255,255,255,0.1)", borderRadius: 5, background: "var(--bg-component, #1a1714)" }}
+                style={{ padding: "4px 8px", fontSize: 12, border: "1px solid rgba(0,0,0,0.08)", borderRadius: 5, background: "var(--bg-component, #1a1714)" }}
               />
-              <span style={{ fontSize: 12, color: "#9ca3af" }}>–</span>
+              <span style={{ fontSize: 12, color: "#6b7280" }}>–</span>
               <input
                 type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-                style={{ padding: "4px 8px", fontSize: 12, border: "1px solid rgba(255,255,255,0.1)", borderRadius: 5, background: "var(--bg-component, #1a1714)" }}
+                style={{ padding: "4px 8px", fontSize: 12, border: "1px solid rgba(0,0,0,0.08)", borderRadius: 5, background: "var(--bg-component, #1a1714)" }}
               />
               {(dateFrom || dateTo) && (
                 <button onClick={() => { setDateFrom(""); setDateTo("") }} style={{
-                  padding: "4px 8px", fontSize: 12, border: "1px solid rgba(255,255,255,0.1)",
-                  borderRadius: 5, cursor: "pointer", background: "var(--bg-component, #1a1714)", color: "#9ca3af",
+                  padding: "4px 8px", fontSize: 12, border: "1px solid rgba(0,0,0,0.08)",
+                  borderRadius: 5, cursor: "pointer", background: "var(--bg-component, #1a1714)", color: "#6b7280",
                 }}>Clear</button>
               )}
             </div>
@@ -505,11 +505,11 @@ const TransactionsPage = () => {
           <Text className="text-ui-fg-subtle">No orders found.</Text>
         </div>
       ) : (
-        <div style={{ border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, overflow: "hidden" }}>
+        <div style={{ border: "1px solid rgba(0,0,0,0.08)", borderRadius: 8, overflow: "hidden" }}>
           <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
-              <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)", background: "transparent" }}>
+              <tr style={{ borderBottom: "1px solid rgba(0,0,0,0.08)", background: "transparent" }}>
                 <th style={{ width: 40, padding: "8px 14px", textAlign: "left" }}>
                   <input
                     type="checkbox"
@@ -521,7 +521,7 @@ const TransactionsPage = () => {
                 {["Order #", "Item", "Customer", "Amount", "Payment", "Fulfillment", "Tracking", "Date", ""].map(h => (
                   <th key={h} style={{
                     textAlign: "left", padding: "8px 14px",
-                    fontSize: 10, fontWeight: 700, color: "#9ca3af",
+                    fontSize: 10, fontWeight: 700, color: "#6b7280",
                     textTransform: "uppercase", letterSpacing: "0.05em",
                   }}>{h}</th>
                 ))}
@@ -531,13 +531,13 @@ const TransactionsPage = () => {
               {transactions.map(tx => (
                 <tr
                   key={tx.id}
-                  style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", cursor: "pointer", background: "transparent", transition: "background 0.1s" }}
+                  style={{ borderBottom: "1px solid rgba(0,0,0,0.04)", cursor: "pointer", background: "transparent", transition: "background 0.1s" }}
                   onClick={e => {
                     const target = e.target as HTMLElement
                     if (target.tagName === "INPUT" || target.tagName === "BUTTON" || target.tagName === "SELECT" || target.closest("button") || target.closest("input") || target.closest("[data-no-nav]")) return
                     window.location.href = `/app/transactions/${tx.id}`
                   }}
-                  onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.04)")}
+                  onMouseEnter={e => (e.currentTarget.style.background = "rgba(0,0,0,0.02)")}
                   onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
                 >
                   {/* Checkbox */}
@@ -547,21 +547,21 @@ const TransactionsPage = () => {
 
                   {/* Order # */}
                   <td style={{ padding: "12px 14px", whiteSpace: "nowrap" }}>
-                    <span style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 600, color: "#d1d5db" }}>
+                    <span style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 600, color: "#1f2937" }}>
                       {tx.order_number || tx.id.slice(0, 12) + "…"}
                     </span>
                   </td>
 
                   {/* Item */}
                   <td style={{ padding: "12px 14px", maxWidth: 200 }}>
-                    <div style={{ fontWeight: 600, color: "#d1d5db", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    <div style={{ fontWeight: 600, color: "#1f2937", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {itemLabel(tx)}
                     </div>
                     {tx.article_number && (
-                      <div style={{ fontSize: 11, color: "#9ca3af" }}>{tx.article_number}</div>
+                      <div style={{ fontSize: 11, color: "#6b7280" }}>{tx.article_number}</div>
                     )}
                     {tx.block_title && (
-                      <div style={{ fontSize: 11, color: "#9ca3af", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      <div style={{ fontSize: 11, color: "#6b7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                         {tx.block_title}{tx.lot_number ? ` · Lot #${tx.lot_number}` : ""}
                       </div>
                     )}
@@ -569,37 +569,37 @@ const TransactionsPage = () => {
 
                   {/* Customer */}
                   <td style={{ padding: "12px 14px" }}>
-                    <div style={{ fontWeight: 500, color: "#d1d5db", fontSize: 13 }}>
+                    <div style={{ fontWeight: 500, color: "#1f2937", fontSize: 13 }}>
                       {tx.customer_name || tx.shipping_name || "—"}
                     </div>
                     {tx.customer_email && (
-                      <div style={{ fontSize: 11, color: "#9ca3af" }}>{tx.customer_email}</div>
+                      <div style={{ fontSize: 11, color: "#6b7280" }}>{tx.customer_email}</div>
                     )}
                     {tx.shipping_country && (
-                      <div style={{ fontSize: 11, color: "#9ca3af" }}>{tx.shipping_city ? `${tx.shipping_city}, ` : ""}{tx.shipping_country}</div>
+                      <div style={{ fontSize: 11, color: "#6b7280" }}>{tx.shipping_city ? `${tx.shipping_city}, ` : ""}{tx.shipping_country}</div>
                     )}
                   </td>
 
                   {/* Amount */}
                   <td style={{ padding: "12px 14px", whiteSpace: "nowrap" }}>
-                    <span style={{ fontFamily: "monospace", fontWeight: 700, color: "#d1d5db" }}>
+                    <span style={{ fontFamily: "monospace", fontWeight: 700, color: "#1f2937" }}>
                       €{Number(tx.total_amount).toFixed(2)}
                     </span>
                     {tx.payment_provider && (
-                      <div style={{ fontSize: 11, color: "#9ca3af", textTransform: "capitalize" }}>{tx.payment_provider}</div>
+                      <div style={{ fontSize: 11, color: "#6b7280", textTransform: "capitalize" }}>{tx.payment_provider}</div>
                     )}
                   </td>
 
                   {/* Payment status */}
                   <td style={{ padding: "12px 14px" }}>
-                    <Pill label={tx.status} style={STATUS_PILL[tx.status] || { bg: "transparent", color: "#9ca3af" }} />
+                    <Pill label={tx.status} style={STATUS_PILL[tx.status] || { bg: "transparent", color: "#6b7280" }} />
                   </td>
 
                   {/* Fulfillment status */}
                   <td style={{ padding: "12px 14px" }}>
                     {(() => {
                       const fs = tx.fulfillment_status || tx.shipping_status || "unfulfilled"
-                      return <Pill label={fs} style={FULFILLMENT_PILL[fs] || { bg: "transparent", color: "#9ca3af" }} />
+                      return <Pill label={fs} style={FULFILLMENT_PILL[fs] || { bg: "transparent", color: "#6b7280" }} />
                     })()}
                   </td>
 
@@ -607,16 +607,16 @@ const TransactionsPage = () => {
                   <td style={{ padding: "12px 14px" }}>
                     {tx.tracking_number ? (
                       <div>
-                        <div style={{ fontSize: 11, fontFamily: "monospace", color: "#d1d5db" }}>{tx.tracking_number}</div>
-                        {tx.carrier && <div style={{ fontSize: 11, color: "#9ca3af" }}>{tx.carrier}</div>}
+                        <div style={{ fontSize: 11, fontFamily: "monospace", color: "#1f2937" }}>{tx.tracking_number}</div>
+                        {tx.carrier && <div style={{ fontSize: 11, color: "#6b7280" }}>{tx.carrier}</div>}
                       </div>
                     ) : (
-                      <span style={{ color: "#d1d5db", fontSize: 12 }}>—</span>
+                      <span style={{ color: "#1f2937", fontSize: 12 }}>—</span>
                     )}
                   </td>
 
                   {/* Date */}
-                  <td style={{ padding: "12px 14px", whiteSpace: "nowrap", color: "#9ca3af", fontSize: 12 }}>
+                  <td style={{ padding: "12px 14px", whiteSpace: "nowrap", color: "#6b7280", fontSize: 12 }}>
                     {formatDate(tx.paid_at || tx.created_at)}
                   </td>
 
@@ -646,7 +646,7 @@ const TransactionsPage = () => {
                           ) : (
                             <span
                               onClick={() => setShippingDialog(tx.id)}
-                              style={{ display: "inline-block", padding: "4px 10px", fontSize: 12, fontWeight: 600, background: "#d1d5db", color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", whiteSpace: "nowrap", lineHeight: "18px" }}
+                              style={{ display: "inline-block", padding: "4px 10px", fontSize: 12, fontWeight: 600, background: "#1f2937", color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", whiteSpace: "nowrap", lineHeight: "18px" }}
                             >
                               Ship →
                             </span>
@@ -656,7 +656,7 @@ const TransactionsPage = () => {
                       {tx.status === "paid" && (tx.fulfillment_status === "shipped" || tx.shipping_status === "shipped") && (
                         <span
                           onClick={() => markAsDelivered(tx.id)}
-                          style={{ display: "inline-block", padding: "4px 10px", fontSize: 12, background: "var(--bg-component, #1a1714)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 5, cursor: "pointer", color: "#d1d5db", whiteSpace: "nowrap", lineHeight: "18px" }}
+                          style={{ display: "inline-block", padding: "4px 10px", fontSize: 12, background: "var(--bg-component, #1a1714)", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 5, cursor: "pointer", color: "#1f2937", whiteSpace: "nowrap", lineHeight: "18px" }}
                         >
                           Delivered
                         </span>
@@ -692,15 +692,15 @@ const TransactionsPage = () => {
       {!loading && totalCount > 0 && (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: 13, color: "#9ca3af" }}>
+            <span style={{ fontSize: 13, color: "#6b7280" }}>
               {showFrom}–{showTo} of {totalCount}
             </span>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ fontSize: 12, color: "#9ca3af" }}>Per page:</span>
+              <span style={{ fontSize: 12, color: "#6b7280" }}>Per page:</span>
               <select
                 value={pageSize}
                 onChange={e => { setPageSize(Number(e.target.value)); setOffset(0) }}
-                style={{ padding: "3px 6px", fontSize: 12, border: "1px solid rgba(255,255,255,0.1)", borderRadius: 4, background: "var(--bg-component, #1a1714)" }}
+                style={{ padding: "3px 6px", fontSize: 12, border: "1px solid rgba(0,0,0,0.08)", borderRadius: 4, background: "var(--bg-component, #1a1714)" }}
               >
                 {PAGE_SIZES.map(size => <option key={size} value={size}>{size}</option>)}
               </select>
@@ -710,13 +710,13 @@ const TransactionsPage = () => {
             <button
               disabled={offset === 0}
               onClick={() => setOffset(Math.max(0, offset - pageSize))}
-              style={{ padding: "5px 12px", fontSize: 12, border: "1px solid rgba(255,255,255,0.1)", borderRadius: 5, cursor: offset === 0 ? "not-allowed" : "pointer", background: "var(--bg-component, #1a1714)", color: offset === 0 ? "#d1d5db" : "#374151" }}
+              style={{ padding: "5px 12px", fontSize: 12, border: "1px solid rgba(0,0,0,0.08)", borderRadius: 5, cursor: offset === 0 ? "not-allowed" : "pointer", background: "var(--bg-component, #1a1714)", color: offset === 0 ? "#1f2937" : "#374151" }}
             >← Prev</button>
-            <span style={{ fontSize: 12, color: "#9ca3af" }}>Page {currentPage} of {totalPages}</span>
+            <span style={{ fontSize: 12, color: "#6b7280" }}>Page {currentPage} of {totalPages}</span>
             <button
               disabled={offset + pageSize >= totalCount}
               onClick={() => setOffset(offset + pageSize)}
-              style={{ padding: "5px 12px", fontSize: 12, border: "1px solid rgba(255,255,255,0.1)", borderRadius: 5, cursor: offset + pageSize >= totalCount ? "not-allowed" : "pointer", background: "var(--bg-component, #1a1714)", color: offset + pageSize >= totalCount ? "#d1d5db" : "#374151" }}
+              style={{ padding: "5px 12px", fontSize: 12, border: "1px solid rgba(0,0,0,0.08)", borderRadius: 5, cursor: offset + pageSize >= totalCount ? "not-allowed" : "pointer", background: "var(--bg-component, #1a1714)", color: offset + pageSize >= totalCount ? "#1f2937" : "#374151" }}
             >Next →</button>
           </div>
         </div>
@@ -726,27 +726,27 @@ const TransactionsPage = () => {
       {selected.size > 0 && (
         <div style={{
           position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
-          background: "#d1d5db", color: "#fff", borderRadius: 10,
+          background: "#1f2937", color: "#fff", borderRadius: 10,
           padding: "12px 24px", display: "flex", alignItems: "center", gap: 16,
           boxShadow: "0 4px 24px rgba(0,0,0,0.2)", zIndex: 50, whiteSpace: "nowrap",
         }}>
           <span style={{ fontSize: 13, fontWeight: 600 }}>{selected.size} selected</span>
-          <div style={{ width: 1, height: 20, background: "rgba(255,255,255,0.2)" }} />
+          <div style={{ width: 1, height: 20, background: "rgba(0,0,0,0.1)" }} />
           <button
             onClick={() => setBulkShipDialog(true)}
-            style={{ padding: "6px 14px", fontSize: 13, fontWeight: 600, background: "var(--bg-component, #1a1714)", color: "#d1d5db", border: "none", borderRadius: 6, cursor: "pointer" }}
+            style={{ padding: "6px 14px", fontSize: 13, fontWeight: 600, background: "var(--bg-component, #1a1714)", color: "#1f2937", border: "none", borderRadius: 6, cursor: "pointer" }}
           >
             Mark as Shipped
           </button>
           <button
             onClick={() => exportTransactions(Array.from(selected))}
-            style={{ padding: "6px 14px", fontSize: 13, background: "rgba(255,255,255,0.15)", color: "#fff", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 6, cursor: "pointer" }}
+            style={{ padding: "6px 14px", fontSize: 13, background: "rgba(0,0,0,0.06)", color: "#fff", border: "1px solid rgba(0,0,0,0.15)", borderRadius: 6, cursor: "pointer" }}
           >
             Export
           </button>
           <button
             onClick={() => setSelected(new Set())}
-            style={{ padding: "6px 14px", fontSize: 13, background: "none", color: "rgba(255,255,255,0.6)", border: "none", cursor: "pointer" }}
+            style={{ padding: "6px 14px", fontSize: 13, background: "none", color: "rgba(0,0,0,0.4)", border: "none", cursor: "pointer" }}
           >
             Clear
           </button>

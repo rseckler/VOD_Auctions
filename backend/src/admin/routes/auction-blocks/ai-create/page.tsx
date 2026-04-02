@@ -36,7 +36,7 @@ function LogLine({ entry }: { entry: LogEntry }) {
         fontSize: 12,
       }}>
         <div style={{ fontWeight: 700, color: "#0369a1", marginBottom: 4 }}>{label}</div>
-        <pre style={{ margin: 0, color: "#d1d5db", fontSize: 11, overflow: "auto", maxHeight: 120 }}>{inputStr}</pre>
+        <pre style={{ margin: 0, color: "#1f2937", fontSize: 11, overflow: "auto", maxHeight: 120 }}>{inputStr}</pre>
       </div>
     )
   }
@@ -65,7 +65,7 @@ function LogLine({ entry }: { entry: LogEntry }) {
             </a>
           )}
         </div>
-        <pre style={{ margin: 0, color: "#d1d5db", overflow: "auto", maxHeight: 200 }}>{resultStr}</pre>
+        <pre style={{ margin: 0, color: "#1f2937", overflow: "auto", maxHeight: 200 }}>{resultStr}</pre>
       </div>
     )
   }
@@ -170,7 +170,7 @@ export default function AICreateAuctionPage() {
   return (
     <div style={{ maxWidth: 800, margin: "0 auto", padding: "24px 16px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
-        <a href="/app/auction-blocks" style={{ color: "#9ca3af", fontSize: 13 }}>← Auction Blocks</a>
+        <a href="/app/auction-blocks" style={{ color: "#6b7280", fontSize: 13 }}>← Auction Blocks</a>
         <div>
           <Heading level="h1">✨ AI Auction Creator</Heading>
           <Text className="text-ui-fg-subtle" style={{ marginTop: 2 }}>
@@ -181,7 +181,7 @@ export default function AICreateAuctionPage() {
 
       <Container style={{ marginBottom: 20 }}>
         <div style={{ marginBottom: 12 }}>
-          <label style={{ display: "block", fontWeight: 600, fontSize: 13, marginBottom: 6, color: "#d1d5db" }}>
+          <label style={{ display: "block", fontWeight: 600, fontSize: 13, marginBottom: 6, color: "#1f2937" }}>
             Auction Brief
           </label>
           <textarea
@@ -193,7 +193,7 @@ export default function AICreateAuctionPage() {
               width: "100%",
               minHeight: 100,
               padding: "10px 12px",
-              border: "1px solid #d1d5db",
+              border: "1px solid #1f2937",
               borderRadius: 6,
               fontSize: 13,
               fontFamily: "inherit",
@@ -217,7 +217,7 @@ export default function AICreateAuctionPage() {
 
       {log.length > 0 && (
         <Container>
-          <div style={{ fontWeight: 700, fontSize: 12, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 12 }}>
+          <div style={{ fontWeight: 700, fontSize: 12, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 12 }}>
             Activity Log
           </div>
           <div style={{ maxHeight: 600, overflowY: "auto" }}>
@@ -225,7 +225,7 @@ export default function AICreateAuctionPage() {
               <LogLine key={i} entry={entry} />
             ))}
             {running && (
-              <div style={{ color: "#9ca3af", fontSize: 12, margin: "8px 0", display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ color: "#6b7280", fontSize: 12, margin: "8px 0", display: "flex", alignItems: "center", gap: 6 }}>
                 <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#3b82f6", animation: "pulse 1s infinite" }} />
                 Claude is thinking…
               </div>

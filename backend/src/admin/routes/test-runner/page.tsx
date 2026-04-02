@@ -151,7 +151,7 @@ function colorLine(line: string): { text: string; color: string } {
   if (/›/.test(line)) {
     return { text: line, color: "#a78bfa" }
   }
-  return { text: line, color: "#d1d5db" }
+  return { text: line, color: "#1f2937" }
 }
 
 function LiveTerminal({ lines, status }: { lines: string[]; status: "running" | "completed" | "failed" | null }) {
@@ -173,7 +173,7 @@ function LiveTerminal({ lines, status }: { lines: string[]; status: "running" | 
         lineHeight: "1.6",
         maxHeight: 420,
         overflowY: "auto",
-        color: "#d1d5db",
+        color: "#1f2937",
       }}
     >
       {lines.length === 0 && status === "running" && (
