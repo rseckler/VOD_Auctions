@@ -209,9 +209,9 @@ export async function GET(
 
   // ── Discogs sync info ────────────────────────────────────────────────────
   const lastSync = await pg("sync_change_log")
-    .orderBy("created_at", "desc")
+    .orderBy("synced_at", "desc")
     .limit(1)
-    .select("sync_run_id", "created_at")
+    .select("sync_run_id", "synced_at")
     .first()
 
   // ── Auction block details for "Live Now" ─────────────────────────────────
@@ -258,6 +258,6 @@ export async function GET(
     actions,
     activity,
     auctions: liveBlocks,
-    last_sync: lastSync ? lastSync.created_at : null,
+    last_sync: lastSync ? lastSync.synced_at : null,
   })
 }
