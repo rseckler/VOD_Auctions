@@ -4,6 +4,46 @@ Vollständiger Entwicklungs-Changelog. Neue Einträge werden direkt hier ergänz
 
 ---
 
+## 2026-04-02 — Admin Config Panel + Pre-Launch System (Stufe 1)
+
+### Admin Configuration Panel — `/admin/config`
+- **Neue Seite** `/admin/config` mit 4 Tabs: General, Access/Launch, Auction, Change History
+- **Platform Mode** (`pre_launch`/`preview`/`live`/`maintenance`) — farbiger Badge im Admin-Header
+- **Go-Live Pre-Flight Checklist** — 6 automatische Checks (Shipping, Stripe, PayPal, Auktionen, Legal, Support), typed "GO LIVE" Bestätigung, E-Mail-Benachrichtigung an frank@vod-records.com
+- **site_config erweitert** um 11 neue Spalten (platform_mode, gate_password, invite toggles, auction settings)
+- **Config Audit Log** — `config_audit_log` Tabelle + Change History Tab zeigt wer wann was geändert hat
+- **In-Memory-Cache** mit 5-min TTL für site_config (reduziert DB-Calls bei jedem Request)
+- **API-Routes:** `GET/POST /admin/site-config`, `GET /admin/site-config/audit-log`, `GET/POST /admin/site-config/go-live`, `GET /store/site-mode`
+
+### Pre-Launch Waitlist & Invite System
+- **Bewerbungsformular** `/apply` — öffentlich erreichbar (Middleware-Whitelist): Name, Email, Land, Genre-Checkboxen, Kaufverhalten, Referrer. Vinyl Culture Dark Design.
+- **Bestätigungsseite** `/apply/confirm` — nach erfolgreicher Bewerbung
+- **Token-Einlösung** `/invite/[token]` — validiert Token, zeigt Registrierungsformular mit vorausgefüllter E-Mail, erstellt Medusa-Account, setzt `vod_invite_session` Cookie
+- **Token-Format:** `VOD-XXXXX-XXXXX` (10 Zeichen Base62, crypto.randomBytes, 62^10 Kombinationen)
+- **Token-Gültigkeit:** 21 Tage, einmalig nutzbar, Security-Log in `invite_token_attempts`
+- **Admin Waitlist** `/admin/waitlist` — Stats-Header, filterbarer Tabelle, Bulk-Approve + Invite, Token-Tab
+- **Admin Invite Tokens** `/admin/invite-tokens` — Token-Übersicht, manuelles Token erstellen, Revoke
+- **2 neue E-Mail-Templates:** `waitlist-confirm` ("Application received") + `invite-welcome` ("[Name], your access is ready") — registriert in `/app/emails` mit Preview + Send Test
+- **Middleware Upgrade:** Akzeptiert sowohl `vod_access` (Passwort-Gate) als auch `vod_invite_session` (Invite) Cookies
+
+### Datenbank
+- **4 neue Tabellen:** `config_audit_log`, `waitlist_applications`, `invite_tokens`, `invite_token_attempts`
+- **11 neue Spalten** in `site_config` (Stufe 1 — Stufe 2 zurückgestellt)
+
+### Bid-Ending-Soon Reminder E-Mails
+- **4 neue Timer-E-Mails** an alle aktiven Bidder: 24h, 8h, 1h, 5 Minuten vor Lot-Ende
+- Adaptives Template: Gold-Ton (24h/8h) → Orange (1h) → Rot (5m), Winning/Outbid Status-Badge
+- **Cron-Job** `bid-ending-reminder.ts` — läuft jede Minute, `bid_ending_reminder` Tabelle verhindert Duplikate
+- Registriert in `/app/emails` (4 Einträge mit Preview + Send Test)
+
+### Konzept-Dokumente
+- `docs/PRE_LAUNCH_KONZEPT.md` — vollständiger Plan mit Flow, DB-Schema, E-Mail-Kampagne, Wave-Strategie
+- `docs/ADMIN_CONFIG_KONZEPT.md` — Stufe 1/2 Trennung, 6 Sektionen, Toggle-Risiko-Stufen
+- `docs/mockups/pre-launch-flow.html` — 7-Sektionen HTML-Präsentation für Marketing
+- `docs/mockups/admin-config-panel.html` — 7-Sektionen HTML-Präsentation
+
+---
+
 ## 2026-04-02 — Upstash Redis konfiguriert
 
 ### Upstash Redis (Cache) — aktiviert
