@@ -1,6 +1,20 @@
 # VOD Auctions — Changelog
 
-Vollständiger Entwicklungs-Changelog. Aktuelle Änderungen stehen in CLAUDE.md.
+Vollständiger Entwicklungs-Changelog. Neue Einträge werden direkt hier ergänzt — nicht mehr in CLAUDE.md.
+
+---
+
+## 2026-04-10 — Newsletter Confirm Fix + Address Delete Fix (Testlauf-Bugs)
+
+### Bug 1 — Newsletter Confirm: Publishable API Key Error
+- **Root cause:** Confirm-Link in der Mail zeigte auf `${BACKEND_URL}/store/newsletter/confirm?...`. Browser-Klick → GET ohne `x-publishable-api-key` Header → Medusa blockiert alle `/store/*` Requests ohne Key.
+- **Fix 1:** `confirmUrl` in `newsletter/route.ts` zeigt jetzt auf `${STOREFRONT_URL}/newsletter/confirm?token=...&email=...` statt Backend-URL.
+- **Fix 2:** Neue Server-Component `storefront/src/app/newsletter/confirm/page.tsx` — macht server-seitig den Backend-Call mit Publishable Key, redirectet dann zu `/newsletter/confirmed` oder `/newsletter/confirmed?error=invalid`.
+- **Fix 3:** `newsletter/confirm/route.ts` Backend gibt jetzt JSON zurück (`{success: true}` / `{error: "invalid"}`) statt HTTP Redirect — wird von der Storefront-Page konsumiert.
+
+### Bug 2 — Address Save: "Customer_address already exists"
+- **Root cause:** `DELETE /store/account/addresses/:id` machte Soft Delete (`deleted_at = NOW()`). Medusa's `customer_address` Tabelle hat einen Unique-Constraint auf `customer_id`. Soft-deleted Record blockiert neuen INSERT → "already exists" Error.
+- **Fix:** `addresses/[id]/route.ts` macht jetzt Hard Delete (`.delete()`). Customer hat keine gespeicherte Adresse mehr → neue Adresse kann problemlos eingefügt werden.
 
 ---
 

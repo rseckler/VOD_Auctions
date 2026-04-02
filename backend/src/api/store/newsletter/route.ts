@@ -50,7 +50,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
 
   const normalised = email.trim().toLowerCase()
   const token = generateConfirmToken(normalised)
-  const confirmUrl = `${BACKEND_URL}/store/newsletter/confirm?token=${encodeURIComponent(token)}&email=${encodeURIComponent(normalised)}`
+  const confirmUrl = `${STOREFRONT_URL}/newsletter/confirm?token=${encodeURIComponent(token)}&email=${encodeURIComponent(normalised)}`
 
   const { subject, html } = newsletterConfirmEmail({ email: normalised, confirmUrl })
 

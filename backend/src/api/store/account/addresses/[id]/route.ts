@@ -32,7 +32,7 @@ export async function DELETE(
 
   await pgConnection("customer_address")
     .where("id", id)
-    .update({ deleted_at: new Date(), updated_at: new Date() })
+    .delete()
 
   res.json({ success: true })
 }

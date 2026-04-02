@@ -29,8 +29,7 @@ export async function GET(
   const normalised = email.trim().toLowerCase()
 
   if (!verifyConfirmToken(normalised, token)) {
-    // Redirect to confirmation page with error state — don't leak validity info
-    res.redirect(`${STOREFRONT_URL}/newsletter/confirmed?error=invalid`)
+    res.status(400).json({ error: "invalid", message: "Confirmation link is invalid or has expired." })
     return
   }
 
@@ -75,5 +74,5 @@ export async function GET(
     console.warn("[newsletter/confirm] customer_stats tag update failed:", e.message)
   }
 
-  res.redirect(`${STOREFRONT_URL}/newsletter/confirmed`)
+  res.json({ success: true })
 }
