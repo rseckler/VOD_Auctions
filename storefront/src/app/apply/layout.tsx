@@ -1,8 +1,8 @@
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
-  title: "Apply — VOD Auctions",
-  robots: { index: false, follow: false },
+  title: "Early Access — VOD Auctions",
+  description: "Apply for early access to VOD Auctions — 41,500 rare industrial music releases. No eBay fees, no Discogs commissions.",
 }
 
 export default function ApplyLayout({
