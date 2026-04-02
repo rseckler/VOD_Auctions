@@ -2,9 +2,9 @@
 
 **Purpose:** Auktionsplattform für ~41.500 Produkte (Industrial Music Tonträger + Literatur/Merchandise)
 **Goal:** Eigene Plattform statt 8-13% eBay/Discogs-Gebühren
-**Status:** Phase 1 fertig — RSE-77 (Testlauf) als nächster Schritt
+**Status:** Beta Test (platform_mode: beta_test) — Pre-Launch Phase als nächster Schritt
 **Language:** Storefront + Admin-UI: Englisch
-**Last Updated:** 2026-04-10
+**Last Updated:** 2026-04-02
 
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
@@ -288,16 +288,17 @@ python3 crm_import.py --phase 2  # tape-mag contacts
 VOD_Auctions/
 ├── backend/src/
 │   ├── modules/auction/models/    # auction-block, block-item, bid, transaction, cart-item, saved-item
-│   ├── api/admin/                 # auction-blocks/, media/, transactions/, entity-content/, gallery/, sync/
-│   ├── api/store/                 # auction-blocks/, catalog/, band/, label/, press/, gallery/, account/
+│   ├── api/admin/                 # auction-blocks/, media/, transactions/, entity-content/, gallery/, sync/, site-config/, dashboard/, waitlist/, invite-tokens/
+│   ├── api/store/                 # auction-blocks/, catalog/, band/, label/, press/, gallery/, account/, waitlist/, invite/, site-mode/
 │   ├── api/webhooks/              # stripe/, paypal/, brevo/
 │   ├── api/middlewares.ts         # Auth + rawBodyMiddleware (DON'T REMOVE rawBody!)
-│   ├── lib/                       # stripe.ts, paypal.ts, checkout-helpers.ts, shipping.ts, brevo.ts, crm-sync.ts
-│   └── admin/routes/              # auction-blocks/, media/, transactions/, entity-content/, gallery/, sync/
+│   ├── lib/                       # stripe.ts, paypal.ts, checkout-helpers.ts, shipping.ts, brevo.ts, crm-sync.ts, site-config.ts, invite.ts
+│   ├── admin/components/          # admin-nav.tsx, admin-tokens.ts, admin-layout.tsx, admin-ui.tsx (Shared Component Library)
+│   └── admin/routes/              # auction-blocks/, media/, transactions/, entity-content/, gallery/, sync/, config/, waitlist/, dashboard/
 ├── storefront/src/
-│   ├── app/                       # catalog/, auctions/, band/, label/, press/, gallery/, about/, account/
+│   ├── app/                       # catalog/, auctions/, band/, label/, press/, gallery/, about/, account/, apply/, invite/
 │   ├── components/                # AuthProvider, Header, Footer, ItemBidSection, BlockItemsGrid, ImageGallery, CollapsibleDescription
-│   └── middleware.ts              # Pre-launch password gate (GATE_PASSWORD=vod2026)
+│   └── middleware.ts              # Platform mode gate — reads from backend API, supports password + invite cookies
 ├── scripts/
 │   ├── legacy_sync.py             # Daily MySQL→Supabase sync (bilder_typ: release=10, band=13, label=14, press=12)
 │   ├── discogs_daily_sync.py      # Daily Discogs (5 chunks, exponential backoff)
@@ -305,8 +306,12 @@ VOD_Auctions/
 ├── nginx/                         # vodauction-api.conf, vodauction-store.conf, vodauction-admin.conf
 └── docs/
     ├── architecture/CHANGELOG.md  # Vollständiger Changelog
-    ├── architecture/AUCTION_WORKFLOW_KONZEPT_REVIEW_2026.md
-    └── ux/UX_UI_AUDIT_2026-03-15.md  # 95 Findings (alle erledigt)
+    ├── DESIGN_GUIDE_BACKEND.md    # Admin Design System v2.0 (verbindlich)
+    ├── DESIGN_GUIDE_FRONTEND.md   # Storefront Vinyl Culture System
+    ├── PRE_LAUNCH_KONZEPT.md      # Waitlist + Invite Flow
+    ├── ADMIN_CONFIG_KONZEPT.md    # Config Panel + Platform Modes
+    ├── DASHBOARD_KONZEPT.md       # Phase-adaptive Dashboard
+    └── mockups/                   # HTML Mockups (pre-launch-flow, admin-config, design-guide)
 ```
 
 **bilder_typ Mapping (WICHTIG — Regression-Schutz):**
@@ -318,7 +323,13 @@ VOD_Auctions/
 
 **Block-Typen:** Themen-Block (Genre/Künstler/Epoche) | Highlight-Block (High-Value, lang) | Clearance-Block (200-500 Items, 1€) | Flash-Block (24h, 1-10 Items)
 
-**Password Gate:** `middleware.ts` + `gate/page.tsx`. Entfernen beim Launch: `middleware.ts` löschen + `layout.tsx` Cookie-Check entfernen.
+**Platform Modes:** `beta_test` (aktuell) → `pre_launch` → `preview` → `live` → `maintenance`. Gesteuert über `/admin/config` (Access/Launch Tab). Middleware liest `platform_mode` aus Backend API (5-min Cache). `beta_test` = nur Passwort-Gate. `pre_launch` = Invite-System aktiv. `live` = Gate entfernt.
+
+**Pre-Launch System:** `/apply` (Bewerbungsformular) → Admin approves → Invite-Token `VOD-XXXXX-XXXXX` → `/invite/[token]` (Account-Erstellung). Tabellen: `waitlist_applications`, `invite_tokens`, `invite_token_attempts`.
+
+**Admin Design System:** Shared Component Library in `admin/components/` — `admin-tokens.ts` (Farben, Typo), `admin-layout.tsx` (PageHeader, Tabs, StatsGrid), `admin-ui.tsx` (Badge, Toggle, Toast, Modal). Verbindlicher Design Guide: `docs/DESIGN_GUIDE_BACKEND.md` v2.0.
+
+**Admin Navigation:** 7 Sidebar-Items (Dashboard, Auction Blocks, Orders, Catalog, Marketing, Operations, AI Assistant). Sub-Pages nur über Hub-Karten erreichbar. Kein `defineRouteConfig` auf Sub-Pages.
 
 **Catalog Visibility:** Artikel mit `coverImage IS NOT NULL` = sichtbar. `legacy_price > 0 AND legacy_available = true` = kaufbar (`is_purchasable`).
 **legacy_available:** Spiegelt MySQL `frei`-Feld — `frei=1` → true (verfügbar), `frei=0` → false (gesperrt), `frei>1` (Unix-Timestamp) → false (auf tape-mag verkauft). Wird täglich per Legacy-Sync aktualisiert.
