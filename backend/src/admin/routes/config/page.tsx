@@ -57,6 +57,7 @@ const TABS = ["Access / Launch", "Auction", "Change History"] as const
 type Tab = (typeof TABS)[number]
 
 const MODE_OPTIONS = [
+  { value: "beta_test", label: "BETA TEST", color: "#f97316" },
   { value: "pre_launch", label: "PRE-LAUNCH", color: C.warning },
   { value: "preview", label: "PREVIEW", color: C.blue },
   { value: "live", label: "LIVE", color: C.success },

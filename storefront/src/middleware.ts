@@ -88,6 +88,10 @@ export async function middleware(request: NextRequest) {
         // No gate — public access
         return NextResponse.next()
 
+      case "beta_test":
+        // Password gate only — no invite system, no /apply page
+        break
+
       case "maintenance":
         // Block everyone — redirect to gate with maintenance hint
         const maintUrl = new URL("/gate", request.url)

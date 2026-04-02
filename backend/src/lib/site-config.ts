@@ -39,7 +39,7 @@ export const ALLOWED_CONFIG_KEYS: (keyof SiteConfig)[] = [
 // Validation rules per key
 const VALIDATORS: Partial<Record<keyof SiteConfig, (v: unknown) => boolean>> = {
   catalog_visibility: (v) => typeof v === "string" && ["all", "visible"].includes(v),
-  platform_mode: (v) => typeof v === "string" && ["pre_launch", "preview", "live", "maintenance"].includes(v),
+  platform_mode: (v) => typeof v === "string" && ["beta_test", "pre_launch", "preview", "live", "maintenance"].includes(v),
   gate_password: (v) => typeof v === "string" && v.length >= 1,
   invite_mode_active: (v) => typeof v === "boolean",
   apply_page_visible: (v) => typeof v === "boolean",
