@@ -74,30 +74,30 @@ export async function GET(
     }
   }
 
-  // ── Legacy sync status ───────────────────────────────────────────────────────
+  // ── Legacy sync status (log file mtime + optional DB change count) ──────────
   try {
-    const pgConnection: Knex = req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
+    const fs = await import("fs")
+    const SYNC_LOG_PATH = "/root/VOD_Auctions/scripts/legacy_sync.log"
 
-    // Get last sync run from sync_change_log
-    const lastRun = await pgConnection("sync_change_log")
-      .select(
-        pgConnection.raw("sync_run_id as run_id"),
-        pgConnection.raw("MAX(synced_at) as synced_at"),
-        pgConnection.raw("COUNT(*) as total_changes")
-      )
-      .whereNotNull("sync_run_id")
-      .groupBy("sync_run_id")
-      .orderBy("synced_at", "desc")
-      .first()
+    let logStat: any = null
+    try { logStat = fs.statSync(SYNC_LOG_PATH) } catch { /* file not found on dev */ }
 
-    if (lastRun) {
-      const syncedAt = new Date(lastRun.synced_at)
-      const hoursSince = (Date.now() - syncedAt.getTime()) / 3_600_000
+    if (logStat) {
+      const modifiedAt = new Date(logStat.mtime)
+      const hoursSince = (Date.now() - modifiedAt.getTime()) / 3_600_000
+
+      const pgConnection: Knex = req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
+      const recentChanges = await pgConnection("sync_change_log")
+        .where("synced_at", ">=", new Date(Date.now() - 48 * 3_600_000))
+        .count("* as count")
+        .first()
+      const changeCount = Number(recentChanges?.count || 0)
+
       result.sync.last_run = {
-        run_id: lastRun.run_id,
-        synced_at: lastRun.synced_at,
-        total_changes: Number(lastRun.total_changes),
-        has_changes: Number(lastRun.total_changes) > 0,
+        run_id: modifiedAt.toISOString().slice(0, 10),
+        synced_at: modifiedAt.toISOString(),
+        total_changes: changeCount,
+        has_changes: changeCount > 0,
       }
       if (hoursSince > 28) {
         result.sync.status = "error"
@@ -107,15 +107,15 @@ export async function GET(
         result.sync.message = `Last sync ${Math.round(hoursSince)}h ago`
       } else {
         result.sync.status = "ok"
-        result.sync.message = `Last sync ${Math.round(hoursSince)}h ago — ${lastRun.total_changes} changes`
+        result.sync.message = `Last sync ${Math.round(hoursSince)}h ago — ${changeCount} changes`
       }
     } else {
       result.sync.status = "warning"
-      result.sync.message = "No sync runs found in change log"
+      result.sync.message = "Sync log file not found (dev environment?)"
     }
   } catch (e: any) {
     result.sync.status = "error"
-    result.sync.message = `DB error: ${e.message}`
+    result.sync.message = `Sync check error: ${e.message}`
   }
 
   res.json(result)

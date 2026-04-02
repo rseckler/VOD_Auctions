@@ -205,11 +205,15 @@ export async function GET(
   activity.splice(10)
 
   // ── Discogs sync info ────────────────────────────────────────────────────
-  const lastSync = await pg("sync_change_log")
-    .orderBy("synced_at", "desc")
-    .limit(1)
-    .select("sync_run_id", "synced_at")
-    .first()
+  // Check sync log file mtime instead of DB (sync only logs changes, not runs)
+  let lastSyncTime: string | null = null
+  try {
+    const fs = await import("fs")
+    const stat = fs.statSync("/root/VOD_Auctions/scripts/legacy_sync.log")
+    lastSyncTime = new Date(stat.mtime).toISOString()
+  } catch {
+    // Dev environment or file not found
+  }
 
   // ── Auction block details for "Live Now" ─────────────────────────────────
   const liveBlocks = activeBlocks.map((b: any) => ({
@@ -255,6 +259,6 @@ export async function GET(
     actions,
     activity,
     auctions: liveBlocks,
-    last_sync: lastSync ? lastSync.synced_at : null,
+    last_sync: lastSyncTime,
   })
 }
