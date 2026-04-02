@@ -12,6 +12,7 @@ import { paymentReminder1Email } from "../emails/payment-reminder-1"
 import { paymentReminder3Email } from "../emails/payment-reminder-3"
 import { watchlistReminderEmail } from "../emails/watchlist-reminder"
 import { bidPlacedEmail } from "../emails/bid-placed"
+import { bidEndingSoonEmail, BidEndingReminderType } from "../emails/bid-ending-soon"
 
 // --- Unsubscribe token helpers ---
 
@@ -457,6 +458,56 @@ export async function sendFeedbackRequestEmail(
       .where("id", transactionId)
       .update({ feedback_email_sent: true, updated_at: new Date() })
   }
+}
+
+// --- BID ENDING SOON ---
+export async function sendBidEndingSoonEmail(
+  pg: Knex,
+  userId: string,
+  blockItemId: string,
+  reminderType: BidEndingReminderType
+) {
+  const customer = await getCustomer(pg, userId)
+  if (!customer?.email) return
+
+  const item = await pg("block_item")
+    .where("id", blockItemId)
+    .select("release_id", "lot_number", "auction_block_id", "current_price", "start_price")
+    .first()
+  if (!item) return
+
+  const block = await pg("auction_block")
+    .where("id", item.auction_block_id)
+    .select("title", "slug")
+    .first()
+
+  const release = await getReleaseInfo(pg, item.release_id)
+
+  // Find this user's highest bid and winning status on this item
+  const userBid = await pg("bid")
+    .where({ block_item_id: blockItemId, user_id: userId })
+    .orderBy("amount", "desc")
+    .first()
+  if (!userBid) return
+
+  const currentPrice = Number(item.current_price || item.start_price || 0)
+  const lotUrl = `${APP_URL}/auctions/${block?.slug || ""}/${blockItemId}`
+
+  const { subject, html } = bidEndingSoonEmail({
+    firstName: customer.first_name || "there",
+    reminderType,
+    itemTitle: release?.title || "Unknown Item",
+    artistName: release?.artistName,
+    coverImage: release?.coverImage,
+    lotNumber: item.lot_number,
+    blockTitle: block?.title,
+    yourBid: Number(userBid.amount),
+    currentPrice,
+    isWinning: !!userBid.is_winning,
+    bidUrl: lotUrl,
+    customerId: customer.id,
+  })
+  await sendEmail({ to: customer.email, subject, html })
 }
 
 // --- WATCHLIST REMINDER ---
