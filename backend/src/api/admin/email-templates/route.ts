@@ -16,6 +16,7 @@ import { newsletterConfirmEmail } from "../../../emails/newsletter-confirm"
 import { blockTomorrowEmail } from "../../../emails/block-tomorrow"
 import { blockLiveEmail } from "../../../emails/block-live"
 import { blockEndingEmail } from "../../../emails/block-ending"
+import { bidEndingSoonEmail } from "../../../emails/bid-ending-soon"
 
 const STOREFRONT_URL = process.env.STOREFRONT_URL || "https://vod-auctions.com"
 const BACKEND_URL = process.env.MEDUSA_BACKEND_URL || "http://localhost:9000"
@@ -138,6 +139,42 @@ const TEMPLATES: EmailTemplate[] = [
     category: "transactional",
     trigger: "Cron: hourly check — lot ends < 24h",
     preheader: "24 hours left on an item you saved — don't miss out",
+  },
+  {
+    id: "bid-ending-24h",
+    name: "Bid Ending — 24h Reminder",
+    description: "Sent to all active bidders 24h before lot end",
+    channel: "resend",
+    category: "transactional",
+    trigger: "Cron: every minute — lot ends in ~24h",
+    preheader: "You have an active bid on a lot ending in 24 hours",
+  },
+  {
+    id: "bid-ending-8h",
+    name: "Bid Ending — 8h Reminder",
+    description: "Sent to all active bidders 8h before lot end",
+    channel: "resend",
+    category: "transactional",
+    trigger: "Cron: every minute — lot ends in ~8h",
+    preheader: "Your bid expires in 8 hours — check the current price",
+  },
+  {
+    id: "bid-ending-1h",
+    name: "Bid Ending — 1h Reminder",
+    description: "Sent to all active bidders 1h before lot end",
+    channel: "resend",
+    category: "transactional",
+    trigger: "Cron: every minute — lot ends in ~1h",
+    preheader: "One hour left on a lot you've bid on — don't miss out",
+  },
+  {
+    id: "bid-ending-5m",
+    name: "Bid Ending — 5min Reminder",
+    description: "Sent to all active bidders 5 minutes before lot end",
+    channel: "resend",
+    category: "transactional",
+    trigger: "Cron: every minute — lot ends in ~5min",
+    preheader: "FINAL MINUTES — place your last bid now",
   },
   {
     id: "newsletter-confirm",
@@ -385,6 +422,32 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
         topItems: [],
       })
       break
+
+    case "bid-ending-24h":
+    case "bid-ending-8h":
+    case "bid-ending-1h":
+    case "bid-ending-5m": {
+      const typeMap: Record<string, "24h" | "8h" | "1h" | "5m"> = {
+        "bid-ending-24h": "24h",
+        "bid-ending-8h": "8h",
+        "bid-ending-1h": "1h",
+        "bid-ending-5m": "5m",
+      }
+      rendered = bidEndingSoonEmail({
+        firstName: "Frank",
+        reminderType: typeMap[templateId],
+        itemTitle: "Cleanse Fold and Manipulate",
+        artistName: "Skinny Puppy",
+        coverImage: DEMO_COVER,
+        lotNumber: 5,
+        blockTitle: DEMO_BLOCK_TITLE,
+        yourBid: 22.00,
+        currentPrice: 25.00,
+        isWinning: templateId === "bid-ending-24h" || templateId === "bid-ending-1h",
+        bidUrl: `${STOREFRONT_URL}/auctions/${DEMO_BLOCK_SLUG}/lot-demo`,
+      })
+      break
+    }
 
     default:
       res.status(400).json({ message: `No preview renderer for template '${templateId}'` })

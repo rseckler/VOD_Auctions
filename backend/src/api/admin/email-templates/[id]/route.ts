@@ -17,6 +17,7 @@ import { blockTomorrowEmail } from "../../../../emails/block-tomorrow"
 import { blockLiveEmail } from "../../../../emails/block-live"
 import { blockEndingEmail } from "../../../../emails/block-ending"
 import { bidPlacedEmail } from "../../../../emails/bid-placed"
+import { bidEndingSoonEmail } from "../../../../emails/bid-ending-soon"
 
 const STOREFRONT_URL = process.env.STOREFRONT_URL || "https://vod-auctions.com"
 const BACKEND_URL = process.env.MEDUSA_BACKEND_URL || "http://localhost:9000"
@@ -138,6 +139,30 @@ function renderTemplate(id: string): { subject: string; html: string } | null {
       return blockLiveEmail({ blockTitle: DEMO_BLOCK_TITLE, blockSlug: DEMO_BLOCK_SLUG, endTime: DEMO_END_TIME, itemCount: 42, previewItems: [] })
     case "block-ending":
       return blockEndingEmail({ blockTitle: DEMO_BLOCK_TITLE, blockSlug: DEMO_BLOCK_SLUG, endTime: DEMO_END_TIME, topItems: [] })
+    case "bid-ending-24h":
+    case "bid-ending-8h":
+    case "bid-ending-1h":
+    case "bid-ending-5m": {
+      const typeMap: Record<string, "24h" | "8h" | "1h" | "5m"> = {
+        "bid-ending-24h": "24h",
+        "bid-ending-8h": "8h",
+        "bid-ending-1h": "1h",
+        "bid-ending-5m": "5m",
+      }
+      return bidEndingSoonEmail({
+        firstName: "Frank",
+        reminderType: typeMap[id],
+        itemTitle: "Cleanse Fold and Manipulate",
+        artistName: "Skinny Puppy",
+        coverImage: DEMO_COVER,
+        lotNumber: 5,
+        blockTitle: DEMO_BLOCK_TITLE,
+        yourBid: 22.00,
+        currentPrice: 25.00,
+        isWinning: id === "bid-ending-24h" || id === "bid-ending-1h",
+        bidUrl: `${STOREFRONT_URL}/auctions/${DEMO_BLOCK_SLUG}/lot-demo`,
+      })
+    }
     default:
       return null
   }
