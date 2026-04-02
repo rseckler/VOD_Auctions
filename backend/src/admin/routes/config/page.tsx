@@ -5,18 +5,18 @@ import { useAdminNav } from "../../components/admin-nav"
 // ─── Design Tokens ─────────────────────────────────────────────────────────
 
 const C = {
-  bg: "#1c1915",
-  card: "#2a2520",
-  text: "#f5f0eb",
-  muted: "#a09080",
-  gold: "#d4a54a",
-  border: "#3a3530",
-  hover: "#353025",
-  success: "#22c55e",
-  error: "#ef4444",
-  blue: "#60a5fa",
-  purple: "#c084fc",
-  warning: "#eab308",
+  bg: "transparent",
+  card: "#f8f7f6",
+  text: "#1a1714",
+  muted: "#78716c",
+  gold: "#b8860b",
+  border: "#e7e5e4",
+  hover: "#f5f4f3",
+  success: "#16a34a",
+  error: "#dc2626",
+  blue: "#2563eb",
+  purple: "#7c3aed",
+  warning: "#d97706",
 }
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -102,7 +102,7 @@ function Toast({ message, type, onDone }: { message: string; type?: "success" | 
         position: "fixed",
         bottom: 24,
         right: 24,
-        background: C.bg,
+        background: "#fff",
         border: "1px solid " + borderColor,
         color: textColor,
         padding: "10px 18px",
@@ -110,7 +110,7 @@ function Toast({ message, type, onDone }: { message: string; type?: "success" | 
         fontSize: 12,
         fontWeight: 600,
         zIndex: 9999,
-        boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
+        boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
         display: "flex",
         alignItems: "center",
         gap: 8,
@@ -271,7 +271,7 @@ function SaveButton({ disabled, onClick, children }: { disabled: boolean; onClic
     <button
       style={{
         background: disabled ? C.card : C.gold,
-        color: disabled ? C.muted : "#1c1915",
+        color: disabled ? C.muted : "#fff",
         fontWeight: 700,
         fontSize: 12,
         padding: "6px 16px",
@@ -347,18 +347,18 @@ function GoLiveModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
     >
       <div
         style={{
-          background: C.bg,
+          background: "#fff",
           border: "1px solid " + C.border,
           borderRadius: 12,
           width: "100%",
           maxWidth: 540,
           maxHeight: "80vh",
           overflowY: "auto",
-          boxShadow: "0 24px 80px rgba(0,0,0,0.7)",
+          boxShadow: "0 24px 80px rgba(0,0,0,0.2)",
         }}
       >
         {/* Header */}
-        <div style={{ background: "#161310", borderBottom: "1px solid " + C.border, padding: "18px 24px" }}>
+        <div style={{ background: "#f3f2f1", borderBottom: "1px solid " + C.border, padding: "18px 24px" }}>
           <h3 style={{ fontSize: 17, fontWeight: 700, color: C.text, margin: "0 0 4px" }}>
             Pre-Flight Checklist
           </h3>
@@ -445,7 +445,7 @@ function GoLiveModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
                 <input
                   style={{
                     width: "100%",
-                    background: "#0f0d0a",
+                    background: "#fff",
                     border: "1px solid " + C.border,
                     borderRadius: 6,
                     padding: "9px 14px",
@@ -1056,7 +1056,7 @@ function ConfigPage() {
                         textTransform: "uppercase" as const,
                         color: C.muted,
                         textAlign: "left" as const,
-                        background: "#161310",
+                        background: "#f3f2f1",
                       }}
                     >
                       {h}

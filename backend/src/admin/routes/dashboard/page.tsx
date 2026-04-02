@@ -111,7 +111,7 @@ const S = {
     backgroundColor: "transparent",
     minHeight: "100vh",
     padding: "20px 16px 48px",
-    color: "#d1d5db",
+    color: "#1f2937",
   } as React.CSSProperties,
 
   header: {
@@ -126,20 +126,20 @@ const S = {
   title: {
     fontSize: "24px",
     fontWeight: 700,
-    color: "#d1d5db",
+    color: "#1f2937",
     margin: 0,
     lineHeight: "1.2",
   } as React.CSSProperties,
 
   subtitle: {
     fontSize: "13px",
-    color: "#9ca3af",
+    color: "#6b7280",
     marginTop: "4px",
   } as React.CSSProperties,
 
   refreshLabel: {
     fontSize: "11px",
-    color: "#9ca3af",
+    color: "#6b7280",
     paddingTop: "4px",
   } as React.CSSProperties,
 
@@ -152,7 +152,7 @@ const S = {
 
   kpiCard: {
     backgroundColor: "#ffffff",
-    border: "1px solid rgba(255,255,255,0.1)",
+    border: "1px solid rgba(0,0,0,0.08)",
     borderRadius: "10px",
     padding: "16px 18px",
   } as React.CSSProperties,
@@ -162,7 +162,7 @@ const S = {
     fontWeight: 600,
     textTransform: "uppercase" as const,
     letterSpacing: "0.04em",
-    color: "#9ca3af",
+    color: "#6b7280",
     marginBottom: "6px",
   } as React.CSSProperties,
 
@@ -175,7 +175,7 @@ const S = {
 
   kpiSub: {
     fontSize: "11px",
-    color: "#9ca3af",
+    color: "#6b7280",
     marginTop: "4px",
   } as React.CSSProperties,
 
@@ -184,14 +184,14 @@ const S = {
     fontWeight: 700,
     textTransform: "uppercase" as const,
     letterSpacing: "0.08em",
-    color: "#9ca3af",
+    color: "#6b7280",
     marginBottom: "10px",
     marginTop: "28px",
   } as React.CSSProperties,
 
   card: {
     backgroundColor: "#ffffff",
-    border: "1px solid rgba(255,255,255,0.1)",
+    border: "1px solid rgba(0,0,0,0.08)",
     borderRadius: "10px",
     padding: "16px 20px",
     display: "flex",
@@ -220,7 +220,7 @@ const S = {
   cardTitle: {
     fontSize: "14px",
     fontWeight: 600,
-    color: "#d1d5db",
+    color: "#1f2937",
     whiteSpace: "nowrap" as const,
     overflow: "hidden",
     textOverflow: "ellipsis",
@@ -228,7 +228,7 @@ const S = {
 
   cardDesc: {
     fontSize: "12px",
-    color: "#9ca3af",
+    color: "#6b7280",
     marginTop: "2px",
     whiteSpace: "nowrap" as const,
     overflow: "hidden",
@@ -256,14 +256,14 @@ const S = {
     lineHeight: "1.4",
     ...(variant === "primary"
       ? {
-          backgroundColor: "#d1d5db",
-          borderColor: "#d1d5db",
+          backgroundColor: "#1f2937",
+          borderColor: "#1f2937",
           color: "#ffffff",
         }
       : {
           backgroundColor: "#ffffff",
           borderColor: "#d1d5db",
-          color: "#d1d5db",
+          color: "#1f2937",
         }),
   }),
 
@@ -288,7 +288,7 @@ const S = {
       clearance: { bg: "#f0fdf4", text: "#166534" },
       flash:     { bg: "#fdf2f8", text: "#9d174d" },
     }
-    const c = colors[type] ?? { bg: "transparent", text: "#d1d5db" }
+    const c = colors[type] ?? { bg: "transparent", text: "#1f2937" }
     return {
       display: "inline-block",
       padding: "2px 8px",
@@ -301,18 +301,18 @@ const S = {
   },
 
   statsBar: {
-    borderTop: "1px solid rgba(255,255,255,0.1)",
+    borderTop: "1px solid rgba(0,0,0,0.08)",
     marginTop: "32px",
     paddingTop: "14px",
     fontSize: "12px",
-    color: "#9ca3af",
+    color: "#6b7280",
     display: "flex",
     gap: "6px",
     flexWrap: "wrap" as const,
   } as React.CSSProperties,
 
   loading: {
-    color: "#9ca3af",
+    color: "#6b7280",
     fontSize: "14px",
     padding: "40px 0",
     textAlign: "center" as const,
@@ -555,8 +555,8 @@ function DashboardPage() {
                       disabled={cancelling === tx.id}
                       style={{
                         padding: "5px 12px", fontSize: 12, fontWeight: 500, borderRadius: 6,
-                        background: "var(--bg-component, #1a1714)", color: "#9ca3af",
-                        border: "1px solid rgba(255,255,255,0.1)", cursor: "pointer",
+                        background: "var(--bg-component, #f8f7f6)", color: "#6b7280",
+                        border: "1px solid rgba(0,0,0,0.08)", cursor: "pointer",
                       }}
                     >
                       {cancelling === tx.id ? "…" : "Cancel Order"}
@@ -688,16 +688,16 @@ function DashboardPage() {
       {/* ── This Week Stats Bar ── */}
       <div style={S.statsBar}>
         <span>This week:</span>
-        <strong style={{ color: "#d1d5db" }}>{fmtMoney(weekRevenue)}</strong>
+        <strong style={{ color: "#1f2937" }}>{fmtMoney(weekRevenue)}</strong>
         <span>revenue</span>
         <span>·</span>
-        <strong style={{ color: "#d1d5db" }}>{weekOrders}</strong>
+        <strong style={{ color: "#1f2937" }}>{weekOrders}</strong>
         <span>{weekOrders === 1 ? "order" : "orders"}</span>
         <span>·</span>
-        <strong style={{ color: "#d1d5db" }}>{weekShipped}</strong>
+        <strong style={{ color: "#1f2937" }}>{weekShipped}</strong>
         <span>shipped</span>
         <span>·</span>
-        <strong style={{ color: "#d1d5db" }}>{weekPending}</strong>
+        <strong style={{ color: "#1f2937" }}>{weekPending}</strong>
         <span>pending</span>
       </div>
     </div>

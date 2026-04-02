@@ -2,13 +2,13 @@ import { useEffect, useState, useCallback, useRef } from "react"
 import { useAdminNav } from "../../components/admin-nav"
 
 const COLORS = {
-  bg: "#1c1915",
-  card: "#2a2520",
-  text: "#f5f0eb",
-  muted: "#a09080",
-  gold: "#d4a54a",
-  border: "#3a3530",
-  hover: "#353025",
+  bg: "transparent",
+  card: "#f8f7f6",
+  text: "#1a1714",
+  muted: "#78716c",
+  gold: "#b8860b",
+  border: "#e7e5e4",
+  hover: "#f5f4f3",
 }
 
 type Musician = {
@@ -105,7 +105,7 @@ function MusiciansPage() {
           </span>
           {stats.needs_review > 0 && (
             <span>
-              <span style={{ color: "#ef8833", fontWeight: 600 }}>{stats.needs_review}</span> needs review
+              <span style={{ color: "#d97706", fontWeight: 600 }}>{stats.needs_review}</span> needs review
             </span>
           )}
           <span style={{ marginLeft: "auto", display: "flex", gap: 10 }}>
@@ -198,7 +198,7 @@ function MusiciansPage() {
                     <span style={{ color: COLORS.muted, fontSize: 11, marginLeft: 6 }}>({m.real_name})</span>
                   )}
                   {m.death_year && (
-                    <span style={{ color: "#ef4444", fontSize: 10, marginLeft: 6 }}>† {m.death_year}</span>
+                    <span style={{ color: "#dc2626", fontSize: 10, marginLeft: 6 }}>† {m.death_year}</span>
                   )}
                 </div>
                 <span style={{ color: COLORS.muted }}>{m.country || "—"}</span>
@@ -214,9 +214,9 @@ function MusiciansPage() {
                 </span>
                 <span style={{ textAlign: "center" }}>
                   {m.needs_review ? (
-                    <span style={{ color: "#ef8833", fontSize: 11, fontWeight: 600 }}>⚠ Review</span>
+                    <span style={{ color: "#d97706", fontSize: 11, fontWeight: 600 }}>⚠ Review</span>
                   ) : (
-                    <span style={{ color: "#22c55e", fontSize: 11 }}>✓</span>
+                    <span style={{ color: "#16a34a", fontSize: 11 }}>✓</span>
                   )}
                 </span>
               </div>

@@ -163,17 +163,17 @@ type DiscogsHealth = {
 }
 
 const COLORS = {
-  bg: "#1c1915",
-  card: "#2a2520",
-  text: "#f5f0eb",
-  muted: "#a09080",
-  gold: "#d4a54a",
-  border: "#3a3530",
-  hover: "#353025",
-  success: "#22c55e",
-  error: "#ef4444",
-  blue: "#60a5fa",
-  purple: "#c084fc",
+  bg: "transparent",
+  card: "#f8f7f6",
+  text: "#1a1714",
+  muted: "#78716c",
+  gold: "#b8860b",
+  border: "#e7e5e4",
+  hover: "#f5f4f3",
+  success: "#16a34a",
+  error: "#dc2626",
+  blue: "#2563eb",
+  purple: "#7c3aed",
 }
 
 const formatDate = (d: string | null) => {
@@ -595,7 +595,7 @@ const SyncDashboardPage = () => {
                 background:
                   discogsHealth.health.severity === "critical" ? "#ef444418" : "#f59e0b18",
                 color:
-                  discogsHealth.health.severity === "critical" ? "#fca5a5" : "#fcd34d",
+                  discogsHealth.health.severity === "critical" ? "#dc2626" : "#d97706",
                 border: `1px solid ${
                   discogsHealth.health.severity === "critical" ? "#ef444430" : "#f59e0b30"
                 }`,
@@ -689,8 +689,8 @@ const SyncDashboardPage = () => {
                   const isLoading = actionLoading === action.id
                   const btnColors = {
                     default: { bg: COLORS.gold + "20", border: COLORS.gold + "40", color: COLORS.gold },
-                    warning: { bg: "#f59e0b20", border: "#f59e0b40", color: "#fbbf24" },
-                    danger: { bg: "#ef444420", border: "#ef444440", color: "#fca5a5" },
+                    warning: { bg: "#f59e0b20", border: "#f59e0b40", color: "#d97706" },
+                    danger: { bg: "#ef444420", border: "#ef444440", color: "#dc2626" },
                   }
                   const c = btnColors[action.variant]
                   return (
@@ -730,7 +730,7 @@ const SyncDashboardPage = () => {
                     borderRadius: "6px",
                     fontSize: "13px",
                     background: actionResult.success ? "#22c55e18" : "#ef444418",
-                    color: actionResult.success ? "#86efac" : "#fca5a5",
+                    color: actionResult.success ? "#16a34a" : "#dc2626",
                     border: `1px solid ${actionResult.success ? "#22c55e30" : "#ef444430"}`,
                   }}
                 >
@@ -764,7 +764,7 @@ const SyncDashboardPage = () => {
                     ? "#22c55e20"
                     : extraartistsProgress.progress.finished_at
                     ? "#22c55e20"
-                    : "#a0908020",
+                    : "#78716c20",
                   color: extraartistsProgress.is_running
                     ? COLORS.success
                     : extraartistsProgress.progress.finished_at
@@ -842,7 +842,7 @@ const SyncDashboardPage = () => {
               <div style={{ ...labelStyle, marginBottom: "6px" }}>Recent Log</div>
               <div
                 style={{
-                  background: "#1a1714",
+                  background: "#f3f2f1",
                   borderRadius: "6px",
                   padding: "10px 12px",
                   fontFamily: "monospace",
@@ -880,7 +880,7 @@ const SyncDashboardPage = () => {
                   borderRadius: "4px",
                   fontSize: "11px",
                   fontWeight: 600,
-                  background: batchRunning ? "#22c55e20" : "#a09080" + "20",
+                  background: batchRunning ? "#16a34a20" : "#78716c" + "20",
                   color: batchRunning ? COLORS.success : COLORS.muted,
                 }}
               >
@@ -958,10 +958,10 @@ const SyncDashboardPage = () => {
                       .sort(([, a], [, b]) => b - a)
                       .map(([strategy, count]) => {
                         const stratColors: Record<string, string> = {
-                          catno: "#60a5fa",
-                          barcode: "#a78bfa",
-                          full: "#34d399",
-                          basic: "#fbbf24",
+                          catno: "#2563eb",
+                          barcode: "#7c3aed",
+                          full: "#16a34a",
+                          basic: "#d97706",
                         }
                         return (
                           <div
@@ -1437,7 +1437,7 @@ const SyncDashboardPage = () => {
                 style={{
                   padding: "4px 12px", borderRadius: "4px", border: "none", cursor: "pointer", fontSize: "12px",
                   background: !changeRunFilter ? COLORS.gold : COLORS.border,
-                  color: !changeRunFilter ? "#1c1915" : COLORS.text,
+                  color: !changeRunFilter ? "#1a1714" : COLORS.text,
                   fontWeight: !changeRunFilter ? 600 : 400,
                 }}
                 onClick={() => { setChangeRunFilter(null); setChangePage(0) }}
@@ -1450,7 +1450,7 @@ const SyncDashboardPage = () => {
                   style={{
                     padding: "4px 12px", borderRadius: "4px", border: "none", cursor: "pointer", fontSize: "12px",
                     background: changeRunFilter === run.sync_run_id ? COLORS.gold : COLORS.border,
-                    color: changeRunFilter === run.sync_run_id ? "#1c1915" : COLORS.text,
+                    color: changeRunFilter === run.sync_run_id ? "#1a1714" : COLORS.text,
                     fontWeight: changeRunFilter === run.sync_run_id ? 600 : 400,
                   }}
                   onClick={() => { setChangeRunFilter(run.sync_run_id); setChangePage(0) }}

@@ -16,7 +16,7 @@ class ErrorBoundary extends Component<
   render() {
     if (this.state.error) {
       return (
-        <div style={{ padding: 24, color: "#ef4444" }}>
+        <div style={{ padding: 24, color: "#dc2626" }}>
           <h2>Error in Media Management:</h2>
           <pre style={{ whiteSpace: "pre-wrap", fontSize: 13 }}>
             {this.state.error.message}
@@ -66,21 +66,21 @@ type Stats = {
 }
 
 const COLORS = {
-  bg: "#1c1915",
-  card: "#2a2520",
-  text: "#f5f0eb",
-  muted: "#a09080",
-  gold: "#d4a54a",
-  border: "#3a3530",
-  hover: "#353025",
+  bg: "transparent",
+  card: "#f8f7f6",
+  text: "#1a1714",
+  muted: "#78716c",
+  gold: "#b8860b",
+  border: "#e7e5e4",
+  hover: "#f5f4f3",
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  available: "#22c55e",
-  reserved: "#eab308",
-  in_auction: "#3b82f6",
-  sold: "#ef4444",
-  unsold: "#a09080",
+  available: "#16a34a",
+  reserved: "#d97706",
+  in_auction: "#2563eb",
+  sold: "#dc2626",
+  unsold: "#78716c",
 }
 
 const FORMAT_OPTIONS = ["LP", "CD", "CASSETTE", "VHS", "REEL", "BOXSET", "MAGAZINE", "BOOK", "POSTER", "ZINE", "PHOTO", "POSTCARD", "MERCHANDISE", "OTHER"]
@@ -364,7 +364,7 @@ const ImageGalleryOverlay = ({ onClose }: { onClose: () => void }) => {
                   onClick={() => { window.location.href = `/app/media/${lightboxImage.id}` }}
                   style={{
                     padding: "8px 20px", borderRadius: "6px", border: "none",
-                    background: COLORS.gold, color: "#1c1915", fontSize: "13px", fontWeight: 600, cursor: "pointer",
+                    background: COLORS.gold, color: "#1a1714", fontSize: "13px", fontWeight: 600, cursor: "pointer",
                   }}
                 >Open Detail</button>
                 <button
@@ -753,7 +753,7 @@ const MediaPage = () => {
     borderRadius: "20px",
     border: `1px solid ${active ? COLORS.gold : COLORS.border}`,
     background: active ? COLORS.gold : "transparent",
-    color: active ? "#1c1915" : COLORS.text,
+    color: active ? "#1a1714" : COLORS.text,
     fontSize: "13px",
     fontWeight: active ? 600 : 400,
     cursor: "pointer",
@@ -765,7 +765,7 @@ const MediaPage = () => {
     borderRadius: "4px",
     border: `1px solid ${active ? COLORS.gold : COLORS.border}`,
     background: active ? COLORS.gold : "transparent",
-    color: active ? "#1c1915" : COLORS.text,
+    color: active ? "#1a1714" : COLORS.text,
     fontSize: "13px",
     cursor: "pointer",
     fontWeight: active ? 600 : 400,
@@ -849,8 +849,8 @@ const MediaPage = () => {
             fontWeight: 600,
             fontSize: "13px",
             cursor: catalogVisibilityLoading ? "wait" : "pointer",
-            background: catalogVisibility === "visible" ? "#22c55e" : COLORS.gold,
-            color: catalogVisibility === "visible" ? "#fff" : "#1c1915",
+            background: catalogVisibility === "visible" ? "#16a34a" : COLORS.gold,
+            color: catalogVisibility === "visible" ? "#fff" : "#1a1714",
           }}
         >
           {catalogVisibilityLoading ? "..." : catalogVisibility === "visible" ? "Filter ON — Only with Image + Price" : "Filter OFF — Showing All"}
@@ -1040,7 +1040,7 @@ const MediaPage = () => {
                 borderRadius: "6px",
                 border: "none",
                 background: bulkLoading || !bulkValue ? COLORS.border : COLORS.gold,
-                color: bulkLoading || !bulkValue ? COLORS.muted : "#1c1915",
+                color: bulkLoading || !bulkValue ? COLORS.muted : "#1a1714",
                 fontSize: "13px",
                 fontWeight: 600,
                 cursor: bulkLoading || !bulkValue ? "default" : "pointer",
@@ -1058,7 +1058,7 @@ const MediaPage = () => {
                 borderRadius: "6px",
                 border: "none",
                 background: bulkLoading ? COLORS.border : COLORS.gold,
-                color: bulkLoading ? COLORS.muted : "#1c1915",
+                color: bulkLoading ? COLORS.muted : "#1a1714",
                 fontSize: "13px",
                 fontWeight: 600,
                 cursor: bulkLoading ? "default" : "pointer",
@@ -1076,7 +1076,7 @@ const MediaPage = () => {
                 borderRadius: "6px",
                 border: "none",
                 background: bulkLoading || !bulkValue ? COLORS.border : COLORS.gold,
-                color: bulkLoading || !bulkValue ? COLORS.muted : "#1c1915",
+                color: bulkLoading || !bulkValue ? COLORS.muted : "#1a1714",
                 fontSize: "13px",
                 fontWeight: 600,
                 cursor: bulkLoading || !bulkValue ? "default" : "pointer",
@@ -1165,7 +1165,7 @@ const MediaPage = () => {
                     />
                   </td>
                   <td style={{ ...tdStyle, textAlign: "center", width: "32px" }} title={r.coverImage && r.legacy_price != null ? "Visible to customers" : `Hidden: ${!r.coverImage ? "no image" : ""}${!r.coverImage && r.legacy_price == null ? " + " : ""}${r.legacy_price == null ? "no price" : ""}`}>
-                    <span style={{ fontSize: "16px", color: r.coverImage && r.legacy_price != null ? "#22c55e" : "#ef4444" }}>●</span>
+                    <span style={{ fontSize: "16px", color: r.coverImage && r.legacy_price != null ? "#16a34a" : "#dc2626" }}>●</span>
                   </td>
                   <td style={tdStyle}>
                     {r.coverImage ? (
@@ -1205,10 +1205,10 @@ const MediaPage = () => {
                         <span style={{ padding: "2px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: 600, background: `${STATUS_COLORS[r.auction_status] || COLORS.muted}20`, color: STATUS_COLORS[r.auction_status] || COLORS.muted, textTransform: "capitalize" }}>{r.auction_status}</span>
                       ) : (<span style={{ color: COLORS.muted }}>{"\u2014"}</span>)}
                       {r.sale_mode === "direct_purchase" && (
-                        <span style={{ padding: "2px 6px", borderRadius: "8px", fontSize: "10px", fontWeight: 600, background: "#22c55e20", color: "#22c55e" }}>Direct</span>
+                        <span style={{ padding: "2px 6px", borderRadius: "8px", fontSize: "10px", fontWeight: 600, background: "#22c55e20", color: "#16a34a" }}>Direct</span>
                       )}
                       {r.sale_mode === "both" && (
-                        <span style={{ padding: "2px 6px", borderRadius: "8px", fontSize: "10px", fontWeight: 600, background: "#3b82f620", color: "#60a5fa" }}>Both</span>
+                        <span style={{ padding: "2px 6px", borderRadius: "8px", fontSize: "10px", fontWeight: 600, background: "#3b82f620", color: "#2563eb" }}>Both</span>
                       )}
                     </div>
                   </td>

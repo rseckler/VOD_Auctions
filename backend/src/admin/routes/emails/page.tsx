@@ -31,8 +31,8 @@ type PreviewData = {
 const C = {
   bg: "#ffffff",
   card: "transparent",
-  border: "rgba(255,255,255,0.1)",
-  text: "#d1d5db",
+  border: "rgba(0,0,0,0.08)",
+  text: "#1f2937",
   muted: "#6b7280",
   gold: "#b8860b",
   success: "#16a34a",
@@ -41,7 +41,7 @@ const C = {
   chip: {
     resend: { bg: "#eff6ff", text: "#1d4ed8", border: "#bfdbfe" },
     brevo: { bg: "#ecfdf5", text: "#065f46", border: "#6ee7b7" },
-    transactional: { bg: "transparent", text: "#d1d5db", border: "rgba(255,255,255,0.1)" },
+    transactional: { bg: "transparent", text: "#1f2937", border: "rgba(0,0,0,0.08)" },
     newsletter: { bg: "#fdf4ff", text: "#6b21a8", border: "#e9d5ff" },
   },
 }
@@ -305,7 +305,7 @@ function PreviewDrawer({
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Internal notes, desired changes, copy feedback…"
                   rows={4}
-                  style={{ width: "100%", padding: "9px 12px", fontSize: 14, border: `1px solid ${C.border}`, borderRadius: 6, outline: "none", boxSizing: "border-box" as const, resize: "vertical" as const, color: C.text, fontFamily: "#d1d5db" }}
+                  style={{ width: "100%", padding: "9px 12px", fontSize: 14, border: `1px solid ${C.border}`, borderRadius: 6, outline: "none", boxSizing: "border-box" as const, resize: "vertical" as const, color: C.text, fontFamily: "inherit" }}
                 />
               </div>
 
@@ -438,7 +438,7 @@ function TemplateCard({
         </div>
         <p style={{ margin: "0 0 4px", fontSize: 13, color: C.muted }}>{template.description}</p>
         <p style={{ margin: 0, fontSize: 12, color: C.muted }}>
-          <span style={{ color: "#d1d5db", fontWeight: 500 }}>Trigger:</span> {template.trigger}
+          <span style={{ color: "#1f2937", fontWeight: 500 }}>Trigger:</span> {template.trigger}
         </p>
         <p style={{ margin: "3px 0 0", fontSize: 12, color: C.muted, fontStyle: "italic" }}>
           &ldquo;{template.preheader}&rdquo;

@@ -5,18 +5,18 @@ import { useAdminNav } from "../../components/admin-nav"
 // ── Design System ───────────────────────────────────────────────────────────
 
 const C = {
-  bg: "#1c1915",
-  card: "#2a2520",
-  text: "#f5f0eb",
-  muted: "#a09080",
-  gold: "#d4a54a",
-  border: "#3a3530",
-  hover: "#353025",
-  success: "#22c55e",
-  error: "#ef4444",
-  blue: "#60a5fa",
-  purple: "#c084fc",
-  warning: "#eab308",
+  bg: "transparent",
+  card: "#f8f7f6",
+  text: "#1a1714",
+  muted: "#78716c",
+  gold: "#b8860b",
+  border: "#e7e5e4",
+  hover: "#f5f4f3",
+  success: "#16a34a",
+  error: "#dc2626",
+  blue: "#2563eb",
+  purple: "#7c3aed",
+  warning: "#d97706",
 }
 
 // ── Error Boundary ──────────────────────────────────────────────────────────
@@ -95,15 +95,15 @@ interface WaitlistStats {
 // ── Status Badge Styles ─────────────────────────────────────────────────────
 
 const STATUS_STYLE: Record<string, { bg: string; color: string; border: string }> = {
-  pending:    { bg: C.warning + "20", color: C.warning, border: C.warning + "40" },
-  approved:   { bg: C.blue + "20",    color: C.blue,    border: C.blue + "40" },
-  invited:    { bg: C.purple + "20",  color: C.purple,  border: C.purple + "40" },
-  registered: { bg: C.success + "20", color: C.success, border: C.success + "40" },
-  rejected:   { bg: C.error + "20",   color: C.error,   border: C.error + "40" },
-  active:     { bg: C.success + "20", color: C.success, border: C.success + "40" },
-  used:       { bg: C.muted + "20",   color: C.muted,   border: C.muted + "40" },
-  expired:    { bg: C.warning + "20", color: C.warning, border: C.warning + "40" },
-  revoked:    { bg: C.error + "20",   color: C.error,   border: C.error + "40" },
+  pending:    { bg: C.warning + "12", color: C.warning, border: C.warning + "40" },
+  approved:   { bg: C.blue + "12",    color: C.blue,    border: C.blue + "40" },
+  invited:    { bg: C.purple + "12",  color: C.purple,  border: C.purple + "40" },
+  registered: { bg: C.success + "12", color: C.success, border: C.success + "40" },
+  rejected:   { bg: C.error + "12",   color: C.error,   border: C.error + "40" },
+  active:     { bg: C.success + "12", color: C.success, border: C.success + "40" },
+  used:       { bg: C.muted + "12",   color: C.muted,   border: C.muted + "40" },
+  expired:    { bg: C.warning + "12", color: C.warning, border: C.warning + "40" },
+  revoked:    { bg: C.error + "12",   color: C.error,   border: C.error + "40" },
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -174,7 +174,7 @@ function Toast({
         position: "fixed",
         bottom: 24,
         right: 24,
-        background: C.bg,
+        background: "#fff",
         border: `1px solid ${borderColor}`,
         color: textColor,
         padding: "10px 18px",
@@ -182,7 +182,7 @@ function Toast({
         fontSize: 12,
         fontWeight: 600,
         zIndex: 9999,
-        boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
+        boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
       }}
     >
       {message}
@@ -631,7 +631,7 @@ function WaitlistPage() {
                     }}
                     style={{
                       background: isActive ? C.gold : "transparent",
-                      color: isActive ? "#1c1915" : C.muted,
+                      color: isActive ? "#fff" : C.muted,
                       fontWeight: isActive ? 600 : 400,
                       borderRadius: 5,
                       padding: "4px 10px",
@@ -675,7 +675,7 @@ function WaitlistPage() {
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 860 }}>
                   <thead>
-                    <tr style={{ background: "#161310" }}>
+                    <tr style={{ background: "#f3f2f1" }}>
                       <th
                         style={{
                           padding: "8px 14px",
@@ -836,7 +836,7 @@ function WaitlistPage() {
                 disabled={bulkLoading}
                 style={{
                   background: C.gold,
-                  color: "#1c1915",
+                  color: "#fff",
                   border: "none",
                   padding: "6px 16px",
                   fontSize: 12,
@@ -897,7 +897,7 @@ function WaitlistPage() {
                     }}
                     style={{
                       background: isActive ? C.gold : "transparent",
-                      color: isActive ? "#1c1915" : C.muted,
+                      color: isActive ? "#fff" : C.muted,
                       fontWeight: isActive ? 600 : 400,
                       borderRadius: 5,
                       padding: "4px 10px",
@@ -941,7 +941,7 @@ function WaitlistPage() {
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 860 }}>
                   <thead>
-                    <tr style={{ background: "#161310" }}>
+                    <tr style={{ background: "#f3f2f1" }}>
                       {[
                         "Token",
                         "Email",
@@ -1213,7 +1213,7 @@ function AppRow({
     borderRadius: 4,
     border: filled ? "none" : `1px solid ${color}60`,
     background: filled ? C.gold : "transparent",
-    color: filled ? "#1c1915" : color,
+    color: filled ? "#fff" : color,
     cursor: loading ? "wait" : "pointer",
     opacity: loading ? 0.5 : 1,
     transition: "all 0.15s",
@@ -1338,7 +1338,7 @@ function AppRow({
           >
             <div
               style={{
-                background: C.bg,
+                background: C.hover,
                 padding: "14px 18px 14px 48px",
                 display: "grid",
                 gridTemplateColumns: "1fr 1fr",

@@ -71,8 +71,8 @@ function HubCard({
     <div
       onClick={() => { window.location.href = href }}
       style={{
-        background: "var(--bg-component, #1a1714)",
-        border: "1px solid rgba(255,255,255,0.1)",
+        background: "var(--bg-component, #f8f7f6)",
+        border: "1px solid rgba(0,0,0,0.08)",
         borderRadius: 10,
         padding: 20,
         cursor: "pointer",
@@ -96,15 +96,15 @@ function HubCard({
         </div>
       </div>
       {description && (
-        <div style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.5, marginBottom: 12 }}>
+        <div style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.5, marginBottom: 12 }}>
           {description}
         </div>
       )}
       {children}
-      {meta && <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 10 }}>{meta}</div>}
+      {meta && <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 10 }}>{meta}</div>}
       <button style={{
         display: "inline-flex", alignItems: "center", gap: 4,
-        background: "transparent", color: "#d1d5db",
+        background: "transparent", color: "#1f2937",
         border: "none", borderRadius: 5,
         padding: "5px 12px", fontSize: 11, fontWeight: 500, cursor: "pointer",
       }}>
@@ -141,12 +141,12 @@ function serviceStatusColor(status: string): "green" | "amber" | "red" | "grey" 
 function SystemHealthContent({ data, loading }: { data: SystemHealthData | null; loading: boolean }) {
   if (loading) {
     return (
-      <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 12 }}>Checking services…</div>
+      <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 12 }}>Checking services…</div>
     )
   }
   if (!data) {
     return (
-      <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 12 }}>Status unavailable</div>
+      <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 12 }}>Status unavailable</div>
     )
   }
 
@@ -173,7 +173,7 @@ function SystemHealthContent({ data, loading }: { data: SystemHealthData | null;
         gap: "6px 4px", marginBottom: issues.length > 0 ? 8 : 12,
       }}>
         {displayServices.map((s) => (
-          <div key={s.name} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "#d1d5db" }}>
+          <div key={s.name} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "#1f2937" }}>
             <Dot color={serviceStatusColor(s.status)} />
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {s.label.split(" ")[0]}
@@ -223,12 +223,12 @@ function SyncStatusContent({
   const rowStyle: React.CSSProperties = {
     display: "flex", alignItems: "center", gap: 8,
     fontSize: 11, padding: "5px 0",
-    borderBottom: "1px solid rgba(255,255,255,0.06)",
+    borderBottom: "1px solid rgba(0,0,0,0.04)",
   }
   const lastRowStyle: React.CSSProperties = { ...rowStyle, borderBottom: "none" }
 
   if (loading) {
-    return <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 12 }}>Loading sync status…</div>
+    return <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 12 }}>Loading sync status…</div>
   }
 
   const discogsHealth = discogs?.health ?? null
@@ -249,21 +249,21 @@ function SyncStatusContent({
       <div style={rowStyle}>
         <Dot color={discogsDot} />
         <span style={{ fontWeight: 600 }}>Discogs Daily</span>
-        <span style={{ color: "#9ca3af", marginLeft: "auto" }}>
+        <span style={{ color: "#6b7280", marginLeft: "auto" }}>
           {discogsHealth ? `${discogsChunk} · last: ${discogsTime}` : "not yet"}
         </span>
       </div>
       <div style={rowStyle}>
         <Dot color={legacyDot} />
         <span style={{ fontWeight: 600 }}>Legacy Sync</span>
-        <span style={{ color: "#9ca3af", marginLeft: "auto" }}>
+        <span style={{ color: "#6b7280", marginLeft: "auto" }}>
           {latestLegacy ? `${legacyUpdates} updates · last: ${legacyTime}` : "not yet"}
         </span>
       </div>
       <div style={lastRowStyle}>
         <Dot color="grey" />
         <span style={{ fontWeight: 600 }}>Entity Overhaul</span>
-        <span style={{ color: "#9ca3af", marginLeft: "auto" }}>paused</span>
+        <span style={{ color: "#6b7280", marginLeft: "auto" }}>paused</span>
       </div>
     </div>
   )
@@ -275,7 +275,7 @@ function ShippingContent() {
   const rowStyle: React.CSSProperties = {
     display: "flex", justifyContent: "space-between",
     fontSize: 11, padding: "5px 0",
-    borderBottom: "1px solid rgba(255,255,255,0.06)",
+    borderBottom: "1px solid rgba(0,0,0,0.04)",
   }
   const lastRowStyle: React.CSSProperties = { ...rowStyle, borderBottom: "none" }
 
@@ -302,11 +302,11 @@ function ShippingContent() {
 function TestRunnerContent() {
   return (
     <>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "#d1d5db", marginBottom: 6 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "#1f2937", marginBottom: 6 }}>
         <Dot color="grey" />
         No active tests
       </div>
-      <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 10 }}>
+      <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 10 }}>
         Last run: 2026-03-29 · Stripe ✓ PayPal ✓
       </div>
     </>
@@ -375,11 +375,11 @@ function OperationsHub() {
   return (
     <div style={{ padding: "32px 36px", maxWidth: 960, fontFamily: "var(--font-sans, system-ui, sans-serif)" }}>
       {/* Header */}
-      <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 20 }}>Admin</div>
+      <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 20 }}>Admin</div>
       <div style={{ fontSize: 24, fontWeight: 800, color: "inherit", marginBottom: 4 }}>
         ⚙️ Operations
       </div>
-      <div style={{ fontSize: 14, color: "#9ca3af", marginBottom: 28 }}>
+      <div style={{ fontSize: 14, color: "#6b7280", marginBottom: 28 }}>
         Platform monitoring, configuration, and technical tools
       </div>
 
@@ -411,8 +411,8 @@ function OperationsHub() {
           <button
             onClick={(e) => { e.stopPropagation(); window.location.href = "/app/live-monitor" }}
             style={{
-              background: "rgba(255,255,255,0.15)", color: "#fff",
-              border: "1px solid rgba(255,255,255,0.3)", borderRadius: 6,
+              background: "#6366f1", color: "#fff",
+              border: "1px solid #6366f1", borderRadius: 6,
               padding: "7px 16px", fontSize: 13, fontWeight: 600,
               cursor: "pointer", whiteSpace: "nowrap",
             }}
@@ -424,7 +424,7 @@ function OperationsHub() {
 
       {/* Section heading */}
       <div style={{
-        fontSize: 11, fontWeight: 700, color: "#9ca3af",
+        fontSize: 11, fontWeight: 700, color: "#6b7280",
         textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 12,
       }}>
         Platform Tools
@@ -491,7 +491,7 @@ function OperationsHub() {
       {!hasLive && (
         <>
           <div style={{
-            fontSize: 11, fontWeight: 700, color: "#9ca3af",
+            fontSize: 11, fontWeight: 700, color: "#6b7280",
             textTransform: "uppercase", letterSpacing: "0.07em",
             marginTop: 24, marginBottom: 12,
           }}>

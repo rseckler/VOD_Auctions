@@ -25,7 +25,7 @@ function renderMarkdown(text: string): string {
       return `<pre style="background:#1e1e2e;color:#cdd6f4;padding:12px;border-radius:6px;overflow-x:auto;font-size:12px;margin:8px 0;">${escapeHtml(code)}</pre>`
     })
     // Inline code
-    .replace(/`([^`]+)`/g, (_, c) => `<code style="background:rgba(255,255,255,0.08);color:#e8e0d4;padding:2px 6px;border-radius:4px;font-size:13px;">${escapeHtml(c)}</code>`)
+    .replace(/`([^`]+)`/g, (_, c) => `<code style="background:rgba(0,0,0,0.05);color:#1a1714;padding:2px 6px;border-radius:4px;font-size:13px;">${escapeHtml(c)}</code>`)
     // Bold
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     // Tables (simple)
@@ -34,7 +34,7 @@ function renderMarkdown(text: string): string {
       const html = rows.map((row, i) => {
         const cells = row.split("|").filter((_, ci) => ci > 0 && ci < row.split("|").length - 1)
         const tag = i === 0 ? "th" : "td"
-        const cellHtml = cells.map((c) => `<${tag} style="padding:6px 10px;border:1px solid rgba(255,255,255,0.1);text-align:left;font-size:13px;">${c.trim()}</${tag}>`).join("")
+        const cellHtml = cells.map((c) => `<${tag} style="padding:6px 10px;border:1px solid rgba(0,0,0,0.08);text-align:left;font-size:13px;">${c.trim()}</${tag}>`).join("")
         return `<tr>${cellHtml}</tr>`
       }).join("")
       return `<table style="border-collapse:collapse;width:100%;margin:8px 0;">${html}</table>`
@@ -75,11 +75,11 @@ function ToolChip({ tool, result }: { tool: string; result?: unknown }) {
           fontSize: 11,
           padding: "3px 8px",
           borderRadius: 12,
-          border: "1px solid rgba(255,255,255,0.1)",
+          border: "1px solid rgba(0,0,0,0.08)",
           background: "transparent",
-          color: "#9ca3af",
+          color: "#6b7280",
           cursor: "pointer",
-          fontFamily: "#d1d5db",
+          fontFamily: "inherit",
         }}
       >
         {icons[tool] || "🔧"} {tool} {open ? "▲" : "▼"}
@@ -90,12 +90,12 @@ function ToolChip({ tool, result }: { tool: string; result?: unknown }) {
             marginTop: 4,
             fontSize: 11,
             background: "transparent",
-            border: "1px solid rgba(255,255,255,0.1)",
+            border: "1px solid rgba(0,0,0,0.08)",
             borderRadius: 6,
             padding: "8px",
             overflow: "auto",
             maxHeight: 200,
-            color: "#d1d5db",
+            color: "#1f2937",
           }}
         >
           {JSON.stringify(result as object, null, 2)}
@@ -268,7 +268,7 @@ export default function AIAssistantPage() {
     <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 64px)", fontFamily: "var(--font-sans, system-ui)" }}>
 
       {/* Header */}
-      <div style={{ padding: "20px 32px 16px", borderBottom: "1px solid rgba(255,255,255,0.1)", background: "var(--bg-component, #1a1714)", flexShrink: 0 }}>
+      <div style={{ padding: "20px 32px 16px", borderBottom: "1px solid rgba(0,0,0,0.08)", background: "var(--bg-component, #f8f7f6)", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{
             width: 36, height: 36, borderRadius: "50%",
@@ -277,8 +277,8 @@ export default function AIAssistantPage() {
             fontSize: 18,
           }}>✦</div>
           <div>
-            <div style={{ fontWeight: 600, fontSize: 16, color: "#d1d5db" }}>VOD AI Assistant</div>
-            <div style={{ fontSize: 12, color: "#9ca3af" }}>Powered by Claude · Read-only</div>
+            <div style={{ fontWeight: 600, fontSize: 16, color: "#1f2937" }}>VOD AI Assistant</div>
+            <div style={{ fontSize: 12, color: "#6b7280" }}>Powered by Claude · Read-only</div>
           </div>
         </div>
       </div>
@@ -290,10 +290,10 @@ export default function AIAssistantPage() {
         {isEmpty && (
           <div style={{ maxWidth: 560, margin: "40px auto", textAlign: "center" }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>✦</div>
-            <div style={{ fontSize: 18, fontWeight: 600, color: "#d1d5db", marginBottom: 8 }}>
+            <div style={{ fontSize: 18, fontWeight: 600, color: "#1f2937", marginBottom: 8 }}>
               Was kann ich für dich tun?
             </div>
-            <div style={{ fontSize: 14, color: "#9ca3af", marginBottom: 28 }}>
+            <div style={{ fontSize: 14, color: "#6b7280", marginBottom: 28 }}>
               Ich habe Zugriff auf Auktionen, Bestellungen, Katalog und System-Status.
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
@@ -304,13 +304,13 @@ export default function AIAssistantPage() {
                   style={{
                     padding: "8px 14px",
                     borderRadius: 20,
-                    border: "1px solid rgba(255,255,255,0.1)",
+                    border: "1px solid rgba(0,0,0,0.08)",
                     background: "transparent",
-                    color: "#d1d5db",
+                    color: "#1f2937",
                     fontSize: 13,
                     cursor: "pointer",
                     transition: "all 0.15s",
-                    fontFamily: "#d1d5db",
+                    fontFamily: "inherit",
                   }}
                   onMouseOver={(e) => {
                     ;(e.currentTarget as HTMLElement).style.background = "#ede9fe"
@@ -318,8 +318,8 @@ export default function AIAssistantPage() {
                     ;(e.currentTarget as HTMLElement).style.color = "#5b21b6"
                   }}
                   onMouseOut={(e) => {
-                    ;(e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)"
-                    ;(e.currentTarget as HTMLElement).style.borderColor = "rgba(255,255,255,0.15)"
+                    ;(e.currentTarget as HTMLElement).style.background = "rgba(0,0,0,0.02)"
+                    ;(e.currentTarget as HTMLElement).style.borderColor = "rgba(0,0,0,0.08)"
                     ;(e.currentTarget as HTMLElement).style.color = "#374151"
                   }}
                 >
@@ -368,8 +368,8 @@ export default function AIAssistantPage() {
                     padding: "10px 14px",
                     borderRadius: msg.role === "user" ? "18px 18px 4px 18px" : "4px 18px 18px 18px",
                     background: msg.role === "user" ? "#6366f1" : "#f9fafb",
-                    color: msg.role === "user" ? "#fff" : "#d1d5db",
-                    border: msg.role === "assistant" ? "1px solid rgba(255,255,255,0.1)" : "none",
+                    color: msg.role === "user" ? "#fff" : "#1f2937",
+                    border: msg.role === "assistant" ? "1px solid rgba(0,0,0,0.08)" : "none",
                     fontSize: 14,
                     lineHeight: 1.6,
                   }}
@@ -398,7 +398,7 @@ export default function AIAssistantPage() {
                 width: 28, height: 28, borderRadius: "50%",
                 background: "#e5e7eb",
                 display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 12, color: "#9ca3af", flexShrink: 0, marginLeft: 10, marginTop: 2,
+                fontSize: 12, color: "#6b7280", flexShrink: 0, marginLeft: 10, marginTop: 2,
               }}>R</div>
             )}
           </div>
@@ -408,7 +408,7 @@ export default function AIAssistantPage() {
       </div>
 
       {/* Input bar */}
-      <div style={{ padding: "16px 32px 20px", borderTop: "1px solid rgba(255,255,255,0.1)", background: "var(--bg-component, #1a1714)", flexShrink: 0 }}>
+      <div style={{ padding: "16px 32px 20px", borderTop: "1px solid rgba(0,0,0,0.08)", background: "var(--bg-component, #f8f7f6)", flexShrink: 0 }}>
         <div style={{
           display: "flex",
           alignItems: "flex-end",
@@ -436,9 +436,9 @@ export default function AIAssistantPage() {
               outline: "none",
               resize: "none",
               fontSize: 14,
-              color: "#d1d5db",
+              color: "#1f2937",
               background: "transparent",
-              fontFamily: "#d1d5db",
+              fontFamily: "inherit",
               lineHeight: 1.5,
               maxHeight: 120,
               overflowY: "auto",
@@ -455,7 +455,7 @@ export default function AIAssistantPage() {
             style={{
               width: 34, height: 34,
               borderRadius: 8,
-              background: input.trim() && !isLoading ? "#6366f1" : "rgba(255,255,255,0.1)",
+              background: input.trim() && !isLoading ? "#6366f1" : "rgba(0,0,0,0.08)",
               border: "none",
               cursor: input.trim() && !isLoading ? "pointer" : "not-allowed",
               color: input.trim() && !isLoading ? "#fff" : "#9ca3af",
@@ -468,7 +468,7 @@ export default function AIAssistantPage() {
             {isLoading ? "⋯" : "↑"}
           </button>
         </div>
-        <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 6, textAlign: "center" }}>
+        <div style={{ fontSize: 11, color: "#6b7280", marginTop: 6, textAlign: "center" }}>
           Claude Haiku · Nur lesender Zugriff · Session wird nicht gespeichert
         </div>
       </div>

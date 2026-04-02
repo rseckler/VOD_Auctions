@@ -44,8 +44,8 @@ function HubCard({
     <div
       onClick={() => { window.location.href = href }}
       style={{
-        background: "var(--bg-component, #1a1714)",
-        border: "1px solid rgba(255,255,255,0.1)",
+        background: "var(--bg-component, #f8f7f6)",
+        border: "1px solid rgba(0,0,0,0.08)",
         borderRadius: 10,
         padding: 20,
         cursor: "pointer",
@@ -54,11 +54,11 @@ function HubCard({
       }}
       onMouseEnter={(e) => {
         ;(e.currentTarget as HTMLDivElement).style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)"
-        ;(e.currentTarget as HTMLDivElement).style.borderColor = "#d1d5db"
+        ;(e.currentTarget as HTMLDivElement).style.borderColor = "#1f2937"
       }}
       onMouseLeave={(e) => {
         ;(e.currentTarget as HTMLDivElement).style.boxShadow = "none"
-        ;(e.currentTarget as HTMLDivElement).style.borderColor = "rgba(255,255,255,0.15)"
+        ;(e.currentTarget as HTMLDivElement).style.borderColor = "rgba(0,0,0,0.08)"
       }}
     >
       {badge && bc && (
@@ -72,12 +72,12 @@ function HubCard({
         </span>
       )}
       <div style={{ fontSize: 24, marginBottom: 12 }}>{icon}</div>
-      <div style={{ fontSize: 15, fontWeight: 700, color: "#d1d5db", marginBottom: 4 }}>{title}</div>
-      <div style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.5, marginBottom: 12 }}>{description}</div>
-      <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 14 }}>{meta}</div>
+      <div style={{ fontSize: 15, fontWeight: 700, color: "#1f2937", marginBottom: 4 }}>{title}</div>
+      <div style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.5, marginBottom: 12 }}>{description}</div>
+      <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 14 }}>{meta}</div>
       <button style={{
         display: "inline-flex", alignItems: "center", gap: 4,
-        background: "transparent", color: "#d1d5db",
+        background: "transparent", color: "#1f2937",
         border: "none", borderRadius: 5,
         padding: "5px 12px", fontSize: 12, fontWeight: 500, cursor: "pointer",
       }}>
@@ -125,11 +125,11 @@ function CatalogHub() {
   return (
     <div style={{ padding: "32px 36px", maxWidth: 900, fontFamily: "var(--font-sans, system-ui, sans-serif)" }}>
       {/* Header */}
-      <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 20 }}>Admin</div>
-      <div style={{ fontSize: 24, fontWeight: 800, color: "#d1d5db", marginBottom: 4 }}>
+      <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 20 }}>Admin</div>
+      <div style={{ fontSize: 24, fontWeight: 800, color: "#1f2937", marginBottom: 4 }}>
         🗃️ Catalog
       </div>
-      <div style={{ fontSize: 14, color: "#9ca3af", marginBottom: 28 }}>
+      <div style={{ fontSize: 14, color: "#6b7280", marginBottom: 28 }}>
         Browse and enrich the {total}-release catalog — releases, artists, labels, and press
       </div>
 
@@ -142,21 +142,21 @@ function CatalogHub() {
           { num: stats?.musicians ?? 897, label: "Musicians", sub: `${stats?.bands ?? 189} bands` },
         ].map((s, i) => (
           <div key={i} style={{
-            background: "var(--bg-component, #1a1714)", border: "1px solid rgba(255,255,255,0.1)",
+            background: "var(--bg-component, #f8f7f6)", border: "1px solid rgba(0,0,0,0.08)",
             borderRadius: 8, padding: "10px 16px",
           }}>
-            <div style={{ fontSize: 20, fontWeight: 800, color: i === 2 ? "#6366f1" : "#d1d5db" }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: i === 2 ? "#6366f1" : "#1f2937" }}>
               {String(s.num)}
             </div>
-            <div style={{ fontSize: 11, color: "#9ca3af" }}>{s.label}</div>
-            {s.sub && <div style={{ fontSize: 10, color: "#9ca3af" }}>{s.sub}</div>}
+            <div style={{ fontSize: 11, color: "#6b7280" }}>{s.label}</div>
+            {s.sub && <div style={{ fontSize: 10, color: "#6b7280" }}>{s.sub}</div>}
           </div>
         ))}
       </div>
 
       {/* Section heading */}
       <div style={{
-        fontSize: 11, fontWeight: 700, color: "#9ca3af",
+        fontSize: 11, fontWeight: 700, color: "#6b7280",
         textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 12,
       }}>
         Sections

@@ -126,18 +126,18 @@ type EditForm = {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const C = {
-  bg: "#1c1915",
-  card: "#2a2520",
-  text: "#f5f0eb",
-  muted: "#a09080",
-  gold: "#d4a54a",
-  border: "#3a3530",
-  hover: "#353025",
-  green: "#22c55e",
-  orange: "#ef8833",
-  red: "#ef4444",
-  yellow: "#eab308",
-  blue: "#3b82f6",
+  bg: "transparent",
+  card: "#f8f7f6",
+  text: "#1a1714",
+  muted: "#78716c",
+  gold: "#b8860b",
+  border: "#e7e5e4",
+  hover: "#f5f4f3",
+  green: "#16a34a",
+  orange: "#d97706",
+  red: "#dc2626",
+  yellow: "#d97706",
+  blue: "#2563eb",
 }
 
 const TABS = [
@@ -573,7 +573,7 @@ function EntityContentInner() {
               padding: "8px 20px", border: "none", borderRadius: 6, cursor: "pointer",
               fontWeight: 600, fontSize: 14,
               background: activeTab === tab.key ? C.gold : C.card,
-              color: activeTab === tab.key ? C.bg : C.muted,
+              color: activeTab === tab.key ? "#fff" : C.muted,
               transition: "all 0.15s",
             }}
           >{tab.label}</button>
@@ -656,7 +656,7 @@ function EntityContentInner() {
                 <span style={{ textAlign: "right", display: "flex", gap: 6, justifyContent: "flex-end" }}>
                   <button onClick={() => handleExpand(item)} style={{
                     padding: "4px 12px", border: `1px solid ${C.border}`, borderRadius: 4,
-                    background: isExpanded ? C.gold : "transparent", color: isExpanded ? C.bg : C.text,
+                    background: isExpanded ? C.gold : "transparent", color: isExpanded ? "#fff" : C.text,
                     fontSize: 12, cursor: "pointer", fontWeight: 500,
                   }}>{isExpanded ? "Close" : "Edit"}</button>
                   <button onClick={() => handleGenerate(item)} disabled={generating === item.id} style={{
@@ -713,7 +713,7 @@ function EntityContentInner() {
                         style={{ accentColor: C.gold }} /> Published
                     </label>
                     <button onClick={() => handleSave(item)} disabled={saving} style={{
-                      padding: "8px 24px", background: C.gold, color: C.bg, border: "none",
+                      padding: "8px 24px", background: C.gold, color: "#fff", border: "none",
                       borderRadius: 6, fontWeight: 600, fontSize: 13,
                       cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1,
                     }}>{saving ? "Saving..." : "Save"}</button>

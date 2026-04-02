@@ -172,18 +172,18 @@ type SavedAddress = {
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const COLORS = {
-  bg: "#1c1915",
-  card: "#2a2520",
-  text: "#f5f0eb",
-  muted: "#a09080",
+  bg: "#ffffff",
+  card: "#f9fafb",
+  text: "#1f2937",
+  muted: "#6b7280",
   gold: "#d4a54a",
-  border: "#3a3530",
-  hover: "#353025",
+  border: "#e5e7eb",
+  hover: "#f3f4f6",
   success: "#22c55e",
   error: "#ef4444",
-  blue: "#60a5fa",
-  purple: "#c084fc",
-  orange: "#fb923c",
+  blue: "#3b82f6",
+  purple: "#a855f7",
+  orange: "#f97316",
 }
 
 const SEGMENT_COLORS: Record<string, string> = {

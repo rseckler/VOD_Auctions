@@ -64,10 +64,10 @@ const STOREFRONT_URL = "https://vod-auctions.com"
 const COLORS = {
   bg: "#ffffff",
   card: "transparent",
-  text: "#d1d5db",
+  text: "#1f2937",
   muted: "#6b7280",
   gold: "#b8860b",
-  border: "rgba(255,255,255,0.1)",
+  border: "rgba(0,0,0,0.08)",
   hover: "#f3f4f6",
   danger: "#ef4444",
   success: "#22c55e",
@@ -412,7 +412,7 @@ const styles = {
       width: 18,
       height: 18,
       borderRadius: "50%",
-      background: "var(--bg-component, #1a1714)",
+      background: "var(--bg-component, #f8f7f6)",
       transition: "left 0.2s",
     }) as React.CSSProperties,
   contentSection: {
