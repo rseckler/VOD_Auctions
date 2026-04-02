@@ -99,23 +99,23 @@ Die Pre-Launch Phase schafft eine exklusive Frühzugangs-Community, bevor VOD Au
 
 ### Welle 1: Direkteinladung Tape-mag-Käufer
 
-**Subject:** `[Vorname], dein früher Zugang zu VOD Auctions`  
-**Preheader:** `41.500 Raritäten. Exklusiver Zugang für Tape-mag-Sammler.`
+**Subject:** `[First name], your early access to VOD Auctions`  
+**Preheader:** `41,500 rarities. Exclusive access for tape-mag collectors.`
 
 ```
-Hi [Vorname],
+Hi [First name],
 
-du kennst uns von Tape-mag — und jetzt öffnen wir etwas Neues.
+you know us from Tape-mag — and now we're opening something new.
 
-VOD Auctions ist eine eigene Auktionsplattform für 41.500 industrielle 
-Raritäten aus dem VOD-Records-Katalog. Keine eBay-Gebühren, keine 
-Discogs-Provisionen — nur der Katalog und Sammler wie du.
+VOD Auctions is our own auction platform for 41,500 rare industrial 
+releases from the VOD Records catalogue. No eBay fees, no Discogs 
+commissions — just the catalogue and collectors like you.
 
-Wir geben dir als einer der Ersten Zugang.
+You're one of the first to get access.
 
-→ Jetzt registrieren: vod-auctions.com/invite/[TOKEN]
+→ Register now: vod-auctions.com/invite/[TOKEN]
 
-Dein Link ist 21 Tage gültig und kann nur einmal genutzt werden.
+Your link is valid for 21 days and can only be used once.
 
 Frank & Robin
 VOD Records / VOD Auctions
@@ -126,8 +126,8 @@ VOD Records / VOD Auctions
 
 ### Welle 2: Apply-Aufforderung Newsletter
 
-**Subject:** `Tape-mag Sammler: Frühzugang zu VOD Auctions bewerben`  
-**Preheader:** `41.500 Releases. 200 Plätze. Jetzt bewerben.`
+**Subject:** `Tape-mag collectors: apply for early access to VOD Auctions`  
+**Preheader:** `41,500 releases. 200 spots. Apply now.`
 
 ### Kampagnen-Sequenz
 
@@ -303,40 +303,40 @@ Neue Admin-Route mit:
 ```
 [VOD Auctions Logo]
 
-Frühzugang für Sammler
+Early Access for Collectors
 
-41.500 seltene Industrial-Releases. Eine eigene Plattform.
-Keine eBay-Provisionen. Keine Discogs-Aufschläge.
+41,500 rare industrial releases. Our own platform.
+No eBay fees. No Discogs commissions.
 
-[Wartelisten-Zähler: "3.200 Sammler in der Warteschlange"]
+[Wartelisten-Zähler: "3,200 collectors in the queue"]
 
 ─────────────────────────────────
 
-Jetzt bewerben:
+Apply for access:
 
 Name *
-E-Mail *
-Land *
-Was sammelst du hauptsächlich? (Checkboxen)
+Email *
+Country *
+What do you primarily collect? (checkboxes)
   ☐ Industrial / Power Electronics
   ☐ EBM / Synth
   ☐ Neofolk / Dark Folk
   ☐ Dark Ambient / Drone
   ☐ Post-Punk / Goth
-  ☐ Anderes
+  ☐ Other
 
-Wo kaufst du normalerweise? (Checkboxen)
-  ☐ Discogs  ☐ eBay  ☐ Bandcamp  ☐ Record Fairs  ☐ Anderes
+Where do you usually buy? (checkboxes)
+  ☐ Discogs  ☐ eBay  ☐ Bandcamp  ☐ Record Fairs  ☐ Other
 
-Wie bist du auf uns aufmerksam geworden?
-[Freitextfeld — optional]
+How did you hear about us?
+[Free text — optional]
 
-[Jetzt bewerben →]
+[Apply now →]
 
 ─────────────────────────────────
 
-Bereits eingeladen?
-[Ich habe einen Invite-Link →]
+Already have an invite?
+[I have an invite link →]
 ```
 
 ### Design
@@ -351,11 +351,12 @@ Bereits eingeladen?
 ## 7. E-Mail-Template: Einladung
 
 Neues Template `invite-welcome.ts` mit:
-- **Subject:** `[Vorname], dein Zugang zu VOD Auctions ist bereit`
+- **Subject:** `[First name], your access to VOD Auctions is ready`
+- **Preheader:** `Your personal invite link — valid for 21 days`
 - Invite-Link prominent (Gold CTA-Button)
 - Token lesbar angezeigt: `VOD-A7K2P-X9RQM`
-- Ablaufdatum kommuniziert: "Gültig bis [Datum]"
-- Hinweis: "Dieser Link ist personalisiert und kann nur einmal genutzt werden."
+- Ablaufdatum kommuniziert: "Valid until [date]"
+- Hinweis: "This link is personal and can only be used once."
 
 ---
 
