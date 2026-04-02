@@ -1,16 +1,41 @@
 # VOD Auctions — Admin Configuration Panel Konzept
 
-**Version:** 1.0  
+**Version:** 1.1  
 **Erstellt:** 2026-04-02  
-**Status:** Konzept — zur Umsetzung freigegeben
+**Aktualisiert:** 2026-04-02  
+**Status:** Stufe 1 in Umsetzung — Stufe 2 geplant
 
 ---
 
 ## 1. Ziel
 
-Ein zentrales Admin-Panel `/admin/config` (oder `/admin/site-settings`) mit strukturierten On/Off-Schaltern und Konfigurationswerten für alle plattformweiten Funktionen. Kein Deploy nötig für operative Entscheidungen.
+Ein zentrales Admin-Panel `/admin/config` mit strukturierten On/Off-Schaltern und Konfigurationswerten für alle plattformweiten Funktionen. Kein Deploy nötig für operative Entscheidungen.
 
 **Kern-Prinzip:** Nur was sich zur Laufzeit ändern muss, kommt in die Config. Secrets bleiben in `.env`.
+
+---
+
+## 1a. Umsetzungsstrategie: Stufe 1 zuerst
+
+Das Konzept ist in zwei Stufen aufgeteilt. **Wir setzen zunächst nur Stufe 1 um.**
+
+### Stufe 1 — Jetzt (für Pre-Launch & Launch) ✅ IN UMSETZUNG
+
+| Sektion | Begründung |
+|---------|-----------|
+| **Access / Launch** | Kritisch — steuert platform_mode, Gate, Invite-System, Go-Live |
+| **Auction** | Sinnvoll — Anti-Snipe, Duration, Direct Purchase sind echte Runtime-Entscheidungen |
+| **General** | Minimal — nur `catalog_visibility` |
+
+### Stufe 2 — Nach Launch, bei echtem Bedarf ⏸️ ZURÜCKGESTELLT
+
+| Sektion | Begründung für Zurückstellung |
+|---------|------------------------------|
+| **Payments** | Stripe/PayPal per Toggle deaktivieren — kein realer Use-Case vor Launch |
+| **Email** | Einzelne E-Mail-Typen abschalten — entsteht organisch aus Betriebserfahrung |
+| **Integrations** | Sentry/RudderStack/Discogs — besser über `.env` gesteuert, kein UI-Toggle nötig |
+
+> **Entscheidung:** Stufe 2 wird erst gebaut wenn ein konkretes Bedürfnis aus dem Betrieb entsteht. Kein Overengineering.
 
 ---
 
@@ -70,7 +95,9 @@ Die wichtigste Konfigurationsdimension ist der aktuelle Betriebsmodus der Plattf
 | `auction_reserve_price_visible` | boolean | `false` | Reservepreis für Bieter sichtbar? |
 | `bid_ending_reminders_enabled` | boolean | `true` | 24h/8h/1h/5m Reminder-E-Mails aktivieren |
 
-### 3.4 Payments
+### 3.4 Payments ⏸️ Stufe 2
+
+> Zurückgestellt. Stripe/PayPal sind immer aktiv — ein Toggle hat vor Launch keinen realen Use-Case. Wird ergänzt wenn aus dem Betrieb ein konkretes Bedürfnis entsteht.
 
 | Einstellung | Typ | Default | Beschreibung |
 |-------------|-----|---------|-------------|
@@ -80,7 +107,9 @@ Die wichtigste Konfigurationsdimension ist der aktuelle Betriebsmodus der Plattf
 
 > Hinweis: API-Keys bleiben immer in `.env`, nie in der DB-Config.
 
-### 3.5 Email
+### 3.5 Email ⏸️ Stufe 2
+
+> Zurückgestellt. Individuelle E-Mail-Toggles (z.B. Welcome off, Outbid off) haben keinen realen Use-Case vor Launch. Entsteht organisch aus Betriebserfahrung.
 
 | Einstellung | Typ | Default | Beschreibung |
 |-------------|-----|---------|-------------|
@@ -90,7 +119,9 @@ Die wichtigste Konfigurationsdimension ist der aktuelle Betriebsmodus der Plattf
 | `email_feedback_request_enabled` | boolean | `true` | Feedback-Request 5 Tage nach Versand |
 | `newsletter_double_optin` | boolean | `true` | Double-Opt-In für Newsletter |
 
-### 3.6 Integrations
+### 3.6 Integrations ⏸️ Stufe 2
+
+> Zurückgestellt. Sentry, RudderStack, Discogs werden besser über `.env` gesteuert — kein Admin-UI-Toggle nötig solange kein operativer Bedarf besteht.
 
 | Einstellung | Typ | Default | Beschreibung |
 |-------------|-----|---------|-------------|
@@ -107,8 +138,10 @@ Die wichtigste Konfigurationsdimension ist der aktuelle Betriebsmodus der Plattf
 
 Die bestehende `site_config`-Tabelle wird um dedizierte Spalten erweitert (statt JSONB-Blob). Klare Typen sind einfacher zu validieren.
 
+**Stufe 1 — wird jetzt angelegt:**
+
 ```sql
--- Bestehende Tabelle erweitern
+-- Stufe 1: Access/Launch + Auction + General
 ALTER TABLE site_config ADD COLUMN IF NOT EXISTS platform_mode TEXT DEFAULT 'pre_launch';
 ALTER TABLE site_config ADD COLUMN IF NOT EXISTS gate_password TEXT DEFAULT 'vod2026';
 ALTER TABLE site_config ADD COLUMN IF NOT EXISTS invite_mode_active BOOLEAN DEFAULT true;
@@ -121,7 +154,12 @@ ALTER TABLE site_config ADD COLUMN IF NOT EXISTS auction_stagger_interval_second
 ALTER TABLE site_config ADD COLUMN IF NOT EXISTS auction_direct_purchase_enabled BOOLEAN DEFAULT true;
 ALTER TABLE site_config ADD COLUMN IF NOT EXISTS auction_reserve_price_visible BOOLEAN DEFAULT false;
 ALTER TABLE site_config ADD COLUMN IF NOT EXISTS bid_ending_reminders_enabled BOOLEAN DEFAULT true;
+```
 
+**Stufe 2 — wird später ergänzt (wenn Bedarf entsteht):**
+
+```sql
+-- Stufe 2: Payments, Email, Integrations
 ALTER TABLE site_config ADD COLUMN IF NOT EXISTS stripe_enabled BOOLEAN DEFAULT true;
 ALTER TABLE site_config ADD COLUMN IF NOT EXISTS paypal_enabled BOOLEAN DEFAULT true;
 ALTER TABLE site_config ADD COLUMN IF NOT EXISTS payment_deadline_days INTEGER DEFAULT 5;
@@ -215,34 +253,35 @@ POST   /admin/site-config/go-live   → Spezial-Route für platform_mode → liv
 
 ### 6.1 Struktur
 
+**Stufe 1 (wird gebaut):**
+
 ```
 /admin/config
   ├── [Header] Platform Status Badge (immer sichtbar)
   │
-  ├── [Tab: General]
-  │   └── Inline-editierbare Felder, Save-Button
+  ├── [Tab: General]          ← catalog_visibility
   │
-  ├── [Tab: Access / Launch]  ← Pre-Launch Controls
+  ├── [Tab: Access / Launch]  ← Pre-Launch Controls  ✅ KRITISCH
   │   ├── Platform Mode Selector (Dropdown mit Warnung bei 'live')
   │   ├── Gate Password (masked input)
   │   ├── Invite Mode Toggle
   │   ├── Apply Page Toggle
-  │   └── [GO LIVE Button] → Pre-Flight-Checklist Modal
+  │   ├── Waitlist Counter Toggle
+  │   └── [GO LIVE Button] → Pre-Flight-Checklist
   │
   ├── [Tab: Auction]
-  │   └── Number inputs + Toggles
-  │
-  ├── [Tab: Payments]
-  │   └── Toggles mit Status-Anzeige (Stripe/PayPal connected ✓)
-  │
-  ├── [Tab: Email]
-  │   └── Toggles pro E-Mail-Typ
-  │
-  ├── [Tab: Integrations]
-  │   └── Toggles + Last-Sync-Timestamp
+  │   └── Anti-Snipe, Duration, Stagger, Direct Purchase, Reserve visible
   │
   └── [Tab: Change History]
       └── Audit-Log Tabelle (key, old, new, who, when)
+```
+
+**Stufe 2 (zurückgestellt):**
+
+```
+  ├── [Tab: Payments]      ⏸️
+  ├── [Tab: Email]         ⏸️
+  └── [Tab: Integrations]  ⏸️
 ```
 
 ### 6.2 Toggle-Risiko-Stufen
@@ -286,38 +325,53 @@ Nach "Go Live":
 
 ## 7. Implementierungsplan
 
-### Sprint 1 — Foundation
-- [ ] Supabase SQL: `site_config` ALTER TABLE + `config_audit_log` anlegen
+### Stufe 1 — In Umsetzung ✅
+
+**Sprint 1 — Foundation**
+- [ ] Supabase SQL: `site_config` ALTER TABLE (Stufe-1-Spalten) + `config_audit_log` anlegen
 - [ ] `lib/site-config.ts` — getSiteConfig() + updateSiteConfig() mit Redis-Cache
 - [ ] `GET/PATCH /admin/site-config` Routes
 - [ ] Middleware: `platform_mode` aus `site_config` lesen (statt hardcoded env)
 
-### Sprint 2 — Admin UI
-- [ ] `admin/routes/config/page.tsx` — Tab-Navigation + alle 6 Sektionen
-- [ ] Platform Mode Badge im Admin-Header (via `useAdminNav` oder Layout)
+**Sprint 2 — Admin UI**
+- [ ] `admin/routes/config/page.tsx` — Tab-Navigation (General, Access/Launch, Auction, Change History)
+- [ ] Platform Mode Badge im Admin-Header
 - [ ] Tier-1/2/3-Toggle-UX-Komponenten
 - [ ] Pre-Flight-Checklist für "Go Live"
 - [ ] Change History Tab (Audit-Log)
+- [ ] Access/Launch Tab mit Pre-Launch Controls + Invite-Toggles
 
-### Sprint 3 — Pre-Launch Integration
-- [ ] "Access / Launch" Tab mit Pre-Launch Controls
-- [ ] Pre-Launch Mode: aktiviert `/apply`-Seite + Invite-System
-- [ ] Deaktivierung nach Launch (Felder ausgegraut mit Tooltip "Nicht mehr aktiv")
+### Stufe 2 — Zurückgestellt ⏸️
+
+Wird nur gebaut wenn ein konkretes Bedürfnis aus dem Betrieb entsteht:
+- [ ] Tab: Payments (Stripe/PayPal on/off, payment_deadline_days)
+- [ ] Tab: Email (einzelne E-Mail-Typen togglen)
+- [ ] Tab: Integrations (Discogs, Sentry, RudderStack, Brevo)
 
 ---
 
 ## 8. Linear-Tickets (zu erstellen)
 
+### Stufe 1
+
 | Ticket | Titel | Priorität |
 |--------|-------|-----------|
-| RSE-XXX | Config: DB Schema (site_config + audit_log) | P0 |
+| RSE-XXX | Config: DB Schema Stufe 1 (site_config + config_audit_log) | P0 |
 | RSE-XXX | Config: lib/site-config.ts mit Redis-Cache | P0 |
 | RSE-XXX | Config: Admin-Routes GET/PATCH | P0 |
 | RSE-XXX | Config: Middleware liest platform_mode aus DB | P0 |
-| RSE-XXX | Config: Admin UI (6 Tabs, alle Toggles) | P1 |
+| RSE-XXX | Config: Admin UI — General, Access/Launch, Auction | P1 |
 | RSE-XXX | Config: Go-Live Pre-Flight-Checklist | P1 |
 | RSE-XXX | Config: Platform Mode Badge im Admin-Header | P1 |
 | RSE-XXX | Config: Change History / Audit-Log Tab | P2 |
+
+### Stufe 2 (zurückgestellt)
+
+| Ticket | Titel | Priorität |
+|--------|-------|-----------|
+| RSE-XXX | Config: Tab Payments | — |
+| RSE-XXX | Config: Tab Email | — |
+| RSE-XXX | Config: Tab Integrations | — |
 
 ---
 
