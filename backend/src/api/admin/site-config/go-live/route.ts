@@ -16,7 +16,7 @@ async function runPreFlightChecks(pg: Knex): Promise<CheckResult[]> {
   const checks: CheckResult[] = []
 
   // 1. Shipping methods configured
-  const shippingMethods = await pg("shipping_method").whereNull("deleted_at")
+  const shippingMethods = await pg("shipping_method").select("*")
   checks.push({
     label: "Shipping methods configured",
     ok: shippingMethods.length > 0,

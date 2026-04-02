@@ -122,7 +122,7 @@ export async function GET(
     const checks: Array<{ label: string; ok: boolean; detail: string }> = []
 
     // Shipping
-    const [{ count: shippingCount }] = await pg("shipping_method").whereNull("deleted_at").count("* as count")
+    const [{ count: shippingCount }] = await pg("shipping_method").count("* as count")
     checks.push({ label: "Shipping rates configured", ok: Number(shippingCount) > 0, detail: `${shippingCount} method(s)` })
 
     // Stripe
