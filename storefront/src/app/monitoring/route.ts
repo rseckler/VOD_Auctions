@@ -10,12 +10,15 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const body = await request.text()
 
+    const forwardHeaders: Record<string, string> = {
+      "Content-Type": request.headers.get("content-type") ?? "application/x-sentry-envelope",
+    }
+    const encoding = request.headers.get("content-encoding")
+    if (encoding) forwardHeaders["Content-Encoding"] = encoding
+
     const sentryRes = await fetch(SENTRY_INGEST_URL, {
       method: "POST",
-      headers: {
-        "Content-Type": request.headers.get("content-type") ?? "application/x-sentry-envelope",
-        "X-Forwarded-For": request.headers.get("x-forwarded-for") ?? "",
-      },
+      headers: forwardHeaders,
       body,
     })
 
