@@ -6,7 +6,15 @@ Vollständiger Entwicklungs-Changelog. Neue Einträge werden direkt hier ergänz
 
 ## 2026-04-02 — Admin Config Panel, Pre-Launch System, Dashboard, Design System Unification
 
-### Design System Unification (Final)
+### Shared Component Library + Design System v2.0
+- **3 neue Shared-Component-Dateien:** `admin-tokens.ts` (Farben, Typo, Spacing, Formatter), `admin-layout.tsx` (PageHeader, SectionHeader, PageShell, Tabs, StatsGrid), `admin-ui.tsx` (Badge, Toggle, Toast, Alert, EmptyState, Btn, ConfigRow, Modal)
+- **17 Admin-Seiten migriert** auf Shared Components — lokale `const C` entfernt, Duplikation eliminiert (-773 Zeilen netto)
+- **Einheitliche PageHeader** auf jeder Seite: 20px bold Titel + 13px Subtitle (keine Emojis, kein "Admin" Label)
+- **Navigation-Fixes:** CRM, Config, Waitlist `defineRouteConfig` entfernt → erscheinen nicht mehr als separate Sidebar-Items, nur über Hub-Seiten erreichbar
+- **Design Guide v2.0:** `DESIGN_GUIDE_BACKEND.md` komplett überarbeitet — Shared Component Architektur, Pflicht-Imports, Anti-Patterns, Checkliste
+- **Design Guide Mockup:** `docs/mockups/design-guide-backend.html` — 20-Sektionen Component Library
+
+### Design System Unification (Colors)
 - **17 Admin-Seiten** auf einheitliche `const C` Palette umgestellt (Design Guide konform)
 - Alle Seiten nutzen jetzt die exakt gleichen 12 Farb-Tokens: text, muted, card, border, hover, gold, success, error, blue, purple, warning
 - **0 verbotene Farben** im Codebase (verified: kein #f5f0eb, #e8e0d4, #d1d5db, #9ca3af)
