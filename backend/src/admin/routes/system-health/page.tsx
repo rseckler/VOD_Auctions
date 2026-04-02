@@ -4,6 +4,22 @@ import { useEffect, useState, useCallback } from "react"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
+type SentryIssue = {
+  id: string
+  title: string
+  level: "fatal" | "error" | "warning" | "info"
+  culprit: string
+  count: string
+  lastSeen: string
+  permalink: string
+}
+
+type AlertsData = {
+  sentry: { issues: SentryIssue[]; error?: string; configured: boolean }
+  sync: { last_run: { run_id: string; synced_at: string; total_changes: number } | null; status: "ok" | "warning" | "error"; message: string }
+  checked_at: string
+}
+
 type ServiceStatus = "ok" | "degraded" | "error" | "unconfigured"
 
 type ServiceCheck = {
@@ -488,6 +504,14 @@ export default function SystemHealthPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [autoRefresh, setAutoRefresh] = useState(true)
+  const [alerts, setAlerts] = useState<AlertsData | null>(null)
+
+  const fetchAlerts = useCallback(async () => {
+    try {
+      const r = await fetch("/admin/system-health/alerts", { credentials: "include" })
+      if (r.ok) setAlerts(await r.json())
+    } catch { /* silent */ }
+  }, [])
 
   const fetchHealth = useCallback(async () => {
     setLoading(true)
@@ -507,7 +531,7 @@ export default function SystemHealthPage() {
     }
   }, [])
 
-  useEffect(() => { fetchHealth() }, [fetchHealth])
+  useEffect(() => { fetchHealth(); fetchAlerts() }, [fetchHealth, fetchAlerts])
 
   useEffect(() => {
     if (!autoRefresh) return
@@ -595,6 +619,123 @@ export default function SystemHealthPage() {
               <span style={{ background: "rgba(34,197,94,0.15)", color: "#22c55e", padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600 }}>
                 ✓ All systems operational
               </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Alerts Panel ─────────────────────────────────────────────────── */}
+      {alerts && (
+        <div style={{ marginBottom: 28 }}>
+          {/* Sync Status */}
+          <div style={{
+            marginBottom: 12,
+            padding: "14px 18px",
+            background: "#1c1915",
+            border: `1px solid ${
+              alerts.sync.status === "error" ? "rgba(239,68,68,0.35)" :
+              alerts.sync.status === "warning" ? "rgba(245,158,11,0.35)" :
+              "rgba(34,197,94,0.25)"
+            }`,
+            borderRadius: 10,
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            flexWrap: "wrap" as const,
+          }}>
+            <span style={{ fontSize: 16 }}>🔄</span>
+            <div style={{ flex: 1 }}>
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "#f5f0e8" }}>Daily Sync</p>
+              <p style={{ margin: "2px 0 0", fontSize: 12, color: "#9ca3af" }}>{alerts.sync.message || "No sync data"}</p>
+            </div>
+            <span style={{
+              fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" as const,
+              padding: "3px 9px", borderRadius: 4,
+              color: alerts.sync.status === "error" ? "#ef4444" : alerts.sync.status === "warning" ? "#f59e0b" : "#22c55e",
+              background: alerts.sync.status === "error" ? "rgba(239,68,68,0.12)" : alerts.sync.status === "warning" ? "rgba(245,158,11,0.12)" : "rgba(34,197,94,0.12)",
+            }}>
+              {alerts.sync.status === "error" ? "ERROR" : alerts.sync.status === "warning" ? "WARNING" : "OK"}
+            </span>
+            {alerts.sync.last_run && (
+              <a href="/app/sync" style={{ fontSize: 12, color: "#d4a54a", textDecoration: "none" }}>
+                View change log →
+              </a>
+            )}
+          </div>
+
+          {/* Sentry Issues */}
+          <div style={{
+            padding: "14px 18px",
+            background: "#1c1915",
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: 10,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+              <span style={{ fontSize: 16 }}>🐛</span>
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "#f5f0e8" }}>Sentry — Recent Issues (7 days)</p>
+              {alerts.sentry.issues.length > 0 && (
+                <span style={{ marginLeft: "auto", fontSize: 11, color: "#ef4444", background: "rgba(239,68,68,0.1)", padding: "2px 8px", borderRadius: 4, fontWeight: 600 }}>
+                  {alerts.sentry.issues.length} issue{alerts.sentry.issues.length > 1 ? "s" : ""}
+                </span>
+              )}
+              {alerts.sentry.issues.length === 0 && !alerts.sentry.error && (
+                <span style={{ marginLeft: "auto", fontSize: 11, color: "#22c55e", background: "rgba(34,197,94,0.1)", padding: "2px 8px", borderRadius: 4, fontWeight: 600 }}>
+                  ✓ No issues
+                </span>
+              )}
+              <a href="https://vod-records.sentry.io/issues/" target="_blank" rel="noopener noreferrer"
+                style={{ fontSize: 12, color: "#d4a54a", textDecoration: "none", marginLeft: alerts.sentry.issues.length === 0 && !alerts.sentry.error ? 8 : 0 }}>
+                Open Sentry ↗
+              </a>
+            </div>
+
+            {!alerts.sentry.configured && (
+              <p style={{ margin: 0, fontSize: 12, color: "#9ca3af" }}>SENTRY_API_TOKEN not configured</p>
+            )}
+
+            {alerts.sentry.error && (
+              <p style={{ margin: 0, fontSize: 12, color: "#ef4444" }}>API error: {alerts.sentry.error}</p>
+            )}
+
+            {alerts.sentry.issues.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {alerts.sentry.issues.map((issue) => {
+                  const levelColor = issue.level === "fatal" ? "#ef4444" : issue.level === "error" ? "#f87171" : issue.level === "warning" ? "#f59e0b" : "#9ca3af"
+                  const levelBg = issue.level === "fatal" ? "rgba(239,68,68,0.15)" : issue.level === "error" ? "rgba(248,113,113,0.12)" : issue.level === "warning" ? "rgba(245,158,11,0.12)" : "rgba(107,114,128,0.1)"
+                  const lastSeen = new Date(issue.lastSeen).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
+                  return (
+                    <div key={issue.id} style={{
+                      display: "flex", alignItems: "flex-start", gap: 10,
+                      padding: "10px 12px",
+                      background: "rgba(0,0,0,0.2)",
+                      borderRadius: 6,
+                      border: "1px solid rgba(255,255,255,0.05)",
+                    }}>
+                      <span style={{
+                        fontSize: 9, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase" as const,
+                        color: levelColor, background: levelBg,
+                        padding: "2px 6px", borderRadius: 3, flexShrink: 0, marginTop: 1,
+                      }}>
+                        {issue.level}
+                      </span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <a href={issue.permalink} target="_blank" rel="noopener noreferrer"
+                          style={{ fontSize: 12, color: "#f5f0e8", textDecoration: "none", display: "block",
+                            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
+                          {issue.title}
+                        </a>
+                        <p style={{ margin: "3px 0 0", fontSize: 11, color: "#6b7280" }}>
+                          {issue.culprit}
+                        </p>
+                      </div>
+                      <div style={{ textAlign: "right" as const, flexShrink: 0, fontSize: 11, color: "#9ca3af" }}>
+                        <div>{Number(issue.count).toLocaleString()}×</div>
+                        <div style={{ marginTop: 2, color: "#6b7280" }}>{lastSeen}</div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             )}
           </div>
         </div>
