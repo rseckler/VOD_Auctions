@@ -33,8 +33,8 @@ function HubCard({
     <div
       onClick={() => { window.location.href = href }}
       style={{
-        background: "#fff",
-        border: "1px solid #e5e7eb",
+        background: "var(--bg-component, #1a1714)",
+        border: "1px solid rgba(255,255,255,0.1)",
         borderRadius: 10,
         padding: 20,
         cursor: "pointer",
@@ -47,7 +47,7 @@ function HubCard({
       }}
       onMouseLeave={(e) => {
         ;(e.currentTarget as HTMLDivElement).style.boxShadow = "none"
-        ;(e.currentTarget as HTMLDivElement).style.borderColor = "#e5e7eb"
+        ;(e.currentTarget as HTMLDivElement).style.borderColor = "rgba(255,255,255,0.15)"
       }}
     >
       {badge && bc && (
@@ -61,12 +61,12 @@ function HubCard({
         </span>
       )}
       <div style={{ fontSize: 24, marginBottom: 12 }}>{icon}</div>
-      <div style={{ fontSize: 15, fontWeight: 700, color: "#111827", marginBottom: 4 }}>{title}</div>
-      <div style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.5, marginBottom: 12 }}>{description}</div>
+      <div style={{ fontSize: 15, fontWeight: 700, color: "inherit", marginBottom: 4 }}>{title}</div>
+      <div style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.5, marginBottom: 12 }}>{description}</div>
       <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 14 }}>{meta}</div>
       <button style={{
         display: "inline-flex", alignItems: "center", gap: 4,
-        background: "#f3f4f6", color: "#374151",
+        background: "transparent", color: "#d1d5db",
         border: "none", borderRadius: 5,
         padding: "5px 12px", fontSize: 12, fontWeight: 500, cursor: "pointer",
       }}>
@@ -84,10 +84,10 @@ function MarketingHub() {
     <div style={{ padding: "32px 36px", maxWidth: 900, fontFamily: "var(--font-sans, system-ui, sans-serif)" }}>
       {/* Header */}
       <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 20 }}>Admin</div>
-      <div style={{ fontSize: 24, fontWeight: 800, color: "#111827", marginBottom: 4 }}>
+      <div style={{ fontSize: 24, fontWeight: 800, color: "inherit", marginBottom: 4 }}>
         📢 Marketing
       </div>
-      <div style={{ fontSize: 14, color: "#6b7280", marginBottom: 28 }}>
+      <div style={{ fontSize: 14, color: "#9ca3af", marginBottom: 28 }}>
         Campaigns, email templates, CRM contacts, content blocks, and gallery management
       </div>
 
@@ -100,11 +100,11 @@ function MarketingHub() {
           { num: "9", label: "Gallery Sections", sub: "active media" },
         ].map((s, i) => (
           <div key={i} style={{
-            background: "#fff", border: "1px solid #e5e7eb",
+            background: "var(--bg-component, #1a1714)", border: "1px solid rgba(255,255,255,0.1)",
             borderRadius: 8, padding: "10px 16px",
           }}>
-            <div style={{ fontSize: 20, fontWeight: 800, color: "#111827" }}>{s.num}</div>
-            <div style={{ fontSize: 11, color: "#6b7280" }}>{s.label}</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: "inherit" }}>{s.num}</div>
+            <div style={{ fontSize: 11, color: "#9ca3af" }}>{s.label}</div>
             {s.sub && <div style={{ fontSize: 10, color: "#9ca3af" }}>{s.sub}</div>}
           </div>
         ))}

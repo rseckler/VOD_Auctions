@@ -438,7 +438,7 @@ function TemplateCard({
         </div>
         <p style={{ margin: "0 0 4px", fontSize: 13, color: C.muted }}>{template.description}</p>
         <p style={{ margin: 0, fontSize: 12, color: C.muted }}>
-          <span style={{ color: "#374151", fontWeight: 500 }}>Trigger:</span> {template.trigger}
+          <span style={{ color: "#d1d5db", fontWeight: 500 }}>Trigger:</span> {template.trigger}
         </p>
         <p style={{ margin: "3px 0 0", fontSize: 12, color: C.muted, fontStyle: "italic" }}>
           &ldquo;{template.preheader}&rdquo;

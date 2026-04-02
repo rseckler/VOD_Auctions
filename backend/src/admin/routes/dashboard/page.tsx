@@ -111,7 +111,7 @@ const S = {
     backgroundColor: "#f9fafb",
     minHeight: "100vh",
     padding: "20px 16px 48px",
-    color: "#111827",
+    color: "inherit",
   } as React.CSSProperties,
 
   header: {
@@ -126,14 +126,14 @@ const S = {
   title: {
     fontSize: "24px",
     fontWeight: 700,
-    color: "#111827",
+    color: "inherit",
     margin: 0,
     lineHeight: "1.2",
   } as React.CSSProperties,
 
   subtitle: {
     fontSize: "13px",
-    color: "#6b7280",
+    color: "#9ca3af",
     marginTop: "4px",
   } as React.CSSProperties,
 
@@ -152,7 +152,7 @@ const S = {
 
   kpiCard: {
     backgroundColor: "#ffffff",
-    border: "1px solid #e5e7eb",
+    border: "1px solid rgba(255,255,255,0.1)",
     borderRadius: "10px",
     padding: "16px 18px",
   } as React.CSSProperties,
@@ -162,7 +162,7 @@ const S = {
     fontWeight: 600,
     textTransform: "uppercase" as const,
     letterSpacing: "0.04em",
-    color: "#6b7280",
+    color: "#9ca3af",
     marginBottom: "6px",
   } as React.CSSProperties,
 
@@ -191,7 +191,7 @@ const S = {
 
   card: {
     backgroundColor: "#ffffff",
-    border: "1px solid #e5e7eb",
+    border: "1px solid rgba(255,255,255,0.1)",
     borderRadius: "10px",
     padding: "16px 20px",
     display: "flex",
@@ -220,7 +220,7 @@ const S = {
   cardTitle: {
     fontSize: "14px",
     fontWeight: 600,
-    color: "#111827",
+    color: "inherit",
     whiteSpace: "nowrap" as const,
     overflow: "hidden",
     textOverflow: "ellipsis",
@@ -228,7 +228,7 @@ const S = {
 
   cardDesc: {
     fontSize: "12px",
-    color: "#6b7280",
+    color: "#9ca3af",
     marginTop: "2px",
     whiteSpace: "nowrap" as const,
     overflow: "hidden",
@@ -263,7 +263,7 @@ const S = {
       : {
           backgroundColor: "#ffffff",
           borderColor: "#d1d5db",
-          color: "#374151",
+          color: "#d1d5db",
         }),
   }),
 
@@ -301,7 +301,7 @@ const S = {
   },
 
   statsBar: {
-    borderTop: "1px solid #e5e7eb",
+    borderTop: "1px solid rgba(255,255,255,0.1)",
     marginTop: "32px",
     paddingTop: "14px",
     fontSize: "12px",
@@ -555,8 +555,8 @@ function DashboardPage() {
                       disabled={cancelling === tx.id}
                       style={{
                         padding: "5px 12px", fontSize: 12, fontWeight: 500, borderRadius: 6,
-                        background: "#fff", color: "#6b7280",
-                        border: "1px solid #e5e7eb", cursor: "pointer",
+                        background: "var(--bg-component, #1a1714)", color: "#9ca3af",
+                        border: "1px solid rgba(255,255,255,0.1)", cursor: "pointer",
                       }}
                     >
                       {cancelling === tx.id ? "…" : "Cancel Order"}
@@ -688,16 +688,16 @@ function DashboardPage() {
       {/* ── This Week Stats Bar ── */}
       <div style={S.statsBar}>
         <span>This week:</span>
-        <strong style={{ color: "#374151" }}>{fmtMoney(weekRevenue)}</strong>
+        <strong style={{ color: "#d1d5db" }}>{fmtMoney(weekRevenue)}</strong>
         <span>revenue</span>
         <span>·</span>
-        <strong style={{ color: "#374151" }}>{weekOrders}</strong>
+        <strong style={{ color: "#d1d5db" }}>{weekOrders}</strong>
         <span>{weekOrders === 1 ? "order" : "orders"}</span>
         <span>·</span>
-        <strong style={{ color: "#374151" }}>{weekShipped}</strong>
+        <strong style={{ color: "#d1d5db" }}>{weekShipped}</strong>
         <span>shipped</span>
         <span>·</span>
-        <strong style={{ color: "#374151" }}>{weekPending}</strong>
+        <strong style={{ color: "#d1d5db" }}>{weekPending}</strong>
         <span>pending</span>
       </div>
     </div>

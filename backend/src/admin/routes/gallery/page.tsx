@@ -412,7 +412,7 @@ const styles = {
       width: 18,
       height: 18,
       borderRadius: "50%",
-      background: "#fff",
+      background: "var(--bg-component, #1a1714)",
       transition: "left 0.2s",
     }) as React.CSSProperties,
   contentSection: {

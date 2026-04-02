@@ -218,7 +218,7 @@ const STATUS_CONFIG: Record<ServiceStatus, { color: string; bg: string; dot: str
   ok:            { color: "#22c55e", bg: "rgba(34,197,94,0.12)",   dot: "#22c55e", label: "OK"       },
   degraded:      { color: "#f59e0b", bg: "rgba(245,158,11,0.12)",  dot: "#f59e0b", label: "Degraded" },
   error:         { color: "#ef4444", bg: "rgba(239,68,68,0.12)",   dot: "#ef4444", label: "Error"    },
-  unconfigured:  { color: "#6b7280", bg: "rgba(107,114,128,0.12)", dot: "#6b7280", label: "Not set"  },
+  unconfigured:  { color: "#9ca3af", bg: "rgba(107,114,128,0.12)", dot: "#6b7280", label: "Not set"  },
 }
 
 const SERVICE_ICONS: Record<string, string> = {
@@ -336,7 +336,7 @@ function ServiceCard({ service }: { service: ServiceCheck }) {
 
           {/* Key Functions */}
           <div>
-            <p style={{ margin: "0 0 4px", fontSize: 10, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            <p style={{ margin: "0 0 4px", fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.08em" }}>
               Key Functions
             </p>
             <ul style={{ margin: 0, paddingLeft: 14, display: "flex", flexDirection: "column", gap: 2 }}>
@@ -348,13 +348,13 @@ function ServiceCard({ service }: { service: ServiceCheck }) {
 
           {/* Key Metrics */}
           <div>
-            <p style={{ margin: "0 0 4px", fontSize: 10, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            <p style={{ margin: "0 0 4px", fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.08em" }}>
               Key Metrics
             </p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 8px" }}>
               {meta.keyMetrics.map((m) => (
                 <span key={m} style={{
-                  fontSize: 10, color: "#6b7280", background: "rgba(255,255,255,0.04)",
+                  fontSize: 10, color: "#9ca3af", background: "rgba(255,255,255,0.04)",
                   padding: "2px 7px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.06)",
                 }}>
                   {m}
@@ -378,10 +378,10 @@ function ArchitectureFlow() {
     textAlign: "center" as const,
     background: accent ? `${accent}0d` : "rgba(255,255,255,0.02)",
   })
-  const labelStyle: React.CSSProperties = { fontSize: 10, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 3 }
+  const labelStyle: React.CSSProperties = { fontSize: 10, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 3 }
   const nameStyle: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: "#f5f0e8" }
-  const subStyle: React.CSSProperties = { fontSize: 10, color: "#6b7280", marginTop: 2 }
-  const arrowStyle: React.CSSProperties = { color: "#4b5563", fontSize: 16, textAlign: "center" }
+  const subStyle: React.CSSProperties = { fontSize: 10, color: "#9ca3af", marginTop: 2 }
+  const arrowStyle: React.CSSProperties = { color: "#9ca3af", fontSize: 16, textAlign: "center" }
 
   return (
     <div style={{
@@ -391,7 +391,7 @@ function ArchitectureFlow() {
       border: "1px solid rgba(255,255,255,0.08)",
       borderRadius: 12,
     }}>
-      <p style={{ margin: "0 0 16px", fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+      <p style={{ margin: "0 0 16px", fontSize: 11, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.1em" }}>
         System Architecture
       </p>
 
@@ -412,7 +412,7 @@ function ArchitectureFlow() {
           <p style={subStyle}>vod-auctions.com</p>
           <p style={{ ...subStyle, color: "#9ca3af", marginTop: 4, fontSize: 10 }}>Next.js 16 · React 19</p>
         </div>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#4b5563", fontSize: 14, paddingTop: 4 }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#9ca3af", fontSize: 14, paddingTop: 4 }}>
           →
         </div>
         <div style={{ ...boxStyle(), flex: 1 }}>
@@ -422,7 +422,7 @@ function ArchitectureFlow() {
               <div key={name} style={{ textAlign: "center" }}>
                 <div style={{ fontSize: 16 }}>{icon}</div>
                 <div style={{ fontSize: 11, color: "#f5f0e8", fontWeight: 600 }}>{name}</div>
-                <div style={{ fontSize: 10, color: "#6b7280" }}>{role}</div>
+                <div style={{ fontSize: 10, color: "#9ca3af" }}>{role}</div>
               </div>
             ))}
           </div>
@@ -470,7 +470,7 @@ function ArchitectureFlow() {
             {col.items.map(([icon, name, role]) => (
               <div key={name} style={{ marginBottom: 4 }}>
                 <div style={{ fontSize: 11, color: "#f5f0e8", fontWeight: 600 }}>{icon} {name}</div>
-                <div style={{ fontSize: 10, color: "#6b7280" }}>{role}</div>
+                <div style={{ fontSize: 10, color: "#9ca3af" }}>{role}</div>
               </div>
             ))}
           </div>
@@ -536,8 +536,8 @@ export default function SystemHealthPage() {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: "#111827" }}>System Health</h1>
-          <p style={{ margin: "4px 0 0", fontSize: 13, color: "#6b7280" }}>
+          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: "inherit" }}>System Health</h1>
+          <p style={{ margin: "4px 0 0", fontSize: 13, color: "#9ca3af" }}>
             {checkedAt ? `Last checked: ${checkedAt}` : "Checking all services…"}
           </p>
         </div>
@@ -579,7 +579,7 @@ export default function SystemHealthPage() {
             { label: "All Systems", value: data.summary.total, color: "#f5f0e8" },
             { label: "✓ Operational", value: data.summary.ok, color: "#22c55e" },
             { label: "✗ Errors", value: data.summary.errors, color: "#ef4444" },
-            { label: "— Not Configured", value: data.summary.unconfigured, color: "#6b7280" },
+            { label: "— Not Configured", value: data.summary.unconfigured, color: "#9ca3af" },
           ].map((s) => (
             <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 8, paddingRight: 20, borderRight: "1px solid rgba(255,255,255,0.08)" }}>
               <span style={{ fontSize: 22, fontWeight: 700, color: s.color, lineHeight: 1 }}>{s.value}</span>
@@ -625,7 +625,7 @@ export default function SystemHealthPage() {
               <div key={cat.id}>
                 {/* Section header */}
                 <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 12, borderBottom: "1px solid rgba(255,255,255,0.06)", paddingBottom: 10 }}>
-                  <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#111827" }}>{cat.label}</h2>
+                  <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "inherit" }}>{cat.label}</h2>
                   <p style={{ margin: 0, fontSize: 12, color: "#9ca3af" }}>{cat.description}</p>
                   {catErrors > 0 && (
                     <span style={{ marginLeft: "auto", fontSize: 11, color: "#ef4444", background: "rgba(239,68,68,0.1)", padding: "2px 8px", borderRadius: 4 }}>
@@ -633,7 +633,7 @@ export default function SystemHealthPage() {
                     </span>
                   )}
                   {catErrors === 0 && catUnconfigured > 0 && (
-                    <span style={{ marginLeft: "auto", fontSize: 11, color: "#6b7280", background: "rgba(107,114,128,0.1)", padding: "2px 8px", borderRadius: 4 }}>
+                    <span style={{ marginLeft: "auto", fontSize: 11, color: "#9ca3af", background: "rgba(107,114,128,0.1)", padding: "2px 8px", borderRadius: 4 }}>
                       {catUnconfigured} not configured
                     </span>
                   )}
@@ -658,7 +658,7 @@ export default function SystemHealthPage() {
           {orphanServices.length > 0 && (
             <div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 12, borderBottom: "1px solid rgba(255,255,255,0.06)", paddingBottom: 10 }}>
-                <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#111827" }}>Other</h2>
+                <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "inherit" }}>Other</h2>
                 <p style={{ margin: 0, fontSize: 12, color: "#9ca3af" }}>Uncategorised services</p>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 14 }}>

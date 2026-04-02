@@ -255,7 +255,7 @@ function EndedStateDashboard({
 
   if (postAuctionLoading) {
     return (
-      <div style={{ padding: "32px 0", textAlign: "center", color: "#6b7280" }}>
+      <div style={{ padding: "32px 0", textAlign: "center", color: "#9ca3af" }}>
         Loading post-auction data…
       </div>
     )
@@ -277,7 +277,7 @@ function EndedStateDashboard({
     const { status, fulfillment_status } = lot.transaction
     // Terminal states first — must be checked before fulfillment
     if (status === "refunded") return { label: "Refunded", color: "#7c3aed" }
-    if (status === "cancelled") return { label: "Cancelled", color: "#6b7280" }
+    if (status === "cancelled") return { label: "Cancelled", color: "#9ca3af" }
     if (status === "failed") return { label: "Payment Failed", color: "#dc2626" }
     // Fulfillment states
     if (fulfillment_status === "delivered") return { label: "Done ✓", color: "#22c55e" }
@@ -301,15 +301,15 @@ function EndedStateDashboard({
   }
 
   const s: Record<string, React.CSSProperties> = {
-    card: { background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, padding: "16px 20px", flex: 1, minWidth: 0 },
+    card: { background: "var(--bg-component, #1a1714)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "16px 20px", flex: 1, minWidth: 0 },
     stepNum: { width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, flexShrink: 0 },
-    tab: { padding: "6px 16px", borderRadius: 6, border: "1px solid #e5e7eb", cursor: "pointer", fontSize: 13, fontWeight: 500, background: "#f9fafb", color: "#374151" },
+    tab: { padding: "6px 16px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.1)", cursor: "pointer", fontSize: 13, fontWeight: 500, background: "transparent", color: "#d1d5db" },
     tabActive: { padding: "6px 16px", borderRadius: 6, border: "1px solid #1c1915", cursor: "pointer", fontSize: 13, fontWeight: 600, background: "#1c1915", color: "#fff" },
-    btn: { padding: "4px 12px", borderRadius: 6, border: "1px solid #e5e7eb", cursor: "pointer", fontSize: 12, fontWeight: 500, background: "#fff", color: "#374151" },
+    btn: { padding: "4px 12px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.1)", cursor: "pointer", fontSize: 12, fontWeight: 500, background: "var(--bg-component, #1a1714)", color: "#d1d5db" },
     btnPrimary: { padding: "4px 12px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, background: "#d4a54a", color: "#fff" },
-    btnDanger: { padding: "4px 10px", borderRadius: 6, border: "1px solid #fca5a5", cursor: "pointer", fontSize: 12, fontWeight: 500, background: "#fff", color: "#ef4444" },
-    th: { textAlign: "left" as const, padding: "6px 12px 6px 0", fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase" as const, letterSpacing: "0.05em", borderBottom: "1px solid #e5e7eb" },
-    td: { padding: "8px 12px 8px 0", fontSize: 13, borderBottom: "1px solid #f3f4f6", verticalAlign: "middle" as const },
+    btnDanger: { padding: "4px 10px", borderRadius: 6, border: "1px solid #fca5a5", cursor: "pointer", fontSize: 12, fontWeight: 500, background: "var(--bg-component, #1a1714)", color: "#ef4444" },
+    th: { textAlign: "left" as const, padding: "6px 12px 6px 0", fontSize: 11, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase" as const, letterSpacing: "0.05em", borderBottom: "1px solid rgba(255,255,255,0.1)" },
+    td: { padding: "8px 12px 8px 0", fontSize: 13, borderBottom: "1px solid rgba(255,255,255,0.06)", verticalAlign: "middle" as const },
   }
   const badge = (color: string): React.CSSProperties => ({ display: "inline-block", padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 600, color, background: color + "18", border: `1px solid ${color}40` })
 
@@ -317,7 +317,7 @@ function EndedStateDashboard({
     <div style={{ marginBottom: 24 }}>
       {/* SECTION 1: Next Steps */}
       <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", color: "#6b7280", textTransform: "uppercase", marginBottom: 10 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", color: "#9ca3af", textTransform: "uppercase", marginBottom: 10 }}>
           Next Steps
         </div>
         <div style={{ display: "flex", gap: 12 }}>
@@ -325,7 +325,7 @@ function EndedStateDashboard({
           <div style={{ ...s.card }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
               <span style={{ ...s.stepNum, background: "#dcfce7", color: "#16a34a" }}>1</span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>Winner Emails</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#d1d5db" }}>Winner Emails</span>
             </div>
             <div style={{ fontSize: 12, color: "#16a34a", fontWeight: 500 }}>✓ Sent automatically</div>
           </div>
@@ -334,7 +334,7 @@ function EndedStateDashboard({
           <div style={{ ...s.card }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
               <span style={{ ...s.stepNum, background: allPaid ? "#dcfce7" : "#fee2e2", color: allPaid ? "#16a34a" : "#dc2626" }}>2</span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>Payments</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#d1d5db" }}>Payments</span>
             </div>
             <div style={{ fontSize: 12, color: allPaid ? "#16a34a" : "#dc2626", fontWeight: 500 }}>
               {summary.paid}/{totalBiddable} paid
@@ -361,8 +361,8 @@ function EndedStateDashboard({
           {/* Step 4: Archive */}
           <div style={{ ...s.card }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-              <span style={{ ...s.stepNum, background: "#f3f4f6", color: "#9ca3af" }}>4</span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>Archive Block</span>
+              <span style={{ ...s.stepNum, background: "transparent", color: "#9ca3af" }}>4</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#d1d5db" }}>Archive Block</span>
             </div>
             {(allShipped || summary.paid === 0) ? (
               <button style={s.btnPrimary} onClick={onArchive}>Archive now →</button>
@@ -374,9 +374,9 @@ function EndedStateDashboard({
       </div>
 
       {/* SECTION 2: Lots Table */}
-      <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden" }}>
+      <div style={{ background: "var(--bg-component, #1a1714)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, overflow: "hidden" }}>
         {/* Tab header */}
-        <div style={{ display: "flex", gap: 8, padding: "12px 16px", borderBottom: "1px solid #e5e7eb", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 8, padding: "12px 16px", borderBottom: "1px solid rgba(255,255,255,0.1)", alignItems: "center" }}>
           <button
             style={activeTab === "won" ? s.tabActive : s.tab}
             onClick={() => setActiveTab("won")}
@@ -422,26 +422,26 @@ function EndedStateDashboard({
                           onClick={() => hasTx && window.open(`/app/transactions/${lot.transaction!.id}`, "_blank")}
                         >
                           <td style={s.td}>
-                            <span style={{ fontFamily: "monospace", fontSize: 12, color: "#6b7280" }}>
+                            <span style={{ fontFamily: "monospace", fontSize: 12, color: "#9ca3af" }}>
                               #{String(lot.lot_number).padStart(2, "0")}
                             </span>
                           </td>
                           <td style={s.td}>
                             <div style={{ maxWidth: 200 }}>
-                              <div style={{ fontSize: 12, fontWeight: 600, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lot.artist_name}</div>
-                              <div style={{ fontSize: 11, color: "#6b7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lot.release_title}</div>
+                              <div style={{ fontSize: 12, fontWeight: 600, color: "inherit", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lot.artist_name}</div>
+                              <div style={{ fontSize: 11, color: "#9ca3af", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lot.release_title}</div>
                             </div>
                           </td>
                           <td style={s.td}>
                             {lot.winner ? (
                               <div>
-                                <div style={{ fontSize: 12, fontWeight: 500, color: "#111827" }}>{lot.winner.name}</div>
-                                <div style={{ fontSize: 11, color: "#6b7280" }}>{lot.winner.email}</div>
+                                <div style={{ fontSize: 12, fontWeight: 500, color: "inherit" }}>{lot.winner.name}</div>
+                                <div style={{ fontSize: 11, color: "#9ca3af" }}>{lot.winner.email}</div>
                               </div>
                             ) : <span style={{ color: "#9ca3af" }}>—</span>}
                           </td>
                           <td style={s.td}>
-                            <span style={{ fontWeight: 600, color: "#374151", fontSize: 13 }}>
+                            <span style={{ fontWeight: 600, color: "#d1d5db", fontSize: 13 }}>
                               {lot.final_price != null ? `€${Number(lot.final_price).toFixed(2)}` : "—"}
                             </span>
                           </td>
@@ -498,14 +498,14 @@ function EndedStateDashboard({
                       {noBidLots.map(lot => (
                         <tr key={lot.id}>
                           <td style={s.td}>
-                            <span style={{ fontFamily: "monospace", fontSize: 12, color: "#6b7280" }}>
+                            <span style={{ fontFamily: "monospace", fontSize: 12, color: "#9ca3af" }}>
                               #{String(lot.lot_number).padStart(2, "0")}
                             </span>
                           </td>
                           <td style={s.td}>
                             <div style={{ maxWidth: 280 }}>
-                              <div style={{ fontSize: 12, fontWeight: 600, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lot.artist_name}</div>
-                              <div style={{ fontSize: 11, color: "#6b7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lot.release_title}</div>
+                              <div style={{ fontSize: 12, fontWeight: 600, color: "inherit", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lot.artist_name}</div>
+                              <div style={{ fontSize: 11, color: "#9ca3af", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lot.release_title}</div>
                             </div>
                           </td>
                           <td style={{ ...s.td, textAlign: "right" as const }}>
@@ -519,7 +519,7 @@ function EndedStateDashboard({
                     </tbody>
                   </table>
                   {noBidLots.length > 1 && (
-                    <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid #f3f4f6" }}>
+                    <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                       <button style={s.btn} onClick={onMakeAllAvailable}>
                         Make all {noBidLots.length} available
                       </button>
@@ -535,9 +535,9 @@ function EndedStateDashboard({
       {/* Relist Modal */}
       {relistModal.open && relistModal.lot && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ background: "#fff", borderRadius: 10, padding: 28, width: 440, maxWidth: "90vw", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
-            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4, color: "#111827" }}>Relist Lot</div>
-            <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 20 }}>
+          <div style={{ background: "var(--bg-component, #1a1714)", borderRadius: 10, padding: 28, width: 440, maxWidth: "90vw", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4, color: "inherit" }}>Relist Lot</div>
+            <div style={{ fontSize: 13, color: "#9ca3af", marginBottom: 20 }}>
               {relistModal.lot.artist_name} — {relistModal.lot.release_title}
             </div>
 
@@ -545,8 +545,8 @@ function EndedStateDashboard({
               <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "10px 14px", borderRadius: 6, border: `2px solid ${relistTarget === "available" ? "#d4a54a" : "#e5e7eb"}`, background: relistTarget === "available" ? "#fffbf0" : "#fff" }}>
                 <input type="radio" name="relistTarget" value="available" checked={relistTarget === "available"} onChange={() => setRelistTarget("available")} />
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>Make Available</div>
-                  <div style={{ fontSize: 12, color: "#6b7280" }}>Return to catalog, available for future auctions</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "inherit" }}>Make Available</div>
+                  <div style={{ fontSize: 12, color: "#9ca3af" }}>Return to catalog, available for future auctions</div>
                 </div>
               </label>
 
@@ -554,8 +554,8 @@ function EndedStateDashboard({
                 <label key={ab.id} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "10px 14px", borderRadius: 6, border: `2px solid ${relistTarget === ab.id ? "#d4a54a" : "#e5e7eb"}`, background: relistTarget === ab.id ? "#fffbf0" : "#fff" }}>
                   <input type="radio" name="relistTarget" value={ab.id} checked={relistTarget === ab.id} onChange={() => setRelistTarget(ab.id)} />
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{ab.title}</div>
-                    <div style={{ fontSize: 11, color: "#6b7280", textTransform: "capitalize" }}>{ab.status}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "inherit" }}>{ab.title}</div>
+                    <div style={{ fontSize: 11, color: "#9ca3af", textTransform: "capitalize" }}>{ab.status}</div>
                   </div>
                 </label>
               ))}
@@ -1233,7 +1233,7 @@ const BlockDetailPage = () => {
       <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 20, display: "flex", alignItems: "center", gap: 6 }}>
         <button
           onClick={() => (window.location.href = "/app/auction-blocks")}
-          style={{ color: "#6b7280", textDecoration: "none", cursor: "pointer", background: "none", border: "none", padding: 0, fontSize: 12 }}
+          style={{ color: "#9ca3af", textDecoration: "none", cursor: "pointer", background: "none", border: "none", padding: 0, fontSize: 12 }}
           onMouseEnter={e => (e.currentTarget.style.color = "#111827")}
           onMouseLeave={e => (e.currentTarget.style.color = "#6b7280")}
         >
@@ -1242,7 +1242,7 @@ const BlockDetailPage = () => {
         {!isNew && block.title && (
           <>
             <span style={{ color: "#d1d5db" }}>›</span>
-            <span style={{ color: "#374151", fontWeight: 500 }}>{block.title}</span>
+            <span style={{ color: "#d1d5db", fontWeight: 500 }}>{block.title}</span>
           </>
         )}
       </div>
@@ -1460,7 +1460,7 @@ const BlockDetailPage = () => {
             onClick={() => setAnalyticsOpen(o => !o)}
             style={{
               width: "100%", textAlign: "left", padding: "12px 20px",
-              background: "#fff", border: "1px solid #e5e7eb", borderRadius: analyticsOpen ? "8px 8px 0 0" : 8,
+              background: "var(--bg-component, #1a1714)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: analyticsOpen ? "8px 8px 0 0" : 8,
               cursor: "pointer", fontWeight: 600, fontSize: 13, display: "flex",
               justifyContent: "space-between", alignItems: "center",
             }}
@@ -1469,7 +1469,7 @@ const BlockDetailPage = () => {
             <span>{analyticsOpen ? "▲" : "▼"}</span>
           </button>
           {analyticsOpen && (
-            <div style={{ border: "1px solid #e5e7eb", borderTop: "none", borderRadius: "0 0 8px 8px", overflow: "hidden", padding: 16, marginBottom: 8 }}>
+            <div style={{ border: "1px solid rgba(255,255,255,0.1)", borderTop: "none", borderRadius: "0 0 8px 8px", overflow: "hidden", padding: 16, marginBottom: 8 }}>
               <div className="flex items-center justify-between mb-5">
                 <Heading level="h2">Post-Auction Analytics</Heading>
                 <button
@@ -1953,7 +1953,7 @@ const BlockDetailPage = () => {
             onClick={() => setEditFormOpen(o => !o)}
             style={{
               width: "100%", textAlign: "left", padding: "12px 20px",
-              background: "#fff", border: "1px solid #e5e7eb", borderRadius: editFormOpen ? "8px 8px 0 0" : 8,
+              background: "var(--bg-component, #1a1714)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: editFormOpen ? "8px 8px 0 0" : 8,
               cursor: "pointer", fontWeight: 600, fontSize: 13, display: "flex",
               justifyContent: "space-between", alignItems: "center",
             }}
@@ -1966,7 +1966,7 @@ const BlockDetailPage = () => {
 
       {/* Block Details Form — shown when not ended, or when ended+accordion open */}
       {(isNew || block.status !== "ended" || editFormOpen) && (
-      <div style={(!isNew && block.status === "ended" && editFormOpen) ? { border: "1px solid #e5e7eb", borderTop: "none", borderRadius: "0 0 8px 8px", padding: "16px 0", marginBottom: 16 } : {}}>
+      <div style={(!isNew && block.status === "ended" && editFormOpen) ? { border: "1px solid rgba(255,255,255,0.1)", borderTop: "none", borderRadius: "0 0 8px 8px", padding: "16px 0", marginBottom: 16 } : {}}>
       <>
       {/* Block Details Form */}
       <Container className="mb-6">

@@ -76,7 +76,7 @@ function BlocksTable({
   return (
     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
       <thead>
-        <tr style={{ borderBottom: "1px solid #e5e7eb", background: "#f9fafb" }}>
+        <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)", background: "transparent" }}>
           {["Title", "Type", "Status", "Start", "End / Remaining", "Items", ""].map(h => (
             <th key={h} style={{
               textAlign: "left", padding: "8px 14px",
@@ -91,17 +91,17 @@ function BlocksTable({
           <tr
             key={block.id}
             style={{
-              borderBottom: "1px solid #f3f4f6",
+              borderBottom: "1px solid rgba(255,255,255,0.06)",
               cursor: "pointer",
               background: isLive ? "rgba(22,163,74,0.04)" : "transparent",
               transition: "background 0.1s",
             }}
             onClick={() => { window.location.href = `/app/auction-blocks/${block.id}` }}
-            onMouseEnter={e => (e.currentTarget.style.background = "#f9fafb")}
+            onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.04)")}
             onMouseLeave={e => (e.currentTarget.style.background = isLive ? "rgba(22,163,74,0.04)" : "transparent")}
           >
             <td style={{ padding: "12px 14px", maxWidth: 280 }}>
-              <div style={{ fontWeight: 600, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              <div style={{ fontWeight: 600, color: "inherit", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {block.title}
               </div>
               {block.subtitle && (
@@ -124,16 +124,16 @@ function BlocksTable({
                 )}
               </div>
             </td>
-            <td style={{ padding: "12px 14px", color: "#6b7280", fontSize: 12, whiteSpace: "nowrap" }}>
+            <td style={{ padding: "12px 14px", color: "#9ca3af", fontSize: 12, whiteSpace: "nowrap" }}>
               {new Date(block.start_time).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
             </td>
             <td style={{ padding: "12px 14px", fontSize: 12, whiteSpace: "nowrap" }}>
               {block.status === "active"
                 ? <ActiveCountdown endTime={block.end_time} />
-                : <span style={{ color: "#6b7280" }}>{new Date(block.end_time).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                : <span style={{ color: "#9ca3af" }}>{new Date(block.end_time).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
               }
             </td>
-            <td style={{ padding: "12px 14px", color: "#6b7280" }}>{block.items?.length || 0}</td>
+            <td style={{ padding: "12px 14px", color: "#9ca3af" }}>{block.items?.length || 0}</td>
             <td style={{ padding: "12px 14px" }} onClick={e => e.stopPropagation()}>
               <div style={{ display: "flex", gap: 6 }}>
                 <a href={`/app/auction-blocks/${block.id}`}>
@@ -168,7 +168,7 @@ function DraftsTable({
   return (
     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
       <thead>
-        <tr style={{ borderBottom: "1px solid #e5e7eb", background: "#f9fafb" }}>
+        <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)", background: "transparent" }}>
           {["Title", "Type", "Created", "Last Modified", "Items", ""].map(h => (
             <th key={h} style={{
               textAlign: "left", padding: "8px 14px",
@@ -182,13 +182,13 @@ function DraftsTable({
         {rows.map((block) => (
           <tr
             key={block.id}
-            style={{ borderBottom: "1px solid #f3f4f6", cursor: "pointer", transition: "background 0.1s" }}
+            style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", cursor: "pointer", transition: "background 0.1s" }}
             onClick={() => { window.location.href = `/app/auction-blocks/${block.id}` }}
-            onMouseEnter={e => (e.currentTarget.style.background = "#f9fafb")}
+            onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.04)")}
             onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
           >
             <td style={{ padding: "12px 14px", maxWidth: 280 }}>
-              <div style={{ fontWeight: 600, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              <div style={{ fontWeight: 600, color: "inherit", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {block.title}
               </div>
               {block.subtitle && (
@@ -200,13 +200,13 @@ function DraftsTable({
             <td style={{ padding: "12px 14px" }}>
               <Badge>{block.block_type}</Badge>
             </td>
-            <td style={{ padding: "12px 14px", color: "#6b7280", fontSize: 12, whiteSpace: "nowrap" }}>
+            <td style={{ padding: "12px 14px", color: "#9ca3af", fontSize: 12, whiteSpace: "nowrap" }}>
               {fmt(block.created_at)}
             </td>
-            <td style={{ padding: "12px 14px", color: "#6b7280", fontSize: 12, whiteSpace: "nowrap" }}>
+            <td style={{ padding: "12px 14px", color: "#9ca3af", fontSize: 12, whiteSpace: "nowrap" }}>
               {fmt(block.updated_at)}
             </td>
-            <td style={{ padding: "12px 14px", color: "#6b7280" }}>{block.items?.length || 0}</td>
+            <td style={{ padding: "12px 14px", color: "#9ca3af" }}>{block.items?.length || 0}</td>
             <td style={{ padding: "12px 14px" }} onClick={e => e.stopPropagation()}>
               <div style={{ display: "flex", gap: 6 }}>
                 <a href={`/app/auction-blocks/${block.id}`}>
@@ -250,7 +250,7 @@ function EndedBlockCard({
   return (
     <div
       style={{
-        background: "#fff",
+        background: "var(--bg-component, #1a1714)",
         border: allDone ? "1px solid #d1fae5" : hasUrgent ? "1.5px solid #fca5a5" : "1.5px solid #fed7aa",
         borderLeft: allDone ? "4px solid #22c55e" : hasUrgent ? "4px solid #ef4444" : "4px solid #f97316",
         borderRadius: 8,
@@ -269,7 +269,7 @@ function EndedBlockCard({
       {/* Left: info */}
       <div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>{block.title}</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: "inherit" }}>{block.title}</span>
           <span style={{ fontSize: 10, color: "#9ca3af" }}>{endedAgo}</span>
           <Badge>{block.block_type}</Badge>
         </div>
@@ -311,7 +311,7 @@ function EndedBlockCard({
               )}
               {summary.no_bid > 0 && (
                 <span style={{
-                  background: "#f3f4f6", color: "#6b7280",
+                  background: "transparent", color: "#9ca3af",
                   borderRadius: 12, padding: "3px 10px", fontSize: 11, fontWeight: 600,
                 }}>{summary.no_bid} no bid</span>
               )}
@@ -510,11 +510,11 @@ const AuctionBlocksPage = () => {
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
                 <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#3b82f6", display: "inline-block" }} />
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.07em" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.07em" }}>
                   Upcoming — {upcoming.length} scheduled
                 </span>
               </div>
-              <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden" }}>
+              <div style={{ border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, overflow: "hidden" }}>
                 <div style={{ overflowX: "auto" }}>
                   <BlocksTable rows={upcoming} onDelete={handleDelete} />
                 </div>
@@ -531,7 +531,7 @@ const AuctionBlocksPage = () => {
                   Drafts — {drafts.length}
                 </span>
               </div>
-              <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden", opacity: 0.85 }}>
+              <div style={{ border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, overflow: "hidden", opacity: 0.85 }}>
                 <div style={{ overflowX: "auto" }}>
                   <DraftsTable rows={drafts} onDelete={handleDelete} />
                 </div>
@@ -548,7 +548,7 @@ const AuctionBlocksPage = () => {
                   Test Blocks — {e2eDrafts.length}
                 </span>
               </div>
-              <div style={{ border: "1px solid #f3f4f6", borderRadius: 8, overflow: "hidden", opacity: 0.5 }}>
+              <div style={{ border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, overflow: "hidden", opacity: 0.5 }}>
                 <div style={{ overflowX: "auto" }}>
                   <DraftsTable rows={e2eDrafts} onDelete={handleDelete} />
                 </div>
@@ -565,7 +565,7 @@ const AuctionBlocksPage = () => {
                   Archived — {archived.length}
                 </span>
               </div>
-              <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden", opacity: 0.5 }}>
+              <div style={{ border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, overflow: "hidden", opacity: 0.5 }}>
                 <div style={{ overflowX: "auto" }}>
                   <BlocksTable rows={archived} onDelete={handleDelete} />
                 </div>

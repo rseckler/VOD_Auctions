@@ -139,11 +139,11 @@ function getEventDotColor(eventType: string): string {
 const s = {
   page: {
     padding: "28px 36px",
-    background: "#f9fafb",
+    background: "transparent",
     minHeight: "100vh",
     fontFamily: "-apple-system, BlinkMacSystemFont, 'Inter', sans-serif",
     fontSize: 14,
-    color: "#111827",
+    color: "inherit",
   } as React.CSSProperties,
   breadcrumb: {
     fontSize: 12,
@@ -154,7 +154,7 @@ const s = {
     gap: 6,
   } as React.CSSProperties,
   breadcrumbLink: {
-    color: "#6b7280",
+    color: "#9ca3af",
     textDecoration: "none",
     cursor: "pointer",
     background: "none",
@@ -174,7 +174,7 @@ const s = {
   orderNum: {
     fontSize: 22,
     fontWeight: 800,
-    color: "#111827",
+    color: "inherit",
     fontFamily: "monospace",
   } as React.CSSProperties,
   headerLeft: { display: "flex", flexDirection: "column" as const, gap: 6 } as React.CSSProperties,
@@ -209,7 +209,7 @@ const s = {
     fontSize: 11, fontWeight: 600,
   } as React.CSSProperties,
   orderMeta: {
-    fontSize: 12, color: "#6b7280",
+    fontSize: 12, color: "#9ca3af",
     display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" as const,
   } as React.CSSProperties,
   metaSep: { color: "#e5e7eb" } as React.CSSProperties,
@@ -221,10 +221,10 @@ const s = {
     }
     const variants = {
       primary: { background: "#6366f1", color: "#fff" },
-      secondary: { background: "#fff", color: "#374151", border: "1px solid #e5e7eb" },
+      secondary: { background: "var(--bg-component, #1a1714)", color: "#d1d5db", border: "1px solid rgba(255,255,255,0.1)" },
       blue: { background: "#2563eb", color: "#fff" },
       green: { background: "#16a34a", color: "#fff" },
-      danger: { background: "#fff", color: "#dc2626", border: "1px solid #fca5a5" },
+      danger: { background: "var(--bg-component, #1a1714)", color: "#dc2626", border: "1px solid #fca5a5" },
     }
     return { ...base, ...variants[variant] }
   },
@@ -235,15 +235,15 @@ const s = {
     }
     const variants = {
       primary: { background: "#6366f1", color: "#fff" },
-      secondary: { background: "#fff", color: "#374151", border: "1px solid #e5e7eb" },
+      secondary: { background: "var(--bg-component, #1a1714)", color: "#d1d5db", border: "1px solid rgba(255,255,255,0.1)" },
       blue: { background: "#2563eb", color: "#fff" },
       green: { background: "#16a34a", color: "#fff" },
-      danger: { background: "#fff", color: "#dc2626", border: "1px solid #fca5a5" },
+      danger: { background: "var(--bg-component, #1a1714)", color: "#dc2626", border: "1px solid #fca5a5" },
     }
     return { ...base, ...variants[variant] }
   },
   actionsBar: {
-    background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10,
+    background: "var(--bg-component, #1a1714)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10,
     padding: "16px 20px", display: "flex", alignItems: "center",
     gap: 10, flexWrap: "wrap" as const, marginBottom: 14,
   } as React.CSSProperties,
@@ -260,7 +260,7 @@ const s = {
     gap: 14, marginBottom: 14,
   } as React.CSSProperties,
   panel: {
-    background: "#fff", border: "1px solid #e5e7eb",
+    background: "var(--bg-component, #1a1714)", border: "1px solid rgba(255,255,255,0.1)",
     borderRadius: 10, padding: 18,
   } as React.CSSProperties,
   panelTitle: {
@@ -273,8 +273,8 @@ const s = {
     fontSize: 12,
   } as React.CSSProperties,
   infoLabel: { color: "#9ca3af" } as React.CSSProperties,
-  infoValue: { fontWeight: 500, color: "#374151" } as React.CSSProperties,
-  infoValueMono: { fontWeight: 500, color: "#374151", fontFamily: "monospace", fontSize: 11 } as React.CSSProperties,
+  infoValue: { fontWeight: 500, color: "#d1d5db" } as React.CSSProperties,
+  infoValueMono: { fontWeight: 500, color: "#d1d5db", fontFamily: "monospace", fontSize: 11 } as React.CSSProperties,
   stepperWrap: {
     display: "flex", alignItems: "center", margin: "12px 0",
   } as React.CSSProperties,
@@ -291,12 +291,12 @@ const s = {
     const states = {
       done: { background: "#dcfce7", color: "#15803d", border: "2px solid #16a34a" },
       current: { background: "#fef3c7", color: "#b45309", border: "2px solid #d97706" },
-      todo: { background: "#f3f4f6", color: "#9ca3af", border: "2px solid #e5e7eb" },
+      todo: { background: "transparent", color: "#9ca3af", border: "2px solid rgba(255,255,255,0.1)" },
     }
     return { ...base, ...states[state] }
   },
   stepLabel: {
-    fontSize: 9, color: "#6b7280", marginTop: 4,
+    fontSize: 9, color: "#9ca3af", marginTop: 4,
     textAlign: "center" as const, whiteSpace: "nowrap" as const,
   } as React.CSSProperties,
   stepLine: (done: boolean) => ({
@@ -311,41 +311,41 @@ const s = {
   } as React.CSSProperties,
   auditItem: {
     display: "flex", gap: 12, padding: "10px 0",
-    borderBottom: "1px solid #f3f4f6",
+    borderBottom: "1px solid rgba(255,255,255,0.06)",
   } as React.CSSProperties,
   auditDot: (color: string) => ({
     width: 8, height: 8, borderRadius: "50%",
     background: color, flexShrink: 0, marginTop: 4,
   }) as React.CSSProperties,
-  auditTitle: { fontSize: 12, fontWeight: 600, color: "#374151" } as React.CSSProperties,
+  auditTitle: { fontSize: 12, fontWeight: 600, color: "#d1d5db" } as React.CSSProperties,
   auditDetail: { fontSize: 11, color: "#9ca3af", marginTop: 2 } as React.CSSProperties,
   auditTime: { marginLeft: "auto", fontSize: 11, color: "#9ca3af", whiteSpace: "nowrap" as const } as React.CSSProperties,
   formBox: {
-    background: "#f9fafb", border: "1px solid #e5e7eb",
+    background: "transparent", border: "1px solid rgba(255,255,255,0.1)",
     borderRadius: 8, padding: 14, marginTop: 8,
   } as React.CSSProperties,
   input: {
     width: "100%", padding: "6px 10px",
-    border: "1px solid #e5e7eb", borderRadius: 6,
-    fontSize: 12, color: "#374151", background: "#fff",
+    border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6,
+    fontSize: 12, color: "#d1d5db", background: "var(--bg-component, #1a1714)",
     outline: "none",
   } as React.CSSProperties,
   select: {
     width: "100%", padding: "6px 10px",
-    border: "1px solid #e5e7eb", borderRadius: 6,
-    fontSize: 12, color: "#374151", background: "#fff",
+    border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6,
+    fontSize: 12, color: "#d1d5db", background: "var(--bg-component, #1a1714)",
     outline: "none",
   } as React.CSSProperties,
   label: {
-    fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4, display: "block",
+    fontSize: 11, fontWeight: 600, color: "#9ca3af", marginBottom: 4, display: "block",
   } as React.CSSProperties,
   itemCard: {
     display: "flex", gap: 14, padding: "14px 0",
-    borderBottom: "1px solid #f3f4f6",
+    borderBottom: "1px solid rgba(255,255,255,0.06)",
   } as React.CSSProperties,
   itemCover: {
     width: 60, height: 60, borderRadius: 6,
-    background: "#f3f4f6", overflow: "hidden",
+    background: "transparent", overflow: "hidden",
     flexShrink: 0, display: "flex",
     alignItems: "center", justifyContent: "center",
     color: "#d1d5db", fontSize: 20,
@@ -668,7 +668,7 @@ const TransactionDetailPage = () => {
           ← Orders
         </button>
         <span style={s.sep}>›</span>
-        <span style={{ color: "#374151", fontWeight: 500 }}>{orderTitle}</span>
+        <span style={{ color: "#d1d5db", fontWeight: 500 }}>{orderTitle}</span>
       </div>
 
       {/* Order Header */}
@@ -725,7 +725,7 @@ const TransactionDetailPage = () => {
         <div style={{ ...s.formBox, marginBottom: 14 }}>
           <label style={s.label}>Internal note</label>
           {tx.internal_note && (
-            <div style={{ marginBottom: 8, padding: "6px 10px", background: "#f3f4f6", borderRadius: 6, fontSize: 12, color: "#374151" }}>
+            <div style={{ marginBottom: 8, padding: "6px 10px", background: "transparent", borderRadius: 6, fontSize: 12, color: "#d1d5db" }}>
               {tx.internal_note}
             </div>
           )}
@@ -877,10 +877,10 @@ const TransactionDetailPage = () => {
         {/* Customer */}
         <div style={s.panel}>
           <div style={s.panelTitle}>Customer</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "#111827", marginBottom: 2 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "inherit", marginBottom: 2 }}>
             {tx.customer_name || tx.shipping_name || "—"}
           </div>
-          <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 10 }}>
+          <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 10 }}>
             {tx.customer_email || "—"}
           </div>
           <div style={{ ...s.infoRow }}>
@@ -908,10 +908,10 @@ const TransactionDetailPage = () => {
         {/* Shipping Address */}
         <div style={s.panel}>
           <div style={s.panelTitle}>Shipping Address</div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "#111827", marginBottom: 6 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "inherit", marginBottom: 6 }}>
             {tx.shipping_name || "—"}
           </div>
-          <div style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.7 }}>
+          <div style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.7 }}>
             {tx.shipping_address_line1 || "—"}<br />
             {[tx.shipping_postal_code, tx.shipping_city].filter(Boolean).join(" ") || "—"}<br />
             {tx.shipping_country ? `${tx.shipping_country}` : "—"}
@@ -978,7 +978,7 @@ const TransactionDetailPage = () => {
             <span style={{ fontWeight: 500, color: "#16a34a" }}>✓ Server-side</span>
           </div>
           {tx.discount_amount != null && Number(tx.discount_amount) > 0 && (
-            <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #f3f4f6", fontSize: 12 }}>
+            <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid rgba(255,255,255,0.06)", fontSize: 12 }}>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span style={{ color: "#9ca3af" }}>
                   Discount{tx.promo_code ? ` (${tx.promo_code})` : ""}
@@ -1000,10 +1000,10 @@ const TransactionDetailPage = () => {
           <div style={s.itemCard}>
             <div style={s.itemCover}>💿</div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "inherit" }}>
                 {tx.release_title || "—"}
               </div>
-              <div style={{ fontSize: 12, color: "#6b7280", marginTop: 1 }}>
+              <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 1 }}>
                 {tx.release_artist || ""}
               </div>
               <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 4 }}>
@@ -1044,11 +1044,11 @@ const TransactionDetailPage = () => {
               <div style={{ display: "flex", gap: 16, marginTop: 8 }}>
                 <div style={{ textAlign: "right" }}>
                   <div style={{ fontSize: 10, color: "#9ca3af", textTransform: "uppercase" }}>Bid</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>{formatAmount(tx.amount)}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "inherit" }}>{formatAmount(tx.amount)}</div>
                 </div>
                 <div style={{ textAlign: "right" }}>
                   <div style={{ fontSize: 10, color: "#9ca3af", textTransform: "uppercase" }}>Shipping</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>{formatAmount(tx.shipping_cost)}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "inherit" }}>{formatAmount(tx.shipping_cost)}</div>
                 </div>
                 <div style={{ textAlign: "right" }}>
                   <div style={{ fontSize: 10, color: "#9ca3af", textTransform: "uppercase" }}>Total</div>
@@ -1060,7 +1060,7 @@ const TransactionDetailPage = () => {
 
           {/* Invoice link */}
           {isPaid && tx.order_group_id && (
-            <div style={{ marginTop: 14, paddingTop: 10, borderTop: "1px solid #f3f4f6" }}>
+            <div style={{ marginTop: 14, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
               <a
                 href={`/admin/transactions/${tx.id}/invoice`}
                 target="_blank"

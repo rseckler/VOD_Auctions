@@ -18,7 +18,7 @@ const TOOL_LABELS: Record<string, string> = {
 function LogLine({ entry }: { entry: LogEntry }) {
   if (entry.type === "text") {
     return (
-      <p style={{ margin: "6px 0", whiteSpace: "pre-wrap", lineHeight: 1.5, color: "#111827" }}>
+      <p style={{ margin: "6px 0", whiteSpace: "pre-wrap", lineHeight: 1.5, color: "inherit" }}>
         {entry.text}
       </p>
     )
@@ -36,7 +36,7 @@ function LogLine({ entry }: { entry: LogEntry }) {
         fontSize: 12,
       }}>
         <div style={{ fontWeight: 700, color: "#0369a1", marginBottom: 4 }}>{label}</div>
-        <pre style={{ margin: 0, color: "#374151", fontSize: 11, overflow: "auto", maxHeight: 120 }}>{inputStr}</pre>
+        <pre style={{ margin: 0, color: "#d1d5db", fontSize: 11, overflow: "auto", maxHeight: 120 }}>{inputStr}</pre>
       </div>
     )
   }
@@ -65,7 +65,7 @@ function LogLine({ entry }: { entry: LogEntry }) {
             </a>
           )}
         </div>
-        <pre style={{ margin: 0, color: "#374151", overflow: "auto", maxHeight: 200 }}>{resultStr}</pre>
+        <pre style={{ margin: 0, color: "#d1d5db", overflow: "auto", maxHeight: 200 }}>{resultStr}</pre>
       </div>
     )
   }
@@ -170,7 +170,7 @@ export default function AICreateAuctionPage() {
   return (
     <div style={{ maxWidth: 800, margin: "0 auto", padding: "24px 16px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
-        <a href="/app/auction-blocks" style={{ color: "#6b7280", fontSize: 13 }}>← Auction Blocks</a>
+        <a href="/app/auction-blocks" style={{ color: "#9ca3af", fontSize: 13 }}>← Auction Blocks</a>
         <div>
           <Heading level="h1">✨ AI Auction Creator</Heading>
           <Text className="text-ui-fg-subtle" style={{ marginTop: 2 }}>
@@ -181,7 +181,7 @@ export default function AICreateAuctionPage() {
 
       <Container style={{ marginBottom: 20 }}>
         <div style={{ marginBottom: 12 }}>
-          <label style={{ display: "block", fontWeight: 600, fontSize: 13, marginBottom: 6, color: "#374151" }}>
+          <label style={{ display: "block", fontWeight: 600, fontSize: 13, marginBottom: 6, color: "#d1d5db" }}>
             Auction Brief
           </label>
           <textarea
