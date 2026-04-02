@@ -25,7 +25,8 @@ export function middleware(request: NextRequest) {
     pathname === "/sitemap.xml" ||
     pathname === "/reset-password" ||
     pathname === "/verify" ||
-    pathname.startsWith("/gallery/gallery-")
+    pathname.startsWith("/gallery/gallery-") ||
+    pathname === "/monitoring"  // Sentry tunnel route
   ) {
     return NextResponse.next()
   }
