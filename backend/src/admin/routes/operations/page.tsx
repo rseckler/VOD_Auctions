@@ -506,6 +506,25 @@ function OperationsHub() {
         </>
       )}
 
+      {/* ── Platform Configuration ───────────────── */}
+      <div style={{
+        fontSize: 10, fontWeight: 700, color: C.muted,
+        textTransform: "uppercase", letterSpacing: "0.07em",
+        marginTop: 24, marginBottom: 12,
+      }}>
+        Platform Configuration
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 14 }}>
+        <HubCard
+          icon="⚙️"
+          title="Configuration"
+          description="Platform mode, password gate, invite system, auction settings, and Go Live checklist."
+          statusLine={`Mode: ${(healthData as any)?.platform_mode || "beta_test"}`}
+          statusColor={C.gold}
+          href="/app/config"
+        />
+      </div>
+
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; transform: scale(1); }

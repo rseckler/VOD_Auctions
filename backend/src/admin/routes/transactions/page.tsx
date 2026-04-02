@@ -2,9 +2,9 @@ import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { CurrencyDollar } from "@medusajs/icons"
 import { useAdminNav } from "../../components/admin-nav"
 import { C } from "../../components/admin-tokens"
+import { PageHeader, PageShell } from "../../components/admin-layout"
+import { Btn } from "../../components/admin-ui"
 import {
-  Container,
-  Heading,
   Badge,
   Button,
   Text,
@@ -340,26 +340,14 @@ const TransactionsPage = () => {
   const hasAdvancedFilters = !!(providerFilter || dateFrom || dateTo)
 
   return (
-    <Container>
-      {/* Top Bar */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
-        <div>
-          <Heading level="h1">Orders</Heading>
-          <Text className="text-ui-fg-subtle mt-1">All auction wins and direct purchases</Text>
-        </div>
-        <button
-          onClick={() => exportTransactions()}
-          style={{
-            padding: "6px 14px", fontSize: 13, fontWeight: 500,
-            background: "var(--bg-component, #1a1714)", border: `1px solid ${C.border}`, borderRadius: 6,
-            cursor: "pointer", color: C.text,
-          }}
-          onMouseEnter={e => (e.currentTarget.style.background = "rgba(0,0,0,0.02)")}
-          onMouseLeave={e => (e.currentTarget.style.background = "rgba(0,0,0,0.02)")}
-        >
-          Export CSV
-        </button>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Orders"
+        subtitle="All auction wins and direct purchases"
+        actions={
+          <Btn label="Export CSV" variant="ghost" onClick={() => exportTransactions()} />
+        }
+      />
 
       {/* Quick Tabs */}
       <div style={{ display: "flex", borderBottom: `1px solid ${C.border}`, marginBottom: 16 }}>

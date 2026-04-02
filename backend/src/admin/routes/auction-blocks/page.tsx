@@ -1,7 +1,8 @@
 import React from "react"
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { ChatBubbleLeftRight } from "@medusajs/icons"
-import { Container, Heading, Badge, Button, Text } from "@medusajs/ui"
+import { Badge, Button, Text } from "@medusajs/ui"
+import { PageHeader, PageShell } from "../../components/admin-layout"
 import { useEffect, useState, useRef, useCallback } from "react"
 import { useAdminNav } from "../../components/admin-nav"
 import { C } from "../../components/admin-tokens"
@@ -468,29 +469,29 @@ const AuctionBlocksPage = () => {
   }).length
 
   return (
-    <Container>
-      <div className="flex flex-wrap items-center justify-between mb-6 gap-3">
-        <div>
-          <Heading level="h1">Auction Blocks</Heading>
-          <Text className="text-ui-fg-subtle mt-1">Manage themed auction blocks</Text>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <a href="/app/auction-blocks/ai-create">
-            <Button variant="secondary">✨ AI Create</Button>
-          </a>
-          <a href="/app/auction-blocks/create">
-            <Button>Create New Auction</Button>
-          </a>
-        </div>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Auction Blocks"
+        subtitle="Manage themed auction blocks"
+        actions={
+          <div style={{ display: "flex", gap: 8 }}>
+            <a href="/app/auction-blocks/ai-create">
+              <Button variant="secondary">✨ AI Create</Button>
+            </a>
+            <a href="/app/auction-blocks/create">
+              <Button>Create New Auction</Button>
+            </a>
+          </div>
+        }
+      />
 
       {loading && <Text>Loading…</Text>}
 
       {!loading && blocks.length === 0 && (
-        <Container className="text-center py-12">
+        <div style={{ textAlign: "center", padding: "48px 20px" }}>
           <Text className="text-ui-fg-subtle">No auction blocks created yet.</Text>
           <a href="/app/auction-blocks/create"><Button className="mt-4">Create New Auction</Button></a>
-        </Container>
+        </div>
       )}
 
       {!loading && blocks.length > 0 && (
@@ -624,7 +625,7 @@ const AuctionBlocksPage = () => {
 
         </div>
       )}
-    </Container>
+    </PageShell>
   )
 }
 

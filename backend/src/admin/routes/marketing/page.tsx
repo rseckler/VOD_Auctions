@@ -138,10 +138,10 @@ function MarketingHub() {
           meta="3,580 contacts · tape-mag list"
           badge="Live CRM"
           badgeColor="green"
-          href="/app/customers"
+          href="/app/crm"
         />
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 16 }}>
         <HubCard
           icon="📝"
           title="Content Blocks"
@@ -155,6 +155,15 @@ function MarketingHub() {
           description="Manage storefront image gallery sections. Reorder, activate/deactivate, and upload media for 9 gallery sections."
           meta="9 sections · position ordering"
           href="/app/gallery"
+        />
+        <HubCard
+          icon="📋"
+          title="Waitlist"
+          description="Pre-launch applications and invite token management. Approve, invite, and track registrations."
+          meta="Invite system"
+          badge="Pre-Launch"
+          badgeColor="orange"
+          href="/app/waitlist"
         />
       </div>
     </PageShell>
