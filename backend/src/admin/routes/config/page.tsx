@@ -1,7 +1,25 @@
+import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { useEffect, useState, useCallback } from "react"
 import { useAdminNav } from "../../components/admin-nav"
 
-// ─── Types ──────────────────────────────────────────────────────────────────
+// ─── Design Tokens ─────────────────────────────────────────────────────────
+
+const C = {
+  bg: "#1c1915",
+  card: "#2a2520",
+  text: "#f5f0eb",
+  muted: "#a09080",
+  gold: "#d4a54a",
+  border: "#3a3530",
+  hover: "#353025",
+  success: "#22c55e",
+  error: "#ef4444",
+  blue: "#60a5fa",
+  purple: "#c084fc",
+  warning: "#eab308",
+}
+
+// ─── Types ─────────────────────────────────────────────────────────────────
 
 interface SiteConfig {
   catalog_visibility: string
@@ -33,57 +51,17 @@ interface GoLiveCheck {
   detail?: string
 }
 
-// ─── Constants ──────────────────────────────────────────────────────────────
+// ─── Constants ─────────────────────────────────────────────────────────────
 
-const TABS = ["General", "Access / Launch", "Auction", "Change History"] as const
+const TABS = ["Access / Launch", "Auction", "Change History"] as const
 type Tab = (typeof TABS)[number]
 
-const MODE_OPTIONS: {
-  value: string
-  label: string
-  icon: string
-  badgeClass: string
-  color: string
-  bgColor: string
-  borderColor: string
-}[] = [
-  {
-    value: "pre_launch",
-    label: "PRE-LAUNCH",
-    icon: "\uD83D\uDD12",
-    badgeClass: "yellow",
-    color: "#eab308",
-    bgColor: "rgba(234, 179, 8, 0.15)",
-    borderColor: "rgba(234, 179, 8, 0.3)",
-  },
-  {
-    value: "preview",
-    label: "PREVIEW",
-    icon: "\uD83D\uDC41",
-    badgeClass: "blue",
-    color: "#3b82f6",
-    bgColor: "rgba(59, 130, 246, 0.15)",
-    borderColor: "rgba(59, 130, 246, 0.3)",
-  },
-  {
-    value: "live",
-    label: "LIVE",
-    icon: "\u2705",
-    badgeClass: "green",
-    color: "#22c55e",
-    bgColor: "rgba(34, 197, 94, 0.15)",
-    borderColor: "rgba(34, 197, 94, 0.3)",
-  },
-  {
-    value: "maintenance",
-    label: "MAINTENANCE",
-    icon: "\uD83D\uDD27",
-    badgeClass: "red",
-    color: "#ef4444",
-    bgColor: "rgba(239, 68, 68, 0.15)",
-    borderColor: "rgba(239, 68, 68, 0.3)",
-  },
-]
+const MODE_OPTIONS = [
+  { value: "pre_launch", label: "PRE-LAUNCH", color: C.warning },
+  { value: "preview", label: "PREVIEW", color: C.blue },
+  { value: "live", label: "LIVE", color: C.success },
+  { value: "maintenance", label: "MAINTENANCE", color: C.error },
+] as const
 
 const SENSITIVE_KEYS = ["gate_password"]
 
@@ -91,15 +69,12 @@ function getModeInfo(mode: string) {
   return MODE_OPTIONS.find((m) => m.value === mode) || MODE_OPTIONS[0]
 }
 
-// ─── Helper: API fetch ──────────────────────────────────────────────────────
+// ─── API Helper ────────────────────────────────────────────────────────────
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...(options?.headers || {}),
-    },
+    headers: { "Content-Type": "application/json", ...(options?.headers || {}) },
     ...options,
   })
   if (!res.ok) {
@@ -109,13 +84,16 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json()
 }
 
-// ─── Toast ──────────────────────────────────────────────────────────────────
+// ─── Toast ─────────────────────────────────────────────────────────────────
 
-function Toast({ message, onDone }: { message: string; onDone: () => void }) {
+function Toast({ message, type, onDone }: { message: string; type?: "success" | "error"; onDone: () => void }) {
   useEffect(() => {
-    const t = setTimeout(onDone, 2200)
+    const t = setTimeout(onDone, 2400)
     return () => clearTimeout(t)
   }, [onDone])
+
+  const borderColor = type === "error" ? C.error : C.success
+  const textColor = type === "error" ? C.error : C.success
 
   return (
     <div
@@ -123,43 +101,37 @@ function Toast({ message, onDone }: { message: string; onDone: () => void }) {
         position: "fixed",
         bottom: 24,
         right: 24,
-        background: "#161310",
-        border: "1px solid rgba(34, 197, 94, 0.4)",
-        color: "#22c55e",
-        padding: "10px 20px",
-        borderRadius: 7,
-        fontSize: 12.5,
+        background: C.bg,
+        border: "1px solid " + borderColor,
+        color: textColor,
+        padding: "10px 18px",
+        borderRadius: 8,
+        fontSize: 12,
         fontWeight: 600,
         zIndex: 9999,
-        boxShadow: "0 8px 30px rgba(0,0,0,0.5)",
+        boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
         display: "flex",
         alignItems: "center",
         gap: 8,
       }}
     >
-      <span style={{ fontSize: 14 }}>{"\u2713"}</span>
+      <span style={{ fontSize: 14 }}>{type === "error" ? "\u2717" : "\u2713"}</span>
       {message}
     </div>
   )
 }
 
-// ─── Toggle ─────────────────────────────────────────────────────────────────
+// ─── Toggle ────────────────────────────────────────────────────────────────
 
-function Toggle({
-  active,
-  onClick,
-}: {
-  active: boolean
-  onClick: () => void
-}) {
+function Toggle({ active, onClick }: { active: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
       style={{
-        width: 36,
+        width: 38,
         height: 20,
         borderRadius: 10,
-        background: active ? "#22c55e" : "#2a2520",
+        background: active ? C.success : C.border,
         position: "relative",
         cursor: "pointer",
         border: "none",
@@ -171,344 +143,32 @@ function Toggle({
         style={{
           position: "absolute",
           top: 3,
-          left: active ? 19 : 3,
+          left: active ? 21 : 3,
           width: 14,
           height: 14,
           borderRadius: 7,
           background: "#fff",
-          transition: "left 0.2s",
+          transition: "left 0.15s",
         }}
       />
     </button>
   )
 }
 
-// ─── Go Live Modal ──────────────────────────────────────────────────────────
+// ─── Section Header ────────────────────────────────────────────────────────
 
-function GoLiveModal({
-  onClose,
-  onSuccess,
-}: {
-  onClose: () => void
-  onSuccess: (cfg: SiteConfig) => void
-}) {
-  const [checks, setChecks] = useState<GoLiveCheck[] | null>(null)
-  const [allPassed, setAllPassed] = useState(false)
-  const [confirmation, setConfirmation] = useState("")
-  const [loading, setLoading] = useState(true)
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState("")
-  const [success, setSuccess] = useState("")
-
-  useEffect(() => {
-    apiFetch<{ checks: GoLiveCheck[]; all_passed: boolean }>(
-      "/admin/site-config/go-live"
-    )
-      .then((data) => {
-        setChecks(data.checks)
-        setAllPassed(data.all_passed)
-      })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false))
-  }, [])
-
-  const handleConfirm = async () => {
-    setSubmitting(true)
-    setError("")
-    try {
-      const data = await apiFetch<{
-        config: SiteConfig
-        checks: GoLiveCheck[]
-        message: string
-      }>("/admin/site-config/go-live", {
-        method: "POST",
-        body: JSON.stringify({ confirmation: "GO LIVE" }),
-      })
-      setSuccess(data.message || "Platform is now LIVE!")
-      setTimeout(() => {
-        onSuccess(data.config)
-        onClose()
-      }, 1500)
-    } catch (e: any) {
-      setError(e.message)
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
+function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(13, 11, 8, 0.85)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 10000,
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
-    >
-      <div
-        style={{
-          background: "#1c1915",
-          border: "1px solid #2a2520",
-          borderRadius: 12,
-          width: "100%",
-          maxWidth: 560,
-          maxHeight: "80vh",
-          overflowY: "auto",
-          boxShadow: "0 24px 80px rgba(0,0,0,0.7)",
-        }}
-      >
-        {/* Modal Header */}
-        <div
-          style={{
-            background: "#161310",
-            borderBottom: "1px solid #2a2520",
-            padding: "20px 24px",
-          }}
-        >
-          <h3
-            style={{
-              fontSize: 17,
-              fontWeight: 700,
-              color: "#e8e0d4",
-              margin: "0 0 4px",
-            }}
-          >
-            Before you go live — Pre-Flight Checklist
-          </h3>
-          <p style={{ fontSize: 12.5, color: "#a39d96", margin: 0 }}>
-            Review these checks before making the storefront publicly accessible.
-          </p>
-        </div>
-
-        {/* Modal Body */}
-        <div style={{ padding: "20px 24px" }}>
-          {loading && (
-            <p style={{ color: "#6b6560", fontSize: 13 }}>
-              Running checks...
-            </p>
-          )}
-
-          {error && (
-            <p
-              style={{
-                color: "#ef4444",
-                fontSize: 13,
-                marginBottom: 12,
-              }}
-            >
-              {error}
-            </p>
-          )}
-
-          {success && (
-            <p
-              style={{
-                color: "#22c55e",
-                fontSize: 14,
-                fontWeight: 600,
-              }}
-            >
-              {success}
-            </p>
-          )}
-
-          {checks && !success && (
-            <>
-              <div>
-                {checks.map((c, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      gap: 12,
-                      padding: "10px 0",
-                      borderBottom:
-                        i < checks.length - 1
-                          ? "1px solid #1a1714"
-                          : "none",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 15,
-                        flexShrink: 0,
-                        marginTop: 1,
-                      }}
-                    >
-                      {c.ok ? "\u2705" : "\u26A0\uFE0F"}
-                    </span>
-                    <div>
-                      <div
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 500,
-                          color: "#e8e0d4",
-                        }}
-                      >
-                        {c.label}
-                      </div>
-                      {c.detail && (
-                        <div
-                          style={{
-                            fontSize: 11.5,
-                            color: c.ok ? "#6b6560" : "#eab308",
-                            marginTop: 1,
-                          }}
-                        >
-                          {c.detail}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {!allPassed && (
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: 8,
-                    background: "rgba(234, 179, 8, 0.06)",
-                    border: "1px solid rgba(234, 179, 8, 0.2)",
-                    borderRadius: 6,
-                    padding: "10px 14px",
-                    fontSize: 11.5,
-                    color: "#a39d96",
-                    margin: "14px 0 0",
-                  }}
-                >
-                  <span style={{ color: "#eab308", flexShrink: 0 }}>
-                    {"\u26A0\uFE0F"}
-                  </span>
-                  <span>
-                    Some checks did not pass. You can still go live, but
-                    review the warnings above.
-                  </span>
-                </div>
-              )}
-
-              {/* Confirm input */}
-              <div
-                style={{
-                  marginTop: 18,
-                  paddingTop: 18,
-                  borderTop: "1px solid #2a2520",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: "#a39d96",
-                    marginBottom: 8,
-                  }}
-                >
-                  Type <strong style={{ color: "#e8e0d4" }}>GO LIVE</strong>{" "}
-                  to confirm
-                </div>
-                <input
-                  style={{
-                    width: "100%",
-                    background: "#0f0d0a",
-                    border: "1px solid #2a2520",
-                    borderRadius: 6,
-                    padding: "9px 14px",
-                    fontSize: 13,
-                    color: "#e8e0d4",
-                    fontFamily: "'Courier New', monospace",
-                    letterSpacing: "0.06em",
-                    outline: "none",
-                    boxSizing: "border-box",
-                  }}
-                  value={confirmation}
-                  onChange={(e) => setConfirmation(e.target.value)}
-                  placeholder="GO LIVE"
-                  autoFocus
-                />
-              </div>
-
-              {/* Modal Footer */}
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "flex-end",
-                  gap: 10,
-                  marginTop: 14,
-                }}
-              >
-                <button
-                  style={{
-                    background: "transparent",
-                    border: "1px solid #2a2520",
-                    color: "#a39d96",
-                    fontSize: 13,
-                    padding: "10px 20px",
-                    borderRadius: 7,
-                    cursor: "pointer",
-                  }}
-                  onClick={onClose}
-                >
-                  Cancel
-                </button>
-                <button
-                  style={{
-                    background:
-                      confirmation === "GO LIVE" && !submitting
-                        ? "rgba(239, 68, 68, 0.1)"
-                        : "rgba(239, 68, 68, 0.05)",
-                    border: "1px solid rgba(239, 68, 68, 0.4)",
-                    color: "#ef4444",
-                    fontWeight: 700,
-                    fontSize: 13,
-                    padding: "10px 24px",
-                    borderRadius: 7,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 8,
-                    cursor:
-                      confirmation === "GO LIVE" && !submitting
-                        ? "pointer"
-                        : "not-allowed",
-                    opacity:
-                      confirmation === "GO LIVE" && !submitting ? 1 : 0.4,
-                  }}
-                  disabled={confirmation !== "GO LIVE" || submitting}
-                  onClick={handleConfirm}
-                >
-                  {submitting
-                    ? "Going live..."
-                    : "\uD83D\uDE80 Remove Password Gate & Go Live"}
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Reusable: Section Title ────────────────────────────────────────────────
-
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      style={{
-        fontSize: 10,
+        fontSize: 11,
         fontWeight: 700,
-        letterSpacing: "0.14em",
+        color: C.muted,
         textTransform: "uppercase" as const,
-        color: "#6b6560",
-        marginBottom: 14,
+        letterSpacing: "0.06em",
+        marginBottom: 12,
         paddingBottom: 8,
-        borderBottom: "1px solid #2a2520",
+        borderBottom: "1px solid " + C.border,
       }}
     >
       {children}
@@ -516,7 +176,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   )
 }
 
-// ─── Reusable: Config Row ───────────────────────────────────────────────────
+// ─── Config Row ────────────────────────────────────────────────────────────
 
 function ConfigRow({
   label,
@@ -535,61 +195,319 @@ function ConfigRow({
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        padding: "10px 0",
-        borderBottom: noBorder ? "none" : "1px solid #1a1714",
+        padding: "12px 0",
+        borderBottom: noBorder ? "none" : "1px solid " + C.border + "80",
       }}
     >
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div
-          style={{
-            fontSize: 12.5,
-            color: "#e8e0d4",
-            fontWeight: 500,
-          }}
-        >
-          {label}
-        </div>
-        {hint && (
-          <div
-            style={{
-              fontSize: 11,
-              color: "#6b6560",
-              marginTop: 2,
-            }}
-          >
-            {hint}
-          </div>
-        )}
+        <div style={{ fontSize: 13, fontWeight: 500, color: C.text }}>{label}</div>
+        {hint && <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{hint}</div>}
       </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>{children}</div>
+    </div>
+  )
+}
+
+// ─── Status Badge ──────────────────────────────────────────────────────────
+
+function ModeBadge({ mode }: { mode: string }) {
+  const info = getModeInfo(mode)
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 5,
+        fontSize: 11,
+        fontWeight: 700,
+        letterSpacing: "0.04em",
+        textTransform: "uppercase" as const,
+        padding: "4px 10px",
+        borderRadius: 4,
+        background: info.color + "20",
+        color: info.color,
+        border: "1px solid " + info.color + "40",
+      }}
+    >
+      {info.label}
+    </span>
+  )
+}
+
+// ─── Small Stat Badge (for stats row) ──────────────────────────────────────
+
+function StatBadge({ on, label }: { on: boolean; label: string }) {
+  const color = on ? C.success : C.muted
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        fontSize: 11,
+        fontWeight: 600,
+        color,
+      }}
+    >
+      <span
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: 3,
+          background: on ? C.success : C.border,
+          display: "inline-block",
+        }}
+      />
+      {label}
+    </span>
+  )
+}
+
+// ─── Save Button ───────────────────────────────────────────────────────────
+
+function SaveButton({ disabled, onClick, children }: { disabled: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      style={{
+        background: disabled ? C.card : C.gold,
+        color: disabled ? C.muted : "#1c1915",
+        fontWeight: 700,
+        fontSize: 12,
+        padding: "6px 16px",
+        borderRadius: 5,
+        border: "none",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.4 : 1,
+        transition: "opacity 0.15s",
+      }}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  )
+}
+
+// ─── Go Live Modal ─────────────────────────────────────────────────────────
+
+function GoLiveModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (cfg: SiteConfig) => void }) {
+  const [checks, setChecks] = useState<GoLiveCheck[] | null>(null)
+  const [allPassed, setAllPassed] = useState(false)
+  const [confirmation, setConfirmation] = useState("")
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState("")
+  const [success, setSuccess] = useState("")
+
+  useEffect(() => {
+    apiFetch<{ checks: GoLiveCheck[]; all_passed: boolean }>("/admin/site-config/go-live")
+      .then((data) => {
+        setChecks(data.checks)
+        setAllPassed(data.all_passed)
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const handleConfirm = async () => {
+    setSubmitting(true)
+    setError("")
+    try {
+      const data = await apiFetch<{ config: SiteConfig; checks: GoLiveCheck[]; message: string }>("/admin/site-config/go-live", {
+        method: "POST",
+        body: JSON.stringify({ confirmation: "GO LIVE" }),
+      })
+      setSuccess(data.message || "Platform is now LIVE!")
+      setTimeout(() => {
+        onSuccess(data.config)
+        onClose()
+      }, 1500)
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const canConfirm = confirmation === "GO LIVE" && !submitting
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.65)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 10000,
+      }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
       <div
         style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          flexShrink: 0,
+          background: C.bg,
+          border: "1px solid " + C.border,
+          borderRadius: 12,
+          width: "100%",
+          maxWidth: 540,
+          maxHeight: "80vh",
+          overflowY: "auto",
+          boxShadow: "0 24px 80px rgba(0,0,0,0.7)",
         }}
       >
-        {children}
+        {/* Header */}
+        <div style={{ background: "#161310", borderBottom: "1px solid " + C.border, padding: "18px 24px" }}>
+          <h3 style={{ fontSize: 17, fontWeight: 700, color: C.text, margin: "0 0 4px" }}>
+            Pre-Flight Checklist
+          </h3>
+          <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>
+            Review these checks before making the storefront publicly accessible.
+          </p>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: "20px 24px" }}>
+          {loading && <p style={{ color: C.muted, fontSize: 13 }}>Running checks...</p>}
+
+          {error && <p style={{ color: C.error, fontSize: 13, marginBottom: 12 }}>{error}</p>}
+
+          {success && <p style={{ color: C.success, fontSize: 14, fontWeight: 600 }}>{success}</p>}
+
+          {checks && !success && (
+            <>
+              <div>
+                {checks.map((c, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 12,
+                      padding: "10px 0",
+                      borderBottom: i < checks.length - 1 ? "1px solid " + C.border + "60" : "none",
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: 10,
+                        background: c.ok ? C.success + "20" : C.warning + "20",
+                        color: c.ok ? C.success : C.warning,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        flexShrink: 0,
+                        marginTop: 1,
+                      }}
+                    >
+                      {c.ok ? "\u2713" : "!"}
+                    </span>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: C.text }}>{c.label}</div>
+                      {c.detail && (
+                        <div style={{ fontSize: 11, color: c.ok ? C.muted : C.warning, marginTop: 1 }}>{c.detail}</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {!allPassed && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 8,
+                    background: C.warning + "0a",
+                    border: "1px solid " + C.warning + "30",
+                    borderRadius: 6,
+                    padding: "10px 14px",
+                    fontSize: 12,
+                    color: C.muted,
+                    marginTop: 14,
+                  }}
+                >
+                  <span style={{ color: C.warning, flexShrink: 0, fontWeight: 700 }}>!</span>
+                  <span>Some checks did not pass. You can still go live, but review the warnings above.</span>
+                </div>
+              )}
+
+              {/* Confirm input */}
+              <div style={{ marginTop: 18, paddingTop: 18, borderTop: "1px solid " + C.border }}>
+                <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>
+                  Type <strong style={{ color: C.text }}>GO LIVE</strong> to confirm
+                </div>
+                <input
+                  style={{
+                    width: "100%",
+                    background: "#0f0d0a",
+                    border: "1px solid " + C.border,
+                    borderRadius: 6,
+                    padding: "9px 14px",
+                    fontSize: 13,
+                    color: C.text,
+                    fontFamily: "monospace",
+                    letterSpacing: "0.06em",
+                    outline: "none",
+                    boxSizing: "border-box" as const,
+                  }}
+                  value={confirmation}
+                  onChange={(e) => setConfirmation(e.target.value)}
+                  placeholder="GO LIVE"
+                  autoFocus
+                />
+              </div>
+
+              {/* Footer */}
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 14 }}>
+                <button
+                  style={{
+                    background: "transparent",
+                    border: "1px solid " + C.border,
+                    color: C.muted,
+                    fontSize: 13,
+                    padding: "10px 20px",
+                    borderRadius: 7,
+                    cursor: "pointer",
+                  }}
+                  onClick={onClose}
+                >
+                  Cancel
+                </button>
+                <button
+                  style={{
+                    background: canConfirm ? C.error + "15" : C.error + "08",
+                    border: "1px solid " + C.error + "60",
+                    color: C.error,
+                    fontWeight: 700,
+                    fontSize: 13,
+                    padding: "10px 24px",
+                    borderRadius: 7,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    cursor: canConfirm ? "pointer" : "not-allowed",
+                    opacity: canConfirm ? 1 : 0.4,
+                  }}
+                  disabled={!canConfirm}
+                  onClick={handleConfirm}
+                >
+                  {submitting ? "Going live..." : "Remove Password Gate & Go Live"}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   )
 }
 
-// ─── Reusable: Section Divider ──────────────────────────────────────────────
-
-function SectionDivider() {
-  return (
-    <hr
-      style={{
-        border: "none",
-        borderTop: "1px solid #2a2520",
-        margin: "16px 0",
-      }}
-    />
-  )
-}
-
-// ─── Main Page Component ────────────────────────────────────────────────────
+// ─── Main Page ─────────────────────────────────────────────────────────────
 
 function ConfigPage() {
   useAdminNav()
@@ -597,17 +515,17 @@ function ConfigPage() {
   const [config, setConfig] = useState<SiteConfig | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
-  const [tab, setTab] = useState<Tab>("General")
-  const [toast, setToast] = useState("")
+  const [tab, setTab] = useState<Tab>("Access / Launch")
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null)
   const [showGoLive, setShowGoLive] = useState(false)
 
-  // Audit log state
+  // Audit log
   const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([])
   const [auditCount, setAuditCount] = useState(0)
   const [auditPage, setAuditPage] = useState(0)
   const [auditLoading, setAuditLoading] = useState(false)
 
-  // Form state for fields that need explicit save
+  // Form state (explicit save fields)
   const [catalogVis, setCatalogVis] = useState("")
   const [platformMode, setPlatformMode] = useState("")
   const [gatePassword, setGatePassword] = useState("")
@@ -636,19 +554,16 @@ function ConfigPage() {
     }
   }, [])
 
-  useEffect(() => {
-    loadConfig()
-  }, [loadConfig])
+  useEffect(() => { loadConfig() }, [loadConfig])
 
-  // ── Load audit log ──
+  // ── Load audit ──
 
   const loadAudit = useCallback(async (page: number) => {
     setAuditLoading(true)
     try {
-      const data = await apiFetch<{
-        entries: AuditEntry[]
-        count: number
-      }>(`/admin/site-config/audit-log?limit=50&offset=${page * 50}`)
+      const data = await apiFetch<{ entries: AuditEntry[]; count: number }>(
+        `/admin/site-config/audit-log?limit=50&offset=${page * 50}`
+      )
       setAuditEntries(data.entries)
       setAuditCount(data.count)
       setAuditPage(page)
@@ -679,68 +594,255 @@ function ConfigPage() {
       setAntiSnipe(c.auction_anti_snipe_minutes)
       setDefaultDuration(c.auction_default_duration_hours)
       setStaggerInterval(c.auction_stagger_interval_seconds)
-      setToast("Saved")
+      setToast({ message: "Saved", type: "success" })
     } catch (e: any) {
-      setError(e.message)
+      setToast({ message: e.message, type: "error" })
     }
   }
 
-  // ── Toggle helper (auto-save) ──
-
   const toggleField = (key: keyof SiteConfig) => {
     if (!config) return
-    const newVal = !config[key]
-    saveField({ [key]: newVal } as any)
+    saveField({ [key]: !config[key] } as any)
   }
 
-  // ── Platform mode badge ──
+  // ── Dirty check for auction numbers ──
 
-  const renderModeBadge = () => {
-    if (!config) return null
-    const info = getModeInfo(config.platform_mode)
+  const auctionNumbersDirty =
+    antiSnipe !== config?.auction_anti_snipe_minutes ||
+    defaultDuration !== config?.auction_default_duration_hours ||
+    staggerInterval !== config?.auction_stagger_interval_seconds
+
+  // ── Loading / Error states ──
+
+  if (loading) {
     return (
-      <span
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 5,
-          fontSize: 11,
-          fontWeight: 700,
-          letterSpacing: "0.06em",
-          textTransform: "uppercase",
-          padding: "4px 10px",
-          borderRadius: 4,
-          background: info.bgColor,
-          color: info.color,
-          border: `1px solid ${info.borderColor}`,
-        }}
-      >
-        {info.icon} {info.label}
-      </span>
+      <div style={{ padding: 40, color: C.muted, fontSize: 13, fontFamily: "system-ui, -apple-system, sans-serif" }}>
+        Loading configuration...
+      </div>
     )
   }
 
-  // ── Tab: General ──
+  if (error && !config) {
+    return (
+      <div style={{ padding: 40, color: C.error, fontSize: 13, fontFamily: "system-ui, -apple-system, sans-serif" }}>
+        <strong>Error:</strong> {error}
+      </div>
+    )
+  }
 
-  const renderGeneral = () => (
+  const isLive = config?.platform_mode === "live"
+
+  // ── Tab: Access / Launch ──
+
+  const renderAccess = () => (
     <div>
-      <SectionTitle>Catalog</SectionTitle>
+      {/* Live banner */}
+      {isLive && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            background: C.success + "12",
+            border: "1px solid " + C.success + "30",
+            borderRadius: 8,
+            padding: "14px 18px",
+            marginBottom: 20,
+          }}
+        >
+          <span
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: 14,
+              background: C.success + "20",
+              color: C.success,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 14,
+              fontWeight: 700,
+              flexShrink: 0,
+            }}
+          >
+            {"\u2713"}
+          </span>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: C.success }}>Site is Live</div>
+            <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
+              The storefront is publicly accessible. Password gate is disabled.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Platform Mode */}
+      <SectionHeader>Platform Mode</SectionHeader>
+
+      <ConfigRow label="Current Mode" hint="Controls the overall state of the storefront.">
+        <select
+          style={{
+            maxWidth: 200,
+            padding: "7px 11px",
+            borderRadius: 6,
+            border: "1px solid " + C.border,
+            background: C.bg,
+            color: C.text,
+            fontSize: 13,
+            outline: "none",
+            cursor: "pointer",
+          }}
+          value={platformMode}
+          onChange={(e) => setPlatformMode(e.target.value)}
+        >
+          {MODE_OPTIONS.map((m) => (
+            <option key={m.value} value={m.value}>{m.label}</option>
+          ))}
+        </select>
+        <SaveButton
+          disabled={platformMode === config?.platform_mode}
+          onClick={() => saveField({ platform_mode: platformMode })}
+        >
+          Save
+        </SaveButton>
+      </ConfigRow>
+
+      {/* Warning when not live */}
+      {!isLive && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 8,
+            background: C.warning + "0a",
+            border: "1px solid " + C.warning + "30",
+            borderRadius: 6,
+            padding: "10px 14px",
+            fontSize: 12,
+            color: C.muted,
+            marginTop: 10,
+          }}
+        >
+          <span style={{ color: C.warning, flexShrink: 0, fontWeight: 700, fontSize: 13 }}>!</span>
+          <span>
+            The storefront is not publicly accessible. Visitors must enter the gate password or have an invite.
+          </span>
+        </div>
+      )}
+
+      <div style={{ height: 20 }} />
+
+      {/* Password Gate */}
+      <SectionHeader>Password Gate</SectionHeader>
+
+      <ConfigRow label="Gate Password" hint="Password visitors must enter to access the storefront." noBorder>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div
+            style={{
+              width: showPassword ? "auto" : "auto",
+              minWidth: showPassword ? 0 : 90,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            {showPassword ? (
+              <input
+                style={{
+                  width: 160,
+                  padding: "7px 11px",
+                  borderRadius: 6,
+                  border: "1px solid " + C.border,
+                  background: C.bg,
+                  color: C.text,
+                  fontSize: 13,
+                  outline: "none",
+                }}
+                value={gatePassword}
+                onChange={(e) => setGatePassword(e.target.value)}
+              />
+            ) : (
+              <span
+                style={{
+                  padding: "7px 11px",
+                  borderRadius: 6,
+                  border: "1px solid " + C.border,
+                  background: C.bg,
+                  color: C.muted,
+                  fontSize: 14,
+                  letterSpacing: "0.18em",
+                  display: "inline-block",
+                  minWidth: 90,
+                }}
+              >
+                {"\u25CF\u25CF\u25CF\u25CF\u25CF\u25CF\u25CF\u25CF"}
+              </span>
+            )}
+          </div>
+          <button
+            style={{
+              background: "none",
+              border: "1px solid " + C.border,
+              color: C.muted,
+              fontSize: 11,
+              fontWeight: 600,
+              padding: "6px 12px",
+              borderRadius: 5,
+              cursor: "pointer",
+            }}
+            onClick={() => setShowPassword(!showPassword)}
+          >
+            {showPassword ? "Hide" : "Show"}
+          </button>
+          {showPassword && (
+            <SaveButton
+              disabled={gatePassword === config?.gate_password}
+              onClick={() => saveField({ gate_password: gatePassword })}
+            >
+              Save
+            </SaveButton>
+          )}
+        </div>
+      </ConfigRow>
+
+      <div style={{ height: 20 }} />
+
+      {/* Invite System */}
+      <SectionHeader>Invite System</SectionHeader>
+
+      <ConfigRow label="Invite Mode Active" hint="Only invited users can access the storefront.">
+        <Toggle active={!!config?.invite_mode_active} onClick={() => toggleField("invite_mode_active")} />
+      </ConfigRow>
+
+      <ConfigRow label="/apply Page Visible" hint="Show the application page for early access.">
+        <Toggle active={!!config?.apply_page_visible} onClick={() => toggleField("apply_page_visible")} />
+      </ConfigRow>
+
+      <ConfigRow label="Show Waitlist Counter" hint="Show how many people are on the waitlist." noBorder>
+        <Toggle active={!!config?.waitlist_counter_visible} onClick={() => toggleField("waitlist_counter_visible")} />
+      </ConfigRow>
+
+      <div style={{ height: 20 }} />
+
+      {/* Catalog */}
+      <SectionHeader>Catalog</SectionHeader>
 
       <ConfigRow
         label="Catalog Visibility"
-        hint={`"visible" shows only releases with cover images. "all" shows everything.`}
+        hint={'"visible" shows only releases with cover images. "all" shows everything.'}
         noBorder
       >
         <select
           style={{
-            background: "#1c1915",
-            border: "1px solid #2a2520",
-            borderRadius: 5,
-            padding: "5px 12px",
-            fontSize: 12.5,
-            color: "#e8e0d4",
-            cursor: "pointer",
+            maxWidth: 200,
+            padding: "7px 11px",
+            borderRadius: 6,
+            border: "1px solid " + C.border,
+            background: C.bg,
+            color: C.text,
+            fontSize: 13,
             outline: "none",
+            cursor: "pointer",
           }}
           value={catalogVis}
           onChange={(e) => setCatalogVis(e.target.value)}
@@ -748,255 +850,43 @@ function ConfigPage() {
           <option value="visible">visible</option>
           <option value="all">all</option>
         </select>
-        <button
-          style={{
-            background: "#1c1915",
-            border: "1px solid #2a2520",
-            borderRadius: 5,
-            padding: "5px 10px",
-            fontSize: 11,
-            color:
-              catalogVis !== config?.catalog_visibility
-                ? "#e8e0d4"
-                : "#6b6560",
-            cursor:
-              catalogVis !== config?.catalog_visibility
-                ? "pointer"
-                : "default",
-            opacity: catalogVis !== config?.catalog_visibility ? 1 : 0.5,
-          }}
+        <SaveButton
           disabled={catalogVis === config?.catalog_visibility}
           onClick={() => saveField({ catalog_visibility: catalogVis })}
         >
           Save
-        </button>
-      </ConfigRow>
-    </div>
-  )
-
-  // ── Tab: Access / Launch ──
-
-  const renderAccess = () => (
-    <div>
-      {/* Platform Mode */}
-      <SectionTitle>Platform Mode</SectionTitle>
-
-      <ConfigRow
-        label="Current Mode"
-        hint="Controls the overall state of the storefront."
-      >
-        <select
-          style={{
-            background: "#1c1915",
-            border: "1px solid #2a2520",
-            borderRadius: 5,
-            padding: "5px 12px",
-            fontSize: 12.5,
-            color: "#e8e0d4",
-            cursor: "pointer",
-            outline: "none",
-          }}
-          value={platformMode}
-          onChange={(e) => setPlatformMode(e.target.value)}
-        >
-          {MODE_OPTIONS.map((m) => (
-            <option key={m.value} value={m.value}>
-              {m.label}
-            </option>
-          ))}
-        </select>
-        <button
-          style={{
-            background: "#1c1915",
-            border: "1px solid #2a2520",
-            borderRadius: 5,
-            padding: "5px 10px",
-            fontSize: 11,
-            color:
-              platformMode !== config?.platform_mode ? "#e8e0d4" : "#6b6560",
-            cursor:
-              platformMode !== config?.platform_mode ? "pointer" : "default",
-            opacity: platformMode !== config?.platform_mode ? 1 : 0.5,
-          }}
-          disabled={platformMode === config?.platform_mode}
-          onClick={() => saveField({ platform_mode: platformMode })}
-        >
-          Save
-        </button>
+        </SaveButton>
       </ConfigRow>
 
-      {/* Warning note */}
-      {config?.platform_mode !== "live" && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-start",
-            gap: 8,
-            background: "rgba(234, 179, 8, 0.06)",
-            border: "1px solid rgba(234, 179, 8, 0.2)",
-            borderRadius: 6,
-            padding: "10px 14px",
-            fontSize: 11.5,
-            color: "#a39d96",
-            margin: "12px 0",
-          }}
-        >
-          <span style={{ color: "#eab308", flexShrink: 0 }}>
-            {"\u26A0\uFE0F"}
-          </span>
-          <span>
-            The storefront is not publicly accessible. Visitors must enter the
-            gate password or have an invite to access the site.
-          </span>
-        </div>
-      )}
-
-      <SectionDivider />
-
-      {/* Password Gate */}
-      <SectionTitle>Password Gate</SectionTitle>
-
-      <ConfigRow
-        label="Gate Password"
-        hint="Password visitors must enter to access the storefront."
-        noBorder
-      >
-        <div
-          style={{
-            background: "#1c1915",
-            border: "1px solid #2a2520",
-            borderRadius: 5,
-            padding: "5px 10px",
-            fontSize: 13,
-            color: "#e8e0d4",
-            letterSpacing: showPassword ? "normal" : "0.18em",
-            display: "inline-flex",
-            alignItems: "center",
-            minWidth: 100,
-          }}
-        >
-          {showPassword ? gatePassword : "\u25CF\u25CF\u25CF\u25CF\u25CF\u25CF\u25CF\u25CF"}
-        </div>
-        {showPassword && (
-          <input
-            style={{
-              background: "#1c1915",
-              border: "1px solid #2a2520",
-              borderRadius: 5,
-              padding: "5px 10px",
-              fontSize: 12.5,
-              color: "#e8e0d4",
-              outline: "none",
-              width: 140,
-            }}
-            value={gatePassword}
-            onChange={(e) => setGatePassword(e.target.value)}
-          />
-        )}
-        <button
-          style={{
-            background: "#1c1915",
-            border: "1px solid #2a2520",
-            borderRadius: 5,
-            padding: "5px 10px",
-            fontSize: 11,
-            color: "#a39d96",
-            cursor: "pointer",
-          }}
-          onClick={() => setShowPassword(!showPassword)}
-        >
-          {showPassword ? "Hide" : "Show"}
-        </button>
-        {showPassword && (
-          <button
-            style={{
-              background: "#1c1915",
-              border: "1px solid #2a2520",
-              borderRadius: 5,
-              padding: "5px 10px",
-              fontSize: 11,
-              color:
-                gatePassword !== config?.gate_password
-                  ? "#e8e0d4"
-                  : "#6b6560",
-              cursor:
-                gatePassword !== config?.gate_password
-                  ? "pointer"
-                  : "default",
-              opacity: gatePassword !== config?.gate_password ? 1 : 0.5,
-            }}
-            disabled={gatePassword === config?.gate_password}
-            onClick={() => saveField({ gate_password: gatePassword })}
-          >
-            Save
-          </button>
-        )}
-      </ConfigRow>
-
-      <SectionDivider />
-
-      {/* Invite System */}
-      <SectionTitle>Invite System</SectionTitle>
-
-      <ConfigRow
-        label="Invite Mode Active"
-        hint="Only invited users can access the storefront."
-      >
-        <Toggle
-          active={!!config?.invite_mode_active}
-          onClick={() => toggleField("invite_mode_active")}
-        />
-      </ConfigRow>
-
-      <ConfigRow
-        label="/apply Page Visible"
-        hint="Show the application page for early access."
-      >
-        <Toggle
-          active={!!config?.apply_page_visible}
-          onClick={() => toggleField("apply_page_visible")}
-        />
-      </ConfigRow>
-
-      <ConfigRow
-        label="Show Waitlist Counter"
-        hint="Show how many people are on the waitlist."
-        noBorder
-      >
-        <Toggle
-          active={!!config?.waitlist_counter_visible}
-          onClick={() => toggleField("waitlist_counter_visible")}
-        />
-      </ConfigRow>
-
-      {/* Go Live row */}
+      {/* Go Live button */}
       <div
         style={{
           display: "flex",
           justifyContent: "flex-end",
-          paddingTop: 16,
-          marginTop: 4,
-          borderTop: "1px solid #2a2520",
+          paddingTop: 20,
+          marginTop: 12,
+          borderTop: "1px solid " + C.border,
         }}
       >
         <button
           style={{
-            background: "linear-gradient(135deg, #d4a54a, #b8883a)",
-            color: "#0d0b08",
+            background: isLive ? C.card : "linear-gradient(135deg, #d4a54a, #b8883a)",
+            color: isLive ? C.muted : "#0d0b08",
             fontWeight: 700,
             fontSize: 13,
             padding: "10px 24px",
             borderRadius: 7,
+            border: "none",
+            cursor: isLive ? "not-allowed" : "pointer",
             display: "inline-flex",
             alignItems: "center",
             gap: 8,
-            cursor: "pointer",
-            letterSpacing: "0.02em",
-            border: "none",
+            opacity: isLive ? 0.5 : 1,
           }}
+          disabled={isLive}
           onClick={() => setShowGoLive(true)}
         >
-          Go Live — Launch Site {"\u2192"}
+          {isLive ? "Already Live" : "Go Live \u2014 Launch Site \u2192"}
         </button>
       </div>
     </div>
@@ -1004,144 +894,86 @@ function ConfigPage() {
 
   // ── Tab: Auction ──
 
-  const auctionNumbersDirty =
-    antiSnipe !== config?.auction_anti_snipe_minutes ||
-    defaultDuration !== config?.auction_default_duration_hours ||
-    staggerInterval !== config?.auction_stagger_interval_seconds
-
   const renderAuction = () => (
     <div>
-      <SectionTitle>Auction Settings</SectionTitle>
+      <SectionHeader>Timing</SectionHeader>
 
-      <ConfigRow
-        label="Anti-Sniping Window"
-        hint="Minutes added when a bid is placed near the end."
-      >
+      <ConfigRow label="Anti-Sniping Window" hint="Minutes added when a bid is placed near the end.">
         <input
           type="number"
           min={0}
           value={antiSnipe}
           onChange={(e) => setAntiSnipe(Number(e.target.value))}
           style={{
-            background: "#1c1915",
-            border: "1px solid #2a2520",
-            borderRadius: 5,
-            padding: "5px 10px",
-            fontSize: 12.5,
-            color: "#e8e0d4",
-            width: 60,
-            textAlign: "center",
+            width: 70,
+            textAlign: "center" as const,
+            padding: "7px 11px",
+            borderRadius: 6,
+            border: "1px solid " + C.border,
+            background: C.bg,
+            color: C.text,
+            fontSize: 13,
             outline: "none",
           }}
         />
-        <span style={{ fontSize: 12, color: "#6b6560" }}>minutes</span>
+        <span style={{ fontSize: 12, color: C.muted }}>minutes</span>
       </ConfigRow>
 
-      <ConfigRow
-        label="Default Block Duration"
-        hint="Default auction block duration."
-      >
+      <ConfigRow label="Default Block Duration" hint="Default auction block duration.">
         <input
           type="number"
           min={1}
           value={defaultDuration}
           onChange={(e) => setDefaultDuration(Number(e.target.value))}
           style={{
-            background: "#1c1915",
-            border: "1px solid #2a2520",
-            borderRadius: 5,
-            padding: "5px 10px",
-            fontSize: 12.5,
-            color: "#e8e0d4",
-            width: 60,
-            textAlign: "center",
+            width: 70,
+            textAlign: "center" as const,
+            padding: "7px 11px",
+            borderRadius: 6,
+            border: "1px solid " + C.border,
+            background: C.bg,
+            color: C.text,
+            fontSize: 13,
             outline: "none",
           }}
         />
-        <span style={{ fontSize: 12, color: "#6b6560" }}>
-          hours ({Math.round(defaultDuration / 24 * 10) / 10} days)
+        <span style={{ fontSize: 12, color: C.muted }}>
+          hours ({Math.round((defaultDuration / 24) * 10) / 10}d)
         </span>
       </ConfigRow>
 
-      <ConfigRow
-        label="Lot Stagger Interval"
-        hint="Seconds between lot end-times within a block."
-      >
+      <ConfigRow label="Lot Stagger Interval" hint="Seconds between lot end-times within a block." noBorder>
         <input
           type="number"
           min={0}
           value={staggerInterval}
           onChange={(e) => setStaggerInterval(Number(e.target.value))}
           style={{
-            background: "#1c1915",
-            border: "1px solid #2a2520",
-            borderRadius: 5,
-            padding: "5px 10px",
-            fontSize: 12.5,
-            color: "#e8e0d4",
-            width: 60,
-            textAlign: "center",
+            width: 70,
+            textAlign: "center" as const,
+            padding: "7px 11px",
+            borderRadius: 6,
+            border: "1px solid " + C.border,
+            background: C.bg,
+            color: C.text,
+            fontSize: 13,
             outline: "none",
           }}
         />
-        <span style={{ fontSize: 12, color: "#6b6560" }}>seconds</span>
+        <span style={{ fontSize: 12, color: C.muted }}>seconds</span>
       </ConfigRow>
 
-      <ConfigRow
-        label="Direct Purchase"
-        hint="Allow users to buy items at fixed price outside of auctions."
-      >
-        <Toggle
-          active={!!config?.auction_direct_purchase_enabled}
-          onClick={() => toggleField("auction_direct_purchase_enabled")}
-        />
-      </ConfigRow>
-
-      <ConfigRow
-        label="Reserve Price Visible"
-        hint="Show reserve prices on auction lots."
-      >
-        <Toggle
-          active={!!config?.auction_reserve_price_visible}
-          onClick={() => toggleField("auction_reserve_price_visible")}
-        />
-      </ConfigRow>
-
-      <ConfigRow
-        label="Bid Ending Reminders"
-        hint="Send email reminders before lots end."
-        noBorder
-      >
-        <Toggle
-          active={!!config?.bid_ending_reminders_enabled}
-          onClick={() => toggleField("bid_ending_reminders_enabled")}
-        />
-      </ConfigRow>
-
-      {/* Save Changes row */}
+      {/* Save bar for numbers */}
       <div
         style={{
           display: "flex",
           justifyContent: "flex-end",
-          paddingTop: 16,
-          marginTop: 4,
-          borderTop: "1px solid #2a2520",
+          paddingTop: 14,
+          marginTop: 8,
+          borderTop: "1px solid " + C.border,
         }}
       >
-        <button
-          style={{
-            background: auctionNumbersDirty
-              ? "linear-gradient(135deg, #d4a54a, #b8883a)"
-              : "#2a2520",
-            color: auctionNumbersDirty ? "#0d0b08" : "#6b6560",
-            fontWeight: 700,
-            fontSize: 13,
-            padding: "10px 24px",
-            borderRadius: 7,
-            border: "none",
-            cursor: auctionNumbersDirty ? "pointer" : "default",
-            letterSpacing: "0.02em",
-          }}
+        <SaveButton
           disabled={!auctionNumbersDirty}
           onClick={() =>
             saveField({
@@ -1151,9 +983,25 @@ function ConfigPage() {
             })
           }
         >
-          Save Changes
-        </button>
+          Save Timing
+        </SaveButton>
       </div>
+
+      <div style={{ height: 20 }} />
+
+      <SectionHeader>Features</SectionHeader>
+
+      <ConfigRow label="Direct Purchase" hint="Allow users to buy items at fixed price outside of auctions.">
+        <Toggle active={!!config?.auction_direct_purchase_enabled} onClick={() => toggleField("auction_direct_purchase_enabled")} />
+      </ConfigRow>
+
+      <ConfigRow label="Reserve Price Visible" hint="Show reserve prices on auction lots.">
+        <Toggle active={!!config?.auction_reserve_price_visible} onClick={() => toggleField("auction_reserve_price_visible")} />
+      </ConfigRow>
+
+      <ConfigRow label="Bid Ending Reminders" hint="Send email reminders before lots end." noBorder>
+        <Toggle active={!!config?.bid_ending_reminders_enabled} onClick={() => toggleField("bid_ending_reminders_enabled")} />
+      </ConfigRow>
     </div>
   )
 
@@ -1161,34 +1009,20 @@ function ConfigPage() {
 
   const totalPages = Math.ceil(auditCount / 50)
 
-  const formatAuditValue = (
-    value: string | null,
-    key: string,
-    isMasked: boolean
-  ) => {
-    if (value === null || value === undefined) return "\u2014"
-    if (isMasked) {
-      return (
-        <span
-          style={{
-            color: "#6b6560",
-            letterSpacing: "0.12em",
-            fontSize: 13,
-          }}
-        >
-          {"\u25CF\u25CF\u25CF\u25CF\u25CF"}
-        </span>
-      )
+  const formatAuditValue = (value: string | null, key: string) => {
+    if (value === null || value === undefined) return <span style={{ color: C.muted }}>{"\u2014"}</span>
+    if (SENSITIVE_KEYS.includes(key)) {
+      return <span style={{ color: C.muted, letterSpacing: "0.12em", fontSize: 13 }}>{"\u25CF\u25CF\u25CF\u25CF\u25CF"}</span>
     }
     return (
       <span
         style={{
-          fontFamily: "'Courier New', monospace",
-          fontSize: 11.5,
-          background: "#0f0d0a",
+          fontFamily: "monospace",
+          fontSize: 11,
+          background: C.bg,
           padding: "2px 6px",
           borderRadius: 3,
-          color: "#d4a54a",
+          color: C.gold,
         }}
       >
         {value}
@@ -1198,128 +1032,98 @@ function ConfigPage() {
 
   const renderHistory = () => (
     <div>
-      {auditLoading && (
-        <p style={{ color: "#6b6560", fontSize: 13 }}>Loading...</p>
-      )}
+      {auditLoading && <p style={{ color: C.muted, fontSize: 13 }}>Loading...</p>}
 
       {!auditLoading && auditEntries.length === 0 && (
-        <p style={{ color: "#6b6560", fontSize: 13 }}>
-          No changes recorded yet.
-        </p>
+        <p style={{ color: C.muted, fontSize: 13 }}>No changes recorded yet.</p>
       )}
 
       {!auditLoading && auditEntries.length > 0 && (
         <>
-          <div style={{ overflowX: "auto" }}>
-            <table
-              style={{
-                width: "100%",
-                borderCollapse: "collapse",
-                fontSize: 12.5,
-              }}
-            >
+          <div style={{ border: "1px solid " + C.border, borderRadius: 8, overflow: "hidden" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
               <thead>
-                <tr
-                  style={{
-                    borderBottom: "1px solid #2a2520",
-                  }}
-                >
-                  {["Time", "Setting", "Old Value", "New Value", "Actor"].map(
-                    (h) => (
-                      <th
-                        key={h}
-                        style={{
-                          padding: "10px 14px",
-                          fontSize: 10.5,
-                          fontWeight: 700,
-                          letterSpacing: "0.1em",
-                          textTransform: "uppercase",
-                          color: "#6b6560",
-                          textAlign: "left",
-                          background: "#100e0b",
-                        }}
-                      >
-                        {h}
-                      </th>
-                    )
-                  )}
+                <tr>
+                  {["Time", "Setting", "Old Value", "New Value", "Actor"].map((h) => (
+                    <th
+                      key={h}
+                      style={{
+                        padding: "8px 14px",
+                        fontSize: 10,
+                        fontWeight: 700,
+                        letterSpacing: "0.06em",
+                        textTransform: "uppercase" as const,
+                        color: C.muted,
+                        textAlign: "left" as const,
+                        background: "#161310",
+                      }}
+                    >
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {auditEntries.map((e) => {
+                {auditEntries.map((e, idx) => {
                   const date = new Date(e.changed_at)
-                  const isSensitive = SENSITIVE_KEYS.includes(e.config_key)
                   return (
-                    <tr key={e.id}>
+                    <tr
+                      key={e.id}
+                      style={{ transition: "background 0.1s" }}
+                      onMouseEnter={(ev) => { (ev.currentTarget as HTMLElement).style.background = C.hover }}
+                      onMouseLeave={(ev) => { (ev.currentTarget as HTMLElement).style.background = "transparent" }}
+                    >
                       <td
                         style={{
-                          padding: "11px 14px",
-                          borderBottom: "1px solid #1a1714",
-                          verticalAlign: "top",
-                          whiteSpace: "nowrap",
+                          padding: "10px 14px",
+                          borderBottom: idx < auditEntries.length - 1 ? "1px solid " + C.border + "80" : "none",
+                          verticalAlign: "top" as const,
+                          whiteSpace: "nowrap" as const,
                         }}
                       >
-                        <div
-                          style={{
-                            color: "#e8e0d4",
-                            fontSize: 12.5,
-                          }}
-                        >
-                          {date.toLocaleDateString("de-DE", {
-                            day: "2-digit",
-                            month: "2-digit",
-                            year: "numeric",
-                          })}
+                        <div style={{ color: C.text, fontSize: 12 }}>
+                          {date.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })}
                         </div>
-                        <div
-                          style={{
-                            fontSize: 11,
-                            color: "#6b6560",
-                          }}
-                        >
-                          {date.toLocaleTimeString("de-DE", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
+                        <div style={{ fontSize: 11, color: C.muted }}>
+                          {date.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}
                         </div>
                       </td>
                       <td
                         style={{
-                          padding: "11px 14px",
-                          color: "#e8e0d4",
-                          borderBottom: "1px solid #1a1714",
-                          verticalAlign: "top",
+                          padding: "10px 14px",
+                          color: C.text,
+                          borderBottom: idx < auditEntries.length - 1 ? "1px solid " + C.border + "80" : "none",
+                          verticalAlign: "top" as const,
+                          fontSize: 12,
                         }}
                       >
                         {e.config_key}
                       </td>
                       <td
                         style={{
-                          padding: "11px 14px",
-                          borderBottom: "1px solid #1a1714",
-                          verticalAlign: "top",
-                          color: "#a39d96",
+                          padding: "10px 14px",
+                          borderBottom: idx < auditEntries.length - 1 ? "1px solid " + C.border + "80" : "none",
+                          verticalAlign: "top" as const,
                         }}
                       >
-                        {formatAuditValue(e.old_value, e.config_key, isSensitive)}
+                        {formatAuditValue(e.old_value, e.config_key)}
                       </td>
                       <td
                         style={{
-                          padding: "11px 14px",
-                          borderBottom: "1px solid #1a1714",
-                          verticalAlign: "top",
-                          color: "#a39d96",
+                          padding: "10px 14px",
+                          borderBottom: idx < auditEntries.length - 1 ? "1px solid " + C.border + "80" : "none",
+                          verticalAlign: "top" as const,
                         }}
                       >
-                        {formatAuditValue(e.new_value, e.config_key, isSensitive)}
+                        {formatAuditValue(e.new_value, e.config_key)}
                       </td>
                       <td
                         style={{
-                          padding: "11px 14px",
-                          borderBottom: "1px solid #1a1714",
-                          verticalAlign: "top",
+                          padding: "10px 14px",
+                          borderBottom: idx < auditEntries.length - 1 ? "1px solid " + C.border + "80" : "none",
+                          verticalAlign: "top" as const,
                           fontSize: 11,
-                          color: "#6b6560",
+                          color: C.muted,
                         }}
                       >
                         {e.admin_email}
@@ -1339,10 +1143,8 @@ function ConfigPage() {
                 justifyContent: "space-between",
                 alignItems: "center",
                 marginTop: 16,
-                paddingTop: 14,
-                borderTop: "1px solid #1a1714",
                 fontSize: 12,
-                color: "#6b6560",
+                color: C.muted,
               }}
             >
               <span>
@@ -1352,12 +1154,12 @@ function ConfigPage() {
                 <button
                   style={{
                     background: "transparent",
-                    border: "1px solid #2a2520",
-                    color: auditPage === 0 ? "#3a3530" : "#a39d96",
+                    border: "1px solid " + C.border,
+                    color: auditPage === 0 ? C.border : C.muted,
                     fontSize: 12,
                     padding: "5px 14px",
                     borderRadius: 5,
-                    cursor: auditPage === 0 ? "default" : "pointer",
+                    cursor: auditPage === 0 ? "not-allowed" : "pointer",
                   }}
                   disabled={auditPage === 0}
                   onClick={() => loadAudit(auditPage - 1)}
@@ -1367,14 +1169,12 @@ function ConfigPage() {
                 <button
                   style={{
                     background: "transparent",
-                    border: "1px solid #2a2520",
-                    color:
-                      auditPage >= totalPages - 1 ? "#3a3530" : "#a39d96",
+                    border: "1px solid " + C.border,
+                    color: auditPage >= totalPages - 1 ? C.border : C.muted,
                     fontSize: 12,
                     padding: "5px 14px",
                     borderRadius: 5,
-                    cursor:
-                      auditPage >= totalPages - 1 ? "default" : "pointer",
+                    cursor: auditPage >= totalPages - 1 ? "not-allowed" : "pointer",
                   }}
                   disabled={auditPage >= totalPages - 1}
                   onClick={() => loadAudit(auditPage + 1)}
@@ -1389,64 +1189,89 @@ function ConfigPage() {
     </div>
   )
 
-  // ── Main render ──
-
-  if (loading) {
-    return (
-      <div style={{ padding: 32, color: "#6b6560", fontSize: 13 }}>
-        Loading configuration...
-      </div>
-    )
-  }
-
-  if (error && !config) {
-    return (
-      <div style={{ padding: 32, color: "#ef4444", fontSize: 13 }}>
-        <strong>Error:</strong> {error}
-      </div>
-    )
-  }
+  // ── Main Render ──
 
   return (
     <div
       style={{
-        padding: "20px 24px",
-        maxWidth: 860,
+        padding: "24px 28px",
+        maxWidth: 880,
         fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif",
       }}
     >
-      {/* Header */}
+      {/* Page Header */}
       <div
         style={{
           display: "flex",
-          alignItems: "center",
+          alignItems: "flex-start",
           justifyContent: "space-between",
           marginBottom: 20,
         }}
       >
         <div>
-          <h1
-            style={{
-              fontSize: 18,
-              fontWeight: 700,
-              color: "#e8e0d4",
-              margin: 0,
-              letterSpacing: "-0.01em",
-            }}
-          >
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: C.text, margin: 0, letterSpacing: "-0.01em" }}>
             Configuration
           </h1>
-          <p
-            style={{
-              fontSize: 12.5,
-              color: "#a39d96",
-              margin: "4px 0 0",
-            }}
-          >
+          <p style={{ fontSize: 13, color: C.muted, margin: "4px 0 0" }}>
             Platform settings, access control, and auction defaults.
           </p>
         </div>
-        {renderModeBadge()}
+        <div
+          style={{
+            background: getModeInfo(config?.platform_mode || "pre_launch").color + "10",
+            border: "1px solid " + getModeInfo(config?.platform_mode || "pre_launch").color + "30",
+            borderRadius: 6,
+            padding: "6px 12px",
+          }}
+        >
+          <ModeBadge mode={config?.platform_mode || "pre_launch"} />
+        </div>
+      </div>
+
+      {/* Stats Row */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: 1,
+          background: C.border,
+          borderRadius: 8,
+          overflow: "hidden",
+          marginBottom: 24,
+        }}
+      >
+        <div style={{ background: C.card, padding: "14px 18px", textAlign: "center" as const }}>
+          <div style={{ marginBottom: 4 }}>
+            <ModeBadge mode={config?.platform_mode || "pre_launch"} />
+          </div>
+          <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>
+            Platform Mode
+          </div>
+        </div>
+        <div style={{ background: C.card, padding: "14px 18px", textAlign: "center" as const }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: C.gold, marginBottom: 4 }}>
+            {config?.catalog_visibility === "all" ? "All" : "Visible"}
+          </div>
+          <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>
+            Catalog
+          </div>
+        </div>
+        <div style={{ background: C.card, padding: "14px 18px", textAlign: "center" as const }}>
+          <div style={{ marginBottom: 4 }}>
+            <StatBadge on={!!config?.auction_direct_purchase_enabled} label={config?.auction_direct_purchase_enabled ? "ON" : "OFF"} />
+          </div>
+          <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>
+            Direct Purchase
+          </div>
+        </div>
+        <div style={{ background: C.card, padding: "14px 18px", textAlign: "center" as const }}>
+          <div style={{ marginBottom: 4 }}>
+            <StatBadge on={!!config?.bid_ending_reminders_enabled} label={config?.bid_ending_reminders_enabled ? "ON" : "OFF"} />
+          </div>
+          <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>
+            Bid Reminders
+          </div>
+        </div>
       </div>
 
       {/* Error banner */}
@@ -1454,15 +1279,15 @@ function ConfigPage() {
         <div
           style={{
             display: "flex",
-            alignItems: "flex-start",
+            alignItems: "center",
             gap: 8,
-            background: "rgba(239, 68, 68, 0.06)",
-            border: "1px solid rgba(239, 68, 68, 0.2)",
+            background: C.error + "0a",
+            border: "1px solid " + C.error + "30",
             borderRadius: 6,
             padding: "10px 14px",
             marginBottom: 16,
-            fontSize: 12.5,
-            color: "#ef4444",
+            fontSize: 12,
+            color: C.error,
           }}
         >
           <span style={{ flex: 1 }}>{error}</span>
@@ -1470,10 +1295,10 @@ function ConfigPage() {
             style={{
               background: "none",
               border: "none",
-              color: "#ef4444",
+              color: C.error,
               cursor: "pointer",
               fontWeight: 700,
-              fontSize: 14,
+              fontSize: 16,
               lineHeight: 1,
               padding: 0,
               flexShrink: 0,
@@ -1486,28 +1311,20 @@ function ConfigPage() {
       )}
 
       {/* Tabs */}
-      <div
-        style={{
-          display: "flex",
-          gap: 2,
-          borderBottom: "1px solid #2a2520",
-          marginBottom: 24,
-        }}
-      >
+      <div style={{ display: "flex", gap: 2, borderBottom: "1px solid " + C.border, marginBottom: 24 }}>
         {TABS.map((t) => (
           <button
             key={t}
             style={{
-              padding: "8px 16px",
-              fontSize: 12.5,
-              fontWeight: tab === t ? 500 : 400,
-              color: tab === t ? "#d4a54a" : "#6b6560",
+              padding: "8px 14px",
+              fontSize: 13,
+              fontWeight: tab === t ? 600 : 400,
+              color: tab === t ? C.gold : C.muted,
               background: "none",
-              border: "none",
-              borderBottom:
-                tab === t
-                  ? "2px solid #d4a54a"
-                  : "2px solid transparent",
+              borderTop: "none",
+              borderLeft: "none",
+              borderRight: "none",
+              borderBottom: tab === t ? "2px solid " + C.gold : "2px solid transparent",
               cursor: "pointer",
               marginBottom: -1,
               display: "flex",
@@ -1524,7 +1341,7 @@ function ConfigPage() {
                   width: 6,
                   height: 6,
                   borderRadius: "50%",
-                  background: "#22c55e",
+                  background: C.success,
                   display: "inline-block",
                 }}
               />
@@ -1534,7 +1351,6 @@ function ConfigPage() {
       </div>
 
       {/* Tab content */}
-      {tab === "General" && renderGeneral()}
       {tab === "Access / Launch" && renderAccess()}
       {tab === "Auction" && renderAuction()}
       {tab === "Change History" && renderHistory()}
@@ -1546,20 +1362,18 @@ function ConfigPage() {
           onSuccess={(cfg) => {
             setConfig(cfg)
             setPlatformMode(cfg.platform_mode)
-            setToast("Platform is now LIVE!")
+            setToast({ message: "Platform is now LIVE!", type: "success" })
           }}
         />
       )}
 
       {/* Toast */}
-      {toast && <Toast message={toast} onDone={() => setToast("")} />}
+      {toast && <Toast message={toast.message} type={toast.type} onDone={() => setToast(null)} />}
     </div>
   )
 }
 
-// ─── Route Config ───────────────────────────────────────────────────────────
-
-import { defineRouteConfig } from "@medusajs/admin-sdk"
+// ─── Route Config ──────────────────────────────────────────────────────────
 
 export const config = defineRouteConfig({
   label: "Configuration",
