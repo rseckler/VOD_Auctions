@@ -22,15 +22,11 @@ export async function POST(request: Request): Promise<Response> {
       body,
     })
 
-    const responseText = await sentryRes.text()
-    console.log(`[sentry-tunnel] forwarded to Sentry → ${sentryRes.status}: ${responseText.slice(0, 200)}`)
-
-    return new Response(responseText, {
+    return new Response(await sentryRes.text(), {
       status: sentryRes.status,
       headers: { "Content-Type": "application/json" },
     })
   } catch (e: any) {
-    console.error(`[sentry-tunnel] fetch error: ${e.message}`)
-    return new Response(JSON.stringify({ error: e.message }), { status: 500 })
+    return new Response(JSON.stringify({ error: (e as Error).message }), { status: 500 })
   }
 }
