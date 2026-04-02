@@ -4,7 +4,20 @@ Vollständiger Entwicklungs-Changelog. Neue Einträge werden direkt hier ergänz
 
 ---
 
-## 2026-04-02 — Admin Config Panel, Pre-Launch System, Dashboard, Design Overhaul
+## 2026-04-02 — Admin Config Panel, Pre-Launch System, Dashboard, Design System Unification
+
+### Design System Unification (Final)
+- **17 Admin-Seiten** auf einheitliche `const C` Palette umgestellt (Design Guide konform)
+- Alle Seiten nutzen jetzt die exakt gleichen 12 Farb-Tokens: text, muted, card, border, hover, gold, success, error, blue, purple, warning
+- **0 verbotene Farben** im Codebase (verified: kein #f5f0eb, #e8e0d4, #d1d5db, #9ca3af)
+- Batch A: catalog, marketing, operations — `const C` hinzugefügt
+- Batch B: media, musicians, sync — `COLORS` → `C` umbenannt + fehlende Keys ergänzt
+- Batch C: system-health, emails, gallery, transactions (2x) — Farben standardisiert
+- Batch D: crm (204 COLORS→C Referenzen), entity-content (green/red/orange→success/error/warning), ai-assistant (Dark-Theme→Light)
+- **Design Guide Mockup:** `docs/mockups/design-guide-backend.html` — 20-Sektionen Component Library als Referenz
+- **Design Guide Docs:** `DESIGN_GUIDE_BACKEND.md` + `DESIGN_GUIDE_FRONTEND.md` — verbindlich für alle Seiten
+
+---
 
 ### Admin Configuration Panel — `/admin/config`
 - **Neue Seite** `/admin/config` mit 3 Tabs: Access/Launch (default), Auction, Change History
