@@ -16,7 +16,7 @@ class ErrorBoundary extends Component<
   render() {
     if (this.state.error) {
       return (
-        <div style={{ padding: 24, color: "#dc2626" }}>
+        <div style={{ padding: 24, color: C.error }}>
           <h2>Error in Media Management:</h2>
           <pre style={{ whiteSpace: "pre-wrap", fontSize: 13 }}>
             {this.state.error.message}
@@ -65,7 +65,7 @@ type Stats = {
   price_stats: { min: number; max: number; avg: number; median: number } | null
 }
 
-const COLORS = {
+const C = {
   bg: "transparent",
   card: "#f8f7f6",
   text: "#1a1714",
@@ -73,14 +73,19 @@ const COLORS = {
   gold: "#b8860b",
   border: "#e7e5e4",
   hover: "#f5f4f3",
+  success: "#16a34a",
+  error: "#dc2626",
+  blue: "#2563eb",
+  purple: "#7c3aed",
+  warning: "#d97706",
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  available: "#16a34a",
-  reserved: "#d97706",
-  in_auction: "#2563eb",
-  sold: "#dc2626",
-  unsold: "#78716c",
+  available: C.success,
+  reserved: C.warning,
+  in_auction: C.blue,
+  sold: C.error,
+  unsold: C.muted,
 }
 
 const FORMAT_OPTIONS = ["LP", "CD", "CASSETTE", "VHS", "REEL", "BOXSET", "MAGAZINE", "BOOK", "POSTER", "ZINE", "PHOTO", "POSTCARD", "MERCHANDISE", "OTHER"]
@@ -200,11 +205,11 @@ const ImageGalleryOverlay = ({ onClose }: { onClose: () => void }) => {
       {/* Header */}
       <div style={{
         padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between",
-        borderBottom: `1px solid ${COLORS.border}`, background: COLORS.bg, flexShrink: 0,
+        borderBottom: `1px solid ${C.border}`, background: C.bg, flexShrink: 0,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          <h2 style={{ fontSize: "20px", fontWeight: 700, color: COLORS.text, margin: 0 }}>Image Gallery</h2>
-          <span style={{ fontSize: "13px", color: COLORS.muted }}>{galleryCount.toLocaleString("en-US")} items with images</span>
+          <h2 style={{ fontSize: "20px", fontWeight: 700, color: C.text, margin: 0 }}>Image Gallery</h2>
+          <span style={{ fontSize: "13px", color: C.muted }}>{galleryCount.toLocaleString("en-US")} items with images</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <input
@@ -214,13 +219,13 @@ const ImageGalleryOverlay = ({ onClose }: { onClose: () => void }) => {
             onChange={(e) => setGallerySearchInput(e.target.value)}
             autoFocus
             style={{
-              background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: "6px",
-              padding: "8px 14px", color: COLORS.text, fontSize: "14px", outline: "none", width: "300px",
+              background: C.card, border: `1px solid ${C.border}`, borderRadius: "6px",
+              padding: "8px 14px", color: C.text, fontSize: "14px", outline: "none", width: "300px",
             }}
           />
           <button onClick={onClose} style={{
-            background: "transparent", border: `1px solid ${COLORS.border}`, borderRadius: "6px",
-            color: COLORS.text, fontSize: "20px", cursor: "pointer", padding: "4px 12px", lineHeight: 1,
+            background: "transparent", border: `1px solid ${C.border}`, borderRadius: "6px",
+            color: C.text, fontSize: "20px", cursor: "pointer", padding: "4px 12px", lineHeight: 1,
           }}>&times;</button>
         </div>
       </div>
@@ -228,9 +233,9 @@ const ImageGalleryOverlay = ({ onClose }: { onClose: () => void }) => {
       {/* Grid */}
       <div style={{ flex: 1, overflow: "auto", padding: "20px 24px" }}>
         {galleryLoading ? (
-          <div style={{ textAlign: "center", padding: "60px", color: COLORS.muted }}>Loading...</div>
+          <div style={{ textAlign: "center", padding: "60px", color: C.muted }}>Loading...</div>
         ) : items.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "60px", color: COLORS.muted }}>No images found.</div>
+          <div style={{ textAlign: "center", padding: "60px", color: C.muted }}>No images found.</div>
         ) : (
           <div style={{
             display: "grid",
@@ -241,15 +246,15 @@ const ImageGalleryOverlay = ({ onClose }: { onClose: () => void }) => {
               <div
                 key={r.id}
                 style={{
-                  background: COLORS.card, borderRadius: "8px", border: `1px solid ${COLORS.border}`,
+                  background: C.card, borderRadius: "8px", border: `1px solid ${C.border}`,
                   overflow: "hidden", cursor: "pointer", transition: "border-color 0.15s, transform 0.15s",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = COLORS.gold
+                  e.currentTarget.style.borderColor = C.gold
                   e.currentTarget.style.transform = "translateY(-2px)"
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = COLORS.border
+                  e.currentTarget.style.borderColor = C.border
                   e.currentTarget.style.transform = "translateY(0)"
                 }}
                 onClick={() => setLightboxImage(r)}
@@ -268,24 +273,24 @@ const ImageGalleryOverlay = ({ onClose }: { onClose: () => void }) => {
                     <span style={{
                       position: "absolute", top: "6px", right: "6px",
                       padding: "2px 6px", borderRadius: "8px", fontSize: "10px", fontWeight: 600,
-                      background: `${STATUS_COLORS[r.auction_status] || COLORS.muted}cc`,
+                      background: `${STATUS_COLORS[r.auction_status] || C.muted}cc`,
                       color: "#fff", textTransform: "capitalize",
                     }}>{r.auction_status}</span>
                   )}
                 </div>
                 <div style={{ padding: "8px 10px" }}>
                   <div style={{
-                    fontSize: "12px", fontWeight: 600, color: COLORS.text,
+                    fontSize: "12px", fontWeight: 600, color: C.text,
                     whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                   }}>{r.artist_name || "Unknown"}</div>
                   <div style={{
-                    fontSize: "11px", color: COLORS.muted,
+                    fontSize: "11px", color: C.muted,
                     whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                   }}>{r.title}</div>
                   <div style={{ display: "flex", justifyContent: "space-between", marginTop: "4px" }}>
-                    <span style={{ fontSize: "10px", color: COLORS.muted }}>{r.format_name || r.format}{r.year ? ` \u00B7 ${r.year}` : ""}</span>
+                    <span style={{ fontSize: "10px", color: C.muted }}>{r.format_name || r.format}{r.year ? ` \u00B7 ${r.year}` : ""}</span>
                     {r.legacy_price != null && (
-                      <span style={{ fontSize: "10px", color: COLORS.gold, fontWeight: 600 }}>\u20AC{Number(r.legacy_price).toFixed(2)}</span>
+                      <span style={{ fontSize: "10px", color: C.gold, fontWeight: 600 }}>\u20AC{Number(r.legacy_price).toFixed(2)}</span>
                     )}
                   </div>
                 </div>
@@ -298,27 +303,27 @@ const ImageGalleryOverlay = ({ onClose }: { onClose: () => void }) => {
       {/* Pagination */}
       {totalGalleryPages > 1 && (
         <div style={{
-          padding: "12px 24px", borderTop: `1px solid ${COLORS.border}`, background: COLORS.bg,
+          padding: "12px 24px", borderTop: `1px solid ${C.border}`, background: C.bg,
           display: "flex", justifyContent: "center", alignItems: "center", gap: "8px", flexShrink: 0,
         }}>
           <button
             onClick={() => setGalleryPage(Math.max(0, galleryPage - 1))}
             disabled={galleryPage === 0}
             style={{
-              padding: "6px 12px", borderRadius: "4px", border: `1px solid ${COLORS.border}`,
-              background: "transparent", color: COLORS.text, fontSize: "13px",
+              padding: "6px 12px", borderRadius: "4px", border: `1px solid ${C.border}`,
+              background: "transparent", color: C.text, fontSize: "13px",
               cursor: galleryPage === 0 ? "default" : "pointer", opacity: galleryPage === 0 ? 0.4 : 1,
             }}
           >&larr; Previous</button>
-          <span style={{ fontSize: "13px", color: COLORS.muted }}>
+          <span style={{ fontSize: "13px", color: C.muted }}>
             Page {galleryPage + 1} of {totalGalleryPages}
           </span>
           <button
             onClick={() => setGalleryPage(Math.min(totalGalleryPages - 1, galleryPage + 1))}
             disabled={galleryPage >= totalGalleryPages - 1}
             style={{
-              padding: "6px 12px", borderRadius: "4px", border: `1px solid ${COLORS.border}`,
-              background: "transparent", color: COLORS.text, fontSize: "13px",
+              padding: "6px 12px", borderRadius: "4px", border: `1px solid ${C.border}`,
+              background: "transparent", color: C.text, fontSize: "13px",
               cursor: galleryPage >= totalGalleryPages - 1 ? "default" : "pointer",
               opacity: galleryPage >= totalGalleryPages - 1 ? 0.4 : 1,
             }}
@@ -349,14 +354,14 @@ const ImageGalleryOverlay = ({ onClose }: { onClose: () => void }) => {
               alt={lightboxImage.title}
               style={{
                 maxWidth: "80vw", maxHeight: "70vh", objectFit: "contain",
-                borderRadius: "8px", border: `1px solid ${COLORS.border}`,
+                borderRadius: "8px", border: `1px solid ${C.border}`,
               }}
             />
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: "18px", fontWeight: 700, color: COLORS.text }}>
+              <div style={{ fontSize: "18px", fontWeight: 700, color: C.text }}>
                 {lightboxImage.artist_name ? `${lightboxImage.artist_name} \u2014 ` : ""}{lightboxImage.title}
               </div>
-              <div style={{ fontSize: "14px", color: COLORS.muted, marginTop: "4px" }}>
+              <div style={{ fontSize: "14px", color: C.muted, marginTop: "4px" }}>
                 {[lightboxImage.format_name || lightboxImage.format, lightboxImage.year, lightboxImage.label_name].filter(Boolean).join(" \u00B7 ")}
               </div>
               <div style={{ marginTop: "12px", display: "flex", gap: "12px", justifyContent: "center" }}>
@@ -364,14 +369,14 @@ const ImageGalleryOverlay = ({ onClose }: { onClose: () => void }) => {
                   onClick={() => { window.location.href = `/app/media/${lightboxImage.id}` }}
                   style={{
                     padding: "8px 20px", borderRadius: "6px", border: "none",
-                    background: COLORS.gold, color: "#1a1714", fontSize: "13px", fontWeight: 600, cursor: "pointer",
+                    background: C.gold, color: C.text, fontSize: "13px", fontWeight: 600, cursor: "pointer",
                   }}
                 >Open Detail</button>
                 <button
                   onClick={() => setLightboxImage(null)}
                   style={{
-                    padding: "8px 20px", borderRadius: "6px", border: `1px solid ${COLORS.border}`,
-                    background: "transparent", color: COLORS.text, fontSize: "13px", cursor: "pointer",
+                    padding: "8px 20px", borderRadius: "6px", border: `1px solid ${C.border}`,
+                    background: "transparent", color: C.text, fontSize: "13px", cursor: "pointer",
                   }}
                 >Close</button>
               </div>
@@ -691,18 +696,18 @@ const MediaPage = () => {
 
   // Styles
   const cardStyle: React.CSSProperties = {
-    background: COLORS.card,
+    background: C.card,
     borderRadius: "8px",
     padding: "16px 20px",
-    border: `1px solid ${COLORS.border}`,
+    border: `1px solid ${C.border}`,
   }
 
   const inputStyle: React.CSSProperties = {
-    background: COLORS.card,
-    border: `1px solid ${COLORS.border}`,
+    background: C.card,
+    border: `1px solid ${C.border}`,
     borderRadius: "6px",
     padding: "8px 12px",
-    color: COLORS.text,
+    color: C.text,
     fontSize: "14px",
     outline: "none",
     width: "100%",
@@ -728,10 +733,10 @@ const MediaPage = () => {
     textAlign: "left",
     fontSize: "12px",
     fontWeight: 600,
-    color: COLORS.muted,
+    color: C.muted,
     textTransform: "uppercase",
     letterSpacing: "0.05em",
-    borderBottom: `1px solid ${COLORS.border}`,
+    borderBottom: `1px solid ${C.border}`,
     cursor: "pointer",
     userSelect: "none",
     whiteSpace: "nowrap",
@@ -740,8 +745,8 @@ const MediaPage = () => {
   const tdStyle: React.CSSProperties = {
     padding: "10px 12px",
     fontSize: "14px",
-    color: COLORS.text,
-    borderBottom: `1px solid ${COLORS.border}`,
+    color: C.text,
+    borderBottom: `1px solid ${C.border}`,
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
@@ -751,9 +756,9 @@ const MediaPage = () => {
   const btnStyle = (active: boolean): React.CSSProperties => ({
     padding: "6px 14px",
     borderRadius: "20px",
-    border: `1px solid ${active ? COLORS.gold : COLORS.border}`,
-    background: active ? COLORS.gold : "transparent",
-    color: active ? "#1a1714" : COLORS.text,
+    border: `1px solid ${active ? C.gold : C.border}`,
+    background: active ? C.gold : "transparent",
+    color: active ? C.text : C.text,
     fontSize: "13px",
     fontWeight: active ? 600 : 400,
     cursor: "pointer",
@@ -763,9 +768,9 @@ const MediaPage = () => {
   const pageBtnStyle = (active: boolean): React.CSSProperties => ({
     padding: "6px 12px",
     borderRadius: "4px",
-    border: `1px solid ${active ? COLORS.gold : COLORS.border}`,
-    background: active ? COLORS.gold : "transparent",
-    color: active ? "#1a1714" : COLORS.text,
+    border: `1px solid ${active ? C.gold : C.border}`,
+    background: active ? C.gold : "transparent",
+    color: active ? C.text : C.text,
     fontSize: "13px",
     cursor: "pointer",
     fontWeight: active ? 600 : 400,
@@ -773,7 +778,7 @@ const MediaPage = () => {
 
   return (
     <ErrorBoundary>
-    <div style={{ padding: "24px", background: COLORS.bg, minHeight: "100vh", color: COLORS.text, minWidth: 0, width: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
+    <div style={{ padding: "24px", background: C.bg, minHeight: "100vh", color: C.text, minWidth: 0, width: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
         <h1 style={{ fontSize: "24px", fontWeight: 700, margin: 0 }}>
           Media Management
@@ -782,13 +787,13 @@ const MediaPage = () => {
           onClick={() => setGalleryOpen(true)}
           style={{
             padding: "8px 18px", borderRadius: "6px",
-            border: `1px solid ${COLORS.gold}`,
-            background: "transparent", color: COLORS.gold,
+            border: `1px solid ${C.gold}`,
+            background: "transparent", color: C.gold,
             fontSize: "14px", fontWeight: 600, cursor: "pointer",
             display: "flex", alignItems: "center", gap: "8px",
             transition: "background 0.15s",
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = `${COLORS.gold}15` }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = `${C.gold}15` }}
           onMouseLeave={(e) => { e.currentTarget.style.background = "transparent" }}
         >
           &#9635; Browse Images
@@ -798,25 +803,25 @@ const MediaPage = () => {
       {/* Stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "16px", marginBottom: "24px" }}>
         <div style={cardStyle}>
-          <div style={{ fontSize: "12px", color: COLORS.muted, marginBottom: "4px", textTransform: "uppercase" }}>Total Releases</div>
-          <div style={{ fontSize: "28px", fontWeight: 700, color: COLORS.gold }}>
+          <div style={{ fontSize: "12px", color: C.muted, marginBottom: "4px", textTransform: "uppercase" }}>Total Releases</div>
+          <div style={{ fontSize: "28px", fontWeight: 700, color: C.gold }}>
             {statsLoading ? "..." : stats?.total?.toLocaleString("en-US") || "0"}
           </div>
         </div>
         <div style={cardStyle}>
-          <div style={{ fontSize: "12px", color: COLORS.muted, marginBottom: "4px", textTransform: "uppercase" }}>With Discogs</div>
-          <div style={{ fontSize: "28px", fontWeight: 700, color: COLORS.gold }}>
+          <div style={{ fontSize: "12px", color: C.muted, marginBottom: "4px", textTransform: "uppercase" }}>With Discogs</div>
+          <div style={{ fontSize: "28px", fontWeight: 700, color: C.gold }}>
             {statsLoading ? "..." : stats?.with_discogs?.toLocaleString("en-US") || "0"}
           </div>
         </div>
         <div style={cardStyle}>
-          <div style={{ fontSize: "12px", color: COLORS.muted, marginBottom: "4px", textTransform: "uppercase" }}>With Price</div>
-          <div style={{ fontSize: "28px", fontWeight: 700, color: COLORS.gold }}>
+          <div style={{ fontSize: "12px", color: C.muted, marginBottom: "4px", textTransform: "uppercase" }}>With Price</div>
+          <div style={{ fontSize: "28px", fontWeight: 700, color: C.gold }}>
             {statsLoading ? "..." : stats?.with_price?.toLocaleString("en-US") || "0"}
           </div>
         </div>
         <div style={cardStyle}>
-          <div style={{ fontSize: "12px", color: COLORS.muted, marginBottom: "4px", textTransform: "uppercase" }}>Last Sync</div>
+          <div style={{ fontSize: "12px", color: C.muted, marginBottom: "4px", textTransform: "uppercase" }}>Last Sync</div>
           <div style={{ fontSize: "16px", fontWeight: 500 }}>
             {statsLoading ? "..." : formatDate(stats?.last_discogs_sync || null)}
           </div>
@@ -833,7 +838,7 @@ const MediaPage = () => {
       }}>
         <div>
           <span style={{ fontSize: "14px", fontWeight: 600 }}>Storefront Catalog Visibility</span>
-          <span style={{ fontSize: "13px", color: COLORS.muted, marginLeft: "12px" }}>
+          <span style={{ fontSize: "13px", color: C.muted, marginLeft: "12px" }}>
             {catalogVisibility === "visible"
               ? "Customers see only items with image and price"
               : "Customers see all items"}
@@ -849,8 +854,8 @@ const MediaPage = () => {
             fontWeight: 600,
             fontSize: "13px",
             cursor: catalogVisibilityLoading ? "wait" : "pointer",
-            background: catalogVisibility === "visible" ? "#16a34a" : COLORS.gold,
-            color: catalogVisibility === "visible" ? "#fff" : "#1a1714",
+            background: catalogVisibility === "visible" ? C.success : C.gold,
+            color: catalogVisibility === "visible" ? "#fff" : C.text,
           }}
         >
           {catalogVisibilityLoading ? "..." : catalogVisibility === "visible" ? "Filter ON — Only with Image + Price" : "Filter OFF — Showing All"}
@@ -894,7 +899,7 @@ const MediaPage = () => {
       {/* Filters */}
       <div style={{ display: "flex", gap: "12px", alignItems: "center", marginBottom: "20px", flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <label style={{ fontSize: "13px", color: COLORS.muted }}>Discogs:</label>
+          <label style={{ fontSize: "13px", color: C.muted }}>Discogs:</label>
           <select value={hasDiscogs} onChange={(e) => setHasDiscogs(e.target.value)} style={selectStyle}>
             <option value="">All</option>
             <option value="true">Yes</option>
@@ -902,7 +907,7 @@ const MediaPage = () => {
           </select>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <label style={{ fontSize: "13px", color: COLORS.muted }}>Price:</label>
+          <label style={{ fontSize: "13px", color: C.muted }}>Price:</label>
           <select value={hasPrice} onChange={(e) => setHasPrice(e.target.value)} style={selectStyle}>
             <option value="">All</option>
             <option value="true">Yes</option>
@@ -910,7 +915,7 @@ const MediaPage = () => {
           </select>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <label style={{ fontSize: "13px", color: COLORS.muted }}>Status:</label>
+          <label style={{ fontSize: "13px", color: C.muted }}>Status:</label>
           <select value={auctionStatus} onChange={(e) => setAuctionStatus(e.target.value)} style={selectStyle}>
             <option value="">All</option>
             <option value="available">Available</option>
@@ -921,7 +926,7 @@ const MediaPage = () => {
           </select>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <label style={{ fontSize: "13px", color: COLORS.muted }}>Visibility:</label>
+          <label style={{ fontSize: "13px", color: C.muted }}>Visibility:</label>
           <select value={visibilityFilter} onChange={(e) => setVisibilityFilter(e.target.value)} style={selectStyle}>
             <option value="">All</option>
             <option value="visible">Visible</option>
@@ -929,20 +934,20 @@ const MediaPage = () => {
           </select>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <label style={{ fontSize: "13px", color: COLORS.muted }}>Country:</label>
+          <label style={{ fontSize: "13px", color: C.muted }}>Country:</label>
           <input type="text" placeholder="e.g. Germany" value={countryFilter} onChange={(e) => setCountryFilter(e.target.value)} style={{ ...smallInputStyle, width: "110px" }} />
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <label style={{ fontSize: "13px", color: COLORS.muted }}>Year:</label>
+          <label style={{ fontSize: "13px", color: C.muted }}>Year:</label>
           <input type="number" placeholder="From" value={yearFrom} onChange={(e) => setYearFrom(e.target.value)} style={smallInputStyle} />
-          <span style={{ color: COLORS.muted }}>&ndash;</span>
+          <span style={{ color: C.muted }}>&ndash;</span>
           <input type="number" placeholder="To" value={yearTo} onChange={(e) => setYearTo(e.target.value)} style={smallInputStyle} />
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <label style={{ fontSize: "13px", color: COLORS.muted }}>Label:</label>
+          <label style={{ fontSize: "13px", color: C.muted }}>Label:</label>
           <input type="text" placeholder="Search label..." value={labelInput} onChange={(e) => setLabelInput(e.target.value)} style={{ ...smallInputStyle, width: "140px" }} />
         </div>
-        <div style={{ marginLeft: "auto", fontSize: "13px", color: COLORS.muted }}>
+        <div style={{ marginLeft: "auto", fontSize: "13px", color: C.muted }}>
           {count.toLocaleString("en-US")} result{count !== 1 ? "s" : ""}
         </div>
       </div>
@@ -956,14 +961,14 @@ const MediaPage = () => {
           alignItems: "center",
           gap: "12px",
           flexWrap: "wrap",
-          background: `${COLORS.gold}10`,
-          border: `1px solid ${COLORS.gold}40`,
+          background: `${C.gold}10`,
+          border: `1px solid ${C.gold}40`,
         }}>
-          <span style={{ fontSize: "14px", fontWeight: 600, color: COLORS.gold }}>
+          <span style={{ fontSize: "14px", fontWeight: 600, color: C.gold }}>
             {selectedIds.size} selected
           </span>
           <button onClick={clearSelection} style={{ ...btnStyle(false), fontSize: "12px", padding: "4px 10px" }}>Clear</button>
-          <span style={{ width: "1px", height: "24px", background: COLORS.border }} />
+          <span style={{ width: "1px", height: "24px", background: C.border }} />
 
           {/* Action selector */}
           <select
@@ -1039,8 +1044,8 @@ const MediaPage = () => {
                 padding: "6px 16px",
                 borderRadius: "6px",
                 border: "none",
-                background: bulkLoading || !bulkValue ? COLORS.border : COLORS.gold,
-                color: bulkLoading || !bulkValue ? COLORS.muted : "#1a1714",
+                background: bulkLoading || !bulkValue ? C.border : C.gold,
+                color: bulkLoading || !bulkValue ? C.muted : C.text,
                 fontSize: "13px",
                 fontWeight: 600,
                 cursor: bulkLoading || !bulkValue ? "default" : "pointer",
@@ -1057,8 +1062,8 @@ const MediaPage = () => {
                 padding: "6px 16px",
                 borderRadius: "6px",
                 border: "none",
-                background: bulkLoading ? COLORS.border : COLORS.gold,
-                color: bulkLoading ? COLORS.muted : "#1a1714",
+                background: bulkLoading ? C.border : C.gold,
+                color: bulkLoading ? C.muted : C.text,
                 fontSize: "13px",
                 fontWeight: 600,
                 cursor: bulkLoading ? "default" : "pointer",
@@ -1075,8 +1080,8 @@ const MediaPage = () => {
                 padding: "6px 16px",
                 borderRadius: "6px",
                 border: "none",
-                background: bulkLoading || !bulkValue ? COLORS.border : COLORS.gold,
-                color: bulkLoading || !bulkValue ? COLORS.muted : "#1a1714",
+                background: bulkLoading || !bulkValue ? C.border : C.gold,
+                color: bulkLoading || !bulkValue ? C.muted : C.text,
                 fontSize: "13px",
                 fontWeight: 600,
                 cursor: bulkLoading || !bulkValue ? "default" : "pointer",
@@ -1086,15 +1091,15 @@ const MediaPage = () => {
             </button>
           )}
 
-          <span style={{ width: "1px", height: "24px", background: COLORS.border }} />
+          <span style={{ width: "1px", height: "24px", background: C.border }} />
           <button
             onClick={exportCsv}
             style={{
               padding: "6px 14px",
               borderRadius: "6px",
-              border: `1px solid ${COLORS.border}`,
+              border: `1px solid ${C.border}`,
               background: "transparent",
-              color: COLORS.text,
+              color: C.text,
               fontSize: "13px",
               cursor: "pointer",
             }}
@@ -1114,7 +1119,7 @@ const MediaPage = () => {
                   type="checkbox"
                   checked={allOnPageSelected}
                   onChange={toggleSelectAll}
-                  style={{ cursor: "pointer", accentColor: COLORS.gold }}
+                  style={{ cursor: "pointer", accentColor: C.gold }}
                 />
               </th>
               <th style={{ ...thStyle, width: "32px", cursor: "default", textAlign: "center" }} title="Visible to customers (has image + price)">Vis.</th>
@@ -1136,9 +1141,9 @@ const MediaPage = () => {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={16} style={{ ...tdStyle, textAlign: "center", padding: "40px", color: COLORS.muted }}>Loading...</td></tr>
+              <tr><td colSpan={16} style={{ ...tdStyle, textAlign: "center", padding: "40px", color: C.muted }}>Loading...</td></tr>
             ) : releases.length === 0 ? (
-              <tr><td colSpan={16} style={{ ...tdStyle, textAlign: "center", padding: "40px", color: COLORS.muted }}>No results found.</td></tr>
+              <tr><td colSpan={16} style={{ ...tdStyle, textAlign: "center", padding: "40px", color: C.muted }}>No results found.</td></tr>
             ) : (
               releases.map((r) => (
                 <tr
@@ -1147,13 +1152,13 @@ const MediaPage = () => {
                   style={{
                     cursor: "pointer",
                     transition: "background 0.1s",
-                    background: selectedIds.has(r.id) ? `${COLORS.gold}08` : "transparent",
+                    background: selectedIds.has(r.id) ? `${C.gold}08` : "transparent",
                   }}
                   onMouseEnter={(e) => {
-                    if (!selectedIds.has(r.id)) e.currentTarget.style.background = COLORS.hover
+                    if (!selectedIds.has(r.id)) e.currentTarget.style.background = C.hover
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = selectedIds.has(r.id) ? `${COLORS.gold}08` : "transparent"
+                    e.currentTarget.style.background = selectedIds.has(r.id) ? `${C.gold}08` : "transparent"
                   }}
                 >
                   <td style={{ ...tdStyle, textAlign: "center", width: "36px" }} onClick={(e) => e.stopPropagation()}>
@@ -1161,58 +1166,58 @@ const MediaPage = () => {
                       type="checkbox"
                       checked={selectedIds.has(r.id)}
                       onChange={() => toggleSelect(r.id)}
-                      style={{ cursor: "pointer", accentColor: COLORS.gold }}
+                      style={{ cursor: "pointer", accentColor: C.gold }}
                     />
                   </td>
                   <td style={{ ...tdStyle, textAlign: "center", width: "32px" }} title={r.coverImage && r.legacy_price != null ? "Visible to customers" : `Hidden: ${!r.coverImage ? "no image" : ""}${!r.coverImage && r.legacy_price == null ? " + " : ""}${r.legacy_price == null ? "no price" : ""}`}>
-                    <span style={{ fontSize: "16px", color: r.coverImage && r.legacy_price != null ? "#16a34a" : "#dc2626" }}>●</span>
+                    <span style={{ fontSize: "16px", color: r.coverImage && r.legacy_price != null ? C.success : C.error }}>●</span>
                   </td>
                   <td style={tdStyle}>
                     {r.coverImage ? (
-                      <img src={r.coverImage} alt="" style={{ width: "32px", height: "32px", objectFit: "cover", borderRadius: "4px", border: `1px solid ${COLORS.border}` }} />
+                      <img src={r.coverImage} alt="" style={{ width: "32px", height: "32px", objectFit: "cover", borderRadius: "4px", border: `1px solid ${C.border}` }} />
                     ) : (
-                      <div style={{ width: "32px", height: "32px", borderRadius: "4px", background: COLORS.border, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", color: COLORS.muted }}>&#9835;</div>
+                      <div style={{ width: "32px", height: "32px", borderRadius: "4px", background: C.border, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", color: C.muted }}>&#9835;</div>
                     )}
                   </td>
-                  <td style={{ ...tdStyle, textAlign: "center", fontFamily: "monospace", fontSize: "13px", color: r.inventory != null ? COLORS.text : COLORS.muted }}>{r.inventory ?? "\u2014"}</td>
+                  <td style={{ ...tdStyle, textAlign: "center", fontFamily: "monospace", fontSize: "13px", color: r.inventory != null ? C.text : C.muted }}>{r.inventory ?? "\u2014"}</td>
                   <td style={tdStyle}>{r.artist_name || "\u2014"}</td>
                   <td style={{ ...tdStyle, fontWeight: 500 }}>{r.title || "\u2014"}</td>
                   <td style={tdStyle}>
-                    <span style={{ padding: "2px 8px", borderRadius: "4px", fontSize: "12px", background: COLORS.hover, color: COLORS.text }}>{r.format_name || r.format || "\u2014"}</span>
+                    <span style={{ padding: "2px 8px", borderRadius: "4px", fontSize: "12px", background: C.hover, color: C.text }}>{r.format_name || r.format || "\u2014"}</span>
                     {(() => {
                       const cat = r.product_category === "release"
                         ? (r.format_kat === 2 ? "vinyl" : "tapes")
                         : r.product_category
                       return cat !== "tapes" ? (
-                        <span style={{ marginLeft: "6px", padding: "1px 6px", borderRadius: "8px", fontSize: "10px", background: `${COLORS.gold}20`, color: COLORS.gold }}>{CATEGORY_LABELS[cat] || cat}</span>
+                        <span style={{ marginLeft: "6px", padding: "1px 6px", borderRadius: "8px", fontSize: "10px", background: `${C.gold}20`, color: C.gold }}>{CATEGORY_LABELS[cat] || cat}</span>
                       ) : null
                     })()}
                   </td>
                   <td style={tdStyle}>{r.year || "\u2014"}</td>
                   <td style={{ ...tdStyle, fontSize: "13px" }}>{r.country || "\u2014"}</td>
                   <td style={tdStyle}>{r.label_name || "\u2014"}</td>
-                  <td style={{ ...tdStyle, fontSize: "12px", fontFamily: "monospace", color: COLORS.gold }}>{r.article_number || "\u2014"}</td>
-                  <td style={{ ...tdStyle, fontSize: "12px", color: COLORS.muted }}>{r.cat_no || "\u2014"}</td>
-                  <td style={{ ...tdStyle, color: r.lowest_price ? COLORS.gold : COLORS.muted }}>{formatPrice(r.lowest_price)}</td>
+                  <td style={{ ...tdStyle, fontSize: "12px", fontFamily: "monospace", color: C.gold }}>{r.article_number || "\u2014"}</td>
+                  <td style={{ ...tdStyle, fontSize: "12px", color: C.muted }}>{r.cat_no || "\u2014"}</td>
+                  <td style={{ ...tdStyle, color: r.lowest_price ? C.gold : C.muted }}>{formatPrice(r.lowest_price)}</td>
                   <td style={tdStyle}>
                     {r.discogs_id ? (
-                      <a href={`https://www.discogs.com/release/${r.discogs_id}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: COLORS.gold, textDecoration: "none", fontSize: "13px" }}>{r.discogs_id} &#8599;</a>
-                    ) : (<span style={{ color: COLORS.muted }}>{"\u2014"}</span>)}
+                      <a href={`https://www.discogs.com/release/${r.discogs_id}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: C.gold, textDecoration: "none", fontSize: "13px" }}>{r.discogs_id} &#8599;</a>
+                    ) : (<span style={{ color: C.muted }}>{"\u2014"}</span>)}
                   </td>
                   <td style={tdStyle}>
                     <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
                       {r.auction_status ? (
-                        <span style={{ padding: "2px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: 600, background: `${STATUS_COLORS[r.auction_status] || COLORS.muted}20`, color: STATUS_COLORS[r.auction_status] || COLORS.muted, textTransform: "capitalize" }}>{r.auction_status}</span>
-                      ) : (<span style={{ color: COLORS.muted }}>{"\u2014"}</span>)}
+                        <span style={{ padding: "2px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: 600, background: `${STATUS_COLORS[r.auction_status] || C.muted}20`, color: STATUS_COLORS[r.auction_status] || C.muted, textTransform: "capitalize" }}>{r.auction_status}</span>
+                      ) : (<span style={{ color: C.muted }}>{"\u2014"}</span>)}
                       {r.sale_mode === "direct_purchase" && (
-                        <span style={{ padding: "2px 6px", borderRadius: "8px", fontSize: "10px", fontWeight: 600, background: "#22c55e20", color: "#16a34a" }}>Direct</span>
+                        <span style={{ padding: "2px 6px", borderRadius: "8px", fontSize: "10px", fontWeight: 600, background: `${C.success}20`, color: C.success }}>Direct</span>
                       )}
                       {r.sale_mode === "both" && (
-                        <span style={{ padding: "2px 6px", borderRadius: "8px", fontSize: "10px", fontWeight: 600, background: "#3b82f620", color: "#2563eb" }}>Both</span>
+                        <span style={{ padding: "2px 6px", borderRadius: "8px", fontSize: "10px", fontWeight: 600, background: `${C.blue}20`, color: C.blue }}>Both</span>
                       )}
                     </div>
                   </td>
-                  <td style={{ ...tdStyle, fontSize: "12px", color: COLORS.muted }}>{formatDate(r.last_discogs_sync)}</td>
+                  <td style={{ ...tdStyle, fontSize: "12px", color: C.muted }}>{formatDate(r.last_discogs_sync)}</td>
                 </tr>
               ))
             )}
@@ -1235,19 +1240,19 @@ const MediaPage = () => {
               if (end < totalPages - 2) pages.push(-2)
               if (end < totalPages - 1) pages.push(totalPages - 1)
               return pages.map((p, idx) =>
-                p < 0 ? (<span key={`ellipsis-${idx}`} style={{ color: COLORS.muted, padding: "0 4px" }}>...</span>) : (<button key={p} onClick={() => setPage(p)} style={pageBtnStyle(p === page)}>{p + 1}</button>)
+                p < 0 ? (<span key={`ellipsis-${idx}`} style={{ color: C.muted, padding: "0 4px" }}>...</span>) : (<button key={p} onClick={() => setPage(p)} style={pageBtnStyle(p === page)}>{p + 1}</button>)
               )
             })()}
             <button onClick={() => setPage(Math.min(totalPages - 1, page + 1))} disabled={page >= totalPages - 1} style={{ ...pageBtnStyle(false), opacity: page >= totalPages - 1 ? 0.4 : 1, cursor: page >= totalPages - 1 ? "default" : "pointer" }}>Next &#8594;</button>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <label style={{ fontSize: "13px", color: COLORS.muted }}>Per page:</label>
+            <label style={{ fontSize: "13px", color: C.muted }}>Per page:</label>
             <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))} style={{ ...selectStyle, minWidth: "70px" }}>
               <option value={25}>25</option>
               <option value={50}>50</option>
               <option value={100}>100</option>
             </select>
-            <span style={{ fontSize: "13px", color: COLORS.muted }}>Page {page + 1} of {totalPages}</span>
+            <span style={{ fontSize: "13px", color: C.muted }}>Page {page + 1} of {totalPages}</span>
           </div>
         </div>
       )}

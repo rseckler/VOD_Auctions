@@ -29,20 +29,23 @@ type PreviewData = {
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const C = {
-  bg: "#ffffff",
-  card: "transparent",
-  border: "rgba(0,0,0,0.08)",
-  text: "#1f2937",
-  muted: "#6b7280",
+  bg: "transparent",
+  card: "#f8f7f6",
+  text: "#1a1714",
+  muted: "#78716c",
   gold: "#b8860b",
+  border: "#e7e5e4",
+  hover: "#f5f4f3",
   success: "#16a34a",
-  hover: "#f3f4f6",
-  danger: "#dc2626",
+  error: "#dc2626",
+  blue: "#2563eb",
+  purple: "#7c3aed",
+  warning: "#d97706",
   chip: {
-    resend: { bg: "#eff6ff", text: "#1d4ed8", border: "#bfdbfe" },
-    brevo: { bg: "#ecfdf5", text: "#065f46", border: "#6ee7b7" },
-    transactional: { bg: "transparent", text: "#1f2937", border: "rgba(0,0,0,0.08)" },
-    newsletter: { bg: "#fdf4ff", text: "#6b21a8", border: "#e9d5ff" },
+    resend: { bg: "#2563eb15", text: "#2563eb", border: "#2563eb15" },
+    brevo: { bg: "#16a34a15", text: "#16a34a", border: "#16a34a15" },
+    transactional: { bg: "transparent", text: "#1a1714", border: "#e7e5e4" },
+    newsletter: { bg: "#7c3aed15", text: "#7c3aed", border: "#7c3aed15" },
   },
 }
 
@@ -238,15 +241,15 @@ function PreviewDrawer({
                 sandbox="allow-same-origin"
               />
             ) : (
-              <div style={{ padding: 24, color: C.danger, fontSize: 14 }}>Failed to load preview.</div>
+              <div style={{ padding: 24, color: C.error, fontSize: 14 }}>Failed to load preview.</div>
             )
           )}
 
           {/* EDIT TAB */}
           {tab === "edit" && (
             <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 20 }}>
-              <div style={{ padding: "12px 16px", backgroundColor: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 8 }}>
-                <p style={{ margin: 0, fontSize: 13, color: "#92400e" }}>
+              <div style={{ padding: "12px 16px", backgroundColor: C.warning + "15", border: `1px solid ${C.warning}44`, borderRadius: 8 }}>
+                <p style={{ margin: 0, fontSize: 13, color: C.warning }}>
                   <strong>Note:</strong> Changes here save text overrides (subject, preheader, notes). The email HTML design is defined in code and requires a redeploy to change.
                 </p>
               </div>
@@ -328,7 +331,7 @@ function PreviewDrawer({
                   {saving ? "Saving…" : "Save Changes"}
                 </button>
                 {saveMsg && (
-                  <p style={{ margin: 0, fontSize: 13, color: saveMsg.startsWith("Error") ? C.danger : C.success, fontWeight: 500 }}>
+                  <p style={{ margin: 0, fontSize: 13, color: saveMsg.startsWith("Error") ? C.error : C.success, fontWeight: 500 }}>
                     {saveMsg}
                   </p>
                 )}
@@ -359,18 +362,18 @@ function PreviewDrawer({
               </div>
 
               {sendStatus === "sent" && (
-                <div style={{ padding: "10px 14px", backgroundColor: "#f0fdf4", border: "1px solid #86efac", borderRadius: 6 }}>
-                  <p style={{ margin: 0, fontSize: 13, color: "#166534" }}>✓ Test email sent! Check your inbox.</p>
+                <div style={{ padding: "10px 14px", backgroundColor: C.success + "15", border: `1px solid ${C.success}44`, borderRadius: 6 }}>
+                  <p style={{ margin: 0, fontSize: 13, color: C.success }}>✓ Test email sent! Check your inbox.</p>
                 </div>
               )}
               {sendStatus === "error" && (
-                <div style={{ padding: "10px 14px", backgroundColor: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 6 }}>
-                  <p style={{ margin: 0, fontSize: 13, color: C.danger }}>{sendError}</p>
+                <div style={{ padding: "10px 14px", backgroundColor: C.error + "15", border: `1px solid ${C.error}44`, borderRadius: 6 }}>
+                  <p style={{ margin: 0, fontSize: 13, color: C.error }}>{sendError}</p>
                 </div>
               )}
               {template.channel === "brevo" && (
-                <div style={{ padding: "10px 14px", backgroundColor: "#f0fdf4", border: "1px solid #6ee7b7", borderRadius: 6 }}>
-                  <p style={{ margin: 0, fontSize: 13, color: "#065f46" }}>
+                <div style={{ padding: "10px 14px", backgroundColor: C.success + "15", border: `1px solid ${C.success}44`, borderRadius: 6 }}>
+                  <p style={{ margin: 0, fontSize: 13, color: C.success }}>
                     This is a Brevo newsletter template. Test emails are sent via Resend with sample data.
                   </p>
                 </div>
@@ -438,7 +441,7 @@ function TemplateCard({
         </div>
         <p style={{ margin: "0 0 4px", fontSize: 13, color: C.muted }}>{template.description}</p>
         <p style={{ margin: 0, fontSize: 12, color: C.muted }}>
-          <span style={{ color: "#1f2937", fontWeight: 500 }}>Trigger:</span> {template.trigger}
+          <span style={{ color: C.text, fontWeight: 500 }}>Trigger:</span> {template.trigger}
         </p>
         <p style={{ margin: "3px 0 0", fontSize: 12, color: C.muted, fontStyle: "italic" }}>
           &ldquo;{template.preheader}&rdquo;
@@ -509,8 +512,8 @@ export default function EmailsPage() {
 
       {loading && <p style={{ color: C.muted, fontSize: 14 }}>Loading templates…</p>}
       {error && (
-        <div style={{ padding: "12px 16px", backgroundColor: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 8, marginBottom: 16 }}>
-          <p style={{ margin: 0, fontSize: 13, color: C.danger }}>Error: {error}</p>
+        <div style={{ padding: "12px 16px", backgroundColor: C.error + "15", border: `1px solid ${C.error}44`, borderRadius: 8, marginBottom: 16 }}>
+          <p style={{ margin: 0, fontSize: 13, color: C.error }}>Error: {error}</p>
         </div>
       )}
 

@@ -3,6 +3,21 @@ import { CogSixTooth } from "@medusajs/icons"
 import { useEffect, useState } from "react"
 import { useAdminNav } from "../../components/admin-nav"
 
+const C = {
+  bg: "transparent",
+  card: "#f8f7f6",
+  text: "#1a1714",
+  muted: "#78716c",
+  gold: "#b8860b",
+  border: "#e7e5e4",
+  hover: "#f5f4f3",
+  success: "#16a34a",
+  error: "#dc2626",
+  blue: "#2563eb",
+  purple: "#7c3aed",
+  warning: "#d97706",
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type LiveAuction = {
@@ -71,7 +86,7 @@ function HubCard({
     <div
       onClick={() => { window.location.href = href }}
       style={{
-        background: "var(--bg-component, #f8f7f6)",
+        background: `var(--bg-component, ${C.card})`,
         border: "1px solid rgba(0,0,0,0.08)",
         borderRadius: 10,
         padding: 20,
@@ -89,22 +104,22 @@ function HubCard({
         <div>
           <div style={{ fontSize: 14, fontWeight: 700, color: "inherit" }}>{title}</div>
           {statusLine && (
-            <div style={{ fontSize: 11, color: statusColor || "#6b7280", fontWeight: 600, marginTop: 2 }}>
+            <div style={{ fontSize: 11, color: statusColor || C.muted, fontWeight: 600, marginTop: 2 }}>
               {statusLine}
             </div>
           )}
         </div>
       </div>
       {description && (
-        <div style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.5, marginBottom: 12 }}>
+        <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, marginBottom: 12 }}>
           {description}
         </div>
       )}
       {children}
-      {meta && <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 10 }}>{meta}</div>}
+      {meta && <div style={{ fontSize: 11, color: C.muted, marginBottom: 10 }}>{meta}</div>}
       <button style={{
         display: "inline-flex", alignItems: "center", gap: 4,
-        background: "transparent", color: "#1f2937",
+        background: "transparent", color: C.text,
         border: "none", borderRadius: 5,
         padding: "5px 12px", fontSize: 11, fontWeight: 500, cursor: "pointer",
       }}>
@@ -117,7 +132,7 @@ function HubCard({
 // ─── Helper: coloured dot ─────────────────────────────────────────────────────
 
 function Dot({ color }: { color: "green" | "amber" | "red" | "grey" }) {
-  const bg = { green: "#16a34a", amber: "#d97706", red: "#dc2626", grey: "#9ca3af" }[color]
+  const bg = { green: C.success, amber: C.warning, red: C.error, grey: C.muted }[color]
   return (
     <span style={{
       display: "inline-block",
@@ -141,19 +156,19 @@ function serviceStatusColor(status: string): "green" | "amber" | "red" | "grey" 
 function SystemHealthContent({ data, loading }: { data: SystemHealthData | null; loading: boolean }) {
   if (loading) {
     return (
-      <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 12 }}>Checking services…</div>
+      <div style={{ fontSize: 11, color: C.muted, marginBottom: 12 }}>Checking services…</div>
     )
   }
   if (!data) {
     return (
-      <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 12 }}>Status unavailable</div>
+      <div style={{ fontSize: 11, color: C.muted, marginBottom: 12 }}>Status unavailable</div>
     )
   }
 
   const { summary, services } = data
   const allOk = summary.errors === 0 && summary.degraded === 0
   const hasErrors = summary.errors > 0
-  const statusColor = hasErrors ? "#dc2626" : allOk ? "#16a34a" : "#d97706"
+  const statusColor = hasErrors ? C.error : allOk ? C.success : C.warning
   const statusText = `${summary.ok}/${summary.total} services OK`
 
   // Display up to 9 services in the mini grid (show "important" ones first)
@@ -173,7 +188,7 @@ function SystemHealthContent({ data, loading }: { data: SystemHealthData | null;
         gap: "6px 4px", marginBottom: issues.length > 0 ? 8 : 12,
       }}>
         {displayServices.map((s) => (
-          <div key={s.name} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "#1f2937" }}>
+          <div key={s.name} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: C.text }}>
             <Dot color={serviceStatusColor(s.status)} />
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {s.label.split(" ")[0]}
@@ -184,8 +199,8 @@ function SystemHealthContent({ data, loading }: { data: SystemHealthData | null;
       {/* Warning box for any non-ok service */}
       {issues.map((s) => (
         <div key={s.name} style={{
-          fontSize: 10, color: "#d97706",
-          background: "#fffbeb", border: "1px solid #fde68a",
+          fontSize: 10, color: C.warning,
+          background: C.warning + "15", border: `1px solid ${C.warning}40`,
           borderRadius: 4, padding: "4px 8px", marginBottom: 8,
         }}>
           ⚠ {s.label}: {s.message}
@@ -228,7 +243,7 @@ function SyncStatusContent({
   const lastRowStyle: React.CSSProperties = { ...rowStyle, borderBottom: "none" }
 
   if (loading) {
-    return <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 12 }}>Loading sync status…</div>
+    return <div style={{ fontSize: 11, color: C.muted, marginBottom: 12 }}>Loading sync status…</div>
   }
 
   const discogsHealth = discogs?.health ?? null
@@ -249,21 +264,21 @@ function SyncStatusContent({
       <div style={rowStyle}>
         <Dot color={discogsDot} />
         <span style={{ fontWeight: 600 }}>Discogs Daily</span>
-        <span style={{ color: "#6b7280", marginLeft: "auto" }}>
+        <span style={{ color: C.muted, marginLeft: "auto" }}>
           {discogsHealth ? `${discogsChunk} · last: ${discogsTime}` : "not yet"}
         </span>
       </div>
       <div style={rowStyle}>
         <Dot color={legacyDot} />
         <span style={{ fontWeight: 600 }}>Legacy Sync</span>
-        <span style={{ color: "#6b7280", marginLeft: "auto" }}>
+        <span style={{ color: C.muted, marginLeft: "auto" }}>
           {latestLegacy ? `${legacyUpdates} updates · last: ${legacyTime}` : "not yet"}
         </span>
       </div>
       <div style={lastRowStyle}>
         <Dot color="grey" />
         <span style={{ fontWeight: 600 }}>Entity Overhaul</span>
-        <span style={{ color: "#6b7280", marginLeft: "auto" }}>paused</span>
+        <span style={{ color: C.muted, marginLeft: "auto" }}>paused</span>
       </div>
     </div>
   )
@@ -302,11 +317,11 @@ function ShippingContent() {
 function TestRunnerContent() {
   return (
     <>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "#1f2937", marginBottom: 6 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: C.text, marginBottom: 6 }}>
         <Dot color="grey" />
         No active tests
       </div>
-      <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 10 }}>
+      <div style={{ fontSize: 11, color: C.muted, marginBottom: 10 }}>
         Last run: 2026-03-29 · Stripe ✓ PayPal ✓
       </div>
     </>
@@ -365,28 +380,28 @@ function OperationsHub() {
     : "11 services monitored"
 
   const healthStatusColor = !healthData
-    ? "#6b7280"
+    ? C.muted
     : healthData.summary.errors > 0
-    ? "#dc2626"
+    ? C.error
     : healthData.summary.degraded > 0
-    ? "#d97706"
-    : "#16a34a"
+    ? C.warning
+    : C.success
 
   return (
     <div style={{ padding: "32px 36px", maxWidth: 960, fontFamily: "var(--font-sans, system-ui, sans-serif)" }}>
       {/* Header */}
-      <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 20 }}>Admin</div>
+      <div style={{ fontSize: 12, color: C.muted, marginBottom: 20 }}>Admin</div>
       <div style={{ fontSize: 24, fontWeight: 800, color: "inherit", marginBottom: 4 }}>
         ⚙️ Operations
       </div>
-      <div style={{ fontSize: 14, color: "#6b7280", marginBottom: 28 }}>
+      <div style={{ fontSize: 14, color: C.muted, marginBottom: 28 }}>
         Platform monitoring, configuration, and technical tools
       </div>
 
       {/* Live auction banner — shown when auctions are active */}
       {hasLive && (
         <div style={{
-          background: "linear-gradient(135deg, #15803d, #166534)",
+          background: `linear-gradient(135deg, ${C.success}, ${C.success}cc)`,
           borderRadius: 10, padding: "20px 24px", marginBottom: 24,
           color: "#fff", display: "flex", alignItems: "center", gap: 16,
         }}>
@@ -411,8 +426,8 @@ function OperationsHub() {
           <button
             onClick={(e) => { e.stopPropagation(); window.location.href = "/app/live-monitor" }}
             style={{
-              background: "#6366f1", color: "#fff",
-              border: "1px solid #6366f1", borderRadius: 6,
+              background: C.purple, color: "#fff",
+              border: `1px solid ${C.purple}`, borderRadius: 6,
               padding: "7px 16px", fontSize: 13, fontWeight: 600,
               cursor: "pointer", whiteSpace: "nowrap",
             }}
@@ -424,7 +439,7 @@ function OperationsHub() {
 
       {/* Section heading */}
       <div style={{
-        fontSize: 11, fontWeight: 700, color: "#6b7280",
+        fontSize: 11, fontWeight: 700, color: C.muted,
         textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 12,
       }}>
         Platform Tools
@@ -452,7 +467,7 @@ function OperationsHub() {
           title="Shipping Configuration"
           description="Manage shipping zones, weight-based rates, item types, and methods. Includes a shipping calculator tool."
           statusLine="3 zones · 15 weight tiers · 13 item types"
-          statusColor="#6b7280"
+          statusColor={C.muted}
           href="/app/shipping"
           actionLabel="Configure Shipping →"
         >
@@ -465,7 +480,7 @@ function OperationsHub() {
           title="Sync Status"
           description="Monitor Discogs price sync (daily, 5 chunks) and legacy MySQL import status."
           statusLine="Discogs · Legacy MySQL"
-          statusColor="#6b7280"
+          statusColor={C.muted}
           href="/app/sync"
           actionLabel="View Sync Details →"
         >
@@ -478,7 +493,7 @@ function OperationsHub() {
           title="Test Runner"
           description="Test Stripe and PayPal payments with test accounts. Verify webhook delivery and email templates in real send."
           statusLine="Payment & flow testing"
-          statusColor="#6b7280"
+          statusColor={C.muted}
           href="/app/test-runner"
           actionLabel="Open Test Runner →"
         >
@@ -491,7 +506,7 @@ function OperationsHub() {
       {!hasLive && (
         <>
           <div style={{
-            fontSize: 11, fontWeight: 700, color: "#6b7280",
+            fontSize: 11, fontWeight: 700, color: C.muted,
             textTransform: "uppercase", letterSpacing: "0.07em",
             marginTop: 24, marginBottom: 12,
           }}>
@@ -503,7 +518,7 @@ function OperationsHub() {
               title="Live Monitor"
               description="Real-time auction dashboard — active bidders, live bid stream, lot countdown timers. Shown prominently when auctions are active."
               statusLine="No active auctions"
-              statusColor="#9ca3af"
+              statusColor=C.muted
               meta="Auto-refresh 10s"
               href="/app/live-monitor"
             />

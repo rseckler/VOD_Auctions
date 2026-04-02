@@ -18,7 +18,7 @@ class ErrorBoundary extends Component<
   render() {
     if (this.state.error) {
       return (
-        <div style={{ padding: 24, color: "#ef4444" }}>
+        <div style={{ padding: 24, color: C.error }}>
           <h2>Error in Gallery Management:</h2>
           <pre style={{ whiteSpace: "pre-wrap", fontSize: 13 }}>
             {this.state.error.message}
@@ -61,16 +61,19 @@ type ContentBlock = {
 
 const STOREFRONT_URL = "https://vod-auctions.com"
 
-const COLORS = {
-  bg: "#ffffff",
-  card: "transparent",
-  text: "#1f2937",
-  muted: "#6b7280",
+const C = {
+  bg: "transparent",
+  card: "#f8f7f6",
+  text: "#1a1714",
+  muted: "#78716c",
   gold: "#b8860b",
-  border: "rgba(0,0,0,0.08)",
-  hover: "#f3f4f6",
-  danger: "#ef4444",
-  success: "#22c55e",
+  border: "#e7e5e4",
+  hover: "#f5f4f3",
+  success: "#16a34a",
+  error: "#dc2626",
+  blue: "#2563eb",
+  purple: "#7c3aed",
+  warning: "#d97706",
 }
 
 const SECTIONS = [
@@ -89,13 +92,13 @@ const SECTION_LABELS: Record<string, string> = {}
 for (const s of SECTIONS) SECTION_LABELS[s.value] = s.label
 
 const SECTION_COLORS: Record<string, string> = {
-  hero: "#d4a54a",
-  visual_gallery: "#3b82f6",
-  collection_sound_carriers: "#22c55e",
-  collection_printed_matter: "#a855f7",
+  hero: C.gold,
+  visual_gallery: C.blue,
+  collection_sound_carriers: C.success,
+  collection_printed_matter: C.purple,
   collection_artwork: "#ec4899",
-  collection_documents: "#f97316",
-  collection_rare: "#ef4444",
+  collection_documents: C.warning,
+  collection_rare: C.error,
   featured: "#eab308",
   listening_room: "#06b6d4",
 }
@@ -158,7 +161,7 @@ const CONTENT_SECTIONS: ContentSectionConfig[] = [
 const styles = {
   page: {
     padding: 24,
-    color: COLORS.text,
+    color: C.text,
     minHeight: "100vh",
   } as React.CSSProperties,
   header: {
@@ -170,18 +173,18 @@ const styles = {
   heading: {
     fontSize: 24,
     fontWeight: 700,
-    color: COLORS.text,
+    color: C.text,
     margin: 0,
   } as React.CSSProperties,
   subtitle: {
     fontSize: 14,
-    color: COLORS.muted,
+    color: C.muted,
     marginTop: 4,
   } as React.CSSProperties,
   tabBar: {
     display: "flex",
     gap: 0,
-    borderBottom: `1px solid ${COLORS.border}`,
+    borderBottom: `1px solid ${C.border}`,
     marginBottom: 24,
   } as React.CSSProperties,
   tab: (active: boolean) =>
@@ -190,13 +193,13 @@ const styles = {
       cursor: "pointer",
       fontSize: 14,
       fontWeight: active ? 600 : 400,
-      color: active ? COLORS.gold : COLORS.muted,
-      borderBottom: active ? `2px solid ${COLORS.gold}` : "2px solid transparent",
+      color: active ? C.gold : C.muted,
+      borderBottom: active ? `2px solid ${C.gold}` : "2px solid transparent",
       background: "transparent",
       border: "none",
       borderBottomWidth: 2,
       borderBottomStyle: "solid",
-      borderBottomColor: active ? COLORS.gold : "transparent",
+      borderBottomColor: active ? C.gold : "transparent",
       transition: "all 0.15s",
     }) as React.CSSProperties,
   pillBar: {
@@ -213,8 +216,8 @@ const styles = {
       fontWeight: 500,
       cursor: "pointer",
       border: "none",
-      background: active ? COLORS.gold : COLORS.card,
-      color: active ? "#1c1915" : COLORS.muted,
+      background: active ? C.gold : C.card,
+      color: active ? C.text : C.muted,
       transition: "all 0.15s",
     }) as React.CSSProperties,
   grid: {
@@ -223,9 +226,9 @@ const styles = {
     gap: 16,
   } as React.CSSProperties,
   card: {
-    background: COLORS.card,
+    background: C.card,
     borderRadius: 10,
-    border: `1px solid ${COLORS.border}`,
+    border: `1px solid ${C.border}`,
     overflow: "hidden",
     transition: "border-color 0.15s",
   } as React.CSSProperties,
@@ -234,7 +237,7 @@ const styles = {
     height: 180,
     objectFit: "cover" as const,
     display: "block",
-    background: COLORS.bg,
+    background: C.bg,
   } as React.CSSProperties,
   cardImagePlaceholder: {
     width: "100%",
@@ -242,8 +245,8 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    background: COLORS.bg,
-    color: COLORS.muted,
+    background: C.bg,
+    color: C.muted,
     fontSize: 12,
     padding: 12,
     textAlign: "center" as const,
@@ -255,7 +258,7 @@ const styles = {
   cardTitle: {
     fontSize: 14,
     fontWeight: 600,
-    color: COLORS.text,
+    color: C.text,
     marginBottom: 6,
     overflow: "hidden",
     textOverflow: "ellipsis",
@@ -263,7 +266,7 @@ const styles = {
   } as React.CSSProperties,
   cardMeta: {
     fontSize: 12,
-    color: COLORS.muted,
+    color: C.muted,
     marginBottom: 4,
   } as React.CSSProperties,
   badge: (color: string) =>
@@ -290,8 +293,8 @@ const styles = {
     fontWeight: 600,
     border: "none",
     cursor: "pointer",
-    background: COLORS.gold,
-    color: "#1c1915",
+    background: C.gold,
+    color: C.text,
     transition: "opacity 0.15s",
   } as React.CSSProperties,
   btnSecondary: {
@@ -299,10 +302,10 @@ const styles = {
     borderRadius: 6,
     fontSize: 12,
     fontWeight: 500,
-    border: `1px solid ${COLORS.border}`,
+    border: `1px solid ${C.border}`,
     cursor: "pointer",
     background: "transparent",
-    color: COLORS.text,
+    color: C.text,
     transition: "all 0.15s",
   } as React.CSSProperties,
   btnDanger: {
@@ -310,10 +313,10 @@ const styles = {
     borderRadius: 6,
     fontSize: 12,
     fontWeight: 500,
-    border: `1px solid ${COLORS.danger}44`,
+    border: `1px solid ${C.error}44`,
     cursor: "pointer",
     background: "transparent",
-    color: COLORS.danger,
+    color: C.error,
     transition: "all 0.15s",
   } as React.CSSProperties,
   btnSmall: {
@@ -337,15 +340,15 @@ const styles = {
     justifyContent: "center",
   } as React.CSSProperties,
   modal: {
-    background: COLORS.card,
+    background: C.card,
     borderRadius: 12,
-    border: `1px solid ${COLORS.border}`,
+    border: `1px solid ${C.border}`,
     padding: 24,
     width: "100%",
     maxWidth: 520,
     maxHeight: "90vh",
     overflowY: "auto" as const,
-    color: COLORS.text,
+    color: C.text,
   } as React.CSSProperties,
   formGroup: {
     marginBottom: 16,
@@ -354,16 +357,16 @@ const styles = {
     display: "block",
     fontSize: 12,
     fontWeight: 500,
-    color: COLORS.muted,
+    color: C.muted,
     marginBottom: 6,
   } as React.CSSProperties,
   input: {
     width: "100%",
     padding: "8px 12px",
     borderRadius: 6,
-    border: `1px solid ${COLORS.border}`,
-    background: COLORS.bg,
-    color: COLORS.text,
+    border: `1px solid ${C.border}`,
+    background: C.bg,
+    color: C.text,
     fontSize: 14,
     outline: "none",
     boxSizing: "border-box" as const,
@@ -372,9 +375,9 @@ const styles = {
     width: "100%",
     padding: "8px 12px",
     borderRadius: 6,
-    border: `1px solid ${COLORS.border}`,
-    background: COLORS.bg,
-    color: COLORS.text,
+    border: `1px solid ${C.border}`,
+    background: C.bg,
+    color: C.text,
     fontSize: 14,
     outline: "none",
     boxSizing: "border-box" as const,
@@ -383,9 +386,9 @@ const styles = {
     width: "100%",
     padding: "8px 12px",
     borderRadius: 6,
-    border: `1px solid ${COLORS.border}`,
-    background: COLORS.bg,
-    color: COLORS.text,
+    border: `1px solid ${C.border}`,
+    background: C.bg,
+    color: C.text,
     fontSize: 14,
     outline: "none",
     boxSizing: "border-box" as const,
@@ -397,7 +400,7 @@ const styles = {
       width: 40,
       height: 22,
       borderRadius: 11,
-      background: active ? COLORS.success : COLORS.border,
+      background: active ? C.success : C.border,
       position: "relative" as const,
       cursor: "pointer",
       border: "none",
@@ -412,13 +415,13 @@ const styles = {
       width: 18,
       height: 18,
       borderRadius: "50%",
-      background: "var(--bg-component, #f8f7f6)",
+      background: "#fff",
       transition: "left 0.2s",
     }) as React.CSSProperties,
   contentSection: {
-    background: COLORS.card,
+    background: C.card,
     borderRadius: 10,
-    border: `1px solid ${COLORS.border}`,
+    border: `1px solid ${C.border}`,
     marginBottom: 16,
     overflow: "hidden",
   } as React.CSSProperties,
@@ -436,13 +439,13 @@ const styles = {
   emptyState: {
     textAlign: "center" as const,
     padding: 48,
-    color: COLORS.muted,
+    color: C.muted,
     fontSize: 14,
   } as React.CSSProperties,
   loading: {
     textAlign: "center" as const,
     padding: 48,
-    color: COLORS.muted,
+    color: C.muted,
     fontSize: 14,
   } as React.CSSProperties,
 }
@@ -675,7 +678,7 @@ const MediaTab = () => {
 
       {/* Error */}
       {error && !showForm && (
-        <div style={{ padding: 12, marginBottom: 16, borderRadius: 8, background: `${COLORS.danger}22`, color: COLORS.danger, fontSize: 13 }}>
+        <div style={{ padding: 12, marginBottom: 16, borderRadius: 8, background: `${C.error}22`, color: C.error, fontSize: 13 }}>
           {error}
         </div>
       )}
@@ -699,14 +702,14 @@ const MediaTab = () => {
                 {/* Card Body */}
                 <div style={styles.cardBody}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                    <span style={styles.badge(SECTION_COLORS[item.section] || COLORS.muted)}>
+                    <span style={styles.badge(SECTION_COLORS[item.section] || C.muted)}>
                       {SECTION_LABELS[item.section] || item.section}
                     </span>
-                    <span style={{ fontSize: 11, color: COLORS.muted }}>
+                    <span style={{ fontSize: 11, color: C.muted }}>
                       #{item.position}
                     </span>
                     {!item.is_active && (
-                      <span style={styles.badge(COLORS.danger)}>Inactive</span>
+                      <span style={styles.badge(C.error)}>Inactive</span>
                     )}
                   </div>
 
@@ -753,12 +756,12 @@ const MediaTab = () => {
       {showForm && (
         <div style={styles.overlay} onClick={(e) => { if (e.target === e.currentTarget) resetForm() }}>
           <div style={styles.modal}>
-            <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 20, color: COLORS.text }}>
+            <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 20, color: C.text }}>
               {editingItem ? "Edit Image" : "Add Image"}
             </h3>
 
             {error && (
-              <div style={{ padding: 10, marginBottom: 16, borderRadius: 6, background: `${COLORS.danger}22`, color: COLORS.danger, fontSize: 13 }}>
+              <div style={{ padding: 10, marginBottom: 16, borderRadius: 6, background: `${C.error}22`, color: C.error, fontSize: 13 }}>
                 {error}
               </div>
             )}
@@ -782,18 +785,18 @@ const MediaTab = () => {
                   type="file"
                   accept="image/*"
                   onChange={handleFileUpload}
-                  style={{ fontSize: 13, color: COLORS.muted }}
+                  style={{ fontSize: 13, color: C.muted }}
                   disabled={uploading}
                 />
                 {uploading && (
-                  <span style={{ fontSize: 12, color: COLORS.gold }}>Uploading...</span>
+                  <span style={{ fontSize: 12, color: C.gold }}>Uploading...</span>
                 )}
               </div>
             </div>
 
             {/* Preview */}
             {formUrl && (
-              <div style={{ marginBottom: 16, borderRadius: 8, overflow: "hidden", border: `1px solid ${COLORS.border}` }}>
+              <div style={{ marginBottom: 16, borderRadius: 8, overflow: "hidden", border: `1px solid ${C.border}` }}>
                 <ImageThumb url={formUrl} alt="Preview" height={160} />
               </div>
             )}
@@ -869,7 +872,7 @@ const MediaTab = () => {
               >
                 <div style={styles.toggleKnob(formActive)} />
               </button>
-              <span style={{ fontSize: 13, color: COLORS.text }}>
+              <span style={{ fontSize: 13, color: C.text }}>
                 {formActive ? "Active" : "Inactive"}
               </span>
             </div>
@@ -895,10 +898,10 @@ const MediaTab = () => {
       {deleteConfirm && (
         <div style={styles.overlay} onClick={(e) => { if (e.target === e.currentTarget) setDeleteConfirm(null) }}>
           <div style={{ ...styles.modal, maxWidth: 400 }}>
-            <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12, color: COLORS.text }}>
+            <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12, color: C.text }}>
               Delete Image?
             </h3>
-            <p style={{ fontSize: 14, color: COLORS.muted, marginBottom: 20 }}>
+            <p style={{ fontSize: 14, color: C.muted, marginBottom: 20 }}>
               This action cannot be undone. The image entry will be permanently removed.
             </p>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
@@ -906,7 +909,7 @@ const MediaTab = () => {
                 Cancel
               </button>
               <button
-                style={{ ...styles.btnPrimary, background: COLORS.danger, color: "#fff" }}
+                style={{ ...styles.btnPrimary, background: C.error, color: "#fff" }}
                 onClick={() => handleDelete(deleteConfirm)}
               >
                 Delete
@@ -1046,7 +1049,7 @@ const ContentTab = () => {
   return (
     <div>
       {error && (
-        <div style={{ padding: 12, marginBottom: 16, borderRadius: 8, background: `${COLORS.danger}22`, color: COLORS.danger, fontSize: 13 }}>
+        <div style={{ padding: 12, marginBottom: 16, borderRadius: 8, background: `${C.error}22`, color: C.error, fontSize: 13 }}>
           {error}
         </div>
       )}
@@ -1064,25 +1067,25 @@ const ContentTab = () => {
               onClick={() => toggleExpanded(sc.section)}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 12, color: COLORS.muted, transform: isOpen ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s", display: "inline-block" }}>
+                <span style={{ fontSize: 12, color: C.muted, transform: isOpen ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s", display: "inline-block" }}>
                   &#9654;
                 </span>
-                <span style={{ fontSize: 15, fontWeight: 600, color: COLORS.text }}>
+                <span style={{ fontSize: 15, fontWeight: 600, color: C.text }}>
                   {sc.label}
                 </span>
                 {block && (
-                  <span style={styles.badge(COLORS.success)}>Saved</span>
+                  <span style={styles.badge(C.success)}>Saved</span>
                 )}
                 {!block && (
-                  <span style={styles.badge(COLORS.muted)}>New</span>
+                  <span style={styles.badge(C.muted)}>New</span>
                 )}
                 {modified && (
-                  <span style={styles.badge(COLORS.gold)}>Modified</span>
+                  <span style={styles.badge(C.gold)}>Modified</span>
                 )}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 {block && (
-                  <span style={{ fontSize: 11, color: COLORS.muted }}>
+                  <span style={{ fontSize: 11, color: C.muted }}>
                     Updated {new Date(block.updated_at).toLocaleDateString("en-GB")}
                   </span>
                 )}

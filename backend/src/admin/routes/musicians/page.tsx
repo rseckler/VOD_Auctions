@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react"
 import { useAdminNav } from "../../components/admin-nav"
 
-const COLORS = {
+const C = {
   bg: "transparent",
   card: "#f8f7f6",
   text: "#1a1714",
@@ -9,6 +9,11 @@ const COLORS = {
   gold: "#b8860b",
   border: "#e7e5e4",
   hover: "#f5f4f3",
+  success: "#16a34a",
+  error: "#dc2626",
+  blue: "#2563eb",
+  purple: "#7c3aed",
+  warning: "#d97706",
 }
 
 type Musician = {
@@ -85,27 +90,27 @@ function MusiciansPage() {
   useEffect(() => { fetchData() }, [fetchData])
 
   return (
-    <div style={{ padding: 24, background: COLORS.bg, minHeight: "100vh", color: COLORS.text, minWidth: 0, width: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
+    <div style={{ padding: 24, background: C.bg, minHeight: "100vh", color: C.text, minWidth: 0, width: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 20 }}>Musicians</h1>
 
       {/* Stats */}
       {stats && (
         <div style={{
-          background: COLORS.card, borderRadius: 10, padding: "14px 20px",
-          marginBottom: 20, border: `1px solid ${COLORS.border}`,
-          display: "flex", gap: 20, flexWrap: "wrap", fontSize: 12, color: COLORS.muted,
+          background: C.card, borderRadius: 10, padding: "14px 20px",
+          marginBottom: 20, border: `1px solid ${C.border}`,
+          display: "flex", gap: 20, flexWrap: "wrap", fontSize: 12, color: C.muted,
         }}>
           <span>
-            <span style={{ color: COLORS.gold, fontWeight: 700, fontSize: 18 }}>
+            <span style={{ color: C.gold, fontWeight: 700, fontSize: 18 }}>
               {stats.total_musicians.toLocaleString()}
             </span>{" "}musicians
           </span>
           <span>
-            <span style={{ color: COLORS.text, fontWeight: 600 }}>{stats.bands_with_members}</span> bands with members
+            <span style={{ color: C.text, fontWeight: 600 }}>{stats.bands_with_members}</span> bands with members
           </span>
           {stats.needs_review > 0 && (
             <span>
-              <span style={{ color: "#d97706", fontWeight: 600 }}>{stats.needs_review}</span> needs review
+              <span style={{ color: C.warning, fontWeight: 600 }}>{stats.needs_review}</span> needs review
             </span>
           )}
           <span style={{ marginLeft: "auto", display: "flex", gap: 10 }}>
@@ -121,14 +126,14 @@ function MusiciansPage() {
       {/* Empty state when no musicians yet */}
       {stats && stats.total_musicians === 0 && !loading && (
         <div style={{
-          background: COLORS.card, borderRadius: 10, padding: 40,
-          border: `1px solid ${COLORS.border}`, textAlign: "center",
+          background: C.card, borderRadius: 10, padding: 40,
+          border: `1px solid ${C.border}`, textAlign: "center",
         }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>🎵</div>
-          <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: COLORS.text }}>
+          <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: C.text }}>
             Musician Database Ready
           </div>
-          <div style={{ fontSize: 13, color: COLORS.muted, maxWidth: 400, margin: "0 auto" }}>
+          <div style={{ fontSize: 13, color: C.muted, maxWidth: 400, margin: "0 auto" }}>
             The musician tables are created and waiting for data.
             Musicians will be populated automatically during the Entity Content Overhaul
             (Phase 6+, Musician Mapper Agent) or can be added manually.
@@ -144,35 +149,35 @@ function MusiciansPage() {
               type="text" placeholder="Search by name..." value={search}
               onChange={(e) => setSearch(e.target.value)}
               style={{
-                padding: "8px 12px", background: COLORS.card,
-                border: `1px solid ${COLORS.border}`, borderRadius: 6,
-                color: COLORS.text, fontSize: 13, width: 240, outline: "none",
+                padding: "8px 12px", background: C.card,
+                border: `1px solid ${C.border}`, borderRadius: 6,
+                color: C.text, fontSize: 13, width: 240, outline: "none",
               }}
             />
             <select
               value={reviewFilter}
               onChange={(e) => { setReviewFilter(e.target.value); setPage(1) }}
               style={{
-                padding: "8px 12px", background: COLORS.card,
-                border: `1px solid ${COLORS.border}`, borderRadius: 6,
-                color: COLORS.text, fontSize: 13, outline: "none",
+                padding: "8px 12px", background: C.card,
+                border: `1px solid ${C.border}`, borderRadius: 6,
+                color: C.text, fontSize: 13, outline: "none",
               }}
             >
               <option value="">Review: All</option>
               <option value="true">Needs Review</option>
               <option value="false">Reviewed</option>
             </select>
-            <span style={{ fontSize: 12, color: COLORS.muted }}>
+            <span style={{ fontSize: 12, color: C.muted }}>
               {total} result{total !== 1 ? "s" : ""}
             </span>
           </div>
 
           {/* Table */}
-          <div style={{ background: COLORS.card, borderRadius: 8, border: `1px solid ${COLORS.border}`, overflow: "hidden" }}>
+          <div style={{ background: C.card, borderRadius: 8, border: `1px solid ${C.border}`, overflow: "hidden" }}>
             <div style={{
               display: "grid", gridTemplateColumns: "2fr 1fr 80px 80px 80px 80px",
-              padding: "10px 16px", borderBottom: `1px solid ${COLORS.border}`,
-              fontSize: 11, fontWeight: 600, color: COLORS.muted, textTransform: "uppercase", letterSpacing: "0.05em",
+              padding: "10px 16px", borderBottom: `1px solid ${C.border}`,
+              fontSize: 11, fontWeight: 600, color: C.muted, textTransform: "uppercase", letterSpacing: "0.05em",
             }}>
               <span>Name</span>
               <span>Country</span>
@@ -183,40 +188,40 @@ function MusiciansPage() {
             </div>
 
             {loading && (
-              <div style={{ padding: 40, textAlign: "center", color: COLORS.muted, fontSize: 14 }}>Loading...</div>
+              <div style={{ padding: 40, textAlign: "center", color: C.muted, fontSize: 14 }}>Loading...</div>
             )}
 
             {!loading && musicians.map((m) => (
               <div key={m.id} style={{
                 display: "grid", gridTemplateColumns: "2fr 1fr 80px 80px 80px 80px",
-                padding: "10px 16px", borderBottom: `1px solid ${COLORS.border}`,
+                padding: "10px 16px", borderBottom: `1px solid ${C.border}`,
                 alignItems: "center", fontSize: 13,
               }}>
                 <div>
-                  <span style={{ fontWeight: 500, color: COLORS.text }}>{m.name}</span>
+                  <span style={{ fontWeight: 500, color: C.text }}>{m.name}</span>
                   {m.real_name && m.real_name !== m.name && (
-                    <span style={{ color: COLORS.muted, fontSize: 11, marginLeft: 6 }}>({m.real_name})</span>
+                    <span style={{ color: C.muted, fontSize: 11, marginLeft: 6 }}>({m.real_name})</span>
                   )}
                   {m.death_year && (
-                    <span style={{ color: "#dc2626", fontSize: 10, marginLeft: 6 }}>† {m.death_year}</span>
+                    <span style={{ color: C.error, fontSize: 10, marginLeft: 6 }}>† {m.death_year}</span>
                   )}
                 </div>
-                <span style={{ color: COLORS.muted }}>{m.country || "—"}</span>
-                <span style={{ textAlign: "center", color: COLORS.text, fontWeight: 600 }}>{m.band_count}</span>
-                <span style={{ textAlign: "center", color: COLORS.muted }}>{m.role_count}</span>
+                <span style={{ color: C.muted }}>{m.country || "—"}</span>
+                <span style={{ textAlign: "center", color: C.text, fontWeight: 600 }}>{m.band_count}</span>
+                <span style={{ textAlign: "center", color: C.muted }}>{m.role_count}</span>
                 <span style={{ textAlign: "center" }}>
                   <span style={{
                     padding: "1px 6px", borderRadius: 6, fontSize: 10, fontWeight: 600,
-                    background: `${COLORS.gold}22`, color: COLORS.gold,
+                    background: `${C.gold}22`, color: C.gold,
                   }}>
                     {m.data_source || "—"}
                   </span>
                 </span>
                 <span style={{ textAlign: "center" }}>
                   {m.needs_review ? (
-                    <span style={{ color: "#d97706", fontSize: 11, fontWeight: 600 }}>⚠ Review</span>
+                    <span style={{ color: C.warning, fontSize: 11, fontWeight: 600 }}>⚠ Review</span>
                   ) : (
-                    <span style={{ color: "#16a34a", fontSize: 11 }}>✓</span>
+                    <span style={{ color: C.success, fontSize: 11 }}>✓</span>
                   )}
                 </span>
               </div>
@@ -229,19 +234,19 @@ function MusiciansPage() {
               <button
                 onClick={() => setPage(Math.max(1, page - 1))} disabled={page <= 1}
                 style={{
-                  padding: "6px 14px", background: COLORS.card,
-                  border: `1px solid ${COLORS.border}`, borderRadius: 4,
-                  color: page <= 1 ? COLORS.muted : COLORS.text, fontSize: 13,
+                  padding: "6px 14px", background: C.card,
+                  border: `1px solid ${C.border}`, borderRadius: 4,
+                  color: page <= 1 ? C.muted : C.text, fontSize: 13,
                   cursor: page <= 1 ? "not-allowed" : "pointer",
                 }}
               >Prev</button>
-              <span style={{ fontSize: 13, color: COLORS.muted }}>Page {page} of {pages}</span>
+              <span style={{ fontSize: 13, color: C.muted }}>Page {page} of {pages}</span>
               <button
                 onClick={() => setPage(Math.min(pages, page + 1))} disabled={page >= pages}
                 style={{
-                  padding: "6px 14px", background: COLORS.card,
-                  border: `1px solid ${COLORS.border}`, borderRadius: 4,
-                  color: page >= pages ? COLORS.muted : COLORS.text, fontSize: 13,
+                  padding: "6px 14px", background: C.card,
+                  border: `1px solid ${C.border}`, borderRadius: 4,
+                  color: page >= pages ? C.muted : C.text, fontSize: 13,
                   cursor: page >= pages ? "not-allowed" : "pointer",
                 }}
               >Next</button>

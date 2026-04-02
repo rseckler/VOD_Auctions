@@ -2,6 +2,21 @@ import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { EnvelopeSolid } from "@medusajs/icons"
 import { useAdminNav } from "../../components/admin-nav"
 
+const C = {
+  bg: "transparent",
+  card: "#f8f7f6",
+  text: "#1a1714",
+  muted: "#78716c",
+  gold: "#b8860b",
+  border: "#e7e5e4",
+  hover: "#f5f4f3",
+  success: "#16a34a",
+  error: "#dc2626",
+  blue: "#2563eb",
+  purple: "#7c3aed",
+  warning: "#d97706",
+}
+
 // ─── Card component ───────────────────────────────────────────────────────────
 
 function HubCard({
@@ -22,10 +37,10 @@ function HubCard({
   href: string
 }) {
   const badgeColors = {
-    blue:  { bg: "#dbeafe", color: "#1d4ed8" },
-    amber: { bg: "#fef3c7", color: "#b45309" },
-    green: { bg: "#dcfce7", color: "#15803d" },
-    red:   { bg: "#fee2e2", color: "#b91c1c" },
+    blue:  { bg: C.blue + "15", color: C.blue },
+    amber: { bg: C.warning + "15", color: C.warning },
+    green: { bg: C.success + "15", color: C.success },
+    red:   { bg: C.error + "15", color: C.error },
   }
   const bc = badge && badgeColor ? badgeColors[badgeColor] : null
 
@@ -33,7 +48,7 @@ function HubCard({
     <div
       onClick={() => { window.location.href = href }}
       style={{
-        background: "var(--bg-component, #f8f7f6)",
+        background: `var(--bg-component, ${C.card})`,
         border: "1px solid rgba(0,0,0,0.08)",
         borderRadius: 10,
         padding: 20,
@@ -43,7 +58,7 @@ function HubCard({
       }}
       onMouseEnter={(e) => {
         ;(e.currentTarget as HTMLDivElement).style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)"
-        ;(e.currentTarget as HTMLDivElement).style.borderColor = "#1f2937"
+        ;(e.currentTarget as HTMLDivElement).style.borderColor = C.text
       }}
       onMouseLeave={(e) => {
         ;(e.currentTarget as HTMLDivElement).style.boxShadow = "none"
@@ -62,11 +77,11 @@ function HubCard({
       )}
       <div style={{ fontSize: 24, marginBottom: 12 }}>{icon}</div>
       <div style={{ fontSize: 15, fontWeight: 700, color: "inherit", marginBottom: 4 }}>{title}</div>
-      <div style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.5, marginBottom: 12 }}>{description}</div>
-      <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 14 }}>{meta}</div>
+      <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, marginBottom: 12 }}>{description}</div>
+      <div style={{ fontSize: 11, color: C.muted, marginBottom: 14 }}>{meta}</div>
       <button style={{
         display: "inline-flex", alignItems: "center", gap: 4,
-        background: "transparent", color: "#1f2937",
+        background: "transparent", color: C.text,
         border: "none", borderRadius: 5,
         padding: "5px 12px", fontSize: 12, fontWeight: 500, cursor: "pointer",
       }}>
@@ -83,11 +98,11 @@ function MarketingHub() {
   return (
     <div style={{ padding: "32px 36px", maxWidth: 900, fontFamily: "var(--font-sans, system-ui, sans-serif)" }}>
       {/* Header */}
-      <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 20 }}>Admin</div>
+      <div style={{ fontSize: 12, color: C.muted, marginBottom: 20 }}>Admin</div>
       <div style={{ fontSize: 24, fontWeight: 800, color: "inherit", marginBottom: 4 }}>
         📢 Marketing
       </div>
-      <div style={{ fontSize: 14, color: "#6b7280", marginBottom: 28 }}>
+      <div style={{ fontSize: 14, color: C.muted, marginBottom: 28 }}>
         Campaigns, email templates, CRM contacts, content blocks, and gallery management
       </div>
 
@@ -100,19 +115,19 @@ function MarketingHub() {
           { num: "9", label: "Gallery Sections", sub: "active media" },
         ].map((s, i) => (
           <div key={i} style={{
-            background: "var(--bg-component, #f8f7f6)", border: "1px solid rgba(0,0,0,0.08)",
+            background: `var(--bg-component, ${C.card})`, border: "1px solid rgba(0,0,0,0.08)",
             borderRadius: 8, padding: "10px 16px",
           }}>
             <div style={{ fontSize: 20, fontWeight: 800, color: "inherit" }}>{s.num}</div>
-            <div style={{ fontSize: 11, color: "#6b7280" }}>{s.label}</div>
-            {s.sub && <div style={{ fontSize: 10, color: "#6b7280" }}>{s.sub}</div>}
+            <div style={{ fontSize: 11, color: C.muted }}>{s.label}</div>
+            {s.sub && <div style={{ fontSize: 10, color: C.muted }}>{s.sub}</div>}
           </div>
         ))}
       </div>
 
       {/* Section heading */}
       <div style={{
-        fontSize: 11, fontWeight: 700, color: "#6b7280",
+        fontSize: 11, fontWeight: 700, color: C.muted,
         textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 12,
       }}>
         Sections

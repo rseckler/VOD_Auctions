@@ -171,28 +171,28 @@ type SavedAddress = {
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const COLORS = {
-  bg: "#ffffff",
-  card: "#f9fafb",
-  text: "#1f2937",
-  muted: "#6b7280",
-  gold: "#d4a54a",
-  border: "#e5e7eb",
-  hover: "#f3f4f6",
-  success: "#22c55e",
-  error: "#ef4444",
-  blue: "#3b82f6",
-  purple: "#a855f7",
-  orange: "#f97316",
+const C = {
+  bg: "transparent",
+  card: "#f8f7f6",
+  text: "#1a1714",
+  muted: "#78716c",
+  gold: "#b8860b",
+  border: "#e7e5e4",
+  hover: "#f5f4f3",
+  success: "#16a34a",
+  error: "#dc2626",
+  blue: "#2563eb",
+  purple: "#7c3aed",
+  warning: "#d97706",
 }
 
 const SEGMENT_COLORS: Record<string, string> = {
-  registered: COLORS.blue,
-  bidder: COLORS.orange,
-  buyer: COLORS.success,
-  vip: COLORS.gold,
-  imported: COLORS.muted,
-  unknown: COLORS.muted,
+  registered: C.blue,
+  bidder: C.warning,
+  buyer: C.success,
+  vip: C.gold,
+  imported: C.muted,
+  unknown: C.muted,
 }
 
 const PRESET_TAGS = [
@@ -243,8 +243,8 @@ const SegmentBadge = ({ segment }: { segment: string }) => (
       borderRadius: "4px",
       fontSize: "11px",
       fontWeight: 600,
-      background: (SEGMENT_COLORS[segment] || COLORS.muted) + "20",
-      color: SEGMENT_COLORS[segment] || COLORS.muted,
+      background: (SEGMENT_COLORS[segment] || C.muted) + "20",
+      color: SEGMENT_COLORS[segment] || C.muted,
       textTransform: "capitalize" as const,
     }}
   >
@@ -261,16 +261,16 @@ const PlatformBadge = ({ platform }: { platform: string }) => (
       fontWeight: 600,
       background:
         platform === "vod-auctions"
-          ? COLORS.gold + "20"
+          ? C.gold + "20"
           : platform === "tape-mag"
-            ? COLORS.purple + "20"
-            : COLORS.muted + "20",
+            ? C.purple + "20"
+            : C.muted + "20",
       color:
         platform === "vod-auctions"
-          ? COLORS.gold
+          ? C.gold
           : platform === "tape-mag"
-            ? COLORS.purple
-            : COLORS.muted,
+            ? C.purple
+            : C.muted,
     }}
   >
     {platform}
@@ -741,8 +741,8 @@ function CustomerDetailDrawer({
     right: 0,
     bottom: 0,
     width: "min(540px, 100vw)",
-    background: COLORS.card,
-    borderLeft: `1px solid ${COLORS.border}`,
+    background: C.card,
+    borderLeft: `1px solid ${C.border}`,
     zIndex: 1000,
     transform: isOpen ? "translateX(0)" : "translateX(100%)",
     transition: "transform 0.25s ease",
@@ -755,11 +755,11 @@ function CustomerDetailDrawer({
     padding: "8px 12px",
     fontSize: "13px",
     fontWeight: active ? 600 : 400,
-    color: active ? COLORS.gold : COLORS.muted,
+    color: active ? C.gold : C.muted,
     cursor: "pointer",
     background: "none",
     border: "none",
-    borderBottomColor: active ? COLORS.gold : "transparent",
+    borderBottomColor: active ? C.gold : "transparent",
     borderBottomWidth: "2px",
     borderBottomStyle: "solid",
   })
@@ -770,25 +770,25 @@ function CustomerDetailDrawer({
     fontSize: "12px",
     fontWeight: 500,
     cursor: "pointer",
-    border: `1px solid ${COLORS.border}`,
-    background: COLORS.bg,
-    color: COLORS.text,
+    border: `1px solid ${C.border}`,
+    background: C.bg,
+    color: C.text,
   }
 
   const inputStyle: React.CSSProperties = {
     width: "100%",
     padding: "6px 10px",
     borderRadius: "5px",
-    border: `1px solid ${COLORS.border}`,
-    background: COLORS.bg,
-    color: COLORS.text,
+    border: `1px solid ${C.border}`,
+    background: C.bg,
+    color: C.text,
     fontSize: "13px",
     outline: "none",
   }
 
   const sectionLabelStyle: React.CSSProperties = {
     fontSize: "11px",
-    color: COLORS.muted,
+    color: C.muted,
     textTransform: "uppercase",
     letterSpacing: "0.05em",
     marginBottom: "8px",
@@ -798,39 +798,39 @@ function CustomerDetailDrawer({
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
         <div>
-          <label style={{ fontSize: "11px", color: COLORS.muted, display: "block", marginBottom: "3px" }}>First Name</label>
+          <label style={{ fontSize: "11px", color: C.muted, display: "block", marginBottom: "3px" }}>First Name</label>
           <input style={inputStyle} value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} />
         </div>
         <div>
-          <label style={{ fontSize: "11px", color: COLORS.muted, display: "block", marginBottom: "3px" }}>Last Name</label>
+          <label style={{ fontSize: "11px", color: C.muted, display: "block", marginBottom: "3px" }}>Last Name</label>
           <input style={inputStyle} value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} />
         </div>
       </div>
       <div>
-        <label style={{ fontSize: "11px", color: COLORS.muted, display: "block", marginBottom: "3px" }}>Address Line 1 *</label>
+        <label style={{ fontSize: "11px", color: C.muted, display: "block", marginBottom: "3px" }}>Address Line 1 *</label>
         <input style={inputStyle} value={form.address_1} onChange={(e) => setForm({ ...form, address_1: e.target.value })} />
       </div>
       <div>
-        <label style={{ fontSize: "11px", color: COLORS.muted, display: "block", marginBottom: "3px" }}>Address Line 2</label>
+        <label style={{ fontSize: "11px", color: C.muted, display: "block", marginBottom: "3px" }}>Address Line 2</label>
         <input style={inputStyle} value={form.address_2} onChange={(e) => setForm({ ...form, address_2: e.target.value })} />
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
         <div>
-          <label style={{ fontSize: "11px", color: COLORS.muted, display: "block", marginBottom: "3px" }}>City *</label>
+          <label style={{ fontSize: "11px", color: C.muted, display: "block", marginBottom: "3px" }}>City *</label>
           <input style={inputStyle} value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
         </div>
         <div>
-          <label style={{ fontSize: "11px", color: COLORS.muted, display: "block", marginBottom: "3px" }}>Postal Code *</label>
+          <label style={{ fontSize: "11px", color: C.muted, display: "block", marginBottom: "3px" }}>Postal Code *</label>
           <input style={inputStyle} value={form.postal_code} onChange={(e) => setForm({ ...form, postal_code: e.target.value })} />
         </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
         <div>
-          <label style={{ fontSize: "11px", color: COLORS.muted, display: "block", marginBottom: "3px" }}>Country Code *</label>
+          <label style={{ fontSize: "11px", color: C.muted, display: "block", marginBottom: "3px" }}>Country Code *</label>
           <input style={inputStyle} value={form.country_code} onChange={(e) => setForm({ ...form, country_code: e.target.value })} placeholder="DE" />
         </div>
         <div>
-          <label style={{ fontSize: "11px", color: COLORS.muted, display: "block", marginBottom: "3px" }}>Phone</label>
+          <label style={{ fontSize: "11px", color: C.muted, display: "block", marginBottom: "3px" }}>Phone</label>
           <input style={inputStyle} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
         </div>
       </div>
@@ -845,7 +845,7 @@ function CustomerDetailDrawer({
         <div
           style={{
             padding: "20px 24px 16px",
-            borderBottom: `1px solid ${COLORS.border}`,
+            borderBottom: `1px solid ${C.border}`,
             display: "flex",
             justifyContent: "space-between",
             alignItems: "flex-start",
@@ -853,33 +853,33 @@ function CustomerDetailDrawer({
         >
           <div style={{ flex: 1 }}>
             {loading ? (
-              <div style={{ color: COLORS.muted, fontSize: "14px" }}>Loading...</div>
+              <div style={{ color: C.muted, fontSize: "14px" }}>Loading...</div>
             ) : c ? (
               <>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px", flexWrap: "wrap" }}>
-                  <h2 style={{ fontSize: "18px", fontWeight: 700, color: COLORS.text, margin: 0 }}>
+                  <h2 style={{ fontSize: "18px", fontWeight: 700, color: C.text, margin: 0 }}>
                     {c.name}
                   </h2>
                   {c.is_vip && (
-                    <span style={{ padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: 700, background: COLORS.gold + "20", color: COLORS.gold }}>
+                    <span style={{ padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: 700, background: C.gold + "20", color: C.gold }}>
                       VIP
                     </span>
                   )}
                   {c.is_dormant && (
-                    <span style={{ padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: 600, background: COLORS.muted + "20", color: COLORS.muted }}>
+                    <span style={{ padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: 600, background: C.muted + "20", color: C.muted }}>
                       Dormant
                     </span>
                   )}
                   {isBlocked && (
-                    <span style={{ padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: 600, background: COLORS.error + "20", color: COLORS.error }}>
+                    <span style={{ padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: 600, background: C.error + "20", color: C.error }}>
                       Blocked
                     </span>
                   )}
                 </div>
-                <div style={{ fontSize: "13px", color: COLORS.muted, fontFamily: "monospace" }}>
+                <div style={{ fontSize: "13px", color: C.muted, fontFamily: "monospace" }}>
                   {c.email}
                 </div>
-                <div style={{ fontSize: "12px", color: COLORS.muted, marginTop: "4px" }}>
+                <div style={{ fontSize: "12px", color: C.muted, marginTop: "4px" }}>
                   Customer since {formatDate(c.created_at)}
                 </div>
                 {/* Action buttons row */}
@@ -890,9 +890,9 @@ function CustomerDetailDrawer({
                     disabled={blockLoading}
                     style={{
                       ...smallBtnStyle,
-                      background: isBlocked ? COLORS.error + "20" : COLORS.bg,
-                      borderColor: isBlocked ? COLORS.error : COLORS.border,
-                      color: isBlocked ? COLORS.error : COLORS.muted,
+                      background: isBlocked ? C.error + "20" : C.bg,
+                      borderColor: isBlocked ? C.error : C.border,
+                      color: isBlocked ? C.error : C.muted,
                     }}
                   >
                     {blockLoading ? "..." : isBlocked ? "Unblock" : "Block"}
@@ -906,7 +906,7 @@ function CustomerDetailDrawer({
             style={{
               background: "none",
               border: "none",
-              color: COLORS.muted,
+              color: C.muted,
               cursor: "pointer",
               fontSize: "20px",
               lineHeight: 1,
@@ -924,8 +924,8 @@ function CustomerDetailDrawer({
               display: "grid",
               gridTemplateColumns: "repeat(4, 1fr)",
               gap: "1px",
-              background: COLORS.border,
-              borderBottom: `1px solid ${COLORS.border}`,
+              background: C.border,
+              borderBottom: `1px solid ${C.border}`,
             }}
           >
             {[
@@ -937,15 +937,15 @@ function CustomerDetailDrawer({
               <div
                 key={kpi.label}
                 style={{
-                  background: COLORS.card,
+                  background: C.card,
                   padding: "12px 16px",
                   textAlign: "center",
                 }}
               >
-                <div style={{ fontSize: "18px", fontWeight: 700, color: COLORS.gold }}>
+                <div style={{ fontSize: "18px", fontWeight: 700, color: C.gold }}>
                   {kpi.value}
                 </div>
-                <div style={{ fontSize: "11px", color: COLORS.muted, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                <div style={{ fontSize: "11px", color: C.muted, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                   {kpi.label}
                 </div>
               </div>
@@ -955,7 +955,7 @@ function CustomerDetailDrawer({
 
         {/* Drawer Tabs */}
         {c && (
-          <div style={{ borderBottom: `1px solid ${COLORS.border}`, display: "flex", gap: "0", overflowX: "auto" }}>
+          <div style={{ borderBottom: `1px solid ${C.border}`, display: "flex", gap: "0", overflowX: "auto" }}>
             <button style={drawerTabStyle(drawerTab === "overview")} onClick={() => setDrawerTab("overview")}>Overview</button>
             <button style={drawerTabStyle(drawerTab === "orders")} onClick={() => setDrawerTab("orders")}>
               Orders ({data?.orders.length || 0})
@@ -970,7 +970,7 @@ function CustomerDetailDrawer({
 
         {/* Content */}
         <div style={{ flex: 1, padding: "20px 24px", overflowY: "auto" }}>
-          {loading && <div style={{ color: COLORS.muted }}>Loading customer data...</div>}
+          {loading && <div style={{ color: C.muted }}>Loading customer data...</div>}
 
           {/* Overview Tab */}
           {!loading && c && drawerTab === "overview" && (
@@ -978,32 +978,32 @@ function CustomerDetailDrawer({
 
               {/* Edit Form (inline) */}
               {isEditing && (
-                <div style={{ padding: "16px", background: COLORS.bg, borderRadius: "6px", border: `1px solid ${COLORS.border}` }}>
+                <div style={{ padding: "16px", background: C.bg, borderRadius: "6px", border: `1px solid ${C.border}` }}>
                   <div style={sectionLabelStyle}>Edit Customer</div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
                     <div>
-                      <label style={{ fontSize: "11px", color: COLORS.muted, display: "block", marginBottom: "4px" }}>First Name</label>
+                      <label style={{ fontSize: "11px", color: C.muted, display: "block", marginBottom: "4px" }}>First Name</label>
                       <input style={inputStyle} value={editForm.first_name} onChange={(e) => setEditForm({ ...editForm, first_name: e.target.value })} />
                     </div>
                     <div>
-                      <label style={{ fontSize: "11px", color: COLORS.muted, display: "block", marginBottom: "4px" }}>Last Name</label>
+                      <label style={{ fontSize: "11px", color: C.muted, display: "block", marginBottom: "4px" }}>Last Name</label>
                       <input style={inputStyle} value={editForm.last_name} onChange={(e) => setEditForm({ ...editForm, last_name: e.target.value })} />
                     </div>
                   </div>
                   <div style={{ marginBottom: "10px" }}>
-                    <label style={{ fontSize: "11px", color: COLORS.muted, display: "block", marginBottom: "4px" }}>Email</label>
+                    <label style={{ fontSize: "11px", color: C.muted, display: "block", marginBottom: "4px" }}>Email</label>
                     <input style={inputStyle} value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
                   </div>
                   <div style={{ marginBottom: "12px" }}>
-                    <label style={{ fontSize: "11px", color: COLORS.muted, display: "block", marginBottom: "4px" }}>Phone</label>
+                    <label style={{ fontSize: "11px", color: C.muted, display: "block", marginBottom: "4px" }}>Phone</label>
                     <input style={inputStyle} value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />
                   </div>
-                  {editError && <div style={{ fontSize: "12px", color: COLORS.error, marginBottom: "8px" }}>{editError}</div>}
+                  {editError && <div style={{ fontSize: "12px", color: C.error, marginBottom: "8px" }}>{editError}</div>}
                   <div style={{ display: "flex", gap: "8px" }}>
                     <button
                       onClick={saveEdit}
                       disabled={editSaving}
-                      style={{ ...smallBtnStyle, background: COLORS.gold, color: COLORS.bg, borderColor: COLORS.gold, fontWeight: 600 }}
+                      style={{ ...smallBtnStyle, background: C.gold, color: C.bg, borderColor: C.gold, fontWeight: 600 }}
                     >
                       {editSaving ? "Saving..." : "Save"}
                     </button>
@@ -1023,9 +1023,9 @@ function CustomerDetailDrawer({
                         padding: "3px 8px",
                         borderRadius: "12px",
                         fontSize: "12px",
-                        border: `1px solid ${COLORS.gold}40`,
-                        background: COLORS.gold + "15",
-                        color: COLORS.gold,
+                        border: `1px solid ${C.gold}40`,
+                        background: C.gold + "15",
+                        color: C.gold,
                         display: "inline-flex",
                         alignItems: "center",
                         gap: "4px",
@@ -1054,8 +1054,8 @@ function CustomerDetailDrawer({
                         top: "100%",
                         left: 0,
                         marginTop: "4px",
-                        background: COLORS.card,
-                        border: `1px solid ${COLORS.border}`,
+                        background: C.card,
+                        border: `1px solid ${C.border}`,
                         borderRadius: "6px",
                         padding: "6px",
                         zIndex: 10,
@@ -1071,15 +1071,15 @@ function CustomerDetailDrawer({
                               fontSize: "12px",
                               cursor: "pointer",
                               borderRadius: "4px",
-                              color: COLORS.text,
+                              color: C.text,
                             }}
-                            onMouseEnter={(e) => (e.currentTarget.style.background = COLORS.hover)}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = C.hover)}
                             onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                           >
                             {tag}
                           </div>
                         ))}
-                        <div style={{ borderTop: `1px solid ${COLORS.border}`, marginTop: "4px", paddingTop: "6px", display: "flex", gap: "4px" }}>
+                        <div style={{ borderTop: `1px solid ${C.border}`, marginTop: "4px", paddingTop: "6px", display: "flex", gap: "4px" }}>
                           <input
                             style={{ ...inputStyle, flex: 1, fontSize: "12px", padding: "4px 8px" }}
                             placeholder="Custom tag..."
@@ -1106,12 +1106,12 @@ function CustomerDetailDrawer({
                 </div>
                 {/* VIP / Dormant toggles */}
                 <div style={{ display: "flex", gap: "16px", marginTop: "10px" }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: COLORS.muted, cursor: "pointer" }}>
-                    <input type="checkbox" checked={c.is_vip} onChange={toggleVip} style={{ accentColor: COLORS.gold }} />
+                  <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: C.muted, cursor: "pointer" }}>
+                    <input type="checkbox" checked={c.is_vip} onChange={toggleVip} style={{ accentColor: C.gold }} />
                     VIP
                   </label>
-                  <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: COLORS.muted, cursor: "pointer" }}>
-                    <input type="checkbox" checked={c.is_dormant} onChange={toggleDormant} style={{ accentColor: COLORS.muted }} />
+                  <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: C.muted, cursor: "pointer" }}>
+                    <input type="checkbox" checked={c.is_dormant} onChange={toggleDormant} style={{ accentColor: C.muted }} />
                     Dormant
                   </label>
                 </div>
@@ -1128,8 +1128,8 @@ function CustomerDetailDrawer({
                     { label: "Last Bid", value: formatDateTime(c.last_bid_at) },
                   ].map((row) => (
                     <div key={row.label} style={{ display: "flex", justifyContent: "space-between", fontSize: "13px" }}>
-                      <span style={{ color: COLORS.muted }}>{row.label}</span>
-                      <span style={{ color: COLORS.text }}>{row.value}</span>
+                      <span style={{ color: C.muted }}>{row.label}</span>
+                      <span style={{ color: C.text }}>{row.value}</span>
                     </div>
                   ))}
                 </div>
@@ -1151,13 +1151,13 @@ function CustomerDetailDrawer({
 
                 {/* Add Address Form */}
                 {showAddAddressForm && (
-                  <div style={{ padding: "12px", background: COLORS.bg, borderRadius: "6px", border: `1px solid ${COLORS.gold}40`, marginBottom: "8px" }}>
+                  <div style={{ padding: "12px", background: C.bg, borderRadius: "6px", border: `1px solid ${C.gold}40`, marginBottom: "8px" }}>
                     {addressFormFields(addressForm, setAddressForm)}
                     <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
                       <button
                         onClick={saveNewAddress}
                         disabled={addressSaving || !addressForm.address_1 || !addressForm.city || !addressForm.postal_code || !addressForm.country_code}
-                        style={{ ...smallBtnStyle, background: COLORS.gold, color: COLORS.bg, borderColor: COLORS.gold, fontWeight: 600 }}
+                        style={{ ...smallBtnStyle, background: C.gold, color: C.bg, borderColor: C.gold, fontWeight: 600 }}
                       >
                         {addressSaving ? "Saving..." : "Save"}
                       </button>
@@ -1167,16 +1167,16 @@ function CustomerDetailDrawer({
                 )}
 
                 {savedAddressesLoading ? (
-                  <div style={{ color: COLORS.muted, fontSize: "12px" }}>Loading...</div>
+                  <div style={{ color: C.muted, fontSize: "12px" }}>Loading...</div>
                 ) : savedAddresses.length === 0 && !showAddAddressForm ? (
-                  <div style={{ color: COLORS.muted, fontSize: "12px" }}>No saved addresses.</div>
+                  <div style={{ color: C.muted, fontSize: "12px" }}>No saved addresses.</div>
                 ) : (
                   savedAddresses.map((addr) => (
                     <div
                       key={addr.id}
                       style={{
                         padding: "10px 12px",
-                        background: COLORS.bg,
+                        background: C.bg,
                         borderRadius: "6px",
                         marginBottom: "8px",
                         fontSize: "12px",
@@ -1190,7 +1190,7 @@ function CustomerDetailDrawer({
                             <button
                               onClick={saveEditAddress}
                               disabled={addressSaving}
-                              style={{ ...smallBtnStyle, background: COLORS.gold, color: COLORS.bg, borderColor: COLORS.gold, fontWeight: 600 }}
+                              style={{ ...smallBtnStyle, background: C.gold, color: C.bg, borderColor: C.gold, fontWeight: 600 }}
                             >
                               {addressSaving ? "Saving..." : "Save"}
                             </button>
@@ -1202,18 +1202,18 @@ function CustomerDetailDrawer({
                           <div style={{ fontWeight: 500 }}>
                             {[addr.first_name, addr.last_name].filter(Boolean).join(" ") || "\u2014"}
                           </div>
-                          <div style={{ color: COLORS.muted }}>
+                          <div style={{ color: C.muted }}>
                             {[addr.address_1, addr.address_2].filter(Boolean).join(", ")}
                           </div>
-                          <div style={{ color: COLORS.muted }}>
+                          <div style={{ color: C.muted }}>
                             {[addr.postal_code, addr.city, addr.country_code].filter(Boolean).join(" ")}
                           </div>
-                          {addr.phone && <div style={{ color: COLORS.muted }}>{addr.phone}</div>}
+                          {addr.phone && <div style={{ color: C.muted }}>{addr.phone}</div>}
                           <div style={{ display: "flex", gap: "8px", marginTop: "6px" }}>
                             <button onClick={() => startEditAddress(addr)} style={{ ...smallBtnStyle, fontSize: "11px", padding: "2px 8px" }}>Edit</button>
                             <button
                               onClick={() => deleteSavedAddress(addr.id)}
-                              style={{ ...smallBtnStyle, fontSize: "11px", padding: "2px 8px", color: COLORS.error, borderColor: COLORS.error + "60" }}
+                              style={{ ...smallBtnStyle, fontSize: "11px", padding: "2px 8px", color: C.error, borderColor: C.error + "60" }}
                             >
                               Delete
                             </button>
@@ -1234,7 +1234,7 @@ function CustomerDetailDrawer({
                       key={i}
                       style={{
                         padding: "10px 12px",
-                        background: COLORS.bg,
+                        background: C.bg,
                         borderRadius: "6px",
                         marginBottom: "8px",
                         fontSize: "12px",
@@ -1242,10 +1242,10 @@ function CustomerDetailDrawer({
                       }}
                     >
                       <div style={{ fontWeight: 500 }}>{addr.shipping_name}</div>
-                      <div style={{ color: COLORS.muted }}>
+                      <div style={{ color: C.muted }}>
                         {[addr.shipping_address_line1, addr.shipping_address_line2].filter(Boolean).join(", ")}
                       </div>
-                      <div style={{ color: COLORS.muted }}>
+                      <div style={{ color: C.muted }}>
                         {[addr.shipping_postal_code, addr.shipping_city, addr.shipping_country].filter(Boolean).join(" ")}
                       </div>
                     </div>
@@ -1272,7 +1272,7 @@ function CustomerDetailDrawer({
                   >
                     {brevoStatus === "loading" ? "Syncing..." : brevoStatus === "synced" ? "Synced \u2713" : "Sync to Brevo"}
                   </button>
-                  {brevoStatus === "error" && <span style={{ fontSize: "12px", color: COLORS.error }}>Sync failed</span>}
+                  {brevoStatus === "error" && <span style={{ fontSize: "12px", color: C.error }}>Sync failed</span>}
                 </div>
               </div>
 
@@ -1287,14 +1287,14 @@ function CustomerDetailDrawer({
                   >
                     {resetStatus === "loading" ? "Sending..." : "Send Password Reset"}
                   </button>
-                  {resetStatus === "success" && <span style={{ fontSize: "12px", color: COLORS.success }}>{resetMessage}</span>}
-                  {resetStatus === "error" && <span style={{ fontSize: "12px", color: COLORS.error }}>{resetMessage}</span>}
+                  {resetStatus === "success" && <span style={{ fontSize: "12px", color: C.success }}>{resetMessage}</span>}
+                  {resetStatus === "error" && <span style={{ fontSize: "12px", color: C.error }}>{resetMessage}</span>}
                 </div>
               </div>
 
               {/* Stats freshness */}
               {c.stats_updated_at && (
-                <div style={{ fontSize: "11px", color: COLORS.muted, marginTop: "8px" }}>
+                <div style={{ fontSize: "11px", color: C.muted, marginTop: "8px" }}>
                   Stats last updated: {formatDateTime(c.stats_updated_at)}
                 </div>
               )}
@@ -1303,20 +1303,20 @@ function CustomerDetailDrawer({
               <div style={{
                 marginTop: "8px",
                 padding: "16px",
-                border: `1px solid ${COLORS.error}40`,
+                border: `1px solid ${C.error}40`,
                 borderRadius: "6px",
-                background: COLORS.error + "08",
+                background: C.error + "08",
               }}>
-                <div style={{ ...sectionLabelStyle, color: COLORS.error }}>Danger Zone</div>
+                <div style={{ ...sectionLabelStyle, color: C.error }}>Danger Zone</div>
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                   <button
                     onClick={handleAnonymize}
                     disabled={anonymizeLoading}
                     style={{
                       ...smallBtnStyle,
-                      borderColor: COLORS.error,
-                      color: COLORS.error,
-                      background: COLORS.error + "10",
+                      borderColor: C.error,
+                      color: C.error,
+                      background: C.error + "10",
                     }}
                   >
                     {anonymizeLoading ? "Processing..." : "Anonymize Customer (GDPR)"}
@@ -1326,9 +1326,9 @@ function CustomerDetailDrawer({
                     disabled={deleteLoading}
                     style={{
                       ...smallBtnStyle,
-                      borderColor: COLORS.error,
+                      borderColor: C.error,
                       color: "#fff",
-                      background: COLORS.error,
+                      background: C.error,
                       fontWeight: 600,
                     }}
                   >
@@ -1341,7 +1341,7 @@ function CustomerDetailDrawer({
                     Admin GDPR Export
                   </button>
                 </div>
-                <div style={{ fontSize: "11px", color: COLORS.muted, marginTop: "8px" }}>
+                <div style={{ fontSize: "11px", color: C.muted, marginTop: "8px" }}>
                   Anonymize: replaces PII with hashes, keeps transactions for accounting. Delete: permanently removes customer and all related data.
                 </div>
               </div>
@@ -1352,7 +1352,7 @@ function CustomerDetailDrawer({
           {!loading && c && drawerTab === "orders" && (
             <div>
               {data?.orders.length === 0 ? (
-                <div style={{ color: COLORS.muted, textAlign: "center", padding: "20px 0" }}>No orders yet.</div>
+                <div style={{ color: C.muted, textAlign: "center", padding: "20px 0" }}>No orders yet.</div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                   {data?.orders.map((order) => (
@@ -1360,16 +1360,16 @@ function CustomerDetailDrawer({
                       key={order.id}
                       style={{
                         padding: "12px",
-                        background: COLORS.bg,
+                        background: C.bg,
                         borderRadius: "6px",
                         fontSize: "13px",
                       }}
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                        <span style={{ fontWeight: 600, color: COLORS.gold }}>
+                        <span style={{ fontWeight: 600, color: C.gold }}>
                           {order.order_number || order.id.slice(-8)}
                         </span>
-                        <span style={{ color: COLORS.gold, fontWeight: 600 }}>
+                        <span style={{ color: C.gold, fontWeight: 600 }}>
                           {formatPrice(order.amount)}
                         </span>
                       </div>
@@ -1379,8 +1379,8 @@ function CustomerDetailDrawer({
                             padding: "1px 6px",
                             borderRadius: "4px",
                             fontSize: "11px",
-                            background: order.status === "paid" ? COLORS.success + "20" : COLORS.muted + "20",
-                            color: order.status === "paid" ? COLORS.success : COLORS.muted,
+                            background: order.status === "paid" ? C.success + "20" : C.muted + "20",
+                            color: order.status === "paid" ? C.success : C.muted,
                           }}
                         >
                           {order.status}
@@ -1390,20 +1390,20 @@ function CustomerDetailDrawer({
                             padding: "1px 6px",
                             borderRadius: "4px",
                             fontSize: "11px",
-                            background: COLORS.blue + "20",
-                            color: COLORS.blue,
+                            background: C.blue + "20",
+                            color: C.blue,
                           }}
                         >
                           {order.fulfillment_status}
                         </span>
-                        <span style={{ fontSize: "11px", color: COLORS.muted }}>{order.payment_provider}</span>
+                        <span style={{ fontSize: "11px", color: C.muted }}>{order.payment_provider}</span>
                       </div>
                       {order.auction_title && (
-                        <div style={{ fontSize: "11px", color: COLORS.muted, marginTop: "4px" }}>
+                        <div style={{ fontSize: "11px", color: C.muted, marginTop: "4px" }}>
                           {order.auction_title}{order.lot_number ? ` \u00B7 Lot #${order.lot_number}` : ""}
                         </div>
                       )}
-                      <div style={{ fontSize: "11px", color: COLORS.muted, marginTop: "4px" }}>
+                      <div style={{ fontSize: "11px", color: C.muted, marginTop: "4px" }}>
                         {formatDate(order.created_at)}
                         {order.shipping_country ? ` \u00B7 ${order.shipping_country}` : ""}
                       </div>
@@ -1418,7 +1418,7 @@ function CustomerDetailDrawer({
           {!loading && c && drawerTab === "bids" && (
             <div>
               {data?.bids.length === 0 ? (
-                <div style={{ color: COLORS.muted, textAlign: "center", padding: "20px 0" }}>No bids yet.</div>
+                <div style={{ color: C.muted, textAlign: "center", padding: "20px 0" }}>No bids yet.</div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                   {data?.bids.map((bid) => (
@@ -1426,7 +1426,7 @@ function CustomerDetailDrawer({
                       key={bid.id}
                       style={{
                         padding: "10px 12px",
-                        background: COLORS.bg,
+                        background: C.bg,
                         borderRadius: "6px",
                         fontSize: "13px",
                         display: "flex",
@@ -1435,16 +1435,16 @@ function CustomerDetailDrawer({
                       }}
                     >
                       <div>
-                        <div style={{ fontSize: "12px", color: COLORS.muted }}>
+                        <div style={{ fontSize: "12px", color: C.muted }}>
                           {bid.auction_title}{bid.lot_number ? ` \u00B7 Lot #${bid.lot_number}` : ""}
                         </div>
-                        <div style={{ fontSize: "11px", color: COLORS.muted }}>{formatDate(bid.created_at)}</div>
+                        <div style={{ fontSize: "11px", color: C.muted }}>{formatDate(bid.created_at)}</div>
                       </div>
                       <div style={{ textAlign: "right" }}>
-                        <div style={{ fontWeight: 600, color: bid.is_winning ? COLORS.success : COLORS.text }}>
+                        <div style={{ fontWeight: 600, color: bid.is_winning ? C.success : C.text }}>
                           {formatPrice(bid.amount)}
                         </div>
-                        <div style={{ fontSize: "11px", color: bid.is_winning ? COLORS.success : bid.is_outbid ? COLORS.error : COLORS.muted }}>
+                        <div style={{ fontSize: "11px", color: bid.is_winning ? C.success : bid.is_outbid ? C.error : C.muted }}>
                           {bid.is_winning ? "Winning" : bid.is_outbid ? "Outbid" : "Active"}
                         </div>
                       </div>
@@ -1478,9 +1478,9 @@ function CustomerDetailDrawer({
                   disabled={noteSubmitting || !noteBody.trim()}
                   style={{
                     ...smallBtnStyle,
-                    background: noteBody.trim() ? COLORS.gold : COLORS.bg,
-                    color: noteBody.trim() ? COLORS.bg : COLORS.muted,
-                    borderColor: noteBody.trim() ? COLORS.gold : COLORS.border,
+                    background: noteBody.trim() ? C.gold : C.bg,
+                    color: noteBody.trim() ? C.bg : C.muted,
+                    borderColor: noteBody.trim() ? C.gold : C.border,
                     fontWeight: 600,
                   }}
                 >
@@ -1490,9 +1490,9 @@ function CustomerDetailDrawer({
 
               {/* Notes list */}
               {notesLoading ? (
-                <div style={{ color: COLORS.muted }}>Loading...</div>
+                <div style={{ color: C.muted }}>Loading...</div>
               ) : notes.length === 0 ? (
-                <div style={{ color: COLORS.muted, textAlign: "center", padding: "20px 0" }}>No internal notes yet.</div>
+                <div style={{ color: C.muted, textAlign: "center", padding: "20px 0" }}>No internal notes yet.</div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                   {notes.map((note) => (
@@ -1500,26 +1500,26 @@ function CustomerDetailDrawer({
                       key={note.id}
                       style={{
                         padding: "12px",
-                        background: COLORS.bg,
+                        background: C.bg,
                         borderRadius: "6px",
                         fontSize: "13px",
                       }}
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
                         <div>
-                          <span style={{ fontWeight: 500, color: COLORS.text, fontSize: "12px" }}>{note.author_email}</span>
-                          <span style={{ color: COLORS.muted, fontSize: "11px", marginLeft: "8px" }}>{formatDateTime(note.created_at)}</span>
+                          <span style={{ fontWeight: 500, color: C.text, fontSize: "12px" }}>{note.author_email}</span>
+                          <span style={{ color: C.muted, fontSize: "11px", marginLeft: "8px" }}>{formatDateTime(note.created_at)}</span>
                         </div>
                         <span
                           onClick={() => deleteNote(note.id)}
-                          style={{ color: COLORS.muted, cursor: "pointer", fontSize: "11px" }}
-                          onMouseEnter={(e) => (e.currentTarget.style.color = COLORS.error)}
-                          onMouseLeave={(e) => (e.currentTarget.style.color = COLORS.muted)}
+                          style={{ color: C.muted, cursor: "pointer", fontSize: "11px" }}
+                          onMouseEnter={(e) => (e.currentTarget.style.color = C.error)}
+                          onMouseLeave={(e) => (e.currentTarget.style.color = C.muted)}
                         >
                           Delete
                         </span>
                       </div>
-                      <div style={{ color: COLORS.text, lineHeight: "1.5", whiteSpace: "pre-wrap" }}>{note.body}</div>
+                      <div style={{ color: C.text, lineHeight: "1.5", whiteSpace: "pre-wrap" }}>{note.body}</div>
                     </div>
                   ))}
                 </div>
@@ -1531,9 +1531,9 @@ function CustomerDetailDrawer({
           {!loading && c && drawerTab === "timeline" && (
             <div>
               {timelineLoading ? (
-                <div style={{ color: COLORS.muted }}>Loading...</div>
+                <div style={{ color: C.muted }}>Loading...</div>
               ) : timeline.length === 0 ? (
-                <div style={{ color: COLORS.muted, textAlign: "center", padding: "20px 0" }}>No activity yet.</div>
+                <div style={{ color: C.muted, textAlign: "center", padding: "20px 0" }}>No activity yet.</div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                   {timeline.map((event, i) => (
@@ -1544,7 +1544,7 @@ function CustomerDetailDrawer({
                         display: "flex",
                         gap: "10px",
                         alignItems: "flex-start",
-                        borderLeft: `2px solid ${COLORS.border}`,
+                        borderLeft: `2px solid ${C.border}`,
                         marginLeft: "8px",
                       }}
                     >
@@ -1552,11 +1552,11 @@ function CustomerDetailDrawer({
                         {TIMELINE_ICONS[event.type] || "\u2022"}
                       </span>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: "13px", fontWeight: 500, color: COLORS.text }}>{event.title}</div>
+                        <div style={{ fontSize: "13px", fontWeight: 500, color: C.text }}>{event.title}</div>
                         {event.description && (
-                          <div style={{ fontSize: "12px", color: COLORS.muted, marginTop: "2px" }}>{event.description}</div>
+                          <div style={{ fontSize: "12px", color: C.muted, marginTop: "2px" }}>{event.description}</div>
                         )}
-                        <div style={{ fontSize: "11px", color: COLORS.muted, marginTop: "4px" }}>
+                        <div style={{ fontSize: "11px", color: C.muted, marginTop: "4px" }}>
                           {formatDateTime(event.timestamp)}
                         </div>
                       </div>
@@ -1669,10 +1669,10 @@ function CustomersListTab({
     textAlign: "left",
     fontSize: "12px",
     fontWeight: 600,
-    color: COLORS.muted,
+    color: C.muted,
     textTransform: "uppercase",
     letterSpacing: "0.05em",
-    borderBottom: `1px solid ${COLORS.border}`,
+    borderBottom: `1px solid ${C.border}`,
     whiteSpace: "nowrap",
     cursor: "pointer",
     userSelect: "none",
@@ -1681,8 +1681,8 @@ function CustomersListTab({
   const tdStyle: React.CSSProperties = {
     padding: "8px 12px",
     fontSize: "13px",
-    color: COLORS.text,
-    borderBottom: `1px solid ${COLORS.border}`,
+    color: C.text,
+    borderBottom: `1px solid ${C.border}`,
     verticalAlign: "middle",
   }
 
@@ -1702,15 +1702,15 @@ function CustomersListTab({
             maxWidth: "360px",
             padding: "8px 12px",
             borderRadius: "6px",
-            border: `1px solid ${COLORS.border}`,
-            background: COLORS.card,
-            color: COLORS.text,
+            border: `1px solid ${C.border}`,
+            background: C.card,
+            color: C.text,
             fontSize: "14px",
             outline: "none",
           }}
         />
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <div style={{ fontSize: "13px", color: COLORS.muted }}>
+          <div style={{ fontSize: "13px", color: C.muted }}>
             {loading ? "Loading..." : `${total.toLocaleString("en-US")} customers`}
           </div>
           <button
@@ -1720,9 +1720,9 @@ function CustomersListTab({
             style={{
               padding: "6px 12px",
               borderRadius: "5px",
-              border: `1px solid ${COLORS.border}`,
-              background: COLORS.card,
-              color: recalcLoading ? COLORS.muted : COLORS.text,
+              border: `1px solid ${C.border}`,
+              background: C.card,
+              color: recalcLoading ? C.muted : C.text,
               fontSize: "12px",
               fontWeight: 500,
               cursor: recalcLoading ? "not-allowed" : "pointer",
@@ -1736,9 +1736,9 @@ function CustomersListTab({
             style={{
               padding: "6px 12px",
               borderRadius: "5px",
-              border: `1px solid ${COLORS.border}`,
-              background: COLORS.card,
-              color: COLORS.text,
+              border: `1px solid ${C.border}`,
+              background: C.card,
+              color: C.text,
               fontSize: "12px",
               fontWeight: 500,
               cursor: "pointer",
@@ -1774,13 +1774,13 @@ function CustomersListTab({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} style={{ ...tdStyle, textAlign: "center", color: COLORS.muted, padding: "32px" }}>
+                <td colSpan={6} style={{ ...tdStyle, textAlign: "center", color: C.muted, padding: "32px" }}>
                   Loading...
                 </td>
               </tr>
             ) : customers.length === 0 ? (
               <tr>
-                <td colSpan={6} style={{ ...tdStyle, textAlign: "center", color: COLORS.muted, padding: "32px" }}>
+                <td colSpan={6} style={{ ...tdStyle, textAlign: "center", color: C.muted, padding: "32px" }}>
                   {q ? "No customers match your search." : "No customers yet."}
                 </td>
               </tr>
@@ -1790,7 +1790,7 @@ function CustomersListTab({
                   key={c.id}
                   onClick={() => onSelectCustomer(c.id)}
                   style={{ cursor: "pointer" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = COLORS.hover)}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = C.hover)}
                   onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                 >
                   <td style={tdStyle}>
@@ -1799,40 +1799,40 @@ function CustomersListTab({
                         <div style={{ fontWeight: 500, display: "flex", alignItems: "center", gap: "6px" }}>
                           {c.name}
                           {c.is_vip && (
-                            <span style={{ padding: "1px 5px", borderRadius: "3px", fontSize: "10px", fontWeight: 700, background: COLORS.gold + "20", color: COLORS.gold }}>
+                            <span style={{ padding: "1px 5px", borderRadius: "3px", fontSize: "10px", fontWeight: 700, background: C.gold + "20", color: C.gold }}>
                               VIP
                             </span>
                           )}
                         </div>
-                        <div style={{ fontSize: "11px", color: COLORS.muted, fontFamily: "monospace" }}>{c.email}</div>
-                        <div style={{ fontSize: "11px", color: COLORS.muted }}>{formatDate(c.created_at)}</div>
+                        <div style={{ fontSize: "11px", color: C.muted, fontFamily: "monospace" }}>{c.email}</div>
+                        <div style={{ fontSize: "11px", color: C.muted }}>{formatDate(c.created_at)}</div>
                       </div>
                     </div>
                   </td>
-                  <td style={{ ...tdStyle, color: COLORS.gold, fontWeight: 600 }}>
+                  <td style={{ ...tdStyle, color: C.gold, fontWeight: 600 }}>
                     {formatPrice(c.total_spent)}
                   </td>
                   <td style={tdStyle}>{c.total_purchases}</td>
                   <td style={tdStyle}>
-                    <span style={{ color: COLORS.text }}>{c.total_bids}</span>
+                    <span style={{ color: C.text }}>{c.total_bids}</span>
                     {c.total_wins > 0 && (
-                      <span style={{ color: COLORS.success, fontSize: "11px", marginLeft: "4px" }}>
+                      <span style={{ color: C.success, fontSize: "11px", marginLeft: "4px" }}>
                         ({c.total_wins}W)
                       </span>
                     )}
                   </td>
-                  <td style={{ ...tdStyle, fontSize: "12px", color: COLORS.muted }}>
+                  <td style={{ ...tdStyle, fontSize: "12px", color: C.muted }}>
                     {formatDate(c.last_purchase_at)}
                   </td>
                   <td style={tdStyle}>
                     <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
                       {c.is_dormant && (
-                        <span style={{ padding: "1px 6px", borderRadius: "4px", fontSize: "10px", background: COLORS.muted + "20", color: COLORS.muted }}>
+                        <span style={{ padding: "1px 6px", borderRadius: "4px", fontSize: "10px", background: C.muted + "20", color: C.muted }}>
                           dormant
                         </span>
                       )}
                       {c.tags?.slice(0, 2).map((tag: string) => (
-                        <span key={tag} style={{ padding: "1px 6px", borderRadius: "4px", fontSize: "10px", background: COLORS.blue + "20", color: COLORS.blue }}>
+                        <span key={tag} style={{ padding: "1px 6px", borderRadius: "4px", fontSize: "10px", background: C.blue + "20", color: C.blue }}>
                           {tag}
                         </span>
                       ))}
@@ -1854,16 +1854,16 @@ function CustomersListTab({
             style={{
               padding: "6px 14px",
               borderRadius: "5px",
-              border: `1px solid ${COLORS.border}`,
-              background: COLORS.card,
-              color: offset === 0 ? COLORS.muted : COLORS.text,
+              border: `1px solid ${C.border}`,
+              background: C.card,
+              color: offset === 0 ? C.muted : C.text,
               cursor: offset === 0 ? "default" : "pointer",
               fontSize: "13px",
             }}
           >
             {"\u2190"} Previous
           </button>
-          <span style={{ fontSize: "13px", color: COLORS.muted, padding: "6px 8px" }}>
+          <span style={{ fontSize: "13px", color: C.muted, padding: "6px 8px" }}>
             {offset + 1}{"\u2013"}{Math.min(offset + limit, total)} of {total}
           </span>
           <button
@@ -1872,9 +1872,9 @@ function CustomersListTab({
             style={{
               padding: "6px 14px",
               borderRadius: "5px",
-              border: `1px solid ${COLORS.border}`,
-              background: COLORS.card,
-              color: offset + limit >= total ? COLORS.muted : COLORS.text,
+              border: `1px solid ${C.border}`,
+              background: C.card,
+              color: offset + limit >= total ? C.muted : C.text,
               cursor: offset + limit >= total ? "default" : "pointer",
               fontSize: "13px",
             }}
@@ -1904,10 +1904,10 @@ function CRMDashboardTab() {
   }, [])
 
   const cardStyle: React.CSSProperties = {
-    background: COLORS.card,
+    background: C.card,
     borderRadius: "8px",
     padding: "20px",
-    border: `1px solid ${COLORS.border}`,
+    border: `1px solid ${C.border}`,
   }
 
   const thStyle: React.CSSProperties = {
@@ -1915,24 +1915,24 @@ function CRMDashboardTab() {
     textAlign: "left",
     fontSize: "12px",
     fontWeight: 600,
-    color: COLORS.muted,
+    color: C.muted,
     textTransform: "uppercase",
     letterSpacing: "0.05em",
-    borderBottom: `1px solid ${COLORS.border}`,
+    borderBottom: `1px solid ${C.border}`,
     whiteSpace: "nowrap",
   }
 
   const tdStyle: React.CSSProperties = {
     padding: "8px 12px",
     fontSize: "13px",
-    color: COLORS.text,
-    borderBottom: `1px solid ${COLORS.border}`,
+    color: C.text,
+    borderBottom: `1px solid ${C.border}`,
     verticalAlign: "top",
   }
 
   const labelStyle: React.CSSProperties = {
     fontSize: "12px",
-    color: COLORS.muted,
+    color: C.muted,
     textTransform: "uppercase",
     letterSpacing: "0.05em",
     marginBottom: "4px",
@@ -1941,18 +1941,18 @@ function CRMDashboardTab() {
   const bigValueStyle: React.CSSProperties = {
     fontSize: "28px",
     fontWeight: 700,
-    color: COLORS.gold,
+    color: C.gold,
   }
 
   if (loading) {
-    return <div style={{ color: COLORS.muted }}>Loading CRM data...</div>
+    return <div style={{ color: C.muted }}>Loading CRM data...</div>
   }
 
   if (!data?.configured) {
     return (
       <div style={cardStyle}>
-        <p style={{ color: COLORS.muted }}>
-          Brevo is not configured. Set <code style={{ color: COLORS.gold }}>BREVO_API_KEY</code> in your environment to enable CRM features.
+        <p style={{ color: C.muted }}>
+          Brevo is not configured. Set <code style={{ color: C.gold }}>BREVO_API_KEY</code> in your environment to enable CRM features.
         </p>
       </div>
     )
@@ -1974,13 +1974,13 @@ function CRMDashboardTab() {
           {
             label: "Newsletter Opt-ins",
             value: overview.newsletter_optins.toLocaleString("en-US"),
-            color: COLORS.success,
+            color: C.success,
           },
           { label: "Medusa Customers", value: overview.medusa_customers.toLocaleString("en-US") },
         ].map((card) => (
           <div key={card.label} style={cardStyle}>
             <div style={labelStyle}>{card.label}</div>
-            <div style={{ ...bigValueStyle, color: card.color || COLORS.gold }}>{card.value}</div>
+            <div style={{ ...bigValueStyle, color: card.color || C.gold }}>{card.value}</div>
           </div>
         ))}
       </div>
@@ -1989,16 +1989,16 @@ function CRMDashboardTab() {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "20px" }}>
         {/* Segment Distribution */}
         <div style={cardStyle}>
-          <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: COLORS.gold }}>
+          <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: C.gold }}>
             Customer Segments
           </h2>
           {segmentEntries.length === 0 ? (
-            <div style={{ color: COLORS.muted, textAlign: "center", padding: "20px 0" }}>No segment data yet.</div>
+            <div style={{ color: C.muted, textAlign: "center", padding: "20px 0" }}>No segment data yet.</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
               {segmentEntries.map(([segment, count]) => {
                 const pct = totalSegmented > 0 ? Math.round((count / totalSegmented) * 100) : 0
-                const color = SEGMENT_COLORS[segment] || COLORS.muted
+                const color = SEGMENT_COLORS[segment] || C.muted
                 return (
                   <div key={segment}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px", fontSize: "13px" }}>
@@ -2006,9 +2006,9 @@ function CRMDashboardTab() {
                         <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: color, display: "inline-block" }} />
                         <span style={{ fontWeight: 500, textTransform: "capitalize" }}>{segment}</span>
                       </span>
-                      <span style={{ color: COLORS.muted }}>{count} ({pct}%)</span>
+                      <span style={{ color: C.muted }}>{count} ({pct}%)</span>
                     </div>
-                    <div style={{ height: "6px", borderRadius: "3px", background: COLORS.border, overflow: "hidden" }}>
+                    <div style={{ height: "6px", borderRadius: "3px", background: C.border, overflow: "hidden" }}>
                       <div style={{ height: "100%", width: `${pct}%`, background: color, borderRadius: "3px", transition: "width 0.3s" }} />
                     </div>
                   </div>
@@ -2020,11 +2020,11 @@ function CRMDashboardTab() {
 
         {/* Recent Contacts */}
         <div style={cardStyle}>
-          <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: COLORS.gold }}>
+          <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: C.gold }}>
             Recent CRM Contacts
           </h2>
           {!data.recent_contacts?.length ? (
-            <div style={{ color: COLORS.muted, textAlign: "center", padding: "20px 0" }}>No contacts yet.</div>
+            <div style={{ color: C.muted, textAlign: "center", padding: "20px 0" }}>No contacts yet.</div>
           ) : (
             <div style={{ overflow: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -2039,13 +2039,13 @@ function CRMDashboardTab() {
                 </thead>
                 <tbody>
                   {data.recent_contacts.map((c) => (
-                    <tr key={c.email} onMouseEnter={(e) => (e.currentTarget.style.background = COLORS.hover)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+                    <tr key={c.email} onMouseEnter={(e) => (e.currentTarget.style.background = C.hover)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
                       <td style={{ ...tdStyle, fontWeight: 500 }}>{c.name}</td>
                       <td style={{ ...tdStyle, fontSize: "12px", fontFamily: "monospace" }}>{c.email}</td>
                       <td style={tdStyle}><PlatformBadge platform={c.platform} /></td>
                       <td style={tdStyle}><SegmentBadge segment={c.segment} /></td>
                       <td style={tdStyle}>
-                        <span style={{ color: c.newsletter ? COLORS.success : COLORS.muted }}>
+                        <span style={{ color: c.newsletter ? C.success : C.muted }}>
                           {c.newsletter ? "\u2713" : "\u2717"}
                         </span>
                       </td>
@@ -2060,11 +2060,11 @@ function CRMDashboardTab() {
 
       {/* Top Customers */}
       <div style={cardStyle}>
-        <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: COLORS.gold }}>
+        <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: C.gold }}>
           Top Customers by Spend
         </h2>
         {!data.top_customers?.length ? (
-          <div style={{ color: COLORS.muted, textAlign: "center", padding: "20px 0" }}>No purchase data yet.</div>
+          <div style={{ color: C.muted, textAlign: "center", padding: "20px 0" }}>No purchase data yet.</div>
         ) : (
           <div style={{ overflow: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -2083,13 +2083,13 @@ function CRMDashboardTab() {
               </thead>
               <tbody>
                 {data.top_customers.map((c, idx) => (
-                  <tr key={c.email} onMouseEnter={(e) => (e.currentTarget.style.background = COLORS.hover)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
-                    <td style={{ ...tdStyle, color: COLORS.muted, fontWeight: 600 }}>{idx + 1}</td>
+                  <tr key={c.email} onMouseEnter={(e) => (e.currentTarget.style.background = C.hover)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+                    <td style={{ ...tdStyle, color: C.muted, fontWeight: 600 }}>{idx + 1}</td>
                     <td style={{ ...tdStyle, fontWeight: 500 }}>{c.name}</td>
                     <td style={{ ...tdStyle, fontSize: "12px", fontFamily: "monospace" }}>{c.email}</td>
                     <td style={tdStyle}><PlatformBadge platform={c.platform} /></td>
                     <td style={tdStyle}><SegmentBadge segment={c.segment} /></td>
-                    <td style={{ ...tdStyle, textAlign: "right", color: COLORS.gold, fontWeight: 600 }}>{formatPrice(c.total_spent)}</td>
+                    <td style={{ ...tdStyle, textAlign: "right", color: C.gold, fontWeight: 600 }}>{formatPrice(c.total_spent)}</td>
                     <td style={{ ...tdStyle, textAlign: "right" }}>{c.total_purchases}</td>
                     <td style={{ ...tdStyle, textAlign: "right" }}>{c.total_bids}</td>
                     <td style={{ ...tdStyle, textAlign: "right" }}>{c.total_wins}</td>
@@ -2103,16 +2103,16 @@ function CRMDashboardTab() {
 
       {/* Campaign Performance */}
       <div style={cardStyle}>
-        <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: COLORS.gold }}>
+        <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: C.gold }}>
           Campaign Performance
           {data.total_campaigns ? (
-            <span style={{ fontSize: "13px", fontWeight: 400, color: COLORS.muted, marginLeft: "8px" }}>
+            <span style={{ fontSize: "13px", fontWeight: 400, color: C.muted, marginLeft: "8px" }}>
               ({data.total_campaigns} total)
             </span>
           ) : null}
         </h2>
         {!data.campaigns?.length ? (
-          <div style={{ color: COLORS.muted, textAlign: "center", padding: "20px 0" }}>No campaigns sent yet.</div>
+          <div style={{ color: C.muted, textAlign: "center", padding: "20px 0" }}>No campaigns sent yet.</div>
         ) : (
           <div style={{ overflow: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -2129,14 +2129,14 @@ function CRMDashboardTab() {
               </thead>
               <tbody>
                 {data.campaigns.map((c) => (
-                  <tr key={c.id} onMouseEnter={(e) => (e.currentTarget.style.background = COLORS.hover)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+                  <tr key={c.id} onMouseEnter={(e) => (e.currentTarget.style.background = C.hover)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
                     <td style={{ ...tdStyle, fontWeight: 500, maxWidth: "250px", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</td>
                     <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{formatDateTime(c.sentDate)}</td>
                     <td style={{ ...tdStyle, textAlign: "right" }}>{c.stats?.sent?.toLocaleString("en-US") || "\u2014"}</td>
                     <td style={{ ...tdStyle, textAlign: "right" }}>{c.stats?.opens?.toLocaleString("en-US") || "\u2014"}</td>
-                    <td style={{ ...tdStyle, textAlign: "right", color: COLORS.gold }}>{c.stats?.openRate ? `${c.stats.openRate}%` : "\u2014"}</td>
+                    <td style={{ ...tdStyle, textAlign: "right", color: C.gold }}>{c.stats?.openRate ? `${c.stats.openRate}%` : "\u2014"}</td>
                     <td style={{ ...tdStyle, textAlign: "right" }}>{c.stats?.clicks?.toLocaleString("en-US") || "\u2014"}</td>
-                    <td style={{ ...tdStyle, textAlign: "right", color: COLORS.gold }}>{c.stats?.clickRate ? `${c.stats.clickRate}%` : "\u2014"}</td>
+                    <td style={{ ...tdStyle, textAlign: "right", color: C.gold }}>{c.stats?.clickRate ? `${c.stats.clickRate}%` : "\u2014"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -2160,25 +2160,25 @@ const CustomersPage = () => {
     padding: "8px 20px",
     fontSize: "14px",
     fontWeight: active ? 600 : 400,
-    color: active ? COLORS.gold : COLORS.muted,
-    borderBottom: `2px solid ${active ? COLORS.gold : "transparent"}`,
+    color: active ? C.gold : C.muted,
+    borderBottom: `2px solid ${active ? C.gold : "transparent"}`,
     cursor: "pointer",
     background: "none",
     border: "none",
-    borderBottomColor: active ? COLORS.gold : "transparent",
+    borderBottomColor: active ? C.gold : "transparent",
     borderBottomWidth: "2px",
     borderBottomStyle: "solid",
   })
 
   return (
-    <div style={{ padding: "24px", background: COLORS.bg, minHeight: "100vh", color: COLORS.text, minWidth: 0, width: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
+    <div style={{ padding: "24px", background: C.bg, minHeight: "100vh", color: C.text, minWidth: 0, width: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
         <h1 style={{ fontSize: "24px", fontWeight: 700 }}>Customers</h1>
       </div>
 
       {/* Tabs */}
-      <div style={{ borderBottom: `1px solid ${COLORS.border}`, marginBottom: "24px", display: "flex" }}>
+      <div style={{ borderBottom: `1px solid ${C.border}`, marginBottom: "24px", display: "flex" }}>
         <button style={tabStyle(activeTab === "customers")} onClick={() => setActiveTab("customers")}>
           Customers
         </button>

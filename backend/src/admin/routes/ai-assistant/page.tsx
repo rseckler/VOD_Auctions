@@ -15,6 +15,23 @@ interface ChatMessage {
   isStreaming?: boolean
 }
 
+// ─── Colors ───────────────────────────────────────────────────────────────────
+
+const C = {
+  bg: "transparent",
+  card: "#f8f7f6",
+  text: "#1a1714",
+  muted: "#78716c",
+  gold: "#b8860b",
+  border: "#e7e5e4",
+  hover: "#f5f4f3",
+  success: "#16a34a",
+  error: "#dc2626",
+  blue: "#2563eb",
+  purple: "#7c3aed",
+  warning: "#d97706",
+}
+
 // ─── Markdown renderer (minimal, no deps) ─────────────────────────────────────
 
 function renderMarkdown(text: string): string {
@@ -22,10 +39,10 @@ function renderMarkdown(text: string): string {
     // Code blocks
     .replace(/```[\s\S]*?```/g, (m) => {
       const code = m.slice(3, -3).replace(/^[a-z]*\n/, "")
-      return `<pre style="background:#1e1e2e;color:#cdd6f4;padding:12px;border-radius:6px;overflow-x:auto;font-size:12px;margin:8px 0;">${escapeHtml(code)}</pre>`
+      return `<pre style="background:${C.card};color:${C.text};padding:12px;border-radius:6px;overflow-x:auto;font-size:12px;margin:8px 0;border:1px solid ${C.border};">${escapeHtml(code)}</pre>`
     })
     // Inline code
-    .replace(/`([^`]+)`/g, (_, c) => `<code style="background:rgba(0,0,0,0.05);color:#1a1714;padding:2px 6px;border-radius:4px;font-size:13px;">${escapeHtml(c)}</code>`)
+    .replace(/`([^`]+)`/g, (_, c) => `<code style="background:${C.hover};color:${C.text};padding:2px 6px;border-radius:4px;font-size:13px;">${escapeHtml(c)}</code>`)
     // Bold
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     // Tables (simple)
@@ -34,7 +51,7 @@ function renderMarkdown(text: string): string {
       const html = rows.map((row, i) => {
         const cells = row.split("|").filter((_, ci) => ci > 0 && ci < row.split("|").length - 1)
         const tag = i === 0 ? "th" : "td"
-        const cellHtml = cells.map((c) => `<${tag} style="padding:6px 10px;border:1px solid rgba(0,0,0,0.08);text-align:left;font-size:13px;">${c.trim()}</${tag}>`).join("")
+        const cellHtml = cells.map((c) => `<${tag} style="padding:6px 10px;border:1px solid ${C.border};text-align:left;font-size:13px;">${c.trim()}</${tag}>`).join("")
         return `<tr>${cellHtml}</tr>`
       }).join("")
       return `<table style="border-collapse:collapse;width:100%;margin:8px 0;">${html}</table>`
@@ -75,9 +92,9 @@ function ToolChip({ tool, result }: { tool: string; result?: unknown }) {
           fontSize: 11,
           padding: "3px 8px",
           borderRadius: 12,
-          border: "1px solid rgba(0,0,0,0.08)",
-          background: "transparent",
-          color: "#6b7280",
+          border: `1px solid ${C.border}`,
+          background: C.bg,
+          color: C.muted,
           cursor: "pointer",
           fontFamily: "inherit",
         }}
@@ -89,13 +106,13 @@ function ToolChip({ tool, result }: { tool: string; result?: unknown }) {
           style={{
             marginTop: 4,
             fontSize: 11,
-            background: "transparent",
-            border: "1px solid rgba(0,0,0,0.08)",
+            background: C.bg,
+            border: `1px solid ${C.border}`,
             borderRadius: 6,
             padding: "8px",
             overflow: "auto",
             maxHeight: 200,
-            color: "#1f2937",
+            color: C.text,
           }}
         >
           {JSON.stringify(result as object, null, 2)}
@@ -268,17 +285,17 @@ export default function AIAssistantPage() {
     <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 64px)", fontFamily: "var(--font-sans, system-ui)" }}>
 
       {/* Header */}
-      <div style={{ padding: "20px 32px 16px", borderBottom: "1px solid rgba(0,0,0,0.08)", background: "var(--bg-component, #f8f7f6)", flexShrink: 0 }}>
+      <div style={{ padding: "20px 32px 16px", borderBottom: `1px solid ${C.border}`, background: C.card, flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{
             width: 36, height: 36, borderRadius: "50%",
-            background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+            background: `linear-gradient(135deg, ${C.purple}, ${C.gold})`,
             display: "flex", alignItems: "center", justifyContent: "center",
             fontSize: 18,
           }}>✦</div>
           <div>
-            <div style={{ fontWeight: 600, fontSize: 16, color: "#1f2937" }}>VOD AI Assistant</div>
-            <div style={{ fontSize: 12, color: "#6b7280" }}>Powered by Claude · Read-only</div>
+            <div style={{ fontWeight: 600, fontSize: 16, color: C.text }}>VOD AI Assistant</div>
+            <div style={{ fontSize: 12, color: C.muted }}>Powered by Claude · Read-only</div>
           </div>
         </div>
       </div>
@@ -290,10 +307,10 @@ export default function AIAssistantPage() {
         {isEmpty && (
           <div style={{ maxWidth: 560, margin: "40px auto", textAlign: "center" }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>✦</div>
-            <div style={{ fontSize: 18, fontWeight: 600, color: "#1f2937", marginBottom: 8 }}>
+            <div style={{ fontSize: 18, fontWeight: 600, color: C.text, marginBottom: 8 }}>
               Was kann ich für dich tun?
             </div>
-            <div style={{ fontSize: 14, color: "#6b7280", marginBottom: 28 }}>
+            <div style={{ fontSize: 14, color: C.muted, marginBottom: 28 }}>
               Ich habe Zugriff auf Auktionen, Bestellungen, Katalog und System-Status.
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
@@ -304,23 +321,23 @@ export default function AIAssistantPage() {
                   style={{
                     padding: "8px 14px",
                     borderRadius: 20,
-                    border: "1px solid rgba(0,0,0,0.08)",
-                    background: "transparent",
-                    color: "#1f2937",
+                    border: `1px solid ${C.border}`,
+                    background: C.bg,
+                    color: C.text,
                     fontSize: 13,
                     cursor: "pointer",
                     transition: "all 0.15s",
                     fontFamily: "inherit",
                   }}
                   onMouseOver={(e) => {
-                    ;(e.currentTarget as HTMLElement).style.background = "#ede9fe"
-                    ;(e.currentTarget as HTMLElement).style.borderColor = "#a78bfa"
-                    ;(e.currentTarget as HTMLElement).style.color = "#5b21b6"
+                    ;(e.currentTarget as HTMLElement).style.background = C.hover
+                    ;(e.currentTarget as HTMLElement).style.borderColor = C.gold
+                    ;(e.currentTarget as HTMLElement).style.color = C.gold
                   }}
                   onMouseOut={(e) => {
-                    ;(e.currentTarget as HTMLElement).style.background = "rgba(0,0,0,0.02)"
-                    ;(e.currentTarget as HTMLElement).style.borderColor = "rgba(0,0,0,0.08)"
-                    ;(e.currentTarget as HTMLElement).style.color = "#374151"
+                    ;(e.currentTarget as HTMLElement).style.background = C.bg
+                    ;(e.currentTarget as HTMLElement).style.borderColor = C.border
+                    ;(e.currentTarget as HTMLElement).style.color = C.text
                   }}
                 >
                   {s}
@@ -345,7 +362,7 @@ export default function AIAssistantPage() {
             {msg.role === "assistant" && (
               <div style={{
                 width: 28, height: 28, borderRadius: "50%",
-                background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                background: `linear-gradient(135deg, ${C.purple}, ${C.gold})`,
                 display: "flex", alignItems: "center", justifyContent: "center",
                 fontSize: 12, color: "#fff", flexShrink: 0, marginRight: 10, marginTop: 2,
               }}>✦</div>
@@ -367,9 +384,9 @@ export default function AIAssistantPage() {
                   style={{
                     padding: "10px 14px",
                     borderRadius: msg.role === "user" ? "18px 18px 4px 18px" : "4px 18px 18px 18px",
-                    background: msg.role === "user" ? "#6366f1" : "#f9fafb",
-                    color: msg.role === "user" ? "#fff" : "#1f2937",
-                    border: msg.role === "assistant" ? "1px solid rgba(0,0,0,0.08)" : "none",
+                    background: msg.role === "user" ? C.gold : C.card,
+                    color: msg.role === "user" ? "#fff" : C.text,
+                    border: msg.role === "assistant" ? `1px solid ${C.border}` : "none",
                     fontSize: 14,
                     lineHeight: 1.6,
                   }}
@@ -383,7 +400,7 @@ export default function AIAssistantPage() {
                     <span style={{
                       display: "inline-block",
                       width: 6, height: 14,
-                      background: "#6366f1",
+                      background: C.gold,
                       marginLeft: 2,
                       borderRadius: 2,
                       animation: "blink 1s step-end infinite",
@@ -396,9 +413,9 @@ export default function AIAssistantPage() {
             {msg.role === "user" && (
               <div style={{
                 width: 28, height: 28, borderRadius: "50%",
-                background: "#e5e7eb",
+                background: C.border,
                 display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 12, color: "#6b7280", flexShrink: 0, marginLeft: 10, marginTop: 2,
+                fontSize: 12, color: C.muted, flexShrink: 0, marginLeft: 10, marginTop: 2,
               }}>R</div>
             )}
           </div>
@@ -408,19 +425,19 @@ export default function AIAssistantPage() {
       </div>
 
       {/* Input bar */}
-      <div style={{ padding: "16px 32px 20px", borderTop: "1px solid rgba(0,0,0,0.08)", background: "var(--bg-component, #f8f7f6)", flexShrink: 0 }}>
+      <div style={{ padding: "16px 32px 20px", borderTop: `1px solid ${C.border}`, background: C.card, flexShrink: 0 }}>
         <div style={{
           display: "flex",
           alignItems: "flex-end",
           gap: 10,
-          border: "1px solid #d1d5db",
+          border: `1px solid ${C.border}`,
           borderRadius: 12,
           padding: "10px 12px",
-          background: isLoading ? "#f9fafb" : "#fff",
+          background: isLoading ? C.card : "#fff",
           transition: "border-color 0.15s",
         }}
-          onFocusCapture={(e) => (e.currentTarget.style.borderColor = "#6366f1")}
-          onBlurCapture={(e) => (e.currentTarget.style.borderColor = "#d1d5db")}
+          onFocusCapture={(e) => (e.currentTarget.style.borderColor = C.gold)}
+          onBlurCapture={(e) => (e.currentTarget.style.borderColor = C.border)}
         >
           <textarea
             ref={inputRef}
@@ -436,8 +453,8 @@ export default function AIAssistantPage() {
               outline: "none",
               resize: "none",
               fontSize: 14,
-              color: "#1f2937",
-              background: "transparent",
+              color: C.text,
+              background: C.bg,
               fontFamily: "inherit",
               lineHeight: 1.5,
               maxHeight: 120,
@@ -455,10 +472,10 @@ export default function AIAssistantPage() {
             style={{
               width: 34, height: 34,
               borderRadius: 8,
-              background: input.trim() && !isLoading ? "#6366f1" : "rgba(0,0,0,0.08)",
+              background: input.trim() && !isLoading ? C.gold : C.hover,
               border: "none",
               cursor: input.trim() && !isLoading ? "pointer" : "not-allowed",
-              color: input.trim() && !isLoading ? "#fff" : "#9ca3af",
+              color: input.trim() && !isLoading ? "#fff" : C.muted,
               fontSize: 16,
               display: "flex", alignItems: "center", justifyContent: "center",
               transition: "background 0.15s",
@@ -468,7 +485,7 @@ export default function AIAssistantPage() {
             {isLoading ? "⋯" : "↑"}
           </button>
         </div>
-        <div style={{ fontSize: 11, color: "#6b7280", marginTop: 6, textAlign: "center" }}>
+        <div style={{ fontSize: 11, color: C.muted, marginTop: 6, textAlign: "center" }}>
           Claude Haiku · Nur lesender Zugriff · Session wird nicht gespeichert
         </div>
       </div>

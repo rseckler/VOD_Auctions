@@ -133,11 +133,11 @@ const C = {
   gold: "#b8860b",
   border: "#e7e5e4",
   hover: "#f5f4f3",
-  green: "#16a34a",
-  orange: "#d97706",
-  red: "#dc2626",
-  yellow: "#d97706",
+  success: "#16a34a",
+  error: "#dc2626",
   blue: "#2563eb",
+  purple: "#7c3aed",
+  warning: "#d97706",
 }
 
 const TABS = [
@@ -149,10 +149,10 @@ const TABS = [
 const PAGE_SIZE = 25
 
 function getStatus(item: EntityContentItem): { label: string; color: string } {
-  if (item.is_published) return { label: "Published", color: C.green }
+  if (item.is_published) return { label: "Published", color: C.success }
   if (item.ai_generated) return { label: "AI", color: C.blue }
   if (item.description && item.description.trim().length > 0)
-    return { label: "Draft", color: C.yellow }
+    return { label: "Draft", color: C.warning }
   return { label: "Empty", color: "#6b7280" }
 }
 
@@ -309,12 +309,12 @@ function EntityContentInner() {
             <span style={{
               display: "inline-flex", alignItems: "center", gap: 6,
               padding: "3px 12px", borderRadius: 12, fontSize: 11, fontWeight: 600,
-              background: isRunning ? `${C.green}22` : pipe?.status === "completed" ? `${C.green}22` : "#6b728022",
-              color: isRunning ? C.green : pipe?.status === "completed" ? C.green : "#6b7280",
+              background: isRunning ? `${C.success}22` : pipe?.status === "completed" ? `${C.success}22` : "#6b728022",
+              color: isRunning ? C.success : pipe?.status === "completed" ? C.success : "#6b7280",
             }}>
               <span style={{
                 width: 6, height: 6, borderRadius: "50%",
-                background: isRunning ? C.green : pipe?.status === "completed" ? C.green : "#6b7280",
+                background: isRunning ? C.success : pipe?.status === "completed" ? C.success : "#6b7280",
               }} />
               {isRunning ? "RUNNING" : pipe?.status === "completed" ? "COMPLETED" : os?.budget?.pause_until ? `PAUSED until ${os.budget.next_run}` : pipe ? "PAUSED" : "IDLE"}
             </span>
@@ -326,14 +326,14 @@ function EntityContentInner() {
               <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>
                 Overall Progress
               </span>
-              <span style={{ fontSize: 24, fontWeight: 700, color: pctAll >= 95 ? C.green : C.gold, fontVariantNumeric: "tabular-nums" }}>
+              <span style={{ fontSize: 24, fontWeight: 700, color: pctAll >= 95 ? C.success : C.gold, fontVariantNumeric: "tabular-nums" }}>
                 {pctAll.toFixed(1)}%
               </span>
             </div>
             <div style={{ height: 12, borderRadius: 6, background: C.border, overflow: "hidden", marginBottom: 6 }}>
               <div style={{
                 height: "100%", borderRadius: 6, width: `${pctAll}%`,
-                background: pctAll >= 95 ? C.green : `linear-gradient(90deg, ${C.orange}, ${C.gold})`,
+                background: pctAll >= 95 ? C.success : `linear-gradient(90deg, ${C.warning}, ${C.gold})`,
                 transition: "width 0.5s ease",
               }} />
             </div>
@@ -357,13 +357,13 @@ function EntityContentInner() {
                 <div key={type} style={{ background: C.bg, borderRadius: 8, padding: "10px 14px", border: `1px solid ${C.border}` }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
                     <span style={{ fontSize: 12, fontWeight: 600, color: C.text }}>{label}</span>
-                    <span style={{ fontSize: 18, fontWeight: 700, color: pct >= 95 ? C.green : pct > 50 ? C.gold : C.orange, fontVariantNumeric: "tabular-nums" }}>
+                    <span style={{ fontSize: 18, fontWeight: 700, color: pct >= 95 ? C.success : pct > 50 ? C.gold : C.warning, fontVariantNumeric: "tabular-nums" }}>
                       {pct.toFixed(0)}%
                     </span>
                   </div>
                   {/* Progress bar */}
                   <div style={{ height: 6, borderRadius: 3, background: C.border, overflow: "hidden", marginBottom: 4 }}>
-                    <div style={{ height: "100%", width: `${pct}%`, borderRadius: 3, background: pct >= 95 ? C.green : pct > 50 ? C.gold : C.orange, transition: "width 0.5s ease" }} />
+                    <div style={{ height: "100%", width: `${pct}%`, borderRadius: 3, background: pct >= 95 ? C.success : pct > 50 ? C.gold : C.warning, transition: "width 0.5s ease" }} />
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: C.muted }}>
                     <span>{withDesc.toLocaleString()} / {total.toLocaleString()}</span>
@@ -372,9 +372,9 @@ function EntityContentInner() {
                   {/* Priority tiers */}
                   {prio && (
                     <div style={{ display: "flex", gap: 4, marginTop: 6, fontSize: 9 }}>
-                      <span style={{ padding: "0 5px", borderRadius: 4, background: `${C.orange}22`, color: C.orange, fontWeight: 600 }}>P1: {prio.p1}</span>
+                      <span style={{ padding: "0 5px", borderRadius: 4, background: `${C.warning}22`, color: C.warning, fontWeight: 600 }}>P1: {prio.p1}</span>
                       <span style={{ padding: "0 5px", borderRadius: 4, background: `${C.gold}22`, color: C.gold, fontWeight: 600 }}>P2: {prio.p2}</span>
-                      <span style={{ padding: "0 5px", borderRadius: 4, background: "#6b728022", color: "#9ca3af", fontWeight: 600 }}>P3: {prio.p3}</span>
+                      <span style={{ padding: "0 5px", borderRadius: 4, background: "#6b728022", color: C.muted, fontWeight: 600 }}>P3: {prio.p3}</span>
                     </div>
                   )}
                   {/* Data quality mini-bars */}
@@ -390,7 +390,7 @@ function EntityContentInner() {
                           <div key={f.l} style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 1 }}>
                             <span style={{ width: 44, flexShrink: 0 }}>{f.l}</span>
                             <div style={{ flex: 1, height: 3, borderRadius: 1.5, background: C.border, overflow: "hidden" }}>
-                              <div style={{ height: "100%", width: `${fp}%`, borderRadius: 1.5, background: fp >= 80 ? C.green : fp > 0 ? C.gold : C.border }} />
+                              <div style={{ height: "100%", width: `${fp}%`, borderRadius: 1.5, background: fp >= 80 ? C.success : fp > 0 ? C.gold : C.border }} />
                             </div>
                             <span style={{ width: 28, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{fp.toFixed(0)}%</span>
                           </div>
@@ -406,11 +406,11 @@ function EntityContentInner() {
           {/* ── Live pipeline progress (when running) ── */}
           {pipe && (
             <div style={{
-              background: isRunning ? C.bg : `${C.green}08`, borderRadius: 8, padding: "12px 16px",
-              border: `1px solid ${isRunning ? `${C.gold}44` : `${C.green}33`}`, marginBottom: 14,
+              background: isRunning ? C.bg : `${C.success}08`, borderRadius: 8, padding: "12px 16px",
+              border: `1px solid ${isRunning ? `${C.gold}44` : `${C.success}33`}`, marginBottom: 14,
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: isRunning ? C.gold : C.green }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: isRunning ? C.gold : C.success }}>
                   {isRunning ? `Running: ${pipe.current_phase}` : `Completed: ${pipe.current_phase}`}
                 </span>
                 <span style={{ fontSize: 12, color: C.muted, fontVariantNumeric: "tabular-nums" }}>
@@ -421,14 +421,14 @@ function EntityContentInner() {
                 <div style={{
                   height: "100%", borderRadius: 4,
                   width: `${pipe.entities_total > 0 ? (pipe.entities_processed / pipe.entities_total) * 100 : 0}%`,
-                  background: `linear-gradient(90deg, ${C.gold}, ${C.green})`, transition: "width 0.5s ease",
+                  background: `linear-gradient(90deg, ${C.gold}, ${C.success})`, transition: "width 0.5s ease",
                 }} />
               </div>
               <div style={{ display: "flex", gap: 16, fontSize: 11, color: C.muted, flexWrap: "wrap" }}>
-                <span><span style={{ color: C.green, fontWeight: 600 }}>{pipe.entities_accepted}</span> accepted</span>
-                <span><span style={{ color: C.yellow, fontWeight: 600 }}>{pipe.entities_revised}</span> revised</span>
-                <span><span style={{ color: C.red, fontWeight: 600 }}>{pipe.entities_rejected}</span> rejected</span>
-                <span><span style={{ color: C.red, fontWeight: 600 }}>{pipe.errors}</span> errors</span>
+                <span><span style={{ color: C.success, fontWeight: 600 }}>{pipe.entities_accepted}</span> accepted</span>
+                <span><span style={{ color: C.warning, fontWeight: 600 }}>{pipe.entities_revised}</span> revised</span>
+                <span><span style={{ color: C.error, fontWeight: 600 }}>{pipe.entities_rejected}</span> rejected</span>
+                <span><span style={{ color: C.error, fontWeight: 600 }}>{pipe.errors}</span> errors</span>
                 {pipe.current_entity && isRunning && (
                   <span style={{ marginLeft: "auto", color: C.text }}>Current: {pipe.current_entity}</span>
                 )}
@@ -481,9 +481,9 @@ function EntityContentInner() {
                 <span style={{
                   display: "inline-flex", alignItems: "center", gap: 6,
                   padding: "3px 12px", borderRadius: 12, fontSize: 11, fontWeight: 600,
-                  background: `${C.orange}22`, color: C.orange,
+                  background: `${C.warning}22`, color: C.warning,
                 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: C.orange }} />
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: C.warning }} />
                   PAUSED — resumes {b.next_run} ({daysUntilResume}d)
                 </span>
               )}
@@ -494,8 +494,8 @@ function EntityContentInner() {
               {[
                 { label: "Total Spent", value: `$${b.total_spent}`, sub: `of ~$${b.total_estimated_cost} est.`, color: C.gold },
                 { label: "Cost / Entity", value: `$${b.cost_per_entity.toFixed(3)}`, sub: `~${Math.round(1 / b.cost_per_entity)} entities/$1`, color: C.text },
-                { label: "Entities Done", value: b.spent.reduce((s, p) => s + p.entities_processed, 0).toLocaleString(), sub: `${b.entities_remaining.total.toLocaleString()} remaining`, color: C.green },
-                { label: "Est. Remaining", value: `$${b.estimated_remaining_cost}`, sub: `${Math.ceil(b.estimated_remaining_cost / 100)} months @ $100/mo`, color: C.orange },
+                { label: "Entities Done", value: b.spent.reduce((s, p) => s + p.entities_processed, 0).toLocaleString(), sub: `${b.entities_remaining.total.toLocaleString()} remaining`, color: C.success },
+                { label: "Est. Remaining", value: `$${b.estimated_remaining_cost}`, sub: `${Math.ceil(b.estimated_remaining_cost / 100)} months @ $100/mo`, color: C.warning },
               ].map((stat, i) => (
                 <div key={i} style={{ background: C.bg, borderRadius: 8, padding: "10px 14px", border: `1px solid ${C.border}` }}>
                   <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>{stat.label}</div>
@@ -527,14 +527,14 @@ function EntityContentInner() {
                         <span style={{ fontSize: 13, fontWeight: 600, color: isActive ? C.gold : isNext ? C.text : C.muted }}>{period.label}</span>
                         <span style={{
                           fontSize: 9, fontWeight: 600, padding: "1px 8px", borderRadius: 8,
-                          background: period.status === "paused" ? `${C.orange}22` : period.status === "scheduled" ? `${C.blue}22` : `${C.green}22`,
-                          color: period.status === "paused" ? C.orange : period.status === "scheduled" ? C.blue : C.green,
+                          background: period.status === "paused" ? `${C.warning}22` : period.status === "scheduled" ? `${C.blue}22` : `${C.success}22`,
+                          color: period.status === "paused" ? C.warning : period.status === "scheduled" ? C.blue : C.success,
                           textTransform: "uppercase",
                         }}>{period.status}</span>
                       </div>
                       {/* Budget bar */}
                       <div style={{ height: 6, borderRadius: 3, background: C.border, overflow: "hidden", marginBottom: 4 }}>
-                        <div style={{ height: "100%", width: `${Math.min(pctUsed, 100)}%`, borderRadius: 3, background: pctUsed >= 80 ? C.orange : C.gold, transition: "width 0.3s" }} />
+                        <div style={{ height: "100%", width: `${Math.min(pctUsed, 100)}%`, borderRadius: 3, background: pctUsed >= 80 ? C.warning : C.gold, transition: "width 0.3s" }} />
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: C.muted }}>
                         <span>${period.spent} / ${period.budget}</span>

@@ -88,7 +88,7 @@ type ImageEntry = {
 const COLORS = {
   bg: "#1c1915",
   card: "#2a2520",
-  text: "#f5f0eb",
+  text: "#1a1714",
   muted: "#a09080",
   gold: "#d4a54a",
   border: "#3a3530",

@@ -379,10 +379,10 @@ export default function PostAuctionPage() {
           {/* Stats row — 7 cards */}
           <div style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
             {[
-              { label: "Total Lots",  value: String(summary?.total ?? 0),   numColor: "#e8e0d4" },
+              { label: "Total Lots",  value: String(summary?.total ?? 0),   numColor: "#1a1714" },
               { label: "Paid",        value: String(summary?.paid ?? 0),    numColor: "#16a34a" },
               { label: "Unpaid",      value: String(summary?.unpaid ?? 0),  numColor: "#dc2626" },
-              { label: "No Bid",      value: String(summary?.no_bid ?? 0),  numColor: "#e8e0d4" },
+              { label: "No Bid",      value: String(summary?.no_bid ?? 0),  numColor: "#1a1714" },
               { label: "Shipped",     value: String(summary?.shipped ?? 0), numColor: "#2563eb" },
               { label: "Total Revenue", value: fmtCurrency(totalRevenue),   numColor: "#b45309", minWidth: 140 },
               { label: "Conversion",  value: `${conversionPct}%`,           numColor: "#374151" },
@@ -658,7 +658,7 @@ export default function PostAuctionPage() {
                     </div>
 
                     {/* Amount */}
-                    <div style={{ fontSize: 13, fontWeight: 600, color: lot.final_price !== null ? "#e8e0d4" : "#6b7280" }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: lot.final_price !== null ? "#1a1714" : "#6b7280" }}>
                       {lot.final_price !== null ? `€${Number(lot.final_price).toFixed(2)}` : "—"}
                     </div>
 

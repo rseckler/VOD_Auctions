@@ -162,7 +162,7 @@ type DiscogsHealth = {
   actions: DiscogsHealthAction[]
 }
 
-const COLORS = {
+const C = {
   bg: "transparent",
   card: "#f8f7f6",
   text: "#1a1714",
@@ -174,6 +174,7 @@ const COLORS = {
   error: "#dc2626",
   blue: "#2563eb",
   purple: "#7c3aed",
+  warning: "#d97706",
 }
 
 const formatDate = (d: string | null) => {
@@ -347,10 +348,10 @@ const SyncDashboardPage = () => {
 
   // Styles
   const cardStyle: React.CSSProperties = {
-    background: COLORS.card,
+    background: C.card,
     borderRadius: "8px",
     padding: "20px",
-    border: `1px solid ${COLORS.border}`,
+    border: `1px solid ${C.border}`,
   }
 
   const thStyle: React.CSSProperties = {
@@ -358,27 +359,27 @@ const SyncDashboardPage = () => {
     textAlign: "left",
     fontSize: "12px",
     fontWeight: 600,
-    color: COLORS.muted,
+    color: C.muted,
     textTransform: "uppercase",
     letterSpacing: "0.05em",
-    borderBottom: `1px solid ${COLORS.border}`,
+    borderBottom: `1px solid ${C.border}`,
     whiteSpace: "nowrap",
   }
 
   const tdStyle: React.CSSProperties = {
     padding: "8px 12px",
     fontSize: "13px",
-    color: COLORS.text,
-    borderBottom: `1px solid ${COLORS.border}`,
+    color: C.text,
+    borderBottom: `1px solid ${C.border}`,
     verticalAlign: "top",
   }
 
   const tabStyle = (active: boolean): React.CSSProperties => ({
     padding: "10px 20px",
     border: "none",
-    borderBottom: `2px solid ${active ? COLORS.gold : "transparent"}`,
+    borderBottom: `2px solid ${active ? C.gold : "transparent"}`,
     background: "transparent",
-    color: active ? COLORS.gold : COLORS.muted,
+    color: active ? C.gold : C.muted,
     fontSize: "14px",
     fontWeight: active ? 600 : 400,
     cursor: "pointer",
@@ -387,7 +388,7 @@ const SyncDashboardPage = () => {
 
   const labelStyle: React.CSSProperties = {
     fontSize: "12px",
-    color: COLORS.muted,
+    color: C.muted,
     textTransform: "uppercase",
     letterSpacing: "0.05em",
     marginBottom: "4px",
@@ -395,19 +396,19 @@ const SyncDashboardPage = () => {
 
   const valueStyle: React.CSSProperties = {
     fontSize: "14px",
-    color: COLORS.text,
+    color: C.text,
   }
 
   const bigValueStyle: React.CSSProperties = {
     fontSize: "28px",
     fontWeight: 700,
-    color: COLORS.gold,
+    color: C.gold,
   }
 
   if (loading) {
     return (
-      <div style={{ padding: "24px", background: COLORS.bg, minHeight: "100vh", color: COLORS.text, minWidth: 0, width: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
-        <div style={{ color: COLORS.muted }}>Loading...</div>
+      <div style={{ padding: "24px", background: C.bg, minHeight: "100vh", color: C.text, minWidth: 0, width: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
+        <div style={{ color: C.muted }}>Loading...</div>
       </div>
     )
   }
@@ -421,8 +422,8 @@ const SyncDashboardPage = () => {
           borderRadius: "4px",
           fontSize: "11px",
           fontWeight: 600,
-          background: isLegacy ? "#3b82f620" : "#a855f720",
-          color: isLegacy ? COLORS.blue : COLORS.purple,
+          background: isLegacy ? `${C.blue}20` : `${C.purple}20`,
+          color: isLegacy ? C.blue : C.purple,
         }}
       >
         {type}
@@ -431,7 +432,7 @@ const SyncDashboardPage = () => {
   }
 
   const statusIcon = (status: string) => (
-    <span style={{ color: status === "success" ? COLORS.success : COLORS.error }}>
+    <span style={{ color: status === "success" ? C.success : C.error }}>
       {status === "success" ? "\u2713" : "\u2717"}
     </span>
   )
@@ -444,7 +445,7 @@ const SyncDashboardPage = () => {
   const batchRunning = bp && bp.processed > 0
 
   return (
-    <div style={{ padding: "24px", background: COLORS.bg, minHeight: "100vh", color: COLORS.text, minWidth: 0, width: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
+    <div style={{ padding: "24px", background: C.bg, minHeight: "100vh", color: C.text, minWidth: 0, width: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
       {/* Page Title */}
       <h1 style={{ fontSize: "24px", fontWeight: 700, marginBottom: "20px" }}>Sync Dashboard</h1>
 
@@ -459,8 +460,8 @@ const SyncDashboardPage = () => {
                 borderRadius: "4px",
                 fontSize: "11px",
                 fontWeight: 600,
-                background: "#3b82f620",
-                color: COLORS.blue,
+                background: `${C.blue}20`,
+                color: C.blue,
               }}
             >
               LEGACY
@@ -492,8 +493,8 @@ const SyncDashboardPage = () => {
                 borderRadius: "4px",
                 fontSize: "11px",
                 fontWeight: 600,
-                background: "#a855f720",
-                color: COLORS.purple,
+                background: `${C.purple}20`,
+                color: C.purple,
               }}
             >
               DISCOGS
@@ -508,11 +509,11 @@ const SyncDashboardPage = () => {
             <div>
               <div style={labelStyle}>Coverage (Eligible)</div>
               <div style={valueStyle}>
-                <span style={{ color: COLORS.gold, fontWeight: 600 }}>{eligibleMatched.toLocaleString("en-US")}</span>
+                <span style={{ color: C.gold, fontWeight: 600 }}>{eligibleMatched.toLocaleString("en-US")}</span>
                 {" / "}
                 {eligible.toLocaleString("en-US")}
                 {" = "}
-                <span style={{ color: COLORS.gold }}>{coveragePercent}%</span>
+                <span style={{ color: C.gold }}>{coveragePercent}%</span>
               </div>
             </div>
             <div>
@@ -531,18 +532,18 @@ const SyncDashboardPage = () => {
             marginBottom: "20px",
             borderColor:
               discogsHealth.health.severity === "critical"
-                ? COLORS.error + "80"
+                ? C.error + "80"
                 : discogsHealth.health.severity === "warning"
-                ? "#f59e0b80"
+                ? `${C.warning}80`
                 : discogsHealth.health.status === "running"
-                ? COLORS.success + "50"
-                : COLORS.border,
+                ? C.success + "50"
+                : C.border,
             background:
               discogsHealth.health.severity === "critical"
-                ? "#ef444410"
+                ? `${C.error}10`
                 : discogsHealth.health.severity === "warning"
-                ? "#f59e0b10"
-                : COLORS.card,
+                ? `${C.warning}10`
+                : C.card,
           }}
         >
           {/* Header */}
@@ -556,20 +557,20 @@ const SyncDashboardPage = () => {
                   fontWeight: 600,
                   background:
                     discogsHealth.health.status === "running"
-                      ? "#22c55e20"
+                      ? `${C.success}20`
                       : discogsHealth.health.status === "rate_limited"
-                      ? "#ef444420"
+                      ? `${C.error}20`
                       : discogsHealth.health.status === "completed"
-                      ? "#22c55e20"
-                      : "#f59e0b20",
+                      ? `${C.success}20`
+                      : `${C.warning}20`,
                   color:
                     discogsHealth.health.status === "running"
-                      ? COLORS.success
+                      ? C.success
                       : discogsHealth.health.status === "rate_limited"
-                      ? COLORS.error
+                      ? C.error
                       : discogsHealth.health.status === "completed"
-                      ? COLORS.success
-                      : "#f59e0b",
+                      ? C.success
+                      : C.warning,
                 }}
               >
                 {discogsHealth.health.status.toUpperCase().replace("_", " ")}
@@ -577,7 +578,7 @@ const SyncDashboardPage = () => {
               <h2 style={{ fontSize: "16px", fontWeight: 600 }}>Discogs Daily Sync Health</h2>
             </div>
             {discogsHealth.health.updated_at && (
-              <span style={{ fontSize: "11px", color: COLORS.muted }}>
+              <span style={{ fontSize: "11px", color: C.muted }}>
                 Updated: {formatDate(discogsHealth.health.updated_at)}
               </span>
             )}
@@ -593,11 +594,11 @@ const SyncDashboardPage = () => {
                 fontSize: "13px",
                 fontWeight: 500,
                 background:
-                  discogsHealth.health.severity === "critical" ? "#ef444418" : "#f59e0b18",
+                  discogsHealth.health.severity === "critical" ? `${C.error}18` : `${C.warning}18`,
                 color:
-                  discogsHealth.health.severity === "critical" ? "#dc2626" : "#d97706",
+                  discogsHealth.health.severity === "critical" ? C.error : C.warning,
                 border: `1px solid ${
-                  discogsHealth.health.severity === "critical" ? "#ef444430" : "#f59e0b30"
+                  discogsHealth.health.severity === "critical" ? `${C.error}30` : `${C.warning}30`
                 }`,
               }}
             >
@@ -624,17 +625,17 @@ const SyncDashboardPage = () => {
               <div style={valueStyle}>
                 {discogsHealth.health.processed.toLocaleString("en-US")}
                 {discogsHealth.health.chunk_total > 0 && (
-                  <span style={{ color: COLORS.muted }}> / {discogsHealth.health.chunk_total.toLocaleString("en-US")}</span>
+                  <span style={{ color: C.muted }}> / {discogsHealth.health.chunk_total.toLocaleString("en-US")}</span>
                 )}
               </div>
             </div>
             <div>
               <div style={labelStyle}>Updated</div>
-              <div style={{ ...valueStyle, color: COLORS.success }}>{discogsHealth.health.updated.toLocaleString("en-US")}</div>
+              <div style={{ ...valueStyle, color: C.success }}>{discogsHealth.health.updated.toLocaleString("en-US")}</div>
             </div>
             <div>
               <div style={labelStyle}>429 Errors</div>
-              <div style={{ ...valueStyle, color: discogsHealth.health.errors_429 > 0 ? COLORS.error : COLORS.success }}>
+              <div style={{ ...valueStyle, color: discogsHealth.health.errors_429 > 0 ? C.error : C.success }}>
                 {discogsHealth.health.errors_429.toLocaleString("en-US")}
               </div>
             </div>
@@ -645,10 +646,10 @@ const SyncDashboardPage = () => {
                   ...valueStyle,
                   color:
                     discogsHealth.health.error_rate_percent > 30
-                      ? COLORS.error
+                      ? C.error
                       : discogsHealth.health.error_rate_percent > 10
-                      ? "#f59e0b"
-                      : COLORS.success,
+                      ? C.warning
+                      : C.success,
                   fontWeight: 600,
                 }}
               >
@@ -664,14 +665,14 @@ const SyncDashboardPage = () => {
           {/* Progress bar */}
           {discogsHealth.health.chunk_total > 0 && discogsHealth.health.status === "running" && (
             <div style={{ marginBottom: "16px" }}>
-              <div style={{ height: "6px", borderRadius: "3px", background: COLORS.border, overflow: "hidden" }}>
+              <div style={{ height: "6px", borderRadius: "3px", background: C.border, overflow: "hidden" }}>
                 <div
                   style={{
                     height: "100%",
                     width: `${Math.min(100, Math.round((discogsHealth.health.processed / discogsHealth.health.chunk_total) * 100))}%`,
                     background: discogsHealth.health.severity === "critical"
-                      ? `linear-gradient(90deg, ${COLORS.error}, #f59e0b)`
-                      : `linear-gradient(90deg, ${COLORS.gold}, ${COLORS.success})`,
+                      ? `linear-gradient(90deg, ${C.error}, #f59e0b)`
+                      : `linear-gradient(90deg, ${C.gold}, ${C.success})`,
                     borderRadius: "3px",
                     transition: "width 0.5s ease",
                   }}
@@ -688,9 +689,9 @@ const SyncDashboardPage = () => {
                 {discogsHealth.actions.map((action) => {
                   const isLoading = actionLoading === action.id
                   const btnColors = {
-                    default: { bg: COLORS.gold + "20", border: COLORS.gold + "40", color: COLORS.gold },
-                    warning: { bg: "#f59e0b20", border: "#f59e0b40", color: "#d97706" },
-                    danger: { bg: "#ef444420", border: "#ef444440", color: "#dc2626" },
+                    default: { bg: C.gold + "20", border: C.gold + "40", color: C.gold },
+                    warning: { bg: `${C.warning}20`, border: `${C.warning}40`, color: C.warning },
+                    danger: { bg: `${C.error}20`, border: `${C.error}40`, color: C.error },
                   }
                   const c = btnColors[action.variant]
                   return (
@@ -702,9 +703,9 @@ const SyncDashboardPage = () => {
                         style={{
                           padding: "8px 16px",
                           borderRadius: "6px",
-                          border: `1px solid ${action.disabled ? COLORS.border : c.border}`,
-                          background: action.disabled ? COLORS.border + "30" : c.bg,
-                          color: action.disabled ? COLORS.muted : c.color,
+                          border: `1px solid ${action.disabled ? C.border : c.border}`,
+                          background: action.disabled ? C.border + "30" : c.bg,
+                          color: action.disabled ? C.muted : c.color,
                           fontSize: "13px",
                           fontWeight: 600,
                           cursor: action.disabled ? "not-allowed" : "pointer",
@@ -714,7 +715,7 @@ const SyncDashboardPage = () => {
                       >
                         {isLoading ? "Starting..." : action.label}
                       </button>
-                      <span style={{ fontSize: "11px", color: COLORS.muted, maxWidth: "260px" }}>
+                      <span style={{ fontSize: "11px", color: C.muted, maxWidth: "260px" }}>
                         {action.description}
                       </span>
                     </div>
@@ -729,9 +730,9 @@ const SyncDashboardPage = () => {
                     padding: "8px 14px",
                     borderRadius: "6px",
                     fontSize: "13px",
-                    background: actionResult.success ? "#22c55e18" : "#ef444418",
-                    color: actionResult.success ? "#16a34a" : "#dc2626",
-                    border: `1px solid ${actionResult.success ? "#22c55e30" : "#ef444430"}`,
+                    background: actionResult.success ? `${C.success}18` : `${C.error}18`,
+                    color: actionResult.success ? C.success : C.error,
+                    border: `1px solid ${actionResult.success ? `${C.success}30` : `${C.error}30`}`,
                   }}
                 >
                   {actionResult.success ? "\u2713" : "\u2717"} {actionResult.message}
@@ -748,7 +749,7 @@ const SyncDashboardPage = () => {
           style={{
             ...cardStyle,
             marginBottom: "20px",
-            borderColor: extraartistsProgress.is_running ? COLORS.blue + "50" : COLORS.border,
+            borderColor: extraartistsProgress.is_running ? C.blue + "50" : C.border,
           }}
         >
           {/* Header */}
@@ -761,15 +762,15 @@ const SyncDashboardPage = () => {
                   fontSize: "11px",
                   fontWeight: 600,
                   background: extraartistsProgress.is_running
-                    ? "#22c55e20"
+                    ? `${C.success}20`
                     : extraartistsProgress.progress.finished_at
-                    ? "#22c55e20"
-                    : "#78716c20",
+                    ? `${C.success}20`
+                    : `${C.muted}20`,
                   color: extraartistsProgress.is_running
-                    ? COLORS.success
+                    ? C.success
                     : extraartistsProgress.progress.finished_at
-                    ? COLORS.success
-                    : COLORS.muted,
+                    ? C.success
+                    : C.muted,
                 }}
               >
                 {extraartistsProgress.is_running ? "RUNNING" : extraartistsProgress.progress.finished_at ? "COMPLETED" : "PAUSED"}
@@ -777,7 +778,7 @@ const SyncDashboardPage = () => {
               <h2 style={{ fontSize: "16px", fontWeight: 600 }}>Discogs Extraartists Import</h2>
             </div>
             {extraartistsProgress.progress.started_at && (
-              <span style={{ fontSize: "11px", color: COLORS.muted }}>
+              <span style={{ fontSize: "11px", color: C.muted }}>
                 Started: {formatDate(extraartistsProgress.progress.started_at)}
               </span>
             )}
@@ -786,19 +787,19 @@ const SyncDashboardPage = () => {
           {/* Progress bar */}
           <div style={{ marginBottom: "16px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-              <span style={{ fontSize: "12px", color: COLORS.muted }}>
+              <span style={{ fontSize: "12px", color: C.muted }}>
                 {extraartistsProgress.progress.processed.toLocaleString("en-US")} / {extraartistsProgress.total_releases.toLocaleString("en-US")} releases
               </span>
-              <span style={{ fontSize: "12px", color: COLORS.gold, fontWeight: 600 }}>
+              <span style={{ fontSize: "12px", color: C.gold, fontWeight: 600 }}>
                 {Math.round((extraartistsProgress.progress.processed / extraartistsProgress.total_releases) * 100)}%
               </span>
             </div>
-            <div style={{ height: "6px", borderRadius: "3px", background: COLORS.border, overflow: "hidden" }}>
+            <div style={{ height: "6px", borderRadius: "3px", background: C.border, overflow: "hidden" }}>
               <div
                 style={{
                   height: "100%",
                   width: `${Math.min(100, Math.round((extraartistsProgress.progress.processed / extraartistsProgress.total_releases) * 100))}%`,
-                  background: `linear-gradient(90deg, ${COLORS.blue}, ${COLORS.success})`,
+                  background: `linear-gradient(90deg, ${C.blue}, ${C.success})`,
                   borderRadius: "3px",
                   transition: "width 0.5s ease",
                 }}
@@ -810,7 +811,7 @@ const SyncDashboardPage = () => {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "12px", marginBottom: "16px" }}>
             <div>
               <div style={labelStyle}>With Extras</div>
-              <div style={{ ...valueStyle, color: COLORS.success }}>{extraartistsProgress.progress.updated.toLocaleString("en-US")}</div>
+              <div style={{ ...valueStyle, color: C.success }}>{extraartistsProgress.progress.updated.toLocaleString("en-US")}</div>
             </div>
             <div>
               <div style={labelStyle}>No Extras</div>
@@ -818,19 +819,19 @@ const SyncDashboardPage = () => {
             </div>
             <div>
               <div style={labelStyle}>New Artists</div>
-              <div style={{ ...valueStyle, color: COLORS.blue }}>{extraartistsProgress.progress.artists_created.toLocaleString("en-US")}</div>
+              <div style={{ ...valueStyle, color: C.blue }}>{extraartistsProgress.progress.artists_created.toLocaleString("en-US")}</div>
             </div>
             <div>
               <div style={labelStyle}>Links Created</div>
-              <div style={{ ...valueStyle, color: COLORS.success }}>+{extraartistsProgress.progress.links_created.toLocaleString("en-US")}</div>
+              <div style={{ ...valueStyle, color: C.success }}>+{extraartistsProgress.progress.links_created.toLocaleString("en-US")}</div>
             </div>
             <div>
               <div style={labelStyle}>Links Deleted</div>
-              <div style={{ ...valueStyle, color: COLORS.error }}>-{extraartistsProgress.progress.links_deleted.toLocaleString("en-US")}</div>
+              <div style={{ ...valueStyle, color: C.error }}>-{extraartistsProgress.progress.links_deleted.toLocaleString("en-US")}</div>
             </div>
             <div>
               <div style={labelStyle}>Errors</div>
-              <div style={{ ...valueStyle, color: extraartistsProgress.progress.errors > 0 ? COLORS.error : COLORS.success }}>
+              <div style={{ ...valueStyle, color: extraartistsProgress.progress.errors > 0 ? C.error : C.success }}>
                 {extraartistsProgress.progress.errors}
               </div>
             </div>
@@ -847,7 +848,7 @@ const SyncDashboardPage = () => {
                   padding: "10px 12px",
                   fontFamily: "monospace",
                   fontSize: "11px",
-                  color: COLORS.muted,
+                  color: C.muted,
                   lineHeight: "1.6",
                   maxHeight: "120px",
                   overflow: "auto",
@@ -862,7 +863,7 @@ const SyncDashboardPage = () => {
 
           {/* Finished timestamp */}
           {extraartistsProgress.progress.finished_at && (
-            <div style={{ marginTop: "12px", fontSize: "12px", color: COLORS.success }}>
+            <div style={{ marginTop: "12px", fontSize: "12px", color: C.success }}>
               Finished: {formatDate(extraartistsProgress.progress.finished_at)}
             </div>
           )}
@@ -871,7 +872,7 @@ const SyncDashboardPage = () => {
 
       {/* Batch Progress Card */}
       {(batchRunning || batchProgress?.last_batch) && (
-        <div style={{ ...cardStyle, marginBottom: "20px", borderColor: batchRunning ? COLORS.gold + "50" : COLORS.border }}>
+        <div style={{ ...cardStyle, marginBottom: "20px", borderColor: batchRunning ? C.gold + "50" : C.border }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <span
@@ -880,8 +881,8 @@ const SyncDashboardPage = () => {
                   borderRadius: "4px",
                   fontSize: "11px",
                   fontWeight: 600,
-                  background: batchRunning ? "#16a34a20" : "#78716c" + "20",
-                  color: batchRunning ? COLORS.success : COLORS.muted,
+                  background: batchRunning ? `${C.success}20` : `${C.muted}20`,
+                  color: batchRunning ? C.success : C.muted,
                 }}
               >
                 {batchRunning ? "RUNNING" : "IDLE"}
@@ -889,7 +890,7 @@ const SyncDashboardPage = () => {
               <h2 style={{ fontSize: "16px", fontWeight: 600 }}>Batch Matching</h2>
             </div>
             {bp?.updated_at && (
-              <span style={{ fontSize: "11px", color: COLORS.muted }}>
+              <span style={{ fontSize: "11px", color: C.muted }}>
                 Updated: {formatDate(bp.updated_at)}
               </span>
             )}
@@ -900,21 +901,21 @@ const SyncDashboardPage = () => {
               {/* Progress bar */}
               <div style={{ marginBottom: "16px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", marginBottom: "6px" }}>
-                  <span style={{ color: COLORS.muted }}>
-                    Processed: <span style={{ color: COLORS.text, fontWeight: 600 }}>{bp.processed.toLocaleString("en-US")}</span>
+                  <span style={{ color: C.muted }}>
+                    Processed: <span style={{ color: C.text, fontWeight: 600 }}>{bp.processed.toLocaleString("en-US")}</span>
                     {" / "}
                     {(bp.processed + (batchProgress?.total_unmatched || 0)).toLocaleString("en-US")}
                   </span>
-                  <span style={{ color: COLORS.gold, fontWeight: 600 }}>
+                  <span style={{ color: C.gold, fontWeight: 600 }}>
                     {((bp.processed / (bp.processed + (batchProgress?.total_unmatched || 1))) * 100).toFixed(1)}%
                   </span>
                 </div>
-                <div style={{ height: "8px", borderRadius: "4px", background: COLORS.border, overflow: "hidden" }}>
+                <div style={{ height: "8px", borderRadius: "4px", background: C.border, overflow: "hidden" }}>
                   <div
                     style={{
                       height: "100%",
                       width: `${(bp.processed / (bp.processed + (batchProgress?.total_unmatched || 1))) * 100}%`,
-                      background: `linear-gradient(90deg, ${COLORS.gold}, ${COLORS.success})`,
+                      background: `linear-gradient(90deg, ${C.gold}, ${C.success})`,
                       borderRadius: "4px",
                       transition: "width 0.5s ease",
                     }}
@@ -928,7 +929,7 @@ const SyncDashboardPage = () => {
                   <div style={labelStyle}>Matched</div>
                   <div style={{ ...bigValueStyle, fontSize: "22px" }}>
                     {bp.matched.toLocaleString("en-US")}
-                    <span style={{ fontSize: "12px", color: COLORS.muted, fontWeight: 400, marginLeft: "4px" }}>
+                    <span style={{ fontSize: "12px", color: C.muted, fontWeight: 400, marginLeft: "4px" }}>
                       ({bp.processed > 0 ? Math.round((bp.matched / bp.processed) * 100) : 0}%)
                     </span>
                   </div>
@@ -939,7 +940,7 @@ const SyncDashboardPage = () => {
                 </div>
                 <div>
                   <div style={labelStyle}>Errors</div>
-                  <div style={{ ...bigValueStyle, fontSize: "22px", color: bp.errors > 0 ? COLORS.error : COLORS.success }}>
+                  <div style={{ ...bigValueStyle, fontSize: "22px", color: bp.errors > 0 ? C.error : C.success }}>
                     {bp.errors}
                   </div>
                 </div>
@@ -958,10 +959,10 @@ const SyncDashboardPage = () => {
                       .sort(([, a], [, b]) => b - a)
                       .map(([strategy, count]) => {
                         const stratColors: Record<string, string> = {
-                          catno: "#2563eb",
-                          barcode: "#7c3aed",
-                          full: "#16a34a",
-                          basic: "#d97706",
+                          catno: C.blue,
+                          barcode: C.purple,
+                          full: C.success,
+                          basic: C.warning,
                         }
                         return (
                           <div
@@ -969,15 +970,15 @@ const SyncDashboardPage = () => {
                             style={{
                               padding: "6px 12px",
                               borderRadius: "6px",
-                              background: (stratColors[strategy] || COLORS.muted) + "15",
-                              border: `1px solid ${(stratColors[strategy] || COLORS.muted)}30`,
+                              background: (stratColors[strategy] || C.muted) + "15",
+                              border: `1px solid ${(stratColors[strategy] || C.muted)}30`,
                               fontSize: "13px",
                             }}
                           >
-                            <span style={{ color: stratColors[strategy] || COLORS.muted, fontWeight: 600 }}>
+                            <span style={{ color: stratColors[strategy] || C.muted, fontWeight: 600 }}>
                               {strategy}
                             </span>
-                            <span style={{ color: COLORS.text, marginLeft: "6px" }}>
+                            <span style={{ color: C.text, marginLeft: "6px" }}>
                               {count.toLocaleString("en-US")}
                             </span>
                           </div>
@@ -1009,7 +1010,7 @@ const SyncDashboardPage = () => {
       )}
 
       {/* Tab Navigation */}
-      <div style={{ borderBottom: `1px solid ${COLORS.border}`, marginBottom: "20px" }}>
+      <div style={{ borderBottom: `1px solid ${C.border}`, marginBottom: "20px" }}>
         <button style={tabStyle(activeTab === "log")} onClick={() => setActiveTab("log")}>
           Sync Log
         </button>
@@ -1027,11 +1028,11 @@ const SyncDashboardPage = () => {
       {/* Sync-Log Tab */}
       {activeTab === "log" && (
         <div style={cardStyle}>
-          <h3 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: COLORS.gold }}>
+          <h3 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: C.gold }}>
             Recent Sync Entries
           </h3>
           {!overview?.recent_logs || overview.recent_logs.length === 0 ? (
-            <div style={{ color: COLORS.muted, textAlign: "center", padding: "30px 0" }}>
+            <div style={{ color: C.muted, textAlign: "center", padding: "30px 0" }}>
               No sync entries found.
             </div>
           ) : (
@@ -1050,7 +1051,7 @@ const SyncDashboardPage = () => {
                   {overview.recent_logs.slice(0, 50).map((entry) => (
                     <tr
                       key={entry.id}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = COLORS.hover)}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = C.hover)}
                       onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                     >
                       <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{formatDate(entry.sync_date)}</td>
@@ -1060,7 +1061,7 @@ const SyncDashboardPage = () => {
                           entry.release_id ? (
                             <a
                               href={`/app/media/${entry.release_id}`}
-                              style={{ color: COLORS.gold, textDecoration: "none" }}
+                              style={{ color: C.gold, textDecoration: "none" }}
                             >
                               {entry.release_title}
                             </a>
@@ -1068,7 +1069,7 @@ const SyncDashboardPage = () => {
                             entry.release_title
                           )
                         ) : (
-                          <span style={{ color: COLORS.muted }}>{entry.release_id || "Batch"}</span>
+                          <span style={{ color: C.muted }}>{entry.release_id || "Batch"}</span>
                         )}
                       </td>
                       <td style={tdStyle}>
@@ -1080,7 +1081,7 @@ const SyncDashboardPage = () => {
                           <pre
                             style={{
                               fontSize: "11px",
-                              color: COLORS.muted,
+                              color: C.muted,
                               margin: 0,
                               whiteSpace: "pre-wrap",
                               wordBreak: "break-word",
@@ -1090,9 +1091,9 @@ const SyncDashboardPage = () => {
                             {JSON.stringify(entry.changes, null, 2)}
                           </pre>
                         ) : entry.error_message ? (
-                          <span style={{ color: COLORS.error, fontSize: "12px" }}>{entry.error_message}</span>
+                          <span style={{ color: C.error, fontSize: "12px" }}>{entry.error_message}</span>
                         ) : (
-                          <span style={{ color: COLORS.muted }}>\u2014</span>
+                          <span style={{ color: C.muted }}>\u2014</span>
                         )}
                       </td>
                     </tr>
@@ -1108,7 +1109,7 @@ const SyncDashboardPage = () => {
       {activeTab === "legacy" && (
         <div>
           {legacyLoading ? (
-            <div style={{ color: COLORS.muted, textAlign: "center", padding: "40px 0" }}>Loading...</div>
+            <div style={{ color: C.muted, textAlign: "center", padding: "40px 0" }}>Loading...</div>
           ) : legacyData ? (
             <>
               {/* Count Comparison Cards */}
@@ -1126,7 +1127,7 @@ const SyncDashboardPage = () => {
                       <div style={labelStyle}>{labelMap[key]}</div>
                       <div style={{ display: "flex", alignItems: "baseline", gap: "8px", marginTop: "4px" }}>
                         <span style={bigValueStyle}>{counts?.supabase?.toLocaleString("en-US") || "0"}</span>
-                        <span style={{ fontSize: "13px", color: COLORS.muted }}>
+                        <span style={{ fontSize: "13px", color: C.muted }}>
                           / {counts?.legacy?.toLocaleString("en-US") || "0"} Legacy
                         </span>
                       </div>
@@ -1136,7 +1137,7 @@ const SyncDashboardPage = () => {
                             marginTop: "8px",
                             height: "4px",
                             borderRadius: "2px",
-                            background: COLORS.border,
+                            background: C.border,
                             overflow: "hidden",
                           }}
                         >
@@ -1144,7 +1145,7 @@ const SyncDashboardPage = () => {
                             style={{
                               height: "100%",
                               width: `${Math.min(100, Math.round((counts.supabase / counts.legacy) * 100))}%`,
-                              background: COLORS.gold,
+                              background: C.gold,
                               borderRadius: "2px",
                             }}
                           />
@@ -1157,7 +1158,7 @@ const SyncDashboardPage = () => {
 
               {/* Recently Added Releases */}
               <div style={cardStyle}>
-                <h3 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: COLORS.gold }}>
+                <h3 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: C.gold }}>
                   Recently Added Releases
                 </h3>
                 {legacyData.recent_added?.length > 0 ? (
@@ -1177,7 +1178,7 @@ const SyncDashboardPage = () => {
                             key={r.id}
                             style={{ cursor: "pointer" }}
                             onClick={() => (window.location.href = `/app/media/${r.id}`)}
-                            onMouseEnter={(e) => (e.currentTarget.style.background = COLORS.hover)}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = C.hover)}
                             onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                           >
                             <td style={tdStyle}>{r.artist_name || "\u2014"}</td>
@@ -1188,7 +1189,7 @@ const SyncDashboardPage = () => {
                                   padding: "2px 8px",
                                   borderRadius: "4px",
                                   fontSize: "12px",
-                                  background: COLORS.hover,
+                                  background: C.hover,
                                 }}
                               >
                                 {r.format}
@@ -1201,14 +1202,14 @@ const SyncDashboardPage = () => {
                     </table>
                   </div>
                 ) : (
-                  <div style={{ color: COLORS.muted, textAlign: "center", padding: "20px 0" }}>
+                  <div style={{ color: C.muted, textAlign: "center", padding: "20px 0" }}>
                     No recently added releases.
                   </div>
                 )}
               </div>
             </>
           ) : (
-            <div style={{ color: COLORS.muted, textAlign: "center", padding: "40px 0" }}>
+            <div style={{ color: C.muted, textAlign: "center", padding: "40px 0" }}>
               No legacy data available.
             </div>
           )}
@@ -1219,12 +1220,12 @@ const SyncDashboardPage = () => {
       {activeTab === "discogs" && (
         <div>
           {discogsLoading ? (
-            <div style={{ color: COLORS.muted, textAlign: "center", padding: "40px 0" }}>Loading...</div>
+            <div style={{ color: C.muted, textAlign: "center", padding: "40px 0" }}>Loading...</div>
           ) : discogsData ? (
             <>
               {/* Format Coverage */}
               <div style={{ ...cardStyle, marginBottom: "20px" }}>
-                <h3 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: COLORS.gold }}>
+                <h3 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: C.gold }}>
                   Format Coverage
                 </h3>
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -1239,7 +1240,7 @@ const SyncDashboardPage = () => {
                         }}
                       >
                         <span style={{ fontWeight: 500 }}>{fc.format || "Unknown"}</span>
-                        <span style={{ color: COLORS.muted }}>
+                        <span style={{ color: C.muted }}>
                           {fc.matched.toLocaleString("en-US")} / {fc.total.toLocaleString("en-US")} ({fc.match_rate}%)
                         </span>
                       </div>
@@ -1247,7 +1248,7 @@ const SyncDashboardPage = () => {
                         style={{
                           height: "8px",
                           borderRadius: "4px",
-                          background: COLORS.border,
+                          background: C.border,
                           overflow: "hidden",
                         }}
                       >
@@ -1256,7 +1257,7 @@ const SyncDashboardPage = () => {
                             height: "100%",
                             width: `${fc.match_rate}%`,
                             background:
-                              fc.match_rate >= 80 ? COLORS.success : fc.match_rate >= 50 ? COLORS.gold : COLORS.error,
+                              fc.match_rate >= 80 ? C.success : fc.match_rate >= 50 ? C.gold : C.error,
                             borderRadius: "4px",
                             transition: "width 0.3s",
                           }}
@@ -1266,11 +1267,11 @@ const SyncDashboardPage = () => {
                   ))}
                 </div>
                 {discogsData.unscanned?.length > 0 && (
-                  <div style={{ marginTop: "16px", fontSize: "13px", color: COLORS.muted }}>
+                  <div style={{ marginTop: "16px", fontSize: "13px", color: C.muted }}>
                     {discogsData.unscanned.reduce((sum, u) => sum + u.count, 0).toLocaleString("en-US")} eligible releases not yet scanned
                     <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "6px" }}>
                       {discogsData.unscanned.slice(0, 8).map((u) => (
-                        <span key={u.format} style={{ fontSize: "11px", padding: "2px 6px", borderRadius: "3px", background: COLORS.hover }}>
+                        <span key={u.format} style={{ fontSize: "11px", padding: "2px 6px", borderRadius: "3px", background: C.hover }}>
                           {u.format || "?"}: {u.count.toLocaleString("en-US")}
                         </span>
                       ))}
@@ -1282,7 +1283,7 @@ const SyncDashboardPage = () => {
               {/* Price Statistics */}
               {discogsData.price_stats && (
                 <div style={{ ...cardStyle, marginBottom: "20px" }}>
-                  <h3 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: COLORS.gold }}>
+                  <h3 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: C.gold }}>
                     Price Statistics
                   </h3>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px" }}>
@@ -1308,7 +1309,7 @@ const SyncDashboardPage = () => {
 
               {/* Top Valued Releases */}
               <div style={{ ...cardStyle, marginBottom: "20px" }}>
-                <h3 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: COLORS.gold }}>
+                <h3 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: C.gold }}>
                   Top 20 Most Valuable Releases
                 </h3>
                 {discogsData.top_valued?.length > 0 ? (
@@ -1329,13 +1330,13 @@ const SyncDashboardPage = () => {
                             key={r.id}
                             style={{ cursor: "pointer" }}
                             onClick={() => (window.location.href = `/app/media/${r.id}`)}
-                            onMouseEnter={(e) => (e.currentTarget.style.background = COLORS.hover)}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = C.hover)}
                             onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                           >
-                            <td style={{ ...tdStyle, color: COLORS.muted, fontWeight: 600 }}>{idx + 1}</td>
+                            <td style={{ ...tdStyle, color: C.muted, fontWeight: 600 }}>{idx + 1}</td>
                             <td style={tdStyle}>{r.artist_name || "\u2014"}</td>
                             <td style={{ ...tdStyle, fontWeight: 500 }}>{r.title}</td>
-                            <td style={{ ...tdStyle, color: COLORS.gold, fontWeight: 600 }}>
+                            <td style={{ ...tdStyle, color: C.gold, fontWeight: 600 }}>
                               {formatPrice(r.discogs_lowest_price)}
                             </td>
                             <td style={tdStyle}>
@@ -1344,7 +1345,7 @@ const SyncDashboardPage = () => {
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={(e) => e.stopPropagation()}
-                                style={{ color: COLORS.gold, textDecoration: "none", fontSize: "13px" }}
+                                style={{ color: C.gold, textDecoration: "none", fontSize: "13px" }}
                               >
                                 {r.discogs_id} \u2197
                               </a>
@@ -1355,7 +1356,7 @@ const SyncDashboardPage = () => {
                     </table>
                   </div>
                 ) : (
-                  <div style={{ color: COLORS.muted, textAlign: "center", padding: "20px 0" }}>
+                  <div style={{ color: C.muted, textAlign: "center", padding: "20px 0" }}>
                     No valued releases yet.
                   </div>
                 )}
@@ -1363,7 +1364,7 @@ const SyncDashboardPage = () => {
 
               {/* Recent Discogs Sync Entries */}
               <div style={cardStyle}>
-                <h3 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: COLORS.gold }}>
+                <h3 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: C.gold }}>
                   Recent Discogs Sync Activity
                 </h3>
                 {discogsData.recent_changes?.length > 0 ? (
@@ -1383,7 +1384,7 @@ const SyncDashboardPage = () => {
                             key={r.id + idx}
                             style={{ cursor: "pointer" }}
                             onClick={() => (window.location.href = `/app/media/${r.id}`)}
-                            onMouseEnter={(e) => (e.currentTarget.style.background = COLORS.hover)}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = C.hover)}
                             onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                           >
                             <td style={tdStyle}>{r.artist_name || "\u2014"}</td>
@@ -1393,7 +1394,7 @@ const SyncDashboardPage = () => {
                                 <pre
                                   style={{
                                     fontSize: "11px",
-                                    color: COLORS.muted,
+                                    color: C.muted,
                                     margin: 0,
                                     whiteSpace: "pre-wrap",
                                     wordBreak: "break-word",
@@ -1403,7 +1404,7 @@ const SyncDashboardPage = () => {
                                   {JSON.stringify(r.changes, null, 2)}
                                 </pre>
                               ) : (
-                                <span style={{ color: COLORS.muted }}>{"\u2014"}</span>
+                                <span style={{ color: C.muted }}>{"\u2014"}</span>
                               )}
                             </td>
                             <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{formatDate(r.sync_date)}</td>
@@ -1413,14 +1414,14 @@ const SyncDashboardPage = () => {
                     </table>
                   </div>
                 ) : (
-                  <div style={{ color: COLORS.muted, textAlign: "center", padding: "20px 0" }}>
+                  <div style={{ color: C.muted, textAlign: "center", padding: "20px 0" }}>
                     No recent discogs sync activity found.
                   </div>
                 )}
               </div>
             </>
           ) : (
-            <div style={{ color: COLORS.muted, textAlign: "center", padding: "40px 0" }}>
+            <div style={{ color: C.muted, textAlign: "center", padding: "40px 0" }}>
               No Discogs data available.
             </div>
           )}
@@ -1432,12 +1433,12 @@ const SyncDashboardPage = () => {
           {/* Run selector */}
           <div style={{ ...cardStyle, marginBottom: "16px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-              <span style={{ fontSize: "13px", color: COLORS.muted, marginRight: "4px" }}>Run:</span>
+              <span style={{ fontSize: "13px", color: C.muted, marginRight: "4px" }}>Run:</span>
               <button
                 style={{
                   padding: "4px 12px", borderRadius: "4px", border: "none", cursor: "pointer", fontSize: "12px",
-                  background: !changeRunFilter ? COLORS.gold : COLORS.border,
-                  color: !changeRunFilter ? "#1a1714" : COLORS.text,
+                  background: !changeRunFilter ? C.gold : C.border,
+                  color: !changeRunFilter ? C.text : C.text,
                   fontWeight: !changeRunFilter ? 600 : 400,
                 }}
                 onClick={() => { setChangeRunFilter(null); setChangePage(0) }}
@@ -1449,8 +1450,8 @@ const SyncDashboardPage = () => {
                   key={run.sync_run_id}
                   style={{
                     padding: "4px 12px", borderRadius: "4px", border: "none", cursor: "pointer", fontSize: "12px",
-                    background: changeRunFilter === run.sync_run_id ? COLORS.gold : COLORS.border,
-                    color: changeRunFilter === run.sync_run_id ? "#1a1714" : COLORS.text,
+                    background: changeRunFilter === run.sync_run_id ? C.gold : C.border,
+                    color: changeRunFilter === run.sync_run_id ? C.text : C.text,
                     fontWeight: changeRunFilter === run.sync_run_id ? 600 : 400,
                   }}
                   onClick={() => { setChangeRunFilter(run.sync_run_id); setChangePage(0) }}
@@ -1469,15 +1470,15 @@ const SyncDashboardPage = () => {
               return (
                 <div style={{ display: "flex", gap: "20px", marginTop: "12px", flexWrap: "wrap" }}>
                   {[
-                    { label: "Total changes", value: run.total, color: COLORS.gold },
-                    { label: "Price", value: run.price_changes, color: COLORS.blue },
-                    { label: "Availability", value: run.avail_changes, color: run.avail_changes > 0 ? COLORS.error : COLORS.muted },
-                    { label: "Title", value: run.title_changes, color: COLORS.muted },
-                    { label: "New cover", value: run.cover_changes, color: COLORS.muted },
-                    { label: "New releases", value: run.inserted, color: COLORS.success },
+                    { label: "Total changes", value: run.total, color: C.gold },
+                    { label: "Price", value: run.price_changes, color: C.blue },
+                    { label: "Availability", value: run.avail_changes, color: run.avail_changes > 0 ? C.error : C.muted },
+                    { label: "Title", value: run.title_changes, color: C.muted },
+                    { label: "New cover", value: run.cover_changes, color: C.muted },
+                    { label: "New releases", value: run.inserted, color: C.success },
                   ].map(({ label, value, color }) => (
                     <div key={label}>
-                      <div style={{ fontSize: "11px", color: COLORS.muted, textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</div>
+                      <div style={{ fontSize: "11px", color: C.muted, textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</div>
                       <div style={{ fontSize: "20px", fontWeight: 700, color }}>{value}</div>
                     </div>
                   ))}
@@ -1498,9 +1499,9 @@ const SyncDashboardPage = () => {
               <button
                 key={key}
                 style={{
-                  padding: "6px 14px", borderRadius: "20px", border: `1px solid ${changeFieldFilter === key ? COLORS.gold : COLORS.border}`,
-                  background: changeFieldFilter === key ? "#d4a54a15" : "transparent",
-                  color: changeFieldFilter === key ? COLORS.gold : COLORS.muted,
+                  padding: "6px 14px", borderRadius: "20px", border: `1px solid ${changeFieldFilter === key ? C.gold : C.border}`,
+                  background: changeFieldFilter === key ? `${C.gold}15` : "transparent",
+                  color: changeFieldFilter === key ? C.gold : C.muted,
                   cursor: "pointer", fontSize: "13px", fontWeight: changeFieldFilter === key ? 600 : 400,
                 }}
                 onClick={() => { setChangeFieldFilter(key); setChangePage(0) }}
@@ -1513,14 +1514,14 @@ const SyncDashboardPage = () => {
           {/* Entries table */}
           <div style={cardStyle}>
             {changeLoading ? (
-              <div style={{ color: COLORS.muted, textAlign: "center", padding: "40px 0" }}>Loading...</div>
+              <div style={{ color: C.muted, textAlign: "center", padding: "40px 0" }}>Loading...</div>
             ) : !changeLogData?.entries.length ? (
-              <div style={{ color: COLORS.muted, textAlign: "center", padding: "40px 0" }}>
+              <div style={{ color: C.muted, textAlign: "center", padding: "40px 0" }}>
                 {changeRunFilter ? "No changes for this run." : "No changes logged yet. Changes appear after the next sync."}
               </div>
             ) : (
               <>
-                <div style={{ fontSize: "13px", color: COLORS.muted, marginBottom: "12px" }}>
+                <div style={{ fontSize: "13px", color: C.muted, marginBottom: "12px" }}>
                   {changeLogData.total.toLocaleString("en-US")} entries
                   {changeLogData.total > 100 && (
                     <span> · Page {changePage + 1} of {Math.ceil(changeLogData.total / 100)}</span>
@@ -1542,10 +1543,10 @@ const SyncDashboardPage = () => {
                           key={entry.id}
                           style={{ cursor: "pointer" }}
                           onClick={() => (window.location.href = `/app/media/${entry.release_id}`)}
-                          onMouseEnter={(e) => (e.currentTarget.style.background = COLORS.hover)}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = C.hover)}
                           onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                         >
-                          <td style={{ ...tdStyle, whiteSpace: "nowrap", fontSize: "12px", color: COLORS.muted }}>
+                          <td style={{ ...tdStyle, whiteSpace: "nowrap", fontSize: "12px", color: C.muted }}>
                             {formatDate(entry.synced_at)}
                           </td>
                           <td style={{ ...tdStyle, maxWidth: "220px" }}>
@@ -1553,14 +1554,14 @@ const SyncDashboardPage = () => {
                               {entry.release_title || entry.release_id}
                             </div>
                             {entry.artist_name && (
-                              <div style={{ fontSize: "12px", color: COLORS.muted }}>{entry.artist_name}</div>
+                              <div style={{ fontSize: "12px", color: C.muted }}>{entry.artist_name}</div>
                             )}
                           </td>
                           <td style={tdStyle}>
                             <span style={{
                               padding: "2px 7px", borderRadius: "4px", fontSize: "11px", fontWeight: 600,
-                              background: entry.change_type === "inserted" ? "#22c55e20" : "#3b82f620",
-                              color: entry.change_type === "inserted" ? COLORS.success : COLORS.blue,
+                              background: entry.change_type === "inserted" ? `${C.success}20` : `${C.blue}20`,
+                              color: entry.change_type === "inserted" ? C.success : C.blue,
                             }}>
                               {entry.change_type === "inserted" ? "NEW" : "UPDATED"}
                             </span>
@@ -1583,15 +1584,15 @@ const SyncDashboardPage = () => {
                                 }
                                 return (
                                   <div key={field} style={{ fontSize: "12px", display: "flex", gap: "6px", alignItems: "center" }}>
-                                    <span style={{ color: COLORS.muted, minWidth: "60px" }}>{fieldLabel[field] ?? field}</span>
-                                    <span style={{ color: COLORS.error, textDecoration: "line-through" }}>{fmt((delta as any).old)}</span>
-                                    <span style={{ color: COLORS.muted }}>→</span>
-                                    <span style={{ color: COLORS.success }}>{fmt((delta as any).new)}</span>
+                                    <span style={{ color: C.muted, minWidth: "60px" }}>{fieldLabel[field] ?? field}</span>
+                                    <span style={{ color: C.error, textDecoration: "line-through" }}>{fmt((delta as any).old)}</span>
+                                    <span style={{ color: C.muted }}>→</span>
+                                    <span style={{ color: C.success }}>{fmt((delta as any).new)}</span>
                                   </div>
                                 )
                               })}
                               {entry.change_type === "inserted" && (
-                                <div style={{ fontSize: "12px", color: COLORS.muted }}>
+                                <div style={{ fontSize: "12px", color: C.muted }}>
                                   {entry.changes.legacy_price != null
                                     ? `€${Number((entry.changes.legacy_price as any)).toFixed(2)}`
                                     : "No price"}
@@ -1612,22 +1613,22 @@ const SyncDashboardPage = () => {
                     <button
                       disabled={changePage === 0}
                       style={{
-                        padding: "6px 16px", borderRadius: "4px", border: `1px solid ${COLORS.border}`,
-                        background: "transparent", color: changePage === 0 ? COLORS.muted : COLORS.text,
+                        padding: "6px 16px", borderRadius: "4px", border: `1px solid ${C.border}`,
+                        background: "transparent", color: changePage === 0 ? C.muted : C.text,
                         cursor: changePage === 0 ? "not-allowed" : "pointer",
                       }}
                       onClick={() => setChangePage((p) => Math.max(0, p - 1))}
                     >
                       ← Prev
                     </button>
-                    <span style={{ lineHeight: "34px", fontSize: "13px", color: COLORS.muted }}>
+                    <span style={{ lineHeight: "34px", fontSize: "13px", color: C.muted }}>
                       {changePage + 1} / {Math.ceil(changeLogData.total / 100)}
                     </span>
                     <button
                       disabled={(changePage + 1) * 100 >= changeLogData.total}
                       style={{
-                        padding: "6px 16px", borderRadius: "4px", border: `1px solid ${COLORS.border}`,
-                        background: "transparent", color: (changePage + 1) * 100 >= changeLogData.total ? COLORS.muted : COLORS.text,
+                        padding: "6px 16px", borderRadius: "4px", border: `1px solid ${C.border}`,
+                        background: "transparent", color: (changePage + 1) * 100 >= changeLogData.total ? C.muted : C.text,
                         cursor: (changePage + 1) * 100 >= changeLogData.total ? "not-allowed" : "pointer",
                       }}
                       onClick={() => setChangePage((p) => p + 1)}

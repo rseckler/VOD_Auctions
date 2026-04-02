@@ -579,7 +579,7 @@ const AuctionBlocksPage = () => {
                   borderRadius: 20, padding: "3px 12px",
                   fontSize: 11, fontWeight: 700, color: "#1f2937", textTransform: "uppercase", letterSpacing: "0.07em",
                 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#9ca3af", display: "inline-block" }} />
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#78716c", display: "inline-block" }} />
                   Drafts — {drafts.length}
                 </span>
               </div>
