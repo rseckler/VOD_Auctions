@@ -45,15 +45,19 @@ Die wichtigste Konfigurationsdimension ist der aktuelle Betriebsmodus der Plattf
 
 | Modus | Beschreibung | Middleware-Verhalten |
 |-------|-------------|---------------------|
-| `pre_launch` | Nur Invited Users haben Zugang | Gate aktiv — nur mit Passwort oder `vod_invite_session` Cookie |
-| `preview` | Ausgewählte User, breiter Kreis | Gate aktiv — Passwort ODER Invite-Cookie |
+| `beta_test` | **Aktueller Zustand** — nur Passwort-Gate, kein Invite-System | Gate aktiv — nur Passwort-Cookie (`vod_access`) |
+| `pre_launch` | Invite-System aktiv, Waitlist-Bewerbungen möglich | Gate aktiv — Passwort ODER `vod_invite_session` Cookie, `/apply` erreichbar |
+| `preview` | Breiterer Invite-Kreis | Gate aktiv — Passwort ODER Invite-Cookie |
 | `live` | Öffentlicher Launch | Gate deaktiviert — alle können zugreifen |
 | `maintenance` | Temporäre Wartung | Alle geblockt, auch eingeloggte User |
+
+**Phasen-Flow:** `beta_test` → `pre_launch` → `preview` (optional) → `live`
 
 **Anzeige im Admin:** Persistenter farbiger Badge im Admin-Header (immer sichtbar):
 
 | Modus | Badge-Farbe | Icon |
 |-------|------------|------|
+| `beta_test` | Orange `#f97316` | 🧪 |
 | `pre_launch` | Gelb `#eab308` | 🔒 |
 | `preview` | Blau `#3b82f6` | 👁 |
 | `live` | Grün `#22c55e` | ✅ |
