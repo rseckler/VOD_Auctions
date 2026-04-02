@@ -63,6 +63,10 @@ function isPublicPath(pathname: string): boolean {
     pathname === "/sitemap.xml" ||
     pathname === "/reset-password" ||
     pathname === "/verify" ||
+    pathname === "/agb" ||
+    pathname === "/impressum" ||
+    pathname === "/datenschutz" ||
+    pathname === "/cookies" ||
     pathname.startsWith("/gallery/gallery-") ||
     pathname === "/monitoring"
   )
