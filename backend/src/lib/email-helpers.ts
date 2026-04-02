@@ -13,6 +13,8 @@ import { paymentReminder3Email } from "../emails/payment-reminder-3"
 import { watchlistReminderEmail } from "../emails/watchlist-reminder"
 import { bidPlacedEmail } from "../emails/bid-placed"
 import { bidEndingSoonEmail, BidEndingReminderType } from "../emails/bid-ending-soon"
+import { waitlistConfirmEmail } from "../emails/waitlist-confirm"
+import { inviteWelcomeEmail } from "../emails/invite-welcome"
 
 // --- Unsubscribe token helpers ---
 
@@ -576,4 +578,45 @@ export async function sendWatchlistReminderEmail(
   })
 
   await sendEmail({ to: customer.email, subject, html })
+}
+
+// --- WAITLIST CONFIRM ---
+export async function sendWaitlistConfirmEmail(
+  pg: Knex,
+  applicationId: string
+) {
+  const app = await pg("waitlist_applications").where("id", applicationId).first()
+  if (!app?.email) return
+
+  const { subject, html } = waitlistConfirmEmail({
+    firstName: app.name?.split(" ")[0] || "there",
+    email: app.email,
+  })
+  await sendEmail({ to: app.email, subject, html })
+}
+
+// --- INVITE WELCOME ---
+export async function sendInviteWelcomeEmail(
+  pg: Knex,
+  applicationId: string
+) {
+  const app = await pg("waitlist_applications").where("id", applicationId).first()
+  if (!app?.email) return
+
+  const token = await pg("invite_tokens")
+    .where("application_id", applicationId)
+    .where("status", "active")
+    .orderBy("issued_at", "desc")
+    .first()
+  if (!token) return
+
+  const inviteUrl = `${APP_URL}/invite/${token.token}`
+
+  const { subject, html } = inviteWelcomeEmail({
+    firstName: app.name?.split(" ")[0] || "there",
+    tokenDisplay: token.token_display,
+    inviteUrl,
+    expiresAt: new Date(token.expires_at),
+  })
+  await sendEmail({ to: app.email, subject, html })
 }

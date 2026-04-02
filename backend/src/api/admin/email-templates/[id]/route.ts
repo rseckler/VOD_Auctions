@@ -18,6 +18,8 @@ import { blockLiveEmail } from "../../../../emails/block-live"
 import { blockEndingEmail } from "../../../../emails/block-ending"
 import { bidPlacedEmail } from "../../../../emails/bid-placed"
 import { bidEndingSoonEmail } from "../../../../emails/bid-ending-soon"
+import { waitlistConfirmEmail } from "../../../../emails/waitlist-confirm"
+import { inviteWelcomeEmail } from "../../../../emails/invite-welcome"
 
 const STOREFRONT_URL = process.env.STOREFRONT_URL || "https://vod-auctions.com"
 const BACKEND_URL = process.env.MEDUSA_BACKEND_URL || "http://localhost:9000"
@@ -127,6 +129,18 @@ function renderTemplate(id: string): { subject: string; html: string } | null {
         format: "LP",
         year: 1987,
         bidUrl: `${STOREFRONT_URL}/auctions/${DEMO_BLOCK_SLUG}/lot-demo`,
+      })
+    case "waitlist-confirm":
+      return waitlistConfirmEmail({
+        firstName: "Frank",
+        email: "frank@vod-records.com",
+      })
+    case "invite-welcome":
+      return inviteWelcomeEmail({
+        firstName: "Frank",
+        tokenDisplay: "VOD-A7K2P-X9RQM",
+        inviteUrl: `${STOREFRONT_URL}/invite/A7K2PX9RQM`,
+        expiresAt: new Date(Date.now() + 21 * 24 * 60 * 60 * 1000),
       })
     case "newsletter-confirm":
       return newsletterConfirmEmail({

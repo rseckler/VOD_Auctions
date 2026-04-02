@@ -16,6 +16,8 @@ const PARENT_HUB: Record<string, { label: string; href: string }> = {
   "/app/shipping":       { label: "Operations", href: "/app/operations" },
   "/app/sync":           { label: "Operations", href: "/app/operations" },
   "/app/test-runner":    { label: "Operations", href: "/app/operations" },
+  "/app/config":         { label: "Operations", href: "/app/operations" },
+  "/app/waitlist":       { label: "Marketing",  href: "/app/marketing" },
 }
 
 // ─── Back-nav bar injected at top of sub-pages ───────────────────────────────

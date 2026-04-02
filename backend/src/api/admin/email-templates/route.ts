@@ -17,6 +17,8 @@ import { blockTomorrowEmail } from "../../../emails/block-tomorrow"
 import { blockLiveEmail } from "../../../emails/block-live"
 import { blockEndingEmail } from "../../../emails/block-ending"
 import { bidEndingSoonEmail } from "../../../emails/bid-ending-soon"
+import { waitlistConfirmEmail } from "../../../emails/waitlist-confirm"
+import { inviteWelcomeEmail } from "../../../emails/invite-welcome"
 
 const STOREFRONT_URL = process.env.STOREFRONT_URL || "https://vod-auctions.com"
 const BACKEND_URL = process.env.MEDUSA_BACKEND_URL || "http://localhost:9000"
@@ -175,6 +177,24 @@ const TEMPLATES: EmailTemplate[] = [
     category: "transactional",
     trigger: "Cron: every minute — lot ends in ~5min",
     preheader: "FINAL MINUTES — place your last bid now",
+  },
+  {
+    id: "waitlist-confirm",
+    name: "Waitlist Application Received",
+    description: "Sent after submitting a pre-launch waitlist application",
+    channel: "resend",
+    category: "transactional",
+    trigger: "POST /store/waitlist",
+    preheader: "We're reviewing your application — you'll hear from us soon",
+  },
+  {
+    id: "invite-welcome",
+    name: "Invite — Your Access is Ready",
+    description: "Sent when an admin approves and invites a waitlist applicant",
+    channel: "resend",
+    category: "transactional",
+    trigger: "Admin: approve + invite from /admin/waitlist",
+    preheader: "Your personal invite link — valid for 21 days",
   },
   {
     id: "newsletter-confirm",
@@ -384,6 +404,22 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
         format: "LP",
         year: 1987,
         bidUrl: `${STOREFRONT_URL}/auctions/${DEMO_BLOCK_SLUG}/lot-demo`,
+      })
+      break
+
+    case "waitlist-confirm":
+      rendered = waitlistConfirmEmail({
+        firstName: "Frank",
+        email: to,
+      })
+      break
+
+    case "invite-welcome":
+      rendered = inviteWelcomeEmail({
+        firstName: "Frank",
+        tokenDisplay: "VOD-A7K2P-X9RQM",
+        inviteUrl: `${STOREFRONT_URL}/invite/A7K2PX9RQM`,
+        expiresAt: new Date(Date.now() + 21 * 24 * 60 * 60 * 1000),
       })
       break
 

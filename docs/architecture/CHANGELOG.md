@@ -4,6 +4,16 @@ Vollständiger Entwicklungs-Changelog. Neue Einträge werden direkt hier ergänz
 
 ---
 
+## 2026-04-02 — Upstash Redis konfiguriert
+
+### Upstash Redis (Cache) — aktiviert
+- Datenbank `vod-auctions` auf Upstash erstellt (AWS Frankfurt eu-central-1, Free Tier, Global).
+- Endpoint: `uncommon-moray-70767.upstash.io`
+- `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` in `backend/.env` eingetragen — lokal + VPS.
+- System Health zeigt Upstash grün.
+
+---
+
 ## 2026-04-02 — Microsoft Clarity (UXA) Integration
 
 ### Microsoft Clarity — aktiviert
