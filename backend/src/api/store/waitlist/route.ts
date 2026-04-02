@@ -2,6 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, generateEntityId } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { generateRefCode } from "../../../lib/invite"
+import { sendWaitlistConfirmEmail } from "../../../lib/email-helpers"
 
 /**
  * POST /store/waitlist
@@ -37,8 +38,9 @@ export async function POST(
   const referredBy = typeof body.referred_by === "string" ? body.referred_by.trim() || null : null
   const source = typeof body.source === "string" ? body.source : "organic"
 
+  const applicationId = generateEntityId()
   await pg("waitlist_applications").insert({
-    id: generateEntityId(),
+    id: applicationId,
     email,
     name,
     country,
@@ -53,7 +55,10 @@ export async function POST(
     created_at: new Date(),
   })
 
-  // TODO: Send waitlist-confirm email (Task F)
+  // Send confirmation email (async, non-blocking)
+  sendWaitlistConfirmEmail(pg, applicationId).catch((err) => {
+    console.error("[waitlist] Failed to send confirmation email:", err)
+  })
 
   res.status(201).json({ success: true, message: "Application received" })
 }

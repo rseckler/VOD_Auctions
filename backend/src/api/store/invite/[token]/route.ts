@@ -115,28 +115,40 @@ export async function POST(
 
   try {
     // Step 1: Register auth identity via Medusa's built-in auth
-    const backendUrl = process.env.MEDUSA_BACKEND_URL || "http://localhost:9000"
+    const backendUrl = process.env.MEDUSA_BACKEND_URL
+    if (!backendUrl) {
+      console.error("[invite/redeem] MEDUSA_BACKEND_URL is not set!")
+      res.status(500).json({ success: false, message: "Server configuration error" })
+      return
+    }
+
+    const normalizedEmail = email.trim().toLowerCase()
+    let authToken: string | null = null
+    let accountExists = false
 
     const authRes = await fetch(`${backendUrl}/auth/customer/emailpass/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+      body: JSON.stringify({ email: normalizedEmail, password }),
     })
 
-    if (!authRes.ok) {
+    if (authRes.ok) {
+      const authData = await authRes.json().catch(() => ({}))
+      authToken = authData.token || null
+    } else {
       const authErr = await authRes.json().catch(() => ({}))
-      // If account already exists, that's fine — they can still use the invite
-      if (!authErr.message?.includes("already exists")) {
-        res.status(400).json({ success: false, message: authErr.message || "Registration failed" })
+      const errMsg = authErr.message || ""
+      // Account already exists — that's OK, just login instead
+      if (errMsg.includes("already exists") || errMsg.includes("Identity")) {
+        accountExists = true
+      } else {
+        res.status(400).json({ success: false, message: errMsg || "Registration failed" })
         return
       }
     }
 
-    const authData = await authRes.json().catch(() => ({}))
-    const authToken = authData.token
-
-    // Step 2: Create customer record (if auth succeeded with a new token)
-    if (authToken) {
+    // Step 2: Create customer record (only for new accounts)
+    if (authToken && !accountExists) {
       await fetch(`${backendUrl}/store/customers`, {
         method: "POST",
         headers: {
@@ -146,7 +158,7 @@ export async function POST(
         body: JSON.stringify({
           first_name: first_name.trim(),
           last_name: (last_name || "").trim(),
-          email: email.trim().toLowerCase(),
+          email: normalizedEmail,
         }),
       })
     }
