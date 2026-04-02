@@ -557,12 +557,29 @@ const AuctionBlocksPage = () => {
             </div>
           )}
 
+          {/* ── DIVIDER: active → inactive ────────────────────── */}
+          {(drafts.length > 0 || e2eDrafts.length > 0 || archived.length > 0) &&
+           (live.length > 0 || upcoming.length > 0 || ended.length > 0) && (
+            <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "4px 0" }}>
+              <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)" }} />
+              <span style={{ fontSize: 10, color: "#4b5563", textTransform: "uppercase", letterSpacing: "0.1em", whiteSpace: "nowrap" }}>
+                not scheduled
+              </span>
+              <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)" }} />
+            </div>
+          )}
+
           {/* ── DRAFTS ────────────────────────────────────────── */}
           {drafts.length > 0 && (
             <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#d1d5db", display: "inline-block" }} />
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.07em" }}>
+              <div style={{ marginBottom: 10 }}>
+                <span style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)",
+                  borderRadius: 20, padding: "3px 12px",
+                  fontSize: 11, fontWeight: 700, color: "#d1d5db", textTransform: "uppercase", letterSpacing: "0.07em",
+                }}>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#9ca3af", display: "inline-block" }} />
                   Drafts — {drafts.length}
                 </span>
               </div>
@@ -578,10 +595,10 @@ const AuctionBlocksPage = () => {
           {e2eDrafts.length > 0 && (
             <CollapsibleSection
               label={`Test Blocks — ${e2eDrafts.length}`}
-              dotColor="#6b7280"
-              labelColor="#6b7280"
+              dotColor="#4b5563"
+              labelColor="#4b5563"
             >
-              <div style={{ border: "1px dashed rgba(255,255,255,0.08)", borderRadius: 8, overflow: "hidden", opacity: 0.6 }}>
+              <div style={{ border: "1px dashed rgba(255,255,255,0.08)", borderRadius: 8, overflow: "hidden", opacity: 0.5 }}>
                 <div style={{ overflowX: "auto" }}>
                   <DraftsTable rows={e2eDrafts} onDelete={handleDelete} />
                 </div>
@@ -594,9 +611,9 @@ const AuctionBlocksPage = () => {
             <CollapsibleSection
               label={`Archived — ${archived.length}`}
               dotColor="#7c3aed"
-              labelColor="#6b7280"
+              labelColor="#6d28d9"
             >
-              <div style={{ border: "1px solid rgba(124,58,237,0.2)", borderRadius: 8, overflow: "hidden", opacity: 0.6 }}>
+              <div style={{ border: "1px solid rgba(124,58,237,0.25)", borderRadius: 8, overflow: "hidden", opacity: 0.55 }}>
                 <div style={{ overflowX: "auto" }}>
                   <BlocksTable rows={archived} onDelete={handleDelete} />
                 </div>
