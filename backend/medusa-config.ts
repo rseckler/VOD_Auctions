@@ -24,6 +24,7 @@ module.exports = defineConfig({
       authCors: process.env.AUTH_CORS || process.env.STOREFRONT_URL || "http://localhost:3000",
       jwtSecret: process.env.JWT_SECRET || "supersecret",
       cookieSecret: process.env.COOKIE_SECRET || "supersecret",
+      jwtExpiresIn: "30d",
     }
   },
   modules: [
