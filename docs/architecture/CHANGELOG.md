@@ -4,6 +4,30 @@ Vollständiger Entwicklungs-Changelog. Neue Einträge werden direkt hier ergänz
 
 ---
 
+## 2026-04-03 — R2 Image Sync: Admin Dashboard + 30x Performance Optimierung
+
+### Admin Data Sync: R2 Image CDN Sektion
+- **Neue Karte** auf `/admin/sync` (Operations → Sync): "Cloudflare R2 — Image CDN"
+- Zeigt: Online/Error Status (HEAD-Request), Latenz, letzter Sync-Zeitstempel
+- Statistiken: Uploaded, Failed, Checked (changed images), Skipped (unchanged)
+- Bucket-Info: vod-images, 160.957 Dateien, 108 GB
+- Auto-Refresh alle 60 Sekunden
+- **Backend:** `GET /admin/sync/r2-sync` liest `r2_sync_progress.json` + R2 Health-Check
+- **Scripts:** `legacy_sync.py` schreibt nach jedem Run `r2_sync_progress.json`
+
+### R2 Sync Performance-Optimierung
+- **Vorher:** 22.313 HEAD-Requests nach R2 pro Sync-Lauf → 17 Minuten Laufzeit
+- **Nachher:** Pre-Fetch `coverImage` aus Supabase, nur bei geändertem Dateinamen R2 prüfen → **0 Requests, 34 Sekunden**
+- **30x schneller** — von 17 Min auf 0,6 Min
+- Funktionsweise: `existing_covers` Dict pro Batch, Vergleich `new_cover_url != existing_cover` → nur dann `check_r2_exists()` + `upload_image_to_r2()`
+
+### Dateien
+- `scripts/legacy_sync.py` — R2 Counter, pre-fetch Optimierung, Progress-File
+- `backend/src/api/admin/sync/r2-sync/route.ts` — Neuer Endpoint
+- `backend/src/admin/routes/sync/page.tsx` — R2 CDN Karte
+
+---
+
 ## 2026-04-03 — Auction Review: 3 Bug Fixes + 9 Improvements (RSE-293, Part 2)
 
 Post-Auction Daten-Review des ersten Live-Durchlaufs. SQL-Queries gegen Prod-DB, Code-Analyse.
