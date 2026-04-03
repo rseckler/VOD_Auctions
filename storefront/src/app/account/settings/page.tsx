@@ -503,6 +503,26 @@ export default function SettingsPage() {
           </Button>
         </Card>
 
+        {/* Help */}
+        <Card className="p-6">
+          <h3 className="text-sm font-medium text-muted-foreground mb-2">
+            Help
+          </h3>
+          <Separator className="my-3" />
+          <p className="text-sm text-muted-foreground mb-4">
+            Re-open the auction onboarding guide to learn how bidding works.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              window.dispatchEvent(new Event("vod:registration-complete"))
+            }}
+          >
+            How Auctions Work
+          </Button>
+        </Card>
+
         {/* Delete Account */}
         <Card className="p-6 border-destructive/30">
           <div className="flex items-center gap-2 mb-2">

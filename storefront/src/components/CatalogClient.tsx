@@ -126,9 +126,6 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
   const [showFilters, setShowFilters] = useState(() => !!(initialParams.country || initialParams.label || initialParams.year_from))
   // If server provided data, start as not-loading
   const [loading, setLoading] = useState(initialReleases.length === 0)
-  // Load more state
-  const [loadingMore, setLoadingMore] = useState(false)
-  const [allReleases, setAllReleases] = useState<CatalogRelease[]>(initialReleases)
   const hasMore = page < pages
 
   // Sync state to URL (replaceState so back button works per-navigation)
@@ -282,42 +279,13 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
     return items
   }, [page, pages])
 
-  // Sync allReleases when releases change (filter reset or page change)
-  useEffect(() => {
-    if (page === 1) {
-      setAllReleases(releases)
-    }
-  }, [releases, page])
-
-  // Load more function for infinite scroll
-  const loadMore = useCallback(async () => {
-    if (loadingMore || !hasMore || loading) return
-    setLoadingMore(true)
+  // Load more: advance to next page
+  const loadMore = useCallback(() => {
+    if (!hasMore || loading) return
     const nextPage = page + 1
-    const params = new URLSearchParams()
-    params.set("page", String(nextPage))
-    params.set("limit", String(limit))
-    if (search) params.set("search", search)
-    if (category) params.set("category", category)
-    if (format) params.set("format", format)
-    if (country) params.set("country", country)
-    if (label) params.set("label", label)
-    if (yearFrom) params.set("year_from", yearFrom)
-    if (genre) params.set("genre", genre)
-    if (decade) params.set("decade", decade)
-    if (forSale) params.set("for_sale", "true")
-    const [sf, so] = sort.split(":"); params.set("sort", sf === "legacy_price" ? "price" : sf); if (so) params.set("order", so)
-
-    const data = await medusaFetch<CatalogResponse>(`/store/catalog?${params.toString()}`)
-    if (data) {
-      setAllReleases(prev => [...prev, ...data.releases])
-      setPage(nextPage)
-      setPages(data.pages)
-      setTotal(data.total)
-      rudderTrack("catalog_load_more", { page: nextPage, total_loaded: allReleases.length + data.releases.length })
-    }
-    setLoadingMore(false)
-  }, [loadingMore, hasMore, loading, page, limit, search, category, format, country, label, yearFrom, forSale, sort, allReleases.length])
+    setPage(nextPage)
+    rudderTrack("catalog_load_more", { page: nextPage })
+  }, [hasMore, loading, page])
 
   const hasActiveFilters = category || format || country || label || yearFrom || genre || decade || forSale
 
@@ -731,7 +699,7 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
 
       {/* Load More */}
       {hasMore && !loading && releases.length > 0 && (
-        <div className="mt-8 flex flex-col items-center gap-3">
+        <div className="mt-6 flex flex-col items-center gap-2">
           <p className="text-sm text-muted-foreground">
             Showing {Math.min(page * limit, total).toLocaleString()} of {total.toLocaleString()} releases
           </p>
@@ -739,18 +707,9 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
             variant="outline"
             size="lg"
             onClick={loadMore}
-            disabled={loadingMore}
             className="min-w-[200px]"
           >
-            {loadingMore ? (
-              <span className="flex items-center gap-2">
-                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                Loading...
-              </span>
-            ) : `Load More (${Math.min(limit, total - page * limit)} items)`}
+            Load More ({Math.min(limit, total - page * limit)} items)
           </Button>
         </div>
       )}
