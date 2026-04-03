@@ -4,6 +4,85 @@ Vollständiger Entwicklungs-Changelog. Neue Einträge werden direkt hier ergänz
 
 ---
 
+## 2026-04-03 — Platform Optimization: 9 Features (RSE-276 bis RSE-285)
+
+Basierend auf externer technischer Analyse + UI/UX-Bewertung. Optimierungsplan: `docs/optimizing/OPTIMIZATION_PLAN.md`.
+
+### Phase 1: Go-Live Readiness
+
+#### RSE-276: Scroll-Bug Lot-Detailseiten
+- Mobile Bottom-Padding reduziert (`pb-20` → `pb-24`), redundanten Separator entfernt
+- Spacing vor RelatedSection gestrafft (`my-8` → `mt-6 mb-4`)
+- **Datei:** `storefront/src/app/auctions/[slug]/[itemId]/page.tsx`
+
+#### RSE-277: Homepage-Übergang glätten
+- Coming Soon Sektion: symmetrisches Padding (`pb-16` → `py-16`) + subtle Border-Divider
+- **Datei:** `storefront/src/components/HomeContent.tsx`
+
+#### RSE-278: Bid-Confirmation Animation
+- Animiertes Checkmark-Overlay nach erfolgreichem Gebot (Framer Motion Spring, 2.5s auto-fade)
+- `bidSuccess` State in BidForm, Gold-Akzent auf Background, "Bid Placed!" + Subtitle
+- Bestehender Sonner-Toast bleibt als sekundäre Bestätigung
+- **Datei:** `storefront/src/components/ItemBidSection.tsx`
+
+#### RSE-279: SEO Schema.org + Dynamic robots.txt
+- **Dynamic `robots.ts`:** Async, fetcht `platform_mode` vom Backend. Nicht-`live` Modes → `Disallow: /` (blockiert Crawler)
+- **Organization JSON-LD** im Root Layout: VOD Auctions, Frank Bull, Est. 2003
+- **BreadcrumbList JSON-LD** auf 6 Detail-Seiten: Lot, Block, Catalog, Band, Label, Press
+- **Neue Komponente:** `storefront/src/components/BreadcrumbJsonLd.tsx`
+- **Dateien:** `robots.ts`, `layout.tsx`, 6 Detail-Pages
+
+### Phase 2: Post-Launch Features
+
+#### RSE-280: Autocomplete-Suche mit Typeahead
+- **Backend:** `GET /store/catalog/suggest?q=...&limit=8` — ILIKE auf Release.title, Artist.name, Label.name, gruppierte Ergebnisse (Releases 60%, Artists 20%, Labels 20%)
+- **Frontend:** `SearchAutocomplete.tsx` — Dialog mit Debounced Input (300ms), Keyboard-Navigation (Arrow + Enter + Escape), Cover-Thumbnails, gruppierte Sektionen
+- **Header:** Search-Icon → Button mit `Cmd+K` Badge, globaler Keyboard-Shortcut
+- **Dateien:** Neue `backend/src/api/store/catalog/suggest/route.ts`, neue `SearchAutocomplete.tsx`, `Header.tsx`
+
+#### RSE-281: Faceted Search — Genre, Decade, Filter-Chips
+- **Backend:** `genre` Param (JOIN entity_content.genre_tags), `decade` Param (year BETWEEN range)
+- **Backend:** `GET /store/catalog/facets` — Format/Country/Decade/Genre Counts für Cross-Filtering
+- **Frontend:** Genre-Input + Decade-Dropdown in Advanced Filters
+- **Filter-Chips:** Aktive Filter als Badges mit X zum Entfernen, alle URL-persistiert
+- **Dateien:** `catalog/route.ts`, neue `catalog/facets/route.ts`, `CatalogClient.tsx`, `catalog/page.tsx`
+
+#### RSE-282: Completed Auctions Archiv
+- **Backend:** `?status=past` Filter (ended + archived), sortiert nach end_time DESC, enriched mit total_bids, total_revenue, sold_count
+- **Frontend:** `/auctions/archive` Seite mit Block-Cards (Endpreise, Bid-Counts, Cover-Images)
+- Schema.org `Event` mit `EventEnded` Status, BreadcrumbJsonLd
+- "View Past Auctions →" Link auf Auctions-Seite
+- **Dateien:** `auction-blocks/route.ts`, neue `auctions/archive/page.tsx`, `auctions/page.tsx`
+
+#### RSE-283: Catalog Infinite Scroll
+- Intersection Observer mit 400px rootMargin für Auto-Loading
+- "Load More" Button als manuelle Alternative
+- Toggle zwischen Paginated/Infinite (localStorage-Persistenz)
+- Akkumulierte Releases im Infinite-Modus, Reset bei Filter-Änderung
+- Progress-Counter: "Showing X of Y releases"
+- **Datei:** `storefront/src/components/CatalogClient.tsx`
+
+#### RSE-285: Onboarding-Flow für Erst-Bieter
+- 3-Slide Modal nach Registrierung: Proxy Bidding, Anti-Sniping, Checkout & Shipping
+- Trigger via Custom Event `vod:registration-complete` (dispatched nach Register in AuthProvider)
+- localStorage `vod_onboarding_completed` Flag, Skip/Complete Options, Progress Dots
+- **Dateien:** Neue `OnboardingModal.tsx`, `AuthProvider.tsx`, `layout.tsx`
+
+### Infrastructure
+
+#### Admin Session TTL
+- Medusa Session-Cookie von 10h (Default) auf 14 Tage verlängert (`sessionOptions.ttl` in medusa-config.ts)
+
+#### Missing Dependency
+- `@stripe/stripe-js` als fehlende Dependency installiert (Build-Fix)
+
+### Dokumentation
+- **Optimization Plan:** `docs/optimizing/OPTIMIZATION_PLAN.md` — 17 Issues aus externer Analyse, Querschnitts-Anforderungen (Testing, Tracking, SEO, Admin, Doku)
+- **Post-Auction Marketing Funnel:** `docs/optimizing/POST_AUCTION_MARKETING_FUNNEL.md` — 7-Touchpoint Cross-Sell Konzept mit Shipping-Savings-Visualisierung
+- **Linear:** 189 erledigte Issues archiviert, 17 neue Issues angelegt (RSE-276 bis RSE-292)
+
+---
+
 ## 2026-04-02 — Admin Config Panel, Pre-Launch System, Dashboard, Design System Unification
 
 ### Shared Component Library + Design System v2.0
