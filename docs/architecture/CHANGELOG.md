@@ -19,6 +19,10 @@ Vollständiger Entwicklungs-Changelog. Neue Einträge werden direkt hier ergänz
 - **Header Dropdown Badges:** "My Bids" (gold) + "Won" (grün) Badges mit Zähler im User-Dropdown
 - **Mobile Profile Icon:** User-Icon links neben Hamburger-Menü (nur wenn eingeloggt, verlinkt zu /account)
 - **Auction Archive:** Link in Account-Sidebar hinzugefügt
+- **Checkout Badge:** Zeigt Summe aus Wins + Cart Items
+
+### VPS Timezone
+- **`Europe/Berlin` (CEST)** statt UTC — Cron-Jobs, Logs und Timestamps jetzt in lokaler Zeit
 
 ---
 
