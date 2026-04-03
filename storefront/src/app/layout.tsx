@@ -108,6 +108,22 @@ export default async function RootLayout({
         >
           Skip to content
         </a>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "Organization",
+              name: "VOD Auctions",
+              url: "https://vod-auctions.com",
+              logo: "https://vod-auctions.com/logo.png",
+              description:
+                "Curated auctions for rare Industrial, Experimental and Electronic music vinyl. Est. 2003.",
+              foundingDate: "2003",
+              founder: { "@type": "Person", name: "Frank Bull" },
+            }),
+          }}
+        />
         <SentryInit />
         <Suspense fallback={null}>
           <TopLoadingBar />

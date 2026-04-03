@@ -172,7 +172,7 @@ export function HomeContent({ blocks }: { blocks: AuctionBlock[] }) {
       )}
 
       {featuredUpcoming && (
-        <section className="mx-auto max-w-6xl px-6 pb-16">
+        <section className="mx-auto max-w-6xl px-6 py-16 border-t border-primary/10">
           <div className="flex items-center justify-between mb-6">
             <h2 className="font-serif text-2xl md:text-3xl">Coming Soon</h2>
             <Link href="/auctions" className="text-sm text-primary hover:text-primary/80 transition-colors">

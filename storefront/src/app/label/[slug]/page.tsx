@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
+import { BreadcrumbJsonLd } from "@/components/BreadcrumbJsonLd"
 import Image from "next/image"
 import { notFound } from "next/navigation"
 import { ChevronRight } from "lucide-react"
@@ -278,6 +279,7 @@ export default async function LabelPage({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
+      <BreadcrumbJsonLd items={[{ name: "Home", url: "/" }, { name: "Labels", url: "/catalog?category=label_literature" }, { name: label.name, url: `/label/${label.slug}` }]} />
       {/* Breadcrumb */}
       <nav className="text-sm text-muted-foreground mb-8 flex items-center gap-1 flex-wrap">
         <Link href="/" className="hover:text-foreground transition-colors">

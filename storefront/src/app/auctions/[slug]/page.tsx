@@ -9,6 +9,7 @@ import { ShareButton } from "@/components/ShareButton"
 import { PreviewCountdown } from "@/components/PreviewCountdown"
 import { medusaFetch } from "@/lib/api"
 import type { AuctionBlock } from "@/types"
+import { BreadcrumbJsonLd } from "@/components/BreadcrumbJsonLd"
 
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   active: { label: "Live", className: "text-status-active" },
@@ -235,6 +236,13 @@ export default async function BlockDetailPage({
       </section>
 
       <div className="mx-auto max-w-6xl px-6 py-8">
+        <BreadcrumbJsonLd
+          items={[
+            { name: "Home", url: "/" },
+            { name: "Auctions", url: "/auctions" },
+            { name: block.title, url: `/auctions/${block.slug}` },
+          ]}
+        />
         {/* Breadcrumb */}
         <nav className="text-sm text-muted-foreground mb-8 flex items-center gap-1">
           <Link href="/auctions" className="hover:text-primary transition-colors">

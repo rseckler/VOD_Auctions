@@ -417,6 +417,7 @@ function BidForm({
   const [maxAmount, setMaxAmount] = useState("")
   const [loading, setLoading] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [bidSuccess, setBidSuccess] = useState(false)
 
   // Track whether the initial amount has been set once
   const suggestedBidUsed = useRef(false)
@@ -518,12 +519,16 @@ function BidForm({
           duration: 6000,
           description: "You remain the highest bidder.",
         })
+        setBidSuccess(true)
+        setTimeout(() => setBidSuccess(false), 2500)
         onBidResult?.(true)
         onBidPlaced()
       } else {
         toast.success(`Bid of €${data.amount.toFixed(2)} placed successfully!`, { duration: 6000 })
         brevoBidPlaced(itemId, data.amount, slug)
         rudderTrack("Bid Submitted", { amount: data.amount, block_item_id: itemId, slug })
+        setBidSuccess(true)
+        setTimeout(() => setBidSuccess(false), 2500)
         onBidResult?.(true)
         onBidPlaced()
       }
@@ -536,7 +541,7 @@ function BidForm({
 
   return (
     <>
-      <div className="mt-2 flex flex-col gap-2">
+      <div className="mt-2 flex flex-col gap-2 relative">
         <div className="space-y-1.5">
           <Label className="text-xs">Your Bid</Label>
           <div className="relative">
@@ -628,6 +633,30 @@ function BidForm({
             ? `Place Bid: \u20ac${parseFloat(amount || "0").toFixed(2)}`
             : "Login to Bid"}
         </Button>
+
+        {/* Bid Success Overlay */}
+        <AnimatePresence>
+          {bidSuccess && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-lg bg-background/95 border border-primary/30 backdrop-blur-sm"
+            >
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", stiffness: 400, damping: 15, delay: 0.1 }}
+                className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/20 mb-3"
+              >
+                <Check className="h-6 w-6 text-primary" />
+              </motion.div>
+              <p className="text-lg font-serif text-foreground">Bid Placed!</p>
+              <p className="text-xs text-muted-foreground mt-1">Your bid has been recorded</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Confirmation Modal */}

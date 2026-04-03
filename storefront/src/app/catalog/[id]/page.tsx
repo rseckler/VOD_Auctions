@@ -17,6 +17,7 @@ import { extractTracklistFromText, parseUnstructuredTracklist } from "@/lib/util
 import type { Release } from "@/types"
 import { ConditionRow } from "@/components/ConditionBadge"
 import { CatalogViewTracker } from "@/components/CatalogViewTracker"
+import { BreadcrumbJsonLd } from "@/components/BreadcrumbJsonLd"
 
 type RelatedRelease = {
   id: string
@@ -188,6 +189,13 @@ export default async function CatalogDetailPage({
         </Button>
       </div>
 
+      <BreadcrumbJsonLd
+        items={[
+          { name: "Home", url: "/" },
+          { name: "Catalog", url: "/catalog" },
+          { name: contextName ? `${contextName} — ${release.title}` : release.title, url: `/catalog/${release.id}` },
+        ]}
+      />
       {/* Breadcrumb — preserves catalog filter state via sessionStorage */}
       <nav className="text-sm text-muted-foreground mb-8 flex items-center gap-1 flex-wrap">
         <CatalogBackLink className="hover:text-foreground transition-colors" />

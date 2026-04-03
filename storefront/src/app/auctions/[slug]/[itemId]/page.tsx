@@ -17,6 +17,7 @@ import { extractTracklistFromText, parseUnstructuredTracklist } from "@/lib/util
 import type { AuctionBlock, BlockItem, ReleaseImage, TracklistEntry, VariousArtist, ReleaseComment } from "@/types"
 import { ConditionRow } from "@/components/ConditionBadge"
 import { BidHistoryTable } from "@/components/BidHistoryTable"
+import { BreadcrumbJsonLd } from "@/components/BreadcrumbJsonLd"
 
 type BlockInfo = {
   id: string
@@ -192,7 +193,15 @@ export default async function ItemDetailPage({
   }
 
   return (
-    <main className="mx-auto max-w-6xl px-6 py-8 pb-20 lg:pb-8">
+    <main className="mx-auto max-w-6xl px-6 py-8 pb-24 lg:pb-8">
+      <BreadcrumbJsonLd
+        items={[
+          { name: "Home", url: "/" },
+          { name: "Auctions", url: "/auctions" },
+          { name: block.title, url: `/auctions/${block.slug}` },
+          { name: contextName ? `${contextName} — ${release?.title}` : release?.title || `Lot ${item.lot_number}`, url: `/auctions/${block.slug}/${item.id}` },
+        ]}
+      />
       {/* Breadcrumb */}
       <nav className="text-sm text-muted-foreground mb-8 flex items-center gap-1 flex-wrap">
         <Link href="/auctions" className="hover:text-foreground transition-colors">
@@ -586,7 +595,7 @@ export default async function ItemDetailPage({
       </div>
 
       {/* Related Section */}
-      <Separator className="my-8" />
+      <Separator className="mt-6 mb-4" />
       <RelatedSection
         blockSlug={block.slug}
         currentItemId={item.id}
@@ -596,8 +605,7 @@ export default async function ItemDetailPage({
         variousArtists={release?.various_artists}
       />
 
-      <Separator className="my-8" />
-      <Button variant="ghost" asChild>
+      <Button variant="ghost" asChild className="mt-6">
         <Link href={`/auctions/${block.slug}`}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to &quot;{block.title}&quot;

@@ -9,6 +9,9 @@ if (process.env.NODE_ENV === 'production') {
 
 module.exports = defineConfig({
   projectConfig: {
+    sessionOptions: {
+      ttl: 14 * 24 * 60 * 60 * 1000, // 14 days
+    },
     redisUrl: process.env.REDIS_URL,
     databaseUrl: process.env.DATABASE_URL,
     databaseDriverOptions: {
