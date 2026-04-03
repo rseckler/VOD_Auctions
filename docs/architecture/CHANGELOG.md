@@ -4,6 +4,38 @@ Vollständiger Entwicklungs-Changelog. Neue Einträge werden direkt hier ergänz
 
 ---
 
+## 2026-04-03 — Live-Test Feedback: 5 UX Fixes + Code Quality (RSE-293)
+
+Post erster Live-Auction ("Throbbing Gristle & Industrial Records", 10 Lots, 30.03.–03.04.2026).
+
+### Fix 1: Winner Congratulations
+- **ItemBidSection.tsx:** Drei-Wege-Conditional nach Auktionsende — Gewinner: grüner Trophy-Banner + CTA "Complete Payment →" zu `/account/wins`. Verlierer: gedämpftes "Sold for". Anonym: generisch wie bisher.
+
+### Fix 2+4: Live-Countdown Timer
+- **Neu: `LiveCountdown.tsx`** — "use client" Component mit `setInterval`-Tick (1s unter 1h, 30s sonst)
+- **Neu: `time-utils.ts`** — Shared `getTimeUrgency()` mit Urgency-Levels (critical/urgent/normal/ended) + automatischer Format-Umschaltung (Sekunden → Minuten → Stunden → Tage)
+- **BlockCard.tsx:** Statisches `timeRemaining()` entfernt → `<LiveCountdown>` (Auctions-Listenseite zählt live runter)
+- **[slug]/page.tsx:** Statisches `timeRemaining()` entfernt → `<LiveCountdown size="lg">` (Block-Detailseite)
+- **LiveAuctionBanner.tsx:** Statisches `formatTimeRemaining()` entfernt → `<LiveCountdown>` (Top-Banner)
+- **BlockItemsGrid.tsx:** Lokale `getTimeUrgency()` durch shared Import ersetzt
+
+### Fix 3: Email-Verifizierung nach Registration
+- **AuthModal.tsx:** Neuer `"verify-email"` Mode — nach Registration "Check Your Inbox" Screen mit Resend-Button + "Continue Browsing"
+- **AuthProvider.tsx:** `emailVerified` State + `resendVerification()` Methode im Auth Context, gelesen aus Status-Endpoint
+- **Header.tsx:** Persistent Gold-Banner für unverified Users: "Please verify your email to place bids. [Resend]" (dismissible)
+
+### Fix 5: View Count Bereinigung
+- **Backend route.ts:** IP-basierte Deduplizierung (SHA-256 Hash, 24h in-memory Map mit stündlichem Cleanup), +1 Response-Inflation entfernt
+- **[itemId]/page.tsx:** Text durchgängig "X people have viewed this lot" (statt "watching"), Fire-Emoji entfernt, Threshold > 5 beibehalten
+
+### Zusätzliche Fixes
+- **bid-ending-reminder.ts:** Höchstbietender wird bei Reminder-Mails übersprungen — nur outbid-Bidder bekommen Erinnerungen
+- **auction-block.ts:** `max_extensions` Feld im ORM-Model ergänzt (DB-Migration existierte bereits)
+- **auction-lifecycle.ts:** `parseFloat()` → `Number()` mit `|| 0` Fallback für DECIMAL-Handling
+- **ItemBidSection.tsx:** User-Anonymisierung in Realtime-Updates: `substring(0,8)` → `anonymizeUserId()` Hash-Funktion (leakt keine echten IDs mehr)
+
+---
+
 ## 2026-04-03 — Bilder-CDN: Cloudflare R2 Migration (RSE-284)
 
 ### Cloudflare R2 Integration — Vollständig
