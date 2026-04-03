@@ -14,7 +14,7 @@ Post-Auction Daten-Review des ersten Live-Durchlaufs. SQL-Queries gegen Prod-DB,
 - **order_number UNIQUE violation:** Code versuchte denselben order_number auf alle Transactions einer Gruppe zu setzen → UNIQUE constraint error. Fix: jede Transaction bekommt eigene Nummer. 3 bezahlte Transactions nachträglich mit VOD-ORD-000005 bis -000007 versorgt.
 
 ### Improvements
-- **Email-Logging:** `sendEmailWithLog()` + `email_log` Tabelle für Audit-Trail aller gesendeten Emails
+- **Email-Logging:** `sendEmailWithLog()` + `email_log` Tabelle für Audit-Trail. Alle 13 Email-Helper (`email-helpers.ts`) auf `sendEmailWithLog()` umgestellt: welcome, outbid, bid-placed, bid-won, payment-confirmation, shipping, payment-reminder-1/3, feedback-request, bid-ending-soon, watchlist-reminder, waitlist-confirm, invite-welcome
 - **Realtime Bid-Updates vereinheitlicht:** Frontend nutzt jetzt `loadBids()` API-Call statt Inline-Payload → konsistente SHA-256 User-Hints + kein doppeltes bidCount-Increment
 - **extension_count** in Item-API-Response hinzugefügt
 - **Shipping-Adresse Fallback:** Webhook überschreibt Checkout-Daten nicht mehr mit Null wenn Stripe keine Adresse liefert
