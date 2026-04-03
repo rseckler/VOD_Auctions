@@ -1,6 +1,6 @@
 import { Knex } from "knex"
 import { createHmac } from "crypto"
-import { sendEmail, APP_URL } from "./email"
+import { sendEmailWithLog, APP_URL } from "./email"
 import { getTrackingUrl } from "./tracking"
 import { welcomeEmail } from "../emails/welcome"
 import { outbidEmail } from "../emails/outbid"
@@ -77,7 +77,7 @@ export async function sendWelcomeEmail(pg: Knex, userId: string) {
     auctionsUrl: `${APP_URL}/auctions`,
     customerId: customer.id,
   })
-  await sendEmail({ to: customer.email, subject, html })
+  await sendEmailWithLog(pg, { to: customer.email, subject, html, template: "welcome" })
 }
 
 // --- OUTBID ---
@@ -120,7 +120,7 @@ export async function sendOutbidEmail(
     bidUrl: lotUrl,
     customerId: customer.id,
   })
-  await sendEmail({ to: customer.email, subject, html })
+  await sendEmailWithLog(pg, { to: customer.email, subject, html, template: "outbid" })
 }
 
 // --- BID PLACED ---
@@ -159,7 +159,7 @@ export async function sendBidPlacedEmail(
     lotUrl,
     customerId: customer.id,
   })
-  await sendEmail({ to: customer.email, subject, html })
+  await sendEmailWithLog(pg, { to: customer.email, subject, html, template: "bid-placed" })
 }
 
 // --- BID WON ---
@@ -193,7 +193,7 @@ export async function sendBidWonEmail(
     paymentUrl: `${APP_URL}/account/wins`,
     customerId: customer.id,
   })
-  await sendEmail({ to: customer.email, subject, html })
+  await sendEmailWithLog(pg, { to: customer.email, subject, html, template: "bid-won" })
 }
 
 // --- PAYMENT CONFIRMATION ---
@@ -243,7 +243,7 @@ export async function sendPaymentConfirmationEmail(
     accountUrl: `${APP_URL}/account/wins`,
     customerId: customer.id,
   })
-  await sendEmail({ to: customer.email, subject, html })
+  await sendEmailWithLog(pg, { to: customer.email, subject, html, template: "payment-confirmation" })
 }
 
 // --- SHIPPING ---
@@ -295,7 +295,7 @@ export async function sendShippingEmail(
     },
     customerId: customer.id,
   })
-  await sendEmail({ to: customer.email, subject, html })
+  await sendEmailWithLog(pg, { to: customer.email, subject, html, template: "shipping" })
 }
 
 // --- PAYMENT REMINDER 1 (day 1) ---
@@ -350,7 +350,7 @@ export async function sendPaymentReminder1Email(
     paymentUrl: `${APP_URL}/account/checkout`,
     customerId: customer.id,
   })
-  await sendEmail({ to: customer.email, subject, html })
+  await sendEmailWithLog(pg, { to: customer.email, subject, html, template: "payment-reminder-1" })
 }
 
 // --- PAYMENT REMINDER 3 (day 3) ---
@@ -407,7 +407,7 @@ export async function sendPaymentReminder3Email(
     paymentUrl: `${APP_URL}/account/checkout`,
     customerId: customer.id,
   })
-  await sendEmail({ to: customer.email, subject, html })
+  await sendEmailWithLog(pg, { to: customer.email, subject, html, template: "payment-reminder-3" })
 }
 
 // --- FEEDBACK REQUEST ---
@@ -448,7 +448,7 @@ export async function sendFeedbackRequestEmail(
     auctionsUrl: `${APP_URL}/auctions`,
     customerId: customer.id,
   })
-  await sendEmail({ to: customer.email, subject, html })
+  await sendEmailWithLog(pg, { to: customer.email, subject, html, template: "feedback-request" })
 
   // Mark feedback email as sent (for all items in group)
   if (tx.order_group_id) {
@@ -509,7 +509,7 @@ export async function sendBidEndingSoonEmail(
     bidUrl: lotUrl,
     customerId: customer.id,
   })
-  await sendEmail({ to: customer.email, subject, html })
+  await sendEmailWithLog(pg, { to: customer.email, subject, html, template: "bid-ending-soon" })
 }
 
 // --- WATCHLIST REMINDER ---
@@ -577,7 +577,7 @@ export async function sendWatchlistReminderEmail(
     customerId: customer.id,
   })
 
-  await sendEmail({ to: customer.email, subject, html })
+  await sendEmailWithLog(pg, { to: customer.email, subject, html, template: "watchlist-reminder" })
 }
 
 // --- WAITLIST CONFIRM ---
@@ -592,7 +592,7 @@ export async function sendWaitlistConfirmEmail(
     firstName: app.name?.split(" ")[0] || "there",
     email: app.email,
   })
-  await sendEmail({ to: app.email, subject, html })
+  await sendEmailWithLog(pg, { to: app.email, subject, html, template: "waitlist-confirm" })
 }
 
 // --- INVITE WELCOME ---
@@ -618,5 +618,5 @@ export async function sendInviteWelcomeEmail(
     inviteUrl,
     expiresAt: new Date(token.expires_at),
   })
-  await sendEmail({ to: app.email, subject, html })
+  await sendEmailWithLog(pg, { to: app.email, subject, html, template: "invite-welcome" })
 }
