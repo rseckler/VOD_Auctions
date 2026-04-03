@@ -32,7 +32,7 @@ export default async function AuctionsPage() {
       <LiveAuctionBanner />
       <main className="mx-auto max-w-6xl px-6 py-12">
         <div className="flex items-center justify-between mb-2">
-          <h1 className="text-3xl font-bold tracking-tight">Auctions</h1>
+          <h1 className="heading-1 tracking-tight">Auctions</h1>
           <Link href="/auctions/archive" className="text-sm text-primary hover:text-primary/80 transition-colors">
             View Past Auctions →
           </Link>

@@ -6,7 +6,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { getToken } from "@/lib/auth"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
-import { Disc3, Trophy, CreditCard, Truck, CheckCircle2, AlertTriangle } from "lucide-react"
+import { Disc3, Trophy, CreditCard, Truck, CheckCircle2, AlertTriangle, Package, ShoppingCart, ArrowRight } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -19,7 +19,28 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { toast } from "sonner"
+import { useAuth } from "@/components/AuthProvider"
 import type { WinEntry, Transaction } from "@/types"
+
+type ShippingSavings = {
+  unpaid_wins: number
+  cart_items: number
+  total_weight_g: number
+  shipping_cost: number
+  savings_vs_individual: number
+  items_count: number
+  zone: string
+}
+
+type Recommendation = {
+  id: string
+  title: string
+  coverImage: string
+  artist_name: string | null
+  legacy_price: number
+  format: string | null
+  reason: string
+}
 
 type ShippingCountry = {
   code: string
@@ -30,6 +51,7 @@ type ShippingCountry = {
 
 export default function WinsPage() {
   const searchParams = useSearchParams()
+  const { refreshStatus } = useAuth()
   const [wins, setWins] = useState<WinEntry[]>([])
   const [transactions, setTransactions] = useState<Record<string, Transaction>>({})
   const [loading, setLoading] = useState(true)
@@ -37,6 +59,9 @@ export default function WinsPage() {
   const [shippingCountries, setShippingCountries] = useState<Record<string, string>>({})
   const [countries, setCountries] = useState<ShippingCountry[]>([])
   const [hasCatchAll, setHasCatchAll] = useState(false)
+  const [shippingSavings, setShippingSavings] = useState<ShippingSavings | null>(null)
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([])
+  const [addingToCartId, setAddingToCartId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchData()
@@ -80,10 +105,84 @@ export default function WinsPage() {
         txMap[tx.block_item_id] = tx
       }
       setTransactions(txMap)
+
+      // Fetch recommendations + shipping savings for unpaid wins
+      const unpaidReleaseIds = (winsRes.wins || [])
+        .filter((w: any) => {
+          const tx = txMap[w.item?.id]
+          return !tx || tx.status === "failed"
+        })
+        .map((w: any) => w.item?.release_id)
+        .filter(Boolean)
+
+      if (unpaidReleaseIds.length > 0) {
+        // Fetch recommendations
+        fetch(`${MEDUSA_URL}/store/account/recommendations?release_ids=${unpaidReleaseIds.join(",")}&limit=4`, { headers })
+          .then((r) => r.json())
+          .then((data) => setRecommendations(data.recommendations || []))
+          .catch(() => {})
+
+        // Fetch shipping savings (default DE, will update when country selected)
+        fetch(`${MEDUSA_URL}/store/account/shipping-savings?country=DE`, { headers })
+          .then((r) => r.json())
+          .then((data) => setShippingSavings(data))
+          .catch(() => {})
+      }
     } catch {
       // silently fail
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Update shipping savings when a shipping country is selected
+  useEffect(() => {
+    const selectedCountry = Object.values(shippingCountries)[0]
+    if (!selectedCountry) return
+    const token = getToken()
+    if (!token) return
+    fetch(`${MEDUSA_URL}/store/account/shipping-savings?country=${selectedCountry}`, {
+      headers: {
+        "x-publishable-api-key": PUBLISHABLE_KEY,
+        Authorization: `Bearer ${token}`,
+      },
+    })
+      .then((r) => r.json())
+      .then((data) => setShippingSavings(data))
+      .catch(() => {})
+  }, [shippingCountries])
+
+  async function handleAddToCart(rec: Recommendation) {
+    const token = getToken()
+    if (!token) return
+
+    setAddingToCartId(rec.id)
+    try {
+      const res = await fetch(`${MEDUSA_URL}/store/account/cart`, {
+        method: "POST",
+        headers: {
+          "x-publishable-api-key": PUBLISHABLE_KEY,
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ release_id: rec.id }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        toast.error(data.message || "Failed to add to cart")
+        return
+      }
+
+      await refreshStatus()
+      toast.success(`Added "${rec.title}" to cart`)
+      // Remove from recommendations
+      setRecommendations((prev) => prev.filter((r) => r.id !== rec.id))
+    } catch {
+      toast.error("Failed to add to cart")
+    } finally {
+      setAddingToCartId(null)
     }
   }
 
@@ -280,6 +379,46 @@ export default function WinsPage() {
         </Card>
       )}
 
+      {/* Shipping Savings Bar */}
+      {hasUnpaid && shippingSavings && shippingSavings.items_count > 0 && (
+        <Card className="p-4 mb-6 border-[#d4a54a]/30 bg-[#d4a54a]/5">
+          <div className="flex items-start gap-3">
+            <Package className="w-5 h-5 text-[#d4a54a] flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium">
+                Shipping{shippingSavings.zone === "de" ? " within Germany" : shippingSavings.zone === "eu" ? " to EU" : " worldwide"}:{" "}
+                <span className="text-[#d4a54a] font-mono">&euro;{shippingSavings.shipping_cost.toFixed(2)}</span>
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                You can add more items &mdash; shipping stays combined!
+                {shippingSavings.savings_vs_individual > 0 && (
+                  <span className="text-[#d4a54a] font-medium">
+                    {" "}Saving &euro;{shippingSavings.savings_vs_individual.toFixed(2)} vs. ordering individually.
+                  </span>
+                )}
+              </p>
+              {/* Progress bar showing weight */}
+              <div className="mt-2">
+                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-[#d4a54a] to-[#c49a3a] rounded-full transition-all"
+                    style={{ width: `${Math.min((shippingSavings.total_weight_g / 2000) * 100, 100)}%` }}
+                  />
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  {shippingSavings.total_weight_g}g / 2,000g &mdash; room for {Math.floor((2000 - shippingSavings.total_weight_g) / 350)} more vinyl records
+                </p>
+              </div>
+            </div>
+            <Button variant="outline" size="sm" asChild className="flex-shrink-0 border-[#d4a54a]/30 text-[#d4a54a] hover:bg-[#d4a54a]/10">
+              <Link href="/catalog?for_sale=true">
+                Add Items <ArrowRight className="w-3.5 h-3.5 ml-1" />
+              </Link>
+            </Button>
+          </div>
+        </Card>
+      )}
+
       <div className="space-y-3">
         {wins.map((win) => {
           const tx = transactions[win.item.id]
@@ -396,6 +535,65 @@ export default function WinsPage() {
           )
         })}
       </div>
+
+      {/* Recommendations Grid */}
+      {hasUnpaid && recommendations.length > 0 && (
+        <div className="mt-8">
+          <div className="mb-4">
+            <h3 className="text-lg font-semibold font-serif">Recommended for You</h3>
+            <p className="text-sm text-muted-foreground">
+              Based on your auction wins &middot; Ships together!
+            </p>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {recommendations.map((rec) => (
+              <Card key={rec.id} className="overflow-hidden group">
+                <Link href={`/catalog/${rec.id}`} className="block">
+                  <div className="relative aspect-square bg-card">
+                    {rec.coverImage ? (
+                      <Image
+                        src={rec.coverImage}
+                        alt={rec.title}
+                        fill
+                        sizes="(max-width: 768px) 50vw, 25vw"
+                        className="object-cover group-hover:scale-105 transition-transform"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Disc3 className="h-8 w-8 text-muted-foreground/20" />
+                      </div>
+                    )}
+                  </div>
+                </Link>
+                <div className="p-2.5">
+                  {rec.artist_name && (
+                    <p className="text-[11px] text-muted-foreground truncate">{rec.artist_name}</p>
+                  )}
+                  <p className="text-xs font-medium truncate">{rec.title}</p>
+                  <div className="flex items-center justify-between mt-2">
+                    <span className="text-sm font-bold font-mono text-primary">
+                      &euro;{rec.legacy_price.toFixed(2)}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-[11px] border-[#d4a54a]/30 text-[#d4a54a] hover:bg-[#d4a54a]/10"
+                      disabled={addingToCartId === rec.id}
+                      onClick={(e) => {
+                        e.preventDefault()
+                        handleAddToCart(rec)
+                      }}
+                    >
+                      <ShoppingCart className="w-3 h-3 mr-1" />
+                      {addingToCartId === rec.id ? "Adding..." : "Add"}
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

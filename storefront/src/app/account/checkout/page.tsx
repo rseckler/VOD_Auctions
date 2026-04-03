@@ -1664,6 +1664,23 @@ export default function CheckoutPage() {
                 </div>
               )}
 
+              {/* Shipping savings highlight */}
+              {unpaidWins.length + cartItems.length > 1 && shippingCost > 0 && (() => {
+                const baseZoneShipping = shippingCost
+                const savings = (unpaidWins.length + cartItems.length - 1) * baseZoneShipping
+                if (savings <= 0) return null
+                return (
+                  <div className="flex justify-between items-center text-[#d4a54a]">
+                    <span className="text-xs">
+                      You saved on shipping (vs. {unpaidWins.length + cartItems.length} individual orders)
+                    </span>
+                    <span className="font-mono text-xs font-semibold">
+                      {"\u20AC"}{savings.toFixed(2)}
+                    </span>
+                  </div>
+                )
+              })()}
+
               <div className="border-t border-border pt-3 flex justify-between items-center">
                 <span className="font-semibold text-base">Total</span>
                 <span className="text-xl font-bold font-mono text-primary">
