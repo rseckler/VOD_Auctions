@@ -4,6 +4,32 @@ Vollständiger Entwicklungs-Changelog. Neue Einträge werden direkt hier ergänz
 
 ---
 
+## 2026-04-03 — Auction Review: 3 Bug Fixes + 9 Improvements (RSE-293, Part 2)
+
+Post-Auction Daten-Review des ersten Live-Durchlaufs. SQL-Queries gegen Prod-DB, Code-Analyse.
+
+### Kritische Bugs gefunden & gefixt
+- **Double is_winning bei max_raise:** Wenn User sein Maximum erhöht, wurde ein neuer Bid mit `is_winning=true` eingefügt ohne den alten auf `false` zu setzen → 2 Gewinner pro Lot. Fix: max_raise Bids mit `is_winning: false`. Lot #6 Daten korrigiert.
+- **Release auction_status nicht auf 'sold' gesetzt:** Lifecycle-Job setzte `block_item.status='sold'` aber vergaß `Release.auction_status`. Alle 10 Releases standen auf 'reserved' statt 'sold'. Fix im Job + Daten korrigiert.
+- **order_number UNIQUE violation:** Code versuchte denselben order_number auf alle Transactions einer Gruppe zu setzen → UNIQUE constraint error. Fix: jede Transaction bekommt eigene Nummer. 3 bezahlte Transactions nachträglich mit VOD-ORD-000005 bis -000007 versorgt.
+
+### Improvements
+- **Email-Logging:** `sendEmailWithLog()` + `email_log` Tabelle für Audit-Trail aller gesendeten Emails
+- **Realtime Bid-Updates vereinheitlicht:** Frontend nutzt jetzt `loadBids()` API-Call statt Inline-Payload → konsistente SHA-256 User-Hints + kein doppeltes bidCount-Increment
+- **extension_count** in Item-API-Response hinzugefügt
+- **Shipping-Adresse Fallback:** Webhook überschreibt Checkout-Daten nicht mehr mit Null wenn Stripe keine Adresse liefert
+- **LiveAuctionBanner:** Zeigt Anzahl aktiver Auktionen + linkt zu /auctions wenn mehrere aktiv
+- **Proaktive Win/Loss-Notification:** Toast-Benachrichtigung via Supabase Realtime wenn Lot-Status auf sold wechselt
+- **Proxy-Bidding UX:** "Outbid by automatic proxy bid — Another bidder set a higher maximum" statt "You are not the highest bidder"
+
+### Auction-Durchlauf Ergebnis
+- **10/10 Lots verkauft**, €71.50 Revenue, 51 Bids, 8 Bidder, 5 Gewinner
+- **Anti-Sniping:** 2x ausgelöst (Lot #2 + #4, je +5min)
+- **3 Transactions paid** (€27), 2 pending, 5 noch kein Checkout
+- **Datenintegrität:** 0 Orphaned Bids, 0 Orphaned Items, alle Winning Bids korrekt
+
+---
+
 ## 2026-04-03 — Live-Test Feedback: 5 UX Fixes + Code Quality (RSE-293)
 
 Post erster Live-Auction ("Throbbing Gristle & Industrial Records", 10 Lots, 30.03.–03.04.2026).
