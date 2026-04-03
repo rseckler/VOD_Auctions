@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import Link from "next/link"
 import { AuctionListFilter } from "@/components/AuctionListFilter"
 import { LiveAuctionBanner } from "@/components/LiveAuctionBanner"
 import { medusaFetch } from "@/lib/api"
@@ -30,7 +31,12 @@ export default async function AuctionsPage() {
     <>
       <LiveAuctionBanner />
       <main className="mx-auto max-w-6xl px-6 py-12">
-        <h1 className="text-3xl font-bold tracking-tight mb-2">Auctions</h1>
+        <div className="flex items-center justify-between mb-2">
+          <h1 className="text-3xl font-bold tracking-tight">Auctions</h1>
+          <Link href="/auctions/archive" className="text-sm text-primary hover:text-primary/80 transition-colors">
+            View Past Auctions →
+          </Link>
+        </div>
         <p className="text-muted-foreground mb-8">
           All running and scheduled auction blocks.
         </p>

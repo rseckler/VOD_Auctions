@@ -3,11 +3,12 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Menu, Disc3, ShoppingCart, Heart, Search } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { HeaderAuth } from "@/components/HeaderAuth"
 import { MobileNav } from "./MobileNav"
 import { useAuth } from "@/components/AuthProvider"
 import { AuthModal } from "@/components/AuthModal"
+import { SearchAutocomplete } from "@/components/SearchAutocomplete"
 
 const NAV_LINKS = [
   { href: "/auctions", label: "Auctions" },
@@ -20,7 +21,20 @@ export function Header() {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [authModalOpen, setAuthModalOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
   const { isAuthenticated, cartCount, savedCount } = useAuth()
+
+  // Cmd+K / Ctrl+K global shortcut
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault()
+        setSearchOpen(true)
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown)
+    return () => document.removeEventListener("keydown", handleKeyDown)
+  }, [])
 
   function handleAnonClick(e: React.MouseEvent) {
     if (!isAuthenticated) {
@@ -54,13 +68,16 @@ export function Header() {
                 </Link>
               )
             })}
-            <Link
-              href="/catalog"
-              className="text-muted-foreground hover:text-foreground transition-colors"
+            <button
+              onClick={() => setSearchOpen(true)}
+              className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
               aria-label="Search catalog"
             >
               <Search className="h-5 w-5" />
-            </Link>
+              <kbd className="hidden lg:inline-flex h-5 px-1.5 items-center rounded border border-border/50 text-[10px] text-muted-foreground/60 font-mono">
+                ⌘K
+              </kbd>
+            </button>
             <Link
               href={isAuthenticated ? "/account/saved" : "#"}
               onClick={handleAnonClick}
@@ -106,6 +123,10 @@ export function Header() {
       <AuthModal
         open={authModalOpen}
         onClose={() => setAuthModalOpen(false)}
+      />
+      <SearchAutocomplete
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
       />
     </>
   )

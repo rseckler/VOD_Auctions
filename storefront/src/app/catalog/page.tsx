@@ -61,6 +61,8 @@ export default async function CatalogPage({ searchParams }: Props) {
   const year_from = (params.year_from as string) || ""
   const year_to = (params.year_to as string) || ""
   const condition = (params.condition as string) || ""
+  const genre = (params.genre as string) || ""
+  const decade = (params.decade as string) || ""
 
   // Build query string for server-side fetch
   const queryParts = [
@@ -78,6 +80,8 @@ export default async function CatalogPage({ searchParams }: Props) {
   if (year_from) queryParts.push(`year_from=${year_from}`)
   if (year_to) queryParts.push(`year_to=${year_to}`)
   if (condition) queryParts.push(`condition=${encodeURIComponent(condition)}`)
+  if (genre) queryParts.push(`genre=${encodeURIComponent(genre)}`)
+  if (decade) queryParts.push(`decade=${decade}`)
 
   // Server-side fetch — provides HTML with real product data for SEO
   let initialReleases: any[] = []
@@ -115,6 +119,8 @@ export default async function CatalogPage({ searchParams }: Props) {
     year_from,
     year_to,
     condition,
+    genre,
+    decade,
   }
 
   return (

@@ -151,6 +151,9 @@ export async function GET(
     condition,
     sort = "artist",
     order = "asc",
+    genre,
+    decade,
+    for_sale,
   } = req.query as Record<string, string>
 
   const offset = (Math.max(1, parseInt(page)) - 1) * parseInt(limit)
@@ -306,10 +309,30 @@ export async function GET(
   countQuery = countQuery.whereNotNull("Release.coverImage")
 
   // For-sale filter: only show purchasable items (with price)
-  const { for_sale } = req.query as Record<string, string>
   if (for_sale === "true") {
     query = query.whereNotNull("Release.legacy_price").where("Release.legacy_price", ">", 0).where("Release.legacy_available", true)
     countQuery = countQuery.whereNotNull("Release.legacy_price").where("Release.legacy_price", ">", 0).where("Release.legacy_available", true)
+  }
+
+  // Genre filter: match via entity_content genre_tags on artist
+  if (genre && typeof genre === "string" && genre.trim()) {
+    query = query.join("entity_content as EC_genre", function () {
+      this.on("Release.artistId", "=", "EC_genre.entity_id")
+        .andOn(pgConnection.raw("\"EC_genre\".\"entity_type\" = 'artist'"))
+    }).whereRaw("? = ANY(\"EC_genre\".\"genre_tags\")", [genre.trim()])
+    countQuery = countQuery.join("entity_content as EC_genre_c", function () {
+      this.on("Release.artistId", "=", "EC_genre_c.entity_id")
+        .andOn(pgConnection.raw("\"EC_genre_c\".\"entity_type\" = 'artist'"))
+    }).whereRaw("? = ANY(\"EC_genre_c\".\"genre_tags\")", [genre.trim()])
+  }
+
+  // Decade filter: e.g. decade=1980 → year BETWEEN 1980 AND 1989
+  if (decade && typeof decade === "string") {
+    const startYear = parseInt(decade)
+    if (!isNaN(startYear)) {
+      query = query.where("Release.year", ">=", startYear).where("Release.year", "<=", startYear + 9)
+      countQuery = countQuery.where("Release.year", ">=", startYear).where("Release.year", "<=", startYear + 9)
+    }
   }
 
   // Count total

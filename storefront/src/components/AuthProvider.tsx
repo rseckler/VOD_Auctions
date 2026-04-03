@@ -248,6 +248,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
       }).catch(() => {})
 
+      // Trigger onboarding modal for first-time registrations
+      window.dispatchEvent(new Event("vod:registration-complete"))
+
       // Sync newsletter opt-in preference to Brevo (fire-and-forget)
       if (newsletterOptin) {
         fetch(`${MEDUSA_URL}/store/account/newsletter`, {

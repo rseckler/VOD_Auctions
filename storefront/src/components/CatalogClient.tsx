@@ -59,6 +59,8 @@ export type CatalogInitialParams = {
   year_from: string
   year_to: string
   condition: string
+  genre: string
+  decade: string
 }
 
 export type CatalogClientProps = {
@@ -113,6 +115,8 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
   const [country, setCountry] = useState(initialParams.country)
   const [label, setLabel] = useState(initialParams.label)
   const [yearFrom, setYearFrom] = useState(initialParams.year_from)
+  const [genre, setGenre] = useState(initialParams.genre || "")
+  const [decade, setDecade] = useState(initialParams.decade || "")
   const [sort, setSort] = useState(initialParams.sort || "artist:asc")
   const [forSale, setForSale] = useState(initialParams.for_sale === "true")
   const [limit, setLimit] = useState(() => {
@@ -122,6 +126,12 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
   const [showFilters, setShowFilters] = useState(() => !!(initialParams.country || initialParams.label || initialParams.year_from))
   // If server provided data, start as not-loading
   const [loading, setLoading] = useState(initialReleases.length === 0)
+  // Infinite scroll state
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [allReleases, setAllReleases] = useState<CatalogRelease[]>(initialReleases)
+  const [useInfiniteScroll, setUseInfiniteScroll] = useState(false)
+  const sentinelRef = useRef<HTMLDivElement>(null)
+  const hasMore = page < pages
 
   // Sync state to URL (replaceState so back button works per-navigation)
   useEffect(() => {
@@ -137,6 +147,8 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
     if (country) params.set("country", country)
     if (label) params.set("label", label)
     if (yearFrom) params.set("year_from", yearFrom)
+    if (genre) params.set("genre", genre)
+    if (decade) params.set("decade", decade)
     if (sort && sort !== "artist:asc") params.set("sort", sort)
     if (forSale) params.set("for_sale", "true")
     if (limit !== 24) params.set("limit", String(limit))
@@ -145,7 +157,7 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
     window.history.replaceState(null, "", newUrl)
     // Store catalog URL for breadcrumb back-links on detail pages
     try { sessionStorage.setItem("catalog_url", newUrl) } catch {}
-  }, [page, search, category, format, country, label, yearFrom, sort, forSale, limit])
+  }, [page, search, category, format, country, label, yearFrom, genre, decade, sort, forSale, limit])
 
   // Restore state when navigating back (popstate)
   useEffect(() => {
@@ -159,6 +171,8 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
       setCountry(sp.get("country") || "")
       setLabel(sp.get("label") || "")
       setYearFrom(sp.get("year_from") || "")
+      setGenre(sp.get("genre") || "")
+      setDecade(sp.get("decade") || "")
       setSort(sp.get("sort") || "artist:asc")
       setForSale(sp.get("for_sale") === "true")
       const l = Number(sp.get("limit"))
@@ -186,6 +200,8 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
     if (country) params.set("country", country)
     if (label) params.set("label", label)
     if (yearFrom) params.set("year_from", yearFrom)
+    if (genre) params.set("genre", genre)
+    if (decade) params.set("decade", decade)
     if (forSale) params.set("for_sale", "true")
     const [sf, so] = sort.split(":"); params.set("sort", sf === "legacy_price" ? "price" : sf); if (so) params.set("order", so)
 
@@ -198,7 +214,7 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
       setPages(data.pages)
     }
     setLoading(false)
-  }, [page, search, category, format, country, label, yearFrom, sort, forSale, limit])
+  }, [page, search, category, format, country, label, yearFrom, genre, decade, sort, forSale, limit])
 
   useEffect(() => {
     fetchReleases()
@@ -218,6 +234,8 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
     setCountry("")
     setLabel("")
     setYearFrom("")
+    setGenre("")
+    setDecade("")
     setSort("artist:asc")
     setForSale(false)
     setPage(1)
@@ -266,7 +284,76 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
     return items
   }, [page, pages])
 
-  const hasActiveFilters = category || format || country || label || yearFrom || forSale
+  // Initialize infinite scroll preference from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("vod_catalog_scroll_mode")
+      if (saved === "infinite") setUseInfiniteScroll(true)
+    } catch {}
+  }, [])
+
+  // Sync allReleases when releases change (paginated mode or filter reset)
+  useEffect(() => {
+    if (!useInfiniteScroll || page === 1) {
+      setAllReleases(releases)
+    }
+  }, [releases, useInfiniteScroll, page])
+
+  // Load more function for infinite scroll
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore || loading) return
+    setLoadingMore(true)
+    const nextPage = page + 1
+    const params = new URLSearchParams()
+    params.set("page", String(nextPage))
+    params.set("limit", String(limit))
+    if (search) params.set("search", search)
+    if (category) params.set("category", category)
+    if (format) params.set("format", format)
+    if (country) params.set("country", country)
+    if (label) params.set("label", label)
+    if (yearFrom) params.set("year_from", yearFrom)
+    if (genre) params.set("genre", genre)
+    if (decade) params.set("decade", decade)
+    if (forSale) params.set("for_sale", "true")
+    const [sf, so] = sort.split(":"); params.set("sort", sf === "legacy_price" ? "price" : sf); if (so) params.set("order", so)
+
+    const data = await medusaFetch<CatalogResponse>(`/store/catalog?${params.toString()}`)
+    if (data) {
+      setAllReleases(prev => [...prev, ...data.releases])
+      setPage(nextPage)
+      setPages(data.pages)
+      setTotal(data.total)
+      rudderTrack("catalog_load_more", { page: nextPage, total_loaded: allReleases.length + data.releases.length })
+    }
+    setLoadingMore(false)
+  }, [loadingMore, hasMore, loading, page, limit, search, category, format, country, label, yearFrom, forSale, sort, allReleases.length])
+
+  // Intersection Observer for auto-loading
+  useEffect(() => {
+    if (!useInfiniteScroll || !sentinelRef.current) return
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting) loadMore() },
+      { rootMargin: "0px 0px 400px 0px" }
+    )
+    observer.observe(sentinelRef.current)
+    return () => observer.disconnect()
+  }, [useInfiniteScroll, loadMore])
+
+  const toggleScrollMode = () => {
+    const next = !useInfiniteScroll
+    setUseInfiniteScroll(next)
+    try { localStorage.setItem("vod_catalog_scroll_mode", next ? "infinite" : "paginated") } catch {}
+    if (next) {
+      // Entering infinite mode: allReleases is already set from current releases
+      setAllReleases(releases)
+    } else {
+      // Entering paginated mode: just show current page
+      setPage(1)
+    }
+  }
+
+  const hasActiveFilters = category || format || country || label || yearFrom || genre || decade || forSale
 
   return (
     <main className="mx-auto max-w-7xl px-6 py-8">
@@ -274,9 +361,18 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
         <h1 className="text-3xl md:text-4xl font-bold font-[family-name:var(--font-dm-serif)]">
           Catalog
         </h1>
-        <p className="text-muted-foreground mt-2">
-          {total.toLocaleString("en-US")} releases from the archive
-        </p>
+        <div className="flex items-center justify-between mt-2">
+          <p className="text-muted-foreground">
+            {total.toLocaleString("en-US")} releases from the archive
+          </p>
+          <button
+            onClick={toggleScrollMode}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors hidden md:block"
+            title={useInfiniteScroll ? "Switch to paginated view" : "Switch to infinite scroll"}
+          >
+            {useInfiniteScroll ? "Show Pages" : "Infinite Scroll"}
+          </button>
+        </div>
       </div>
 
       {/* Search — live debounced (500ms) */}
@@ -490,6 +586,73 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
               className="h-8 text-xs"
             />
           </div>
+          <div>
+            <label className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1 block">Decade</label>
+            <select
+              value={decade}
+              onChange={(e) => { setDecade(e.target.value); setPage(1) }}
+              className="w-full h-8 rounded-md border border-primary/25 bg-input px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              <option value="">All decades</option>
+              <option value="1960">1960s</option>
+              <option value="1970">1970s</option>
+              <option value="1980">1980s</option>
+              <option value="1990">1990s</option>
+              <option value="2000">2000s</option>
+              <option value="2010">2010s</option>
+              <option value="2020">2020s</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1 block">Genre</label>
+            <Input
+              value={genre}
+              onChange={(e) => { setGenre(e.target.value); setPage(1) }}
+              placeholder="e.g. Industrial"
+              className="h-8 text-xs"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Active Filter Chips */}
+      {hasActiveFilters && (
+        <div className="flex flex-wrap gap-1.5 mb-4">
+          {category && (
+            <Badge variant="secondary" className="text-xs cursor-pointer hover:bg-destructive/20" onClick={() => { setCategory(""); setFormat(""); setPage(1) }}>
+              {category} <X className="h-3 w-3 ml-1" />
+            </Badge>
+          )}
+          {genre && (
+            <Badge variant="secondary" className="text-xs cursor-pointer hover:bg-destructive/20" onClick={() => { setGenre(""); setPage(1) }}>
+              Genre: {genre} <X className="h-3 w-3 ml-1" />
+            </Badge>
+          )}
+          {decade && (
+            <Badge variant="secondary" className="text-xs cursor-pointer hover:bg-destructive/20" onClick={() => { setDecade(""); setPage(1) }}>
+              {decade}s <X className="h-3 w-3 ml-1" />
+            </Badge>
+          )}
+          {country && (
+            <Badge variant="secondary" className="text-xs cursor-pointer hover:bg-destructive/20" onClick={() => { setCountry(""); setPage(1) }}>
+              {country} <X className="h-3 w-3 ml-1" />
+            </Badge>
+          )}
+          {label && (
+            <Badge variant="secondary" className="text-xs cursor-pointer hover:bg-destructive/20" onClick={() => { setLabel(""); setPage(1) }}>
+              Label: {label} <X className="h-3 w-3 ml-1" />
+            </Badge>
+          )}
+          {yearFrom && (
+            <Badge variant="secondary" className="text-xs cursor-pointer hover:bg-destructive/20" onClick={() => { setYearFrom(""); setPage(1) }}>
+              Year: {yearFrom} <X className="h-3 w-3 ml-1" />
+            </Badge>
+          )}
+          {forSale && (
+            <Badge variant="secondary" className="text-xs cursor-pointer hover:bg-destructive/20" onClick={() => { setForSale(false); setPage(1) }}>
+              For Sale <X className="h-3 w-3 ml-1" />
+            </Badge>
+          )}
         </div>
       )}
 
@@ -507,13 +670,13 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
       ) : (
         <AnimatePresence mode="wait">
           <motion.div
-            key={`${page}-${search}-${category}-${format}-${country}-${label}-${yearFrom}-${sort}-${forSale}`}
+            key={useInfiniteScroll ? `infinite-${search}-${category}-${format}-${country}-${label}-${yearFrom}-${sort}-${forSale}` : `${page}-${search}-${category}-${format}-${country}-${label}-${yearFrom}-${sort}-${forSale}`}
             variants={staggerContainer}
             initial="hidden"
             animate="visible"
             className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4"
           >
-            {releases.map((release) => (
+            {(useInfiniteScroll ? allReleases : releases).map((release) => (
               <motion.div key={release.id} variants={staggerItem}>
                 <Link
                   href={`/catalog/${release.id}`}
@@ -609,8 +772,40 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
         </div>
       )}
 
+      {/* Infinite Scroll: Load More + Sentinel */}
+      {useInfiniteScroll && (
+        <div className="mt-8 flex flex-col items-center gap-3">
+          <p className="text-sm text-muted-foreground">
+            Showing {allReleases.length.toLocaleString()} of {total.toLocaleString()} releases
+          </p>
+          {hasMore && (
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="min-w-[200px]"
+            >
+              {loadingMore ? (
+                <span className="flex items-center gap-2">
+                  <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Loading...
+                </span>
+              ) : `Load More (${Math.min(limit, total - allReleases.length)} items)`}
+            </Button>
+          )}
+          {!hasMore && allReleases.length > 0 && (
+            <p className="text-xs text-muted-foreground/70">You&apos;ve reached the end</p>
+          )}
+          <div ref={sentinelRef} className="h-1" />
+        </div>
+      )}
+
       {/* Pagination with page numbers + items per page */}
-      {pages > 1 && (
+      {pages > 1 && !useInfiniteScroll && (
         <div className="flex items-center justify-center gap-1.5 mt-8">
           <select
             value={limit}
