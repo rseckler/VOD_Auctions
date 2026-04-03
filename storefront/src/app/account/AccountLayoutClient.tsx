@@ -28,7 +28,7 @@ export function AccountLayoutClient({
 }: {
   children: React.ReactNode
 }) {
-  const { isAuthenticated, loading, ordersCount, winsCount, bidsCount } = useAuth()
+  const { isAuthenticated, loading, ordersCount, winsCount, bidsCount, cartCount, savedCount } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
 
@@ -87,6 +87,12 @@ export function AccountLayoutClient({
                     )}
                     {item.href === "/account/wins" && winsCount > 0 && (
                       <span className="ml-auto text-[10px] bg-destructive/80 text-white px-1.5 py-0.5 rounded-full font-mono">{winsCount}</span>
+                    )}
+                    {item.href === "/account/saved" && savedCount > 0 && (
+                      <span className="ml-auto text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full font-mono">{savedCount}</span>
+                    )}
+                    {item.href === "/account/cart" && cartCount > 0 && (
+                      <span className="ml-auto text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full font-mono">{cartCount}</span>
                     )}
                     {item.href === "/account/orders" && ordersCount > 0 && (
                       <span className="ml-auto text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full font-mono">{ordersCount}</span>
