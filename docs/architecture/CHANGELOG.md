@@ -4,6 +4,24 @@ Vollständiger Entwicklungs-Changelog. Neue Einträge werden direkt hier ergänz
 
 ---
 
+## 2026-04-03 — Bilder-CDN: Cloudflare R2 Migration (RSE-284)
+
+### Cloudflare R2 Integration — Vollständig
+- **R2 Public URL aktiviert:** `pub-433520acd4174598939bc51f96e2b8b9.r2.dev` (108 GB, 160.957 Dateien)
+- **DB-Migration Release:** 32.868 `coverImage` URLs von `tape-mag.com/bilder/gross/` → R2 Public URL (Backup in `Release_coverImage_backup`)
+- **DB-Migration Image:** 83.030 `Image.url` URLs analog migriert
+- **next.config.ts:** R2 Public URL als Image Remote Pattern hinzugefügt (tape-mag.com bleibt als Fallback)
+- **scripts/shared.py:** `IMAGE_BASE_URL` → R2 URL, neue Funktionen `upload_image_to_r2()` + `check_r2_exists()` (boto3 S3-kompatibel, Lazy-Init, Graceful Degradation)
+- **scripts/legacy_sync.py:** Inkrementeller Bild-Sync — neue/geänderte Bilder werden automatisch von tape-mag.com heruntergeladen und nach R2 hochgeladen
+- **Cron-Job:** Legacy Sync von täglich (04:00 UTC) auf **stündlich** (0 * * * *) umgestellt
+- **Admin System Health:** R2 Image CDN Health-Check (HEAD-Request auf Test-Bild, Latenz-Messung)
+- **VPS:** boto3 installiert, R2 Credentials in .env eingetragen
+- **Verifizierung:** 13/13 Tests bestanden (Bilder erreichbar, URLs migriert, API liefert R2 URLs)
+
+**tape-mag.com ist nicht mehr Single Point of Failure** — alle Bilder kommen aus Cloudflare R2.
+
+---
+
 ## 2026-04-03 — Design System, Collector Profiles, Post-Auction Funnel (RSE-286/287/290/292)
 
 ### RSE-286: Design Tokens erweitert
