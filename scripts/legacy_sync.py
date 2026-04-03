@@ -23,7 +23,9 @@ Requires .env in parent directory with LEGACY_DB_* and SUPABASE_DB_URL.
 
 import re
 import time
+import json
 from datetime import datetime
+from pathlib import Path
 
 import psycopg2.extras
 
@@ -230,6 +232,9 @@ def sync_releases(mysql_conn, pg_conn, run_id):
     processed = 0
     errors = 0
     image_count = 0
+    r2_uploaded = 0
+    r2_failed = 0
+    r2_skipped = 0
     change_count = 0
 
     while offset < total:
@@ -291,9 +296,13 @@ def sync_releases(mysql_conn, pg_conn, run_id):
                     # Upload new/changed images to R2 if not already there
                     if not check_r2_exists(filename):
                         if upload_image_to_r2(filename):
+                            r2_uploaded += 1
                             print(f"  [r2] Uploaded: {filename}")
                         else:
+                            r2_failed += 1
                             print(f"  [r2] WARN: Failed to upload {filename}, using R2 URL anyway")
+                    else:
+                        r2_skipped += 1
                     cover_image = IMAGE_BASE_URL + filename
 
                 price = parse_price(row.get("preis"))
@@ -453,8 +462,11 @@ def sync_releases(mysql_conn, pg_conn, run_id):
         print(f"  Synced {processed}/{total} releases ({errors} errors)...", end="\r")
 
     print(f"\n  Done: {processed} releases synced, {image_count} images, {errors} errors, {change_count} changes logged")
+    if r2_uploaded or r2_failed:
+        print(f"  R2 Images: {r2_uploaded} uploaded, {r2_failed} failed, {r2_skipped} already existed")
     cursor.close()
-    return {"processed": processed, "images": image_count, "errors": errors, "changes": change_count}
+    return {"processed": processed, "images": image_count, "errors": errors, "changes": change_count,
+            "r2_uploaded": r2_uploaded, "r2_failed": r2_failed, "r2_skipped": r2_skipped}
 
 
 def sync_pressorga(mysql_conn, pg_conn):
@@ -724,6 +736,22 @@ def main():
             error_msg = f"{total_errors} processing errors"
 
         log_sync(pg_conn, None, "legacy", changes, status="success", error_message=error_msg)
+
+        # Write R2 sync progress file for admin dashboard
+        r2_stats = {
+            "uploaded": release_stats.get("r2_uploaded", 0),
+            "failed": release_stats.get("r2_failed", 0),
+            "skipped": release_stats.get("r2_skipped", 0),
+            "updated_at": datetime.now().isoformat(),
+            "run_id": run_id,
+            "duration_seconds": round(elapsed, 1),
+        }
+        try:
+            progress_path = Path(__file__).parent / "r2_sync_progress.json"
+            with open(progress_path, "w") as f:
+                json.dump(r2_stats, f, indent=2)
+        except Exception as e:
+            print(f"  WARN: Could not write R2 progress file: {e}")
 
         # Print summary
         print(f"\n{'=' * 60}")

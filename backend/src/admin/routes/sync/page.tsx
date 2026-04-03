@@ -190,6 +190,7 @@ const SyncDashboardPage = () => {
   const [extraartistsProgress, setExtraartistsProgress] = useState<ExtraartistsProgress | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [actionResult, setActionResult] = useState<{ success: boolean; message: string } | null>(null)
+  const [r2Sync, setR2Sync] = useState<{ r2_status: string; r2_latency_ms: number | null; r2_public_url: string; progress: { uploaded: number; failed: number; skipped: number; updated_at: string; run_id: string; duration_seconds: number } | null } | null>(null)
   const [loading, setLoading] = useState(true)
   const [legacyLoading, setLegacyLoading] = useState(false)
   const [discogsLoading, setDiscogsLoading] = useState(false)
@@ -255,6 +256,21 @@ const SyncDashboardPage = () => {
     const interval = setInterval(fetchExtraartistsProgress, 15000)
     return () => clearInterval(interval)
   }, [fetchExtraartistsProgress])
+
+  // Fetch R2 sync status
+  useEffect(() => {
+    fetch("/admin/sync/r2-sync", { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => setR2Sync(d))
+      .catch((err) => console.error("R2 sync error:", err))
+    const interval = setInterval(() => {
+      fetch("/admin/sync/r2-sync", { credentials: "include" })
+        .then((r) => r.json())
+        .then((d) => setR2Sync(d))
+        .catch(() => {})
+    }, 60000) // Refresh every 60s
+    return () => clearInterval(interval)
+  }, [])
 
   // Execute a Discogs sync action
   const executeAction = useCallback(async (actionId: string, params?: Record<string, unknown>) => {
@@ -726,6 +742,58 @@ const SyncDashboardPage = () => {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* R2 Image CDN Sync Status */}
+      {r2Sync && (
+        <div style={{ background: "#1a1a2e", border: "1px solid rgba(212,165,74,0.15)", borderRadius: 10, padding: 20, marginBottom: 20 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{
+                display: "inline-flex", alignItems: "center", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600,
+                background: r2Sync.r2_status === "ok" ? "rgba(74,222,128,0.15)" : "rgba(239,68,68,0.15)",
+                color: r2Sync.r2_status === "ok" ? "#4ade80" : "#ef4444",
+              }}>
+                {r2Sync.r2_status === "ok" ? "ONLINE" : "ERROR"}
+              </span>
+              <span style={{ fontSize: 15, fontWeight: 600, color: "#e0d6c8" }}>Cloudflare R2 — Image CDN</span>
+            </div>
+            {r2Sync.r2_latency_ms != null && (
+              <span style={{ fontSize: 11, color: "#78716c" }}>{r2Sync.r2_latency_ms}ms latency</span>
+            )}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+            <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "10px 14px" }}>
+              <div style={{ fontSize: 11, color: "#78716c", marginBottom: 4 }}>Last Sync</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: "#e0d6c8" }}>
+                {r2Sync.progress?.updated_at
+                  ? new Date(r2Sync.progress.updated_at).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
+                  : "No sync yet"}
+              </div>
+            </div>
+            <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "10px 14px" }}>
+              <div style={{ fontSize: 11, color: "#78716c", marginBottom: 4 }}>Uploaded (last run)</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: r2Sync.progress?.uploaded ? "#4ade80" : "#e0d6c8" }}>
+                {r2Sync.progress?.uploaded ?? 0}
+              </div>
+            </div>
+            <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "10px 14px" }}>
+              <div style={{ fontSize: 11, color: "#78716c", marginBottom: 4 }}>Failed</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: r2Sync.progress?.failed ? "#ef4444" : "#e0d6c8" }}>
+                {r2Sync.progress?.failed ?? 0}
+              </div>
+            </div>
+            <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "10px 14px" }}>
+              <div style={{ fontSize: 11, color: "#78716c", marginBottom: 4 }}>Already in R2</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: "#e0d6c8" }}>
+                {r2Sync.progress?.skipped ?? 0}
+              </div>
+            </div>
+          </div>
+          <div style={{ marginTop: 12, fontSize: 11, color: "#78716c" }}>
+            Bucket: <code style={{ color: "#d4a54a" }}>vod-images</code> · 160,957 files · 108 GB · Sync runs hourly with Legacy Sync
+          </div>
         </div>
       )}
 
