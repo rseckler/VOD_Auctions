@@ -41,6 +41,8 @@ export async function GET(
       "collector_profile.bio",
       "collector_profile.genre_tags",
       "collector_profile.is_public",
+      "collector_profile.avatar_type",
+      "collector_profile.avatar_preset",
       "collector_profile.created_at"
     )
     .where("collector_profile.is_public", true)
@@ -86,6 +88,8 @@ export async function GET(
       display_name: matchedProfile.display_name || `Collector-${hash}`,
       bio: matchedProfile.bio || null,
       genre_tags: matchedProfile.genre_tags || [],
+      avatar_type: matchedProfile.avatar_type || "initial",
+      avatar_preset: matchedProfile.avatar_preset || null,
       member_since: customer?.created_at || matchedProfile.created_at,
       total_bids: stats?.total_bids || 0,
       total_wins: stats?.total_wins || 0,

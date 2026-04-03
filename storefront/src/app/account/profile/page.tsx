@@ -12,12 +12,15 @@ import { getToken } from "@/lib/auth"
 import { toast } from "sonner"
 import { Loader2, Save, ExternalLink, Eye, EyeOff } from "lucide-react"
 import Link from "next/link"
+import { AvatarPicker, CollectorAvatar } from "@/components/AvatarPicker"
 
 type ProfileData = {
   display_name: string | null
   bio: string | null
   genre_tags: string[]
   is_public: boolean
+  avatar_type: string
+  avatar_preset: string | null
 }
 
 export default function ProfilePage() {
@@ -31,6 +34,8 @@ export default function ProfilePage() {
   const [bio, setBio] = useState("")
   const [genreTagsInput, setGenreTagsInput] = useState("")
   const [isPublic, setIsPublic] = useState(false)
+  const [avatarType, setAvatarType] = useState<"initial" | "preset">("initial")
+  const [avatarPreset, setAvatarPreset] = useState<string | null>(null)
 
   const fetchProfile = useCallback(async () => {
     const token = getToken()
@@ -52,6 +57,8 @@ export default function ProfilePage() {
             (data.profile.genre_tags || []).join(", ")
           )
           setIsPublic(data.profile.is_public || false)
+          setAvatarType(data.profile.avatar_type || "initial")
+          setAvatarPreset(data.profile.avatar_preset || null)
         }
       }
     } catch {
@@ -90,6 +97,8 @@ export default function ProfilePage() {
           bio: bio.trim() || null,
           genre_tags,
           is_public: isPublic,
+          avatar_type: avatarType,
+          avatar_preset: avatarPreset,
         }),
       })
 
@@ -131,6 +140,37 @@ export default function ProfilePage() {
           </h3>
 
           <div className="space-y-4">
+            {/* Avatar */}
+            <div className="space-y-3">
+              <Label>Avatar</Label>
+              <div className="flex items-center gap-4 mb-3">
+                <CollectorAvatar
+                  avatarType={avatarType}
+                  avatarPreset={avatarPreset}
+                  displayName={displayName || `Collector-${slug}`}
+                  size="lg"
+                />
+                <div>
+                  <p className="text-sm font-medium">{displayName || `Collector-${slug}`}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {avatarType === "preset" ? "Custom avatar" : "Initial letter"}
+                  </p>
+                </div>
+              </div>
+              <AvatarPicker
+                selected={avatarPreset}
+                onSelect={(presetId) => {
+                  if (presetId) {
+                    setAvatarType("preset")
+                    setAvatarPreset(presetId)
+                  } else {
+                    setAvatarType("initial")
+                    setAvatarPreset(null)
+                  }
+                }}
+              />
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="displayName">Display Name</Label>
               <Input

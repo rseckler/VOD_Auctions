@@ -5,12 +5,15 @@ import { ChevronRight } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { BreadcrumbJsonLd } from "@/components/BreadcrumbJsonLd"
 import { medusaFetch } from "@/lib/api"
+import { CollectorAvatarServer } from "@/components/CollectorAvatarServer"
 
 type CollectorProfile = {
   slug: string
   display_name: string
   bio: string | null
   genre_tags: string[]
+  avatar_type?: string
+  avatar_preset?: string | null
   member_since: string
   total_bids: number
   total_wins: number
@@ -102,11 +105,12 @@ export default async function CollectorProfilePage({ params }: PageProps) {
         {/* Profile Header */}
         <div className="mb-10">
           <div className="flex items-center gap-4 mb-4">
-            <div className="h-16 w-16 rounded-full bg-[#d4a54a]/20 border border-[#d4a54a]/40 flex items-center justify-center">
-              <span className="text-2xl font-bold text-[#d4a54a] font-[family-name:var(--font-dm-serif)]">
-                {profile.display_name.charAt(0).toUpperCase()}
-              </span>
-            </div>
+            <CollectorAvatarServer
+              avatarType={profile.avatar_type || "initial"}
+              avatarPreset={profile.avatar_preset || null}
+              displayName={profile.display_name}
+              size="lg"
+            />
             <div>
               <h1 className="text-3xl font-bold font-[family-name:var(--font-dm-serif)] text-foreground">
                 {profile.display_name}
