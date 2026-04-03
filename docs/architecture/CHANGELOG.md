@@ -4,6 +4,40 @@ Vollständiger Entwicklungs-Changelog. Neue Einträge werden direkt hier ergänz
 
 ---
 
+## 2026-04-03 — Design System, Collector Profiles, Post-Auction Funnel (RSE-286/287/290/292)
+
+### RSE-286: Design Tokens erweitert
+- **Spacing Scale:** `--space-xs` bis `--space-3xl` (8px Grid, 7 Stufen)
+- **Shadow Scale:** `--shadow-sm/md/lg/gold` (Gold-Glow für Featured-Elemente)
+- **Transition Durations:** `--transition-fast` (150ms), `--transition-normal` (250ms), `--transition-slow` (400ms)
+- **Datei:** `storefront/src/app/globals.css`
+
+### RSE-287: Typografie-Skala
+- **Perfect Fourth (1.333):** `--text-hero` bis `--text-micro` als CSS Custom Properties mit responsive `clamp()`
+- **Utility Classes:** `.heading-hero`, `.heading-1`, `.heading-2`, `.heading-3` mit Font-Family + Line-Height
+- Auctions-Seite H1: `font-bold` → `heading-1` (jetzt DM Serif Display konsistent)
+- **Datei:** `storefront/src/app/globals.css`
+
+### RSE-290: Collector Profiles
+- **Backend:** `GET /store/collector/:slug` (public, SHA256-Hash Slugs), `GET/POST /store/account/profile` (auth, Upsert)
+- **Frontend:** `/collector/[slug]` Public Profile (Stats, Genre Tags, Bio, Schema.org Person), `/account/profile` Edit Page (Display Name, Bio, Genre Tags, Public Toggle)
+- **DB:** `collector_profile` Tabelle (customer_id, display_name, bio, genre_tags[], is_public)
+- **Navigation:** "Profile" Link im Account-Sidebar
+- **Dateien:** 2 neue Backend-Routes, 2 neue Storefront-Pages, AccountLayoutClient.tsx
+
+### RSE-292: Post-Auction Marketing Funnel (Phase A)
+- **Backend:** `GET /store/account/recommendations` (Same Artist → Same Label → Popular, nur kaufbare Releases), `GET /store/account/shipping-savings` (Gewicht + Zone → Savings-Berechnung)
+- **Wins Page:** Shipping-Savings-Bar (Gold-Progress-Bar, "Add more items — shipping stays combined!") + Recommendations Grid (4 Karten mit Add-to-Cart)
+- **Checkout:** Savings-Highlight ("You saved €X on shipping vs. N individual orders")
+- **Dateien:** 2 neue Backend-Routes, wins/page.tsx + checkout/page.tsx modifiziert
+
+### RSE-284: Step-by-Step Plan (Dokument)
+- Detaillierter 9-Schritte Plan für Cloudflare R2 Integration: `docs/optimizing/RSE-284_BILDER_CDN_PLAN.md`
+- Custom Domain `images.vod-auctions.com`, DB-Migration (41.500 URLs), inkrementeller Bild-Sync, Fallback-Logik
+- Geschätzter Aufwand: ~3h, Voraussetzung: Cloudflare Custom Domain konfigurieren
+
+---
+
 ## 2026-04-03 — Platform Optimization: 9 Features (RSE-276 bis RSE-285)
 
 Basierend auf externer technischer Analyse + UI/UX-Bewertung. Optimierungsplan: `docs/optimizing/OPTIMIZATION_PLAN.md`.
