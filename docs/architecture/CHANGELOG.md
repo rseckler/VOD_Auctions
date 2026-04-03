@@ -20,6 +20,8 @@ Vollständiger Entwicklungs-Changelog. Neue Einträge werden direkt hier ergänz
 
 **tape-mag.com ist nicht mehr Single Point of Failure** — alle Bilder kommen aus Cloudflare R2.
 
+**Custom Domain `images.vod-auctions.com`:** CNAME bei all-inkl.com angelegt, DNS löst korrekt auf. Aber SSL-Handshake scheitert — R2 Public Development URLs unterstützen keine Custom Domains via externem CNAME (SSL-Zertifikat nur für `*.r2.dev`). Custom Domain erfordert entweder DNS-Umzug zu Cloudflare oder Cloudflare Worker als Proxy. **Entscheidung:** Bleibt bei `pub-xxx.r2.dev` URL — funktioniert einwandfrei.
+
 ---
 
 ## 2026-04-03 — Design System, Collector Profiles, Post-Auction Funnel (RSE-286/287/290/292)
