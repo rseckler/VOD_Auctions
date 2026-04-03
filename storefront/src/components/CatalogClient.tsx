@@ -126,11 +126,9 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
   const [showFilters, setShowFilters] = useState(() => !!(initialParams.country || initialParams.label || initialParams.year_from))
   // If server provided data, start as not-loading
   const [loading, setLoading] = useState(initialReleases.length === 0)
-  // Infinite scroll state
+  // Load more state
   const [loadingMore, setLoadingMore] = useState(false)
   const [allReleases, setAllReleases] = useState<CatalogRelease[]>(initialReleases)
-  const [useInfiniteScroll, setUseInfiniteScroll] = useState(false)
-  const sentinelRef = useRef<HTMLDivElement>(null)
   const hasMore = page < pages
 
   // Sync state to URL (replaceState so back button works per-navigation)
@@ -284,20 +282,12 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
     return items
   }, [page, pages])
 
-  // Initialize infinite scroll preference from localStorage
+  // Sync allReleases when releases change (filter reset or page change)
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem("vod_catalog_scroll_mode")
-      if (saved === "infinite") setUseInfiniteScroll(true)
-    } catch {}
-  }, [])
-
-  // Sync allReleases when releases change (paginated mode or filter reset)
-  useEffect(() => {
-    if (!useInfiniteScroll || page === 1) {
+    if (page === 1) {
       setAllReleases(releases)
     }
-  }, [releases, useInfiniteScroll, page])
+  }, [releases, page])
 
   // Load more function for infinite scroll
   const loadMore = useCallback(async () => {
@@ -329,30 +319,6 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
     setLoadingMore(false)
   }, [loadingMore, hasMore, loading, page, limit, search, category, format, country, label, yearFrom, forSale, sort, allReleases.length])
 
-  // Intersection Observer for auto-loading
-  useEffect(() => {
-    if (!useInfiniteScroll || !sentinelRef.current) return
-    const observer = new IntersectionObserver(
-      (entries) => { if (entries[0].isIntersecting) loadMore() },
-      { rootMargin: "0px 0px 400px 0px" }
-    )
-    observer.observe(sentinelRef.current)
-    return () => observer.disconnect()
-  }, [useInfiniteScroll, loadMore])
-
-  const toggleScrollMode = () => {
-    const next = !useInfiniteScroll
-    setUseInfiniteScroll(next)
-    try { localStorage.setItem("vod_catalog_scroll_mode", next ? "infinite" : "paginated") } catch {}
-    if (next) {
-      // Entering infinite mode: allReleases is already set from current releases
-      setAllReleases(releases)
-    } else {
-      // Entering paginated mode: just show current page
-      setPage(1)
-    }
-  }
-
   const hasActiveFilters = category || format || country || label || yearFrom || genre || decade || forSale
 
   return (
@@ -361,18 +327,9 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
         <h1 className="text-3xl md:text-4xl font-bold font-[family-name:var(--font-dm-serif)]">
           Catalog
         </h1>
-        <div className="flex items-center justify-between mt-2">
-          <p className="text-muted-foreground">
-            {total.toLocaleString("en-US")} releases from the archive
-          </p>
-          <button
-            onClick={toggleScrollMode}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors hidden md:block"
-            title={useInfiniteScroll ? "Switch to paginated view" : "Switch to infinite scroll"}
-          >
-            {useInfiniteScroll ? "Show Pages" : "Infinite Scroll"}
-          </button>
-        </div>
+        <p className="text-muted-foreground mt-2">
+          {total.toLocaleString("en-US")} releases from the archive
+        </p>
       </div>
 
       {/* Search — live debounced (500ms) */}
@@ -670,13 +627,13 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
       ) : (
         <AnimatePresence mode="wait">
           <motion.div
-            key={useInfiniteScroll ? `infinite-${search}-${category}-${format}-${country}-${label}-${yearFrom}-${sort}-${forSale}` : `${page}-${search}-${category}-${format}-${country}-${label}-${yearFrom}-${sort}-${forSale}`}
+            key={`${page}-${search}-${category}-${format}-${country}-${label}-${yearFrom}-${sort}-${forSale}`}
             variants={staggerContainer}
             initial="hidden"
             animate="visible"
             className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4"
           >
-            {(useInfiniteScroll ? allReleases : releases).map((release) => (
+            {releases.map((release) => (
               <motion.div key={release.id} variants={staggerItem}>
                 <Link
                   href={`/catalog/${release.id}`}
@@ -772,40 +729,34 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
         </div>
       )}
 
-      {/* Infinite Scroll: Load More + Sentinel */}
-      {useInfiniteScroll && (
+      {/* Load More */}
+      {hasMore && !loading && releases.length > 0 && (
         <div className="mt-8 flex flex-col items-center gap-3">
           <p className="text-sm text-muted-foreground">
-            Showing {allReleases.length.toLocaleString()} of {total.toLocaleString()} releases
+            Showing {Math.min(page * limit, total).toLocaleString()} of {total.toLocaleString()} releases
           </p>
-          {hasMore && (
-            <Button
-              variant="outline"
-              size="lg"
-              onClick={loadMore}
-              disabled={loadingMore}
-              className="min-w-[200px]"
-            >
-              {loadingMore ? (
-                <span className="flex items-center gap-2">
-                  <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  Loading...
-                </span>
-              ) : `Load More (${Math.min(limit, total - allReleases.length)} items)`}
-            </Button>
-          )}
-          {!hasMore && allReleases.length > 0 && (
-            <p className="text-xs text-muted-foreground/70">You&apos;ve reached the end</p>
-          )}
-          <div ref={sentinelRef} className="h-1" />
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="min-w-[200px]"
+          >
+            {loadingMore ? (
+              <span className="flex items-center gap-2">
+                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Loading...
+              </span>
+            ) : `Load More (${Math.min(limit, total - page * limit)} items)`}
+          </Button>
         </div>
       )}
 
       {/* Pagination with page numbers + items per page */}
-      {pages > 1 && !useInfiniteScroll && (
+      {pages > 1 && (
         <div className="flex items-center justify-center gap-1.5 mt-8">
           <select
             value={limit}

@@ -4,6 +4,24 @@ Vollständiger Entwicklungs-Changelog. Neue Einträge werden direkt hier ergänz
 
 ---
 
+## 2026-04-03 — RSE-292: Post-Auction Marketing Funnel Fix + UX Polish
+
+### RSE-292 Bug Fixes
+- **Kritisch: `release_id` fehlte im Wins-Endpoint** → Recommendations Grid war immer leer. Fix: `release_id` in `item`-Objekt der Wins-Response aufgenommen.
+- **Shipping-Savings API unvollständig:** 5 Felder ergänzt (`unpaid_wins_weight_g`, `cart_weight_g`, `next_tier_at_g`, `remaining_capacity_g`, `estimated_items_capacity`), `zone` → `zone_slug` umbenannt.
+- **Wins Page Frontend:** `ShippingSavings` TypeScript-Typ aktualisiert, nutzt jetzt Server-seitige Kapazitätsberechnung statt client-seitiger Hardcoded-Werte.
+
+### E2E Test
+- **Neu: `scripts/test_post_auction_funnel.sh`** — Automatisierter E2E-Test für Wins, Shipping-Savings und Recommendations Endpoints. Tests: Feld-Präsenz, Zonen-Korrektheit (DE/EU/World), Gewichts-Summen, Kapazitäts-Berechnung, Recommendations-Qualität, Edge Cases, Auth-Schutz.
+
+### UX Polish
+- **Account Sidebar Badges:** Cart-Count + Saved-Count Badges hinzugefügt (neben bestehenden Bids/Wins/Orders)
+- **Header Dropdown Badges:** "My Bids" (gold) + "Won" (grün) Badges mit Zähler im User-Dropdown
+- **Mobile Profile Icon:** User-Icon links neben Hamburger-Menü (nur wenn eingeloggt, verlinkt zu /account)
+- **Auction Archive:** Link in Account-Sidebar hinzugefügt
+
+---
+
 ## 2026-04-03 — R2 Image Sync: Admin Dashboard + 30x Performance Optimierung
 
 ### Admin Data Sync: R2 Image CDN Sektion
