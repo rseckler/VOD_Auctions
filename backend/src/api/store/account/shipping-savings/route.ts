@@ -90,15 +90,26 @@ export async function GET(
     .where("cart_item.user_id", customerId)
     .whereNull("cart_item.deleted_at")
 
-  // Calculate weights
-  let totalWeight = 0
-  for (const item of [...unpaidWins, ...cartItems]) {
-    totalWeight += estimateWeight(item.format)
+  // Calculate weights per category
+  let unpaidWinsWeight = 0
+  for (const item of unpaidWins) {
+    unpaidWinsWeight += estimateWeight(item.format)
   }
+  let cartWeight = 0
+  for (const item of cartItems) {
+    cartWeight += estimateWeight(item.format)
+  }
+  const totalWeight = unpaidWinsWeight + cartWeight
 
   const zone = getZone(country)
   const baseShipping = ZONE_SHIPPING[zone] || 14.99
   const itemsCount = unpaidWins.length + cartItems.length
+
+  // Next shipping tier threshold (2kg standard parcel limit for combined shipping)
+  const nextTierAt = 2000
+  const remainingCapacity = Math.max(0, nextTierAt - totalWeight)
+  const avgItemWeight = 350 // typical LP weight
+  const estimatedItemsCapacity = Math.floor(remainingCapacity / avgItemWeight)
 
   // Savings: if each item shipped individually vs combined
   const savingsVsIndividual = itemsCount > 1
@@ -107,11 +118,16 @@ export async function GET(
 
   res.json({
     unpaid_wins: unpaidWins.length,
+    unpaid_wins_weight_g: unpaidWinsWeight,
     cart_items: cartItems.length,
+    cart_weight_g: cartWeight,
     total_weight_g: totalWeight,
     shipping_cost: baseShipping,
+    next_tier_at_g: nextTierAt,
+    remaining_capacity_g: remainingCapacity,
+    estimated_items_capacity: estimatedItemsCapacity,
     savings_vs_individual: Math.round(savingsVsIndividual * 100) / 100,
     items_count: itemsCount,
-    zone,
+    zone_slug: zone,
   })
 }

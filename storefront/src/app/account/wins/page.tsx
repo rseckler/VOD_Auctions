@@ -24,12 +24,17 @@ import type { WinEntry, Transaction } from "@/types"
 
 type ShippingSavings = {
   unpaid_wins: number
+  unpaid_wins_weight_g: number
   cart_items: number
+  cart_weight_g: number
   total_weight_g: number
   shipping_cost: number
+  next_tier_at_g: number
+  remaining_capacity_g: number
+  estimated_items_capacity: number
   savings_vs_individual: number
   items_count: number
-  zone: string
+  zone_slug: string
 }
 
 type Recommendation = {
@@ -386,7 +391,7 @@ export default function WinsPage() {
             <Package className="w-5 h-5 text-[#d4a54a] flex-shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium">
-                Shipping{shippingSavings.zone === "de" ? " within Germany" : shippingSavings.zone === "eu" ? " to EU" : " worldwide"}:{" "}
+                Shipping{shippingSavings.zone_slug === "de" ? " within Germany" : shippingSavings.zone_slug === "eu" ? " to EU" : " worldwide"}:{" "}
                 <span className="text-[#d4a54a] font-mono">&euro;{shippingSavings.shipping_cost.toFixed(2)}</span>
               </p>
               <p className="text-xs text-muted-foreground mt-1">
@@ -402,11 +407,11 @@ export default function WinsPage() {
                 <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                   <div
                     className="h-full bg-gradient-to-r from-[#d4a54a] to-[#c49a3a] rounded-full transition-all"
-                    style={{ width: `${Math.min((shippingSavings.total_weight_g / 2000) * 100, 100)}%` }}
+                    style={{ width: `${Math.min((shippingSavings.total_weight_g / (shippingSavings.next_tier_at_g || 2000)) * 100, 100)}%` }}
                   />
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-1">
-                  {shippingSavings.total_weight_g}g / 2,000g &mdash; room for {Math.floor((2000 - shippingSavings.total_weight_g) / 350)} more vinyl records
+                  {shippingSavings.total_weight_g}g / {(shippingSavings.next_tier_at_g || 2000).toLocaleString()}g &mdash; room for {shippingSavings.estimated_items_capacity ?? Math.floor((2000 - shippingSavings.total_weight_g) / 350)} more vinyl records
                 </p>
               </div>
             </div>

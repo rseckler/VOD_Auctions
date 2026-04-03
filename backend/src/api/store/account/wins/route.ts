@@ -64,6 +64,7 @@ export async function GET(
       bid_date: win.bid_date,
       item: {
         id: win.item_id,
+        release_id: win.release_id,
         lot_number: win.lot_number,
         status: win.item_status,
         release_title: rel?.title || null,
