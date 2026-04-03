@@ -34,8 +34,10 @@ export default function ProfilePage() {
   const [bio, setBio] = useState("")
   const [genreTagsInput, setGenreTagsInput] = useState("")
   const [isPublic, setIsPublic] = useState(false)
-  const [avatarType, setAvatarType] = useState<"initial" | "preset">("initial")
+  const [avatarType, setAvatarType] = useState<"initial" | "preset" | "custom">("initial")
   const [avatarPreset, setAvatarPreset] = useState<string | null>(null)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
 
   const fetchProfile = useCallback(async () => {
     const token = getToken()
@@ -59,6 +61,7 @@ export default function ProfilePage() {
           setIsPublic(data.profile.is_public || false)
           setAvatarType(data.profile.avatar_type || "initial")
           setAvatarPreset(data.profile.avatar_preset || null)
+          setAvatarUrl(data.profile.avatar_url || null)
         }
       }
     } catch {
@@ -147,6 +150,7 @@ export default function ProfilePage() {
                 <CollectorAvatar
                   avatarType={avatarType}
                   avatarPreset={avatarPreset}
+                  avatarUrl={avatarUrl}
                   displayName={displayName || `Collector-${slug}`}
                   size="lg"
                 />
@@ -158,14 +162,47 @@ export default function ProfilePage() {
                 </div>
               </div>
               <AvatarPicker
-                selected={avatarPreset}
+                selected={avatarType === "preset" ? avatarPreset : null}
                 onSelect={(presetId) => {
                   if (presetId) {
                     setAvatarType("preset")
                     setAvatarPreset(presetId)
+                    setAvatarUrl(null)
                   } else {
                     setAvatarType("initial")
                     setAvatarPreset(null)
+                    setAvatarUrl(null)
+                  }
+                }}
+                uploading={uploading}
+                onUpload={async (file) => {
+                  const token = getToken()
+                  if (!token) return
+                  setUploading(true)
+                  try {
+                    const res = await fetch(`${MEDUSA_URL}/store/account/profile-avatar`, {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": file.type,
+                        "x-publishable-api-key": PUBLISHABLE_KEY,
+                        Authorization: `Bearer ${token}`,
+                      },
+                      body: file,
+                    })
+                    if (res.ok) {
+                      const data = await res.json()
+                      setAvatarType("custom")
+                      setAvatarPreset(null)
+                      setAvatarUrl(data.avatar_url)
+                      toast.success("Avatar uploaded")
+                    } else {
+                      const err = await res.json().catch(() => ({}))
+                      toast.error(err.message || "Upload failed")
+                    }
+                  } catch {
+                    toast.error("Upload failed")
+                  } finally {
+                    setUploading(false)
                   }
                 }}
               />
