@@ -785,9 +785,9 @@ const SyncDashboardPage = () => {
               </div>
             </div>
             <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "10px 14px" }}>
-              <div style={{ fontSize: 11, color: "#78716c", marginBottom: 4 }}>Already in R2</div>
+              <div style={{ fontSize: 11, color: "#78716c", marginBottom: 4 }}>Checked (changed)</div>
               <div style={{ fontSize: 14, fontWeight: 600, color: "#e0d6c8" }}>
-                {r2Sync.progress?.skipped ?? 0}
+                {r2Sync.progress?.checked ?? r2Sync.progress?.skipped ?? 0}
               </div>
             </div>
           </div>

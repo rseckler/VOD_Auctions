@@ -235,6 +235,7 @@ def sync_releases(mysql_conn, pg_conn, run_id):
     r2_uploaded = 0
     r2_failed = 0
     r2_skipped = 0
+    r2_checked = 0
     change_count = 0
 
     while offset < total:
@@ -268,6 +269,21 @@ def sync_releases(mysql_conn, pg_conn, run_id):
         release_values = []
         image_values = []
 
+        # Pre-fetch existing coverImage for this batch to avoid unnecessary R2 checks
+        batch_ids_r2 = [f"legacy-release-{r['id']}" for r in rows]
+        existing_covers = {}
+        try:
+            fetch_cur = pg_conn.cursor()
+            fetch_cur.execute(
+                """SELECT id, "coverImage" FROM "Release" WHERE id = ANY(%s)""",
+                (batch_ids_r2,)
+            )
+            for erow in fetch_cur.fetchall():
+                existing_covers[erow[0]] = erow[1]
+            fetch_cur.close()
+        except Exception:
+            pass  # On error, all images will be checked (safe fallback)
+
         for row in rows:
             try:
                 title = decode_entities(row["title"]) or f"Release #{row['id']}"
@@ -293,17 +309,20 @@ def sync_releases(mysql_conn, pg_conn, run_id):
                 cover_image = None
                 if row.get("image_filename"):
                     filename = str(row["image_filename"])
-                    # Upload new/changed images to R2 if not already there
-                    if not check_r2_exists(filename):
-                        if upload_image_to_r2(filename):
-                            r2_uploaded += 1
-                            print(f"  [r2] Uploaded: {filename}")
-                        else:
-                            r2_failed += 1
-                            print(f"  [r2] WARN: Failed to upload {filename}, using R2 URL anyway")
-                    else:
-                        r2_skipped += 1
-                    cover_image = IMAGE_BASE_URL + filename
+                    new_cover_url = IMAGE_BASE_URL + filename
+                    # Only check/upload to R2 if the image URL has changed
+                    # (new release or different filename vs. what's in Supabase)
+                    existing_cover = existing_covers.get(release_id)
+                    if existing_cover != new_cover_url:
+                        r2_checked += 1
+                        if not check_r2_exists(filename):
+                            if upload_image_to_r2(filename):
+                                r2_uploaded += 1
+                                print(f"  [r2] Uploaded: {filename}")
+                            else:
+                                r2_failed += 1
+                                print(f"  [r2] WARN: Failed to upload {filename}, using R2 URL anyway")
+                    cover_image = new_cover_url
 
                 price = parse_price(row.get("preis"))
                 condition = decode_entities(row.get("spezifikation")) if row.get("spezifikation") else None
@@ -462,11 +481,10 @@ def sync_releases(mysql_conn, pg_conn, run_id):
         print(f"  Synced {processed}/{total} releases ({errors} errors)...", end="\r")
 
     print(f"\n  Done: {processed} releases synced, {image_count} images, {errors} errors, {change_count} changes logged")
-    if r2_uploaded or r2_failed:
-        print(f"  R2 Images: {r2_uploaded} uploaded, {r2_failed} failed, {r2_skipped} already existed")
+    print(f"  R2 Images: {r2_checked} checked, {r2_uploaded} uploaded, {r2_failed} failed (skipped {processed - r2_checked} unchanged)")
     cursor.close()
     return {"processed": processed, "images": image_count, "errors": errors, "changes": change_count,
-            "r2_uploaded": r2_uploaded, "r2_failed": r2_failed, "r2_skipped": r2_skipped}
+            "r2_uploaded": r2_uploaded, "r2_failed": r2_failed, "r2_checked": r2_checked}
 
 
 def sync_pressorga(mysql_conn, pg_conn):
@@ -741,7 +759,8 @@ def main():
         r2_stats = {
             "uploaded": release_stats.get("r2_uploaded", 0),
             "failed": release_stats.get("r2_failed", 0),
-            "skipped": release_stats.get("r2_skipped", 0),
+            "checked": release_stats.get("r2_checked", 0),
+            "skipped_unchanged": release_stats.get("processed", 0) - release_stats.get("r2_checked", 0),
             "updated_at": datetime.now().isoformat(),
             "run_id": run_id,
             "duration_seconds": round(elapsed, 1),
