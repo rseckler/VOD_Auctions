@@ -15,7 +15,7 @@ Vollständiger Entwicklungs-Changelog. Neue Einträge werden direkt hier ergänz
 - **Neu: `scripts/test_post_auction_funnel.sh`** — Automatisierter E2E-Test für Wins, Shipping-Savings und Recommendations Endpoints. Tests: Feld-Präsenz, Zonen-Korrektheit (DE/EU/World), Gewichts-Summen, Kapazitäts-Berechnung, Recommendations-Qualität, Edge Cases, Auth-Schutz.
 
 ### UX Polish
-- **Account Sidebar Badges:** Cart-Count + Saved-Count Badges hinzugefügt (neben bestehenden Bids/Wins/Orders)
+- **Account Sidebar Badges:** Cart-Count + Saved-Count + Checkout-Count (Wins+Cart) Badges hinzugefügt (neben bestehenden Bids/Wins/Orders)
 - **Header Dropdown Badges:** "My Bids" (gold) + "Won" (grün) Badges mit Zähler im User-Dropdown
 - **Mobile Profile Icon:** User-Icon links neben Hamburger-Menü (nur wenn eingeloggt, verlinkt zu /account)
 - **Auction Archive:** Link in Account-Sidebar hinzugefügt
