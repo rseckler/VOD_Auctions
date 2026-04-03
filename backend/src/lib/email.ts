@@ -1,4 +1,6 @@
 import { Resend } from "resend"
+import { Knex } from "knex"
+import { generateEntityId } from "@medusajs/framework/utils"
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
@@ -32,4 +34,35 @@ export async function sendEmail(opts: {
     console.error("[email] Failed:", opts.subject, "→", opts.to, err.message)
     return null
   }
+}
+
+/** Log email send attempt to email_log table (fire-and-forget) */
+export async function logEmail(
+  pgConnection: Knex,
+  opts: { to: string; subject: string; template: string; status: "sent" | "failed"; error?: string }
+) {
+  try {
+    await pgConnection("email_log").insert({
+      id: generateEntityId(),
+      to_email: opts.to,
+      subject: opts.subject,
+      template: opts.template,
+      status: opts.status,
+      error: opts.error || null,
+      created_at: new Date(),
+    })
+  } catch {
+    // Don't let logging failures break the flow
+  }
+}
+
+/** Send email with logging. Returns true if sent. */
+export async function sendEmailWithLog(
+  pgConnection: Knex,
+  opts: { to: string; subject: string; html: string; template: string }
+): Promise<boolean> {
+  const result = await sendEmail(opts)
+  const status = result ? "sent" : "failed"
+  logEmail(pgConnection, { to: opts.to, subject: opts.subject, template: opts.template, status }).catch(() => {})
+  return !!result
 }

@@ -160,6 +160,7 @@ export async function GET(
       status: item.status,
       reserve_met: reserveMet,
       view_count: item.view_count || 0,
+      extension_count: item.extension_count || 0,
       release: release
         ? { ...release, images, various_artists: variousArtists, comments }
         : null,

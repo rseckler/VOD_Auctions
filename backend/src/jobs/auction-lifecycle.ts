@@ -95,6 +95,9 @@ export default async function auctionLifecycle(container: MedusaContainer) {
             await trx("block_item")
               .where("id", item.id)
               .update({ status: "sold", updated_at: now })
+            await trx("Release")
+              .where("id", item.release_id)
+              .update({ auction_status: "sold" })
             totalRevenue += currentPrice
             soldCount++
 

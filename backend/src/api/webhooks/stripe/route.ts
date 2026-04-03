@@ -136,12 +136,17 @@ export async function POST(
               })
           }
 
-          // Generate order number for all transactions in the group
-          const seqResult1 = await pgConnection.raw("SELECT nextval('order_number_seq')")
-          const orderNumber = "VOD-ORD-" + String(seqResult1.rows[0].nextval).padStart(6, "0")
-          await pgConnection("transaction")
+          // Generate unique order number per transaction in the group
+          const groupTxs = await pgConnection("transaction")
             .where("order_group_id", orderGroupId)
-            .update({ order_number: orderNumber })
+            .select("id")
+          let orderNumber = ""
+          for (const tx of groupTxs) {
+            const seqR = await pgConnection.raw("SELECT nextval('order_number_seq')")
+            const txOrderNum = "VOD-ORD-" + String(seqR.rows[0].nextval).padStart(6, "0")
+            await pgConnection("transaction").where("id", tx.id).update({ order_number: txOrderNum })
+            if (!orderNumber) orderNumber = txOrderNum // use first for audit log
+          }
 
           // Create audit trail event
           await pgConnection("order_event").insert({
@@ -235,9 +240,27 @@ export async function POST(
           updateData.shipping_country = shipping.address.country || null
         }
 
-        // Fallback name from metadata
-        if (!updateData.shipping_name && paymentIntent.metadata?.customer_name) {
-          updateData.shipping_name = paymentIntent.metadata.customer_name
+        // Fallback: use metadata or existing transaction shipping data if Stripe didn't provide address
+        if (!updateData.shipping_name) {
+          if (paymentIntent.metadata?.customer_name) {
+            updateData.shipping_name = paymentIntent.metadata.customer_name
+          } else {
+            // Fall back to shipping data already saved at checkout time
+            const existingTx = await pgConnection("transaction")
+              .where("order_group_id", orderGroupId)
+              .whereNotNull("shipping_name")
+              .select("shipping_name", "shipping_address_line1", "shipping_city", "shipping_postal_code", "shipping_country")
+              .first()
+            if (existingTx?.shipping_name) {
+              // Don't overwrite existing shipping data with nulls
+              delete updateData.shipping_name
+              delete updateData.shipping_address_line1
+              delete updateData.shipping_address_line2
+              delete updateData.shipping_city
+              delete updateData.shipping_postal_code
+              delete updateData.shipping_country
+            }
+          }
         }
 
         // Update all transactions in the group
@@ -265,12 +288,17 @@ export async function POST(
 
         console.log(`[stripe-webhook] PaymentIntent ${paymentIntent.id} — Order ${orderGroupId} marked as paid (${directPurchaseTxs.length} direct purchases)`)
 
-        // Generate order number for all transactions in the group
-        const piSeqResult = await pgConnection.raw("SELECT nextval('order_number_seq')")
-        const piOrderNumber = "VOD-ORD-" + String(piSeqResult.rows[0].nextval).padStart(6, "0")
-        await pgConnection("transaction")
+        // Generate unique order number per transaction in the group
+        const piGroupTxs = await pgConnection("transaction")
           .where("order_group_id", orderGroupId)
-          .update({ order_number: piOrderNumber })
+          .select("id")
+        let piOrderNumber = ""
+        for (const tx of piGroupTxs) {
+          const piSeqR = await pgConnection.raw("SELECT nextval('order_number_seq')")
+          const txNum = "VOD-ORD-" + String(piSeqR.rows[0].nextval).padStart(6, "0")
+          await pgConnection("transaction").where("id", tx.id).update({ order_number: txNum })
+          if (!piOrderNumber) piOrderNumber = txNum
+        }
 
         // Create audit trail event
         await pgConnection("order_event").insert({

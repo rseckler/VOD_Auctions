@@ -242,7 +242,7 @@ export async function POST(
             user_id: customerId,
             amount: currentPrice,
             max_amount: newMax,
-            is_winning: true,
+            is_winning: false,
             is_outbid: false,
             is_max_raise: true,
             created_at: now,

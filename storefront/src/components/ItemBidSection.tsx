@@ -18,14 +18,6 @@ import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
 import { brevoBidPlaced } from "@/lib/brevo-tracking"
 import { rudderTrack } from "@/lib/rudderstack"
 
-/** Simple hash to anonymize user_id in realtime bid updates (matches backend SHA-256 approach conceptually) */
-function anonymizeUserId(userId: string): string {
-  let hash = 0
-  for (let i = 0; i < userId.length; i++) {
-    hash = ((hash << 5) - hash + userId.charCodeAt(i)) | 0
-  }
-  return `Bidder ${Math.abs(hash).toString(16).substring(0, 6).toUpperCase()}`
-}
 
 /**
  * Bid config (mirrors backend/src/lib/bid-config.ts).
@@ -193,25 +185,15 @@ export function ItemBidSection({
         },
         (payload) => {
           const newBid = payload.new as { id: string; amount: number; is_winning: boolean; user_id: string; created_at: string }
-          setBids((prev) => [
-            {
-              id: newBid.id,
-              amount: newBid.amount,
-              is_winning: newBid.is_winning,
-              user_id: newBid.user_id,
-              user_hint: newBid.user_id ? anonymizeUserId(newBid.user_id) : "Bidder",
-              created_at: newBid.created_at,
-            },
-            ...prev,
-          ])
+          // Update price and winning status immediately from Realtime
           if (newBid.is_winning) {
             setCurrentPrice(newBid.amount)
-            // If someone else placed a winning bid, we've been outbid
             if (customer && newBid.user_id !== customer.id) {
               setUserIsWinning((prev) => prev === true ? false : prev)
             }
           }
-          setBidCount((c) => c + 1)
+          // Reload full bid history from API (consistent user_hints via SHA-256)
+          loadBids()
           setNewBidPulse(true)
           setTimeout(() => setNewBidPulse(false), 1000)
         }
@@ -233,7 +215,15 @@ export function ItemBidSection({
           if (updated.current_price) setCurrentPrice(Number(updated.current_price))
           if (updated.lot_end_time) setLotEndTime(updated.lot_end_time)
           if (updated.bid_count !== undefined) setBidCount(updated.bid_count)
-          if (updated.status) setLiveItemStatus(updated.status)
+          if (updated.status) {
+            setLiveItemStatus(updated.status)
+            // Proactive win/loss notification when lot status changes to sold/unsold
+            if (updated.status === "sold" && userIsWinning === true) {
+              toast.success("Congratulations! You won this lot!", { duration: 8000 })
+            } else if (updated.status === "sold" && userIsWinning === false) {
+              toast("This lot has been sold to another bidder.", { duration: 6000 })
+            }
+          }
         }
       )
       .subscribe()
@@ -544,9 +534,9 @@ function BidForm({
           toast.error(msg, { duration: 8000 })
         }
       } else if (data.outbid) {
-        toast.error("You are not the highest bidder", {
+        toast.error("Outbid by automatic proxy bid", {
           duration: 8000,
-          description: `A proxy bid was already higher. Current bid: €${Number(data.current_price).toFixed(2)}.`,
+          description: `Another bidder set a higher maximum. Current bid: €${Number(data.current_price).toFixed(2)}. Try a higher amount.`,
         })
         onBidResult?.(false)
       } else if (data.max_updated) {
