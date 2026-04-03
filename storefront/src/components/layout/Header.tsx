@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Menu, Disc3, ShoppingCart, Heart, Search } from "lucide-react"
+import { Menu, Disc3, ShoppingCart, Heart, Search, User } from "lucide-react"
 import { useState, useEffect } from "react"
 import { HeaderAuth } from "@/components/HeaderAuth"
 import { MobileNav } from "./MobileNav"
@@ -110,14 +110,25 @@ export function Header() {
             <HeaderAuth />
           </nav>
 
-          {/* Mobile Hamburger */}
-          <button
-            onClick={() => setMobileOpen(true)}
-            className="md:hidden p-2 text-muted-foreground hover:text-foreground transition-colors"
-            aria-label="Open navigation"
-          >
-            <Menu className="h-5 w-5" />
-          </button>
+          {/* Mobile: Profile + Hamburger */}
+          <div className="md:hidden flex items-center gap-1">
+            {isAuthenticated && (
+              <Link
+                href="/account"
+                className="p-2 text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="My Account"
+              >
+                <User className="h-5 w-5" />
+              </Link>
+            )}
+            <button
+              onClick={() => setMobileOpen(true)}
+              className="p-2 text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Open navigation"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
         <MobileNav open={mobileOpen} onClose={() => setMobileOpen(false)} />
