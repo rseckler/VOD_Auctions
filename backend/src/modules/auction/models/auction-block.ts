@@ -32,6 +32,7 @@ const AuctionBlock = model.define("auction_block", {
   default_start_price_percent: model.number().default(50),
   auto_extend: model.boolean().default(true),
   extension_minutes: model.number().default(5),
+  max_extensions: model.number().default(10),
 
   // Ergebnisse (nach Ende)
   total_revenue: model.float().nullable(),

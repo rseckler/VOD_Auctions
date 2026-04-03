@@ -9,36 +9,8 @@ import { staggerContainer, staggerItem } from "@/lib/motion"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
 import { getToken } from "@/lib/auth"
 import { SaveForLaterButton } from "@/components/SaveForLaterButton"
+import { getTimeUrgency } from "@/lib/time-utils"
 import type { BlockItem } from "@/types"
-
-type TimeUrgency = {
-  text: string
-  level: "critical" | "urgent" | "normal" | "ended"
-}
-
-function getTimeUrgency(endTime: string): TimeUrgency {
-  const diff = new Date(endTime).getTime() - Date.now()
-  if (diff <= 0) return { text: "Ended", level: "ended" }
-
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
-  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
-  const seconds = Math.floor((diff % (1000 * 60)) / 1000)
-
-  if (diff < 5 * 60 * 1000) {
-    // <5 min: critical
-    const text = diff < 60 * 1000 ? `${seconds}s left` : `${minutes}m ${seconds}s left`
-    return { text, level: "critical" }
-  }
-  if (diff < 60 * 60 * 1000) {
-    // <60 min: urgent — show seconds
-    return { text: `${minutes}m ${seconds}s left`, level: "urgent" }
-  }
-
-  // normal — no seconds
-  if (days > 0) return { text: `${days}d ${hours}h left`, level: "normal" }
-  return { text: `${hours}h ${minutes}m left`, level: "normal" }
-}
 
 const FORMAT_COLORS: Record<string, string> = {
   LP: "text-format-vinyl",

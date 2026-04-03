@@ -42,8 +42,8 @@ const RATE_LIMIT_THRESHOLD = 5
 const RATE_LIMIT_COOLDOWN = 30 // seconds
 
 export function AuthModal({ open, onClose }: AuthModalProps) {
-  const { login, register } = useAuth()
-  const [mode, setMode] = useState<"login" | "register" | "forgot">("login")
+  const { login, register, resendVerification } = useAuth()
+  const [mode, setMode] = useState<"login" | "register" | "forgot" | "verify-email">("login")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -82,8 +82,10 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
     return () => { if (countdownRef.current) clearInterval(countdownRef.current) }
   }, [lockedUntil])
 
+  const [resendCooldown, setResendCooldown] = useState(false)
+
   // Reset rate limit state when switching modes
-  const handleModeSwitch = useCallback((newMode: "login" | "register" | "forgot") => {
+  const handleModeSwitch = useCallback((newMode: "login" | "register" | "forgot" | "verify-email") => {
     setMode(newMode)
     setError("")
     setFailedAttempts(0)
@@ -121,7 +123,7 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
         onClose()
       } else {
         await register(email, password, firstName, lastName, newsletterOptin)
-        onClose()
+        setMode("verify-email")
       }
     } catch (err: any) {
       if (mode === "login") {
@@ -144,18 +146,47 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {mode === "login" ? "Login" : mode === "register" ? "Register" : "Reset Password"}
+            {mode === "login" ? "Login" : mode === "register" ? "Register" : mode === "verify-email" ? "Check Your Inbox" : "Reset Password"}
           </DialogTitle>
           <DialogDescription>
             {mode === "login"
               ? "Log in to place bids."
               : mode === "register"
                 ? "Create an account to bid."
-                : "Enter your email to receive a password reset link."}
+                : mode === "verify-email"
+                  ? "One more step to start bidding."
+                  : "Enter your email to receive a password reset link."}
           </DialogDescription>
         </DialogHeader>
 
-        {mode === "forgot" && resetSent ? (
+        {mode === "verify-email" ? (
+          <div className="space-y-4">
+            <div className="rounded-lg bg-primary/10 border border-primary/20 p-4 text-center">
+              <div className="text-3xl mb-2">&#x2709;&#xFE0F;</div>
+              <p className="text-sm text-foreground">
+                We sent a verification email to <strong>{email}</strong>.
+              </p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Please check your inbox and click the link to verify your account. You need to verify your email before you can place bids.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              className="w-full"
+              disabled={resendCooldown}
+              onClick={async () => {
+                setResendCooldown(true)
+                await resendVerification()
+                setTimeout(() => setResendCooldown(false), 30000)
+              }}
+            >
+              {resendCooldown ? "Email sent — check your inbox" : "Resend Verification Email"}
+            </Button>
+            <Button onClick={onClose} className="w-full">
+              Continue Browsing
+            </Button>
+          </div>
+        ) : mode === "forgot" && resetSent ? (
           <div className="space-y-4">
             <div className="rounded-lg bg-green-500/10 border border-green-500/20 p-4">
               <p className="text-sm text-green-400">

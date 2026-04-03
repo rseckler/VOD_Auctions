@@ -49,11 +49,21 @@ export default async function bidEndingReminder(container: MedusaContainer) {
     if (!items.length) continue
 
     for (const item of items) {
-      // Find all distinct bidders on this lot
+      // Find the current highest bidder (skip them — they don't need a reminder)
+      const winningBid = await pgConnection("bid")
+        .where({ block_item_id: item.id, is_winning: true })
+        .select("user_id")
+        .first()
+      const winningUserId = winningBid?.user_id
+
+      // Find all distinct bidders on this lot (excluding the current highest bidder)
       const bidders = await pgConnection("bid")
         .where("block_item_id", item.id)
         .distinct("user_id")
         .select("user_id")
+        .modify((qb: any) => {
+          if (winningUserId) qb.whereNot("user_id", winningUserId)
+        })
 
       for (const { user_id } of bidders) {
         // Deduplication check

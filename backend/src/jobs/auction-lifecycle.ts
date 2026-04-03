@@ -86,9 +86,9 @@ export default async function auctionLifecycle(container: MedusaContainer) {
         totalBids += item.bid_count || 0
 
         if (item.bid_count > 0 && item.current_price) {
-          // Check reserve price — always compare as floats (Knex returns DECIMAL as strings)
-          const currentPrice = parseFloat(item.current_price)
-          const reservePrice = item.reserve_price ? parseFloat(item.reserve_price) : null
+          // Check reserve price — Knex returns DECIMAL as strings, use Number() for safety
+          const currentPrice = Number(item.current_price) || 0
+          const reservePrice = item.reserve_price ? Number(item.reserve_price) : null
           const meetsReserve = !reservePrice || currentPrice >= reservePrice
 
           if (meetsReserve) {

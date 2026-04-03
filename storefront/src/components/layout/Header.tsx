@@ -22,7 +22,10 @@ export function Header() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [authModalOpen, setAuthModalOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
-  const { isAuthenticated, cartCount, savedCount } = useAuth()
+  const { isAuthenticated, cartCount, savedCount, emailVerified, resendVerification } = useAuth()
+  const [verifyBannerDismissed, setVerifyBannerDismissed] = useState(false)
+  const [resendSent, setResendSent] = useState(false)
+  const showVerifyBanner = isAuthenticated && !emailVerified && !verifyBannerDismissed
 
   // Cmd+K / Ctrl+K global shortcut
   useEffect(() => {
@@ -118,6 +121,34 @@ export function Header() {
         </div>
 
         <MobileNav open={mobileOpen} onClose={() => setMobileOpen(false)} />
+
+        {/* Email verification banner */}
+        {showVerifyBanner && (
+          <div className="bg-primary/10 border-b border-primary/30">
+            <div className="mx-auto max-w-6xl px-6 py-2 flex items-center justify-between gap-3">
+              <p className="text-sm text-primary">
+                Please verify your email to place bids.{" "}
+                <button
+                  onClick={async () => {
+                    setResendSent(true)
+                    await resendVerification()
+                  }}
+                  className="underline hover:text-primary/80 font-medium"
+                  disabled={resendSent}
+                >
+                  {resendSent ? "Email sent!" : "Resend verification email"}
+                </button>
+              </p>
+              <button
+                onClick={() => setVerifyBannerDismissed(true)}
+                className="text-primary/60 hover:text-primary text-lg leading-none shrink-0"
+                aria-label="Dismiss"
+              >
+                &times;
+              </button>
+            </div>
+          </div>
+        )}
       </header>
 
       <AuthModal

@@ -41,6 +41,7 @@ type AuthContextType = {
   ordersCount: number
   winsCount: number
   bidsCount: number
+  emailVerified: boolean
   sessionExpiredMessage: string | null
   intendedAction: IntendedAction | null
   dismissSessionExpired: () => void
@@ -57,6 +58,7 @@ type AuthContextType = {
   logout: () => void
   refreshStatus: () => Promise<void>
   refreshCustomer: () => Promise<void>
+  resendVerification: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -68,6 +70,7 @@ const AuthContext = createContext<AuthContextType>({
   ordersCount: 0,
   winsCount: 0,
   bidsCount: 0,
+  emailVerified: false,
   sessionExpiredMessage: null,
   intendedAction: null,
   dismissSessionExpired: () => {},
@@ -78,6 +81,7 @@ const AuthContext = createContext<AuthContextType>({
   logout: () => {},
   refreshStatus: async () => {},
   refreshCustomer: async () => {},
+  resendVerification: async () => {},
 })
 
 export function useAuth() {
@@ -94,6 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [ordersCount, setOrdersCount] = useState(0)
   const [winsCount, setWinsCount] = useState(0)
   const [bidsCount, setBidsCount] = useState(0)
+  const [emailVerified, setEmailVerified] = useState(false)
   const [sessionExpiredMessage, setSessionExpiredMessage] = useState<string | null>(null)
   const [intendedAction, setIntendedActionState] = useState<IntendedAction | null>(null)
   const logoutTriggeredRef = useRef(false)
@@ -141,6 +146,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setOrdersCount(data.orders_count || 0)
         setWinsCount(data.wins_count || 0)
         setBidsCount(data.active_bids_count || 0)
+        setEmailVerified(data.email_verified || false)
       }
     } catch {
       // silently fail on network errors
@@ -267,12 +273,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [fetchStatus]
   )
 
+  const resendVerification = useCallback(async () => {
+    const token = getToken()
+    if (!token) return
+    await fetch(`${MEDUSA_URL}/store/account/verify-email`, {
+      method: "POST",
+      headers: {
+        "x-publishable-api-key": PUBLISHABLE_KEY,
+        Authorization: `Bearer ${token}`,
+      },
+    })
+  }, [])
+
   const logout = useCallback(() => {
     clearToken()
     setCustomer(null)
     setCartCount(0)
     setSavedCount(0)
     setBidsCount(0)
+    setEmailVerified(false)
   }, [])
 
   return (
@@ -286,6 +305,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ordersCount,
         winsCount,
         bidsCount,
+        emailVerified,
         sessionExpiredMessage,
         intendedAction,
         dismissSessionExpired,
@@ -296,6 +316,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         refreshStatus,
         refreshCustomer,
+        resendVerification,
       }}
     >
       {children}

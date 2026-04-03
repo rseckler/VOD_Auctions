@@ -1,8 +1,29 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
+import { createHash } from "crypto"
 import AuctionModuleService from "../../../../../../modules/auction/service"
 import { AUCTION_MODULE } from "../../../../../../modules/auction"
+
+// Simple IP-based view dedup: Map<itemId, Set<ipHash>>
+const recentViews = new Map<string, Set<string>>()
+const DEDUP_TTL = 24 * 60 * 60 * 1000 // 24h
+let lastCleanup = Date.now()
+
+function shouldCountView(itemId: string, ip: string): boolean {
+  // Periodic cleanup every hour
+  if (Date.now() - lastCleanup > 60 * 60 * 1000) {
+    recentViews.clear()
+    lastCleanup = Date.now()
+  }
+  const ipHash = createHash("sha256").update(ip).digest("hex").substring(0, 12)
+  const key = `${itemId}:${ipHash}`
+  if (!recentViews.has(itemId)) recentViews.set(itemId, new Set())
+  const views = recentViews.get(itemId)!
+  if (views.has(key)) return false
+  views.add(key)
+  return true
+}
 
 // GET /store/auction-blocks/:slug/items/:itemId — Public: item detail + release data
 export async function GET(
@@ -42,11 +63,14 @@ export async function GET(
 
   const item = items[0]
 
-  // Increment view count (fire-and-forget, non-blocking)
-  pgConnection("block_item")
-    .where("id", itemId)
-    .increment("view_count", 1)
-    .catch(() => {}) // Non-blocking
+  // Increment view count (deduplicated by IP, fire-and-forget)
+  const clientIp = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || "unknown"
+  if (shouldCountView(itemId, clientIp)) {
+    pgConnection("block_item")
+      .where("id", itemId)
+      .increment("view_count", 1)
+      .catch(() => {})
+  }
 
   // Get release data with images + extended fields
   const release = await pgConnection("Release")
@@ -135,7 +159,7 @@ export async function GET(
       lot_end_time: item.lot_end_time,
       status: item.status,
       reserve_met: reserveMet,
-      view_count: (item.view_count || 0) + 1, // +1 for current request
+      view_count: item.view_count || 0,
       release: release
         ? { ...release, images, various_artists: variousArtists, comments }
         : null,

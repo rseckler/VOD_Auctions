@@ -1,20 +1,7 @@
 import Link from "next/link"
 import { medusaFetch } from "@/lib/api"
+import { LiveCountdown } from "@/components/LiveCountdown"
 import type { AuctionBlock } from "@/types"
-
-function formatTimeRemaining(endTime: string): string {
-  const diffMs = new Date(endTime).getTime() - Date.now()
-  if (diffMs <= 0) return "ending soon"
-
-  const totalMinutes = Math.floor(diffMs / 1000 / 60)
-  const days = Math.floor(totalMinutes / 60 / 24)
-  const hours = Math.floor((totalMinutes % (60 * 24)) / 60)
-  const minutes = totalMinutes % 60
-
-  if (days > 0) return `${days}d ${hours}h`
-  if (hours > 0) return `${hours}h ${minutes}m`
-  return `${minutes}m`
-}
 
 export async function LiveAuctionBanner() {
   const data = await medusaFetch<{ auction_blocks: AuctionBlock[] }>(
@@ -30,7 +17,6 @@ export async function LiveAuctionBanner() {
   if (activeBlocks.length === 0) return null
 
   const block = activeBlocks[0]
-  const timeRemaining = formatTimeRemaining(block.end_time)
   const lotsLabel = `${block.items_count} lot${block.items_count !== 1 ? "s" : ""}`
 
   return (
@@ -52,11 +38,11 @@ export async function LiveAuctionBanner() {
 
           {/* Right: Lot count + end time + CTA */}
           <div className="flex items-center gap-3 shrink-0">
-            <span className="text-white/60 text-sm hidden md:block">
-              {lotsLabel} &bull; ends in {timeRemaining}
+            <span className="text-white/60 text-sm hidden md:flex items-center gap-1">
+              {lotsLabel} &bull; ends in <LiveCountdown endTime={block.end_time} className="text-white/80" />
             </span>
-            <span className="text-white/60 text-sm md:hidden">
-              ends in {timeRemaining}
+            <span className="text-white/60 text-sm md:hidden flex items-center gap-1">
+              ends in <LiveCountdown endTime={block.end_time} className="text-white/80" />
             </span>
             <Link
               href={`/auctions/${block.slug}`}

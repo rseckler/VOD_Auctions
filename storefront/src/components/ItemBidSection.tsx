@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Clock, Gavel, AlertTriangle, Check, Info } from "lucide-react"
+import { Clock, Gavel, AlertTriangle, Check, Info, Trophy, ArrowRight } from "lucide-react"
+import Link from "next/link"
 import { toast } from "sonner"
 import { useAuth } from "./AuthProvider"
 import { AuthModal } from "./AuthModal"
@@ -16,6 +17,15 @@ import { Card } from "@/components/ui/card"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
 import { brevoBidPlaced } from "@/lib/brevo-tracking"
 import { rudderTrack } from "@/lib/rudderstack"
+
+/** Simple hash to anonymize user_id in realtime bid updates (matches backend SHA-256 approach conceptually) */
+function anonymizeUserId(userId: string): string {
+  let hash = 0
+  for (let i = 0; i < userId.length; i++) {
+    hash = ((hash << 5) - hash + userId.charCodeAt(i)) | 0
+  }
+  return `Bidder ${Math.abs(hash).toString(16).substring(0, 6).toUpperCase()}`
+}
 
 /**
  * Bid config (mirrors backend/src/lib/bid-config.ts).
@@ -189,7 +199,7 @@ export function ItemBidSection({
               amount: newBid.amount,
               is_winning: newBid.is_winning,
               user_id: newBid.user_id,
-              user_hint: newBid.user_id?.substring(0, 8) + "…",
+              user_hint: newBid.user_id ? anonymizeUserId(newBid.user_id) : "Bidder",
               created_at: newBid.created_at,
             },
             ...prev,
@@ -343,14 +353,40 @@ export function ItemBidSection({
             suggestedBid={suggestedBid}
           />
         ) : liveBlockStatus === "ended" || (isActive && timeLeft !== null && timeLeft <= 0) ? (
-          <div className="mt-3 py-4 px-4 rounded-lg bg-secondary text-center border border-primary/20">
-            <p className="text-sm text-muted-foreground">Auction ended</p>
-            {bidCount > 0 && (
-              <p className="text-xl font-mono font-bold mt-1 text-primary">
-                Sold for: &euro;{currentPrice.toFixed(2)}
+          userIsWinning === true ? (
+            <div className="mt-3 py-5 px-4 rounded-lg bg-green-500/10 text-center border border-green-500/30">
+              <Trophy className="h-8 w-8 text-green-400 mx-auto mb-2" />
+              <p className="text-lg font-semibold text-green-400">
+                Congratulations! You won this lot.
               </p>
-            )}
-          </div>
+              <p className="text-2xl font-mono font-bold mt-2 text-primary">
+                &euro;{currentPrice.toFixed(2)}
+              </p>
+              <Link href="/account/wins">
+                <Button className="mt-4 gap-2" variant="default">
+                  Complete Payment <ArrowRight className="h-4 w-4" />
+                </Button>
+              </Link>
+            </div>
+          ) : userIsWinning === false ? (
+            <div className="mt-3 py-4 px-4 rounded-lg bg-secondary text-center border border-[rgba(232,224,212,0.08)]">
+              <p className="text-sm text-muted-foreground">Auction ended</p>
+              {bidCount > 0 && (
+                <p className="text-xl font-mono font-bold mt-1 text-muted-foreground">
+                  Sold for: &euro;{currentPrice.toFixed(2)}
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="mt-3 py-4 px-4 rounded-lg bg-secondary text-center border border-primary/20">
+              <p className="text-sm text-muted-foreground">Auction ended</p>
+              {bidCount > 0 && (
+                <p className="text-xl font-mono font-bold mt-1 text-primary">
+                  Sold for: &euro;{currentPrice.toFixed(2)}
+                </p>
+              )}
+            </div>
+          )
         ) : (
           <div className="mt-3 space-y-2">
             <Button disabled className="w-full" variant="secondary">

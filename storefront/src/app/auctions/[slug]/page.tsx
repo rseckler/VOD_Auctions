@@ -2,8 +2,9 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import Image from "next/image"
 import { notFound } from "next/navigation"
-import { ChevronRight, Calendar, Package, Clock, Disc3, Heart } from "lucide-react"
+import { ChevronRight, Calendar, Clock, Package, Disc3, Heart } from "lucide-react"
 import { BlockItemsGrid } from "@/components/BlockItemsGrid"
+import { LiveCountdown } from "@/components/LiveCountdown"
 import { CollapsibleDescription } from "@/components/CollapsibleDescription"
 import { ShareButton } from "@/components/ShareButton"
 import { PreviewCountdown } from "@/components/PreviewCountdown"
@@ -25,17 +26,6 @@ const TYPE_LABELS: Record<string, string> = {
   flash: "Flash",
 }
 
-function timeRemaining(endStr: string): string {
-  const diff = new Date(endStr).getTime() - Date.now()
-  if (diff <= 0) return "Ended"
-  const days = Math.floor(diff / 86400000)
-  const hours = Math.floor((diff % 86400000) / 3600000)
-  const minutes = Math.floor((diff % 3600000) / 60000)
-  const seconds = Math.floor((diff % 60000) / 1000)
-  if (diff < 3600000) return `${minutes}m ${seconds}s`
-  if (days > 0) return `${days}d ${hours}h ${minutes}m`
-  return `${hours}h ${minutes}m`
-}
 
 function formatBlockTime(dateStr: string): string {
   const date = new Date(dateStr)
@@ -220,12 +210,7 @@ export default async function BlockDetailPage({
             {block.status === "active" && (
               <div className="ml-auto pl-6 border-l border-primary/20">
                 <div className="text-[11px] uppercase tracking-[1px] text-muted-foreground/60 font-medium mb-1">Time Left</div>
-                <div className="flex items-center gap-2 text-status-active font-bold">
-                  <Clock className="h-5 w-5" />
-                  <span className="font-serif text-3xl md:text-4xl leading-none">
-                    {timeRemaining(block.end_time)}
-                  </span>
-                </div>
+                <LiveCountdown endTime={block.end_time} size="lg" />
               </div>
             )}
             {isPreview && block.start_time && (

@@ -2,9 +2,10 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { Clock, Calendar, Disc3 } from "lucide-react"
+import { Calendar, Disc3 } from "lucide-react"
 import { motion } from "framer-motion"
 import { staggerItem } from "@/lib/motion"
+import { LiveCountdown } from "@/components/LiveCountdown"
 import type { AuctionBlock } from "@/types"
 
 const STATUS_CONFIG: Record<
@@ -39,14 +40,6 @@ function formatDate(dateStr: string, includeTime = false) {
   return includeTime ? `${formatted} CET` : formatted
 }
 
-function timeRemaining(endStr: string): string {
-  const diff = new Date(endStr).getTime() - Date.now()
-  if (diff <= 0) return "Ended"
-  const days = Math.floor(diff / 86400000)
-  const hours = Math.floor((diff % 86400000) / 3600000)
-  if (days > 0) return `${days}d ${hours}h left`
-  return `${hours}h left`
-}
 
 export function BlockCardVertical({ block }: { block: AuctionBlock }) {
   const status = STATUS_CONFIG[block.status]
@@ -169,10 +162,7 @@ export function BlockCardHorizontal({ block }: { block: AuctionBlock }) {
                 {formatDate(block.start_time, block.status === "scheduled")} – {formatDate(block.end_time, block.status === "scheduled")}
               </span>
               {block.status === "active" && (
-                <span className="flex items-center gap-1 text-status-active">
-                  <Clock className="h-3 w-3" />
-                  {timeRemaining(block.end_time)}
-                </span>
+                <LiveCountdown endTime={block.end_time} showIcon />
               )}
             </div>
           </div>
