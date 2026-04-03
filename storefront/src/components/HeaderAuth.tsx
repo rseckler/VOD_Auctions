@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 export function HeaderAuth() {
-  const { isAuthenticated, customer, logout, loading } = useAuth()
+  const { isAuthenticated, customer, logout, loading, bidsCount, winsCount } = useAuth()
   const [authModalOpen, setAuthModalOpen] = useState(false)
 
   if (loading) return null
@@ -44,15 +44,29 @@ export function HeaderAuth() {
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
-            <Link href="/account/bids" className="flex items-center gap-2">
-              <Gavel className="h-4 w-4" />
-              My Bids
+            <Link href="/account/bids" className="flex items-center gap-2 justify-between w-full">
+              <span className="flex items-center gap-2">
+                <Gavel className="h-4 w-4" />
+                My Bids
+              </span>
+              {bidsCount > 0 && (
+                <span className="bg-primary/20 text-primary text-[10px] font-bold min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1">
+                  {bidsCount}
+                </span>
+              )}
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
-            <Link href="/account/wins" className="flex items-center gap-2">
-              <Trophy className="h-4 w-4" />
-              Won
+            <Link href="/account/wins" className="flex items-center gap-2 justify-between w-full">
+              <span className="flex items-center gap-2">
+                <Trophy className="h-4 w-4" />
+                Won
+              </span>
+              {winsCount > 0 && (
+                <span className="bg-green-500/20 text-green-400 text-[10px] font-bold min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1">
+                  {winsCount}
+                </span>
+              )}
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
