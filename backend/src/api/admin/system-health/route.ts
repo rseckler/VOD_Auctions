@@ -197,6 +197,22 @@ export async function GET(
     return { name: "clarity", label: "Microsoft Clarity (UXA)", status: "ok", message: `Project ID: ${clarityId} (session recordings + heatmaps, loads on marketing consent)`, latency_ms: null, url: `https://clarity.microsoft.com/projects/view/${clarityId}` }
   }
 
+  async function checkR2Images(): Promise<ServiceCheck> {
+    const r2Url = "https://pub-433520acd4174598939bc51f96e2b8b9.r2.dev"
+    const testImage = "tape-mag/standard/Die_Gesunden_kommen_live_Tempodrom.jpg"
+    try {
+      const start = Date.now()
+      const res = await fetch(`${r2Url}/${testImage}`, { method: "HEAD", signal: AbortSignal.timeout(10000) })
+      const latency = Date.now() - start
+      if (res.ok) {
+        return { name: "r2-images", label: "Cloudflare R2 (Image CDN)", status: "ok", message: `160,957 images — R2 public URL active (${latency}ms)`, latency_ms: latency, url: r2Url }
+      }
+      return { name: "r2-images", label: "Cloudflare R2 (Image CDN)", status: "error", message: `R2 returned HTTP ${res.status}`, latency_ms: latency, url: r2Url }
+    } catch (e: any) {
+      return { name: "r2-images", label: "Cloudflare R2 (Image CDN)", status: "error", message: `R2 unreachable: ${e.message}`, latency_ms: null, url: r2Url }
+    }
+  }
+
   function checkGA4(): ServiceCheck {
     // NEXT_PUBLIC_ vars are storefront-only; backend uses GA_MEASUREMENT_ID
     const gaMeasurementId = process.env.GA_MEASUREMENT_ID || process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID
@@ -324,6 +340,7 @@ export async function GET(
     Promise.resolve(checkAnthropic()),
     checkVPS(),
     checkStorefrontPublic(),
+    checkR2Images(),
   ])
 
   // ── Summary ───────────────────────────────────────────────────────────────

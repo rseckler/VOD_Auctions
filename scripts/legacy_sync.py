@@ -38,6 +38,8 @@ from shared import (
     map_format_by_id,
     parse_price,
     slugify,
+    upload_image_to_r2,
+    check_r2_exists,
 )
 
 
@@ -286,6 +288,12 @@ def sync_releases(mysql_conn, pg_conn, run_id):
                 cover_image = None
                 if row.get("image_filename"):
                     filename = str(row["image_filename"])
+                    # Upload new/changed images to R2 if not already there
+                    if not check_r2_exists(filename):
+                        if upload_image_to_r2(filename):
+                            print(f"  [r2] Uploaded: {filename}")
+                        else:
+                            print(f"  [r2] WARN: Failed to upload {filename}, using R2 URL anyway")
                     cover_image = IMAGE_BASE_URL + filename
 
                 price = parse_price(row.get("preis"))

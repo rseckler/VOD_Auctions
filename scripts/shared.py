@@ -20,6 +20,7 @@ import unicodedata
 from collections import deque
 from pathlib import Path
 
+import requests as _requests
 import psycopg2
 import psycopg2.extras
 from dotenv import load_dotenv
@@ -33,6 +34,75 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 
 BATCH_SIZE = 500
 IMAGE_BASE_URL = "https://pub-433520acd4174598939bc51f96e2b8b9.r2.dev/tape-mag/standard/"
+LEGACY_IMAGE_BASE_URL = "https://tape-mag.com/bilder/gross/"
+
+# R2 Upload Configuration
+R2_ENDPOINT = "https://98bed59e4077ace876d8c5870be1ad39.r2.cloudflarestorage.com"
+R2_BUCKET = "vod-images"
+R2_PREFIX = "tape-mag/standard/"
+R2_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID", "")
+R2_SECRET_ACCESS_KEY = os.getenv("R2_SECRET_ACCESS_KEY", "")
+
+_r2_client = None
+
+def get_r2_client():
+    """Lazy-init S3-compatible client for Cloudflare R2."""
+    global _r2_client
+    if _r2_client is not None:
+        return _r2_client
+    if not R2_ACCESS_KEY_ID or not R2_SECRET_ACCESS_KEY:
+        return None
+    try:
+        import boto3
+        _r2_client = boto3.client(
+            "s3",
+            endpoint_url=R2_ENDPOINT,
+            aws_access_key_id=R2_ACCESS_KEY_ID,
+            aws_secret_access_key=R2_SECRET_ACCESS_KEY,
+            region_name="auto",
+        )
+        return _r2_client
+    except ImportError:
+        print("[shared] WARNING: boto3 not installed — R2 upload disabled")
+        return None
+
+def upload_image_to_r2(filename: str) -> bool:
+    """Download image from tape-mag.com and upload to R2. Returns True on success."""
+    client = get_r2_client()
+    if not client:
+        return False
+    try:
+        # Download from legacy source
+        resp = _requests.get(LEGACY_IMAGE_BASE_URL + filename, timeout=30)
+        if resp.status_code != 200:
+            return False
+        # Upload to R2
+        content_type = "image/jpeg"
+        if filename.lower().endswith(".png"):
+            content_type = "image/png"
+        elif filename.lower().endswith(".gif"):
+            content_type = "image/gif"
+        client.put_object(
+            Bucket=R2_BUCKET,
+            Key=R2_PREFIX + filename,
+            Body=resp.content,
+            ContentType=content_type,
+        )
+        return True
+    except Exception as e:
+        print(f"[r2-upload] Failed for {filename}: {e}")
+        return False
+
+def check_r2_exists(filename: str) -> bool:
+    """Check if an image already exists in R2."""
+    client = get_r2_client()
+    if not client:
+        return False
+    try:
+        client.head_object(Bucket=R2_BUCKET, Key=R2_PREFIX + filename)
+        return True
+    except Exception:
+        return False
 
 # Format name -> format_group mapping (string-based, used by map_format())
 FORMAT_MAP = {
