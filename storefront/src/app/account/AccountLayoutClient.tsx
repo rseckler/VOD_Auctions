@@ -95,6 +95,9 @@ export function AccountLayoutClient({
                     {item.href === "/account/cart" && cartCount > 0 && (
                       <span className="ml-auto text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full font-mono">{cartCount}</span>
                     )}
+                    {item.href === "/account/checkout" && (winsCount + cartCount) > 0 && (
+                      <span className="ml-auto text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full font-mono">{winsCount + cartCount}</span>
+                    )}
                     {item.href === "/account/orders" && ordersCount > 0 && (
                       <span className="ml-auto text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full font-mono">{ordersCount}</span>
                     )}
