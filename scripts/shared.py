@@ -32,7 +32,7 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 # ---------------------------------------------------------------------------
 
 BATCH_SIZE = 500
-IMAGE_BASE_URL = "https://tape-mag.com/bilder/gross/"
+IMAGE_BASE_URL = "https://pub-433520acd4174598939bc51f96e2b8b9.r2.dev/tape-mag/standard/"
 
 # Format name -> format_group mapping (string-based, used by map_format())
 FORMAT_MAP = {

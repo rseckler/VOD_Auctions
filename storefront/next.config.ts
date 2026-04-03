@@ -10,6 +10,10 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "tape-mag.com",
       },
+      {
+        protocol: "https",
+        hostname: "pub-433520acd4174598939bc51f96e2b8b9.r2.dev",
+      },
     ],
   },
 };
