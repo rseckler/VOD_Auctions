@@ -1,9 +1,9 @@
 # VOD Auctions — Unified UI/UX Style Guide
 
-**Version:** 1.0
-**Created:** 2026-04-02
+**Version:** 2.0
+**Created:** 2026-04-02 | **Updated:** 2026-04-04 (visual audit findings from 170+ screenshots)
 **Status:** Single Source of Truth — supersedes `DESIGN_GUIDE_FRONTEND.md` and `DESIGN_GUIDE_BACKEND.md`
-**Scope:** Storefront (Next.js 16 / Tailwind CSS 4 / shadcn/ui) + Admin (Medusa.js 2.x custom pages)
+**Scope:** Storefront (Next.js 16 / Tailwind CSS 4 / shadcn/ui) + Admin (Medusa.js 2.x, desktop-only)
 **Phase:** 1 of 3 (UX Audit)
 
 ---
@@ -77,10 +77,10 @@ The platform MUST meet WCAG 2.1 AA standards as a minimum.
 
 ### 1.5 Responsiveness
 
-The storefront MUST work flawlessly from 320px to 2560px. The admin MUST be usable from 768px up (with graceful degradation to 480px).
+The storefront MUST work flawlessly from 320px to 2560px. The admin is **desktop-only** (>= 1024px viewport). Mobile admin access is not supported.
 
 - Storefront: mobile-first CSS. Base styles target phones, `md:` adds tablet, `lg:` adds desktop.
-- Admin: desktop-first (Medusa shell). Tables and stats grids MUST have readable fallbacks below 960px.
+- Admin: desktop-only (Medusa shell). Minimum supported viewport: 1024px. No mobile optimization required.
 - No horizontal scrolling on any viewport width within the supported range.
 - Touch targets MUST be at least 44x44px on mobile (per Apple HIG / WCAG 2.5.5).
 
@@ -158,6 +158,13 @@ Desktop:  2 columns   (md:grid-cols-2)
 
 **Rule:** Product grids MUST use `grid gap-6`. Card grids MUST NOT use `flex-wrap` — use CSS Grid exclusively for card layouts. Flex is reserved for inline/toolbar arrangements.
 
+**Catalog Card Density on Mobile:**
+- At < 375px width, catalog cards in 2-column grid become too dense
+- MUST reduce information density on mobile cards: hide year, hide condition badge
+- Card title MUST NOT truncate beyond 2 lines on mobile
+- Artist name: 1 line max, truncate with ellipsis
+- *(Finding: GAP-1002)*
+
 #### Breakpoints
 
 | Name | Pixel | Purpose |
@@ -192,6 +199,22 @@ Desktop:  2 columns   (md:grid-cols-2)
 ```
 
 **Rule:** `<main>` content MUST have `pt-8` minimum below the sticky header. Footer MUST have `border-t border-border` separator.
+
+#### Account Navigation on Mobile
+
+The account sidebar (Overview, My Bids, Won, Saved, Cart, Checkout, Orders, Archive, Feedback, Settings, Profile, Addresses) MUST collapse on mobile.
+
+**Desktop (>= 768px):**
+- Left sidebar with vertical navigation links
+- Content area takes remaining width
+
+**Mobile (< 768px):**
+- Sidebar MUST be hidden
+- Navigation MUST convert to horizontal scrollable tabs OR a dropdown selector
+- Content area MUST be 100% width
+- Current active section shown as selected tab/dropdown value
+
+**Rule:** The account sidebar MUST NEVER render as a vertical list on mobile. Content area MUST NEVER be narrower than 100% viewport width minus padding on mobile. *(Finding: GAP-1001/1010)*
 
 ### 2.2 Admin Layout
 
@@ -1058,6 +1081,12 @@ The input border also changes via `aria-invalid="true"` — `border-destructive 
 **Rules:**
 - Error messages MUST appear directly below the field they refer to.
 - Error messages MUST be specific: "Email address is required" not "This field is required".
+
+#### Checkout Form Mobile Layout
+
+**Rule:** Checkout address forms MUST be single-column on mobile (< 768px). Multi-column form rows (Postal Code + City + Country) MUST stack vertically: `grid-cols-1 md:grid-cols-3`.
+
+**MUST NOT:** Render 3 narrow inputs side-by-side on a 375px screen. *(Finding: GAP-1003)*
 - Form-level errors (server errors, network failures) MUST appear as an `<Alert type="error">` above the form.
 - MUST NOT use browser-native validation tooltips. Use `noValidate` on `<form>` and handle validation in JS.
 
@@ -1156,6 +1185,8 @@ Catalog: [Filters in sidebar / top bar]
 **Rule:** Use the shadcn/ui `<Tabs>` component for in-page section switching. Tab labels MUST be consistent with the primary nav item they belong to.
 
 ### 7.2 Admin Navigation
+
+> **Important:** The admin interface is **desktop-only** (>= 1024px viewport). Mobile admin access is not officially supported. All admin navigation rules apply to desktop viewports only. *(Decision: 2026-04-04)*
 
 #### Sidebar Structure (7 Items)
 
@@ -1258,6 +1289,23 @@ Right:      Prev/Next buttons (ghost variant)
 **Rules:**
 - Page size: 50 rows default for admin tables.
 - Prev button MUST be disabled on first page. Next MUST be disabled on last page.
+
+#### Load More vs. Pagination
+
+**Rule:** A page MUST use ONE navigation pattern — either pagination OR "Load More". MUST NOT show both simultaneously.
+
+- **Pagination** (default): Page numbers + prev/next. Best for SEO and direct page access.
+- **Load More**: "Load More (N items)" button. Best for browsing/discovery flows.
+- **MUST NOT:** Show a "Load More" button AND full pagination on the same page. This creates user confusion about which to use. *(Finding: GAP-1008)*
+
+#### Data Display in Tables
+
+**Rule:** Tables MUST NOT display raw JSON objects in cells. Data must be formatted:
+- JSON change logs → show summary ("4 changes, 2 images") with expandable detail on click
+- Long text → truncate with ellipsis, show full text in tooltip or expanded row
+- Dates → formatted with `fmtDate()` or `fmtDatetime()`, never raw ISO strings
+- Numbers → formatted with locale (`fmtNum()`, `fmtMoney()`)
+- *(Finding: GAP-1108)*
 - Total count MUST always be visible.
 - "Load More" is acceptable for append-style lists. Full pagination is required for tables.
 
@@ -1587,6 +1635,11 @@ The platform speaks with the voice of a knowledgeable record dealer: confident, 
 - Empty states SHOULD have a CTA that leads to the action that would populate the list.
 - Empty states MUST NOT show raw "No data" or "0 results" without context.
 
+**Compact vs. Full Empty States:**
+- **Compact** (inline, on pages with other content): Single line or slim banner, max 150px height. MUST include CTA. Example: Homepage "no active auctions" → slim banner + "Browse 32,000+ Releases" button. *(Finding: GAP-1005)*
+- **Full** (standalone, when the entire page is empty): Card with icon, title, description, CTA. May use illustration. Example: Empty cart page.
+- **MUST NOT:** Use full-page empty state containers (200px+ height) for inline empty sections on otherwise populated pages.
+
 ### 11.6 Confirmation Dialogs
 
 For destructive actions:
@@ -1809,6 +1862,27 @@ Storefront custom scrollbar (pointer devices only):
 
 ---
 
+---
+
+## Appendix D: Visual Audit Reference
+
+This style guide v2.0 was validated against 170+ live screenshots of the production platform:
+
+| Source | Count | Viewport | Tool |
+|--------|-------|----------|------|
+| Desktop Storefront | 48 screenshots | 1440px (Safari) | Manual |
+| Mobile Storefront | 60+ screenshots | 390px (iPhone) | Manual |
+| Desktop Admin | 60 screenshots | 1440px (Safari) | Manual |
+| Mobile Admin | 40 screenshots | 390px (iPhone) | Manual |
+
+All findings documented in:
+- `docs/UI_UX_GAP_ANALYSIS.md` — 53 findings (8 critical, 16 high, 24 medium, 5 low)
+- `docs/UI_UX_OPTIMIZATION_PLAN.md` — Prioritized implementation roadmap
+
+Screenshots archived in `/Screenshots/` directory (Desktop PNGs + Mobile PDFs + Backend Desktop folder).
+
+---
+
 *This document is the binding reference for all storefront and admin development. Every new component, page, and feature MUST comply with these standards. Deviations require explicit approval and documentation.*
 
-*Version 1.0 — 2026-04-02 — Robin Seckler*
+*Version 2.0 — 2026-04-04 — Robin Seckler*
