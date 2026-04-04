@@ -192,7 +192,7 @@ export default function CartPage() {
 
       <div className="space-y-4">
         {items.map((item) => (
-          <Card key={item.id} className="p-3 gap-0">
+          <Card key={item.id} className="p-3 !py-0 gap-0">
             <div className="flex gap-3">
               <Link
                 href={`/catalog/${item.release_id}`}

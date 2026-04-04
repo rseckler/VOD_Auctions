@@ -188,7 +188,7 @@ export default function SavedPage() {
               ? `/auctions/${item.block_slug}/${item.block_item_id}`
               : `/catalog/${item.release_id}`
           return (
-            <Card key={item.id} className="p-3 gap-0">
+            <Card key={item.id} className="p-3 !py-0 gap-0">
               <div className="flex gap-3">
                 <Link
                   href={itemHref}

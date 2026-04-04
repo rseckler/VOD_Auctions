@@ -414,7 +414,7 @@ export default function WinsPage() {
           const needsPayment = !tx || tx.status === "failed"
 
           return (
-            <Card key={win.bid_id} className="p-3 gap-0">
+            <Card key={win.bid_id} className="p-3 !py-0 gap-0">
               <div className="flex gap-3">
                 {/* Cover */}
                 <Link
