@@ -152,7 +152,7 @@ type TracklistFromText = {
 
 // Matches vinyl-style positions: A, B, A1, B2, I, II, 1, 12
 // Single letter (A/B/I) for vinyl sides or Roman numerals; optional digits for sub-tracks
-const POSITION_RE = /^([A-Z]{1,2}\d{0,2}|\d{1,2})\.?$/
+const POSITION_RE = /^([A-Z]{1,2}\d{0,2}[a-z]?|\d{1,2})\.?$/
 const DURATION_RE = /^\d{1,3}:\d{2}$/
 
 /**

@@ -127,7 +127,7 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
   // If server provided data, start as not-loading
   const [loading, setLoading] = useState(initialReleases.length === 0)
 
-  // Sync state to URL (replaceState so back button works per-navigation)
+  // Sync state to URL — pushState so back button returns to previous page/filter
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false
@@ -148,7 +148,10 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
     if (limit !== 24) params.set("limit", String(limit))
     const qs = params.toString()
     const newUrl = qs ? `/catalog?${qs}` : "/catalog"
-    window.history.replaceState(null, "", newUrl)
+    // Use pushState so browser back returns to previous state
+    if (window.location.pathname + window.location.search !== newUrl) {
+      window.history.pushState(null, "", newUrl)
+    }
     // Store catalog URL for breadcrumb back-links on detail pages
     try { sessionStorage.setItem("catalog_url", newUrl) } catch {}
   }, [page, search, category, format, country, label, yearFrom, genre, decade, sort, forSale, limit])
