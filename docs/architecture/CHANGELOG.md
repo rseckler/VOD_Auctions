@@ -4,6 +4,25 @@ Vollständiger Entwicklungs-Changelog. Neue Einträge werden direkt hier ergänz
 
 ---
 
+## 2026-04-04 — Final Remediation: Proxy Validation, Design-System Compliance, Test Coverage
+
+### Proxy Bid Validation (ItemBidSection.tsx)
+- **Validation in `handleSubmitClick`:** Proxy max_amount wird jetzt vor Submit geprüft — NaN, ≤0, unter Gebot, nicht-ganzzahlig (bei whole_euros_only) → klare Toast-Fehlermeldung
+- **Guard in `confirmBid`:** Defense-in-depth — NaN erreicht nie die API, auch wenn Validierung umgangen wird
+
+### Apply + Invite: Shared Components
+- **apply/page.tsx:** Raw `<input>` → `<Input>`, raw `<label>` → `<Label>`, Textarea bekommt Design-System Focus-Ring
+- **invite/[token]/page.tsx:** Raw `<input>` → `<Input>`, raw `<label>` → `<Label>` für alle 5 Felder, Read-only Email mit `disabled` Prop
+- **Token-Migration:** Checkbox-Hex (`#2a2520`, `#3a352f`, `#4a4540`, `#a39d96`, `#0d0b08`) → `border-secondary`, `text-muted-foreground`, `text-primary-foreground` etc.
+- **Verbleibend:** `bg-[#0d0b08]` Override in inputClass — bewusst dunkler als `--background`, kein Token nötig für 2 Standalone-Seiten
+
+### Test Coverage
+- **2 neue E2E-Tests** in `06-bidding.spec.ts`:
+  - "proxy bid with invalid max shows error toast" (Eingabe `,` → Toast)
+  - "proxy bid below bid amount shows error toast" (Max 2 < Bid 5 → Toast)
+
+---
+
 ## 2026-04-04 — Post-Review Remediation: Bid Parsing, A11y, Security
 
 ### Critical: Bid Input Money Bug

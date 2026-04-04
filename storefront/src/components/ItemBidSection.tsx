@@ -502,6 +502,22 @@ function BidForm({
       return
     }
 
+    if (showProxy && maxAmount) {
+      const maxVal = parseAmount(maxAmount)
+      if (isNaN(maxVal) || maxVal <= 0) {
+        toast.error("Please enter a valid maximum bid amount.", { duration: 5000 })
+        return
+      }
+      if (maxVal < val) {
+        toast.error(`Maximum bid must be at least your bid amount (€${val}).`, { duration: 5000 })
+        return
+      }
+      if (BID_CONFIG.whole_euros_only && !Number.isInteger(maxVal)) {
+        toast.error("Maximum bid must be a whole Euro amount (no cents).", { duration: 5000 })
+        return
+      }
+    }
+
     setConfirmOpen(true)
   }
 
@@ -513,8 +529,13 @@ function BidForm({
     if (!token) return
 
     try {
-      const body: Record<string, number> = { amount: parseAmount(amount) }
-      if (showProxy && maxAmount) body.max_amount = parseAmount(maxAmount)
+      const parsedAmount = parseAmount(amount)
+      if (isNaN(parsedAmount)) return
+      const body: Record<string, number> = { amount: parsedAmount }
+      if (showProxy && maxAmount) {
+        const parsedMax = parseAmount(maxAmount)
+        if (!isNaN(parsedMax) && parsedMax > 0) body.max_amount = parsedMax
+      }
 
       const res = await fetch(
         `${MEDUSA_URL}/store/auction-blocks/${slug}/items/${itemId}/bids`,

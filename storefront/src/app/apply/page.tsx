@@ -4,6 +4,12 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+
+/** Dark-theme overrides for this standalone pre-auth page */
+const inputClass = "h-auto px-3.5 py-2.5 bg-[#0d0b08] border-secondary text-foreground placeholder:text-muted-foreground rounded-lg"
+const textareaClass = "w-full px-3.5 py-2.5 bg-[#0d0b08] border border-secondary rounded-lg text-foreground text-sm placeholder:text-muted-foreground outline-none focus:border-ring focus:ring-[3px] focus:ring-ring/50 transition-[color,box-shadow] resize-none"
 
 const MEDUSA_URL =
   process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
@@ -110,7 +116,7 @@ export default function ApplyPage() {
       <div className="w-full max-w-lg">
         {/* Logo */}
         <div className="flex items-center justify-center gap-2.5 mb-10">
-          <div className="w-9 h-9 bg-primary rounded-full flex items-center justify-center text-lg font-bold text-[#0d0b08]">
+          <div className="w-9 h-9 bg-primary rounded-full flex items-center justify-center text-lg font-bold text-primary-foreground">
             V
           </div>
           <span className="text-primary text-xl font-semibold tracking-wide">
@@ -149,16 +155,15 @@ export default function ApplyPage() {
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Name */}
             <div>
-              <label htmlFor="apply_name" className="block text-[#e8e0d4] text-sm font-medium mb-1.5">
+              <Label htmlFor="apply_name" className="text-foreground mb-1.5">
                 Name <span className="text-red-500">*</span>
-              </label>
-              <input
+              </Label>
+              <Input
                 id="apply_name"
-                type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Your name"
-                className="w-full px-3.5 py-2.5 bg-[#0d0b08] border border-[#2a2520] rounded-lg text-[#e8e0d4] text-sm placeholder-[#6b6560] outline-none focus:border-primary transition-colors"
+                className={inputClass}
               />
               {fieldErrors.name && (
                 <p className="mt-1 text-red-500 text-xs">{fieldErrors.name}</p>
@@ -167,16 +172,16 @@ export default function ApplyPage() {
 
             {/* Email */}
             <div>
-              <label htmlFor="apply_email" className="block text-[#e8e0d4] text-sm font-medium mb-1.5">
+              <Label htmlFor="apply_email" className="text-foreground mb-1.5">
                 Email <span className="text-red-500">*</span>
-              </label>
-              <input
+              </Label>
+              <Input
                 id="apply_email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
-                className="w-full px-3.5 py-2.5 bg-[#0d0b08] border border-[#2a2520] rounded-lg text-[#e8e0d4] text-sm placeholder-[#6b6560] outline-none focus:border-primary transition-colors"
+                className={inputClass}
               />
               {fieldErrors.email && (
                 <p className="mt-1 text-red-500 text-xs">{fieldErrors.email}</p>
@@ -185,29 +190,28 @@ export default function ApplyPage() {
 
             {/* Country */}
             <div>
-              <label htmlFor="apply_country" className="block text-[#e8e0d4] text-sm font-medium mb-1.5">
+              <Label htmlFor="apply_country" className="text-foreground mb-1.5">
                 Country
-              </label>
-              <input
+              </Label>
+              <Input
                 id="apply_country"
-                type="text"
                 value={country}
                 onChange={(e) => setCountry(e.target.value)}
                 placeholder="e.g. Germany"
-                className="w-full px-3.5 py-2.5 bg-[#0d0b08] border border-[#2a2520] rounded-lg text-[#e8e0d4] text-sm placeholder-[#6b6560] outline-none focus:border-primary transition-colors"
+                className={inputClass}
               />
             </div>
 
             {/* Genres */}
             <div>
-              <label className="block text-[#e8e0d4] text-sm font-medium mb-2.5">
+              <Label className="text-foreground mb-2.5">
                 What do you primarily collect?
-              </label>
+              </Label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {GENRE_OPTIONS.map((genre) => (
                   <label
                     key={genre}
-                    className="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-[#2a2520] hover:border-[#3a352f] cursor-pointer transition-colors has-[:checked]:border-primary/50 has-[:checked]:bg-primary/5"
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-secondary hover:border-muted-foreground/30 cursor-pointer transition-colors has-[:checked]:border-primary/50 has-[:checked]:bg-primary/5"
                   >
                     <input
                       type="checkbox"
@@ -219,12 +223,12 @@ export default function ApplyPage() {
                       className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
                         genres.includes(genre)
                           ? "bg-primary border-primary"
-                          : "border-[#4a4540] bg-transparent"
+                          : "border-muted-foreground/40 bg-transparent"
                       }`}
                     >
                       {genres.includes(genre) && (
                         <svg
-                          className="w-2.5 h-2.5 text-[#0d0b08]"
+                          className="w-2.5 h-2.5 text-primary-foreground"
                           fill="none"
                           viewBox="0 0 24 24"
                           stroke="currentColor"
@@ -238,7 +242,7 @@ export default function ApplyPage() {
                         </svg>
                       )}
                     </span>
-                    <span className="text-[#a39d96] text-sm">{genre}</span>
+                    <span className="text-muted-foreground text-sm">{genre}</span>
                   </label>
                 ))}
               </div>
@@ -246,14 +250,14 @@ export default function ApplyPage() {
 
             {/* Buy Channels */}
             <div>
-              <label className="block text-[#e8e0d4] text-sm font-medium mb-2.5">
+              <Label className="text-foreground mb-2.5">
                 Where do you usually buy?
-              </label>
+              </Label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {CHANNEL_OPTIONS.map((channel) => (
                   <label
                     key={channel}
-                    className="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-[#2a2520] hover:border-[#3a352f] cursor-pointer transition-colors has-[:checked]:border-primary/50 has-[:checked]:bg-primary/5"
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-secondary hover:border-muted-foreground/30 cursor-pointer transition-colors has-[:checked]:border-primary/50 has-[:checked]:bg-primary/5"
                   >
                     <input
                       type="checkbox"
@@ -267,12 +271,12 @@ export default function ApplyPage() {
                       className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
                         channels.includes(channel)
                           ? "bg-primary border-primary"
-                          : "border-[#4a4540] bg-transparent"
+                          : "border-muted-foreground/40 bg-transparent"
                       }`}
                     >
                       {channels.includes(channel) && (
                         <svg
-                          className="w-2.5 h-2.5 text-[#0d0b08]"
+                          className="w-2.5 h-2.5 text-primary-foreground"
                           fill="none"
                           viewBox="0 0 24 24"
                           stroke="currentColor"
@@ -286,7 +290,7 @@ export default function ApplyPage() {
                         </svg>
                       )}
                     </span>
-                    <span className="text-[#a39d96] text-sm">{channel}</span>
+                    <span className="text-muted-foreground text-sm">{channel}</span>
                   </label>
                 ))}
               </div>
@@ -294,16 +298,16 @@ export default function ApplyPage() {
 
             {/* Referrer */}
             <div>
-              <label htmlFor="apply_referrer" className="block text-[#e8e0d4] text-sm font-medium mb-1.5">
+              <Label htmlFor="apply_referrer" className="text-foreground mb-1.5">
                 How did you hear about us?
-              </label>
+              </Label>
               <textarea
                 id="apply_referrer"
                 value={referrer}
                 onChange={(e) => setReferrer(e.target.value)}
                 placeholder="Optional"
                 rows={2}
-                className="w-full px-3.5 py-2.5 bg-[#0d0b08] border border-[#2a2520] rounded-lg text-[#e8e0d4] text-sm placeholder-[#6b6560] outline-none focus:border-primary transition-colors resize-none"
+                className={textareaClass}
               />
             </div>
 

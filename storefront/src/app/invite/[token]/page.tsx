@@ -4,6 +4,12 @@ import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+
+/** Dark-theme overrides for this standalone pre-auth page */
+const inputClass = "h-auto px-3.5 py-2.5 bg-[#0d0b08] border-secondary text-foreground placeholder:text-muted-foreground rounded-lg"
+const readonlyInputClass = "h-auto px-3.5 py-2.5 bg-[#0d0b08]/50 border-secondary text-muted-foreground rounded-lg cursor-not-allowed"
 
 const MEDUSA_URL =
   process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
@@ -194,15 +200,14 @@ export default function InviteTokenPage() {
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* First Name */}
               <div>
-                <label htmlFor="invite_first_name" className="block text-[#e8e0d4] text-sm font-medium mb-1.5">
+                <Label htmlFor="invite_first_name" className="text-foreground mb-1.5">
                   First name <span className="text-red-500">*</span>
-                </label>
-                <input
+                </Label>
+                <Input
                   id="invite_first_name"
-                  type="text"
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-[#0d0b08] border border-[#2a2520] rounded-lg text-[#e8e0d4] text-sm placeholder-[#6b6560] outline-none focus:border-primary transition-colors"
+                  className={inputClass}
                 />
                 {fieldErrors.firstName && (
                   <p className="mt-1 text-red-500 text-xs">
@@ -213,15 +218,14 @@ export default function InviteTokenPage() {
 
               {/* Last Name */}
               <div>
-                <label htmlFor="invite_last_name" className="block text-[#e8e0d4] text-sm font-medium mb-1.5">
+                <Label htmlFor="invite_last_name" className="text-foreground mb-1.5">
                   Last name <span className="text-red-500">*</span>
-                </label>
-                <input
+                </Label>
+                <Input
                   id="invite_last_name"
-                  type="text"
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-[#0d0b08] border border-[#2a2520] rounded-lg text-[#e8e0d4] text-sm placeholder-[#6b6560] outline-none focus:border-primary transition-colors"
+                  className={inputClass}
                 />
                 {fieldErrors.lastName && (
                   <p className="mt-1 text-red-500 text-xs">
@@ -232,30 +236,31 @@ export default function InviteTokenPage() {
 
               {/* Email (pre-filled, read-only) */}
               <div>
-                <label htmlFor="invite_email" className="block text-[#e8e0d4] text-sm font-medium mb-1.5">
+                <Label htmlFor="invite_email" className="text-foreground mb-1.5">
                   Email
-                </label>
-                <input
+                </Label>
+                <Input
                   id="invite_email"
                   type="email"
                   value={invite.email}
                   readOnly
-                  className="w-full px-3.5 py-2.5 bg-[#0d0b08]/50 border border-[#2a2520] rounded-lg text-[#a39d96] text-sm cursor-not-allowed outline-none"
+                  disabled
+                  className={readonlyInputClass}
                 />
               </div>
 
               {/* Password */}
               <div>
-                <label htmlFor="invite_password" className="block text-[#e8e0d4] text-sm font-medium mb-1.5">
+                <Label htmlFor="invite_password" className="text-foreground mb-1.5">
                   Password <span className="text-red-500">*</span>
-                </label>
-                <input
+                </Label>
+                <Input
                   id="invite_password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Minimum 8 characters"
-                  className="w-full px-3.5 py-2.5 bg-[#0d0b08] border border-[#2a2520] rounded-lg text-[#e8e0d4] text-sm placeholder-[#6b6560] outline-none focus:border-primary transition-colors"
+                  className={inputClass}
                 />
                 {fieldErrors.password && (
                   <p className="mt-1 text-red-500 text-xs">
@@ -266,16 +271,16 @@ export default function InviteTokenPage() {
 
               {/* Confirm Password */}
               <div>
-                <label htmlFor="invite_confirm_password" className="block text-[#e8e0d4] text-sm font-medium mb-1.5">
+                <Label htmlFor="invite_confirm_password" className="text-foreground mb-1.5">
                   Confirm password <span className="text-red-500">*</span>
-                </label>
-                <input
+                </Label>
+                <Input
                   id="invite_confirm_password"
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Repeat password"
-                  className="w-full px-3.5 py-2.5 bg-[#0d0b08] border border-[#2a2520] rounded-lg text-[#e8e0d4] text-sm placeholder-[#6b6560] outline-none focus:border-primary transition-colors"
+                  className={inputClass}
                 />
                 {fieldErrors.confirmPassword && (
                   <p className="mt-1 text-red-500 text-xs">

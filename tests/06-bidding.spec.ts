@@ -206,4 +206,116 @@ test.describe("Bidding", () => {
       expect(await errorText.isVisible() && await toastError.isVisible()).toBeFalsy()
     }
   })
+
+  test("proxy bid with invalid max shows error toast", async ({ page }) => {
+    if (!testBlock) {
+      test.skip()
+      return
+    }
+
+    await page.goto("/")
+    await loginViaModal(page, TEST_ACCOUNTS.bidder1.email, TEST_ACCOUNTS.bidder1.password)
+
+    await page.goto(`/auctions/${testBlock.slug}`)
+    await page.waitForLoadState("networkidle", { timeout: 20_000 })
+
+    const lotLinks = page.locator("a[href*='/auctions/']").filter({ hasNotText: /back|breadcrumb/i })
+    if (await lotLinks.count() === 0) {
+      test.skip()
+      return
+    }
+
+    await lotLinks.first().click()
+    await page.waitForLoadState("networkidle", { timeout: 20_000 })
+    await page.waitForTimeout(2_000)
+
+    // Open proxy bidding section
+    const proxyToggle = page.getByRole("button", { name: /maximum bid|proxy/i })
+    if (!await proxyToggle.isVisible()) {
+      test.skip()
+      return
+    }
+    await proxyToggle.click()
+    await page.waitForTimeout(500)
+
+    // Find proxy max input (second decimal input)
+    const proxyInput = page.locator("input[inputmode='decimal']").nth(1)
+    if (!await proxyInput.isVisible()) {
+      test.skip()
+      return
+    }
+
+    // Fill with invalid comma-only value
+    await proxyInput.fill(",")
+
+    // Try to submit
+    const bidInput = page.locator("input[inputmode='decimal']").first()
+    const currentVal = await bidInput.inputValue()
+    const currentNum = parseFloat(currentVal) || 1
+    const newBid = Math.ceil(currentNum) + 1
+    await bidInput.fill(String(newBid))
+
+    const submitBtn = page.getByRole("button", { name: /place bid/i })
+    if (await submitBtn.isVisible()) {
+      await submitBtn.click()
+      await page.waitForTimeout(1_000)
+
+      // Should show a validation error toast about the proxy amount
+      const toastError = page.locator("[data-sonner-toast][data-type='error']")
+      expect(await toastError.isVisible()).toBeTruthy()
+    }
+  })
+
+  test("proxy bid below bid amount shows error toast", async ({ page }) => {
+    if (!testBlock) {
+      test.skip()
+      return
+    }
+
+    await page.goto("/")
+    await loginViaModal(page, TEST_ACCOUNTS.bidder1.email, TEST_ACCOUNTS.bidder1.password)
+
+    await page.goto(`/auctions/${testBlock.slug}`)
+    await page.waitForLoadState("networkidle", { timeout: 20_000 })
+
+    const lotLinks = page.locator("a[href*='/auctions/']").filter({ hasNotText: /back|breadcrumb/i })
+    if (await lotLinks.count() === 0) {
+      test.skip()
+      return
+    }
+
+    await lotLinks.first().click()
+    await page.waitForLoadState("networkidle", { timeout: 20_000 })
+    await page.waitForTimeout(2_000)
+
+    // Open proxy bidding
+    const proxyToggle = page.getByRole("button", { name: /maximum bid|proxy/i })
+    if (!await proxyToggle.isVisible()) {
+      test.skip()
+      return
+    }
+    await proxyToggle.click()
+    await page.waitForTimeout(500)
+
+    const bidInput = page.locator("input[inputmode='decimal']").first()
+    const proxyInput = page.locator("input[inputmode='decimal']").nth(1)
+    if (!await proxyInput.isVisible()) {
+      test.skip()
+      return
+    }
+
+    // Set bid to 5, proxy max to 2 (below bid amount)
+    await bidInput.fill("5")
+    await proxyInput.fill("2")
+
+    const submitBtn = page.getByRole("button", { name: /place bid/i })
+    if (await submitBtn.isVisible()) {
+      await submitBtn.click()
+      await page.waitForTimeout(1_000)
+
+      // Should show error about max being below bid
+      const toastError = page.locator("[data-sonner-toast][data-type='error']")
+      expect(await toastError.isVisible()).toBeTruthy()
+    }
+  })
 })
