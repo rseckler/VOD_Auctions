@@ -478,6 +478,47 @@ ST-2: Shared Switch component      (1 day)
 ST-3: Mobile bottom-sheet dialogs  (2 days, after MT-4)
 ```
 
+### Screenshot-Based Fixes (Priority, Week 1-2)
+
+```
+[CRITICAL — Do First]
+  GAP-1001/1010: Account sidebar → horizontal tabs on mobile   (AccountLayoutClient.tsx — 2 hrs)
+  GAP-1004: Verify/fix sticky mobile bid CTA                    (ItemBidSection.tsx — 1 hr)
+  GAP-1003: Checkout form single-column on mobile                (checkout/page.tsx — 30 min)
+
+[HIGH — Do Second]
+  GAP-1008: Remove Load More OR Pagination (keep one)           (CatalogClient.tsx — 30 min)
+  GAP-1005: Compact homepage empty state                         (HomeContent.tsx — 30 min)
+  GAP-1002: Catalog mobile card density reduction                (CatalogClient.tsx — 30 min)
+
+[MEDIUM — Polish]
+  GAP-1007: Account overview 5-card grid balance                 (account/page.tsx — 20 min)
+  GAP-1006: "Last copy" badge vs price collision                 (catalog/[id]/page.tsx — 20 min)
+  GAP-1009: Footer newsletter input → Input component            (Footer.tsx — 15 min)
+  GAP-1011: Wins Savings Bar more compact                        (wins/page.tsx — 20 min)
+  GAP-1012: Related table price column label                     (lot detail page — 10 min)
+```
+
+### Backend Admin Fixes (from Screenshot Audit)
+
+```
+[HIGH — Week 2]
+  GAP-1101: Hide Medusa native Orders page                     (admin-nav.tsx — 30 min)
+  GAP-1104: Style Media page filter pills                      (media/page.tsx — 1 hr)
+
+[MEDIUM — Week 2-3]
+  GAP-1103: Consolidate auction block status badge colors       (auction-blocks/[id]/page.tsx — 1 hr)
+  GAP-1108: Sync Log changes column → summary instead of JSON  (sync/page.tsx — 1 hr)
+  GAP-1105: Media table column prioritization                   (media/page.tsx — 1 hr)
+  GAP-1109: Go Live button less prominent in beta mode          (config/page.tsx — 30 min)
+  GAP-1111: Test Runner "Not Run" vs "Pass" distinction         (test-runner/page.tsx — 30 min)
+  GAP-1102: Dashboard activity text contrast                    (dashboard/page.tsx — 20 min)
+
+[LOW — Deferred]
+  GAP-1106: Entity Content table spacing                        (entity-content/page.tsx — 20 min)
+  GAP-1110: Medusa native settings theme inconsistency          (Large effort, accept for now)
+```
+
 ### Explicitly Deferred
 
 | Item | Reason |

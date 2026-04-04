@@ -379,6 +379,232 @@ Every finding references a concrete file and line number in the current codebase
 
 ---
 
+## 10. Visual Findings from Screenshot Audit (2026-04-04)
+
+Based on 48 Desktop screenshots + 60+ Mobile screenshots (iPhone). These are issues NOT visible from code analysis alone.
+
+### GAP-1001 Account Sidebar auf Mobile nimmt zu viel Platz
+- **Area:** All `/account/*` pages on mobile
+- **Current State:** Left sidebar (Overview, My Bids, Won, Saved, Cart, Checkout, Orders, Archive, Feedback, Settings, Profile, Addresses) renders as full vertical list, pushing content area to ~60% width
+- **Violated Rule:** SG 9.5 — Mobile must prioritize content; navigation should collapse
+- **Impact:** Every account sub-page has cramped content area on mobile
+- **Severity:** Critical
+- **Effort:** Medium
+- **Recommended Fix:** Convert account sidebar to horizontal scrollable tabs on mobile (like category pills in Catalog), or collapsible dropdown. Content area must be 100% width on mobile.
+
+### GAP-1002 Catalog Grid 2-spaltig auf Mobile zu eng
+- **Area:** `/catalog` on mobile (iPhone)
+- **Current State:** 2-column grid with cover image + format badge + artist + title + price + year per card. Text truncated, information density too high for narrow columns
+- **Violated Rule:** SG 9.4 — Reduce complexity on mobile; SG 5.2 — Card min-width constraints
+- **Impact:** Poor readability, truncated titles, cramped layout
+- **Severity:** High
+- **Effort:** Small
+- **Recommended Fix:** Consider 1-column list view on very small screens (< 375px) or reduce info density (hide year, condition badge on mobile cards)
+
+### GAP-1003 Checkout Formular — Mehrspaltig auf Mobile
+- **Area:** `/account/checkout` on mobile
+- **Current State:** Postal Code + City + Country in 3-column row even on mobile. Fields too narrow, labels cramped
+- **Violated Rule:** SG 6.7 — Forms MUST be single-column on mobile
+- **Impact:** Difficult data entry, potential input errors
+- **Severity:** High
+- **Effort:** Small
+- **Recommended Fix:** Stack Postal Code, City, Country vertically on mobile (`grid-cols-1 md:grid-cols-3`)
+
+### GAP-1004 Lot Detail Mobile — Kein Sticky Bid CTA sichtbar
+- **Area:** `/auctions/[slug]/[itemId]` on mobile
+- **Current State:** User must scroll past full image + all metadata to reach bid form. No sticky bottom CTA visible in mobile screenshots despite code existing for it
+- **Violated Rule:** SG 9.3 — Primary action must be sticky bottom on mobile; SG 5.1 — Bid section accessibility
+- **Impact:** Friction for mobile bidders, missed bids
+- **Severity:** Critical
+- **Effort:** Medium
+- **Recommended Fix:** Verify sticky mobile CTA renders correctly. Add sticky "Place Bid €X" bar at bottom of screen on mobile when bid section not in viewport
+
+### GAP-1005 Homepage Empty State — zu viel Leerraum
+- **Area:** Homepage when no active auctions
+- **Current State:** Large bordered box "Currently no active auctions" with icon, takes ~200px vertical space. Combined with Gallery teaser below, creates lots of dead space between Hero and Footer
+- **Violated Rule:** SG 5.25 — Empty states must be compact and guide the user
+- **Impact:** Page feels barren and unfinished when no auctions active
+- **Severity:** High
+- **Effort:** Small
+- **Recommended Fix:** Compact empty state (single line or slim banner), add "Browse 32,000+ releases" CTA, show catalog highlights instead of empty box
+
+### GAP-1006 Catalog Detail — "Last copy" Badge + Preis Kollision
+- **Area:** `/catalog/[id]` on Desktop
+- **Current State:** "Last copy" orange badge and "€30.00" price are both right-aligned at same height. With long titles, spacing gets tight
+- **Violated Rule:** SG 5.1 — Component layout must not overlap or collide
+- **Impact:** Visual clash, potential overlap on narrow viewports
+- **Severity:** Medium
+- **Effort:** Small
+- **Recommended Fix:** Stack badge above price, or place badge on left side. Clear visual hierarchy: Price dominant, badge secondary
+
+### GAP-1007 Account Overview — 5 Cards unbalanciertes Grid
+- **Area:** `/account` overview
+- **Current State:** 2x2 Grid + 1 "Saved" card alone centered below. 5 stat cards don't fit evenly into 2-column grid
+- **Violated Rule:** SG 2.4 — Grid layouts must be balanced; avoid orphan items
+- **Impact:** Looks unfinished, asymmetric layout
+- **Severity:** Medium
+- **Effort:** Small
+- **Recommended Fix:** 3+2 grid layout, or 5 cards in single row on desktop (`grid-cols-5`), or merge Saved into another card
+
+### GAP-1008 Load More + Pagination redundant
+- **Area:** `/catalog` bottom
+- **Current State:** "Showing 24 of 32,871 releases" + "Load More (24 items)" Button + full pagination (1, 2, 3 ... 1370) shown simultaneously
+- **Violated Rule:** SG 8.5 — Single navigation pattern; avoid redundant controls
+- **Impact:** User confusion — which one to use? Cognitive load
+- **Severity:** High
+- **Effort:** Small
+- **Recommended Fix:** Show ONLY pagination. Remove "Load More" button. OR: Show only "Load More" with count, remove pagination. Not both.
+
+### GAP-1009 Footer Newsletter Input inkonsistenter Stil
+- **Area:** Footer newsletter form
+- **Current State:** Email input uses custom inline styling (`bg-[rgba(232,224,212,0.06)]`) instead of the standard `Input` component
+- **Violated Rule:** SG 5.5 — All inputs must use the design system Input component
+- **Impact:** Visual inconsistency, different focus/hover behavior
+- **Severity:** Medium
+- **Effort:** Small
+- **Recommended Fix:** Replace with `<Input>` component, style via variant or className
+
+### GAP-1010 Mobile Account Navigation — Content-Bereich zu schmal
+- **Area:** All `/account/*` pages on mobile
+- **Current State:** Sidebar + Content layout nicht mobile-optimiert. Sidebar-Links und Content stehen nebeneinander, Content wird gequetscht
+- **Violated Rule:** SG 9.1 — Mobile layout must be full-width; SG 7.4 — Account nav on mobile
+- **Impact:** Every account page is barely usable on iPhone
+- **Severity:** Critical
+- **Effort:** Medium
+- **Recommended Fix:** On screens < 768px: Hide sidebar, show horizontal tab bar or dropdown for account navigation, content area 100% width
+
+### GAP-1011 Won Auctions Shipping Savings Bar — visuell dominant
+- **Area:** `/account/wins`
+- **Current State:** Gold/yellow Savings Bar takes significant visual space above the actual wins list. "Add Items ↑" action competes with "Go to Checkout" CTA
+- **Violated Rule:** SG 5.1 — Primary action must be visually dominant; secondary content subordinate
+- **Impact:** User attention split between savings upsell and actual payment action
+- **Severity:** Medium
+- **Effort:** Small
+- **Recommended Fix:** Make Savings Bar more compact (single line with expand option), keep "Go to Checkout" as the dominant CTA
+
+### GAP-1012 Related Information Tabelle — Preis-Farben unklar
+- **Area:** Lot detail bottom — Related Information tabs
+- **Current State:** Price column shows green and default text. Unclear if these are Discogs prices, auction prices, or catalog prices. No legend or label
+- **Violated Rule:** SG 11.1 — Labels must be clear and unambiguous
+- **Impact:** User confusion about what the prices represent
+- **Severity:** Medium
+- **Effort:** Small
+- **Recommended Fix:** Add column header "Catalog Price" or "Market Price", use consistent color (not green for some, default for others)
+
+---
+
+## 11. Backend Admin Findings from Screenshot Audit (2026-04-04)
+
+Based on 60 Backend Desktop screenshots of the live admin.vod-auctions.com.
+
+### GAP-1101 Medusa native "Orders" Page — leerer Zustand sichtbar
+- **Area:** Admin Sidebar → "Orders" (Medusa native)
+- **Current State:** Medusa's native Orders page shows "No records" with empty state. This is NOT the custom Transactions page. Users might click here instead of "Auction Blocks → Orders"
+- **Violated Rule:** SG 7.7 — Unused Medusa native pages should be hidden or redirect
+- **Impact:** Confusion — two "orders" concepts (Medusa native vs VOD Transactions)
+- **Severity:** High
+- **Effort:** Small
+- **Recommended Fix:** Hide Medusa's native Orders page via admin-nav CSS injection, or add a redirect notice "Use Auction Blocks → Orders for VOD transactions"
+
+### GAP-1102 Dashboard — Recent Activity Zeilen ohne Labels
+- **Area:** `/admin/dashboard` — Recent Activity section
+- **Current State:** Activity dots (green, blue) with text but no date labels visible in some rows. Rows show "19h ago" but the activity text itself is truncated/faded
+- **Violated Rule:** SG 8.2 — Data rows must have readable text contrast
+- **Impact:** Activity feed not fully scannable
+- **Severity:** Medium
+- **Effort:** Small
+- **Recommended Fix:** Ensure activity text has full `C.text` contrast, not faded. Show activity type (bid, order, registration) as prefix
+
+### GAP-1103 Auction Block Detail — Status-Badges Farbmix
+- **Area:** `/admin/auction-blocks/[id]` — Won items table
+- **Current State:** Mix of "Awaiting Payment" (orange), "Paid → Pack it" (green+blue), "Mark Packing" (blue button), "Refund" (red button) in the same table row. Visual noise from too many badge colors
+- **Violated Rule:** SG 4.4 — Maximum 3 status colors per view; SG 5.1 — Consistent badge sizing
+- **Impact:** Cognitive overload when scanning the won-items table
+- **Severity:** Medium
+- **Effort:** Medium
+- **Recommended Fix:** Consolidate statuses: use 2-3 colors max (pending=gold, paid=green, action-needed=blue). Move action buttons to row-level action menu
+
+### GAP-1104 Media Page — Filter-Buttons unstyled
+- **Area:** `/admin/media` — Category and Format filter pills
+- **Current State:** Category pills (All Categories, then individual formats) and Format pills appear as unstyled rounded buttons with white backgrounds on dark admin shell. They look like browser-default buttons
+- **Violated Rule:** SG 5.8 — Filter pills must use design system badge/button styles
+- **Impact:** Looks unfinished, breaks visual consistency with rest of admin
+- **Severity:** High
+- **Effort:** Medium
+- **Recommended Fix:** Style filter pills using `badgeStyle()` from admin-tokens, or use Tabs component for category switching
+
+### GAP-1105 Media Page — Tabelle mit leeren Spalten
+- **Area:** `/admin/media` — Release table
+- **Current State:** Table shows VIS, COVER, INV, ARTIST, TITLE, FORMAT, YEAR, COUNTRY columns. VIS/COVER/INV columns are small icon columns that compress the important content. Year and Country columns often empty
+- **Violated Rule:** SG 8.1 — Tables should prioritize content density; hide non-essential columns
+- **Impact:** Wasted horizontal space, important data cramped
+- **Severity:** Medium
+- **Effort:** Medium
+- **Recommended Fix:** Consider hiding VIS/INV columns by default (show on hover or in detail). Make ARTIST+TITLE wider. Show YEAR/COUNTRY only when filtering
+
+### GAP-1106 Entity Content — Tabelle zu breit für Inhalt
+- **Area:** `/admin/entity-content` — Bands/Labels/Press table
+- **Current State:** Table has NAME, RELEASES, STATUS, ACTIONS columns with lots of whitespace. STATUS column shows "Published" badge + "Edit" + "AI" buttons taking more space than content
+- **Violated Rule:** SG 8.1 — Right-size columns to content
+- **Impact:** Underutilized screen space
+- **Severity:** Low
+- **Effort:** Small
+- **Recommended Fix:** Compact ACTIONS column, align right. Consider inline edit instead of separate button
+
+### GAP-1107 Sync Page — R2 Image CDN Karte sichtbar und funktional
+- **Area:** `/admin/sync` — Cloudflare R2 section
+- **Current State:** R2 CDN card shows "ONLINE", last sync time, upload/failed/checked stats. Looks good, gold accent consistent with design system
+- **Violated Rule:** None — this is well-implemented
+- **Severity:** N/A (positive finding)
+- **Recommended Fix:** None — keep as reference pattern for future monitoring cards
+
+### GAP-1108 Sync Log — Changes Column zeigt raw JSON
+- **Area:** `/admin/sync` → Sync Log tab
+- **Current State:** CHANGES column shows raw JSON objects inline in the table. Long JSON strings make rows very tall and hard to scan
+- **Violated Rule:** SG 8.3 — Data tables should show formatted/summarized data, not raw JSON
+- **Impact:** Poor readability, table rows vary wildly in height
+- **Severity:** Medium
+- **Effort:** Medium
+- **Recommended Fix:** Show summary (e.g., "4 changes, 2 images") in table, show full JSON in expandable row or modal on click
+
+### GAP-1109 Config Page — Go Live Button sehr prominent
+- **Area:** `/admin/config` — bottom
+- **Current State:** Large gold "Go Live — Launch Site +" button at bottom of config page. Very prominent even during beta_test phase when launch is not imminent
+- **Violated Rule:** SG 12.1 — Destructive/irreversible actions should not be visually prominent by default
+- **Impact:** Risk of accidental go-live
+- **Severity:** Medium
+- **Effort:** Small
+- **Recommended Fix:** Show Go Live button only when all pre-flight checks pass. Or: make it a two-step action with less prominent initial button
+
+### GAP-1110 Medusa Settings — Native Dark Theme sichtbar
+- **Area:** `/admin/settings` (Medusa native)
+- **Current State:** Medusa's native Settings pages (Store, Users, Regions, etc.) visible with Medusa's own dark theme. Different styling from custom VOD admin pages (which use light cards on dark background)
+- **Violated Rule:** SG 12.4 — Admin must use consistent styling across all pages
+- **Impact:** Visual inconsistency between Medusa native pages and custom pages
+- **Severity:** Low
+- **Effort:** Large (would require Medusa theme override)
+- **Recommended Fix:** Accept as-is for now. Medusa native pages are admin-only, rarely used. Long-term: Consider custom CSS override for Medusa settings pages
+
+### GAP-1111 E2E Test Runner — Tests zeigen "Pass" aber 0 Passed
+- **Area:** `/admin/test-runner`
+- **Current State:** E2E Test Runner shows "All Passed" badge but individual tests show "0 Passed, 0 Failed" with "Pass" status. Misleading — tests weren't actually run, they just didn't fail
+- **Violated Rule:** SG 11.3 — Status messages must be accurate
+- **Impact:** False confidence in test coverage
+- **Severity:** Medium
+- **Effort:** Small
+- **Recommended Fix:** Show "Not Run" instead of "Pass" when passed=0 AND failed=0. Only show "All Passed" when tests actually executed
+
+### Backend Admin — What's Good
+- **Dashboard** — Clean layout, StatsGrid, Action Required section, Launch Readiness with progress bar. Well-structured
+- **Auction Block Detail** — Next Steps wizard (1→2→3→4), Won items table with clear actions. Good workflow
+- **Catalog Hub** — Stats cards + section cards (Media, Entity Content, Musicians). Clean hub pattern
+- **System Health** — Comprehensive monitoring with 15 services, architecture diagram, service cards. Excellent
+- **Shipping Configuration** — 5-tab layout (Settings, Item Types, Zones & Rates, Methods, Calculator). Professional
+- **Sync Page** — R2 CDN status card, Legacy + Discogs sync overview, tabbed detail views. Well-designed
+- **Gallery Manager** — Section-based media management with toggles and image cards. Functional
+
+---
+
 ## What's Already Good
 
 These patterns are well-implemented and should be preserved:
