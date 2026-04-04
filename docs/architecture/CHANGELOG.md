@@ -4,6 +4,38 @@ Vollständiger Entwicklungs-Changelog. Neue Einträge werden direkt hier ergänz
 
 ---
 
+## 2026-04-04 — UX Audit Phase 1: Quick Wins (GAP-102/103/105/403/404/801/802)
+
+Basierend auf UI/UX Style Guide v2.0, Gap-Analyse (53 Findings), und 170+ Screenshots.
+
+### Touch Targets (GAP-403, GAP-404)
+- **Header.tsx:** Saved/Cart Links: `p-2 -m-2` für 44px Touch-Area (war ~20px)
+- **Header.tsx:** Hamburger + Account Buttons: `p-2` → `p-3` für 44px Minimum (war 36px)
+- Betrifft jeden Mobile-User auf jeder Seite
+
+### Accessibility: aria-live (GAP-801)
+- **ItemBidSection.tsx:** `aria-live="assertive"` auf Bid-Status-Indikator (Winning/Outbid)
+- **ItemBidSection.tsx:** `aria-live="polite"` auf Current Price Display
+- Screen Reader werden bei Preisänderungen und Outbid-Status informiert
+
+### Container Width (GAP-102)
+- `max-w-7xl` → `max-w-6xl` in 5 Dateien: CatalogClient, Gallery, 3 Loading-Pages
+- Kein Breiten-Sprung mehr beim Navigieren zwischen Seiten
+
+### Headings (GAP-105, GAP-103)
+- **Homepage + About:** `text-5xl md:text-6xl` → `heading-hero` (clamp() fluid sizing)
+- **Catalog:** `text-3xl md:text-4xl font-bold font-[family-name]` → `heading-1`
+- Konsistente Typografie über alle Seiten
+
+### Decorative Images (GAP-802)
+- **HomeContent.tsx:** Cover-Images `aria-hidden="true"`
+- **Homepage:** Vinyl-Grafik `aria-hidden="true"`
+
+### Skip-to-Content (GAP-804)
+- Bereits implementiert (layout.tsx Zeile 107-110), verifiziert
+
+---
+
 ## 2026-04-03 — RSE-292: Post-Auction Marketing Funnel Fix + UX Polish
 
 ### RSE-292 Bug Fixes
