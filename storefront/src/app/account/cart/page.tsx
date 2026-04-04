@@ -133,7 +133,7 @@ export default function CartPage() {
       <div className="space-y-2">
         {[1, 2].map((i) => (
           <div key={i} className="rounded-lg border border-border p-4">
-            <div className="flex gap-4 items-start">
+            <div className="flex gap-3 items-start">
               <Skeleton className="w-14 h-14 rounded flex-shrink-0" />
               <div className="flex-1 space-y-2">
                 <Skeleton className="h-4 w-3/4" />
@@ -192,8 +192,8 @@ export default function CartPage() {
 
       <div className="space-y-2">
         {items.map((item) => (
-          <Card key={item.id} className="p-4">
-            <div className="flex gap-4">
+          <Card key={item.id} className="p-3 gap-0">
+            <div className="flex gap-3">
               <Link
                 href={`/catalog/${item.release_id}`}
                 className="relative w-14 h-14 flex-shrink-0 rounded overflow-hidden bg-card"

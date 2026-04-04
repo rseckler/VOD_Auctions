@@ -414,8 +414,8 @@ export default function WinsPage() {
           const needsPayment = !tx || tx.status === "failed"
 
           return (
-            <Card key={win.bid_id} className="p-4">
-              <div className="flex gap-4">
+            <Card key={win.bid_id} className="p-3 gap-0">
+              <div className="flex gap-3">
                 {/* Cover */}
                 <Link
                   href={`/auctions/${win.block.slug}/${win.item.id}`}
