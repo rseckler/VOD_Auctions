@@ -4,6 +4,28 @@ Vollständiger Entwicklungs-Changelog. Neue Einträge werden direkt hier ergänz
 
 ---
 
+## 2026-04-04 — UX Audit Phase 3: Mobile UX (GAP-1001/1003/1004/1008/1010)
+
+### Account Navigation Mobile (GAP-1001, GAP-1010)
+- **AccountLayoutClient.tsx:** Vertikale Sidebar auf Mobile → horizontale scrollbare Tabs (Pill-Style)
+- Mobile: Full-Width Tabs mit Scroll, aktive Tab goldfarben, Badges inline
+- Desktop: Vertikale Sidebar bleibt unverändert
+- Content-Bereich jetzt 100% Breite auf Mobile
+
+### Checkout Form Mobile (GAP-1003)
+- **checkout/page.tsx:** `grid-cols-2` → `grid-cols-1 md:grid-cols-2` auf 2 Formular-Zeilen
+- First/Last Name und Postal/City stapeln sich jetzt vertikal auf Mobile
+
+### Sticky Mobile Bid CTA (GAP-1004)
+- Bereits implementiert und verifiziert (`fixed bottom-0 lg:hidden`)
+- Fix: `bg-[#1c1915]` → `bg-background/95 backdrop-blur-xl` (Token + Blur)
+
+### Load More entfernt (GAP-1008)
+- **CatalogClient.tsx:** "Load More" Button + `loadMore` Funktion + `hasMore` State entfernt
+- Nur noch Pagination — ein Navigations-Pattern statt zwei
+
+---
+
 ## 2026-04-04 — UX Audit Phase 2 Batch 2: Hex Cleanup, Logout, Error Feedback (GAP-101/602/701/903)
 
 ### Hardcoded Hex Cleanup (GAP-101, GAP-701, MT-2)

@@ -244,7 +244,7 @@ function AddressForm({
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
           <Label htmlFor={`${idPrefix}_first_name`}>First Name *</Label>
           <Input
@@ -291,7 +291,7 @@ function AddressForm({
           className="mt-1"
         />
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
           <Label htmlFor={`${idPrefix}_postal_code`}>Postal Code *</Label>
           <Input

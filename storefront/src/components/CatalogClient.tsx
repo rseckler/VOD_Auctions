@@ -126,7 +126,6 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
   const [showFilters, setShowFilters] = useState(() => !!(initialParams.country || initialParams.label || initialParams.year_from))
   // If server provided data, start as not-loading
   const [loading, setLoading] = useState(initialReleases.length === 0)
-  const hasMore = page < pages
 
   // Sync state to URL (replaceState so back button works per-navigation)
   useEffect(() => {
@@ -278,14 +277,6 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
 
     return items
   }, [page, pages])
-
-  // Load more: advance to next page
-  const loadMore = useCallback(() => {
-    if (!hasMore || loading) return
-    const nextPage = page + 1
-    setPage(nextPage)
-    rudderTrack("catalog_load_more", { page: nextPage })
-  }, [hasMore, loading, page])
 
   const hasActiveFilters = category || format || country || label || yearFrom || genre || decade || forSale
 
@@ -682,23 +673,6 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
               CD
             </Button>
           </div>
-        </div>
-      )}
-
-      {/* Load More */}
-      {hasMore && !loading && releases.length > 0 && (
-        <div className="mt-6 flex flex-col items-center gap-2">
-          <p className="text-sm text-muted-foreground">
-            Showing {Math.min(page * limit, total).toLocaleString()} of {total.toLocaleString()} releases
-          </p>
-          <Button
-            variant="outline"
-            size="lg"
-            onClick={loadMore}
-            className="min-w-[200px]"
-          >
-            Load More ({Math.min(limit, total - page * limit)} items)
-          </Button>
         </div>
       )}
 

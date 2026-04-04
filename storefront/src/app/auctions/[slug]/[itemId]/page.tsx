@@ -610,7 +610,7 @@ export default async function ItemDetailPage({
 
       {/* Sticky Mobile CTA — only when there's an action to take */}
       {(isBlockPreview || (block.status === "active" && item.status === "open")) && (
-      <div className="fixed bottom-0 left-0 right-0 z-40 lg:hidden bg-[#1c1915] border-t border-border px-4 py-3 flex items-center justify-between gap-3">
+      <div className="fixed bottom-0 left-0 right-0 z-40 lg:hidden bg-background/95 backdrop-blur-xl border-t border-border px-4 py-3 flex items-center justify-between gap-3">
         {isBlockPreview ? (
           <>
             <div>

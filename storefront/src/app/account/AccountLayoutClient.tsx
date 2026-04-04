@@ -64,9 +64,42 @@ export function AccountLayoutClient({
     <main className="mx-auto max-w-6xl px-6 py-12">
       <h1 className="text-3xl font-bold mb-8">My Account</h1>
 
-      <div className="flex flex-col md:flex-row gap-8">
-        <nav className="md:w-48 flex-shrink-0">
-          <div className="flex md:flex-col gap-1 overflow-x-auto md:overflow-visible">
+      {/* Mobile: Horizontal scrollable tabs */}
+      <nav className="md:hidden -mx-6 px-6 mb-6 overflow-x-auto scrollbar-hide">
+        <div className="flex gap-1 pb-2">
+          {NAV_ITEMS.map((item) => {
+            const isActive = pathname === item.href
+            const Icon = item.icon
+            const badge = (item.href === "/account/bids" && bidsCount > 0) ? bidsCount
+              : (item.href === "/account/wins" && winsCount > 0) ? winsCount
+              : (item.href === "/account/saved" && savedCount > 0) ? savedCount
+              : (item.href === "/account/cart" && cartCount > 0) ? cartCount
+              : null
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
+                  isActive
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-secondary text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {item.label}
+                {badge != null && (
+                  <span className="text-[9px] bg-background/20 px-1 py-0.5 rounded-full font-mono">{badge}</span>
+                )}
+              </Link>
+            )
+          })}
+        </div>
+      </nav>
+
+      <div className="flex gap-8">
+        {/* Desktop: Vertical sidebar */}
+        <nav className="hidden md:block w-48 flex-shrink-0">
+          <div className="flex flex-col gap-1">
             {NAV_ITEMS.map((item) => {
               const isActive = pathname === item.href
               const Icon = item.icon
