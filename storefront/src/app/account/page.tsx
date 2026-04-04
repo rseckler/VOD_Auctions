@@ -50,7 +50,7 @@ export default function AccountOverview() {
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-6">
+      <h2 className="heading-2 mb-6">
         Welcome, {customer?.first_name || customer?.email}
       </h2>
 

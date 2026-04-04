@@ -222,7 +222,7 @@ export default function SettingsPage() {
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-6">Settings</h2>
+      <h2 className="heading-2 mb-6">Settings</h2>
 
       <div className="space-y-6">
         {/* Profile Information */}

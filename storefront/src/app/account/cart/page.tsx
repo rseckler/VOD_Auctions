@@ -183,7 +183,7 @@ export default function CartPage() {
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-6">
+      <h2 className="heading-2 mb-6">
         Shopping Cart
         <span className="text-muted-foreground text-base font-normal ml-2">
           ({items.length} item{items.length !== 1 ? "s" : ""})

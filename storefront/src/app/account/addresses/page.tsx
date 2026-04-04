@@ -220,7 +220,7 @@ export default function AddressesPage() {
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-6">Addresses</h2>
+      <h2 className="heading-2 mb-6">Addresses</h2>
 
       <div className="space-y-6">
         <Card className="p-6">

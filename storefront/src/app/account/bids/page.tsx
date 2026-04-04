@@ -162,7 +162,7 @@ export default function MyBidsPage() {
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-6">My Bids</h2>
+      <h2 className="heading-2 mb-6">My Bids</h2>
 
       {activeBids.length > 0 && (
         <section className="mb-8">

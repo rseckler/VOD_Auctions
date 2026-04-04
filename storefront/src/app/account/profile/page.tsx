@@ -122,7 +122,7 @@ export default function ProfilePage() {
   if (loading) {
     return (
       <div>
-        <h2 className="text-xl font-semibold mb-6">Collector Profile</h2>
+        <h2 className="heading-2 mb-6">Collector Profile</h2>
         <div className="flex items-center justify-center py-12 text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin mr-2" />
           Loading...
@@ -133,7 +133,7 @@ export default function ProfilePage() {
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-6">Collector Profile</h2>
+      <h2 className="heading-2 mb-6">Collector Profile</h2>
 
       <div className="space-y-6">
         {/* Profile Form */}

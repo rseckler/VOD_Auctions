@@ -387,7 +387,7 @@ export default function OrdersPage() {
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-6">
+      <h2 className="heading-2 mb-6">
         My Orders
         <Badge variant="secondary" className="ml-2">
           {orders.length}

@@ -350,7 +350,7 @@ export default function WinsPage() {
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-6">
+      <h2 className="heading-2 mb-6">
         Won Auctions
         <Badge variant="secondary" className="ml-2">{wins.length}</Badge>
       </h2>

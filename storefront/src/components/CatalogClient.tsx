@@ -327,27 +327,21 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
       </div>
 
       {/* For Sale toggle — own row on mobile, inline on sm+ */}
-      <div className="flex items-center gap-1 rounded-lg border border-[rgba(232,224,212,0.12)] p-0.5 mb-2 w-fit sm:hidden">
-        <button
+      <div className="flex items-center gap-1 rounded-lg border border-border p-0.5 mb-2 w-fit sm:hidden">
+        <Button
+          variant={!forSale ? "default" : "ghost"}
+          size="xs"
           onClick={() => { setForSale(false); setPage(1) }}
-          className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-            !forSale
-              ? "bg-gradient-to-r from-primary to-[#b8860b] text-[#1c1915]"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
         >
           All Items
-        </button>
-        <button
+        </Button>
+        <Button
+          variant={forSale ? "default" : "ghost"}
+          size="xs"
           onClick={() => { setForSale(true); setPage(1) }}
-          className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-            forSale
-              ? "bg-gradient-to-r from-primary to-[#b8860b] text-[#1c1915]"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
         >
           For Sale
-        </button>
+        </Button>
       </div>
 
       {/* Category filter pills + For Sale toggle */}
@@ -373,26 +367,20 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
         ))}
         <span className="hidden sm:block w-px h-5 bg-border/50 mx-1" />
         <div className="hidden sm:flex items-center gap-1 rounded-lg border border-[rgba(232,224,212,0.12)] p-0.5 ml-auto sm:ml-0">
-          <button
+          <Button
+            variant={!forSale ? "default" : "ghost"}
+            size="xs"
             onClick={() => { setForSale(false); setPage(1) }}
-            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-              !forSale
-                ? "bg-gradient-to-r from-primary to-[#b8860b] text-[#1c1915]"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
           >
             All Items
-          </button>
-          <button
+          </Button>
+          <Button
+            variant={forSale ? "default" : "ghost"}
+            size="xs"
             onClick={() => { setForSale(true); setPage(1) }}
-            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-              forSale
-                ? "bg-gradient-to-r from-primary to-[#b8860b] text-[#1c1915]"
-                : "text-muted-foreground hover:text-foreground"
-          }`}
           >
             For Sale
-          </button>
+          </Button>
         </div>
       </div>
 

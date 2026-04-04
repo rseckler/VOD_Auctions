@@ -4,6 +4,25 @@ Vollständiger Entwicklungs-Changelog. Neue Einträge werden direkt hier ergänz
 
 ---
 
+## 2026-04-04 — UX Audit Phase 2 Batch 1: Headings, Components, Tokens (GAP-301/302/402/501)
+
+### Account Headings Standardisiert (GAP-301, GAP-302, MT-5)
+- 9 Account-Seiten: `text-xl font-semibold` → `heading-2` Utility-Klasse
+- Betroffen: Overview, My Bids, Won, Saved, Cart, Orders, Settings, Profile, Addresses
+- Konsistente Typografie über gesamten Account-Bereich
+
+### Footer Newsletter → Design System (GAP-501, MT-3)
+- Raw `<input>` → `<Input>` Komponente
+- Raw `<button>` → `<Button size="sm">` Komponente
+- Konsistente Focus-States, Touch-Targets, Styling
+
+### Catalog For-Sale Toggle → Button Component (GAP-402, MT-3)
+- 4 raw `<button>` Elemente mit hardcoded `#b8860b` und `#1c1915` → `<Button variant="default/ghost" size="xs">`
+- Eliminiert 4 hardcoded Hex-Werte
+- Mobile + Desktop Toggle identisch gestylt über Design System
+
+---
+
 ## 2026-04-04 — UX Audit Phase 1: Quick Wins (GAP-102/103/105/403/404/801/802)
 
 Basierend auf UI/UX Style Guide v2.0, Gap-Analyse (53 Findings), und 170+ Screenshots.

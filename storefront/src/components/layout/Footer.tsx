@@ -5,6 +5,8 @@ import { Disc3, Facebook, CheckCircle } from "lucide-react"
 import { useState, type FormEvent } from "react"
 import { toast } from "sonner"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 
 export function Footer() {
   const [email, setEmail] = useState("")
@@ -54,21 +56,22 @@ export function Footer() {
             </p>
             {/* Newsletter signup */}
             <form onSubmit={handleNewsletterSubmit} className="flex gap-2">
-              <input
+              <Input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Your email"
                 required
-                className="flex-1 min-w-0 px-3 py-1.5 text-sm rounded-md bg-[rgba(232,224,212,0.06)] border border-[rgba(232,224,212,0.12)] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/50"
+                className="flex-1 min-w-0 h-8 text-sm"
               />
-              <button
+              <Button
                 type="submit"
                 disabled={submitting}
-                className="px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 whitespace-nowrap"
+                size="sm"
+                className="whitespace-nowrap"
               >
                 Subscribe
-              </button>
+              </Button>
             </form>
           </div>
 
