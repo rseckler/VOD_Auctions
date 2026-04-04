@@ -103,11 +103,19 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
   // Track whether we should skip the first client-side fetch (server already provided data)
   const skipInitialFetch = useRef(initialReleases.length > 0)
 
-  // Initialize state from initialParams (server-provided) instead of reading searchParams
   const [releases, setReleases] = useState<CatalogRelease[]>(initialReleases)
   const [total, setTotal] = useState(initialTotal)
   const [pages, setPages] = useState(initialPages)
   const [page, setPage] = useState(initialParams.page)
+
+  // On mount: if URL page differs from server-provided page (back-navigation), sync up
+  useEffect(() => {
+    const urlPage = Number(new URLSearchParams(window.location.search).get("page")) || 1
+    if (urlPage !== initialParams.page) {
+      setPage(urlPage)
+      skipInitialFetch.current = false // force re-fetch for the correct page
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const [search, setSearch] = useState(initialParams.search)
   const [searchInput, setSearchInput] = useState(initialParams.search)
   const [category, setCategory] = useState(initialParams.category)
