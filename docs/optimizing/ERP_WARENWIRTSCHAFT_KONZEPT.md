@@ -1,6 +1,6 @@
 # ERP / Warenwirtschaft — Architektur- und Entscheidungsdokument
 
-**Version:** 4.0
+**Version:** 4.1
 **Erstellt:** 2026-04-02 | **Aktualisiert:** 2026-04-02
 **Autor:** Robin Seckler (digital spread UG)
 **Betreiber:** VOD Records, Friedrichshafen (Frank Bull)
@@ -25,6 +25,9 @@
 13. [Klare Empfehlung](#13-klare-empfehlung)
 14. [Offene fachliche Entscheidungen und Validierungsbedarfe](#14-offene-fachliche-entscheidungen-und-validierungsbedarfe)
 A. [Anhänge](#anhänge)
+B. [Teil B — Durchgeführte Finalisierungen (v4.0 → v4.1)](#teil-b--durchgeführte-finalisierungen-v40--v41)
+C. [Teil C — Verbleibende offene Punkte vor finaler Freigabe](#teil-c--verbleibende-offene-punkte-vor-finaler-freigabe)
+D. [Teil D — Freigabebedingungen vor Implementierungsstart](#teil-d--freigabebedingungen-vor-implementierungsstart)
 
 ---
 
@@ -39,6 +42,8 @@ Dieses Dokument beschreibt die Architektur für ein modulares ERP-System als Erw
 ### Empfohlene Richtung
 
 **Composable Stack** (Option A): Sendcloud + sevDesk/easybill + Custom-Module im Admin. Kein vollständiges ERP-Produkt (Billbee/Xentral), da keines der Produkte am Markt die Kombination aus Auktionslogik, §25a-Differenzbesteuerung, Kommissionsabrechnung und Marketplace-Payout abbilden kann. Die Eigenentwicklung beschränkt sich auf die Teile, die kein SaaS-Produkt liefert; Rechnungen, Versand und DATEV werden an spezialisierte Dienste delegiert.
+
+**Voraussetzung für die Implementierung:** Diese Empfehlung steht unter dem Vorbehalt, dass die in Abschnitt 14 gelisteten offenen Punkte geklärt werden — insbesondere die steuerliche Validierung durch den Steuerberater und die fachlichen Entscheidungen durch Frank Bull. Ohne diese Klärungen darf die Implementierung nicht beginnen.
 
 ### Tragende Prinzipien
 
@@ -136,13 +141,15 @@ Die Plattform bedient vier grundlegend verschiedene Geschäftsmodelle. Jedes Mod
 | **Rechnung** | VOD Records an Käufer |
 | **Verkäuferrolle** | VOD Records = Verkäufer (Frank als Gesellschafter/Inhaber) |
 | **Zahlungsfluss** | Käufer → Stripe/PayPal → VOD-Konto |
-| **Steuer** | §25a möglich: Privatsammlung, kein Vorsteuerabzug beim Erwerb, Einkaufspreis = 0 bei Eigensammlung |
+| **Steuer** | §25a möglich [Validierungsbedarf]: Privatsammlung, kein Vorsteuerabzug beim Erwerb |
 | **Buchhaltung** | Erlöse auf Erlös-Konto §25a; Marge = Verkaufspreis (da EK = 0); USt = 19/119 * Marge |
 | **Bestandsführung** | Qty = 1 pro Artikel; Status: available → reserved → sold → shipped |
 
-**Steuerliche Besonderheit:** Bei Franks Sammlung ist der Einkaufspreis typischerweise nicht mehr nachweisbar (über Jahrzehnte gesammelt). Das Finanzamt akzeptiert in solchen Fällen häufig EK = 0, was bedeutet: die volle Verkaufssumme ist die Marge, und die USt wird auf diese Marge berechnet. Das klingt nach keinem Vorteil gegenüber Regelbesteuerung — der Vorteil liegt darin, dass bei §25a die Marge als Bruttobetrag gilt (USt = 19/119 * Marge statt 19/100 * Netto). Der tatsächliche Steuervorteil bei EK = 0 ist gering (~1,3%), wird aber erheblich, sobald Ware mit nachweisbarem EK > 0 hinzukommt (Kommission, Zukäufe).
+**Steuerliche Besonderheit — Fachliche Zielannahme, steuerliche Validierung durch Steuerberater erforderlich:**
 
-**Steuerberater-Validierung nötig:** Ob Franks gesamte Sammlung unter §25a fällt, hängt davon ab, ob Frank als Privatperson oder als gewerblicher Händler eingestuft wird. Bei ~41.500 Artikeln und regelmäßigen Auktionen ist eine gewerbliche Einstufung wahrscheinlich. Die §25a-Fähigkeit bleibt davon unberührt (auch gewerbliche Händler können §25a anwenden), aber die formalen Anforderungen ändern sich.
+Bei Franks Sammlung ist der Einkaufspreis typischerweise nicht mehr nachweisbar (über Jahrzehnte gesammelt). **[Validierungsbedarf]** Sofern der Steuerberater bestätigt, dass das Finanzamt EK = 0 akzeptiert, bedeutet dies: die volle Verkaufssumme ist die Marge, und die USt wird auf diese Marge berechnet. Das klingt nach keinem Vorteil gegenüber Regelbesteuerung — der Vorteil liegt darin, dass bei §25a die Marge als Bruttobetrag gilt (USt = 19/119 * Marge statt 19/100 * Netto). **[Fachliche Zielannahme]** Der tatsächliche Steuervorteil bei EK = 0 ist gering (~1,3%), wird aber erheblich, sobald Ware mit nachweisbarem EK > 0 hinzukommt (Kommission, Zukäufe). Diese Annahme zum Vorteil muss durch den Steuerberater mit konkreten Zahlen bestätigt werden.
+
+**Steuerberater-Validierung nötig:** Ob Franks gesamte Sammlung unter §25a fällt, hängt davon ab, ob Frank als Privatperson oder als gewerblicher Händler eingestuft wird. Bei ~41.500 Artikeln und regelmäßigen Auktionen ist eine gewerbliche Einstufung wahrscheinlich. Die §25a-Fähigkeit bleibt davon unberührt (auch gewerbliche Händler können §25a anwenden), aber die formalen Anforderungen ändern sich. **[Validierungsbedarf]**
 
 ### Modell A: Kommissionsverkauf
 
@@ -156,7 +163,7 @@ Die Plattform bedient vier grundlegend verschiedene Geschäftsmodelle. Jedes Mod
 | **Rechnung** | VOD Records an Käufer (als Kommissionär, §383 HGB) |
 | **Verkäuferrolle** | VOD = Kommissionär. Handelt im eigenen Namen, für Rechnung des Kommittenten |
 | **Zahlungsfluss** | Käufer → Stripe/PayPal → VOD-Konto → periodische Abrechnung → Auszahlung an Kommissionsgeber |
-| **Steuer** | §25a möglich wenn Einkauf von Privatperson ohne USt-Ausweis. Bei gewerblichen Kommissionsgebern mit USt-Rechnung: Regelbesteuerung |
+| **Steuer** | §25a möglich [Validierungsbedarf] wenn Einkauf von Privatperson ohne USt-Ausweis. Bei gewerblichen Kommissionsgebern mit USt-Rechnung: Regelbesteuerung |
 | **Buchhaltung** | Erlös = Verkaufspreis; Aufwand = Auszahlung an Kommittent; Differenz = Provision (VODs Ertrag). Separate Konten: Verbindlichkeiten gegenüber Kommittenten, Provisionserlös |
 | **Bestandsführung** | Jeder Artikel muss dem Kommissionsgeber zugeordnet sein. EK pro Artikel erfassen (für §25a-Nachweis) |
 
@@ -186,11 +193,11 @@ Die Plattform bedient vier grundlegend verschiedene Geschäftsmodelle. Jedes Mod
 | **Rechnung** | Seller an Käufer. VOD erstellt KEINE Verkaufsrechnung (VOD ist Vermittler, nicht Verkäufer) |
 | **Verkäuferrolle** | Seller = Verkäufer. VOD = Plattformbetreiber/Vermittler |
 | **Zahlungsfluss** | Käufer → Stripe Connect → Seller-Konto (abzgl. Plattform-Fee). VOD berührt das Geld nie |
-| **Steuer** | VOD versteuert nur eigene Provisionseinnahmen (Dienstleistung, 19% USt). Seller ist für seine eigene USt verantwortlich. Kein §25a für VOD (VOD verkauft nicht). DAC7-Meldepflicht |
+| **Steuer** | VOD versteuert nur eigene Provisionseinnahmen (Dienstleistung, 19% USt). Seller ist für seine eigene USt verantwortlich. Kein §25a für VOD (VOD verkauft nicht). DAC7-Meldepflicht [Validierungsbedarf] |
 | **Buchhaltung** | VODs Erlöse = Provisionseinnahmen (Dienstleistung). Kein Warenumsatz. Separate Buchung |
 | **Bestandsführung** | Seller verwaltet eigenen Bestand. Plattform trackt nur Listing-Status (active/sold/removed) |
 
-**Regulatorische Pflichten (Details in RSE-291):**
+**Regulatorische Pflichten (Details in RSE-291) — [Validierungsbedarf] Alle regulatorischen Aussagen zum Marketplace müssen vor Implementierung durch einen Rechtsanwalt mit E-Commerce-Spezialisierung validiert werden:**
 - **§22f UStG:** Aufzeichnungspflichten pro Seller (Name, Adresse, Steuer-ID, Transaktionen). 10 Jahre Aufbewahrung
 - **§25e UStG:** Gesamtschuldnerische Haftung für Seller-USt. Safe Harbor nur mit F22-Bescheinigung
 - **DAC7:** Jährliche Meldung an BZSt (bis 31. Januar). Pro Seller: TIN, IBAN, Umsätze, Gebühren
@@ -206,6 +213,152 @@ Die Plattform bedient vier grundlegend verschiedene Geschäftsmodelle. Jedes Mod
 - Stripe Connect (Express): Seller erstellt Express-Account, KYC via Stripe. Bei Verkauf: Stripe splittet Payment automatisch. Payout an Seller nach Versandbestätigung
 - Später Mangopay: Nativer Escrow, E-Wallet pro Seller, besser für hohe Volumina
 - Eigenes Payout-System ist KEINE Option (BaFin-Lizenzpflicht, §10 ZAG)
+
+### 3.5 Operatives Betriebsmodell Seller-/Marketplace-Modell
+
+Dieser Abschnitt beschreibt die operativen Prozesse, die für den Betrieb eines Marketplace erforderlich sind. Die Architektur bereitet diese Prozesse strukturell vor; die operative Aktivierung ist ein separater Schritt.
+
+#### 3.5.1 Seller-Onboarding
+
+**Prozess: Bewerbung → Prüfung → Freigabe → KYC → Live**
+
+1. **Bewerbung:** Seller füllt Formular aus (Name, Adresse, Beschreibung des Sortiments, geschätztes Volumen, privat/gewerblich)
+2. **Vorprüfung (Admin):** Passt der Seller zum Plattform-Profil? (Industrial/Experimental Music Fokus). Kriterien: Sortiment-Relevanz, Seriosität, Mindestbestand
+3. **Genehmigung:** Admin setzt `seller.status → 'approved'`. Seller erhält Einladungs-E-Mail
+4. **KYC (Stripe Connect):** Seller durchläuft Stripe Express Onboarding. Identitätsprüfung, Bankverbindung, Steuer-ID
+5. **Steuerliche Erfassung (§22f UStG):** Seller muss Steuer-ID/USt-IdNr. hinterlegen. Bei gewerblichen Sellern: F22-Bescheinigung hochladen. System prüft Gültigkeit
+6. **Live:** `seller.status → 'active'`. Seller kann Listings erstellen
+
+**Ablehnungsgründe:** Sortiment passt nicht, unvollständige Angaben, KYC gescheitert, F22 fehlt (bei gewerblich). Ablehnung mit Begründung, Seller kann erneut bewerben.
+
+#### 3.5.2 KYC und Steuerliche Stammdaten
+
+**Pflichtdaten pro Seller (§22f UStG, DAC7):**
+
+| Datum | Privat | Gewerblich |
+|-------|--------|------------|
+| Name / Firma | Pflicht | Pflicht |
+| Adresse | Pflicht | Pflicht |
+| Geburtsdatum | Pflicht (DAC7) | — |
+| Steuer-ID (TIN) | Pflicht (DAC7) | Pflicht |
+| USt-IdNr. | — | Pflicht |
+| F22-Bescheinigung | — | Pflicht (§25e Safe Harbor) |
+| IBAN | Pflicht (DAC7) | Pflicht |
+| Handelsregister-Nr. | — | Wenn vorhanden |
+
+**Aufbewahrung:** 10 Jahre nach Ende der Geschäftsbeziehung (§22f Abs. 1 Satz 5 UStG).
+
+**F22-Gültigkeitsprüfung:** F22-Bescheinigungen haben ein Ablaufdatum. System warnt 30 Tage vor Ablauf. Bei abgelaufener F22: Seller wird suspendiert bis Erneuerung vorliegt (§25e-Haftungsschutz entfällt sonst).
+
+#### 3.5.3 Listing Governance
+
+**Qualitätsstandards:**
+- Mindestens 1 Foto (Pflicht), empfohlen 3-5
+- Zustandsbewertung nach Goldmine-Standard (Pflicht)
+- Beschreibung: Mindestlänge 50 Zeichen, Tracklisting empfohlen
+- Preise in EUR, brutto
+- Keine Duplikate (System prüft Release-ID wenn angegeben)
+
+**Review-Prozess:**
+- Listing wird eingereicht → `status = 'pending_review'`
+- Admin prüft: Fotos akzeptabel? Zustand plausibel? Beschreibung ausreichend? Preis realistisch?
+- Genehmigung → `status = 'active'` | Ablehnung → `status = 'rejected'` mit Begründung
+- Phase 2+: Trusted Seller (> 50 Verkäufe, > 4.5 Sterne) erhalten Auto-Approve
+
+#### 3.5.4 Versand-Verantwortung und SLAs
+
+| Verantwortung | Plattform (VOD) | Seller |
+|---------------|-----------------|--------|
+| Label-Erstellung | — | Seller (eigener Carrier) |
+| Versand innerhalb X Tage nach Zahlung | — | 3 Werktage (SLA) |
+| Tracking-Nummer eintragen | System validiert | Seller (Pflicht) |
+| Versandkosten festlegen | — | Seller (pro Zone) |
+| Verpackungsstandard | Richtlinie bereitstellen | Seller muss einhalten |
+
+**SLA-Verstoß:** Wenn Seller Tracking nicht innerhalb von 5 Werktagen einträgt → automatische Warnung. Nach 7 Werktagen → Admin-Eskalation. Wiederholte Verstöße → Suspendierung.
+
+#### 3.5.5 Kundensupport-Verantwortung
+
+| Thema | Plattform (VOD) | Seller |
+|-------|-----------------|--------|
+| Plattform-Probleme (Login, Zahlung, Bugs) | VOD | — |
+| Produktfragen (Zustand, Details) | — | Seller |
+| Versandstatus / Tracking | Erste Anlaufstelle, leitet weiter | Seller klärt mit Carrier |
+| Reklamation / Retoure | Mediation wenn nötig | Seller ist Erstansprechpartner |
+| Widerrufsrecht (bei gewerbl. Seller) | Hinweis auf Pflicht | Seller muss einhalten |
+
+**Kommunikationskanal:** In Phase 1 über E-Mail. Phase 2+: Plattform-internes Messaging zwischen Käufer und Seller.
+
+#### 3.5.6 Retoure und Reklamation
+
+**Grundregel:** Der Seller ist Verkäufer. Retoure-Abwicklung liegt beim Seller.
+
+1. Käufer meldet Problem über Plattform-Kontaktformular
+2. Plattform leitet an Seller weiter (oder Käufer kontaktiert Seller direkt)
+3. Seller und Käufer einigen sich (Retoure, Teilerstattung, Ersatz)
+4. Bei Einigung: Seller initiiert Erstattung via Stripe Connect Refund
+5. Bei Nicht-Einigung: Käufer kann Dispute öffnen (siehe 3.5.7)
+
+**Widerrufsrecht:** Gewerbliche Seller unterliegen dem 14-Tage-Widerrufsrecht. Private Seller nicht. Die Plattform muss den Seller-Typ klar kennzeichnen.
+
+**Rücksendekosten:** Trägt der Käufer, sofern der Seller nicht anders entscheidet. Muss in Seller-AGB stehen.
+
+#### 3.5.7 Disputes und Claims
+
+**Käufer-Seller-Dispute (Phase 1: manuell, Phase 2+: formalisiert):**
+
+1. Käufer öffnet Dispute (Ware nicht erhalten, falsche Ware, Zustand falsch beschrieben)
+2. Admin prüft: Tracking vorhanden? Zustellung bestätigt? Fotos vom Käufer?
+3. Admin vermittelt zwischen Käufer und Seller
+4. Wenn keine Einigung: Admin entscheidet (zugunsten Käufer oder Seller)
+5. Bei Entscheidung zugunsten Käufer: Erstattung aus Seller-Guthaben oder nächstem Payout
+
+**Dispute-Fenster:** 14 Tage nach Zustellung (oder 30 Tage nach Versand wenn keine Zustellung bestätigt).
+
+**Chargeback bei Marketplace:** Stripe Connect leitet Chargebacks an den Connected Account (Seller) weiter. Die Plattform stellt dem Seller die Chargeback-Gebühr in Rechnung. Muss im Seller-Vertrag stehen.
+
+#### 3.5.8 Payout-Voraussetzungen
+
+Payout an Seller wird erst freigegeben, wenn:
+1. Tracking-Nummer eingetragen UND
+2. Carrier bestätigt Zustellung (oder 14 Tage seit Versand ohne Dispute) UND
+3. Kein offener Dispute für die Transaktion UND
+4. Seller-Account ist `active` (nicht suspendiert)
+
+**Payout-Zyklus:** Automatisch via Stripe Connect (T+14 nach Versandbestätigung, konfigurierbar).
+
+**Einbehalt bei offenen Disputes:** Payout wird zurückgehalten bis Dispute geklärt.
+
+#### 3.5.9 Seller-Suspendierung und Deaktivierung
+
+**Suspendierungsgründe:**
+- F22-Bescheinigung abgelaufen (automatisch)
+- Wiederholte SLA-Verstöße (> 3 in 30 Tagen)
+- Hohe Dispute-Rate (> 5% der Transaktionen)
+- Verstoß gegen Listing-Richtlinien (nach Warnung)
+- KYC-Daten ungültig geworden
+
+**Suspendierung:** Seller kann keine neuen Listings erstellen. Bestehende Listings werden deaktiviert. Offene Payouts werden einbehalten bis Klärung. Seller wird per E-Mail informiert mit Begründung und Handlungsaufforderung.
+
+**Deaktivierung (endgültig):** Nur bei schwerwiegenden Verstößen (Betrug, Fälschungen, wiederholte Suspendierung). Admin-Entscheidung. Offene Payouts werden nach Ablauf aller Dispute-Fenster ausgezahlt (sofern keine Claims).
+
+#### 3.5.10 Rollenabgrenzung
+
+| Verantwortung | Plattform (VOD) | Seller |
+|---------------|-----------------|--------|
+| Plattform-Betrieb, Verfügbarkeit | Ja | — |
+| Payment-Abwicklung (Stripe Connect) | Ja | — |
+| KYC / §22f-Aufzeichnungen | Ja | Daten liefern |
+| DAC7-Meldung | Ja | — |
+| F22-Prüfung | Ja (Erinnerung + Suspendierung) | Bescheinigung besorgen |
+| Listing-Qualität | Review (Phase 1) | Erstellen |
+| Produktbeschreibung / Fotos | — | Ja |
+| Preisgestaltung | — | Ja |
+| Versand | — | Ja |
+| Kundensupport (Produkt) | Mediation | Ja |
+| Retoure / Erstattung | Mediation | Ja |
+| Dispute-Entscheidung | Ja (bei Eskalation) | — |
+| Eigene Steuerpflichten | Nur Provision | Ja (eigene USt) |
 
 ### Modell C: VOD Records Eigenware
 
@@ -298,7 +451,7 @@ Der Wareneingang unterscheidet sich fundamental je nach Modell.
 Kein klassischer Wareneingang. Die ~41.500 Artikel existieren bereits als `Release`-Datensätze (Legacy-Migration aus MySQL). Für die ERP-Erweiterung müssen diese Bestände einmalig in `inventory_item` überführt werden:
 1. Migration: Für jede `Release` mit `legacy_available = true` einen `inventory_item`-Datensatz anlegen
 2. Quelle: `source = 'frank_collection'`
-3. Einkaufspreis: `purchase_price = 0` (Privatsammlung, kein Nachweis)
+3. Einkaufspreis: `purchase_price = 0` — **[Fachliche Zielannahme]** Privatsammlung, kein Nachweis. Ob EK = 0 steuerlich akzeptiert wird, muss der Steuerberater bestätigen
 4. Status: `in_stock` (wenn `legacy_available = true`) oder `sold`/`unavailable` (wenn false)
 5. Lagerort: Pauschal "VOD-Lager FN" oder, falls bekannt, Regal/Box
 
@@ -309,7 +462,7 @@ Kein klassischer Wareneingang. Die ~41.500 Artikel existieren bereits als `Relea
    - Pro Artikel: Release zuordnen (oder neu anlegen), Zustand dokumentieren, Einkaufspreis eintragen
    - `inventory_item` mit `source = 'commission'`, `commission_owner_id`, `purchase_price`
    - `inventory_movement` mit `type = 'inbound'`, Referenz auf Lieferschein/Übernahmeprotokoll
-4. Optionaler Sammeleingang: Konvolut mit pauschalem EK (z.B. 500 Artikel für 1.000 EUR → EK pro Stück = 2 EUR). Pauschale Aufteilung muss dokumentiert werden (Steuerberater-Abstimmung nötig)
+4. Optionaler Sammeleingang: Konvolut mit pauschalem EK (z.B. 500 Artikel für 1.000 EUR → EK pro Stück = 2 EUR). **[Validierungsbedarf]** Pauschale Aufteilung muss dokumentiert werden — Steuerberater-Abstimmung zur akzeptierten Methode zwingend erforderlich
 5. Quittung/Übernahmeprotokoll ausdrucken (für §25a-Nachweis: "Ware von Privatperson erworben, keine USt auf Eingangsrechnung")
 
 **Modell B — Marketplace:**
@@ -706,7 +859,7 @@ Wenn ein Artikel retourniert wird, der bereits in einem abgeschlossenen Settleme
 
 ### 5.4 Buchungslogik: Wie jeder Verkaufstyp Buchungssätze erzeugt
 
-**Kontenplan (Vorschlag, SKR03-basiert — muss vom Steuerberater validiert werden):**
+**Kontenplan (Vorschlag, SKR03-basiert — [Validierungsbedarf] muss vom Steuerberater validiert werden):**
 
 | Konto | Bezeichnung | Verwendung |
 |-------|-------------|------------|
@@ -729,7 +882,7 @@ Soll: 1200 Bank                65,00 EUR
 Haben: 8409 Erlöse §25a       56,22 EUR  (65,00 - USt)
 Haben: 1775 USt §25a            8,78 EUR  (19/119 * 55,00 = 8,78 auf Marge)
 ```
-Anmerkung: Die korrekte Buchung bei §25a ist komplex. Der Erlös wird brutto gebucht, die USt wird nur intern auf die Marge berechnet. Die exakte Buchungslogik MUSS mit dem Steuerberater abgestimmt werden. Das obige ist eine Annäherung.
+**[Validierungsbedarf]** Die korrekte Buchung bei §25a ist komplex. Der Erlös wird brutto gebucht, die USt wird nur intern auf die Marge berechnet. Die exakte Buchungslogik MUSS mit dem Steuerberater abgestimmt werden. Das obige ist eine Annäherung.
 
 **Modell C Regelbesteuerung (Verkauf 49 EUR brutto):**
 ```
@@ -758,7 +911,7 @@ Soll: 1775 USt §25a            8,78 EUR  (Gegenbuchung)
 Haben: 1200 Bank               65,00 EUR  (Erstattung)
 ```
 
-**Wichtig:** Alle Buchungssätze sind vereinfacht. Der Steuerberater muss den Kontenplan und die Buchungslogik validieren. Insbesondere die §25a-Buchung hat Varianten je nach Steuerberater-Praxis.
+**[Validierungsbedarf]** Alle Buchungssätze sind vereinfacht. Der Steuerberater muss den Kontenplan und die Buchungslogik validieren. Insbesondere die §25a-Buchung hat Varianten je nach Steuerberater-Praxis.
 
 ### 5.5 DATEV-Export
 
@@ -790,6 +943,136 @@ Der Export muss pro Buchung klar erkennbar machen:
 - Geschäftsmodell (Eigenverkauf / Kommission / Marketplace-Fee / Eigenware)
 - Steuerschema (§25a / Regelbesteuerung / steuerfrei)
 - Erlös vs. Gutschrift vs. Storno
+
+### 5.6 Finanzielle Ableitung pro Orderline
+
+Dieser Abschnitt beschreibt die vollständige Kette finanzieller Objekte, die aus einer einzelnen Verkaufsposition entsteht — vom Order-Eintrag bis zum DATEV-Export. Jedes Objekt in der Kette trägt eine definierte finanzielle Wahrheit.
+
+#### 5.6.1 Die Objektkette
+
+```
+Order (VOD-ORD-XXXXXX, via order_group_id)
+  └→ Transaction (eine pro Artikel/Lot)
+       └→ Invoice (sevDesk/easybill, VOD-INV-YYYY-NNNNN)
+            └→ Invoice Line (eine pro Artikelposition)
+                 └→ Tax Decision (margin_scheme_25a / standard / exempt)
+       └→ Settlement Line (nur bei Kommission, im nächsten Abrechnungszyklus)
+            └→ Commission Settlement (Kopf-Dokument pro Kommissionsgeber/Periode)
+       └→ Tax Margin Record (§25a-Nachweis pro Artikel)
+       └→ DATEV-Buchung (im Monatsexport)
+```
+
+#### 5.6.2 Welches Objekt trägt welche finanzielle Wahrheit?
+
+| Objekt | Finanzielle Wahrheit | Wann angelegt? |
+|--------|---------------------|----------------|
+| **Transaction** | Brutto-Zahlungsbetrag, Payment-Provider, Payment-Zeitpunkt. Quelle für alle Downstream-Objekte | Bei Payment-Success (Webhook) |
+| **Invoice** | Rechtsverbindlicher Rechnungsbetrag, GoBD-Rechnungsnummer, Steuerschema der Rechnung | Automatisch nach Payment-Success (via sevDesk/easybill) |
+| **Invoice Line** | Positionsbetrag (brutto/netto), Steuersatz/-betrag pro Position | Gleichzeitig mit Invoice |
+| **Tax Decision** | Steuerschema (§25a / Standard), abgeleitet aus `inventory_item.tax_scheme` | Zum Zeitpunkt der Invoice-Erstellung. Festgeschrieben — nachträgliche Änderung nur via Korrekturrechnung |
+| **Tax Margin Record** | EK, VK, Marge, USt auf Marge — artikelgenauer §25a-Nachweis (gesetzliche Pflicht) | Nach Payment-Success, wenn tax_scheme = margin_scheme_25a |
+| **Settlement Line** | Anteil des Kommissionsgebers: VK, Provision, Auszahlung | Beim Settlement-Lauf (periodisch) |
+| **DATEV-Buchung** | Konto, Gegenkonto, BU-Schlüssel, Betrag — buchhalterische Wahrheit | Beim monatlichen DATEV-Export |
+
+#### 5.6.3 Beispielkette: §25a Kommissionsverkauf
+
+```
+Order (VOD-ORD-000142)
+  └→ Transaction (Lot #7, Coil - Scatology, €45.00, paid via Stripe)
+       │
+       ├→ Tax Decision: margin_scheme_25a
+       │    Begründung: source=commission, commission_owner.is_business=false
+       │    EK=€10.00, VK=€45.00, Marge=€35.00, USt=€5.59 (19/119 * 35)
+       │
+       ├→ Invoice (sevDesk #VOD-INV-2026-00142)
+       │    └→ Invoice Line: "Coil - Scatology (LP)", €45.00 brutto
+       │       Vermerk: "Differenzbesteuerung gemäß §25a UStG"
+       │       Kein separater USt-Ausweis
+       │
+       ├→ Tax Margin Record
+       │    purchase_price=10.00, sale_price=45.00, margin=35.00
+       │    vat_on_margin=5.59, net_revenue=39.41
+       │
+       ├→ Settlement Line (im nächsten Abrechnungszyklus)
+       │    sale_price=45.00, commission_rate=25%, commission_amount=11.25
+       │    payout_amount=33.75
+       │
+       └→ DATEV-Buchung (Monatsexport)
+            S: 1200 Bank €45.00 | H: 8409 Erlöse §25a €39.41 | H: 1775 USt §25a €5.59
+```
+
+#### 5.6.4 Wie Retoure / Teilretoure / Storno / Chargeback die Kette verändern
+
+**Vollretoure:**
+```
+Retoure-Event (Lot #7, Coil - Scatology returned)
+  │
+  ├→ Invoice: Gutschrift (sevDesk Stornorechnung VOD-CR-2026-NNNNN)
+  │    └→ Invoice Line: €-45.00, Verweis auf VOD-INV-2026-00142
+  │
+  ├→ Tax Decision: §25a-Marge wird storniert
+  │    → Korrektur-Tax-Margin-Record: margin=-35.00, vat_on_margin=-5.59
+  │
+  ├→ Settlement Line (Korrektur im nächsten Zyklus):
+  │    sale_price=-45.00, commission_amount=-11.25, payout_amount=-33.75
+  │
+  ├→ Inventory: status → 'returned', nach Prüfung → 'in_stock' (re-listable)
+  │    → inventory_movement: return_inbound, dann return_processed
+  │
+  └→ DATEV: Storno-Buchung im nächsten Monatsexport
+       S: 8409 Erlöse §25a €39.41 | S: 1775 USt §25a €5.59 | H: 1200 Bank €45.00
+```
+
+**Teilretoure (bei Combined Order):**
+```
+Combined Order (VOD-ORD-000143, 3 Artikel)
+  Transaction A: €49.00 (TG - D.O.A.)      → bleibt bestehen
+  Transaction B: €65.00 (SPK - Leichenschrei) → RETOURE
+  Transaction C: €35.00 (Boyd Rice - Music)  → bleibt bestehen
+
+Retoure nur Transaction B:
+  ├→ Gutschrift nur über €65.00 (+ ggf. anteilige Versandkosten)
+  ├→ Tax Margin Record B: Korrektur-Record
+  ├→ Settlement Line B: Korrektur wenn Kommission
+  ├→ Inventory B: returned → in_stock
+  └→ Transactions A und C: unverändert, Rechnungen bleiben gültig
+```
+
+**Storno (vor Versand, nach Rechnungsstellung):**
+```
+Storno-Event
+  ├→ Invoice: Stornorechnung (negative Rechnung)
+  ├→ Tax Margin Record: Korrektur-Record
+  ├→ Inventory: status → 'in_stock' (direkt, kein Versand erfolgt)
+  ├→ Payment: Stripe/PayPal Refund
+  └→ DATEV: Gegenbuchung
+```
+
+**Chargeback:**
+```
+Chargeback-Event (Stripe bucht €45.00 + €15.00 Gebühr zurück)
+  ├→ Transaction: status → 'failed' oder 'chargeback'
+  ├→ Invoice: Stornorechnung (Gutschrift)
+  ├→ Inventory: KEIN Rücklauf — Ware ist beim Käufer/verloren
+  ├→ Tax Margin Record: Korrektur-Record
+  ├→ Settlement (bei Kommission): VOD trägt Verlust + Gebühr
+  │    Verrechnung im nächsten Zyklus oder separate Buchung
+  └→ DATEV: Gegenbuchung Erlös + Aufwandsbuchung Chargeback-Gebühr
+```
+
+#### 5.6.5 Manuelle Overrides und Auditierbarkeit
+
+**Wann manuelle Overrides möglich sind:**
+- `tax_scheme` auf `inventory_item`: Admin kann übersteuern → `tax_scheme_override = true`, `tax_scheme_override_reason` (Pflichtfeld)
+- Invoice-Erstellung: Admin kann Rechnung manuell erstellen oder korrigieren → Audit-Log in `order_event`
+- Settlement: Admin kann Settlement-Betrag manuell anpassen → `notes`-Feld + Audit-Log
+
+**Wie Auditierbarkeit sichergestellt wird:**
+1. Jeder Tax Margin Record hat `calculated_at` und optional `validated_by` + `validated_at`
+2. Jede Invoice hat `invoice_type` (invoice / credit_note / cancellation) und `related_invoice_id` für Korrekturen
+3. Jede Settlement Line referenziert `inventory_item_id` + `transaction_id` → lückenlose Zuordnung
+4. `inventory_movement` speichert jede Bestandsänderung mit `performed_by` (Admin-Email oder 'system')
+5. Bestehende `order_event`-Tabelle wird für ERP-Events erweitert (event_type: invoice_created, settlement_approved, tax_override)
 
 ---
 
@@ -838,13 +1121,13 @@ Netto = 50 - 6,39 = 43,61 EUR
 - Marge = 0 (nicht negativ)
 - USt = 0
 - Der Verlust ist steuerlich nicht absetzbar (kein Vorsteuerabzug bei §25a)
-- Die negative Differenz darf NICHT mit positiven Margen anderer Artikel verrechnet werden (§25a Abs. 3 UStG: Einzeldifferenz, nicht Gesamtdifferenz — Ausnahme: Sammelberechnung nach §25a Abs. 4)
+- **[Validierungsbedarf]** Die negative Differenz darf NICHT mit positiven Margen anderer Artikel verrechnet werden (§25a Abs. 3 UStG: Einzeldifferenz, nicht Gesamtdifferenz — Ausnahme: Sammelberechnung nach §25a Abs. 4). Ob Einzeldifferenz oder Sammelberechnung gewählt wird, muss der Steuerberater entscheiden.
 
 **Sammelberechnung (§25a Abs. 4):**
 - Erlaubt für Gegenstände, deren Einkaufspreis 500 EUR nicht übersteigt
 - Marge wird nicht pro Artikel, sondern als Gesamtdifferenz (Summe VK - Summe EK) eines Besteuerungszeitraums berechnet
 - Vorteil: Negative Margen einzelner Artikel werden mit positiven Margen verrechnet
-- **ACHTUNG:** Anwendbarkeit für Schallplatten prüfen (manche Einzelstücke > 500 EUR)
+- **[Validierungsbedarf]** Anwendbarkeit für Schallplatten prüfen (manche Einzelstücke > 500 EUR)
 - **Steuerberater-Entscheidung:** Einzeldifferenz (artikelgenau) oder Sammelberechnung (pauschal pro Zeitraum)
 
 **Sammeleinkauf (Konvolut):**
@@ -852,7 +1135,7 @@ Wenn eine Sammlung pauschal gekauft wird (z.B. 200 Platten für 500 EUR):
 - Einkaufspreis muss auf die einzelnen Artikel aufgeteilt werden
 - Methoden: Gleichmäßig (500/200 = 2,50/Stück) oder gewichtet nach geschätztem Wert
 - Die Aufteilungsmethode muss dokumentiert und nachvollziehbar sein
-- **Steuerberater-Abstimmung zwingend** — das Finanzamt kann die Aufteilung anzweifeln
+- **[Validierungsbedarf]** Steuerberater-Abstimmung zwingend — das Finanzamt kann die Aufteilung anzweifeln
 
 **Rechnungsformat bei §25a:**
 - KEIN separater USt-Ausweis (Pflicht! Verstoß = Käufer könnte Vorsteuer ziehen)
@@ -869,23 +1152,26 @@ Wenn eine Sammlung pauschal gekauft wird (z.B. 200 Platten für 500 EUR):
 6. Mischrechnung oder separate Rechnungen?
 7. OSS-Schwellenwert und Interaktion mit §25a bei EU-Versand
 
-**Abhängigkeitsregel Steuerschema:**
+**Abhängigkeitsregel Steuerschema — [Technische Ableitung aus den fachlichen Zielannahmen]:**
 ```
 WENN source = 'vod_records' UND Neuware:
     → tax_scheme = 'standard' (Regelbesteuerung, Vorsteuerabzug auf EK)
 
 WENN source = 'frank_collection':
     → tax_scheme = 'margin_scheme_25a' (Privatsammlung, kein USt auf EK)
+    [Fachliche Zielannahme — §25a-Anwendbarkeit muss StB bestätigen]
 
 WENN source = 'commission':
     WENN Kommissionsgeber = Privatperson ODER Kleinunternehmer (keine USt auf Übernahme):
         → tax_scheme = 'margin_scheme_25a'
+        [Fachliche Zielannahme — Kommissionsfiktion + §25a muss StB bestätigen]
     WENN Kommissionsgeber = gewerblich mit USt-Rechnung:
         → tax_scheme = 'standard'
 
 WENN source = 'marketplace':
     → kein tax_scheme bei VOD (Seller versteuert selbst)
     → VOD bucht nur Provision (Dienstleistung, standard)
+    [Validierungsbedarf — steuerliche Behandlung der Marketplace-Provision prüfen]
 ```
 
 Diese Logik ist NICHT ein einzelnes Feld. Sie ist eine Kombination aus `source`, Kommissionsgeber-Typ und Wareneigenschaft. Das System muss diese Ableitung automatisieren, aber der Admin muss sie übersteuern können (mit Audit-Log).
@@ -894,12 +1180,12 @@ Diese Logik ist NICHT ein einzelnes Feld. Sie ist eine Kombination aus `source`,
 
 **VOD als Kommissionär (§383 HGB):**
 - VOD handelt im eigenen Namen, für Rechnung des Kommittenten
-- Zwei umsatzsteuerliche Lieferungen (Kommissionsfiktion, §3 Abs. 3 UStG):
+- **[Validierungsbedarf]** Zwei umsatzsteuerliche Lieferungen (Kommissionsfiktion, §3 Abs. 3 UStG):
   1. Lieferung Kommittent → Kommissionär (= VOD): Innenumsatz
   2. Lieferung Kommissionär (= VOD) → Käufer: Außenumsatz
 
 - **Innenumsatz (Kommittent → VOD):**
-  - Privatperson als Kommittent → keine USt → §25a auf Außenumsatz möglich
+  - Privatperson als Kommittent → keine USt → §25a auf Außenumsatz möglich [Validierungsbedarf]
   - Gewerblicher Kommittent mit USt → Vorsteuerabzug → Regelbesteuerung auf Außenumsatz
 
 - **Außenumsatz (VOD → Käufer):**
@@ -920,13 +1206,13 @@ Diese Logik ist NICHT ein einzelnes Feld. Sie ist eine Kombination aus `source`,
 ### 6.3 Marketplace — Steuerliche Behandlung
 
 **VOD als Vermittler:**
-- VOD ist NICHT Verkäufer → kein §25a, keine Warenerlöse
+- **[Fachliche Zielannahme]** VOD ist NICHT Verkäufer → kein §25a, keine Warenerlöse. Diese Einstufung als reiner Vermittler setzt voraus, dass VOD die in §25e UStG genannten Pflichten erfüllt.
 - VOD versteuert nur seine eigenen Einnahmen:
   - Provisionseinnahmen (Dienstleistung, 19% USt)
   - Membership-Fees (Dienstleistung, 19% USt)
 - Seller ist für seine eigene USt verantwortlich
 
-**DAC7-Meldepflicht:**
+**[Validierungsbedarf] DAC7-Meldepflicht:**
 - Jährlich an BZSt (bis 31. Januar)
 - Pro Seller: TIN, IBAN, Gesamtumsatz, einbehaltene Gebühren
 - Ausnahme: < 30 Verkäufe UND < 2.000 EUR im Meldezeitraum
@@ -947,7 +1233,7 @@ Diese Logik ist NICHT ein einzelnes Feld. Sie ist eine Kombination aus `source`,
 - Steuersatz des Bestimmungslandes anwenden (z.B. 21% NL, 21% BE, 20% FR, 25% SE)
 - Keine separate Registrierung in jedem EU-Land nötig
 
-**Interaktion §25a und OSS:**
+**[Validierungsbedarf] Interaktion §25a und OSS:**
 - §25a gilt auch bei EU-Lieferungen — die Marge wird mit dem Steuersatz des Bestimmungslandes besteuert
 - Beispiel: §25a-Artikel nach Niederlande, Marge 40 EUR → USt = 21/121 * 40 = 6,94 EUR (statt 19/119 * 40 = 6,39 EUR bei DE)
 - sevDesk/easybill können OSS-Steuersätze verwalten
@@ -1236,7 +1522,36 @@ Das bedeutet: **Deployment ≠ Aktivierung.** Ein Feature kann wochenlang deploy
 | **Marketplace (Seller)** | Nein — operativ später | Strukturell ab Tag 1, aber kein Registrierungs-Flow | Kein Risiko bei Tabellen-Deployment, hoch bei operativer Aktivierung |
 | **DATEV-Export** | Ja — sobald Rechnungen existieren | sevDesk/easybill | Gering: Read-only Export |
 
-### 9.3 Aktivierungsentscheidung: Wer entscheidet, nach welchen Kriterien?
+### 9.3 Aktivierungs-Matrix
+
+Die folgende Matrix zeigt für jede ERP-Komponente den vollständigen Aktivierungspfad — von der technischen Bereitstellung bis zur fachlichen Freigabe.
+
+| Komponente | Technisch deploybar? | Feature-Flag-fähig? | Dark Launch möglich? | Interner Pilot möglich? | Alt/Neu parallel möglich? | Datenmigration vor Aktivierung? | Rollback möglich? | Klarer Cutover nötig? | Fachliche Freigabe erforderlich? | Operative Verantwortung |
+|------------|---------------------|--------------------|--------------------|------------------------|--------------------------|--------------------------------|-------------------|----------------------|----------------------------------|------------------------|
+| **Sendcloud Integration** | Ja | Ja (ERP_SENDCLOUD) | Ja | Ja (Frank testet 5 Labels) | Ja (manuell bleibt Fallback) | Nein | Ja (Flag → false, 30s) | Nein | Robin + Frank | Frank (Versand) |
+| **sevDesk/easybill Rechnungen** | Ja | Ja (ERP_INVOICING) | Ja | Ja (Test-Rechnungen) | Ja (alte Orders ohne, neue mit Rechnung) | Nein | Ja (Flag → false, 30s) | Nein (Stichtag, kein Cutover) | Robin + Frank + StB | Robin (Konfiguration) |
+| **Bestandsführung (inventory_item)** | Ja | Ja (ERP_INVENTORY) | Ja (Tabellen existieren, werden nicht gelesen) | Ja (Admin kann Bestand einsehen) | Ja (legacy_available bleibt bis Cutover) | Ja (Bestandsmigration) | Ja (Flag → false + DELETE Migration) | Ja (Umstellung legacy_available → inventory_item) | Robin | Robin (Migration) |
+| **Bestandsmigration (Release → inventory_item)** | Ja (idempotentes Script) | Nein (einmaliger Vorgang) | — | Ja (Staging zuerst, dann Production) | — | Ist die Datenmigration | Ja (DELETE + Re-Run) | Nein | Robin | Robin |
+| **§25a Differenzbesteuerung** | Ja | Ja (ERP_TAX_25A) | Ja | Ja (Test-Records auf Staging) | Ja (alte Verkäufe ohne, neue mit Record) | Nein | Ja (Flag → false, 30s) | Nein (Stichtag) | Robin + StB (Pflicht) | Robin + StB |
+| **Kommissionsabrechnung** | Ja | Ja (ERP_COMMISSION) | Ja | Ja (Test-Settlement mit Fake-Daten) | Nein (Kommission ist neu, kein Alt-System) | Nein (neues Modul) | Ja (Flag → false, offene Drafts bleiben) | Nein | Robin + Frank + StB | Frank (Abrechnungen) |
+| **DATEV-Export** | Ja | Ja (Teil von ERP_INVOICING) | Ja | Ja (Export auf Staging) | — (Read-only, kein Parallelbetrieb-Problem) | Nein | Ja (einfach nicht exportieren) | Nein | Robin + StB (Format validieren) | Robin (Export) |
+| **Marketplace (Seller-Tabellen)** | Ja | Ja (ERP_MARKETPLACE) | Ja (Tabellen existieren, kein UI) | Nein (erst bei vollständigem Flow) | — (neues Modul) | Nein | Ja (Tabellen bleiben, Flag → false) | Nein | — (Tabellen sind passiv) | — |
+| **Marketplace (Seller-Onboarding)** | Nein (eigener Meilenstein) | Ja (ERP_MARKETPLACE) | Ja | Ja (3-5 eingeladene Test-Seller) | — | Nein | Ja (Onboarding-Flow deaktivieren) | Nein | Robin + Frank + Anwalt | Robin |
+| **Marketplace (Stripe Connect Payouts)** | Nein (Stripe Connect Application nötig) | Ja (ERP_MARKETPLACE) | Nein (echtes Geld) | Ja (Stripe Test-Mode) | — | Nein | Ja (Flag → false, Payouts stoppen) | Nein (Payouts einzeln steuerbar) | Robin + Frank + Anwalt | Robin + Frank |
+
+**Legende der Aktivierungsstufen:**
+
+Jede Komponente durchläuft diese Stufen:
+
+| Stufe | Beschreibung | Kriterium |
+|-------|-------------|-----------|
+| **1. Technisch deployed** | Code auf Production, Tabellen existieren, Flag = false | Code-Review bestanden, Tests grün |
+| **2. Dark/Inaktiv** | Feature deployed, aber keine Auswirkung auf laufende Prozesse | Flag = false, Tabellen leer oder nur Testdaten |
+| **3. Intern nutzbar** | Admin kann Feature sehen und testen, Käufer nicht betroffen | Flag = true auf Staging, false auf Production |
+| **4. Selektiv live** | Feature für ausgewählte Vorgänge aktiv (z.B. nur neue Orders) | Flag = true auf Production, Stichtag-Logik |
+| **5. Vollständig live** | Feature für alle Vorgänge aktiv, Fallback entfernt | Flag entfernt, Code aufgeräumt (nach 3 Monaten) |
+
+### 9.4 Aktivierungsentscheidung: Wer entscheidet, nach welchen Kriterien?
 
 | Komponente | Entscheider | Kriterien für Aktivierung |
 |------------|-------------|---------------------------|
@@ -1248,7 +1563,7 @@ Das bedeutet: **Deployment ≠ Aktivierung.** Ein Feature kann wochenlang deploy
 | DATEV-Export | Robin + StB | StB hat Export-Format validiert, 1 Monat Testdaten exportiert |
 | Marketplace | Robin + Frank + Anwalt | Stripe Connect genehmigt, DAC7-Reporting implementiert, §22f/§25e validiert |
 
-### 9.4 Rollback-Strategie pro Komponente
+### 9.5 Rollback-Strategie pro Komponente
 
 | Komponente | Rollback-Methode | Datenverlust? | Zeitaufwand |
 |------------|-----------------|---------------|-------------|
@@ -1259,7 +1574,7 @@ Das bedeutet: **Deployment ≠ Aktivierung.** Ein Feature kann wochenlang deploy
 | **Kommission** | Feature Flag → false. Offene Settlements bleiben in Status 'draft'. Keine neuen Settlements möglich | Nein | 30 Sekunden |
 | **DATEV-Export** | Feature Flag → false. Bereits exportierte Dateien bleiben | Nein | 30 Sekunden |
 
-### 9.5 Mischbetrieb-Management: Alt und Neu koexistieren
+### 9.6 Mischbetrieb-Management: Alt und Neu koexistieren
 
 In der Übergangsphase laufen alte und neue Logik parallel. Das ist unvermeidlich und muss sauber gehandhabt werden.
 
@@ -1279,7 +1594,7 @@ Der Admin sieht in der Übergangsphase möglicherweise:
 
 Das ist akzeptabel, solange die Darstellung klar macht, welcher Status gilt. Die Orders-Liste erhält ein diskretes Badge ("Rechnung: -" vs. "Rechnung: VOD-INV-..."), das den Unterschied sichtbar macht, ohne zu verwirren.
 
-### 9.6 Konkretes Beispiel: Sendcloud von Entwicklung bis Aktivierung
+### 9.7 Konkretes Beispiel: Sendcloud von Entwicklung bis Aktivierung
 
 Dieses Beispiel illustriert den Lebenszyklus einer Komponente von der ersten Code-Zeile bis zur produktiven Nutzung:
 
@@ -1315,7 +1630,7 @@ Dieses Beispiel illustriert den Lebenszyklus einer Komponente von der ersten Cod
 - DHL-GK-Nr ist ungültig → Sendcloud lehnt Label ab → Admin kontaktiert DHL
 - Generelles Problem → Robin schaltet `ERP_SENDCLOUD = false` → sofort zurück zum manuellen Workflow
 
-### 9.7 Empfohlene Aktivierungsreihenfolge
+### 9.8 Empfohlene Aktivierungsreihenfolge
 
 ```
 Woche 1-2:  DB-Tabellen (alle) → deployed, alle Flags = false
@@ -2280,11 +2595,45 @@ Es gibt bewusst Überschneidungen — aber jede Ansicht hat einen anderen Fokus.
 
 ## 13. Klare Empfehlung
 
-### Architektur
+### Bevorzugte Richtung
 
 **Option A: Composable Stack.** Die Kombination aus Auktionslogik, §25a, Kommission und späterem Marketplace ist zu spezifisch für Standard-ERP-Software.
 
 **Begründung in einem Satz:** Kein Produkt am Markt kann Auktions-Blöcke + §25a-Differenzbesteuerung + Kommissionsabrechnung + Marketplace-Split-Payment in einer integrierten Lösung abbilden.
+
+### Voraussetzungen, die vor Implementierungsbeginn erfüllt sein müssen
+
+| # | Voraussetzung | Verantwortlich | Status |
+|---|--------------|----------------|--------|
+| 1 | Steuerberater hat §25a-Grundkonfiguration validiert (Einzeldifferenz/Sammelberechnung, EK=0-Akzeptanz, Kontenplan) | StB + Robin | Offen |
+| 2 | Entscheidung sevDesk oder easybill getroffen und Test-Account eingerichtet | Robin + Frank | Offen |
+| 3 | DHL-Geschäftskundennummer beantragt (2-4 Wochen Vorlauf) | Frank | Offen |
+| 4 | Staging-Umgebung (separate Supabase-DB) aufgesetzt | Robin | Offen |
+| 5 | `develop`-Branch erstellt, Branching-Konvention dokumentiert | Robin | Offen |
+
+### Offene Validierungen
+
+| # | Validierung | Blockiert |
+|---|------------|-----------|
+| V1 | §25a: Ist Franks Sammlung komplett unter §25a führbar? | Phase 2 + 4 |
+| V2 | §25a: Einzeldifferenz oder Sammelberechnung? | Phase 4 |
+| V3 | Kommission: §25a auf Außenumsatz bei privaten Kommissionsgebern? | Phase 5 |
+| V4 | Kontenplan + BU-Schlüssel durch StB bestätigt? | Phase 2 (DATEV) |
+| V5 | Rechnungsformulierung bei §25a durch StB genehmigt? | Phase 2 |
+| V6 | Marketplace: §22f/§25e-Compliance vollständig geprüft? | Marketplace-Meilenstein |
+| V7 | Marketplace: Stripe Connect Platform Application genehmigt? | Marketplace-Meilenstein |
+
+### Genehmigungsbedingungen vor Implementierungsstart
+
+Die Empfehlung für Option A ist stark begründet, aber die folgenden Punkte sind nicht abschließend geklärt und dürfen nicht als entschieden behandelt werden:
+
+1. **Steuerliche Konfiguration:** Alle Annahmen zu §25a (EK=0, Sammelberechnung, Kommissionsfiktion) sind fachliche Zielannahmen, keine validierten Fakten. Die Implementierung der Steuerlogik darf erst beginnen, wenn der Steuerberater die Konfiguration schriftlich bestätigt hat.
+
+2. **Rechnungssoftware:** Die Empfehlung für easybill basiert auf API-Vergleich und Preisstruktur. Die endgültige Entscheidung fällt nach einem Praxis-Test mit 5 echten Rechnungen (§25a + Regelbesteuerung + Mischfall).
+
+3. **Marketplace:** Die strukturelle Vorbereitung (Tabellen, seller_id) ist risikoarm und wird empfohlen. Die operative Aktivierung des Marketplace erfordert eine separate Freigabe nach vollständiger Klärung der regulatorischen Pflichten (§22f, §25e, DAC7, Haftungsisolierung).
+
+4. **Kommissionsvertrag:** Ohne Vertragsvorlage (Rechtsanwalt) kann Phase 5 (Kommissionsabrechnung) nicht beginnen.
 
 ### Externe Dienste
 
@@ -2526,86 +2875,131 @@ Buchungsstapel April 2026:
 
 ---
 
-## Teil B — Wichtigste inhaltliche Verbesserungen (vs. v3.0)
+## Teil B — Durchgeführte Finalisierungen (v4.0 → v4.1)
 
-- **Neue Sektion 2 "Ausgangslage und Zielbild":** War in v3.0 im Executive Summary eingebettet. Jetzt eigenständig mit Ist-Zustand, Lückenanalyse, Soll-Zustand, Timeline und Stakeholder-Übersicht
-- **Neue Sektion 5 "Fachlogik":** War in v3.0 über §3 und §4 verteilt. Jetzt zusammenhängend: Bestandslebenszyklus (mit vollständigem Statusdiagramm), Verkaufslogik (Vergleichstabelle Auktion/Direktkauf/Marketplace), Settlement-Lebenszyklus, Buchungslogik (alle 4 Modelle + Storno), DATEV-Export
-- **Neue Sektion 7 "Zielarchitektur und Systemprinzipien":** In v3.0 nicht vorhanden. Jetzt: Gesamtarchitektur-Diagramm, Integrationsprinzipien, Datenhoheits-Matrix, Zuständigkeitstrennung, Codebasis-Einordnung
-- **Sektion 9 "Modulare Komponentenübernahme":** War in v3.0 nur eine Matrix-Tabelle in §6.5. Jetzt vollständige Sektion: Philosophie, Unabhängigkeitsassessment, Aktivierungskriterien pro Komponente, Rollback-Strategie pro Komponente, Mischbetrieb-Regeln, konkretes Sendcloud-Beispiel von Entwicklung bis Produktion
-- **Sektion 12 "Risiken" massiv erweitert:** v3.0 hatte ~80 Zeilen, v4.0 hat ~400+ Zeilen. Neue Risiken: Teilretoure (detailliert pro System), beschädigte Ware (3 Szenarien), Storno nach Rechnungsstellung, Chargeback (inkl. Marketplace-Sonderfall), Doppelverkauf, Feature Flag vergessen, DB-Migration Rollback, Sendcloud/sevDesk Downtime bei Peak, Inkonsistenz inventory_item vs. transaction, Webhook-Reihenfolge, falsche §25a-Klassifikation nach DATEV, Kommissionsgeber wird umsatzsteuerpflichtig, gemischte Rechnung, OSS-Schwelle, Parallelbetrieb-Risiken (alte/neue Versandlogik, zwei Order-Ansichten, legacy_available vs. inventory_item)
-- **Sprache:** Durchgehend deutsche Umlaute (ä, ö, ü, ß) statt ae/oe/ue
-- **14 Sektionen statt 12:** Klarere Gliederung, weniger Themenüberlappung
-- **Teile B-E als Appendix:** Strukturierte Zusammenfassungen für schnellen Zugriff
+### Strukturelle Korrekturen
+
+- Kapitel-Nummerierung 1-14 verifiziert und konsistent
+- Inhaltsverzeichnis um Teil B, C, D als Appendix-Einträge ergänzt
+- Heading-Hierarchie durchgängig geprüft: ## für Kapitel, ### für Unterkapitel, #### für Detail-Abschnitte
+- Teil B-E aus v4.0 durch fokussierte Teil B, C, D ersetzt (Finalisierungsprotokolle statt Vergleich mit v3.0)
+- Deutsche Umlaute durchgängig korrekt (ä, ö, ü, ß) — keine ae/oe/ue-Substitutionen vorhanden
+
+### Steuerliche und rechtliche Aussagen präzisiert
+
+- "Einkaufspreis = 0 bei Franks Sammlung" → markiert als **[Fachliche Zielannahme — steuerliche Validierung durch Steuerberater erforderlich]** (Abschnitt 3, Modell 0)
+- "Finanzamt akzeptiert in solchen Fällen häufig..." → umformuliert als konditional: "Sofern der Steuerberater bestätigt, dass..." (Abschnitt 3, Modell 0)
+- Alle §25a-Anwendbarkeitsaussagen mit **[Validierungsbedarf]**-Marker versehen (Abschnitte 3, 6.1, 6.2)
+- Marketplace-Steuerbehandlung (§22f, §25e, DAC7) mit **[Validierungsbedarf]** markiert (Abschnitte 3, 6.3)
+- Kontenplan und Buchungssätze als **[Validierungsbedarf]** markiert (Abschnitt 5.4)
+- Steuerschema-Ableitungsregeln als **[Technische Ableitung]** vs. **[Fachliche Zielannahme]** unterschieden (Abschnitt 6.1)
+- Durchgängige Unterscheidung zwischen: fachlicher Zielannahme, technischer Ableitung, steuerlichem/rechtlichem Validierungsbedarf
+
+### Operative Ergänzungen
+
+- **Aktivierungs-Matrix** (Abschnitt 9.3): 10-Spalten-Tabelle für alle ERP-Komponenten mit vollständigem Aktivierungspfad (technisch deploybar → dark → intern → selektiv live → voll live)
+- **Operatives Betriebsmodell Marketplace** (Abschnitt 3.5): Neuer Unterabschnitt mit 10 Teilkapiteln: Seller-Onboarding, KYC/§22f-Stammdaten, Listing Governance, Versand-SLAs, Kundensupport-Verantwortung, Retoure-Prozess, Disputes/Claims, Payout-Voraussetzungen, Seller-Suspendierung, Rollenabgrenzung
+- **Finanzielle Ableitung pro Orderline** (Abschnitt 5.6): Neue Untersektion mit vollständiger Objektkette (Order → Transaction → Invoice → Tax Decision → Settlement → DATEV), konkretem §25a-Kommissionsbeispiel, und Darstellung wie Vollretoure/Teilretoure/Storno/Chargeback die Kette verändern
+
+### Empfehlung geschärft
+
+- Abschnitt 13 überarbeitet: Klare Voraussetzungen, offene Validierungen und Genehmigungsbedingungen vor Implementierungsstart explizit aufgelistet
+- Empfehlung bleibt stark (Option A), aber mit explizitem Vorbehalt für ungeklärte steuerliche und fachliche Punkte
+- Keine Implikation, dass alle offenen Punkte geklärt sind
 
 ---
 
-## Teil C — Wichtigste offene Entscheidungen / Validierungsbedarfe
+## Teil C — Verbleibende offene Punkte vor finaler Freigabe
 
 ### Fachlich
-- Marketplace Fee-Modell (Provision vs. Membership)
-- Kommissionsprovision Standard-Satz
-- Versandkosten bei Teilretoure
-- Abrechnungszyklus Kommission (monatlich vs. nach Block-Ende)
-- Lagerort-Granularität (Freitext vs. vordefiniert)
-- Marketplace-Zeitplan (wann operativ aktivieren)
+
+- Marketplace Fee-Modell (Provision vs. Membership) — Entscheidung offen
+- Kommissionsprovision Standard-Satz (20%/25%/30%) — Entscheidung offen
+- Versandkosten bei Teilretoure (anteilig oder nicht) — AGB-Entscheidung
+- Abrechnungszyklus Kommission (monatlich vs. nach Block-Ende) — Entscheidung offen
+- Lagerort-Granularität (Freitext vs. vordefiniert) — Entscheidung offen
+- Marketplace-Zeitplan (wann operativ aktivieren) — Entscheidung offen
+- Seller-AGB und Marketplace-Nutzungsbedingungen — Rechtsanwalt
 
 ### Steuerlich
-- §25a: Einzeldifferenz oder Sammelberechnung
-- Franks Sammlung komplett unter §25a führbar?
-- Konvolut-Einkauf Aufteilungsmethode
-- Mischrechnung oder separate Rechnungen
-- Kontenplan (SKR03/04) + BU-Schlüssel validieren
-- OSS-Registrierung ab welchem Schwellenwert
-- §25a + EU-Versand: Bestimmungsland-Steuersatz auf Marge
+
+- §25a: Einzeldifferenz oder Sammelberechnung — Steuerberater
+- Franks Sammlung komplett unter §25a führbar? — Steuerberater
+- EK = 0 bei Privatsammlung akzeptiert? — Steuerberater
+- Konvolut-Einkauf Aufteilungsmethode — Steuerberater
+- Mischrechnung oder separate Rechnungen — Steuerberater
+- Kontenplan (SKR03/04) + BU-Schlüssel validieren — Steuerberater
+- Buchungssätze (insb. §25a) validieren — Steuerberater
+- OSS-Registrierung ab welchem Schwellenwert empfohlen — Steuerberater
+- §25a + EU-Versand: Bestimmungsland-Steuersatz auf Marge — Steuerberater
+- Kommissionsfiktion (§3 Abs. 3 UStG) bei Privatperson-Kommittent → §25a — Steuerberater
+- Marketplace: Steuerliche Einstufung als reiner Vermittler — Steuerberater + Anwalt
+- Marketplace: §22f/§25e vollständig — Anwalt
 
 ### Operativ
-- sevDesk oder easybill? (Account einrichten, §25a testen)
-- Sendcloud Carrier-Auswahl (nur DHL oder multi-Carrier)
-- DHL Geschäftskundennummer beantragen (2-4 Wochen Vorlauf)
-- Kommissionsvertrag-Vorlage erstellen lassen
-- GmbH-Gründung für Marketplace (Haftungsisolierung §25e)
+
+- sevDesk oder easybill? — Entscheidung nach Praxis-Test
+- Sendcloud Carrier-Auswahl (nur DHL oder multi-Carrier) — Entscheidung
+- DHL Geschäftskundennummer beantragen (2-4 Wochen Vorlauf) — In Arbeit?
+- Kommissionsvertrag-Vorlage erstellen lassen — Rechtsanwalt
+- GmbH-Gründung für Marketplace (Haftungsisolierung §25e) — Anwalt + Frank
+- Seller-Vertrag / Marketplace-Nutzungsbedingungen — Anwalt
 
 ### Technisch
-- Staging-Umgebung: Eigene Supabase-DB oder separates Schema
-- Stripe Connect Platform Application einreichen
-- Feature-Flag-Abhängigkeiten dokumentieren (welcher Flag setzt welchen voraus)
+
+- Staging-Umgebung: Eigene Supabase-DB aufsetzen — Robin
+- Stripe Connect Platform Application einreichen — Robin
+- Feature-Flag-Abhängigkeiten dokumentieren (welcher Flag setzt welchen voraus) — Robin
+- Legacy-Sync-Erweiterung für bidirektionale Bestandssynchronisation — Robin
 
 ---
 
-## Teil D — Wichtigste Architekturentscheidungen für Parallelbetrieb
+## Teil D — Freigabebedingungen vor Implementierungsstart
 
-1. **Feature Flags in site_config speichern** — nicht in Code-Konstanten. Admin kann Flags im Config Panel umschalten, ohne Redeployment. Priorität: Phase 1.
+### Vor Architektur-Freigabe (dieses Dokument als Entscheidungsgrundlage akzeptieren)
 
-2. **ERP-Code in eigenem Modulverzeichnis** (`modules/erp/`, `api/admin/erp/`) — keine Vermischung mit bestehendem Auction Module. Konsequenz: Merge-Konflikte minimiert, unabhängige Feature-Branches möglich.
+| # | Bedingung | Entscheider |
+|---|----------|-------------|
+| 1 | Robin und Frank bestätigen: Composable Stack (Option A) ist die richtige Richtung | Robin + Frank |
+| 2 | Robin und Frank bestätigen: Marketplace wird strukturell mitgedacht, aber nicht operativ aktiviert | Robin + Frank |
+| 3 | Steuerberater-Termin ist terminiert (Agenda = Abschnitt 14.3) | Robin |
 
-3. **Payment-Webhook-Handler als Dispatcher** — bestehender Handler ruft neue ERP-Handler auf (hinter Feature Flags). Kein Monolith-Handler der alles macht. Konsequenz: Neue Handler können einzeln aktiviert werden.
+### Vor Implementierungsstart (Code schreiben)
 
-4. **DB-Migrationen sind additive-only** — nur CREATE TABLE und ADD COLUMN auf Live. Keine destruktiven Operationen. Datenmigration (Release → inventory_item) ist separates Script.
+| # | Bedingung | Entscheider | Blockiert Phase |
+|---|----------|-------------|-----------------|
+| 1 | Steuerberater hat §25a-Grundkonfiguration bestätigt (Einzeldiff./Sammelber., EK=0, Kontenplan) | StB | Phase 2, 4 |
+| 2 | sevDesk oder easybill gewählt, Test-Account eingerichtet, 5 Test-Rechnungen erstellt | Robin + Frank | Phase 2 |
+| 3 | DHL-Geschäftskundennummer beantragt oder vorhanden | Frank | Phase 3 |
+| 4 | Staging-Umgebung mit separater DB läuft | Robin | Alle Phasen |
+| 5 | `develop`-Branch erstellt | Robin | Alle Phasen |
 
-5. **Branching: develop als Integrationsbranch** — alle ERP-Features werden auf develop gemergt, nicht direkt auf main. Hotfixes gehen direkt auf main UND develop. Konsequenz: main ist immer deploybar.
+### Vor Go-Live einzelner Module
 
-6. **Staging-Umgebung mit eigener DB** — kein shared Schema mit Production. Testdaten (Fake-Kommissionsgeber, Test-Rechnungen) können nicht in Production gelangen.
+| # | Bedingung | Modul | Entscheider |
+|---|----------|-------|-------------|
+| 1 | 3 Test-Labels erfolgreich erstellt und gedruckt (Sendcloud Production) | Sendcloud | Robin + Frank |
+| 2 | StB hat Rechnungsformulierung (§25a + Standard) schriftlich genehmigt | Rechnungen | StB |
+| 3 | 5 Testrechnungen in sevDesk/easybill korrekt (§25a + Standard + Misch) | Rechnungen | Robin |
+| 4 | Migration auf Staging: Anzahl korrekt, Spot-Check 20 Artikel | Bestandsmigration | Robin |
+| 5 | StB hat §25a-Berechnungslogik anhand von 10 Test-Records validiert | §25a-Tracking | StB |
+| 6 | StB hat DATEV-Export-Format (1 Monat Testdaten) geprüft und freigegeben | DATEV | StB |
+| 7 | Kommissionsvertrag-Vorlage liegt vor, erster Kommissionsgeber hat unterschrieben | Kommission | Frank + Anwalt |
+| 8 | End-to-End-Test Kommission auf Staging (Eingang → Verkauf → Settlement → Auszahlung) | Kommission | Robin + Frank |
 
-7. **Manueller Fallback bleibt immer verfügbar** — auch wenn Sendcloud aktiv ist, kann der Admin manuell versenden. Auch wenn Rechnungserstellung aktiv ist, kann der Admin eine Order ohne Rechnung abschließen. Kein Feature zwingt den Admin in einen Workflow ohne Ausweg.
+### Vor Marketplace-Aktivierung (separater Meilenstein)
+
+| # | Bedingung | Entscheider |
+|---|----------|-------------|
+| 1 | Stripe Connect Platform Application genehmigt | Stripe |
+| 2 | §22f/§25e-Compliance vollständig geprüft und dokumentiert | Anwalt |
+| 3 | DAC7-Report-Funktion implementiert und getestet | Robin |
+| 4 | Seller-Vertrag / Marketplace-Nutzungsbedingungen vom Anwalt erstellt | Anwalt |
+| 5 | F22-Prüfungsprozess implementiert (Upload, Gültigkeitsprüfung, automatische Suspendierung) | Robin |
+| 6 | Entscheidung: Eigene GmbH für Marketplace oder bestehende Struktur | Frank + Anwalt |
+| 7 | 3-5 eingeladene Test-Seller haben Onboarding durchlaufen | Robin + Frank |
+| 8 | Dispute-Prozess dokumentiert und vom Anwalt geprüft | Anwalt |
 
 ---
 
-## Teil E — Wichtigste Architekturentscheidungen für modulare Komponentenübernahme
-
-1. **Deployment ≠ Aktivierung.** Jede Komponente wird deployed, sobald code-complete. Feature Flag = false. Aktivierung ist ein bewusster, separater Schritt nach Prüfung auf Staging.
-
-2. **Pro Prozess ein Weg, nie hybrid.** Sendcloud ODER manuell. sevDesk-Rechnung ODER keine Rechnung. Nie beides gleichzeitig für den gleichen Geschäftsvorfall. Der manuelle Fallback bleibt als Notlösung, aber für einen konkreten Vorfall wird genau ein Weg gewählt.
-
-3. **Unabhängige Komponenten zuerst.** Sendcloud und Rechnungen haben keine Abhängigkeiten untereinander und keine zum Bestandsmodul. Sie können als Erste aktiviert werden.
-
-4. **StB-abhängige Komponenten nicht vor Freigabe.** §25a-Tracking und Kommissionsabrechnung werden erst aktiviert, wenn der Steuerberater die Konfiguration validiert hat. Kein "schnell mal live schalten".
-
-5. **Marketplace: Tabellen sofort, Operatives nie ohne vollständige Vorbereitung.** Die Tabellen `seller` und `seller_listing` existieren ab Tag 1. Aber der Marketplace-Flow (Seller-Onboarding, Stripe Connect, Payout, DAC7) wird erst aktiviert, wenn alle regulatorischen und technischen Voraussetzungen erfüllt sind.
-
-6. **Rollback ist ein Feature Flag-Flip.** Jede Komponente kann durch Umschalten des Feature Flags sofort deaktiviert werden. Bereits erstellte Daten (Rechnungen, Labels, Movements) bleiben bestehen und sind valide. Der Rückweg kostet 30 Sekunden, nicht 30 Stunden.
-
-7. **Monitoring der Aktivierungsreihenfolge.** Das Admin Config Panel zeigt nicht nur den Status jedes Flags, sondern warnt bei logischen Inkonsistenzen (z.B. §25a aktiv, aber Bestandsmodul nicht → Margen können nicht berechnet werden).
-
----
-
-*Dieses Dokument ist eine Entscheidungsvorlage. Es ersetzt keine steuerliche oder rechtliche Beratung. Alle steuerlichen Aussagen müssen vom Steuerberater validiert werden.*
+*Dieses Dokument ist eine Entscheidungsvorlage. Es ersetzt keine steuerliche oder rechtliche Beratung. Alle steuerlichen Aussagen sind als fachliche Zielannahmen gekennzeichnet und müssen vom Steuerberater validiert werden. Alle regulatorischen Aussagen zum Marketplace müssen von einem Rechtsanwalt geprüft werden.*
