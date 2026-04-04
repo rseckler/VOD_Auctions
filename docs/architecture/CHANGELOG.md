@@ -4,6 +4,21 @@ Vollständiger Entwicklungs-Changelog. Neue Einträge werden direkt hier ergänz
 
 ---
 
+## 2026-04-04 — Catalog Pagination Refactor: URL-basiert via Next.js Router
+
+### Architektur-Wechsel (Best Practice)
+- **Vorher:** Manueller Client-State + `pushState/replaceState` + `popstate` Handler
+- **Nachher:** `useSearchParams()` + `router.push/replace()` aus `next/navigation`
+- Next.js handhabt History, Cache, Re-Render und Back-Button automatisch
+- Back-Button funktioniert jetzt korrekt auf Desktop + Mobile (Safari + Chrome)
+- Jede Seite ist server-rendered (SEO), URL ist teilbar
+- Alle Features erhalten: Filter Chips, Genre/Decade, Sort, Debounced Search, CatalogBackLink
+
+### Tracklist Regex Fix
+- `POSITION_RE`: `[a-z]?` Suffix → erkennt A3a, A3b etc.
+
+---
+
 ## 2026-04-04 — Final Remediation: Proxy Validation, Design-System Compliance, Test Coverage
 
 ### Proxy Bid Validation (ItemBidSection.tsx)

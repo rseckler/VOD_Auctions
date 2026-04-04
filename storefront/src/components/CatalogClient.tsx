@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef, useMemo } from "react"
+import { useState, useCallback, useRef, useMemo } from "react"
+import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { motion, AnimatePresence } from "framer-motion"
@@ -8,7 +9,6 @@ import { Search, Disc3, ChevronLeft, ChevronRight, SlidersHorizontal, MoreHorizo
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { medusaFetch } from "@/lib/api"
 import { staggerContainer, staggerItem } from "@/lib/motion"
 import { rudderTrack } from "@/lib/rudderstack"
 
@@ -38,36 +38,10 @@ type CatalogRelease = {
   auction_status?: string | null
 }
 
-type CatalogResponse = {
+export type CatalogClientProps = {
   releases: CatalogRelease[]
   total: number
-  page: number
-  limit: number
   pages: number
-}
-
-export type CatalogInitialParams = {
-  page: number
-  search: string
-  category: string
-  format: string
-  sort: string
-  limit: number
-  for_sale: string
-  country: string
-  label: string
-  year_from: string
-  year_to: string
-  condition: string
-  genre: string
-  decade: string
-}
-
-export type CatalogClientProps = {
-  initialReleases: CatalogRelease[]
-  initialTotal: number
-  initialPages: number
-  initialParams: CatalogInitialParams
 }
 
 const FORMAT_COLORS: Record<string, string> = {
@@ -98,168 +72,64 @@ const SORT_OPTIONS = [
   { value: "year:asc", label: "Year: Oldest" },
 ]
 
-export default function CatalogClient({ initialReleases, initialTotal, initialPages, initialParams }: CatalogClientProps) {
-  const isInitialMount = useRef(true)
-  // Track whether we should skip the first client-side fetch (server already provided data)
-  const skipInitialFetch = useRef(initialReleases.length > 0)
+export default function CatalogClient({ releases, total, pages }: CatalogClientProps) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
 
-  const [releases, setReleases] = useState<CatalogRelease[]>(initialReleases)
-  const [total, setTotal] = useState(initialTotal)
-  const [pages, setPages] = useState(initialPages)
-  const [page, setPage] = useState(initialParams.page)
+  // Read all filter state from URL searchParams (source of truth)
+  const page = Number(searchParams.get("page")) || 1
+  const search = searchParams.get("search") || ""
+  const category = searchParams.get("category") || ""
+  const format = searchParams.get("format") || ""
+  const country = searchParams.get("country") || ""
+  const label = searchParams.get("label") || ""
+  const yearFrom = searchParams.get("year_from") || ""
+  const genre = searchParams.get("genre") || ""
+  const decade = searchParams.get("decade") || ""
+  const sort = searchParams.get("sort") || "artist:asc"
+  const forSale = searchParams.get("for_sale") === "true"
+  const limit = (() => { const l = Number(searchParams.get("limit")); return [24, 48, 96].includes(l) ? l : 24 })()
 
-  // On mount: if URL page differs from server-provided page (back-navigation), sync up
-  useEffect(() => {
-    const urlPage = Number(new URLSearchParams(window.location.search).get("page")) || 1
-    if (urlPage !== initialParams.page) {
-      setPage(urlPage)
-      skipInitialFetch.current = false // force re-fetch for the correct page
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-  const [search, setSearch] = useState(initialParams.search)
-  const [searchInput, setSearchInput] = useState(initialParams.search)
-  const [category, setCategory] = useState(initialParams.category)
-  const [format, setFormat] = useState(initialParams.format)
-  const [country, setCountry] = useState(initialParams.country)
-  const [label, setLabel] = useState(initialParams.label)
-  const [yearFrom, setYearFrom] = useState(initialParams.year_from)
-  const [genre, setGenre] = useState(initialParams.genre || "")
-  const [decade, setDecade] = useState(initialParams.decade || "")
-  const [sort, setSort] = useState(initialParams.sort || "artist:asc")
-  const [forSale, setForSale] = useState(initialParams.for_sale === "true")
-  const [limit, setLimit] = useState(() => {
-    const l = initialParams.limit
-    return [24, 48, 96].includes(l) ? l : 24
-  })
-  const [showFilters, setShowFilters] = useState(() => !!(initialParams.country || initialParams.label || initialParams.year_from))
-  // If server provided data, start as not-loading
-  const [loading, setLoading] = useState(initialReleases.length === 0)
-  // Track whether the page change was a user-initiated pagination click
-  const userPageNav = useRef(false)
+  // Local UI state (not in URL)
+  const [searchInput, setSearchInput] = useState(search)
+  const [showFilters, setShowFilters] = useState(!!(country || label || yearFrom))
 
-  // Wrapper: call this instead of setPage directly for pagination clicks
-  function goToPage(p: number) {
-    userPageNav.current = true
-    setPage(p)
-  }
+  // URL update helper: push for pagination (creates history entry), replace for filters
+  const updateParams = useCallback((updates: Record<string, string>, push = false) => {
+    const params = new URLSearchParams(searchParams.toString())
+    Object.entries(updates).forEach(([k, v]) => {
+      if (v) params.set(k, v)
+      else params.delete(k)
+    })
+    // Remove default values from URL to keep it clean
+    if (params.get("page") === "1") params.delete("page")
+    if (params.get("sort") === "artist:asc") params.delete("sort")
+    if (params.get("limit") === "24") params.delete("limit")
+    if (params.get("for_sale") === "false") params.delete("for_sale")
 
-  // Sync state to URL
-  useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false
-      return
-    }
-    const params = new URLSearchParams()
-    if (page > 1) params.set("page", String(page))
-    if (search) params.set("search", search)
-    if (category) params.set("category", category)
-    if (format) params.set("format", format)
-    if (country) params.set("country", country)
-    if (label) params.set("label", label)
-    if (yearFrom) params.set("year_from", yearFrom)
-    if (genre) params.set("genre", genre)
-    if (decade) params.set("decade", decade)
-    if (sort && sort !== "artist:asc") params.set("sort", sort)
-    if (forSale) params.set("for_sale", "true")
-    if (limit !== 24) params.set("limit", String(limit))
     const qs = params.toString()
-    const newUrl = qs ? `/catalog?${qs}` : "/catalog"
-    const currentUrl = window.location.pathname + window.location.search
-    if (currentUrl !== newUrl) {
-      // pushState only on user-initiated page navigation (pagination clicks)
-      // replaceState for filter changes (so back doesn't cycle through every filter tweak)
-      if (userPageNav.current) {
-        window.history.pushState(null, "", newUrl)
-      } else {
-        window.history.replaceState(null, "", newUrl)
-      }
+    const url = qs ? `${pathname}?${qs}` : pathname
+    if (push) {
+      router.push(url, { scroll: false })
+    } else {
+      router.replace(url, { scroll: false })
     }
-    userPageNav.current = false
-    // Store catalog URL for breadcrumb back-links on detail pages
-    try { sessionStorage.setItem("catalog_url", newUrl) } catch {}
-  }, [page, search, category, format, country, label, yearFrom, genre, decade, sort, forSale, limit])
+    try { sessionStorage.setItem("catalog_url", url) } catch {}
+  }, [searchParams, pathname, router])
 
-  // Restore state when navigating back (popstate)
-  useEffect(() => {
-    const handlePopState = () => {
-      const sp = new URLSearchParams(window.location.search)
-      setPage(Number(sp.get("page")) || 1)
-      setSearch(sp.get("search") || "")
-      setSearchInput(sp.get("search") || "")
-      setCategory(sp.get("category") || "")
-      setFormat(sp.get("format") || "")
-      setCountry(sp.get("country") || "")
-      setLabel(sp.get("label") || "")
-      setYearFrom(sp.get("year_from") || "")
-      setGenre(sp.get("genre") || "")
-      setDecade(sp.get("decade") || "")
-      setSort(sp.get("sort") || "artist:asc")
-      setForSale(sp.get("for_sale") === "true")
-      const l = Number(sp.get("limit"))
-      setLimit([24, 48, 96].includes(l) ? l : 24)
-      if (sp.get("country") || sp.get("label") || sp.get("year_from")) setShowFilters(true)
-    }
-    window.addEventListener("popstate", handlePopState)
-    return () => window.removeEventListener("popstate", handlePopState)
-  }, [])
+  // Filter change handlers (all use replace — no history entry)
+  const handleCategoryChange = useCallback((value: string) => {
+    updateParams({ category: value, format: "", page: "" })
+  }, [updateParams])
 
-  const fetchReleases = useCallback(async () => {
-    // Skip the very first fetch if server already provided data
-    if (skipInitialFetch.current) {
-      skipInitialFetch.current = false
-      return
-    }
-
-    setLoading(true)
-    const params = new URLSearchParams()
-    params.set("page", String(page))
-    params.set("limit", String(limit))
-    if (search) params.set("search", search)
-    if (category) params.set("category", category)
-    if (format) params.set("format", format)
-    if (country) params.set("country", country)
-    if (label) params.set("label", label)
-    if (yearFrom) params.set("year_from", yearFrom)
-    if (genre) params.set("genre", genre)
-    if (decade) params.set("decade", decade)
-    if (forSale) params.set("for_sale", "true")
-    const [sf, so] = sort.split(":"); params.set("sort", sf === "legacy_price" ? "price" : sf); if (so) params.set("order", so)
-
-    const data = await medusaFetch<CatalogResponse>(
-      `/store/catalog?${params.toString()}`
-    )
-    if (data) {
-      setReleases(data.releases)
-      setTotal(data.total)
-      setPages(data.pages)
-    }
-    setLoading(false)
-  }, [page, search, category, format, country, label, yearFrom, genre, decade, sort, forSale, limit])
-
-  useEffect(() => {
-    fetchReleases()
-  }, [fetchReleases])
-
-  const handleCategoryChange = (value: string) => {
-    setCategory(value)
-    setFormat("")
-    setPage(1)
-  }
-
-  const clearAllFilters = () => {
-    setSearch("")
+  const clearAllFilters = useCallback(() => {
+    updateParams({
+      search: "", category: "", format: "", country: "", label: "",
+      year_from: "", genre: "", decade: "", sort: "", for_sale: "", page: "", limit: "",
+    })
     setSearchInput("")
-    setCategory("")
-    setFormat("")
-    setCountry("")
-    setLabel("")
-    setYearFrom("")
-    setGenre("")
-    setDecade("")
-    setSort("artist:asc")
-    setForSale(false)
-    setPage(1)
-  }
+  }, [updateParams])
 
   // Debounced live search (500ms)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -267,40 +137,25 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
     setSearchInput(value)
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
-      setSearch(value)
-      setPage(1)
+      updateParams({ search: value, page: "" })
       if (value.trim().length >= 2) {
         rudderTrack("Search Performed", { query: value.trim() })
       }
     }, 500)
-  }, [])
-
-  // Cleanup debounce on unmount
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current)
-    }
-  }, [])
+  }, [updateParams])
 
   // Pagination helpers
   const paginationPages = useMemo(() => {
     if (pages <= 1) return []
     const items: (number | "ellipsis")[] = []
-    const range = 2 // show current +/- 2
-
-    // Always show first page
+    const range = 2
     items.push(1)
-
     const start = Math.max(2, page - range)
     const end = Math.min(pages - 1, page + range)
-
     if (start > 2) items.push("ellipsis")
     for (let i = start; i <= end; i++) items.push(i)
     if (end < pages - 1) items.push("ellipsis")
-
-    // Always show last page
     if (pages > 1) items.push(pages)
-
     return items
   }, [page, pages])
 
@@ -331,8 +186,7 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
             <button
               onClick={() => {
                 setSearchInput("")
-                setSearch("")
-                setPage(1)
+                updateParams({ search: "", page: "" })
                 if (debounceRef.current) clearTimeout(debounceRef.current)
               }}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
@@ -348,14 +202,14 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
         <Button
           variant={!forSale ? "default" : "ghost"}
           size="xs"
-          onClick={() => { setForSale(false); setPage(1) }}
+          onClick={() => updateParams({ for_sale: "", page: "" })}
         >
           All Items
         </Button>
         <Button
           variant={forSale ? "default" : "ghost"}
           size="xs"
-          onClick={() => { setForSale(true); setPage(1) }}
+          onClick={() => updateParams({ for_sale: "true", page: "" })}
         >
           For Sale
         </Button>
@@ -387,14 +241,14 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
           <Button
             variant={!forSale ? "default" : "ghost"}
             size="xs"
-            onClick={() => { setForSale(false); setPage(1) }}
+            onClick={() => updateParams({ for_sale: "", page: "" })}
           >
             All Items
           </Button>
           <Button
             variant={forSale ? "default" : "ghost"}
             size="xs"
-            onClick={() => { setForSale(true); setPage(1) }}
+            onClick={() => updateParams({ for_sale: "true", page: "" })}
           >
             For Sale
           </Button>
@@ -407,7 +261,7 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
           <Button
             size="sm"
             variant={format === "" ? "default" : "outline"}
-            onClick={() => { setFormat(""); setPage(1) }}
+            onClick={() => updateParams({ format: "", page: "" })}
             className="text-xs"
           >
             All Formats
@@ -417,7 +271,7 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
               key={f}
               size="sm"
               variant={format === f ? "default" : "outline"}
-              onClick={() => { setFormat(f); setPage(1) }}
+              onClick={() => updateParams({ format: f, page: "" })}
               className="text-xs"
             >
               {f}
@@ -450,7 +304,7 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
         <div className="ml-auto flex items-center gap-3">
           <select
             value={sort}
-            onChange={(e) => { setSort(e.target.value); setPage(1) }}
+            onChange={(e) => updateParams({ sort: e.target.value, page: "" })}
             className="h-8 rounded-md border border-primary/25 bg-input px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           >
             {SORT_OPTIONS.map((opt) => (
@@ -472,7 +326,7 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
             <label className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1 block">Country</label>
             <select
               value={country}
-              onChange={(e) => { setCountry(e.target.value); setPage(1) }}
+              onChange={(e) => updateParams({ country: e.target.value, page: "" })}
               className="h-8 w-full rounded-md border border-primary/25 bg-input px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             >
               <option value="">All Countries</option>
@@ -501,7 +355,7 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
             <label className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1 block">Label</label>
             <Input
               value={label}
-              onChange={(e) => { setLabel(e.target.value); setPage(1) }}
+              onChange={(e) => updateParams({ label: e.target.value, page: "" })}
               placeholder="Search label..."
               className="h-8 text-xs"
             />
@@ -511,7 +365,7 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
             <Input
               type="number"
               value={yearFrom}
-              onChange={(e) => { setYearFrom(e.target.value); setPage(1) }}
+              onChange={(e) => updateParams({ year_from: e.target.value, page: "" })}
               placeholder="e.g. 1985"
               className="h-8 text-xs"
             />
@@ -520,7 +374,7 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
             <label className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1 block">Decade</label>
             <select
               value={decade}
-              onChange={(e) => { setDecade(e.target.value); setPage(1) }}
+              onChange={(e) => updateParams({ decade: e.target.value, page: "" })}
               className="w-full h-8 rounded-md border border-primary/25 bg-input px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             >
               <option value="">All decades</option>
@@ -537,7 +391,7 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
             <label className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1 block">Genre</label>
             <Input
               value={genre}
-              onChange={(e) => { setGenre(e.target.value); setPage(1) }}
+              onChange={(e) => updateParams({ genre: e.target.value, page: "" })}
               placeholder="e.g. Industrial"
               className="h-8 text-xs"
             />
@@ -549,37 +403,37 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
       {hasActiveFilters && (
         <div className="flex flex-wrap gap-1.5 mb-4">
           {category && (
-            <Badge variant="secondary" className="text-xs cursor-pointer hover:bg-destructive/20" onClick={() => { setCategory(""); setFormat(""); setPage(1) }}>
+            <Badge variant="secondary" className="text-xs cursor-pointer hover:bg-destructive/20" onClick={() => updateParams({ category: "", format: "", page: "" })}>
               {category} <X className="h-3 w-3 ml-1" />
             </Badge>
           )}
           {genre && (
-            <Badge variant="secondary" className="text-xs cursor-pointer hover:bg-destructive/20" onClick={() => { setGenre(""); setPage(1) }}>
+            <Badge variant="secondary" className="text-xs cursor-pointer hover:bg-destructive/20" onClick={() => updateParams({ genre: "", page: "" })}>
               Genre: {genre} <X className="h-3 w-3 ml-1" />
             </Badge>
           )}
           {decade && (
-            <Badge variant="secondary" className="text-xs cursor-pointer hover:bg-destructive/20" onClick={() => { setDecade(""); setPage(1) }}>
+            <Badge variant="secondary" className="text-xs cursor-pointer hover:bg-destructive/20" onClick={() => updateParams({ decade: "", page: "" })}>
               {decade}s <X className="h-3 w-3 ml-1" />
             </Badge>
           )}
           {country && (
-            <Badge variant="secondary" className="text-xs cursor-pointer hover:bg-destructive/20" onClick={() => { setCountry(""); setPage(1) }}>
+            <Badge variant="secondary" className="text-xs cursor-pointer hover:bg-destructive/20" onClick={() => updateParams({ country: "", page: "" })}>
               {country} <X className="h-3 w-3 ml-1" />
             </Badge>
           )}
           {label && (
-            <Badge variant="secondary" className="text-xs cursor-pointer hover:bg-destructive/20" onClick={() => { setLabel(""); setPage(1) }}>
+            <Badge variant="secondary" className="text-xs cursor-pointer hover:bg-destructive/20" onClick={() => updateParams({ label: "", page: "" })}>
               Label: {label} <X className="h-3 w-3 ml-1" />
             </Badge>
           )}
           {yearFrom && (
-            <Badge variant="secondary" className="text-xs cursor-pointer hover:bg-destructive/20" onClick={() => { setYearFrom(""); setPage(1) }}>
+            <Badge variant="secondary" className="text-xs cursor-pointer hover:bg-destructive/20" onClick={() => updateParams({ year_from: "", page: "" })}>
               Year: {yearFrom} <X className="h-3 w-3 ml-1" />
             </Badge>
           )}
           {forSale && (
-            <Badge variant="secondary" className="text-xs cursor-pointer hover:bg-destructive/20" onClick={() => { setForSale(false); setPage(1) }}>
+            <Badge variant="secondary" className="text-xs cursor-pointer hover:bg-destructive/20" onClick={() => updateParams({ for_sale: "", page: "" })}>
               For Sale <X className="h-3 w-3 ml-1" />
             </Badge>
           )}
@@ -587,94 +441,82 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
       )}
 
       {/* Results */}
-      {loading ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-          {Array.from({ length: limit }).map((_, i) => (
-            <div key={i} className="animate-pulse">
-              <div className="aspect-square bg-secondary rounded-lg mb-2" />
-              <div className="h-3 bg-secondary rounded w-3/4 mb-1" />
-              <div className="h-4 bg-secondary rounded w-full" />
-            </div>
-          ))}
-        </div>
-      ) : (
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={`${page}-${search}-${category}-${format}-${country}-${label}-${yearFrom}-${sort}-${forSale}`}
-            variants={staggerContainer}
-            initial="hidden"
-            animate="visible"
-            className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4"
-          >
-            {releases.map((release) => (
-              <motion.div key={release.id} variants={staggerItem}>
-                <Link
-                  href={`/catalog/${release.id}`}
-                  className="group block"
-                >
-                  <div className="relative aspect-square overflow-hidden rounded-lg bg-secondary mb-2 border border-border/50 group-hover:border-primary/40 transition-colors">
-                    {release.coverImage ? (
-                      <Image
-                        src={release.coverImage}
-                        alt={release.title}
-                        fill
-                        className="object-cover group-hover:scale-105 transition-transform duration-300"
-                        sizes="(max-width:640px) 50vw, (max-width:768px) 33vw, (max-width:1024px) 25vw, 16vw"
-                      />
-                    ) : (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <Disc3 className="h-12 w-12 text-muted-foreground/30" />
-                      </div>
-                    )}
-                    {release.legacy_condition && (
-                      <span className="absolute bottom-1.5 left-1.5 text-[10px] font-mono bg-black/60 text-foreground/80 px-1.5 py-0.5 rounded backdrop-blur-sm uppercase">
-                        {release.legacy_condition}
-                      </span>
-                    )}
-                  </div>
-
-                  {(release.format_name || release.format) && (
-                    <span className={`inline-block text-[9px] uppercase tracking-[1px] font-medium mb-0.5 ${FORMAT_COLORS[release.format] ? FORMAT_COLORS[release.format].split(" ").find(c => c.startsWith("text-")) : "text-muted-foreground"}`}>
-                      {release.format_name || release.format}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={`${page}-${search}-${category}-${format}-${country}-${label}-${yearFrom}-${sort}-${forSale}`}
+          variants={staggerContainer}
+          initial="hidden"
+          animate="visible"
+          className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4"
+        >
+          {releases.map((release) => (
+            <motion.div key={release.id} variants={staggerItem}>
+              <Link
+                href={`/catalog/${release.id}`}
+                className="group block"
+              >
+                <div className="relative aspect-square overflow-hidden rounded-lg bg-secondary mb-2 border border-border/50 group-hover:border-primary/40 transition-colors">
+                  {release.coverImage ? (
+                    <Image
+                      src={release.coverImage}
+                      alt={release.title}
+                      fill
+                      className="object-cover group-hover:scale-105 transition-transform duration-300"
+                      sizes="(max-width:640px) 50vw, (max-width:768px) 33vw, (max-width:1024px) 25vw, 16vw"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Disc3 className="h-12 w-12 text-muted-foreground/30" />
+                    </div>
+                  )}
+                  {release.legacy_condition && (
+                    <span className="absolute bottom-1.5 left-1.5 text-[10px] font-mono bg-black/60 text-foreground/80 px-1.5 py-0.5 rounded backdrop-blur-sm uppercase">
+                      {release.legacy_condition}
                     </span>
                   )}
-                  <p className="text-xs text-muted-foreground truncate">
-                    {release.product_category === "press_literature"
-                      ? (release.press_orga_name || "")
-                      : release.product_category === "label_literature"
-                        ? (release.label_name || "")
-                        : (release.artist_name || "")}
-                  </p>
-                  <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">
-                    {release.title}
-                  </p>
-                  <div className="flex items-center justify-between mt-0.5">
-                    {release.auction_status === "reserved" ? (
-                      <span className="text-[10px] font-semibold text-amber-400 italic">In Auction</span>
-                    ) : release.is_purchasable ? (
-                      <span className="text-xs font-mono text-primary">
-                        &euro;{Number(release.legacy_price).toFixed(2)}
-                      </span>
-                    ) : (
-                      <span className="text-[10px] text-muted-foreground/70 italic">
-                        Not for sale
-                      </span>
-                    )}
-                    {release.year && (
-                      <span className="text-[10px] text-muted-foreground">
-                        {release.year}
-                      </span>
-                    )}
-                  </div>
-                </Link>
-              </motion.div>
-            ))}
-          </motion.div>
-        </AnimatePresence>
-      )}
+                </div>
+
+                {(release.format_name || release.format) && (
+                  <span className={`inline-block text-[9px] uppercase tracking-[1px] font-medium mb-0.5 ${FORMAT_COLORS[release.format] ? FORMAT_COLORS[release.format].split(" ").find(c => c.startsWith("text-")) : "text-muted-foreground"}`}>
+                    {release.format_name || release.format}
+                  </span>
+                )}
+                <p className="text-xs text-muted-foreground truncate">
+                  {release.product_category === "press_literature"
+                    ? (release.press_orga_name || "")
+                    : release.product_category === "label_literature"
+                      ? (release.label_name || "")
+                      : (release.artist_name || "")}
+                </p>
+                <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">
+                  {release.title}
+                </p>
+                <div className="flex items-center justify-between mt-0.5">
+                  {release.auction_status === "reserved" ? (
+                    <span className="text-[10px] font-semibold text-amber-400 italic">In Auction</span>
+                  ) : release.is_purchasable ? (
+                    <span className="text-xs font-mono text-primary">
+                      &euro;{Number(release.legacy_price).toFixed(2)}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-muted-foreground/70 italic">
+                      Not for sale
+                    </span>
+                  )}
+                  {release.year && (
+                    <span className="text-[10px] text-muted-foreground">
+                      {release.year}
+                    </span>
+                  )}
+                </div>
+              </Link>
+            </motion.div>
+          ))}
+        </motion.div>
+      </AnimatePresence>
 
       {/* Empty state — with suggestions */}
-      {!loading && releases.length === 0 && (
+      {releases.length === 0 && (
         <div className="text-center py-16">
           <Disc3 className="h-16 w-16 text-muted-foreground/30 mx-auto mb-4" />
           <p className="text-lg text-muted-foreground mb-2">
@@ -707,7 +549,7 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
         <div className="flex items-center justify-center gap-1.5 mt-8">
           <select
             value={limit}
-            onChange={(e) => { setLimit(Number(e.target.value)); setPage(1) }}
+            onChange={(e) => updateParams({ limit: e.target.value, page: "" })}
             className="h-8 rounded-md border border-primary/25 bg-input px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary mr-2"
           >
             {[24, 48, 96].map((n) => (
@@ -718,7 +560,7 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
             variant="outline"
             size="icon"
             className="h-8 w-8"
-            onClick={() => goToPage(Math.max(1, page - 1))}
+            onClick={() => updateParams({ page: String(Math.max(1, page - 1)) }, true)}
             disabled={page <= 1}
           >
             <ChevronLeft className="h-4 w-4" />
@@ -734,7 +576,7 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
                 variant={p === page ? "default" : "outline"}
                 size="icon"
                 className="h-8 w-8 text-xs"
-                onClick={() => goToPage(p)}
+                onClick={() => updateParams({ page: String(p) }, true)}
               >
                 {p}
               </Button>
@@ -744,7 +586,7 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
             variant="outline"
             size="icon"
             className="h-8 w-8"
-            onClick={() => goToPage(Math.min(pages, page + 1))}
+            onClick={() => updateParams({ page: String(Math.min(pages, page + 1)) }, true)}
             disabled={page >= pages}
           >
             <ChevronRight className="h-4 w-4" />

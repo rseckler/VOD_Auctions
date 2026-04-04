@@ -1,6 +1,5 @@
 import { Suspense } from "react"
 import CatalogClient from "@/components/CatalogClient"
-import type { CatalogInitialParams } from "@/components/CatalogClient"
 import { LiveAuctionBanner } from "@/components/LiveAuctionBanner"
 
 const MEDUSA_URL =
@@ -84,9 +83,9 @@ export default async function CatalogPage({ searchParams }: Props) {
   if (decade) queryParts.push(`decade=${decade}`)
 
   // Server-side fetch — provides HTML with real product data for SEO
-  let initialReleases: any[] = []
-  let initialTotal = 0
-  let initialPages = 0
+  let releases: any[] = []
+  let total = 0
+  let pages = 0
 
   try {
     const res = await fetch(
@@ -98,29 +97,12 @@ export default async function CatalogPage({ searchParams }: Props) {
     )
     if (res.ok) {
       const data = await res.json()
-      initialReleases = data.releases || []
-      initialTotal = data.total || 0
-      initialPages = data.pages || 0
+      releases = data.releases || []
+      total = data.total || 0
+      pages = data.pages || 0
     }
   } catch {
-    // Fallback: CatalogClient will fetch on the client side
-  }
-
-  const initialParams: CatalogInitialParams = {
-    page,
-    search,
-    category,
-    format,
-    sort,
-    limit,
-    for_sale,
-    country,
-    label: labelParam,
-    year_from,
-    year_to,
-    condition,
-    genre,
-    decade,
+    // Fallback: empty state, user can retry via filters
   }
 
   return (
@@ -131,10 +113,9 @@ export default async function CatalogPage({ searchParams }: Props) {
       </h1>
       <Suspense>
         <CatalogClient
-          initialReleases={initialReleases}
-          initialTotal={initialTotal}
-          initialPages={initialPages}
-          initialParams={initialParams}
+          releases={releases}
+          total={total}
+          pages={pages}
         />
       </Suspense>
     </>
