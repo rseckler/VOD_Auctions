@@ -126,8 +126,16 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
   const [showFilters, setShowFilters] = useState(() => !!(initialParams.country || initialParams.label || initialParams.year_from))
   // If server provided data, start as not-loading
   const [loading, setLoading] = useState(initialReleases.length === 0)
+  // Track whether the page change was a user-initiated pagination click
+  const userPageNav = useRef(false)
 
-  // Sync state to URL — pushState so back button returns to previous page/filter
+  // Wrapper: call this instead of setPage directly for pagination clicks
+  function goToPage(p: number) {
+    userPageNav.current = true
+    setPage(p)
+  }
+
+  // Sync state to URL
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false
@@ -148,10 +156,17 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
     if (limit !== 24) params.set("limit", String(limit))
     const qs = params.toString()
     const newUrl = qs ? `/catalog?${qs}` : "/catalog"
-    // Use pushState so browser back returns to previous state
-    if (window.location.pathname + window.location.search !== newUrl) {
-      window.history.pushState(null, "", newUrl)
+    const currentUrl = window.location.pathname + window.location.search
+    if (currentUrl !== newUrl) {
+      // pushState only on user-initiated page navigation (pagination clicks)
+      // replaceState for filter changes (so back doesn't cycle through every filter tweak)
+      if (userPageNav.current) {
+        window.history.pushState(null, "", newUrl)
+      } else {
+        window.history.replaceState(null, "", newUrl)
+      }
     }
+    userPageNav.current = false
     // Store catalog URL for breadcrumb back-links on detail pages
     try { sessionStorage.setItem("catalog_url", newUrl) } catch {}
   }, [page, search, category, format, country, label, yearFrom, genre, decade, sort, forSale, limit])
@@ -695,7 +710,7 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
             variant="outline"
             size="icon"
             className="h-8 w-8"
-            onClick={() => setPage(Math.max(1, page - 1))}
+            onClick={() => goToPage(Math.max(1, page - 1))}
             disabled={page <= 1}
           >
             <ChevronLeft className="h-4 w-4" />
@@ -711,7 +726,7 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
                 variant={p === page ? "default" : "outline"}
                 size="icon"
                 className="h-8 w-8 text-xs"
-                onClick={() => setPage(p)}
+                onClick={() => goToPage(p)}
               >
                 {p}
               </Button>
@@ -721,7 +736,7 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
             variant="outline"
             size="icon"
             className="h-8 w-8"
-            onClick={() => setPage(Math.min(pages, page + 1))}
+            onClick={() => goToPage(Math.min(pages, page + 1))}
             disabled={page >= pages}
           >
             <ChevronRight className="h-4 w-4" />
