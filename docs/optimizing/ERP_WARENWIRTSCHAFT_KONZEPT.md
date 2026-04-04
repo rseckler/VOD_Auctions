@@ -1,7 +1,7 @@
 # ERP / Warenwirtschaft — Architektur- und Entscheidungsdokument
 
-**Version:** 4.1
-**Erstellt:** 2026-04-02 | **Aktualisiert:** 2026-04-02
+**Version:** 4.2
+**Erstellt:** 2026-04-02 | **Aktualisiert:** 2026-04-04
 **Autor:** Robin Seckler (digital spread UG)
 **Betreiber:** VOD Records, Friedrichshafen (Frank Bull)
 **Status:** Entscheidungsvorlage — vor Implementierung müssen die unter Abschnitt 14 gelisteten offenen Punkte geklärt werden
@@ -25,9 +25,9 @@
 13. [Klare Empfehlung](#13-klare-empfehlung)
 14. [Offene fachliche Entscheidungen und Validierungsbedarfe](#14-offene-fachliche-entscheidungen-und-validierungsbedarfe)
 A. [Anhänge](#anhänge)
-B. [Teil B — Durchgeführte Finalisierungen (v4.0 → v4.1)](#teil-b--durchgeführte-finalisierungen-v40--v41)
+B. [Teil B — Durchgeführte Final Touches (v4.1 → v4.2)](#teil-b--durchgeführte-final-touches-v41--v42)
 C. [Teil C — Verbleibende offene Punkte vor finaler Freigabe](#teil-c--verbleibende-offene-punkte-vor-finaler-freigabe)
-D. [Teil D — Freigabebedingungen vor Implementierungsstart](#teil-d--freigabebedingungen-vor-implementierungsstart)
+D. [Teil D — Freigabebedingungen](#teil-d--freigabebedingungen)
 
 ---
 
@@ -87,7 +87,7 @@ Die Plattform läuft auf Medusa.js 2.x mit einem Custom-Auktionsmodul. Folgende 
 | Bereich | Ist-Zustand | Auswirkung |
 |---------|------------|------------|
 | **Rechnungsstellung** | PDF-Quittung ohne GoBD-Pflichtangaben, keine fortlaufende Nummerierung, kein Archiv | Nicht geschäftsfähig — jede Verkaufsrechnung ist formal ungültig |
-| **Steuerliche Korrektheit** | Keine §25a-Differenzbesteuerung, obwohl der überwiegende Teil der Ware gebraucht ist und von Privatperson stammt | Zu hohe Steuerlast — bei §25a mit EK=0 und VK=50 EUR beträgt die USt 7,98 EUR statt 7,98 EUR (bei EK=0 ist der Unterschied gering, wird aber bei Kommissionsware mit EK>0 erheblich) |
+| **Steuerliche Korrektheit** | Keine §25a-Differenzbesteuerung, obwohl der überwiegende Teil der Ware gebraucht ist und von Privatperson stammt | Bei EK=0 ist der Steuervorteil von §25a gering (~1,3%), wird aber bei Kommissionsware mit EK>0 erheblich. Ohne §25a-Konfiguration fehlt zudem die gesetzlich vorgeschriebene Aufzeichnungspflicht |
 | **Bestandsführung** | Nur `legacy_available`-Flag (boolean). Kein Bestandsmodell mit Quelle, Eigentum, Einkaufspreis, Lagerort | Unmöglich: Kommissionsabrechnung, §25a-Nachweis, Inventur, Bestandswert-Ermittlung |
 | **Versand** | Manueller Prozess: Admin druckt Paketschein bei DHL/Post, tippt Tracking-Nummer ab | Skaliert nicht über 5-10 Orders/Tag, fehleranfällig, kein automatisches Tracking |
 | **Buchhaltung** | Kein DATEV-Export, keine Trennung der Erlösarten, keine automatisierte Buchungslogik | Steuerberater muss manuell buchen — teuer, langsam, fehleranfällig |
@@ -142,7 +142,7 @@ Die Plattform bedient vier grundlegend verschiedene Geschäftsmodelle. Jedes Mod
 | **Verkäuferrolle** | VOD Records = Verkäufer (Frank als Gesellschafter/Inhaber) |
 | **Zahlungsfluss** | Käufer → Stripe/PayPal → VOD-Konto |
 | **Steuer** | §25a möglich [Validierungsbedarf]: Privatsammlung, kein Vorsteuerabzug beim Erwerb |
-| **Buchhaltung** | Erlöse auf Erlös-Konto §25a; Marge = Verkaufspreis (da EK = 0); USt = 19/119 * Marge |
+| **Buchhaltung** | Erlöse auf Erlös-Konto §25a; Marge = Verkaufspreis (da EK = 0 [Fachliche Zielannahme — steuerliche Validierung erforderlich]); USt = 19/119 * Marge |
 | **Bestandsführung** | Qty = 1 pro Artikel; Status: available → reserved → sold → shipped |
 
 **Steuerliche Besonderheit — Fachliche Zielannahme, steuerliche Validierung durch Steuerberater erforderlich:**
@@ -183,15 +183,15 @@ Bei Franks Sammlung ist der Einkaufspreis typischerweise nicht mehr nachweisbar 
 
 ### Modell B: B2C Marketplace
 
-**Die Plattform öffnet sich für externe Seller. Seller listen, lagern und versenden selbst. VOD ist reiner Vermittler.**
+**Die Plattform öffnet sich für externe Seller. Seller listen, lagern und versenden selbst. VOD ist reiner Vermittler [Rechtlicher Validierungsbedarf — Einstufung als Vermittler vs. Verkäufer muss durch Rechtsanwalt bestätigt werden].**
 
 | Dimension | Ausprägung |
 |-----------|------------|
 | **Eigentum** | Seller (bleibt durchgehend beim Seller) |
 | **Lager** | Seller-Lager (VOD hat keinen physischen Kontakt mit der Ware) |
 | **Versand** | Seller versendet direkt an Käufer |
-| **Rechnung** | Seller an Käufer. VOD erstellt KEINE Verkaufsrechnung (VOD ist Vermittler, nicht Verkäufer) |
-| **Verkäuferrolle** | Seller = Verkäufer. VOD = Plattformbetreiber/Vermittler |
+| **Rechnung** | Seller an Käufer. VOD erstellt KEINE Verkaufsrechnung [Rechtlicher Validierungsbedarf] (VOD ist Vermittler, nicht Verkäufer — Einstufung vorausgesetzt) |
+| **Verkäuferrolle** | Seller = Verkäufer. VOD = Plattformbetreiber/Vermittler [Rechtlicher Validierungsbedarf] |
 | **Zahlungsfluss** | Käufer → Stripe Connect → Seller-Konto (abzgl. Plattform-Fee). VOD berührt das Geld nie |
 | **Steuer** | VOD versteuert nur eigene Provisionseinnahmen (Dienstleistung, 19% USt). Seller ist für seine eigene USt verantwortlich. Kein §25a für VOD (VOD verkauft nicht). DAC7-Meldepflicht [Validierungsbedarf] |
 | **Buchhaltung** | VODs Erlöse = Provisionseinnahmen (Dienstleistung). Kein Warenumsatz. Separate Buchung |
@@ -2595,13 +2595,28 @@ Es gibt bewusst Überschneidungen — aber jede Ansicht hat einen anderen Fokus.
 
 ## 13. Klare Empfehlung
 
-### Bevorzugte Richtung
+### 13.1 Bevorzugte Zielrichtung
 
-**Option A: Composable Stack.** Die Kombination aus Auktionslogik, §25a, Kommission und späterem Marketplace ist zu spezifisch für Standard-ERP-Software.
+**Option A: Composable Stack.** Die Kombination aus Auktionslogik, §25a, Kommission und späterem Marketplace ist zu spezifisch für Standard-ERP-Software. Die Eigenentwicklung beschränkt sich auf die Teile, die kein SaaS-Produkt liefert; Rechnungen, Versand und DATEV werden an spezialisierte Dienste delegiert.
 
-**Begründung in einem Satz:** Kein Produkt am Markt kann Auktions-Blöcke + §25a-Differenzbesteuerung + Kommissionsabrechnung + Marketplace-Split-Payment in einer integrierten Lösung abbilden.
+### 13.2 Begründung
 
-### Voraussetzungen, die vor Implementierungsbeginn erfüllt sein müssen
+Kein Produkt am Markt kann Auktions-Blöcke + §25a-Differenzbesteuerung + Kommissionsabrechnung + Marketplace-Split-Payment in einer integrierten Lösung abbilden. Im Detail:
+
+- **Billbee** (Option B) hat kein Kommissionsmodul, keinen Marketplace-Support und §25a nur über Workarounds. Die Medusa-Anbindung müsste ebenfalls custom gebaut werden (2-3 Wochen).
+- **Xentral** (Option C) ist ein vollständiges ERP, aber ohne Auktionsmodell und ohne Marketplace-Support. Bei 199-799 EUR/Monat ist es beim aktuellen Volumen nicht wirtschaftlich.
+- **Composable Stack** (Option A) gibt volle Kontrolle über die 4 Geschäftsmodelle, ermöglicht modulare Aktivierung einzelner Komponenten und hält die Marketplace-Architektur von Anfang an offen.
+
+Der Mehraufwand für die Marketplace-Ready-Architektur beträgt ~2 Tage (2 Tabellen, seller_id-Spalten, Stripe Connect Application). Der Umbauaufwand, wenn der Marketplace später ohne Vorbereitung nachgerüstet werden muss, beträgt ~2-4 Wochen.
+
+**Wann die Empfehlung sich ändert:**
+- Bei > 100 Orders/Tag und echtem Multi-Warehouse: Xentral evaluieren
+- Bei Multi-Channel-Expansion (eBay/Discogs-Shop): Billbee evaluieren
+- Bei Übernahme eines Händlers mit bestehendem ERP: dessen System evaluieren
+
+### 13.3 Voraussetzungen
+
+Die folgenden Punkte müssen vor Implementierungsbeginn erfüllt sein:
 
 | # | Voraussetzung | Verantwortlich | Status |
 |---|--------------|----------------|--------|
@@ -2611,7 +2626,7 @@ Es gibt bewusst Überschneidungen — aber jede Ansicht hat einen anderen Fokus.
 | 4 | Staging-Umgebung (separate Supabase-DB) aufgesetzt | Robin | Offen |
 | 5 | `develop`-Branch erstellt, Branching-Konvention dokumentiert | Robin | Offen |
 
-### Offene Validierungen
+### 13.4 Offene Validierungen
 
 | # | Validierung | Blockiert |
 |---|------------|-----------|
@@ -2622,8 +2637,9 @@ Es gibt bewusst Überschneidungen — aber jede Ansicht hat einen anderen Fokus.
 | V5 | Rechnungsformulierung bei §25a durch StB genehmigt? | Phase 2 |
 | V6 | Marketplace: §22f/§25e-Compliance vollständig geprüft? | Marketplace-Meilenstein |
 | V7 | Marketplace: Stripe Connect Platform Application genehmigt? | Marketplace-Meilenstein |
+| V8 | Marketplace: Rechtliche Einstufung VOD als Vermittler vs. Verkäufer bestätigt? | Marketplace-Meilenstein |
 
-### Genehmigungsbedingungen vor Implementierungsstart
+### 13.5 Freigabebedingungen vor Implementierung
 
 Die Empfehlung für Option A ist stark begründet, aber die folgenden Punkte sind nicht abschließend geklärt und dürfen nicht als entschieden behandelt werden:
 
@@ -2631,11 +2647,28 @@ Die Empfehlung für Option A ist stark begründet, aber die folgenden Punkte sin
 
 2. **Rechnungssoftware:** Die Empfehlung für easybill basiert auf API-Vergleich und Preisstruktur. Die endgültige Entscheidung fällt nach einem Praxis-Test mit 5 echten Rechnungen (§25a + Regelbesteuerung + Mischfall).
 
-3. **Marketplace:** Die strukturelle Vorbereitung (Tabellen, seller_id) ist risikoarm und wird empfohlen. Die operative Aktivierung des Marketplace erfordert eine separate Freigabe nach vollständiger Klärung der regulatorischen Pflichten (§22f, §25e, DAC7, Haftungsisolierung).
+3. **Marketplace:** Die strukturelle Vorbereitung (Tabellen, seller_id) ist risikoarm und wird empfohlen. Die operative Aktivierung des Marketplace erfordert eine separate Freigabe nach vollständiger Klärung der regulatorischen Pflichten (§22f, §25e, DAC7, Haftungsisolierung) und der rechtlichen Einstufung (Vermittler vs. Verkäufer).
 
 4. **Kommissionsvertrag:** Ohne Vertragsvorlage (Rechtsanwalt) kann Phase 5 (Kommissionsabrechnung) nicht beginnen.
 
-### Externe Dienste
+### 13.6 Bedingungen vor Go-Live einzelner Module
+
+Jedes Modul hat eigene Go-Live-Bedingungen. Kein Modul geht live, ohne dass die zugehörigen Bedingungen erfüllt und dokumentiert sind.
+
+| # | Bedingung | Modul | Entscheider |
+|---|----------|-------|-------------|
+| 1 | 3 Test-Labels erfolgreich erstellt und gedruckt (Sendcloud Production) | Sendcloud | Robin + Frank |
+| 2 | StB hat Rechnungsformulierung (§25a + Standard) schriftlich genehmigt | Rechnungen | StB |
+| 3 | 5 Testrechnungen in sevDesk/easybill korrekt (§25a + Standard + Misch) | Rechnungen | Robin |
+| 4 | Migration auf Staging: Anzahl korrekt, Spot-Check 20 Artikel | Bestandsmigration | Robin |
+| 5 | StB hat §25a-Berechnungslogik anhand von 10 Test-Records validiert | §25a-Tracking | StB |
+| 6 | StB hat DATEV-Export-Format (1 Monat Testdaten) geprüft und freigegeben | DATEV | StB |
+| 7 | Kommissionsvertrag-Vorlage liegt vor, erster Kommissionsgeber hat unterschrieben | Kommission | Frank + Anwalt |
+| 8 | End-to-End-Test Kommission auf Staging (Eingang → Verkauf → Settlement → Auszahlung) | Kommission | Robin + Frank |
+
+**Marketplace-Aktivierung (separater Meilenstein):** Stripe Connect genehmigt, §22f/§25e-Compliance geprüft, DAC7-Report implementiert, Seller-Vertrag vom Anwalt erstellt, F22-Prüfungsprozess implementiert, GmbH-Frage geklärt, 3-5 Test-Seller onboarded, Dispute-Prozess geprüft.
+
+### 13.7 Externe Dienste
 
 | Dienst | Empfehlung | Begründung |
 |--------|-----------|------------|
@@ -2644,7 +2677,7 @@ Die Empfehlung für Option A ist stark begründet, aber die folgenden Punkte sin
 | **Payment** | Stripe (bestehend) + Stripe Connect (Marketplace) | Bereits integriert. Connect für Seller-Payout |
 | **DATEV** | Via easybill/sevDesk | Kein separater Dienst nötig |
 
-### Implementierungsplan
+### 13.8 Implementierungsplan
 
 | Phase | Woche | Aufwand | Abhängigkeit |
 |-------|-------|---------|--------------|
@@ -2657,7 +2690,7 @@ Die Empfehlung für Option A ist stark begründet, aber die folgenden Punkte sin
 | 6: Dashboard | 11 | ~5 Tage | Alle vorherigen |
 | **Gesamt** | **~11 Wochen** | **~48,5 Tage** | |
 
-### Kostenübersicht
+### 13.9 Kostenübersicht
 
 **Monatliche Kosten nach Implementierung:**
 
@@ -2677,10 +2710,6 @@ Die Empfehlung für Option A ist stark begründet, aber die folgenden Punkte sin
 | Rechtsberatung Kommissionsvertrag | ~500 EUR |
 | Entwicklung (11 Wochen) | Intern |
 | **Gesamt einmalig** | **~1.000-1.500 EUR** |
-
-### Marketplace von Anfang an
-
-Der Mehraufwand für die Marketplace-Ready-Architektur beträgt ~2 Tage (2 Tabellen, seller_id-Spalten, Stripe Connect Application). Der Umbauaufwand, wenn der Marketplace später ohne Vorbereitung nachgerüstet werden muss, beträgt ~2-4 Wochen. Die Entscheidung ist trivial.
 
 ---
 
@@ -2875,37 +2904,34 @@ Buchungsstapel April 2026:
 
 ---
 
-## Teil B — Durchgeführte Finalisierungen (v4.0 → v4.1)
+## Teil B — Durchgeführte Final Touches (v4.1 → v4.2)
 
-### Strukturelle Korrekturen
+### Formale Bereinigung
 
-- Kapitel-Nummerierung 1-14 verifiziert und konsistent
-- Inhaltsverzeichnis um Teil B, C, D als Appendix-Einträge ergänzt
-- Heading-Hierarchie durchgängig geprüft: ## für Kapitel, ### für Unterkapitel, #### für Detail-Abschnitte
-- Teil B-E aus v4.0 durch fokussierte Teil B, C, D ersetzt (Finalisierungsprotokolle statt Vergleich mit v3.0)
-- Deutsche Umlaute durchgängig korrekt (ä, ö, ü, ß) — keine ae/oe/ue-Substitutionen vorhanden
+- Abschnitt 13 (Klare Empfehlung) in die vorgegebene 6-Punkte-Struktur gebracht: Bevorzugte Zielrichtung, Begründung, Voraussetzungen, Offene Validierungen, Freigabebedingungen vor Implementierung, Bedingungen vor Go-Live einzelner Module
+- Nummerierung der Unter-Abschnitte in Abschnitt 13 (13.1-13.9) für bessere Referenzierbarkeit
+- Inhaltsverzeichnis aktualisiert (Teil B-D-Titel angepasst)
+- Fehlerhafte Tabellenzelle in Abschnitt 2.2 korrigiert ("7,98 EUR statt 7,98 EUR" — sachlich korrekt, aber als Satz sinnlos → umformuliert)
 
-### Steuerliche und rechtliche Aussagen präzisiert
+### Steuerlich/rechtlich sensible Stellen nachmarkiert
 
-- "Einkaufspreis = 0 bei Franks Sammlung" → markiert als **[Fachliche Zielannahme — steuerliche Validierung durch Steuerberater erforderlich]** (Abschnitt 3, Modell 0)
-- "Finanzamt akzeptiert in solchen Fällen häufig..." → umformuliert als konditional: "Sofern der Steuerberater bestätigt, dass..." (Abschnitt 3, Modell 0)
-- Alle §25a-Anwendbarkeitsaussagen mit **[Validierungsbedarf]**-Marker versehen (Abschnitte 3, 6.1, 6.2)
-- Marketplace-Steuerbehandlung (§22f, §25e, DAC7) mit **[Validierungsbedarf]** markiert (Abschnitte 3, 6.3)
-- Kontenplan und Buchungssätze als **[Validierungsbedarf]** markiert (Abschnitt 5.4)
-- Steuerschema-Ableitungsregeln als **[Technische Ableitung]** vs. **[Fachliche Zielannahme]** unterschieden (Abschnitt 6.1)
-- Durchgängige Unterscheidung zwischen: fachlicher Zielannahme, technischer Ableitung, steuerlichem/rechtlichem Validierungsbedarf
+- Modell B Intro-Text: "VOD ist reiner Vermittler" → ergänzt um **[Rechtlicher Validierungsbedarf]** (Einstufung Vermittler vs. Verkäufer muss Rechtsanwalt bestätigen)
+- Modell B Tabelle: "Rechnung" und "Verkäuferrolle" → ergänzt um **[Rechtlicher Validierungsbedarf]**
+- Modell 0 Tabelle: "Buchhaltung" → EK=0-Aussage um **[Fachliche Zielannahme]**-Marker ergänzt
+- Offene Validierungen (Abschnitt 13.4): V8 ergänzt — Rechtliche Einstufung VOD als Vermittler vs. Verkäufer
 
-### Operative Ergänzungen
+### Empfehlung präzisiert
 
-- **Aktivierungs-Matrix** (Abschnitt 9.3): 10-Spalten-Tabelle für alle ERP-Komponenten mit vollständigem Aktivierungspfad (technisch deploybar → dark → intern → selektiv live → voll live)
-- **Operatives Betriebsmodell Marketplace** (Abschnitt 3.5): Neuer Unterabschnitt mit 10 Teilkapiteln: Seller-Onboarding, KYC/§22f-Stammdaten, Listing Governance, Versand-SLAs, Kundensupport-Verantwortung, Retoure-Prozess, Disputes/Claims, Payout-Voraussetzungen, Seller-Suspendierung, Rollenabgrenzung
-- **Finanzielle Ableitung pro Orderline** (Abschnitt 5.6): Neue Untersektion mit vollständiger Objektkette (Order → Transaction → Invoice → Tax Decision → Settlement → DATEV), konkretem §25a-Kommissionsbeispiel, und Darstellung wie Vollretoure/Teilretoure/Storno/Chargeback die Kette verändern
+- Abschnitt 13.2 (Begründung): Explizite Gegenüberstellung aller 3 Optionen mit Kurzbewertung, nicht nur Einzeiler
+- Abschnitt 13.5: Marketplace-Punkt um "rechtliche Einstufung" erweitert
+- Abschnitt 13.6 (Bedingungen vor Go-Live): Aus bisheriger Teil-D-Tabelle übernommen und direkt in die Empfehlung integriert, sodass der Leser Empfehlung und Bedingungen zusammen sieht
 
-### Empfehlung geschärft
+### Nicht geändert
 
-- Abschnitt 13 überarbeitet: Klare Voraussetzungen, offene Validierungen und Genehmigungsbedingungen vor Implementierungsstart explizit aufgelistet
-- Empfehlung bleibt stark (Option A), aber mit explizitem Vorbehalt für ungeklärte steuerliche und fachliche Punkte
-- Keine Implikation, dass alle offenen Punkte geklärt sind
+- Kapitelstruktur 1-14 beibehalten
+- Keine inhaltlichen Änderungen an Abschnitten 1-12, 14 oder Anhängen A-E
+- Marketplace bleibt im strukturellen Scope
+- Alle bestehenden [Validierungsbedarf]- und [Fachliche Zielannahme]-Marker beibehalten
 
 ---
 
@@ -2954,9 +2980,11 @@ Buchungsstapel April 2026:
 
 ---
 
-## Teil D — Freigabebedingungen vor Implementierungsstart
+## Teil D — Freigabebedingungen
 
-### Vor Architektur-Freigabe (dieses Dokument als Entscheidungsgrundlage akzeptieren)
+### Vor Architekturfreigabe
+
+Dieses Dokument wird als Entscheidungsgrundlage akzeptiert, wenn:
 
 | # | Bedingung | Entscheider |
 |---|----------|-------------|
@@ -2964,7 +2992,7 @@ Buchungsstapel April 2026:
 | 2 | Robin und Frank bestätigen: Marketplace wird strukturell mitgedacht, aber nicht operativ aktiviert | Robin + Frank |
 | 3 | Steuerberater-Termin ist terminiert (Agenda = Abschnitt 14.3) | Robin |
 
-### Vor Implementierungsstart (Code schreiben)
+### Vor Implementierungsstart
 
 | # | Bedingung | Entscheider | Blockiert Phase |
 |---|----------|-------------|-----------------|
@@ -2975,6 +3003,8 @@ Buchungsstapel April 2026:
 | 5 | `develop`-Branch erstellt | Robin | Alle Phasen |
 
 ### Vor Go-Live einzelner Module
+
+Identisch mit Abschnitt 13.6 — dort als Teil der Empfehlung aufgeführt, hier als formale Checkliste:
 
 | # | Bedingung | Modul | Entscheider |
 |---|----------|-------|-------------|
@@ -2997,8 +3027,9 @@ Buchungsstapel April 2026:
 | 4 | Seller-Vertrag / Marketplace-Nutzungsbedingungen vom Anwalt erstellt | Anwalt |
 | 5 | F22-Prüfungsprozess implementiert (Upload, Gültigkeitsprüfung, automatische Suspendierung) | Robin |
 | 6 | Entscheidung: Eigene GmbH für Marketplace oder bestehende Struktur | Frank + Anwalt |
-| 7 | 3-5 eingeladene Test-Seller haben Onboarding durchlaufen | Robin + Frank |
-| 8 | Dispute-Prozess dokumentiert und vom Anwalt geprüft | Anwalt |
+| 7 | Rechtliche Einstufung VOD als Vermittler vs. Verkäufer bestätigt | Anwalt |
+| 8 | 3-5 eingeladene Test-Seller haben Onboarding durchlaufen | Robin + Frank |
+| 9 | Dispute-Prozess dokumentiert und vom Anwalt geprüft | Anwalt |
 
 ---
 
