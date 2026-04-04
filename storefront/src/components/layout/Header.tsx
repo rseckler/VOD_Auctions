@@ -52,7 +52,7 @@ export function Header() {
         <div className="mx-auto max-w-6xl px-6 h-16 flex items-center justify-between">
           <Link href="/" className="group flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-[#b8860b] flex items-center justify-center">
-              <Disc3 className="h-5 w-5 text-[#1c1915] transition-transform group-hover:rotate-180 duration-700" />
+              <Disc3 className="h-5 w-5 text-primary-foreground transition-transform group-hover:rotate-180 duration-700" />
             </div>
             <span className="text-xl font-serif text-foreground">VOD Auctions</span>
           </Link>
@@ -89,7 +89,7 @@ export function Header() {
             >
               <Heart className="h-5 w-5" />
               {isAuthenticated && savedCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-[#d4a54a] text-[#1c1915] text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                <span className="absolute -top-1.5 -right-1.5 bg-primary text-primary-foreground text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
                   {savedCount}
                 </span>
               )}
@@ -102,7 +102,7 @@ export function Header() {
             >
               <ShoppingCart className="h-5 w-5" />
               {isAuthenticated && cartCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-primary text-[#1c1915] text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                <span className="absolute -top-1.5 -right-1.5 bg-primary text-primary-foreground text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
                   {cartCount}
                 </span>
               )}

@@ -170,8 +170,8 @@ export function BidHistoryTable({
     return (
       <div className="mt-6 bg-[rgba(232,224,212,0.03)] border border-[rgba(232,224,212,0.06)] rounded-xl p-4">
         <div className="flex items-center gap-2 mb-4">
-          <Gavel className="h-4 w-4 text-[#d4a54a]" />
-          <span className="text-sm font-semibold text-[#d4a54a]">Bid History</span>
+          <Gavel className="h-4 w-4 text-primary" />
+          <span className="text-sm font-semibold text-primary">Bid History</span>
         </div>
         <div className="space-y-2">
           {[1, 2, 3].map((i) => (
@@ -190,8 +190,8 @@ export function BidHistoryTable({
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <Gavel className="h-4 w-4 text-[#d4a54a]" />
-          <span className="text-sm font-semibold text-[#d4a54a]">Bid History</span>
+          <Gavel className="h-4 w-4 text-primary" />
+          <span className="text-sm font-semibold text-primary">Bid History</span>
         </div>
         {count > 0 && (
           <span className="text-xs text-muted-foreground bg-[rgba(232,224,212,0.08)] px-2 py-0.5 rounded-full">
@@ -235,11 +235,11 @@ export function BidHistoryTable({
                   className={[
                     "relative flex items-center justify-between text-sm py-2 px-3 rounded-lg transition-colors",
                     isRaise
-                      ? "bg-[#d4a54a]/[0.06] border border-[#d4a54a]/20"
+                      ? "bg-primary/[0.06] border border-primary/20"
                       : isWinning
                         ? "bg-green-500/[0.08] border border-green-500/20"
                         : "bg-[rgba(232,224,212,0.04)] border border-transparent",
-                    isNew ? "ring-1 ring-[#d4a54a]/40" : "",
+                    isNew ? "ring-1 ring-primary/40" : "",
                   ]
                     .filter(Boolean)
                     .join(" ")}
@@ -257,7 +257,7 @@ export function BidHistoryTable({
                   {/* Right side: raise indicator OR amount + badge + time */}
                   <div className="flex items-center gap-3">
                     {isRaise ? (
-                      <span className="flex items-center gap-1 text-[#d4a54a] font-medium text-xs">
+                      <span className="flex items-center gap-1 text-primary font-medium text-xs">
                         <TrendingUp className="h-3.5 w-3.5" />
                         {isMyRaise
                           ? `Your max: \u20ac${myMax!.toFixed(2)}`

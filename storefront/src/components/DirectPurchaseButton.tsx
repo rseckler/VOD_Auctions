@@ -77,7 +77,7 @@ export function DirectPurchaseButton({ releaseId, saleMode, directPrice, auction
         <Button
           onClick={handleAddToCart}
           disabled={adding || added}
-          className={added ? "bg-green-600 hover:bg-green-600" : "bg-primary hover:bg-primary/90 text-[#1c1915]"}
+          className={added ? "bg-green-600 hover:bg-green-600" : "bg-primary hover:bg-primary/90 text-primary-foreground"}
         >
           {added ? (
             <>

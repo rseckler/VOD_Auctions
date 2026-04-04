@@ -61,7 +61,7 @@ export function TopLoadingBar() {
       style={{ opacity: visible ? 1 : 0, transition: "opacity 300ms" }}
     >
       <div
-        className="h-full bg-[#d4a54a]"
+        className="h-full bg-primary"
         style={{
           width: `${progress}%`,
           transition: progress === 100 ? "width 200ms ease-out" : "width 300ms ease-out",

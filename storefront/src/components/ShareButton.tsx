@@ -94,7 +94,7 @@ export function ShareButton({ url, title, text, compact = false }: ShareButtonPr
       )}
 
       {open && (
-        <div className="absolute top-[calc(100%+6px)] right-0 w-[200px] bg-[#2a2520] border border-[rgba(232,224,212,0.1)] rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+        <div className="absolute top-[calc(100%+6px)] right-0 w-[200px] bg-secondary border border-border rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
           {/* Copy Link */}
           <button
             onClick={handleCopy}

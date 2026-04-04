@@ -53,7 +53,7 @@ export async function LiveAuctionBanner() {
             </span>
             <Link
               href={multipleBlocks ? "/auctions" : `/auctions/${block.slug}`}
-              className="inline-flex items-center gap-1 px-3 py-1 rounded text-sm font-semibold bg-[#d4a54a] hover:bg-[#c4952a] text-[#1c1915] transition-colors whitespace-nowrap"
+              className="inline-flex items-center gap-1 px-3 py-1 rounded text-sm font-semibold bg-primary hover:bg-primary/90 text-primary-foreground transition-colors whitespace-nowrap"
             >
               Bid Now →
             </Link>

@@ -244,7 +244,7 @@ export function ItemBidSection({
           style: {
             background: "rgba(212, 165, 74, 0.15)",
             border: "1px solid rgba(212, 165, 74, 0.4)",
-            color: "#d4a54a",
+            color: "var(--primary)",
           },
         })
       })
@@ -602,7 +602,7 @@ function BidForm({
         <button
           type="button"
           onClick={() => setShowProxy(!showProxy)}
-          className="flex items-center justify-center gap-1.5 w-full text-xs font-medium text-[#d4a54a]/80 hover:text-[#d4a54a] border border-[#d4a54a]/25 hover:border-[#d4a54a]/50 rounded-md py-1.5 transition-colors"
+          className="flex items-center justify-center gap-1.5 w-full text-xs font-medium text-primary/80 hover:text-primary border border-primary/25 hover:border-primary/50 rounded-md py-1.5 transition-colors"
         >
           {showProxy
             ? "Hide maximum bid"

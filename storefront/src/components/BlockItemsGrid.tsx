@@ -145,7 +145,7 @@ export function BlockItemsGrid({
                 onClick={() => setSort(opt.value)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                   sort === opt.value
-                    ? "bg-primary text-[#1c1915]"
+                    ? "bg-primary text-primary-foreground"
                     : "text-muted-foreground border border-[rgba(232,224,212,0.08)] hover:border-[rgba(232,224,212,0.15)] hover:text-foreground"
                 }`}
               >
@@ -193,7 +193,7 @@ export function BlockItemsGrid({
                     /* Preview mode card — amber accents, starting bid only, save to watchlist */
                     <div className="group overflow-hidden rounded-xl bg-[rgba(232,224,212,0.03)] border border-amber-500/20 hover:border-amber-500/40 opacity-90 transition-all duration-300 hover:-translate-y-0.5">
                       {/* Image */}
-                      <div className="aspect-square bg-[#2a2520] overflow-hidden relative">
+                      <div className="aspect-square bg-secondary overflow-hidden relative">
                         {item.release?.coverImage ? (
                           <Image
                             src={item.release.coverImage}
@@ -270,7 +270,7 @@ export function BlockItemsGrid({
                         : "border-[rgba(232,224,212,0.06)] hover:border-[rgba(212,165,74,0.3)]"
                     }`}>
                       {/* Image */}
-                      <div className="aspect-square bg-[#2a2520] overflow-hidden relative">
+                      <div className="aspect-square bg-secondary overflow-hidden relative">
                         {item.release?.coverImage ? (
                           <Image
                             src={item.release.coverImage}
@@ -292,12 +292,12 @@ export function BlockItemsGrid({
                         )}
                         {/* Bid status indicator */}
                         {userWinningItemIds.has(item.id) ? (
-                          <span className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded bg-[rgba(34,197,94,0.9)] backdrop-blur-sm text-xs font-semibold text-[#1c1915] uppercase tracking-wide shadow-lg shadow-green-500/20 ring-2 ring-green-400/50 animate-pulse">
+                          <span className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded bg-[rgba(34,197,94,0.9)] backdrop-blur-sm text-xs font-semibold text-primary-foreground uppercase tracking-wide shadow-lg shadow-green-500/20 ring-2 ring-green-400/50 animate-pulse">
                             <Gavel className="h-2.5 w-2.5" />
                             Highest Bid
                           </span>
                         ) : userBidItemIds.has(item.id) ? (
-                          <span className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded bg-[rgba(212,165,74,0.9)] backdrop-blur-sm text-xs font-semibold text-[#1c1915] uppercase tracking-wide shadow-lg shadow-primary/20 ring-2 ring-primary/50">
+                          <span className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded bg-[rgba(212,165,74,0.9)] backdrop-blur-sm text-xs font-semibold text-primary-foreground uppercase tracking-wide shadow-lg shadow-primary/20 ring-2 ring-primary/50">
                             <Gavel className="h-2.5 w-2.5" />
                             Your Bid
                           </span>

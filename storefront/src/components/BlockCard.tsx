@@ -49,7 +49,7 @@ export function BlockCardVertical({ block }: { block: AuctionBlock }) {
       <Link href={`/auctions/${block.slug}`}>
         <div className="group overflow-hidden rounded-2xl bg-[rgba(232,224,212,0.04)] border border-[rgba(232,224,212,0.08)] hover:border-[rgba(212,165,74,0.4)] transition-all duration-300 hover:-translate-y-1">
           {/* Image */}
-          <div className="relative aspect-[16/10] overflow-hidden bg-[#2a2520]">
+          <div className="relative aspect-[16/10] overflow-hidden bg-secondary">
             {block.header_image ? (
               <Image
                 src={block.header_image}
@@ -59,7 +59,7 @@ export function BlockCardVertical({ block }: { block: AuctionBlock }) {
                 className="object-cover group-hover:scale-105 transition-transform duration-500"
               />
             ) : (
-              <div className="w-full h-full bg-gradient-to-br from-[#2a2520] to-[#3a3028] flex items-center justify-center">
+              <div className="w-full h-full bg-gradient-to-br from-secondary to-secondary/80 flex items-center justify-center">
                 <Disc3 className="h-12 w-12 text-muted-foreground/10" />
               </div>
             )}

@@ -47,7 +47,7 @@ export function AuctionListFilter({ blocks }: { blocks: AuctionBlock[] }) {
             onClick={() => setTab(t.value)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
               tab === t.value
-                ? "bg-primary text-[#1c1915]"
+                ? "bg-primary text-primary-foreground"
                 : "text-muted-foreground border border-[rgba(232,224,212,0.08)] hover:border-[rgba(232,224,212,0.15)] hover:text-foreground"
             }`}
           >

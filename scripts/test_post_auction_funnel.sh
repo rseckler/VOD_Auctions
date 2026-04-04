@@ -1,12 +1,16 @@
 #!/bin/bash
 # RSE-292: Post-Auction Marketing Funnel — E2E Test
 # Tests: wins, shipping-savings, recommendations endpoints
-# Requires: testuser with wins (bidder1@test.de / test1234)
+# Requires: user with auction wins
+# Usage: ./test_post_auction_funnel.sh [email] [password]
+# Default: robin@seckler.de / vod2026
 
 set -euo pipefail
 
 API="https://api.vod-auctions.com"
 PK="pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d"
+TEST_EMAIL="${1:-robin@seckler.de}"
+TEST_PASSWORD="${2:-vod2026}"
 PASS=0
 FAIL=0
 
@@ -25,12 +29,12 @@ echo "  RSE-292: Post-Auction Funnel E2E Test"
 echo "═══════════════════════════════════════════════════════"
 echo ""
 
-# --- Auth: Login as test bidder ---
-info "Authenticating as bidder1@test.de..."
+# --- Auth: Login ---
+info "Authenticating as ${TEST_EMAIL}..."
 TOKEN=$(curl -s "${API}/auth/customer/emailpass" \
   -H "Content-Type: application/json" \
   -H "x-publishable-api-key: ${PK}" \
-  -d '{"email":"bidder1@test.de","password":"test1234"}' | jq -r '.token // empty')
+  -d "{\"email\":\"${TEST_EMAIL}\",\"password\":\"${TEST_PASSWORD}\"}" | jq -r '.token // empty')
 
 if [ -z "$TOKEN" ]; then
   echo -e "${RED}FATAL: Login failed. Cannot proceed.${NC}"

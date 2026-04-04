@@ -31,7 +31,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
           <p className="text-stone-400 text-sm mb-3">Something went wrong loading this section.</p>
           <button
             onClick={() => this.setState({ hasError: false })}
-            className="text-xs text-[#d4a54a] hover:underline"
+            className="text-xs text-primary hover:underline"
           >
             Try again
           </button>

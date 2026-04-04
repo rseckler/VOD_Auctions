@@ -83,7 +83,7 @@ export default function SettingsPage() {
         setNewsletterOptin(data.newsletter_optin || false)
       }
     } catch {
-      // silently fail
+      toast.error("Failed to load preferences")
     } finally {
       setNewsletterLoading(false)
     }
@@ -112,7 +112,7 @@ export default function SettingsPage() {
         setNewsletterOptin(newValue)
       }
     } catch {
-      // silently fail
+      toast.error("Failed to update newsletter preference")
     } finally {
       setNewsletterSaving(false)
     }

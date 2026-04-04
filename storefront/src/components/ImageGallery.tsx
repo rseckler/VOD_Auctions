@@ -109,7 +109,7 @@ export function ImageGallery({
 
   if (images.length === 0) {
     return (
-      <div className="aspect-square rounded-xl bg-[#2a2520] border border-[rgba(232,224,212,0.08)] flex items-center justify-center">
+      <div className="aspect-square rounded-xl bg-secondary border border-border flex items-center justify-center">
         <Disc3 className="h-16 w-16 text-muted-foreground/10" />
       </div>
     )
@@ -127,7 +127,7 @@ export function ImageGallery({
           onMouseMove={isDesktop ? handleMouseMove : undefined}
           onTouchStart={!isDesktop && images.length > 1 ? handleMainTouchStart : undefined}
           onTouchEnd={!isDesktop && images.length > 1 ? handleMainTouchEnd : undefined}
-          className="relative group w-full aspect-square rounded-xl overflow-hidden bg-[#2a2520] border border-[rgba(232,224,212,0.08)] cursor-zoom-in"
+          className="relative group w-full aspect-square rounded-xl overflow-hidden bg-secondary border border-border cursor-zoom-in"
         >
           <AnimatePresence mode="wait">
             <motion.div
@@ -189,7 +189,7 @@ export function ImageGallery({
                 className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${
                   i === selected
                     ? "border-primary ring-2 ring-primary/30"
-                    : "border-[rgba(232,224,212,0.08)] hover:border-[rgba(232,224,212,0.2)]"
+                    : "border-border hover:border-[rgba(232,224,212,0.2)]"
                 }`}
               >
                 <Image
@@ -208,7 +208,7 @@ export function ImageGallery({
         {hasMore && (
           <button
             onClick={() => setExtendedOpen(true)}
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border border-[rgba(232,224,212,0.12)] bg-[#2a2520]/50 hover:bg-[#2a2520] text-sm text-muted-foreground hover:text-foreground transition-colors"
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border border-border bg-secondary/50 hover:bg-secondary text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             <Grid3X3 className="h-4 w-4" />
             Show all {images.length} images
@@ -269,7 +269,7 @@ export function ImageGallery({
                   className={`relative w-12 h-12 rounded-lg overflow-hidden border-2 transition-all flex-shrink-0 ${
                     i === selected
                       ? "border-primary ring-1 ring-primary/30"
-                      : "border-[rgba(232,224,212,0.08)] hover:border-[rgba(232,224,212,0.2)]"
+                      : "border-border hover:border-[rgba(232,224,212,0.2)]"
                   }`}
                 >
                   <Image
@@ -296,7 +296,7 @@ export function ImageGallery({
             className="fixed inset-0 z-50 bg-[rgba(10,8,6,0.95)] backdrop-blur-sm overflow-y-auto"
           >
             {/* Header */}
-            <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 bg-[rgba(10,8,6,0.8)] backdrop-blur-md border-b border-[rgba(232,224,212,0.08)]">
+            <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 bg-[rgba(10,8,6,0.8)] backdrop-blur-md border-b border-border">
               <h2 className="text-lg font-semibold">
                 All Images ({images.length})
               </h2>
@@ -322,7 +322,7 @@ export function ImageGallery({
                     className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all group cursor-zoom-in ${
                       i === selected
                         ? "border-primary ring-2 ring-primary/30"
-                        : "border-[rgba(232,224,212,0.08)] hover:border-[rgba(232,224,212,0.2)]"
+                        : "border-border hover:border-[rgba(232,224,212,0.2)]"
                     }`}
                   >
                     <Image

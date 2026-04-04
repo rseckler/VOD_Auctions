@@ -78,7 +78,7 @@ export function HeaderAuth() {
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={() => {
-              if (window.confirm("Are you sure you want to log out?")) logout()
+              logout()
             }}
             className="flex items-center gap-2 text-muted-foreground"
           >

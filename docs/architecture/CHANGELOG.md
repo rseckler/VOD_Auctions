@@ -4,6 +4,28 @@ Vollständiger Entwicklungs-Changelog. Neue Einträge werden direkt hier ergänz
 
 ---
 
+## 2026-04-04 — UX Audit Phase 2 Batch 2: Hex Cleanup, Logout, Error Feedback (GAP-101/602/701/903)
+
+### Hardcoded Hex Cleanup (GAP-101, GAP-701, MT-2)
+- ~35 hardcoded Hex-Werte in 15 Komponenten-Dateien → CSS Token-Referenzen
+- `#d4a54a` → `text-primary` / `bg-primary` / `border-primary`
+- `#1c1915` → `text-primary-foreground`
+- `#2a2520` → `bg-secondary`
+- `#241f1a` → `bg-card`
+- `rgba(232,224,212,*)` → `border-border`
+- Verbleibend: Gradient-Endpunkte `#b8860b` (kein Token nötig, nur in Gradienten)
+- Betroffen: BidHistoryTable, BlockCard, ImageGallery, HeaderAuth, LiveAuctionBanner, AuctionListFilter, BlockItemsGrid, DirectPurchaseButton, ShareButton, TopLoadingBar, ItemBidSection, Skeleton, Header, MobileNav
+
+### Logout ohne Confirm (GAP-602, MT-4)
+- `window.confirm("Are you sure...")` entfernt in HeaderAuth + MobileNav
+- Logout erfolgt direkt — wie bei Discogs, eBay, Amazon (Logout ist nicht destruktiv)
+
+### Error Feedback statt Silent Fail (GAP-903, MT-6)
+- Settings: 2 `catch { /* silently fail */ }` → `toast.error("Failed to...")`
+- User bekommt jetzt Feedback wenn Preferences nicht laden/speichern
+
+---
+
 ## 2026-04-04 — UX Audit Phase 2 Batch 1: Headings, Components, Tokens (GAP-301/302/402/501)
 
 ### Account Headings Standardisiert (GAP-301, GAP-302, MT-5)

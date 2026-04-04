@@ -26,7 +26,7 @@ export function MobileNav({
   return (
     <>
       <Sheet open={open} onOpenChange={onClose}>
-        <SheetContent side="right" className="w-72 bg-[#241f1a] border-[rgba(232,224,212,0.1)]">
+        <SheetContent side="right" className="w-72 bg-card border-border">
           <SheetHeader>
             <SheetTitle className="text-left flex items-center gap-2">
               <Disc3 className="h-5 w-5 text-primary" />
@@ -145,10 +145,8 @@ export function MobileNav({
                 </Link>
                 <button
                   onClick={() => {
-                    if (window.confirm("Are you sure you want to log out?")) {
-                      logout()
-                      onClose()
-                    }
+                    logout()
+                    onClose()
                   }}
                   className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-[rgba(232,224,212,0.04)] transition-colors text-left"
                 >
