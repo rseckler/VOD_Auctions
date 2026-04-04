@@ -594,6 +594,73 @@ Based on 60 Backend Desktop screenshots of the live admin.vod-auctions.com.
 - **Effort:** Small
 - **Recommended Fix:** Show "Not Run" instead of "Pass" when passed=0 AND failed=0. Only show "All Passed" when tests actually executed
 
+## 12. Backend Admin MOBILE Findings from Screenshot Audit (2026-04-04)
+
+Based on ~40 Backend Mobile screenshots (iPhone) of admin.vod-auctions.com.
+
+### GAP-1201 Medusa Sidebar permanent sichtbar auf Mobile
+- **Area:** All admin pages on mobile
+- **Current State:** Medusa's native left sidebar takes full screen width on mobile. No visible toggle to collapse it. User must interact with sidebar before seeing any content.
+- **Violated Rule:** SG 9.1 — Mobile layout must show content first; SG 7.7 — Navigation must collapse on mobile
+- **Impact:** Admin is essentially unusable on mobile — content hidden behind sidebar
+- **Severity:** Critical
+- **Effort:** Medium
+- **Recommended Fix:** CSS override in admin-nav.tsx to auto-collapse Medusa sidebar on mobile. Or: Accept admin is desktop-only (document this decision)
+
+### GAP-1202 Admin-Tabellen horizontal abgeschnitten auf Mobile
+- **Area:** Auction Block Detail (won items), Media Catalog, CRM Customers, Sync Log — all table views
+- **Current State:** Tables render with desktop column widths. On mobile, columns like AMOUNT, STATUS, ACTIONS are off-screen with no horizontal scroll indicator
+- **Violated Rule:** SG 8.6 — Tables on mobile must use card view, horizontal scroll container, or column hiding
+- **Impact:** Critical data (payment status, amounts, actions) invisible on mobile
+- **Severity:** Critical
+- **Effort:** Large
+- **Recommended Fix:** For admin: Accept desktop-only for data tables. OR: Add `overflow-x: auto` with scroll indicator to all table containers
+
+### GAP-1203 Block Detail Workflow-Steps abgeschnitten
+- **Area:** `/admin/auction-blocks/[id]` — "Next Steps" 4-step wizard
+- **Current State:** Four colored circle steps (1→2→3→4) in horizontal row exceed mobile viewport. Steps 3+4 partially hidden
+- **Violated Rule:** SG 9.2 — Horizontal content must not exceed viewport
+- **Impact:** Workflow status not fully visible
+- **Severity:** High
+- **Effort:** Small
+- **Recommended Fix:** Stack steps vertically on mobile, or use compact numbered list instead of circles
+
+### GAP-1204 StatsGrid nicht responsive — 4-5 Spalten auf Mobile
+- **Area:** Dashboard (5 stats), Catalog Hub (4 stats), Newsletter (4 stats), Sync Page (stats)
+- **Current State:** StatsGrid renders all cards in single row regardless of screen width. On mobile, each card is ~60-80px wide — numbers and labels barely readable
+- **Violated Rule:** SG 2.3 — Grids must adapt column count to viewport; SG 9.4 — Reduce complexity on mobile
+- **Impact:** Key metrics unreadable on mobile
+- **Severity:** High
+- **Effort:** Medium
+- **Recommended Fix:** StatsGrid: 1 column on mobile (< 640px), 2 columns on tablet (640-1024px), auto-fit on desktop. Add responsive CSS to admin-layout.tsx
+
+### GAP-1205 Media Filter-Buttons Overflow
+- **Area:** `/admin/media` — Format filter pills
+- **Current State:** 10+ filter buttons wrap into 3+ rows on mobile, consuming ~40% of viewport before any content
+- **Violated Rule:** SG 9.5 — Filters on mobile must be compact (dropdown or horizontal scroll)
+- **Impact:** Content pushed far below the fold
+- **Severity:** Medium
+- **Effort:** Medium
+- **Recommended Fix:** Convert filter pills to horizontal scrollable row on mobile, or use a dropdown/modal filter
+
+### GAP-1206 Email Template Editor Overflow
+- **Area:** `/admin/emails` — Template edit modal/overlay
+- **Current State:** Edit form inputs are desktop-width and partially overflow on mobile viewport
+- **Violated Rule:** SG 6.7 — Forms must be single-column and full-width on mobile
+- **Impact:** Input fields partially cut off, hard to edit on phone
+- **Severity:** Medium
+- **Effort:** Small
+- **Recommended Fix:** Add `max-width: 100%` and `box-sizing: border-box` to all admin form inputs
+
+### Backend Mobile — What Works Well
+- **Configuration Page** — ConfigRow (label + control) stacks properly on mobile
+- **Shipping Calculator** — Form fields stack vertically, usable
+- **Content Management** — Text inputs and textareas full-width on mobile
+- **Gallery Manager** — Image cards stack vertically with toggles accessible
+- **Medusa native Settings** — Store/Currency settings render cleanly on mobile
+
+---
+
 ### Backend Admin — What's Good
 - **Dashboard** — Clean layout, StatsGrid, Action Required section, Launch Readiness with progress bar. Well-structured
 - **Auction Block Detail** — Next Steps wizard (1→2→3→4), Won items table with clear actions. Good workflow

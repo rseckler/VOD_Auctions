@@ -519,6 +519,31 @@ ST-3: Mobile bottom-sheet dialogs  (2 days, after MT-4)
   GAP-1110: Medusa native settings theme inconsistency          (Large effort, accept for now)
 ```
 
+### Backend Admin MOBILE Fixes
+
+**Decision needed: Is the admin intended to be usable on mobile?**
+
+If YES (mobile admin needed):
+```
+[CRITICAL — Week 2]
+  GAP-1201: Auto-collapse Medusa sidebar on mobile              (admin-nav.tsx — 2 hrs)
+  GAP-1204: StatsGrid responsive columns (1col mobile, 2 tablet) (admin-layout.tsx — 1 hr)
+  GAP-1202: Table containers overflow-x: auto                   (all admin table pages — 2 hrs)
+
+[HIGH — Week 3]
+  GAP-1203: Block Detail workflow steps vertical on mobile       (auction-blocks/[id]/page.tsx — 30 min)
+  GAP-1205: Media filter pills horizontal scroll or dropdown    (media/page.tsx — 1 hr)
+  GAP-1206: Email editor form inputs max-width 100%             (emails/page.tsx — 30 min)
+```
+
+If NO (admin is desktop-only — recommended for now):
+```
+  → Document "Admin requires desktop browser" in user guide
+  → Add admin middleware redirecting mobile to "Please use desktop" message
+  → Defer all GAP-12xx fixes to post-launch
+  → Total effort saved: ~7 hours
+```
+
 ### Explicitly Deferred
 
 | Item | Reason |
