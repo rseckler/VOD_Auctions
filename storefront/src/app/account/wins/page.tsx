@@ -321,7 +321,7 @@ export default function WinsPage() {
 
   if (loading) {
     return (
-      <div className="space-y-4">
+      <div className="flex flex-col gap-4">
         {[1, 2].map((i) => (
           <Skeleton key={i} className="h-24 w-full rounded-lg" />
         ))}
@@ -407,7 +407,7 @@ export default function WinsPage() {
         </div>
       )}
 
-      <div className="space-y-4">
+      <div className="flex flex-col gap-4">
         {wins.map((win) => {
           const tx = transactions[win.item.id]
           const isPaid = tx?.status === "paid" || tx?.shipping_status === "shipped" || tx?.shipping_status === "delivered"

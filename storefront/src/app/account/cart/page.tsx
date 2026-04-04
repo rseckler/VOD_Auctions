@@ -130,7 +130,7 @@ export default function CartPage() {
 
   if (loading) {
     return (
-      <div className="space-y-4">
+      <div className="flex flex-col gap-4">
         {[1, 2].map((i) => (
           <div key={i} className="rounded-lg border border-border p-4">
             <div className="flex gap-3 items-start">
@@ -190,7 +190,7 @@ export default function CartPage() {
         </span>
       </h2>
 
-      <div className="space-y-4">
+      <div className="flex flex-col gap-4">
         {items.map((item) => (
           <div key={item.id} className="p-3 rounded-xl border border-border bg-card shadow-sm">
             <div className="flex gap-3">

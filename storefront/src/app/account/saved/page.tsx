@@ -148,7 +148,7 @@ export default function SavedPage() {
 
   if (loading) {
     return (
-      <div className="space-y-4">
+      <div className="flex flex-col gap-4">
         {[1, 2, 3].map((i) => (
           <Skeleton key={i} className="h-24 w-full rounded-lg" />
         ))}
@@ -180,7 +180,7 @@ export default function SavedPage() {
         </span>
       </h2>
 
-      <div className="space-y-4">
+      <div className="flex flex-col gap-4">
         {items.map((item) => {
           const price = item.direct_price || item.legacy_price
           const itemHref =
