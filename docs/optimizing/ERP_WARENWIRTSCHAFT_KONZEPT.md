@@ -1,247 +1,402 @@
-# ERP / Warenwirtschaft / Fibu / Logistik — Konzept & Analyse
+# ERP / Warenwirtschaft / Fibu / Logistik — Konzept & Analyse v2.0
 
-**Erstellt:** 2026-04-04
-**Kontext:** VOD Auctions — 41.500 Produkte, erwartetes Volumen 10-50 Bestellungen/Tag
-**Frage:** Brauchen wir ein vollständiges ERP-System?
-
----
-
-## 1. Die ehrliche Antwort
-
-**Bei 10-50 Bestellungen/Tag von einer Single-Channel-Plattform: Nein, ein vollständiges ERP-System ist nicht notwendig und wäre kontraproduktiv.**
-
-Das bedeutet NICHT, dass wir keine Automatisierung brauchen. Es bedeutet, dass die richtige Lösung ein **modularer Ansatz** ist: spezialisierte Tools für spezifische Funktionen, verbunden über APIs.
+**Erstellt:** 2026-04-04 | **Aktualisiert:** 2026-04-04 (v2.0 — Korrektur Business-Modell)
+**Kontext:** VOD Auctions — 3 Business-Modelle, 41.500+ Produkte, erwartetes Volumen 10-50+ Bestellungen/Tag
+**Status:** Konzeptphase — Entscheidungsvorlage
 
 ---
 
-## 2. Warum kein volles ERP — die Argumente
+## 1. Die 3 Business-Modelle (korrigiert)
 
-### Was ein ERP löst (und was wir davon brauchen)
+Die Plattform ist NICHT nur ein Single-Seller-Auktionshaus. Es gibt **3 aktuelle und geplante Geschäftsmodelle:**
+
+| Modell | Beschreibung | Lager | Versand | Abrechnung |
+|--------|-------------|-------|---------|-----------|
+| **A: Kommissionsverkauf** | Große Sammlungen von Dritten werden über die Plattform verkauft | VOD-Lager (eingelagert) | VOD versendet | Provision an VOD, Rest an Eigentümer |
+| **B: B2C Marketplace** | Plattform offen für Seller (à la Discogs) | Seller-Lager | Seller versendet | Monatliche Membership, keine Transaktionskosten |
+| **C: VOD Records Eigenware** | Eigene Label-Produkte (Vinyl Reissues, Box Sets) | VOD-Lager | VOD versendet | Vollständiger Erlös |
+
+**Plus das bestehende Auktionsmodell:** Franks persönliche Sammlung (~41.500 Items)
+
+---
+
+## 2. Was wir wirklich brauchen — korrigierte Analyse
 
 | ERP-Funktion | Brauchen wir das? | Begründung |
 |---|---|---|
-| Multi-Channel-Sync | **Nein** | Single-Channel (eigene Website). Kein eBay, kein Discogs Marketplace |
-| Lagerverwaltung/WMS | **Nein** | Unique Items (Qty 1), keine Varianten, kein Nachbestellen |
-| Einkauf/Bestellwesen | **Nein** | Kein Wareneinkauf — Frank hat die Sammlung bereits |
-| Produktionsplanung | **Nein** | Keine Produktion |
-| Rechnungsstellung | **Ja** | GoBD-konform, fortlaufende Nummern, 10 Jahre Archivierung |
-| DATEV-Export | **Ja** | Steuerberater braucht das |
-| Versandetiketten | **Ja** | Ab 20+ Bestellungen/Tag manuell nicht skalierbar |
-| EU-USt/OSS | **Ja** | Pflicht bei EU-Verkäufen > €10.000/Jahr |
-| Bestandsführung | **Teilweise** | Bereits in Medusa (available → sold) |
-| Kundenmanagement | **Bereits vorhanden** | CRM in Medusa mit Stats, Notes, Timeline |
-| Retourenmanagement | **Minimal** | < 2% bei Vinyl — manuell handhabbar |
+| **Lagerverwaltung/WMS** | **Ja** | VOD Records Eigenware + Kommissionsware = physisches Lager |
+| **Bestandsführung** | **Ja** | Qty-basiert für VOD Records (nicht nur Qty 1), Kommissionsware tracken |
+| **Einkauf/Bestellwesen** | **Ja (teilweise)** | VOD Records bestellt Pressung/Produktion, Kommissionsware wird eingebucht |
+| **Kommissionsabrechnung** | **Ja** | Modell A: Erlös aufteilen (Provision VOD vs. Auszahlung Eigentümer) |
+| **Seller-Management** | **Ja** | Modell B: Membership, Seller-Onboarding, Auszahlungen |
+| **Rechnungsstellung** | **Ja** | GoBD-konform, fortlaufende Nummern, 10 Jahre Archivierung |
+| **Differenzbesteuerung §25a** | **Ja — Prio 1** | Margenbesteuerung für Gebrauchtware (massiver Steuervorteil) |
+| **DATEV-Export** | **Ja — Super wichtig** | Steuerberater braucht das, monatlich |
+| **Versandautomatisierung** | **Ja** | Multi-Carrier (DHL + weitere), vollautomatisch |
+| **EU-USt/OSS** | **Ja** | Pflicht bei EU-Verkäufen > €10.000/Jahr |
+| **Multi-Channel-Sync** | **Nein (vorerst)** | Single-Channel, aber B2C Marketplace = zweite "Channel"-Art |
+| **Produktionsplanung** | **Nein** | Keine eigene Pressung (wird extern beauftragt) |
 
-**Ergebnis:** Von ~12 ERP-Kernfunktionen brauchen wir 4. Davon sind 2 bereits implementiert.
+### Fazit: Wir brauchen mehr als "2 API-Integrationen"
 
-### Was VOD Auctions bereits hat (Medusa)
+Die vorherige Einschätzung ("sevDesk + DHL reicht") war **zu simpel**. Mit 3 Business-Modellen brauchen wir einen **dedizierten ERP-Bereich im Admin** mit:
+- Lagerverwaltung (Modell A + C)
+- Kommissionsabrechnung (Modell A)
+- Seller-Management (Modell B)
+- Bestandsführung (alle Modelle)
+- Rechnungs-Automation
+- Versand-Automation
+- DATEV-Export
+- §25a Differenzbesteuerung
 
-| Funktion | Status | Details |
+---
+
+## 3. Differenzbesteuerung §25a UStG — Prio 1
+
+### Was ist das?
+
+Bei Gebrauchtware (Second-Hand Vinyl) muss nicht der volle Verkaufspreis mit 19% USt besteuert werden, sondern nur die **Marge** (Differenz zwischen Ein- und Verkaufspreis).
+
+### Beispiel
+
+| | Regelbesteuerung | Differenzbesteuerung §25a |
 |---|---|---|
-| Bestellverwaltung | ✅ Komplett | Lifecycle pending → paid → shipped → delivered, Order Numbers, Audit Trail |
-| Zahlungsabwicklung | ✅ Komplett | Stripe + PayPal, Webhooks, Refunds |
-| Bestandsführung | ✅ Komplett | available → reserved → in_auction → sold, Daily Sync |
-| Kundenmanagement | ✅ Komplett | CRM mit Stats, Notes, Timeline, VIP, DSGVO |
-| Rechnungs-PDF | ✅ Vorhanden | pdfkit, muss auf GoBD-Konformität geprüft werden |
-| Versandlabel-PDF | ✅ Vorhanden | pdfkit, aber kein echtes DHL-Label mit Tracking |
-| CSV-Export | ✅ Vorhanden | Transactions + Customers |
-| Bulk-Aktionen | ✅ Vorhanden | Bulk Mark-as-Shipped |
-| E-Mail-Automation | ✅ Komplett | 6 transaktionale Mails + Newsletter |
+| Einkaufspreis | €10 | €10 |
+| Verkaufspreis | €50 | €50 |
+| Bemessungsgrundlage | €50 (brutto) | €40 Marge (brutto) |
+| USt (19%) | €7,98 | €6,39 |
+| **Netto-Erlös** | **€42,02** | **€43,61** |
 
-### Die echten Lücken (was fehlt)
+Bei Franks Sammlung (Einkaufspreis = €0, da Privatsammlung → volle Marge) ist der Vorteil kleiner. Aber bei **Kommissionsware (Modell A)** und **VOD Records Einkauf** kann §25a **tausende Euro pro Jahr** sparen.
 
-| Lücke | Priorität | Lösung |
-|---|---|---|
-| **DATEV-Export** | Hoch | sevDesk/lexoffice API |
-| **DHL API Integration** | Hoch | DHL Geschäftskunden API (echte Labels + Tracking) |
-| **GoBD-konforme Rechnungen** | Hoch | sevDesk API (fortlaufende Nummern, Archivierung) |
-| **EU-USt/OSS** | Mittel | sevDesk + Steuerberater-Beratung |
-| **Differenzbesteuerung §25a** | Mittel | Steuerberater (Margenbesteuerung für Gebrauchtware) |
+### Voraussetzungen
+- Einkauf von **Privatpersonen oder Kleinunternehmern** (keine USt auf der Eingangsrechnung)
+- Detaillierte Aufzeichnungen pro Artikel: Einkaufspreis, Verkaufspreis, Marge
+- Rechnung darf **keine USt separat ausweisen** (nur Brutto-Betrag)
+- Vermerk auf Rechnung: "Differenzbesteuerung gem. §25a UStG. Im Rechnungsbetrag ist die Umsatzsteuer enthalten."
 
----
-
-## 3. Benchmark: Wie machen es die Großen?
-
-### Discogs (Marketplace, 30M+ Artikel)
-- Stellt **kein ERP** zur Verfügung — Seller sind für Fulfillment selbst verantwortlich
-- Die meisten High-Volume Discogs-Seller (50-200 Bestellungen/Woche) nutzen: Tabellen + Buchhaltungssoftware + manuelle Versandworkflows
-- eBay PowerSeller in DE nutzen JTL-Wawi oder Billbee für Multi-Channel
-
-### Catawiki (Kuratierte Auktionen, unser direkter Vergleich)
-- Bietet: Auktionsmechanik + Payment Escrow + Versandlabel-Integration (Sendcloud/Packlink)
-- Bietet NICHT: ERP, Buchhaltung, DATEV, Lagerverwaltung
-- Seller handles: Verpackung, Carrier-Abgabe, eigene Buchhaltung
-- **Selbst Catawiki, eine große Plattform, bietet keine ERP-Funktionalität**
-
-### Unabhängige Plattenläden
-- **HHV Berlin** (50.000+ Artikel, Multi-Channel): Nutzt wahrscheinlich JTL/Xentral — aber die sind Multi-Channel (eBay + Discogs + eigener Shop)
-- **Boomkat Manchester** (~1.000 Artikel): Custom Platform + Buchhaltungssoftware, kein ERP
-- **Norman Records Leeds** (~5.000 Artikel): Shopify + Xero (Buchhaltung), kein ERP
-
-### Der Muster: ERP wird erst nötig bei
-- **Multi-Channel-Verkauf** (gleiches Inventar auf 3+ Plattformen) — DAS ist der Haupttrigger
-- **100+ Bestellungen/Tag** mit Lagerpersonal
-- **Komplexe Lieferketten** (Einkauf + Produktion + Lager + Versand)
-
-**VOD Auctions hat KEINEN dieser Trigger.**
+### Was das für die Plattform bedeutet
+- Jeder Artikel braucht ein Feld: `purchase_price` (Einkaufspreis)
+- Rechnungen müssen 2 Formate unterstützen: Regelbesteuerung + §25a
+- DATEV-Export muss Regel- und Differenzbesteuerung korrekt trennen
+- **Steuerberater muss das Setup validieren** — vor Launch!
 
 ---
 
-## 4. Der ERP-Markt in Deutschland — Preisvergleich
+## 4. Dedizierter ERP-Bereich im Admin
 
-| Tool | Monatlich | Stärke | Medusa-Integration | Empfehlung |
-|---|---|---|---|---|
-| **Xentral** | €199-799 | Multi-Channel ERP | Custom API (3-4 Wochen) | ❌ Overkill |
-| **Billbee** | €0-94 | Order Management | Custom API (Tage) | ⚠️ Vielleicht später |
-| **JTL-Wawi** | Kostenlos | Windows-ERP für eBay/Amazon | Schmerzhaft | ❌ Falsches Ökosystem |
-| **sevDesk** | €9-43 | Rechnungen + DATEV | Gute API (1-2 Tage) | ✅ **Empfohlen** |
-| **lexoffice** | €4-17 | Rechnungen + DATEV | OK API | ✅ Alternative |
-| **Weclapp** | €59-149/User | General-Purpose ERP | Custom API | ❌ Nicht passend |
+### Aktuelle Situation
 
----
-
-## 5. Die empfohlene Lösung: Composable Stack
-
+Das Admin-Backend hat diese Hub-Struktur:
 ```
-┌─────────────────────────────────────────────────────┐
-│  VOD Auctions (Medusa.js)                            │
-│  Orders, Inventory, CRM, Auctions, Payments          │
-│                                                       │
-│  Bestellung bezahlt ──────┬───────────────────────── │
-│                           │                           │
-│                           ▼                           │
-│                   ┌──────────────┐                    │
-│                   │  sevDesk API  │                    │
-│                   │  Rechnung     │                    │
-│                   │  DATEV Export  │                    │
-│                   │  €18/Monat    │                    │
-│                   └──────────────┘                    │
-│                                                       │
-│  Versand bestätigt ───────┬───────────────────────── │
-│                           │                           │
-│                           ▼                           │
-│                   ┌──────────────┐                    │
-│                   │  DHL API      │                    │
-│                   │  Versandlabel │                    │
-│                   │  Tracking-Nr. │                    │
-│                   │  Kostenlos    │                    │
-│                   └──────────────┘                    │
-│                                                       │
-│  Alles andere ──── bereits in Medusa implementiert    │
-└─────────────────────────────────────────────────────┘
+Dashboard | Auction Blocks | Orders | Catalog | Marketing | Operations | AI Assistant
 ```
 
-### Kosten Composable vs. ERP
+Operations enthält: System Health, Sync, Shipping Config, Test Runner, Configuration.
 
-| | Composable (empfohlen) | ERP (Xentral) |
-|---|---|---|
-| **Monatliche Kosten** | ~€20-50 | €199-799 |
-| **Setup-Kosten** | 1-2 Wochen Dev | €1.000-2.000 + 3-4 Wochen Dev |
-| **Jahr 1 Gesamt** | **~€250-600** | **~€10.000-15.000** |
-| **Laufend/Jahr** | **~€250-600** | **~€2.400-9.600** |
-| **Komplexität** | Niedrig (2 API-Integrationen) | Hoch (neues System lernen + Connector pflegen) |
-| **Vendor Lock-in** | Minimal (sevDesk austauschbar) | Hoch (ERP-Migration ist schmerzhaft) |
+**Was fehlt:** Ein dedizierter Bereich für Warenwirtschaft/ERP-Funktionen.
 
----
+### Vorgeschlagene Erweiterung
 
-## 6. Konkreter Implementierungsplan
+```
+Dashboard | Auction Blocks | Orders | Catalog | Marketing | Operations | ERP | AI Assistant
+```
 
-### Phase 1: Launch (Jetzt → erste 30 Verkaufstage)
+**ERP Hub mit folgenden Sub-Pages:**
 
-**Keine zusätzliche Entwicklung nötig.**
-
-- sevDesk Account erstellen (€18/Monat)
-- Rechnungen manuell in sevDesk erstellen (Copy-Paste aus Medusa Admin)
-- Versandlabels über DHL Geschäftskundenportal Web-UI erstellen
-- Bestellverwaltung über bestehendes Medusa Admin
-
-**Zeitaufwand pro Bestellung:** ~5-10 Minuten
-**Skalierbar bis:** ~15-20 Bestellungen/Tag (1-2h Adminzeit)
-
-### Phase 2: Automatisierung (bei 15-20 Bestellungen/Tag regelmäßig)
-
-**Entwicklungsaufwand: ~1-2 Wochen**
-
-1. **sevDesk API Integration** (2-3 Tage)
-   - Bestellung bezahlt → automatisch Rechnung in sevDesk erstellen
-   - GoBD-konforme fortlaufende Nummern
-   - DATEV-Export automatisch verfügbar
-   - API: `POST /api/v1/Invoice` mit Kundendaten + Positionen
-
-2. **DHL Geschäftskunden API** (3-5 Tage)
-   - Admin UI: "Create Shipping Label" Button pro Bestellung
-   - DHL API generiert echtes Label mit Barcode + Tracking-Nummer
-   - Tracking-Nummer wird in Transaction gespeichert
-   - Automatische E-Mail an Kunden mit Tracking-Link
-   - API: DHL Paket API 2.0 (REST, gut dokumentiert)
-
-3. **Automatische Zustandsübergänge** (1-2 Tage)
-   - Bezahlt → sevDesk-Rechnung erstellt → Admin benachrichtigt
-   - Label erstellt → Status "Packing" → Tracking-Nr. gespeichert
-   - DHL Tracking-Update → Status "Shipped" → Kunden-E-Mail
-
-**Zeitaufwand pro Bestellung nach Phase 2:** ~1-2 Minuten (statt 5-10)
-**Skalierbar bis:** ~50-100 Bestellungen/Tag
-
-### Phase 3: Skalierung (bei 50+ Bestellungen/Tag)
-
-- Batch-Label-Druck (alle offenen Bestellungen → ein Klick → alle Labels)
-- Packlisten-PDF generieren
-- Multi-Carrier (Shipcloud statt nur DHL)
-- Automatisierte Feedback-Requests
-
-### Phase 4: ERP-Evaluation (bei 100+ Bestellungen/Tag ODER Multi-Channel)
-
-- Erst dann: Xentral oder Billbee evaluieren
-- Basis: 12-18 Monate operative Daten als Entscheidungsgrundlage
-- Migration: Medusa-Daten sind sauber und exportierbar
+| Sub-Page | Funktion |
+|----------|---------|
+| **Rechnungen** | Übersicht aller Rechnungen, sevDesk-Status, Download, Gutschriften |
+| **Versand** | Label-Erstellung (Sendcloud), Tracking-Übersicht, Batch-Druck |
+| **Lager** | Bestandsübersicht (VOD Records + Kommissionsware), Ein-/Ausbuchung |
+| **Kommission** | Kommissionsgeber-Verwaltung, Abrechnungen, Auszahlungen |
+| **Finanzen** | Tagesumsatz, Monats-Revenue, offene Zahlungen, DATEV-Export |
+| **Steuern** | §25a Übersicht, Regel- vs. Differenzbesteuerung, EU-USt/OSS |
 
 ---
 
-## 7. Warum ERP zu früh kontraproduktiv ist
+## 5. Architektur-Entscheidung: Composable vs. ERP-Software
 
-### 1. Kosten-Nutzen
-€200+/Monat für Xentral vs. €18/Monat für sevDesk. Die Differenz (€2.200/Jahr) finanziert 3 Wochen Entwicklungsarbeit.
+### Option A: Composable Stack (erweitert)
 
-### 2. Integrations-Overhead
-Jede Medusa-Änderung erfordert Testing des ERP-Connectors. Jedes ERP-Update kann die Integration brechen. Zwei Admin-Interfaces statt eins.
+```
+VOD Auctions (Medusa.js)
+├── Sendcloud → Versand (160+ Carrier, Labels, Tracking, Returns)
+├── sevDesk/easybill → Rechnungen, DATEV, §25a, EU-USt
+├── Custom ERP-Modul → Lager, Kommission, Bestandsführung
+└── Admin ERP Hub → Zentrale Arbeitsumgebung
+```
 
-### 3. Falscher Fokus
-Dev-Zeit sollte in Auktions-Features und Kunden-Experience fließen, nicht in ERP-Integration.
+| Pro | Contra |
+|-----|--------|
+| Volle Kontrolle über Workflows | Lager/Kommission muss custom gebaut werden |
+| Günstig (~€30/Monat) | Mehr Entwicklungsaufwand (4-6 Wochen) |
+| Perfekt integriert in bestehendes Admin | Custom Code = eigene Wartung |
+| Kein Vendor Lock-in | Keine "out-of-box" Lager-Workflows |
 
-### 4. Vendor Lock-in
-ERPs sind klebrig. Einmal eingeführt, werden Prozesse abhängig. Migration weg von einem ERP ist immer schmerzhaft.
+### Option B: Billbee als Operations-Layer
 
-### 5. Lösung ohne Problem
-Die Hauptgründe für ERP-Einführung (Multi-Channel, Lagerkomplexität, Lieferketten) existieren bei VOD Auctions nicht.
+```
+VOD Auctions (Medusa.js)
+├── Billbee → Orders, Rechnungen, Versand, Lager — alles in einem
+├── sevDesk → DATEV, Buchhaltung (Billbee exportiert dorthin)
+└── Admin → Verlinkt auf Billbee für Operations
+```
+
+| Pro | Contra |
+|-----|--------|
+| Lager, Rechnungen, Versand out-of-box | Zweites Admin-System (Billbee + Medusa) |
+| 120+ Integrationen | Medusa↔Billbee Connector muss gebaut werden |
+| Bewährt bei deutschen E-Commerce SMBs | Weniger Kontrolle über Workflows |
+| €9-94/Monat | Kommissionsabrechnung nicht nativ |
+
+### Option C: Xentral (vollständiges ERP)
+
+```
+VOD Auctions (Medusa.js)
+├── Xentral → Alles: Lager, Rechnungen, Versand, Buchhaltung, DATEV
+└── Medusa → Nur noch Storefront + Auktionen
+```
+
+| Pro | Contra |
+|-----|--------|
+| Komplettes ERP out-of-box | €199-799/Monat |
+| Lager, WMS, Kommission, §25a | Medusa↔Xentral Connector = 3-4 Wochen Dev |
+| DATEV direkt integriert | Zwei Admin-Systeme |
+| Skaliert bis 500+ Orders/Tag | Overkill für aktuelle Phase |
+
+### Empfehlung
+
+**Phase 1 (Launch → 30 Orders/Tag): Option A — Composable**
+- Sendcloud + sevDesk + Custom ERP-Modul im Admin
+- Lager-Verwaltung als einfache Ein-/Ausbuchung
+- §25a Setup mit Steuerberater
+
+**Phase 2 (30-100 Orders/Tag): Option A erweitern ODER Option B evaluieren**
+- Wenn Custom-Lager zu komplex wird → Billbee evaluieren
+- Wenn Multi-Seller (Modell B) live → Billbee oder Xentral evaluieren
+
+**Phase 3 (100+ Orders/Tag + Multi-Seller): Option B oder C**
+- Abhängig vom Volumen und der Komplexität
 
 ---
 
-## 8. Was wirklich dringend ist (Action Items)
+## 6. Datenbank-Erweiterungen für ERP
 
-| # | Was | Warum | Wann |
-|---|---|---|---|
-| 1 | sevDesk Account einrichten | DATEV-Export für Steuerberater | Vor Launch |
-| 2 | Rechnungsformat mit Steuerberater abstimmen | GoBD-Konformität, §25a Differenzbesteuerung | Vor Launch |
-| 3 | DHL Geschäftskunden-Account beantragen | Günstigere Versandpreise, API-Zugang | Vor Launch |
-| 4 | sevDesk API Integration entwickeln | Automatische Rechnungsstellung | Bei 15-20 Bestellungen/Tag |
-| 5 | DHL API Integration entwickeln | Automatische Versandlabels + Tracking | Bei 15-20 Bestellungen/Tag |
+### Neue Tabellen
+
+```sql
+-- Lagerbestände (VOD Records + Kommissionsware)
+CREATE TABLE inventory_item (
+    id TEXT PRIMARY KEY,
+    release_id TEXT REFERENCES "Release"(id),
+    source TEXT NOT NULL CHECK (source IN ('vod_records', 'commission', 'frank_collection')),
+    purchase_price NUMERIC,              -- Einkaufspreis (für §25a)
+    commission_owner_id TEXT,            -- FK zu commission_owner (Modell A)
+    commission_rate NUMERIC DEFAULT 0,   -- Provision % für VOD
+    location TEXT,                        -- Lagerort (Regal, Box, etc.)
+    status TEXT DEFAULT 'in_stock' CHECK (status IN ('in_stock', 'reserved', 'sold', 'shipped', 'returned')),
+    quantity INTEGER DEFAULT 1,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Kommissionsgeber (Modell A)
+CREATE TABLE commission_owner (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT,
+    phone TEXT,
+    address TEXT,
+    tax_id TEXT,                          -- Steuernummer (für §25a Nachweis)
+    default_commission_rate NUMERIC DEFAULT 20, -- Standard-Provision %
+    total_items INTEGER DEFAULT 0,
+    total_sold INTEGER DEFAULT 0,
+    total_revenue NUMERIC DEFAULT 0,
+    total_paid_out NUMERIC DEFAULT 0,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Kommissionsabrechnungen
+CREATE TABLE commission_settlement (
+    id TEXT PRIMARY KEY,
+    owner_id TEXT NOT NULL REFERENCES commission_owner(id),
+    period_from DATE NOT NULL,
+    period_to DATE NOT NULL,
+    items_sold INTEGER NOT NULL,
+    gross_revenue NUMERIC NOT NULL,
+    commission_amount NUMERIC NOT NULL,   -- VODs Anteil
+    payout_amount NUMERIC NOT NULL,       -- Auszahlung an Eigentümer
+    status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'approved', 'paid')),
+    paid_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- §25a Differenzbesteuerung Tracking
+CREATE TABLE tax_margin_record (
+    id TEXT PRIMARY KEY,
+    transaction_id TEXT NOT NULL,
+    release_id TEXT NOT NULL,
+    purchase_price NUMERIC NOT NULL,      -- Einkaufspreis
+    sale_price NUMERIC NOT NULL,          -- Verkaufspreis (brutto)
+    margin NUMERIC NOT NULL,              -- Differenz
+    vat_on_margin NUMERIC NOT NULL,       -- USt auf Marge (19/119 * margin)
+    tax_scheme TEXT NOT NULL CHECK (tax_scheme IN ('margin_scheme', 'standard')),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+### Erweiterung Release-Tabelle
+
+```sql
+ALTER TABLE "Release" ADD COLUMN IF NOT EXISTS purchase_price NUMERIC;
+ALTER TABLE "Release" ADD COLUMN IF NOT EXISTS inventory_source TEXT DEFAULT 'frank_collection';
+ALTER TABLE "Release" ADD COLUMN IF NOT EXISTS warehouse_location TEXT;
+```
 
 ---
 
-## 9. Fazit
+## 7. API-Endpunkte für ERP-Bereich
 
-**Die Zweifel sind berechtigt — aber die Lösung ist nicht "ERP kaufen", sondern "die richtigen 2-3 Integrationen bauen".**
+```
+# ERP Admin Routes
+GET    /admin/erp/dashboard          — KPIs: Revenue, Offene Zahlungen, Lagerbestand
+GET    /admin/erp/invoices           — Rechnungen-Liste (sevDesk Status)
+POST   /admin/erp/invoices/create    — Rechnung manuell erstellen
+GET    /admin/erp/invoices/:id/pdf   — PDF Download
+POST   /admin/erp/invoices/datev     — DATEV-Monatsexport
 
-VOD Auctions hat mit Medusa bereits 70% der operativen Funktionalität eines ERPs. Die fehlenden 30% (Rechnungen, DATEV, Versandlabels) werden durch 2 API-Integrationen (sevDesk + DHL) abgedeckt — für €18/Monat statt €200+/Monat.
+GET    /admin/erp/shipping           — Offene Sendungen, Tracking-Übersicht
+POST   /admin/erp/shipping/label     — Sendcloud Label erstellen
+POST   /admin/erp/shipping/batch     — Batch Labels (alle offenen)
 
-Das ist exakt der Ansatz den erfolgreiche D2C-Marken, unabhängige Plattenläden und selbst große Marktplätze wie Catawiki nutzen: **Composable Commerce** — spezialisierte Tools, verbunden über APIs, statt ein monolithisches ERP das 80% ungenutzte Features mitbringt.
+GET    /admin/erp/inventory          — Lagerbestand (VOD Records + Kommission)
+POST   /admin/erp/inventory/inbound  — Wareneingang buchen
+POST   /admin/erp/inventory/outbound — Warenausgang buchen
 
-**Die Plattform liefert. Was fehlt sind 2 API-Integrationen und ein sevDesk-Account.**
+GET    /admin/erp/commission         — Kommissionsgeber-Liste
+GET    /admin/erp/commission/:id     — Detail + Abrechnungshistorie
+POST   /admin/erp/commission/settle  — Abrechnung erstellen
+
+GET    /admin/erp/tax                — §25a Übersicht (Regel vs. Differenz)
+GET    /admin/erp/tax/report         — Steuerreport für Periode
+```
 
 ---
 
-## 10. Medusa-Native vs. Custom — Ehrliche Bestandsaufnahme
+## 8. Sendcloud Integration (Detail)
+
+### Warum Sendcloud
+
+| Feature | Sendcloud | DHL direkt | Shipcloud |
+|---------|-----------|-----------|-----------|
+| Carrier | 160+ (DHL, DPD, Hermes, GLS...) | Nur DHL | Multi-Carrier |
+| Medusa Plugin | ✅ Ja | ❌ Nein | ❌ Nein |
+| Free Tier | ✅ Unlimitiert | N/A | ❌ Nein |
+| Returns Portal | ✅ Ja | ❌ Nein | ❌ Nein |
+| Branded Tracking | ✅ Ja | ❌ Nein | ❌ Nein |
+| Zollformulare | ✅ Automatisch | Manuell | ✅ Ja |
+| Adressvalidierung | ✅ Ja | ❌ Nein | ✅ Ja |
+
+### Workflows die Sendcloud automatisch liefert
+1. Label mit Barcode + Tracking-Nummer
+2. Carrier-Ratenvergleich (günstigster Versand)
+3. Adressvalidierung vor Versand
+4. Lieferzeitschätzung
+5. Branded Tracking-Seite (vod-auctions.com Branding)
+6. Multi-Stage Notifications (Label → Abgeholt → Transit → Zugestellt)
+7. Fehlzustellung-Handling
+8. Zollformulare CN22/CN23 (automatisch für Non-EU)
+9. Batch-Label-Druck
+10. Self-Service Return Portal
+11. Return-Label + Tracking
+12. Paketversicherung
+
+---
+
+## 9. sevDesk/easybill Integration (Detail)
+
+### Warum sevDesk oder easybill
+
+| Feature | sevDesk | easybill | lexoffice |
+|---------|---------|---------|-----------|
+| GoBD | ✅ | ✅ | ✅ |
+| DATEV | ✅ | ✅ (direkt) | ✅ |
+| EU-USt/OSS | ✅ | ✅ + Monitoring | ✅ |
+| §25a Differenzbesteuerung | ⚠️ Manuell konfigurierbar | ⚠️ Manuell | ⚠️ Manuell |
+| E-Rechnung (XRechnung) | ✅ | ✅ | ✅ |
+| API | Gut (2 req/s) | Stark (dual API) | OK |
+| Preis/Monat | €8.90+ | €10+ | €8+ |
+
+**Empfehlung:** **easybill** — stärkstes E-Commerce-API und direkter DATEV-Datenservice. Oder **sevDesk** wenn bereits Account vorhanden.
+
+### §25a in der Rechnungssoftware
+
+Die Rechnungssoftware muss 2 Rechnungsformate unterstützen:
+- **Regelbesteuerung:** Netto + 19% USt + Brutto (Standard für VOD Records Neuware)
+- **Differenzbesteuerung §25a:** Nur Brutto, Vermerk "Differenzbesteuerung gem. §25a UStG"
+
+→ Erfordert pro Rechnung die Angabe welches Schema gilt. Das wird über `tax_margin_record` gesteuert.
+
+---
+
+## 10. Implementierungsplan (aktualisiert)
+
+### Phase 1: Fundament (Woche 1-2)
+- [ ] Steuerberater: §25a Differenzbesteuerung Setup + Validierung
+- [ ] sevDesk oder easybill Account einrichten
+- [ ] Sendcloud Account erstellen (Free Tier)
+- [ ] DHL Geschäftskunden-Account beantragen
+- [ ] DB: `inventory_item`, `commission_owner`, `tax_margin_record` Tabellen erstellen
+- [ ] DB: `purchase_price`, `inventory_source`, `warehouse_location` auf Release
+
+### Phase 2: Rechnungen + DATEV (Woche 3)
+- [ ] sevDesk/easybill API-Connector
+- [ ] Payment Success → Invoice erstellen (Regel- oder §25a-Format)
+- [ ] Admin: Rechnungen-Übersicht im ERP Hub
+- [ ] DATEV-Export Button
+- [ ] Gutschriften bei Retouren
+
+### Phase 3: Versand-Automation (Woche 4)
+- [ ] Sendcloud Connector (Medusa Plugin oder custom)
+- [ ] Admin: "Create Label" pro Transaction
+- [ ] Sendcloud Webhooks → fulfillment_status
+- [ ] Tracking-Link in Kunden-Emails
+- [ ] Batch-Label-Druck
+- [ ] Branded Tracking-Seite konfigurieren
+
+### Phase 4: Lager + Kommission (Woche 5-6)
+- [ ] Admin: Lager-Übersicht (Bestand nach Source: Frank/VOD Records/Kommission)
+- [ ] Wareneingang/-ausgang buchen
+- [ ] Kommissionsgeber-Verwaltung
+- [ ] Kommissionsabrechnung erstellen + PDF
+- [ ] §25a Tracking pro Artikel (Einkaufs- vs. Verkaufspreis)
+
+### Phase 5: ERP Dashboard (Woche 7)
+- [ ] Tagesumsatz, Monats-Revenue, offene Zahlungen
+- [ ] Steuerbericht (Regel- vs. Differenzbesteuerung)
+- [ ] Lagerbestandswert
+- [ ] Kommissions-Übersicht (ausstehende Auszahlungen)
+
+---
+
+## 11. Kosten
+
+| Position | Monatlich | Einmalig |
+|----------|----------|---------|
+| Sendcloud Free → Growth | €0 → €59 | — |
+| sevDesk/easybill | €9-18 | — |
+| DHL Geschäftskunden | €0 (per Paket) | — |
+| Entwicklung Phase 1-5 | — | ~6-7 Wochen |
+| Steuerberater §25a Setup | — | ~€500-1.000 |
+| **Gesamt Start** | **~€10-20/Monat** | **~€500-1.000 + Dev** |
+| **Gesamt bei Skalierung** | **~€60-80/Monat** | — |
+
+---
+
+## 12. Medusa-Native vs. Custom — Ehrliche Bestandsaufnahme
 
 ### Was wir von Medusa nutzen (10-15%)
 
@@ -252,126 +407,37 @@ Das ist exakt der Ansatz den erfolgreiche D2C-Marken, unabhängige Plattenläden
 | ORM + DB Layer | ✅ Ja | model.define(), generateEntityId(), PG_CONNECTION |
 | Notification (Resend) | ✅ Ja | Email-Provider in medusa-config.ts |
 | Customer | ⚠️ Teilweise | Auth ja, CRM komplett custom |
-| Order | ❌ Nein | Custom `transaction` Tabelle |
-| Product | ❌ Nein | Custom `Release` Tabelle (Legacy) |
-| Cart | ❌ Nein | Custom `cart_item` Tabelle |
-| Inventory | ❌ Nein | Binary `legacy_available` auf Release |
-| Fulfillment | ❌ Nein | Custom shipping.ts |
-| Payment | ❌ Nein | Custom Stripe/PayPal Webhooks |
+| Order | ❌ Nein | Custom `transaction` (Auktions-Workflow) |
+| Product | ❌ Nein | Custom `Release` (Legacy-Daten) |
+| Fulfillment | ❌ Nein | Custom shipping.ts → wird durch Sendcloud ersetzt |
+| Inventory | ❌ Nein | Wird durch `inventory_item` Tabelle ersetzt |
 
-### Warum so viel Custom?
-
-**Berechtigte Gründe:**
-- Auktionsmodell (Proxy Bidding, Anti-Sniping, Blöcke) → kein Standard-Commerce-System kann das
-- Unique Items (Qty 1, keine Varianten) → Medusa's Product/Inventory Modell passt nicht
-- Legacy-Daten (41.500 Releases in camelCase-Tabellen) → waren vor Medusa da
-- Dual Payment (Stripe + PayPal Direct) → Medusa's Payment-Modul hat Limitierungen
-
-**Fragwürdige Entscheidungen:**
-- Customer CRM hätte als Erweiterung von Medusa's Customer gebaut werden können
-- Fulfillment/Shipping hätte über Medusa's Fulfillment Module + Provider laufen können
-- Direktkauf-Orders hätten Medusa's native Order nutzen können
-
-### Was wir korrigieren (und was nicht)
+### Was wir korrigieren
 
 **Jetzt integrieren (statt selbst bauen):**
-- Sendcloud für Versand → existierendes Medusa Plugin
-- sevDesk/easybill für Rechnungen → API-Integration
-- Medusa Fulfillment Module → für Sendcloud Provider
+- Sendcloud für Versand (existierendes Medusa Plugin)
+- sevDesk/easybill für Rechnungen + DATEV
+- Medusa Fulfillment Module für Sendcloud Provider
+
+**Custom bauen (kein Tool am Markt liefert das):**
+- ERP Admin Hub (Operations-Zentrale)
+- Kommissionsabrechnung (Modell A)
+- §25a Differenzbesteuerung Tracking
+- Lager-Verwaltung (einfache Ein-/Ausbuchung)
 
 **Nicht umbauen (Risiko > Nutzen):**
-- Transaction → zu verschieden von Medusa Order (dual item_type, order_group)
-- Release → Legacy-Daten, 41.500 Einträge, Migration wäre massiv
-- Auction Module → kein Standard-Framework unterstützt das
+- Transaction → zu verschieden von Medusa Order
+- Release → Legacy-Daten, Migration wäre massiv
+- Auction Module → kein Standard-Framework kann das
 
 ---
 
-## 11. Existierende Tools & Medusa-Plugins
+## 13. Action Items — Sofort
 
-### Medusa.js Ökosystem — Was es bereits gibt
-
-| Plugin | GitHub | Funktion |
-|---|---|---|
-| `@saphes/sendcloud-plugin` | Community | Sendcloud Fulfillment Provider für Medusa |
-| `@rsc-labs/medusa-documents-v2` | [GitHub](https://github.com/RSC-Labs/medusa-documents) | PDF Rechnungen im Admin, i18n |
-| ShipStation Integration | Offizielle Medusa Docs | Multi-Carrier Shipping |
-| Odoo ERP Recipe | Offizielle Medusa Docs | Open Source ERP Connector |
-| `medusa-fulfillment-shippo` | [GitHub](https://github.com/macder/medusa-fulfillment-shippo) | Shippo Carrier Integration |
-
-### SaaS-Vergleich Versand
-
-| Platform | Medusa Plugin | EU-Fokus | Free Tier | Label-Preis |
-|---|---|---|---|---|
-| **Sendcloud** | ✅ Ja | ✅ Stark | Unlimitiert | €0.15/Überschreitung |
-| ShipStation | ✅ Ja (offiziell) | ⚠️ Mittel | Nein | ab $14.99/Mo |
-| Shippo | ✅ Community | ⚠️ Mittel | 30 Labels/Mo | $0.05/Label |
-| Shipcloud | ❌ Nein | ✅ Stark | Nein | Per Carrier |
-
-### SaaS-Vergleich Rechnungen (DE)
-
-| Tool | Preis/Mo | GoBD | DATEV | EU-USt/OSS | API |
-|---|---|---|---|---|---|
-| **sevDesk** | €8.90+ | ✅ | ✅ | ✅ | Gut |
-| **easybill** | €10+ | ✅ | ✅ (direkt) | ✅ + OSS-Monitoring | Stark |
-| lexoffice | €8+ | ✅ | ✅ | ✅ | OK |
-
-### 20 Workflows die Sendcloud + sevDesk liefern
-
-**Pre-Shipment:**
-1. Packliste (anders als Rechnung)
-2. Carrier-Ratenvergleich
-3. Adressvalidierung
-4. Lieferzeitschätzung
-5. Paketgewicht-Berechnung
-
-**Shipment:**
-6. Label mit Barcode + Tracking
-7. Zollformulare CN22/CN23
-8. Batch-Label-Druck
-9. Carrier-Pickup
-10. Versicherung High-Value
-
-**Post-Shipment:**
-11. Branded Tracking-Seite
-12. Multi-Stage Notifications
-13. Fehlzustellung-Handling
-14. Proof of Delivery
-
-**Retouren:**
-15. Self-Service Return Portal
-16. Return-Label
-17. Return-Tracking
-
-**Buchhaltung:**
-18. GoBD-konforme Rechnungen + Archivierung
-19. DATEV-Export
-20. EU-USt/OSS + Gutschriften
-
----
-
-## 12. Implementierungsplan
-
-### Woche 1: Accounts + Grundsetup
-- Sendcloud Account (Free Tier)
-- sevDesk Account (€8.90/Monat)
-- DHL Geschäftskunden-Account
-- Steuerberater: §25a Differenzbesteuerung klären
-
-### Woche 2: sevDesk Integration
-- API-Connector im Backend
-- Payment Success → Invoice in sevDesk
-- Admin: Rechnungen-Übersicht
-
-### Woche 3: Sendcloud Integration
-- Medusa Plugin oder eigener Connector
-- Admin: "Create Label" Button
-- Webhooks → fulfillment_status
-- Tracking-Link in Kunden-Emails
-
-### Woche 4: Admin Operations Dashboard
-- Rechnungen-Übersicht
-- Versand-Übersicht
-- Tagesumsatz / Revenue
-- DATEV-Export Button
-
-### Gesamtkosten: €8.90/Monat + 2-3 Wochen Entwicklung
+| # | Was | Wer | Wann |
+|---|---|---|---|
+| 1 | **Steuerberater: §25a Differenzbesteuerung klären** | Robin + Frank | **Sofort, vor Launch** |
+| 2 | sevDesk oder easybill Account einrichten | Robin | Diese Woche |
+| 3 | Sendcloud Account erstellen | Robin | Diese Woche |
+| 4 | DHL Geschäftskunden beantragen | Frank | Diese Woche |
+| 5 | `purchase_price` Feld auf Release-Tabelle planen | Robin | Vor Phase 2 |
