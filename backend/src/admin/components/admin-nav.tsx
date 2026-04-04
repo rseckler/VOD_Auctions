@@ -105,6 +105,7 @@ function injectNavCSS() {
 
     /* Hide Medusa built-in nav items */
     a[href="/app/orders"],
+    a[href="/app/orders"],
     a[href="/app/orders/drafts"],
     a[href="/app/products"],
     a[href="/app/products/gift-cards"],

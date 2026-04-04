@@ -54,7 +54,7 @@ export default function AccountOverview() {
         Welcome, {customer?.first_name || customer?.email}
       </h2>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
         <Link href="/account/bids">
           <Card className="p-6 hover:border-primary/30 transition-colors group">
             <div className="flex items-center gap-3 mb-3">

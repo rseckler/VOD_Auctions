@@ -121,17 +121,19 @@ export default async function Home() {
 
       <HomeContent blocks={blocks} />
 
-      {/* Empty State — no auctions */}
+      {/* Empty State — no auctions (compact banner with CTA) */}
       {blocks.length === 0 && (
-        <section className="mx-auto max-w-6xl px-6 pb-8">
-          <div className="rounded-2xl border border-[rgba(232,224,212,0.08)] bg-[rgba(232,224,212,0.02)] p-16 text-center">
-            <Disc3 className="h-12 w-12 mx-auto text-muted-foreground/20 mb-4" />
-            <p className="text-muted-foreground">
-              Currently no active auctions.
-            </p>
-            <p className="text-muted-foreground/60 mt-2 text-sm">
-              Check back soon — new blocks are published regularly.
-            </p>
+        <section className="mx-auto max-w-6xl px-6 pb-4">
+          <div className="flex items-center justify-between rounded-xl border border-border bg-secondary/30 px-6 py-4">
+            <div className="flex items-center gap-3">
+              <Disc3 className="h-5 w-5 text-muted-foreground/40 flex-shrink-0" />
+              <p className="text-sm text-muted-foreground">
+                No active auctions right now — check back soon.
+              </p>
+            </div>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/catalog">Browse Catalog</Link>
+            </Button>
           </div>
         </section>
       )}

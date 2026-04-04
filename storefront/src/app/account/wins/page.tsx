@@ -386,42 +386,25 @@ export default function WinsPage() {
 
       {/* Shipping Savings Bar */}
       {hasUnpaid && shippingSavings && shippingSavings.items_count > 0 && (
-        <Card className="p-4 mb-6 border-[#d4a54a]/30 bg-[#d4a54a]/5">
-          <div className="flex items-start gap-3">
-            <Package className="w-5 h-5 text-[#d4a54a] flex-shrink-0 mt-0.5" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium">
-                Shipping{shippingSavings.zone_slug === "de" ? " within Germany" : shippingSavings.zone_slug === "eu" ? " to EU" : " worldwide"}:{" "}
-                <span className="text-[#d4a54a] font-mono">&euro;{shippingSavings.shipping_cost.toFixed(2)}</span>
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                You can add more items &mdash; shipping stays combined!
+        <div className="flex items-center justify-between rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 mb-6">
+          <div className="flex items-center gap-2 min-w-0">
+            <Package className="w-4 h-4 text-primary flex-shrink-0" />
+            <p className="text-sm">
+              Shipping: <span className="text-primary font-mono font-medium">&euro;{shippingSavings.shipping_cost.toFixed(2)}</span>
+              <span className="text-muted-foreground ml-1.5 text-xs">
+                &mdash; add more items, shipping stays combined
                 {shippingSavings.savings_vs_individual > 0 && (
-                  <span className="text-[#d4a54a] font-medium">
-                    {" "}Saving &euro;{shippingSavings.savings_vs_individual.toFixed(2)} vs. ordering individually.
-                  </span>
+                  <span className="text-primary"> (saving &euro;{shippingSavings.savings_vs_individual.toFixed(2)})</span>
                 )}
-              </p>
-              {/* Progress bar showing weight */}
-              <div className="mt-2">
-                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-[#d4a54a] to-[#c49a3a] rounded-full transition-all"
-                    style={{ width: `${Math.min((shippingSavings.total_weight_g / (shippingSavings.next_tier_at_g || 2000)) * 100, 100)}%` }}
-                  />
-                </div>
-                <p className="text-[10px] text-muted-foreground mt-1">
-                  {shippingSavings.total_weight_g}g / {(shippingSavings.next_tier_at_g || 2000).toLocaleString()}g &mdash; room for {shippingSavings.estimated_items_capacity ?? Math.floor((2000 - shippingSavings.total_weight_g) / 350)} more vinyl records
-                </p>
-              </div>
-            </div>
-            <Button variant="outline" size="sm" asChild className="flex-shrink-0 border-[#d4a54a]/30 text-[#d4a54a] hover:bg-[#d4a54a]/10">
-              <Link href="/catalog?for_sale=true">
-                Add Items <ArrowRight className="w-3.5 h-3.5 ml-1" />
-              </Link>
-            </Button>
+              </span>
+            </p>
           </div>
-        </Card>
+          <Button variant="outline" size="sm" asChild className="flex-shrink-0 ml-3">
+            <Link href="/catalog?for_sale=true">
+              Add Items <ArrowRight className="w-3.5 h-3.5 ml-1" />
+            </Link>
+          </Button>
+        </div>
       )}
 
       <div className="space-y-3">

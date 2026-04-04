@@ -4,6 +4,20 @@ Vollständiger Entwicklungs-Changelog. Neue Einträge werden direkt hier ergänz
 
 ---
 
+## 2026-04-04 — UX Audit Phase 4: Remaining Storefront + Admin Fixes
+
+### Storefront Polish
+- **GAP-1005:** Homepage Empty State kompakt — p-16 Box → slim Inline-Banner mit "Browse Catalog" CTA
+- **GAP-1007:** Account Overview Grid 2-spaltig → `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3` (3+2 Layout)
+- **GAP-1011:** Wins Shipping Savings Bar — kompakter (Progress-Bar + Detail entfernt, einzeilig mit Preis + CTA)
+- **Hex-Fix:** Savings Bar hardcoded `#d4a54a` → `primary` Tokens
+
+### Admin Fixes
+- **GAP-1101:** Medusa native Orders Link im CSS versteckt (`a[href="/app/orders"]` → `display: none`)
+- **GAP-1111:** Test Runner: "All Passed" bei 0 Tests → "Not Run" (neuer `not_run` Status)
+
+---
+
 ## 2026-04-04 — UX Audit Phase 3: Mobile UX (GAP-1001/1003/1004/1008/1010)
 
 ### Account Navigation Mobile (GAP-1001, GAP-1010)

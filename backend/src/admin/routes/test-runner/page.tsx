@@ -287,7 +287,7 @@ const TestRunnerPage = () => {
   const stats = report?.stats
   const specSummary = report ? buildSpecSummary(report.suites) : []
   const failedTests = report ? flattenTests(report.suites) : []
-  const overallStatus = !stats ? "unknown" : stats.unexpected > 0 ? "failed" : "passed"
+  const overallStatus = !stats ? "unknown" : stats.unexpected > 0 ? "failed" : stats.expected > 0 ? "passed" : "not_run"
 
   return (
     <Container>
@@ -346,7 +346,7 @@ const TestRunnerPage = () => {
               <div>
                 <Text className="text-ui-fg-subtle text-xs uppercase tracking-wide">Status</Text>
                 <Badge color={overallStatus === "passed" ? "green" : overallStatus === "failed" ? "red" : "grey"} className="mt-1">
-                  {overallStatus === "passed" ? "All Passed" : overallStatus === "failed" ? "Failures" : "Unknown"}
+                  {overallStatus === "passed" ? "All Passed" : overallStatus === "failed" ? "Failures" : overallStatus === "not_run" ? "Not Run" : "Unknown"}
                 </Badge>
               </div>
               <div>
