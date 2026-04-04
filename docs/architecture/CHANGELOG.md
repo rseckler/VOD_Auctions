@@ -4,6 +4,47 @@ Vollständiger Entwicklungs-Changelog. Neue Einträge werden direkt hier ergänz
 
 ---
 
+## 2026-04-04 — UI/UX Final Implementation Pass (40/53 Gaps resolved, 75%)
+
+### Design-System Token-Erweiterung
+- **Neue CSS-Tokens:** `--primary-dark` (#b8860b) und `--card-hover` (#1a1612) in globals.css + `@theme` Block registriert
+- Gradient-Endpunkte wie `to-[#b8860b]` → `to-primary-dark` in Header, MobileNav, HeaderAuth, About, Home
+
+### Hardcoded Hex Cleanup (GAP-101 — Final Pass)
+- **25+ Dateien** migriert: alle benannten Hex-Werte (#d4a54a, #b8860b, #1c1915, #1a1612) durch Token-Klassen ersetzt
+- Betroffen: About, Checkout, Wins, Profile, Collector, Email-Preferences, Newsletter, Apply, Invite, Gallery, Auctions, Catalog, Error-Pages, Reset-Password
+- **Komponenten:** Header (`bg-background/95`), ItemBidSection (`border-border`), HomeContent (`bg-card-hover`)
+- **Dokumentierte Ausnahmen:** gate/page.tsx (inline Styles), Stripe-Config (SDK-Limit), opengraph/apple-icon (Server-Side), apply/invite (eigenes Design)
+
+### Shared Components (GAP-402, GAP-503)
+- **ItemBidSection:** 3 raw `<button>` → `<Button>` (Proxy-Toggle + 2 Confirm-Dialog-Buttons)
+- **Bid-Inputs:** `type="number"` → `type="text" inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*"` (keine Browser-Spinner)
+
+### Touch Targets (GAP-404 — Korrektur)
+- **Header Saved/Cart Icons:** `p-2 -m-2` (36px) → `p-3 -m-3` (44px echte Touch-Fläche)
+- Badge-Position angepasst (`-top-1.5 -right-1.5` → `top-0 right-0`)
+
+### Typografie-Standardisierung (GAP-303, GAP-304)
+- **Settings Card Headers:** 8× `text-sm font-medium` → `heading-3` (inkl. Delete Account Destructive-Variante)
+- **About Page H2s:** 9× `font-serif text-3xl` → `heading-2 font-serif` (konsistent mit Heading-Scale)
+
+### Mobile UX (GAP-502)
+- **Checkout:** `inputMode="numeric"` auf Postal Code, `inputMode="tel"` auf Phone
+- Korrekte Mobile-Tastatur für Zahlenfelder
+
+### Navigation (GAP-601)
+- **MobileNav:** Doppelter "Search Catalog" Link zu `/catalog` entfernt
+
+### Accessibility (GAP-801, GAP-903)
+- **Countdown Timer:** `role="timer" aria-live="off" aria-atomic="true"` hinzugefügt
+- **Account Overview:** Silent `.catch()` → `toast.error("Failed to load account data")`
+
+### UI/UX Governance Docs
+- **7 Dokumente** in `docs/UI_UX/`: Style Guide, Gap Analysis, Optimization Plan, Implementation Report, CLAUDE.md Governance, PR Checklist, Code Governance
+- Implementation Report: 40/53 Findings behoben, 13 deferred (mit Begründung)
+
+---
+
 ## 2026-04-04 — Account Redesign: Overview + kompakte Item-Cards
 
 ### Account Overview Redesign
