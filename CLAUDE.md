@@ -4,7 +4,7 @@
 **Goal:** Eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Beta Test (platform_mode: beta_test) — Pre-Launch Phase als nächster Schritt
 **Language:** Storefront + Admin-UI: Englisch
-**Last Updated:** 2026-04-02
+**Last Updated:** 2026-04-04
 
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
@@ -14,7 +14,7 @@
 | Component | Technology |
 |-----------|------------|
 | Commerce | Medusa.js 2.x (Port 9000) |
-| Frontend | Next.js 16, React 19, TypeScript 5 |
+| Frontend | Next.js 16.2, React 19, TypeScript 5 |
 | Styling | Tailwind CSS 4, shadcn/ui, Framer Motion |
 | Design | "Vinyl Culture" — DM Serif Display + DM Sans, Gold #d4a54a, dark #1c1915 |
 | Database | Supabase PostgreSQL (proj: `bofblwqieuvmqybzxapx`, eu-central-1) |
@@ -84,6 +84,9 @@ npm run build && pm2 restart vodauction-storefront
 - **Discogs Prices ausgeblendet:** `{/* HIDDEN: ... */}` Marker in 5 Storefront-Dateien. Wiederherstellen wenn echte Sale-Daten verfügbar.
 - **LEFT JOIN in Transaction APIs:** Direktkäufe haben kein `block_item_id` → immer LEFT JOIN, nie INNER JOIN
 - **COALESCE:** `COALESCE(block_item.release_id, transaction.release_id)` in Transaction-Queries
+- **Bid-Input `type="text"`:** Bid-Inputs nutzen `type="text" inputMode="decimal"` (nicht `type="number"`). Parsing IMMER über `parseAmount()` (normalisiert `,` → `.`). Nie `parseFloat()` direkt auf User-Input — EU-Nutzer tippen Komma-Dezimale.
+- **`whole_euros_only: true`:** BID_CONFIG erzwingt ganzzahlige Gebote. Betrifft Validation, Increments, Display. Proxy-Max ebenfalls ganzzahlig validiert.
+- **UI/UX Governance:** Verbindliche Docs in `docs/UI_UX/` — Style Guide (Source of Truth), Gap Analysis, Optimization Plan, Implementation Report, PR Checklist. Jede UI-Änderung muss Shared Components (`Button`, `Input`, `Label`, `Card`) nutzen. Siehe `docs/UI_UX/CLAUDE.md` für Workflow.
 
 ## Database Schema
 
@@ -306,8 +309,8 @@ VOD_Auctions/
 ├── nginx/                         # vodauction-api.conf, vodauction-store.conf, vodauction-admin.conf
 └── docs/
     ├── architecture/CHANGELOG.md  # Vollständiger Changelog
+    ├── UI_UX/                     # UI/UX Governance (Style Guide, Gap Analysis, Plan, Report, PR Checklist)
     ├── DESIGN_GUIDE_BACKEND.md    # Admin Design System v2.0 (verbindlich)
-    ├── DESIGN_GUIDE_FRONTEND.md   # Storefront Vinyl Culture System
     ├── PRE_LAUNCH_KONZEPT.md      # Waitlist + Invite Flow
     ├── ADMIN_CONFIG_KONZEPT.md    # Config Panel + Platform Modes
     ├── DASHBOARD_KONZEPT.md       # Phase-adaptive Dashboard
