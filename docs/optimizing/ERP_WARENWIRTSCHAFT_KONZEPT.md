@@ -238,3 +238,140 @@ VOD Auctions hat mit Medusa bereits 70% der operativen Funktionalität eines ERP
 Das ist exakt der Ansatz den erfolgreiche D2C-Marken, unabhängige Plattenläden und selbst große Marktplätze wie Catawiki nutzen: **Composable Commerce** — spezialisierte Tools, verbunden über APIs, statt ein monolithisches ERP das 80% ungenutzte Features mitbringt.
 
 **Die Plattform liefert. Was fehlt sind 2 API-Integrationen und ein sevDesk-Account.**
+
+---
+
+## 10. Medusa-Native vs. Custom — Ehrliche Bestandsaufnahme
+
+### Was wir von Medusa nutzen (10-15%)
+
+| Medusa Feature | Genutzt? | Begründung |
+|---|---|---|
+| Auth (Login/Register/Session) | ✅ Ja | Session/Bearer Tokens, Password Reset |
+| Admin UI Shell | ✅ Ja | Icons, Layout, Routing für custom Pages |
+| ORM + DB Layer | ✅ Ja | model.define(), generateEntityId(), PG_CONNECTION |
+| Notification (Resend) | ✅ Ja | Email-Provider in medusa-config.ts |
+| Customer | ⚠️ Teilweise | Auth ja, CRM komplett custom |
+| Order | ❌ Nein | Custom `transaction` Tabelle |
+| Product | ❌ Nein | Custom `Release` Tabelle (Legacy) |
+| Cart | ❌ Nein | Custom `cart_item` Tabelle |
+| Inventory | ❌ Nein | Binary `legacy_available` auf Release |
+| Fulfillment | ❌ Nein | Custom shipping.ts |
+| Payment | ❌ Nein | Custom Stripe/PayPal Webhooks |
+
+### Warum so viel Custom?
+
+**Berechtigte Gründe:**
+- Auktionsmodell (Proxy Bidding, Anti-Sniping, Blöcke) → kein Standard-Commerce-System kann das
+- Unique Items (Qty 1, keine Varianten) → Medusa's Product/Inventory Modell passt nicht
+- Legacy-Daten (41.500 Releases in camelCase-Tabellen) → waren vor Medusa da
+- Dual Payment (Stripe + PayPal Direct) → Medusa's Payment-Modul hat Limitierungen
+
+**Fragwürdige Entscheidungen:**
+- Customer CRM hätte als Erweiterung von Medusa's Customer gebaut werden können
+- Fulfillment/Shipping hätte über Medusa's Fulfillment Module + Provider laufen können
+- Direktkauf-Orders hätten Medusa's native Order nutzen können
+
+### Was wir korrigieren (und was nicht)
+
+**Jetzt integrieren (statt selbst bauen):**
+- Sendcloud für Versand → existierendes Medusa Plugin
+- sevDesk/easybill für Rechnungen → API-Integration
+- Medusa Fulfillment Module → für Sendcloud Provider
+
+**Nicht umbauen (Risiko > Nutzen):**
+- Transaction → zu verschieden von Medusa Order (dual item_type, order_group)
+- Release → Legacy-Daten, 41.500 Einträge, Migration wäre massiv
+- Auction Module → kein Standard-Framework unterstützt das
+
+---
+
+## 11. Existierende Tools & Medusa-Plugins
+
+### Medusa.js Ökosystem — Was es bereits gibt
+
+| Plugin | GitHub | Funktion |
+|---|---|---|
+| `@saphes/sendcloud-plugin` | Community | Sendcloud Fulfillment Provider für Medusa |
+| `@rsc-labs/medusa-documents-v2` | [GitHub](https://github.com/RSC-Labs/medusa-documents) | PDF Rechnungen im Admin, i18n |
+| ShipStation Integration | Offizielle Medusa Docs | Multi-Carrier Shipping |
+| Odoo ERP Recipe | Offizielle Medusa Docs | Open Source ERP Connector |
+| `medusa-fulfillment-shippo` | [GitHub](https://github.com/macder/medusa-fulfillment-shippo) | Shippo Carrier Integration |
+
+### SaaS-Vergleich Versand
+
+| Platform | Medusa Plugin | EU-Fokus | Free Tier | Label-Preis |
+|---|---|---|---|---|
+| **Sendcloud** | ✅ Ja | ✅ Stark | Unlimitiert | €0.15/Überschreitung |
+| ShipStation | ✅ Ja (offiziell) | ⚠️ Mittel | Nein | ab $14.99/Mo |
+| Shippo | ✅ Community | ⚠️ Mittel | 30 Labels/Mo | $0.05/Label |
+| Shipcloud | ❌ Nein | ✅ Stark | Nein | Per Carrier |
+
+### SaaS-Vergleich Rechnungen (DE)
+
+| Tool | Preis/Mo | GoBD | DATEV | EU-USt/OSS | API |
+|---|---|---|---|---|---|
+| **sevDesk** | €8.90+ | ✅ | ✅ | ✅ | Gut |
+| **easybill** | €10+ | ✅ | ✅ (direkt) | ✅ + OSS-Monitoring | Stark |
+| lexoffice | €8+ | ✅ | ✅ | ✅ | OK |
+
+### 20 Workflows die Sendcloud + sevDesk liefern
+
+**Pre-Shipment:**
+1. Packliste (anders als Rechnung)
+2. Carrier-Ratenvergleich
+3. Adressvalidierung
+4. Lieferzeitschätzung
+5. Paketgewicht-Berechnung
+
+**Shipment:**
+6. Label mit Barcode + Tracking
+7. Zollformulare CN22/CN23
+8. Batch-Label-Druck
+9. Carrier-Pickup
+10. Versicherung High-Value
+
+**Post-Shipment:**
+11. Branded Tracking-Seite
+12. Multi-Stage Notifications
+13. Fehlzustellung-Handling
+14. Proof of Delivery
+
+**Retouren:**
+15. Self-Service Return Portal
+16. Return-Label
+17. Return-Tracking
+
+**Buchhaltung:**
+18. GoBD-konforme Rechnungen + Archivierung
+19. DATEV-Export
+20. EU-USt/OSS + Gutschriften
+
+---
+
+## 12. Implementierungsplan
+
+### Woche 1: Accounts + Grundsetup
+- Sendcloud Account (Free Tier)
+- sevDesk Account (€8.90/Monat)
+- DHL Geschäftskunden-Account
+- Steuerberater: §25a Differenzbesteuerung klären
+
+### Woche 2: sevDesk Integration
+- API-Connector im Backend
+- Payment Success → Invoice in sevDesk
+- Admin: Rechnungen-Übersicht
+
+### Woche 3: Sendcloud Integration
+- Medusa Plugin oder eigener Connector
+- Admin: "Create Label" Button
+- Webhooks → fulfillment_status
+- Tracking-Link in Kunden-Emails
+
+### Woche 4: Admin Operations Dashboard
+- Rechnungen-Übersicht
+- Versand-Übersicht
+- Tagesumsatz / Revenue
+- DATEV-Export Button
+
+### Gesamtkosten: €8.90/Monat + 2-3 Wochen Entwicklung
