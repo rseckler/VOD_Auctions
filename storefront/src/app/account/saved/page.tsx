@@ -148,7 +148,7 @@ export default function SavedPage() {
 
   if (loading) {
     return (
-      <div className="space-y-2">
+      <div className="space-y-3">
         {[1, 2, 3].map((i) => (
           <Skeleton key={i} className="h-24 w-full rounded-lg" />
         ))}
@@ -180,7 +180,7 @@ export default function SavedPage() {
         </span>
       </h2>
 
-      <div className="space-y-2">
+      <div className="space-y-3">
         {items.map((item) => {
           const price = item.direct_price || item.legacy_price
           const itemHref =
