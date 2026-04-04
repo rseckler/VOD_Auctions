@@ -126,7 +126,7 @@ export default function MyBidsPage() {
 
   if (loading) {
     return (
-      <div className="space-y-3">
+      <div className="space-y-4">
         {[1, 2, 3].map((i) => (
           <Skeleton key={i} className="h-24 w-full rounded-lg" />
         ))}
@@ -173,7 +173,7 @@ export default function MyBidsPage() {
             Active Auctions
             <Badge variant="secondary" className="ml-2">{activeBids.length}</Badge>
           </h3>
-          <div className="space-y-3">
+          <div className="space-y-4">
             {activeBids.map((bid) => (
               <BidCard key={bid.id} bid={bid} />
             ))}
@@ -187,7 +187,7 @@ export default function MyBidsPage() {
             Ended Auctions
             <Badge variant="secondary" className="ml-2">{endedBids.length}</Badge>
           </h3>
-          <div className="space-y-3">
+          <div className="space-y-4">
             {endedBids.map((bid) => (
               <BidCard key={bid.id} bid={bid} />
             ))}
