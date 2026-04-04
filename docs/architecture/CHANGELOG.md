@@ -4,6 +4,24 @@ Vollständiger Entwicklungs-Changelog. Neue Einträge werden direkt hier ergänz
 
 ---
 
+## 2026-04-04 — Account Redesign: Overview + kompakte Item-Cards
+
+### Account Overview Redesign
+- **Grid:** `grid-cols-2 lg:grid-cols-3` (2 Spalten Mobile, 3 Desktop — war 1/2/3)
+- **CTAs in jeder Card:** "View Bids →", "Pay Now →" (wenn unbezahlt), "Checkout →" (wenn Cart > 0)
+- **Zusatzinfos:** Winning-Count, ausstehender Betrag, Cart-Gesamtwert
+- **Kompaktere Cards:** p-6 → p-4, text-3xl → text-2xl, kleinere Icons
+- **Won Auctions:** Zeigt "€X awaiting payment" + goldener "Pay Now" CTA wenn unbezahlt
+
+### Einheitliche Item-Cards (Bids, Saved, Cart, Wins)
+- **Bild:** `w-16 h-16` → `w-14 h-14` (56px statt 64px), `<img>` → `<Image>` (Next.js)
+- **Preis:** `text-lg` → `text-sm` auf Saved/Cart/Wins (einheitlich mit Bids)
+- **Spacing:** `space-y-3` → `space-y-2` (kompakter)
+- **Bids:** `p-4 gap-4` → `p-3 gap-3` + Next.js Image statt raw img
+- **~25% weniger Höhe pro Card** über alle 4 Listen-Seiten
+
+---
+
 ## 2026-04-04 — UX Audit Phase 4: Remaining Storefront + Admin Fixes
 
 ### Storefront Polish

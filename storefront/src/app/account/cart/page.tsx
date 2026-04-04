@@ -130,11 +130,11 @@ export default function CartPage() {
 
   if (loading) {
     return (
-      <div className="space-y-3">
+      <div className="space-y-2">
         {[1, 2].map((i) => (
           <div key={i} className="rounded-lg border border-border p-4">
             <div className="flex gap-4 items-start">
-              <Skeleton className="w-16 h-16 rounded flex-shrink-0" />
+              <Skeleton className="w-14 h-14 rounded flex-shrink-0" />
               <div className="flex-1 space-y-2">
                 <Skeleton className="h-4 w-3/4" />
                 <Skeleton className="h-3 w-1/3" />
@@ -190,13 +190,13 @@ export default function CartPage() {
         </span>
       </h2>
 
-      <div className="space-y-3">
+      <div className="space-y-2">
         {items.map((item) => (
           <Card key={item.id} className="p-4">
             <div className="flex gap-4">
               <Link
                 href={`/catalog/${item.release_id}`}
-                className="relative w-16 h-16 flex-shrink-0 rounded overflow-hidden bg-card"
+                className="relative w-14 h-14 flex-shrink-0 rounded overflow-hidden bg-card"
               >
                 {item.coverImage ? (
                   <Image
@@ -228,7 +228,7 @@ export default function CartPage() {
               </div>
 
               <div className="text-right flex-shrink-0 flex flex-col items-end gap-2">
-                <p className="text-lg font-bold font-mono text-primary">
+                <p className="text-sm font-bold font-mono text-primary">
                   &euro;{Number(item.price).toFixed(2)}
                 </p>
                 <p className="text-[10px] text-muted-foreground/60">

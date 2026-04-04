@@ -419,7 +419,7 @@ export default function WinsPage() {
                 {/* Cover */}
                 <Link
                   href={`/auctions/${win.block.slug}/${win.item.id}`}
-                  className="relative w-16 h-16 flex-shrink-0 rounded overflow-hidden bg-card"
+                  className="relative w-14 h-14 flex-shrink-0 rounded overflow-hidden bg-card"
                 >
                   {win.item.release_cover ? (
                     <Image
@@ -465,7 +465,7 @@ export default function WinsPage() {
 
                 {/* Price + Action */}
                 <div className="text-right flex-shrink-0 flex flex-col items-end">
-                  <p className="text-lg font-bold font-mono text-primary">
+                  <p className="text-sm font-bold font-mono text-primary">
                     &euro;{win.final_price.toFixed(2)}
                   </p>
                   <p className="text-xs text-muted-foreground mb-2">

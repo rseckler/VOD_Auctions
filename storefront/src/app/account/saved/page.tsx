@@ -148,7 +148,7 @@ export default function SavedPage() {
 
   if (loading) {
     return (
-      <div className="space-y-3">
+      <div className="space-y-2">
         {[1, 2, 3].map((i) => (
           <Skeleton key={i} className="h-24 w-full rounded-lg" />
         ))}
@@ -180,7 +180,7 @@ export default function SavedPage() {
         </span>
       </h2>
 
-      <div className="space-y-3">
+      <div className="space-y-2">
         {items.map((item) => {
           const price = item.direct_price || item.legacy_price
           const itemHref =
@@ -192,7 +192,7 @@ export default function SavedPage() {
               <div className="flex gap-4">
                 <Link
                   href={itemHref}
-                  className="w-16 h-16 flex-shrink-0 rounded overflow-hidden bg-card relative"
+                  className="w-14 h-14 flex-shrink-0 rounded overflow-hidden bg-card relative"
                 >
                   {item.coverImage ? (
                     <Image
@@ -245,7 +245,7 @@ export default function SavedPage() {
 
                 <div className="text-right flex-shrink-0 flex flex-col items-end gap-2">
                   {price ? (
-                    <p className="text-lg font-bold font-mono text-primary">
+                    <p className="text-sm font-bold font-mono text-primary">
                       &euro;{Number(price).toFixed(2)}
                     </p>
                   ) : (

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { getToken } from "@/lib/auth"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
 import { Disc3, Gavel } from "lucide-react"
@@ -49,17 +50,19 @@ function BidStatusBadge({ bid }: { bid: BidEntry }) {
 function BidCard({ bid }: { bid: BidEntry }) {
   return (
     <Link href={`/auctions/${bid.block.slug}/${bid.item.id}`}>
-      <Card className="flex gap-4 p-4 hover:border-primary/30 transition-colors">
-        <div className="w-16 h-16 flex-shrink-0 rounded overflow-hidden bg-card">
+      <Card className="flex gap-3 p-3 hover:border-primary/20 transition-colors">
+        <div className="w-14 h-14 flex-shrink-0 rounded overflow-hidden bg-card relative">
           {bid.item.release_cover ? (
-            <img
+            <Image
               src={bid.item.release_cover}
               alt=""
-              className="w-full h-full object-cover"
+              fill
+              sizes="56px"
+              className="object-cover"
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
-              <Disc3 className="h-6 w-6 text-muted-foreground/30" />
+              <Disc3 className="h-5 w-5 text-muted-foreground/30" />
             </div>
           )}
         </div>
@@ -123,7 +126,7 @@ export default function MyBidsPage() {
 
   if (loading) {
     return (
-      <div className="space-y-3">
+      <div className="space-y-2">
         {[1, 2, 3].map((i) => (
           <Skeleton key={i} className="h-24 w-full rounded-lg" />
         ))}
@@ -170,7 +173,7 @@ export default function MyBidsPage() {
             Active Auctions
             <Badge variant="secondary" className="ml-2">{activeBids.length}</Badge>
           </h3>
-          <div className="space-y-3">
+          <div className="space-y-2">
             {activeBids.map((bid) => (
               <BidCard key={bid.id} bid={bid} />
             ))}
@@ -184,7 +187,7 @@ export default function MyBidsPage() {
             Ended Auctions
             <Badge variant="secondary" className="ml-2">{endedBids.length}</Badge>
           </h3>
-          <div className="space-y-3">
+          <div className="space-y-2">
             {endedBids.map((bid) => (
               <BidCard key={bid.id} bid={bid} />
             ))}
