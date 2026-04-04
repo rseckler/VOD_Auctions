@@ -36,6 +36,11 @@ const BID_CONFIG = {
   ],
 }
 
+/** Normalize comma decimals (EU locale) before parsing: "12,50" → 12.5 */
+function parseAmount(value: string): number {
+  return parseFloat(value.replace(",", "."))
+}
+
 function getMinIncrement(currentPrice: number): number {
   const row = BID_CONFIG.increment_table.find((r) => currentPrice < r.below)!
   return BID_CONFIG.whole_euros_only ? row.increment_whole : row.increment_std
@@ -465,7 +470,7 @@ function BidForm({
       return
     }
     setAmount((prev) => {
-      const n = parseFloat(prev)
+      const n = parseAmount(prev)
       if (isNaN(n) || n < effectiveMinimumBid) {
         return BID_CONFIG.whole_euros_only
           ? String(Math.ceil(effectiveMinimumBid))
@@ -487,7 +492,7 @@ function BidForm({
       return
     }
 
-    const val = parseFloat(amount)
+    const val = parseAmount(amount)
     if (isNaN(val) || val < effectiveMinimumBid) {
       toast.error(`Minimum bid is €${BID_CONFIG.whole_euros_only ? Math.ceil(effectiveMinimumBid) : effectiveMinimumBid.toFixed(2)}`, { duration: 5000 })
       return
@@ -508,8 +513,8 @@ function BidForm({
     if (!token) return
 
     try {
-      const body: Record<string, number> = { amount: parseFloat(amount) }
-      if (showProxy && maxAmount) body.max_amount = parseFloat(maxAmount)
+      const body: Record<string, number> = { amount: parseAmount(amount) }
+      if (showProxy && maxAmount) body.max_amount = parseAmount(maxAmount)
 
       const res = await fetch(
         `${MEDUSA_URL}/store/auction-blocks/${slug}/items/${itemId}/bids`,
@@ -661,7 +666,7 @@ function BidForm({
               Processing...
             </span>
           ) : isAuthenticated
-            ? `Place Bid: \u20ac${parseFloat(amount || "0").toFixed(2)}`
+            ? `Place Bid: \u20ac${parseAmount(amount || "0").toFixed(2)}`
             : "Login to Bid"}
         </Button>
 
@@ -712,11 +717,11 @@ function BidForm({
               <p className="text-center text-muted-foreground text-sm mb-4">
                 You are bidding{" "}
                 <span className="text-primary font-bold">
-                  &euro;{parseFloat(amount || "0").toFixed(2)}
+                  &euro;{parseAmount(amount || "0").toFixed(2)}
                 </span>
                 {showProxy && maxAmount && (
                   <span>
-                    {" "}(Maximum: &euro;{parseFloat(maxAmount).toFixed(2)})
+                    {" "}(Maximum: &euro;{parseAmount(maxAmount).toFixed(2)})
                   </span>
                 )}
               </p>

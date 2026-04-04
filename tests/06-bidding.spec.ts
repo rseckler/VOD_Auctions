@@ -80,7 +80,7 @@ test.describe("Bidding", () => {
     // When logged out, the bid section should show a "Login to bid" prompt
     // OR the bid input should prompt authentication
     const loginPrompt = page.getByRole("button", { name: /login|sign in/i })
-    const bidInput = page.locator("input[type='number'][placeholder*='bid' i], input[placeholder*='amount' i]")
+    const bidInput = page.locator("input[type='text'][inputmode='decimal']")
 
     // At least one of these indicators should be present
     const hasLoginPrompt = await loginPrompt.isVisible()
@@ -174,8 +174,8 @@ test.describe("Bidding", () => {
     await page.waitForLoadState("networkidle", { timeout: 20_000 })
     await page.waitForTimeout(2_000)
 
-    // Find the bid amount input
-    const bidInput = page.locator("input[type='number']").first()
+    // Find the bid amount input (type="text" with inputMode="decimal")
+    const bidInput = page.locator("input[inputmode='decimal']").first()
     if (!await bidInput.isVisible()) {
       // Might need to click "Place Bid" button first
       const placeBtn = page.getByRole("button", { name: /place bid|bid now/i })
@@ -187,12 +187,12 @@ test.describe("Bidding", () => {
       }
     }
 
-    // Get current value and add a small increment
+    // Get current value and add whole-euro increment (whole_euros_only is true)
     const currentVal = await bidInput.inputValue()
-    const currentNum = parseFloat(currentVal) || 1.0
-    const newBid = currentNum + 0.5
+    const currentNum = parseFloat(currentVal) || 1
+    const newBid = Math.ceil(currentNum) + 1
 
-    await bidInput.fill(String(newBid.toFixed(2)))
+    await bidInput.fill(String(newBid))
 
     // Submit
     const submitBtn = page.getByRole("button", { name: /place bid|submit bid/i })

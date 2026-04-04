@@ -32,31 +32,37 @@ export default function AccountOverview() {
       Authorization: `Bearer ${token}`,
     }
 
-    Promise.all([
+    Promise.allSettled([
       fetch(`${MEDUSA_URL}/store/account/bids`, { headers }).then((r) => r.json()),
       fetch(`${MEDUSA_URL}/store/account/wins`, { headers }).then((r) => r.json()),
       fetch(`${MEDUSA_URL}/store/account/orders`, { headers }).then((r) => r.json()),
       fetch(`${MEDUSA_URL}/store/account/cart`, { headers }).then((r) => r.json()),
       fetch(`${MEDUSA_URL}/store/account/saved`, { headers }).then((r) => r.json()),
     ])
-      .then(([bidsData, winsData, ordersData, cartData, savedData]) => {
-        const bids = bidsData.bids || []
-        const active = bids.filter((b: any) => b.is_winning && b.item?.status === "active")
-        setActiveBids(active.length)
-        setWinningCount(bids.filter((b: any) => b.is_winning).length)
-        setWins(winsData.count || 0)
-        // Sum unpaid win amounts
-        const unpaid = (winsData.wins || []).filter((w: any) => !w.transaction || w.transaction.status !== "paid")
-        setUnpaidAmount(unpaid.reduce((sum: number, w: any) => sum + Number(w.item?.current_price || 0), 0))
-        setPastOrders(ordersData.count || 0)
-        const items = cartData.items || []
-        setCartItems(items.length)
-        setCartTotal(items.reduce((sum: number, i: any) => sum + Number(i.price || 0), 0))
-        setSavedItems(savedData.count || 0)
-        setLoaded(true)
-      })
-      .catch(() => {
-        toast.error("Failed to load account data")
+      .then(([bidsRes, winsRes, ordersRes, cartRes, savedRes]) => {
+        if (bidsRes.status === "fulfilled") {
+          const bids = bidsRes.value.bids || []
+          setActiveBids(bids.filter((b: any) => b.is_winning && b.item?.status === "active").length)
+          setWinningCount(bids.filter((b: any) => b.is_winning).length)
+        }
+        if (winsRes.status === "fulfilled") {
+          setWins(winsRes.value.count || 0)
+          const unpaid = (winsRes.value.wins || []).filter((w: any) => !w.transaction || w.transaction.status !== "paid")
+          setUnpaidAmount(unpaid.reduce((sum: number, w: any) => sum + Number(w.item?.current_price || 0), 0))
+        }
+        if (ordersRes.status === "fulfilled") {
+          setPastOrders(ordersRes.value.count || 0)
+        }
+        if (cartRes.status === "fulfilled") {
+          const items = cartRes.value.items || []
+          setCartItems(items.length)
+          setCartTotal(items.reduce((sum: number, i: any) => sum + Number(i.price || 0), 0))
+        }
+        if (savedRes.status === "fulfilled") {
+          setSavedItems(savedRes.value.count || 0)
+        }
+        const allFailed = [bidsRes, winsRes, ordersRes, cartRes, savedRes].every((r) => r.status === "rejected")
+        if (allFailed) toast.error("Failed to load account data")
         setLoaded(true)
       })
   }, [])

@@ -1,9 +1,9 @@
 # UI/UX Audit — Final Implementation Report
 
-**Date:** 2026-04-04 (Final Pass)
-**Scope:** Storefront + Admin — Full revalidation + implementation of UI_UX_OPTIMIZATION_PLAN
+**Date:** 2026-04-04 (Final Pass + Remediation 2026-04-04)
+**Scope:** Storefront + Admin — Full revalidation + implementation + post-review remediation
 **Based on:** UI_UX_STYLE_GUIDE.md v2.0, UI_UX_GAP_ANALYSIS.md (53 Findings), UI_UX_OPTIMIZATION_PLAN.md
-**Build Status:** Passing (Turbopack production build verified)
+**Build Status:** Passing (Next.js 16.2.2, 0 npm audit vulnerabilities)
 
 ---
 
@@ -224,10 +224,36 @@ These files intentionally use hardcoded hex values and are excluded from token e
 
 ### Known residual risks:
 - `bg-background/95` opacity syntax requires Tailwind CSS 4 (which this project uses) — verify renders correctly with actual opacity
-- Bid input change from `type="number"` to `type="text" inputMode="decimal"` may affect form validation — the pattern attribute provides client-side validation
 - About page heading sizes changed from `text-3xl` (30px) to `heading-2` (24-30px clamp) — may appear slightly smaller at some viewports
+- Header badge positioning changed from `-top-1.5 -right-1.5` to `top-0 right-0` — minor visual shift, verify with two-digit counts
 
 ### Manual review recommended:
 - Visual comparison of About page headings at mobile/desktop breakpoints
-- Test bid input behavior on iOS and Android (inputMode="decimal" keyboard)
+- Test bid input with comma decimals on iOS and Android (inputMode="decimal" keyboard)
 - Verify cart/saved icon badge positioning after touch target enlargement
+
+---
+
+## 10. Post-Review Remediation (2026-04-04)
+
+Issues found during strict code review and fixed in this remediation pass.
+
+### Fixed Issues
+
+| Issue | Severity | File | Fix |
+|-------|----------|------|-----|
+| Bid comma parsing bug | **Critical** | ItemBidSection.tsx | Added `parseAmount()` helper normalizing `,` → `.`; replaced all 7 `parseFloat(amount/maxAmount)` calls |
+| Stale test selectors | **Critical** | tests/06-bidding.spec.ts | `input[type='number']` → `input[inputmode='decimal']`; fixed bid increment to whole euro |
+| Apply form inaccessible labels | High | apply/page.tsx | Added `id`/`htmlFor` on 4 inputs + 1 textarea; replaced raw `<button>` with `<Button>` |
+| Invite form inaccessible labels | High | invite/[token]/page.tsx | Added `id`/`htmlFor` on 5 inputs; replaced raw `<button>` with `<Button>` |
+| Checkout postal code inputMode | Medium | checkout/page.tsx | Removed `inputMode="numeric"` (blocked alphanumeric postal codes for UK/CA) |
+| Account overview all-or-nothing | Medium | account/page.tsx | `Promise.all` → `Promise.allSettled`; partial rendering on partial failure |
+| HomeContent missed token | Low | HomeContent.tsx | `via-[#1a1612]/20` → `via-card-hover/20` |
+| npm audit vulnerabilities | Moderate | package.json | brace-expansion, picomatch fixed; Next.js 16.1.6 → 16.2.2 (0 vulnerabilities) |
+
+### Documented Exceptions (unchanged)
+
+- `page.tsx` lines 62/68/95/105/109/110/143/201: Complex CSS gradient expressions where Tailwind arbitrary values cannot reference `var()`. Single-use values; creating 5+ tokens for them is worse than the current state.
+- `apply/page.tsx`, `invite/[token]/page.tsx`: Raw `<input>` retained (not replaced with `<Input>`) — these pages use `#0d0b08` background which conflicts with `<Input>`'s `bg-input` (#302a22). Overriding component styles is worse.
+- `gate/page.tsx`, `global-error.tsx`, `opengraph-image.tsx`, `apple-icon.tsx`, `icon.svg`: Inline styles required for technical reasons (pre-CSS rendering, server-side image generation).
+- Stripe theme config in `checkout/page.tsx`: Stripe SDK requires literal hex values.

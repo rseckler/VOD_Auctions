@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { Button } from "@/components/ui/button"
 
 const MEDUSA_URL =
   process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
@@ -148,10 +149,11 @@ export default function ApplyPage() {
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Name */}
             <div>
-              <label className="block text-[#e8e0d4] text-sm font-medium mb-1.5">
+              <label htmlFor="apply_name" className="block text-[#e8e0d4] text-sm font-medium mb-1.5">
                 Name <span className="text-red-500">*</span>
               </label>
               <input
+                id="apply_name"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -165,10 +167,11 @@ export default function ApplyPage() {
 
             {/* Email */}
             <div>
-              <label className="block text-[#e8e0d4] text-sm font-medium mb-1.5">
+              <label htmlFor="apply_email" className="block text-[#e8e0d4] text-sm font-medium mb-1.5">
                 Email <span className="text-red-500">*</span>
               </label>
               <input
+                id="apply_email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -182,10 +185,11 @@ export default function ApplyPage() {
 
             {/* Country */}
             <div>
-              <label className="block text-[#e8e0d4] text-sm font-medium mb-1.5">
+              <label htmlFor="apply_country" className="block text-[#e8e0d4] text-sm font-medium mb-1.5">
                 Country
               </label>
               <input
+                id="apply_country"
                 type="text"
                 value={country}
                 onChange={(e) => setCountry(e.target.value)}
@@ -290,10 +294,11 @@ export default function ApplyPage() {
 
             {/* Referrer */}
             <div>
-              <label className="block text-[#e8e0d4] text-sm font-medium mb-1.5">
+              <label htmlFor="apply_referrer" className="block text-[#e8e0d4] text-sm font-medium mb-1.5">
                 How did you hear about us?
               </label>
               <textarea
+                id="apply_referrer"
                 value={referrer}
                 onChange={(e) => setReferrer(e.target.value)}
                 placeholder="Optional"
@@ -303,13 +308,14 @@ export default function ApplyPage() {
             </div>
 
             {/* Submit */}
-            <button
+            <Button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-lg bg-primary text-[#0d0b08] text-sm font-semibold hover:bg-[#c49a40] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              size="lg"
+              className="w-full"
             >
               {loading ? "Submitting..." : "Apply now \u2192"}
-            </button>
+            </Button>
           </form>
 
           {/* Invite link */}

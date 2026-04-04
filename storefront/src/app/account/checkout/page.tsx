@@ -296,7 +296,6 @@ function AddressForm({
           <Label htmlFor={`${idPrefix}_postal_code`}>Postal Code *</Label>
           <Input
             id={`${idPrefix}_postal_code`}
-            inputMode="numeric"
             value={address.postal_code}
             onChange={(e) => onChange("postal_code", e.target.value)}
             onBlur={() => onBlur("postal_code")}

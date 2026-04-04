@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
+import { Button } from "@/components/ui/button"
 
 const MEDUSA_URL =
   process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
@@ -193,10 +194,11 @@ export default function InviteTokenPage() {
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* First Name */}
               <div>
-                <label className="block text-[#e8e0d4] text-sm font-medium mb-1.5">
+                <label htmlFor="invite_first_name" className="block text-[#e8e0d4] text-sm font-medium mb-1.5">
                   First name <span className="text-red-500">*</span>
                 </label>
                 <input
+                  id="invite_first_name"
                   type="text"
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
@@ -211,10 +213,11 @@ export default function InviteTokenPage() {
 
               {/* Last Name */}
               <div>
-                <label className="block text-[#e8e0d4] text-sm font-medium mb-1.5">
+                <label htmlFor="invite_last_name" className="block text-[#e8e0d4] text-sm font-medium mb-1.5">
                   Last name <span className="text-red-500">*</span>
                 </label>
                 <input
+                  id="invite_last_name"
                   type="text"
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
@@ -229,10 +232,11 @@ export default function InviteTokenPage() {
 
               {/* Email (pre-filled, read-only) */}
               <div>
-                <label className="block text-[#e8e0d4] text-sm font-medium mb-1.5">
+                <label htmlFor="invite_email" className="block text-[#e8e0d4] text-sm font-medium mb-1.5">
                   Email
                 </label>
                 <input
+                  id="invite_email"
                   type="email"
                   value={invite.email}
                   readOnly
@@ -242,10 +246,11 @@ export default function InviteTokenPage() {
 
               {/* Password */}
               <div>
-                <label className="block text-[#e8e0d4] text-sm font-medium mb-1.5">
+                <label htmlFor="invite_password" className="block text-[#e8e0d4] text-sm font-medium mb-1.5">
                   Password <span className="text-red-500">*</span>
                 </label>
                 <input
+                  id="invite_password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -261,10 +266,11 @@ export default function InviteTokenPage() {
 
               {/* Confirm Password */}
               <div>
-                <label className="block text-[#e8e0d4] text-sm font-medium mb-1.5">
+                <label htmlFor="invite_confirm_password" className="block text-[#e8e0d4] text-sm font-medium mb-1.5">
                   Confirm password <span className="text-red-500">*</span>
                 </label>
                 <input
+                  id="invite_confirm_password"
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
@@ -279,15 +285,16 @@ export default function InviteTokenPage() {
               </div>
 
               {/* Submit */}
-              <button
+              <Button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 rounded-lg bg-primary text-[#0d0b08] text-sm font-semibold hover:bg-[#c49a40] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                size="lg"
+                className="w-full"
               >
                 {loading
                   ? "Creating account..."
                   : "Create Account & Get Access \u2192"}
-              </button>
+              </Button>
             </form>
 
             <p className="mt-4 text-center text-[#6b6560] text-xs leading-relaxed">

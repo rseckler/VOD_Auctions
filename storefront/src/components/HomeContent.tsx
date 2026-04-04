@@ -50,7 +50,7 @@ function FeaturedBlock({ block }: { block: AuctionBlock }) {
             <div className="w-full h-full bg-gradient-to-br from-secondary/60 to-secondary/20" />
           )}
           {/* Dark gradient overlay */}
-          <div className="absolute inset-0 bg-gradient-to-t from-card-hover via-[#1a1612]/20 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-card-hover via-card-hover/20 to-transparent" />
 
           {/* Status badge */}
           <div className="absolute top-4 left-4">
