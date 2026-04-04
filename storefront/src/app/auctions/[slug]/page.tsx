@@ -143,14 +143,14 @@ export default async function BlockDetailPage({
               className="object-cover"
               priority
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#1c1915] via-[rgba(28,25,21,0.6)] to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
           </div>
         ) : (
           <div className="h-32 bg-gradient-to-b from-[rgba(212,165,74,0.06)] to-transparent" />
         )}
         <div className="relative mx-auto max-w-6xl px-6 -mt-24">
           <div className="flex items-center gap-3 mb-3">
-            <div className={`flex items-center gap-1.5 px-3 py-1 rounded-md bg-[rgba(28,25,21,0.85)] backdrop-blur-sm text-xs font-semibold ${statusConfig.className}`}>
+            <div className={`flex items-center gap-1.5 px-3 py-1 rounded-md bg-background/85 backdrop-blur-sm text-xs font-semibold ${statusConfig.className}`}>
               {block.status === "active" && (
                 <span className="w-1.5 h-1.5 rounded-full bg-status-active animate-pulse" />
               )}
@@ -187,13 +187,13 @@ export default async function BlockDetailPage({
               <div className="flex flex-col gap-1">
                 <div className="flex items-center gap-1.5 text-sm">
                   <Calendar className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-white/10 bg-[rgba(28,25,21,0.85)] backdrop-blur-sm text-foreground text-sm font-medium">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-white/10 bg-background/85 backdrop-blur-sm text-foreground text-sm font-medium">
                     {formatBlockTime(block.start_time)}
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5 text-sm">
                   <Clock className="h-3.5 w-3.5 flex-shrink-0 text-primary" />
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-primary/60 bg-[rgba(28,25,21,0.85)] backdrop-blur-sm text-primary text-sm font-semibold">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-primary/60 bg-background/85 backdrop-blur-sm text-primary text-sm font-semibold">
                     {formatBlockTime(block.end_time)}
                   </span>
                 </div>

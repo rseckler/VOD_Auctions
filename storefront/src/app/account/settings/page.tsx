@@ -228,7 +228,7 @@ export default function SettingsPage() {
         {/* Profile Information */}
         <Card className="p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-medium text-muted-foreground">
+            <h3 className="heading-3 text-muted-foreground">
               Profile Information
             </h3>
             {!isEditingProfile && (
@@ -322,7 +322,7 @@ export default function SettingsPage() {
 
         {/* Newsletter */}
         <Card className="p-6">
-          <h3 className="text-sm font-medium text-muted-foreground mb-4">
+          <h3 className="heading-3 text-muted-foreground mb-4">
             Newsletter
           </h3>
           <div className="flex items-center justify-between">
@@ -358,7 +358,7 @@ export default function SettingsPage() {
 
         {/* Notification Preferences */}
         <Card className="p-6">
-          <h3 className="text-sm font-medium text-muted-foreground mb-4">
+          <h3 className="heading-3 text-muted-foreground mb-4">
             Notification Preferences
           </h3>
           <div className="space-y-4">
@@ -397,7 +397,7 @@ export default function SettingsPage() {
 
         {/* Change Password */}
         <Card className="p-6">
-          <h3 className="text-sm font-medium text-muted-foreground mb-2">
+          <h3 className="heading-3 text-muted-foreground mb-2">
             Change Password
           </h3>
           <Separator className="my-3" />
@@ -465,7 +465,7 @@ export default function SettingsPage() {
 
         {/* Data & Privacy */}
         <Card className="p-6">
-          <h3 className="text-sm font-medium text-muted-foreground mb-2">
+          <h3 className="heading-3 text-muted-foreground mb-2">
             Data & Privacy
           </h3>
           <Separator className="my-3" />
@@ -505,7 +505,7 @@ export default function SettingsPage() {
 
         {/* Help */}
         <Card className="p-6">
-          <h3 className="text-sm font-medium text-muted-foreground mb-2">
+          <h3 className="heading-3 text-muted-foreground mb-2">
             Help
           </h3>
           <Separator className="my-3" />
@@ -527,7 +527,7 @@ export default function SettingsPage() {
         <Card className="p-6 border-destructive/30">
           <div className="flex items-center gap-2 mb-2">
             <AlertTriangle className="h-4 w-4 text-destructive" />
-            <h3 className="text-sm font-medium text-destructive">
+            <h3 className="heading-3 text-destructive">
               Delete Account
             </h3>
           </div>

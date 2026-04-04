@@ -95,7 +95,7 @@ export function HeaderAuth() {
       <Button
         size="sm"
         onClick={() => setAuthModalOpen(true)}
-        className="bg-gradient-to-r from-primary to-[#b8860b]"
+        className="bg-gradient-to-r from-primary to-primary-dark"
       >
         Login
       </Button>

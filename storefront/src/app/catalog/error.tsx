@@ -19,7 +19,7 @@ export default function CatalogError({
         {error.message || "Failed to load the catalog. Please try again."}
       </p>
       <div className="flex gap-3 justify-center">
-        <Button onClick={reset} className="bg-primary hover:bg-primary/90 text-[#1c1915]">
+        <Button onClick={reset} className="bg-primary hover:bg-primary/90 text-primary-foreground">
           Try Again
         </Button>
         <Button variant="outline" asChild>

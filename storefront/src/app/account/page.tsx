@@ -6,6 +6,7 @@ import { useAuth } from "@/components/AuthProvider"
 import { getToken } from "@/lib/auth"
 import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
 import { Gavel, Trophy, Package, ShoppingCart, Heart, ArrowRight, CreditCard } from "lucide-react"
+import { toast } from "sonner"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -54,7 +55,10 @@ export default function AccountOverview() {
         setSavedItems(savedData.count || 0)
         setLoaded(true)
       })
-      .catch(() => setLoaded(true))
+      .catch(() => {
+        toast.error("Failed to load account data")
+        setLoaded(true)
+      })
   }, [])
 
   return (

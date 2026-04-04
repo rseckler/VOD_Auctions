@@ -50,7 +50,7 @@ function BidStatusBadge({ bid }: { bid: BidEntry }) {
 function BidCard({ bid }: { bid: BidEntry }) {
   return (
     <Link href={`/auctions/${bid.block.slug}/${bid.item.id}`}>
-      <Card className="!flex-row !gap-3 !py-0 p-3 hover:border-primary/20 transition-colors">
+      <div className="flex flex-row gap-3 p-3 rounded-xl border border-border bg-card shadow-sm hover:border-primary/20 transition-colors">
         <div className="w-14 h-14 flex-shrink-0 rounded overflow-hidden bg-card relative">
           {bid.item.release_cover ? (
             <Image
@@ -94,7 +94,7 @@ function BidCard({ bid }: { bid: BidEntry }) {
             {new Date(bid.created_at).toLocaleDateString("en-US")}
           </p>
         </div>
-      </Card>
+      </div>
     </Link>
   )
 }

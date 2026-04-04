@@ -192,7 +192,7 @@ export default function CartPage() {
 
       <div className="space-y-4">
         {items.map((item) => (
-          <Card key={item.id} className="p-3 !py-0 gap-0">
+          <div key={item.id} className="p-3 rounded-xl border border-border bg-card shadow-sm">
             <div className="flex gap-3">
               <Link
                 href={`/catalog/${item.release_id}`}
@@ -259,7 +259,7 @@ export default function CartPage() {
                 </div>
               </div>
             </div>
-          </Card>
+          </div>
         ))}
       </div>
 
@@ -277,7 +277,7 @@ export default function CartPage() {
             from &euro;4.99 (based on weight and destination)
           </span>
         </div>
-        <Button asChild className="w-full mt-4 bg-primary hover:bg-primary/90 text-[#1c1915]">
+        <Button asChild className="w-full mt-4 bg-primary hover:bg-primary/90 text-primary-foreground">
           <Link href="/account/checkout">Proceed to Checkout</Link>
         </Button>
         <div className="text-center mt-3">

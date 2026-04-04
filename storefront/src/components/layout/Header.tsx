@@ -48,10 +48,10 @@ export function Header() {
 
   return (
     <>
-      <header className="sticky top-0 z-50 bg-[rgba(28,25,21,0.95)] backdrop-blur-xl border-b border-[rgba(232,224,212,0.1)]">
+      <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-xl border-b border-border">
         <div className="mx-auto max-w-6xl px-6 h-16 flex items-center justify-between">
           <Link href="/" className="group flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-[#b8860b] flex items-center justify-center">
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center">
               <Disc3 className="h-5 w-5 text-primary-foreground transition-transform group-hover:rotate-180 duration-700" />
             </div>
             <span className="text-xl font-serif text-foreground">VOD Auctions</span>
@@ -84,12 +84,12 @@ export function Header() {
             <Link
               href={isAuthenticated ? "/account/saved" : "#"}
               onClick={handleAnonClick}
-              className="relative p-2 -m-2 text-muted-foreground hover:text-foreground transition-colors"
+              className="relative p-3 -m-3 text-muted-foreground hover:text-foreground transition-colors"
               aria-label={`Saved, ${savedCount} item${savedCount !== 1 ? "s" : ""}`}
             >
               <Heart className="h-5 w-5" />
               {isAuthenticated && savedCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-primary text-primary-foreground text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                <span className="absolute top-0 right-0 bg-primary text-primary-foreground text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
                   {savedCount}
                 </span>
               )}
@@ -97,12 +97,12 @@ export function Header() {
             <Link
               href={isAuthenticated ? "/account/cart" : "#"}
               onClick={handleAnonClick}
-              className="relative p-2 -m-2 text-muted-foreground hover:text-foreground transition-colors"
+              className="relative p-3 -m-3 text-muted-foreground hover:text-foreground transition-colors"
               aria-label={`Cart, ${cartCount} item${cartCount !== 1 ? "s" : ""}`}
             >
               <ShoppingCart className="h-5 w-5" />
               {isAuthenticated && cartCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-primary text-primary-foreground text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                <span className="absolute top-0 right-0 bg-primary text-primary-foreground text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
                   {cartCount}
                 </span>
               )}

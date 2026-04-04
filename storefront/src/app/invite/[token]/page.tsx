@@ -120,10 +120,10 @@ export default function InviteTokenPage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="flex items-center justify-center gap-2.5 mb-10">
-          <div className="w-9 h-9 bg-[#d4a54a] rounded-full flex items-center justify-center text-lg font-bold text-[#0d0b08]">
+          <div className="w-9 h-9 bg-primary rounded-full flex items-center justify-center text-lg font-bold text-[#0d0b08]">
             V
           </div>
-          <span className="text-[#d4a54a] text-xl font-semibold tracking-wide">
+          <span className="text-primary text-xl font-semibold tracking-wide">
             VOD Auctions
           </span>
         </div>
@@ -131,7 +131,7 @@ export default function InviteTokenPage() {
         {/* Loading State */}
         {invite.status === "loading" && (
           <div className="bg-[#1c1915] rounded-2xl border border-[#2a2520] p-10 text-center">
-            <div className="w-8 h-8 mx-auto mb-4 border-2 border-[#d4a54a] border-t-transparent rounded-full animate-spin" />
+            <div className="w-8 h-8 mx-auto mb-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
             <p className="text-[#a39d96] text-sm">Verifying your invite...</p>
           </div>
         )}
@@ -160,7 +160,7 @@ export default function InviteTokenPage() {
             <p className="text-[#a39d96] text-sm mb-6">{invite.reason}</p>
             <Link
               href="/apply"
-              className="inline-block px-5 py-2.5 rounded-lg bg-[#d4a54a] text-[#0d0b08] text-sm font-semibold hover:bg-[#c49a40] transition-colors"
+              className="inline-block px-5 py-2.5 rounded-lg bg-primary text-[#0d0b08] text-sm font-semibold hover:bg-[#c49a40] transition-colors"
             >
               Apply for a new invite &rarr;
             </Link>
@@ -177,8 +177,8 @@ export default function InviteTokenPage() {
               <p className="text-[#a39d96] text-sm mb-4">
                 Your invite is valid. Create your account to get access.
               </p>
-              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#d4a54a]/10 border border-[#d4a54a]/30">
-                <span className="text-[#d4a54a] text-xs font-mono font-medium">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/30">
+                <span className="text-primary text-xs font-mono font-medium">
                   {invite.tokenDisplay}
                 </span>
               </div>
@@ -200,7 +200,7 @@ export default function InviteTokenPage() {
                   type="text"
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-[#0d0b08] border border-[#2a2520] rounded-lg text-[#e8e0d4] text-sm placeholder-[#6b6560] outline-none focus:border-[#d4a54a] transition-colors"
+                  className="w-full px-3.5 py-2.5 bg-[#0d0b08] border border-[#2a2520] rounded-lg text-[#e8e0d4] text-sm placeholder-[#6b6560] outline-none focus:border-primary transition-colors"
                 />
                 {fieldErrors.firstName && (
                   <p className="mt-1 text-red-500 text-xs">
@@ -218,7 +218,7 @@ export default function InviteTokenPage() {
                   type="text"
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-[#0d0b08] border border-[#2a2520] rounded-lg text-[#e8e0d4] text-sm placeholder-[#6b6560] outline-none focus:border-[#d4a54a] transition-colors"
+                  className="w-full px-3.5 py-2.5 bg-[#0d0b08] border border-[#2a2520] rounded-lg text-[#e8e0d4] text-sm placeholder-[#6b6560] outline-none focus:border-primary transition-colors"
                 />
                 {fieldErrors.lastName && (
                   <p className="mt-1 text-red-500 text-xs">
@@ -250,7 +250,7 @@ export default function InviteTokenPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Minimum 8 characters"
-                  className="w-full px-3.5 py-2.5 bg-[#0d0b08] border border-[#2a2520] rounded-lg text-[#e8e0d4] text-sm placeholder-[#6b6560] outline-none focus:border-[#d4a54a] transition-colors"
+                  className="w-full px-3.5 py-2.5 bg-[#0d0b08] border border-[#2a2520] rounded-lg text-[#e8e0d4] text-sm placeholder-[#6b6560] outline-none focus:border-primary transition-colors"
                 />
                 {fieldErrors.password && (
                   <p className="mt-1 text-red-500 text-xs">
@@ -269,7 +269,7 @@ export default function InviteTokenPage() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Repeat password"
-                  className="w-full px-3.5 py-2.5 bg-[#0d0b08] border border-[#2a2520] rounded-lg text-[#e8e0d4] text-sm placeholder-[#6b6560] outline-none focus:border-[#d4a54a] transition-colors"
+                  className="w-full px-3.5 py-2.5 bg-[#0d0b08] border border-[#2a2520] rounded-lg text-[#e8e0d4] text-sm placeholder-[#6b6560] outline-none focus:border-primary transition-colors"
                 />
                 {fieldErrors.confirmPassword && (
                   <p className="mt-1 text-red-500 text-xs">
@@ -282,7 +282,7 @@ export default function InviteTokenPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 rounded-lg bg-[#d4a54a] text-[#0d0b08] text-sm font-semibold hover:bg-[#c49a40] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                className="w-full py-3 rounded-lg bg-primary text-[#0d0b08] text-sm font-semibold hover:bg-[#c49a40] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
               >
                 {loading
                   ? "Creating account..."

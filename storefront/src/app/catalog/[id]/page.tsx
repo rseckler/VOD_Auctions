@@ -531,7 +531,7 @@ export default async function CatalogDetailPage({
 
       {/* Sticky Mobile CTA */}
       {release.is_purchasable ? (
-        <div className="fixed bottom-0 left-0 right-0 z-40 lg:hidden bg-[#1c1915] border-t border-border px-4 py-3 flex items-center justify-between gap-3">
+        <div className="fixed bottom-0 left-0 right-0 z-40 lg:hidden bg-background border-t border-border px-4 py-3 flex items-center justify-between gap-3">
           <span className="text-lg font-mono font-bold text-primary">
             &euro;{Number(release.legacy_price).toFixed(2)}
           </span>
@@ -543,7 +543,7 @@ export default async function CatalogDetailPage({
           />
         </div>
       ) : (
-        <div className="fixed bottom-0 left-0 right-0 z-40 lg:hidden bg-[#1c1915] border-t border-border px-4 py-3">
+        <div className="fixed bottom-0 left-0 right-0 z-40 lg:hidden bg-background border-t border-border px-4 py-3">
           <p className="text-sm text-muted-foreground italic text-center">Not for sale</p>
         </div>
       )}

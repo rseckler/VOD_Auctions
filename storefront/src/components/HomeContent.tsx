@@ -25,7 +25,7 @@ function FeaturedBlock({ block }: { block: AuctionBlock }) {
 
   return (
     <Link href={`/auctions/${block.slug}`} className="group block">
-      <div className="relative overflow-hidden rounded-2xl border border-primary/15 bg-[#1a1612] transition-all duration-300 group-hover:border-primary/35 group-hover:shadow-[0_0_40px_rgba(212,165,74,0.08)]">
+      <div className="relative overflow-hidden rounded-2xl border border-primary/15 bg-card-hover transition-all duration-300 group-hover:border-primary/35 group-hover:shadow-[0_0_40px_rgba(212,165,74,0.08)]">
         {/* Image strip */}
         <div className="relative h-36 md:h-48 w-full overflow-hidden">
           {coverImages.length > 0 ? (
@@ -50,7 +50,7 @@ function FeaturedBlock({ block }: { block: AuctionBlock }) {
             <div className="w-full h-full bg-gradient-to-br from-secondary/60 to-secondary/20" />
           )}
           {/* Dark gradient overlay */}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#1a1612] via-[#1a1612]/20 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-card-hover via-[#1a1612]/20 to-transparent" />
 
           {/* Status badge */}
           <div className="absolute top-4 left-4">

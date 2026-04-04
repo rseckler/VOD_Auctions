@@ -301,7 +301,7 @@ export function ItemBidSection({
 
         {/* Countdown */}
         {lotEndTime && (
-          <div className="mt-1.5 mb-1.5">
+          <div className="mt-1.5 mb-1.5" role="timer" aria-live="off" aria-atomic="true">
             <CountdownTimer endTime={lotEndTime} />
             {currentExtensionCount > 0 && (
               <p className="text-xs text-muted-foreground/70 mt-1 flex items-center gap-1">
@@ -361,7 +361,7 @@ export function ItemBidSection({
               </Link>
             </div>
           ) : userIsWinning === false ? (
-            <div className="mt-3 py-4 px-4 rounded-lg bg-secondary text-center border border-[rgba(232,224,212,0.08)]">
+            <div className="mt-3 py-4 px-4 rounded-lg bg-secondary text-center border border-border">
               <p className="text-sm text-muted-foreground">Auction ended</p>
               {bidCount > 0 && (
                 <p className="text-xl font-mono font-bold mt-1 text-muted-foreground">
@@ -577,9 +577,9 @@ function BidForm({
               &euro;
             </span>
             <Input
-              type="number"
-              step={BID_CONFIG.whole_euros_only ? "1" : "0.01"}
-              min={BID_CONFIG.min_bid_amount}
+              type="text"
+              inputMode="decimal"
+              pattern="[0-9]*[.,]?[0-9]*"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               className="pl-7 font-mono"
@@ -599,15 +599,17 @@ function BidForm({
           </p>
         </div>
 
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="sm"
           onClick={() => setShowProxy(!showProxy)}
-          className="flex items-center justify-center gap-1.5 w-full text-xs font-medium text-primary/80 hover:text-primary border border-primary/25 hover:border-primary/50 rounded-md py-1.5 transition-colors"
+          className="w-full text-xs font-medium text-primary/80 hover:text-primary border-primary/25 hover:border-primary/50"
         >
           {showProxy
             ? "Hide maximum bid"
             : "↑ Set maximum bid (proxy bidding)"}
-        </button>
+        </Button>
 
         <AnimatePresence initial={false}>
           {showProxy && (
@@ -625,8 +627,9 @@ function BidForm({
                     &euro;
                   </span>
                   <Input
-                    type="number"
-                    step="0.01"
+                    type="text"
+                    inputMode="decimal"
+                    pattern="[0-9]*[.,]?[0-9]*"
                     value={maxAmount}
                     onChange={(e) => setMaxAmount(e.target.value)}
                     placeholder="System bids automatically"
@@ -718,32 +721,33 @@ function BidForm({
                 )}
               </p>
               <div className="flex gap-3">
-                <button
+                <Button
+                  variant="outline"
                   onClick={() => setConfirmOpen(false)}
-                  className="flex-1 rounded-lg border border-border py-2.5 text-sm hover:bg-secondary transition-colors"
+                  className="flex-1"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={confirmBid}
                   disabled={loading}
-                  className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1"
                 >
                   {loading ? (
-                    <>
+                    <span className="flex items-center gap-2">
                       <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                       </svg>
                       Processing...
-                    </>
+                    </span>
                   ) : (
-                    <>
+                    <span className="flex items-center gap-2">
                       <Check className="h-4 w-4" />
                       Confirm Bid
-                    </>
+                    </span>
                   )}
-                </button>
+                </Button>
               </div>
             </motion.div>
           </motion.div>
@@ -812,7 +816,7 @@ function CountdownTimer({ endTime }: { endTime: string }) {
         ? "bg-red-500/20 border border-red-500/50"
         : isUrgent
         ? "bg-destructive/10 border border-destructive/30"
-        : "bg-[rgba(232,224,212,0.05)] border border-[rgba(232,224,212,0.12)]"
+        : "bg-secondary/50 border border-border"
     }`}>
       <span className={`text-sm font-medium flex items-center gap-1.5 ${
         isCritical || isUrgent ? "text-red-400" : "text-muted-foreground"

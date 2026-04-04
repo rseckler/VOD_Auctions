@@ -67,14 +67,6 @@ export function MobileNav({
               <Info className="h-4 w-4" />
               About
             </Link>
-            <Link
-              href="/catalog"
-              onClick={onClose}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-[rgba(232,224,212,0.04)] transition-colors"
-            >
-              <Search className="h-4 w-4" />
-              Search Catalog
-            </Link>
 
             {isAuthenticated && customer && (
               <>
@@ -165,7 +157,7 @@ export function MobileNav({
                     onClose()
                     setAuthModalOpen(true)
                   }}
-                  className="mx-3 bg-gradient-to-r from-primary to-[#b8860b]"
+                  className="mx-3 bg-gradient-to-r from-primary to-primary-dark"
                 >
                   Login
                 </Button>

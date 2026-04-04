@@ -97,8 +97,8 @@ function OrderProgressBar({ status }: { status: string }) {
                 className={`w-6 h-6 rounded-full flex items-center justify-center ${
                   done
                     ? i === stepIndex
-                      ? "bg-primary text-[#1c1915]"
-                      : "bg-primary/70 text-[#1c1915]"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-primary/70 text-primary-foreground"
                     : "bg-muted text-muted-foreground"
                 }`}
               >

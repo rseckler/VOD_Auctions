@@ -259,7 +259,7 @@ export default function ProfilePage() {
                       <Badge
                         key={tag}
                         variant="secondary"
-                        className="bg-[#d4a54a]/10 text-[#d4a54a] border-[#d4a54a]/30 text-xs"
+                        className="bg-primary/10 text-primary border-primary/30 text-xs"
                       >
                         {tag}
                       </Badge>
@@ -279,7 +279,7 @@ export default function ProfilePage() {
             <div>
               <p className="text-sm font-medium flex items-center gap-2">
                 {isPublic ? (
-                  <Eye className="h-4 w-4 text-[#d4a54a]" />
+                  <Eye className="h-4 w-4 text-primary" />
                 ) : (
                   <EyeOff className="h-4 w-4 text-muted-foreground" />
                 )}
@@ -306,13 +306,13 @@ export default function ProfilePage() {
           </div>
 
           {isPublic && slug && (
-            <div className="mt-4 p-3 rounded-md bg-[#d4a54a]/5 border border-[#d4a54a]/20">
+            <div className="mt-4 p-3 rounded-md bg-primary/5 border border-primary/20">
               <p className="text-xs text-muted-foreground mb-1">
                 Your public profile URL:
               </p>
               <Link
                 href={`/collector/${slug}`}
-                className="text-sm text-[#d4a54a] hover:underline inline-flex items-center gap-1"
+                className="text-sm text-primary hover:underline inline-flex items-center gap-1"
               >
                 vod-auctions.com/collector/{slug}
                 <ExternalLink className="h-3 w-3" />

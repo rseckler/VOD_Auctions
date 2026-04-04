@@ -270,10 +270,10 @@ export default async function AboutPage() {
       <section className="mx-auto max-w-4xl px-6 py-16">
         <div className="rounded-2xl border border-[rgba(232,224,212,0.08)] bg-[rgba(232,224,212,0.02)] p-8 md:p-12">
           <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-[#b8860b] flex items-center justify-center">
-              <Users className="h-5 w-5 text-[#1c1915]" />
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center">
+              <Users className="h-5 w-5 text-primary-foreground" />
             </div>
-            <h2 className="font-serif text-3xl">The Founder</h2>
+            <h2 className="heading-2 font-serif">The Founder</h2>
           </div>
 
           <h3 className="text-xl font-medium text-foreground mb-4">
@@ -315,7 +315,7 @@ export default async function AboutPage() {
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/60 to-primary/20 flex items-center justify-center">
             <Archive className="h-5 w-5 text-primary" />
           </div>
-          <h2 className="font-serif text-3xl">Mission</h2>
+          <h2 className="heading-2 font-serif">Mission</h2>
         </div>
         <div
           className="space-y-4 text-muted-foreground leading-relaxed prose-about"
@@ -329,7 +329,7 @@ export default async function AboutPage() {
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/60 to-primary/20 flex items-center justify-center">
             <Tag className="h-5 w-5 text-primary" />
           </div>
-          <h2 className="font-serif text-3xl">Genres</h2>
+          <h2 className="heading-2 font-serif">Genres</h2>
         </div>
         <div className="flex flex-wrap gap-3">
           {genreItems.map((genre) => (
@@ -349,7 +349,7 @@ export default async function AboutPage() {
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/60 to-primary/20 flex items-center justify-center">
             <Music className="h-5 w-5 text-primary" />
           </div>
-          <h2 className="font-serif text-3xl">Notable Artists</h2>
+          <h2 className="heading-2 font-serif">Notable Artists</h2>
         </div>
         <p className="text-muted-foreground mb-6">{artistDesc}</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
@@ -370,7 +370,7 @@ export default async function AboutPage() {
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/60 to-primary/20 flex items-center justify-center">
             <Disc3 className="h-5 w-5 text-primary" />
           </div>
-          <h2 className="font-serif text-3xl">Sub-Labels</h2>
+          <h2 className="heading-2 font-serif">Sub-Labels</h2>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {sublabelItems.map((label) => (
@@ -394,7 +394,7 @@ export default async function AboutPage() {
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/60 to-primary/20 flex items-center justify-center">
               <Archive className="h-5 w-5 text-primary" />
             </div>
-            <h2 className="font-serif text-3xl">TAPE-MAG</h2>
+            <h2 className="heading-2 font-serif">TAPE-MAG</h2>
           </div>
           <div
             className="space-y-4 text-muted-foreground leading-relaxed prose-about"
@@ -418,10 +418,10 @@ export default async function AboutPage() {
       <section className="mx-auto max-w-4xl px-6 py-16">
         <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-[rgba(212,165,74,0.06)] to-transparent p-8 md:p-12">
           <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-[#b8860b] flex items-center justify-center">
-              <Calendar className="h-5 w-5 text-[#1c1915]" />
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center">
+              <Calendar className="h-5 w-5 text-primary-foreground" />
             </div>
-            <h2 className="font-serif text-3xl">VOD Fest</h2>
+            <h2 className="heading-2 font-serif">VOD Fest</h2>
           </div>
           <div className="space-y-4 text-muted-foreground leading-relaxed">
             <div
@@ -457,7 +457,7 @@ export default async function AboutPage() {
               href={vodfestTicketLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 mt-6 px-5 py-2.5 rounded-lg bg-gradient-to-r from-primary to-[#b8860b] text-[#1c1915] text-sm font-medium hover:opacity-90 transition-opacity"
+              className="inline-flex items-center gap-2 mt-6 px-5 py-2.5 rounded-lg bg-gradient-to-r from-primary to-primary/70 text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
             >
               VOD Fest 2026 — Tickets & Lineup
               <ExternalLink className="h-4 w-4" />
@@ -468,7 +468,7 @@ export default async function AboutPage() {
 
       {/* Links */}
       <section className="mx-auto max-w-4xl px-6 py-16 pb-24">
-        <h2 className="font-serif text-3xl mb-6">Links</h2>
+        <h2 className="heading-2 font-serif mb-6">Links</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {linkItems.map((link) => (
             <a

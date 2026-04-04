@@ -89,7 +89,7 @@ export default async function Home() {
                 ))}
               </div>
               <div className="flex flex-wrap gap-3">
-                <Button size="lg" asChild className="bg-gradient-to-r from-primary to-[#b8860b]">
+                <Button size="lg" asChild className="bg-gradient-to-r from-primary to-primary-dark">
                   <Link href={heroCtaLink}>{heroCta}</Link>
                 </Button>
                 <Button size="lg" variant="ghost" asChild className="text-muted-foreground border border-[rgba(232,224,212,0.12)]">
@@ -108,7 +108,7 @@ export default async function Home() {
                 {/* Vinyl Record */}
                 <div className="absolute top-4 left-16 w-72 h-72 rounded-full border border-[rgba(232,224,212,0.06)] bg-[radial-gradient(circle,#2a2520_30%,#1c1915_31%,#1c1915_48%,#2a2520_49%,#2a2520_50%,#1c1915_51%)] animate-[spin_20s_linear_infinite]">
                   <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-28 h-28 rounded-full bg-gradient-to-br from-primary to-[#8b6914]" />
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#1c1915]" />
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-background" />
                 </div>
               </div>
             </div>
@@ -172,7 +172,7 @@ export default async function Home() {
             </div>
           </div>
           {/* Overlay with text */}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#1c1915] via-[#1c1915]/70 to-[#1c1915]/30 flex items-end">
+          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-background/30 flex items-end">
             <div className="p-8 md:p-12 w-full">
               <p className="text-xs text-primary font-medium uppercase tracking-wider mb-2">
                 Friedrichshafen, Germany

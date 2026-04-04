@@ -126,13 +126,13 @@ export default async function CollectorProfilePage({ params }: PageProps) {
         <div className="grid grid-cols-2 gap-4 mb-10">
           <div className="rounded-lg border bg-card p-5">
             <p className="text-sm text-muted-foreground mb-1">Total Bids</p>
-            <p className="text-2xl font-bold text-[#d4a54a] font-[family-name:var(--font-dm-serif)]">
+            <p className="text-2xl font-bold text-primary font-[family-name:var(--font-dm-serif)]">
               {profile.total_bids}
             </p>
           </div>
           <div className="rounded-lg border bg-card p-5">
             <p className="text-sm text-muted-foreground mb-1">Auctions Won</p>
-            <p className="text-2xl font-bold text-[#d4a54a] font-[family-name:var(--font-dm-serif)]">
+            <p className="text-2xl font-bold text-primary font-[family-name:var(--font-dm-serif)]">
               {profile.total_wins}
             </p>
           </div>
@@ -149,7 +149,7 @@ export default async function CollectorProfilePage({ params }: PageProps) {
                 <Badge
                   key={tag}
                   variant="secondary"
-                  className="bg-[#d4a54a]/10 text-[#d4a54a] border-[#d4a54a]/30"
+                  className="bg-primary/10 text-primary border-primary/30"
                 >
                   {tag}
                 </Badge>

@@ -56,7 +56,7 @@ export default function ResetPasswordPage() {
         <p className="text-muted-foreground mb-4">
           Your password has been updated. Redirecting to homepage in a few seconds...
         </p>
-        <Button asChild className="bg-primary hover:bg-primary/90 text-[#1c1915]">
+        <Button asChild className="bg-primary hover:bg-primary/90 text-primary-foreground">
           <Link href="/">Go to Homepage</Link>
         </Button>
       </div>
@@ -131,7 +131,7 @@ export default function ResetPasswordPage() {
           <Button
             type="submit"
             disabled={loading}
-            className="w-full bg-primary hover:bg-primary/90 text-[#1c1915]"
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
           >
             {loading ? "Resetting..." : "Reset Password"}
           </Button>

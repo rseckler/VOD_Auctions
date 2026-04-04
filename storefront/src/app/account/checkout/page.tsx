@@ -36,7 +36,7 @@ const PayPalButton = dynamic(
   () => import("@/components/PayPalButton"),
   {
     ssr: false,
-    loading: () => <div className="h-12 bg-[#1c1915] animate-pulse rounded-lg" />,
+    loading: () => <div className="h-12 bg-background animate-pulse rounded-lg" />,
   }
 )
 
@@ -193,7 +193,7 @@ function PaymentForm({
       <Button
         onClick={handlePay}
         disabled={!stripe || !paymentReady || paying || !agbAccepted}
-        className="w-full bg-primary hover:bg-primary/90 text-[#1c1915] h-12 text-base font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full bg-primary hover:bg-primary/90 text-primary-foreground h-12 text-base font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {paying ? (
           <span className="flex items-center gap-2">
@@ -296,6 +296,7 @@ function AddressForm({
           <Label htmlFor={`${idPrefix}_postal_code`}>Postal Code *</Label>
           <Input
             id={`${idPrefix}_postal_code`}
+            inputMode="numeric"
             value={address.postal_code}
             onChange={(e) => onChange("postal_code", e.target.value)}
             onBlur={() => onBlur("postal_code")}
@@ -343,6 +344,7 @@ function AddressForm({
         <Input
           id={`${idPrefix}_phone`}
           type="tel"
+          inputMode="tel"
           value={address.phone}
           onChange={(e) => onChange("phone", e.target.value)}
           placeholder="+49 123 456 7890"
@@ -1027,7 +1029,7 @@ export default function CheckoutPage() {
         </p>
 
         <div className="flex gap-3 justify-center flex-wrap">
-          <Button asChild className="bg-primary hover:bg-primary/90 text-[#1c1915]">
+          <Button asChild className="bg-primary hover:bg-primary/90 text-primary-foreground">
             <Link href="/account/orders">View Orders</Link>
           </Button>
           <Button
@@ -1423,7 +1425,7 @@ export default function CheckoutPage() {
                     <Button
                       onClick={createPaymentIntent}
                       disabled={creatingIntent || estimating || !agbAccepted}
-                      className="bg-primary hover:bg-primary/90 text-[#1c1915]"
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground"
                     >
                       {creatingIntent ? "Initializing payment..." : "Continue to Payment"}
                     </Button>
@@ -1670,7 +1672,7 @@ export default function CheckoutPage() {
                 const savings = (unpaidWins.length + cartItems.length - 1) * baseZoneShipping
                 if (savings <= 0) return null
                 return (
-                  <div className="flex justify-between items-center text-[#d4a54a]">
+                  <div className="flex justify-between items-center text-primary">
                     <span className="text-xs">
                       You saved on shipping (vs. {unpaidWins.length + cartItems.length} individual orders)
                     </span>

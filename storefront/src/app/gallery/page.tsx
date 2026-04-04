@@ -295,7 +295,7 @@ export default async function GalleryPage() {
           className="object-cover"
           sizes="100vw"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#1c1915] via-[#1c1915]/40 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
         <div className="relative z-10 mx-auto max-w-5xl px-6 pb-16 md:pb-24 w-full">
           <h1 className="font-serif text-4xl sm:text-5xl md:text-7xl text-foreground leading-[1.05] mb-4">
             {hero.title?.includes("Walk Into") ? (

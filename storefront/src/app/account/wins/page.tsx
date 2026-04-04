@@ -272,8 +272,8 @@ export default function WinsPage() {
                     className={`w-7 h-7 rounded-full flex items-center justify-center ${
                       done
                         ? i === step
-                          ? "bg-primary text-[#1c1915]"
-                          : "bg-primary/70 text-[#1c1915]"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-primary/70 text-primary-foreground"
                         : "bg-muted text-muted-foreground"
                     }`}
                   >
@@ -375,7 +375,7 @@ export default function WinsPage() {
                 Combine auction wins and cart items into a single payment.
               </p>
             </div>
-            <Button asChild className="bg-primary hover:bg-primary/90 text-[#1c1915]">
+            <Button asChild className="bg-primary hover:bg-primary/90 text-primary-foreground">
               <Link href="/account/checkout">
                 <CreditCard className="w-4 h-4 mr-1.5" /> Go to Checkout
               </Link>
@@ -414,7 +414,7 @@ export default function WinsPage() {
           const needsPayment = !tx || tx.status === "failed"
 
           return (
-            <Card key={win.bid_id} className="p-3 !py-0 gap-0">
+            <div key={win.bid_id} className="p-3 rounded-xl border border-border bg-card shadow-sm">
               <div className="flex gap-3">
                 {/* Cover */}
                 <Link
@@ -510,7 +510,7 @@ export default function WinsPage() {
                         size="sm"
                         onClick={() => handlePay(win.item.id)}
                         disabled={!shippingCountries[win.item.id] || payingItemId === win.item.id}
-                        className="bg-[#d4a54a] hover:bg-[#c49a3a] text-black h-8"
+                        className="bg-primary hover:bg-[#c49a3a] text-black h-8"
                       >
                         <CreditCard className="w-3.5 h-3.5 mr-1.5" />
                         {payingItemId === win.item.id ? "Redirecting..." : "Pay Now"}
@@ -519,7 +519,7 @@ export default function WinsPage() {
                   )}
                 </div>
               </div>
-            </Card>
+            </div>
           )
         })}
       </div>
@@ -565,7 +565,7 @@ export default function WinsPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-7 text-[11px] border-[#d4a54a]/30 text-[#d4a54a] hover:bg-[#d4a54a]/10"
+                      className="h-7 text-[11px] border-primary/30 text-primary hover:bg-primary/10"
                       disabled={addingToCartId === rec.id}
                       onClick={(e) => {
                         e.preventDefault()

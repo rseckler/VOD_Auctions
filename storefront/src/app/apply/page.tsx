@@ -109,10 +109,10 @@ export default function ApplyPage() {
       <div className="w-full max-w-lg">
         {/* Logo */}
         <div className="flex items-center justify-center gap-2.5 mb-10">
-          <div className="w-9 h-9 bg-[#d4a54a] rounded-full flex items-center justify-center text-lg font-bold text-[#0d0b08]">
+          <div className="w-9 h-9 bg-primary rounded-full flex items-center justify-center text-lg font-bold text-[#0d0b08]">
             V
           </div>
-          <span className="text-[#d4a54a] text-xl font-semibold tracking-wide">
+          <span className="text-primary text-xl font-semibold tracking-wide">
             VOD Auctions
           </span>
         </div>
@@ -127,9 +127,9 @@ export default function ApplyPage() {
             Discogs commissions.
           </p>
           {waitlistCount !== null && waitlistCount > 0 && (
-            <div className="inline-flex items-center gap-1.5 mt-4 px-3 py-1.5 rounded-full bg-[#d4a54a]/10 border border-[#d4a54a]/30">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#d4a54a] animate-pulse" />
-              <span className="text-[#d4a54a] text-xs font-medium">
+            <div className="inline-flex items-center gap-1.5 mt-4 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/30">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+              <span className="text-primary text-xs font-medium">
                 {waitlistCount.toLocaleString()} collector
                 {waitlistCount !== 1 ? "s" : ""} on the waitlist
               </span>
@@ -156,7 +156,7 @@ export default function ApplyPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Your name"
-                className="w-full px-3.5 py-2.5 bg-[#0d0b08] border border-[#2a2520] rounded-lg text-[#e8e0d4] text-sm placeholder-[#6b6560] outline-none focus:border-[#d4a54a] transition-colors"
+                className="w-full px-3.5 py-2.5 bg-[#0d0b08] border border-[#2a2520] rounded-lg text-[#e8e0d4] text-sm placeholder-[#6b6560] outline-none focus:border-primary transition-colors"
               />
               {fieldErrors.name && (
                 <p className="mt-1 text-red-500 text-xs">{fieldErrors.name}</p>
@@ -173,7 +173,7 @@ export default function ApplyPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
-                className="w-full px-3.5 py-2.5 bg-[#0d0b08] border border-[#2a2520] rounded-lg text-[#e8e0d4] text-sm placeholder-[#6b6560] outline-none focus:border-[#d4a54a] transition-colors"
+                className="w-full px-3.5 py-2.5 bg-[#0d0b08] border border-[#2a2520] rounded-lg text-[#e8e0d4] text-sm placeholder-[#6b6560] outline-none focus:border-primary transition-colors"
               />
               {fieldErrors.email && (
                 <p className="mt-1 text-red-500 text-xs">{fieldErrors.email}</p>
@@ -190,7 +190,7 @@ export default function ApplyPage() {
                 value={country}
                 onChange={(e) => setCountry(e.target.value)}
                 placeholder="e.g. Germany"
-                className="w-full px-3.5 py-2.5 bg-[#0d0b08] border border-[#2a2520] rounded-lg text-[#e8e0d4] text-sm placeholder-[#6b6560] outline-none focus:border-[#d4a54a] transition-colors"
+                className="w-full px-3.5 py-2.5 bg-[#0d0b08] border border-[#2a2520] rounded-lg text-[#e8e0d4] text-sm placeholder-[#6b6560] outline-none focus:border-primary transition-colors"
               />
             </div>
 
@@ -203,7 +203,7 @@ export default function ApplyPage() {
                 {GENRE_OPTIONS.map((genre) => (
                   <label
                     key={genre}
-                    className="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-[#2a2520] hover:border-[#3a352f] cursor-pointer transition-colors has-[:checked]:border-[#d4a54a]/50 has-[:checked]:bg-[#d4a54a]/5"
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-[#2a2520] hover:border-[#3a352f] cursor-pointer transition-colors has-[:checked]:border-primary/50 has-[:checked]:bg-primary/5"
                   >
                     <input
                       type="checkbox"
@@ -214,7 +214,7 @@ export default function ApplyPage() {
                     <span
                       className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
                         genres.includes(genre)
-                          ? "bg-[#d4a54a] border-[#d4a54a]"
+                          ? "bg-primary border-primary"
                           : "border-[#4a4540] bg-transparent"
                       }`}
                     >
@@ -249,7 +249,7 @@ export default function ApplyPage() {
                 {CHANNEL_OPTIONS.map((channel) => (
                   <label
                     key={channel}
-                    className="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-[#2a2520] hover:border-[#3a352f] cursor-pointer transition-colors has-[:checked]:border-[#d4a54a]/50 has-[:checked]:bg-[#d4a54a]/5"
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-[#2a2520] hover:border-[#3a352f] cursor-pointer transition-colors has-[:checked]:border-primary/50 has-[:checked]:bg-primary/5"
                   >
                     <input
                       type="checkbox"
@@ -262,7 +262,7 @@ export default function ApplyPage() {
                     <span
                       className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
                         channels.includes(channel)
-                          ? "bg-[#d4a54a] border-[#d4a54a]"
+                          ? "bg-primary border-primary"
                           : "border-[#4a4540] bg-transparent"
                       }`}
                     >
@@ -298,7 +298,7 @@ export default function ApplyPage() {
                 onChange={(e) => setReferrer(e.target.value)}
                 placeholder="Optional"
                 rows={2}
-                className="w-full px-3.5 py-2.5 bg-[#0d0b08] border border-[#2a2520] rounded-lg text-[#e8e0d4] text-sm placeholder-[#6b6560] outline-none focus:border-[#d4a54a] transition-colors resize-none"
+                className="w-full px-3.5 py-2.5 bg-[#0d0b08] border border-[#2a2520] rounded-lg text-[#e8e0d4] text-sm placeholder-[#6b6560] outline-none focus:border-primary transition-colors resize-none"
               />
             </div>
 
@@ -306,7 +306,7 @@ export default function ApplyPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-lg bg-[#d4a54a] text-[#0d0b08] text-sm font-semibold hover:bg-[#c49a40] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              className="w-full py-3 rounded-lg bg-primary text-[#0d0b08] text-sm font-semibold hover:bg-[#c49a40] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
             >
               {loading ? "Submitting..." : "Apply now \u2192"}
             </button>
@@ -339,7 +339,7 @@ export default function ApplyPage() {
                     }
                   }
                 }}
-                className="text-[#d4a54a] hover:underline"
+                className="text-primary hover:underline"
               >
                 Redeem it here
               </Link>
