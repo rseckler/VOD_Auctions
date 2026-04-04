@@ -70,7 +70,7 @@ export default async function Home() {
                   {activeCount} Live Auction{activeCount > 1 ? "s" : ""}
                 </div>
               )}
-              <h1 className="font-serif text-5xl md:text-6xl leading-[1.1] mb-5">
+              <h1 className="heading-hero mb-5">
                 {heroTitle.includes("\n") ? (
                   <>
                     {heroTitle.split("\n")[0]}
@@ -99,7 +99,7 @@ export default async function Home() {
             </div>
 
             {/* Right: Vinyl Graphic */}
-            <div className="hidden lg:flex justify-center relative">
+            <div className="hidden lg:flex justify-center relative" aria-hidden="true">
               <div className="relative w-80 h-80">
                 {/* Album Cover */}
                 <div className="absolute top-6 left-0 w-72 h-72 rounded bg-gradient-to-br from-[#3a3028] to-[#2a221a] border border-[rgba(232,224,212,0.08)] shadow-2xl flex items-center justify-center">

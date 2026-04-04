@@ -290,9 +290,9 @@ export default function CatalogClient({ initialReleases, initialTotal, initialPa
   const hasActiveFilters = category || format || country || label || yearFrom || genre || decade || forSale
 
   return (
-    <main className="mx-auto max-w-7xl px-6 py-8">
+    <main className="mx-auto max-w-6xl px-6 py-8">
       <div className="mb-8">
-        <h1 className="text-3xl md:text-4xl font-bold font-[family-name:var(--font-dm-serif)]">
+        <h1 className="heading-1">
           Catalog
         </h1>
         <p className="text-muted-foreground mt-2">

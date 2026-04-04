@@ -84,7 +84,7 @@ export function Header() {
             <Link
               href={isAuthenticated ? "/account/saved" : "#"}
               onClick={handleAnonClick}
-              className="relative text-muted-foreground hover:text-foreground transition-colors"
+              className="relative p-2 -m-2 text-muted-foreground hover:text-foreground transition-colors"
               aria-label={`Saved, ${savedCount} item${savedCount !== 1 ? "s" : ""}`}
             >
               <Heart className="h-5 w-5" />
@@ -97,7 +97,7 @@ export function Header() {
             <Link
               href={isAuthenticated ? "/account/cart" : "#"}
               onClick={handleAnonClick}
-              className="relative text-muted-foreground hover:text-foreground transition-colors"
+              className="relative p-2 -m-2 text-muted-foreground hover:text-foreground transition-colors"
               aria-label={`Cart, ${cartCount} item${cartCount !== 1 ? "s" : ""}`}
             >
               <ShoppingCart className="h-5 w-5" />
@@ -115,7 +115,7 @@ export function Header() {
             {isAuthenticated && (
               <Link
                 href="/account"
-                className="p-2 text-muted-foreground hover:text-foreground transition-colors"
+                className="p-3 text-muted-foreground hover:text-foreground transition-colors"
                 aria-label="My Account"
               >
                 <User className="h-5 w-5" />
@@ -123,7 +123,7 @@ export function Header() {
             )}
             <button
               onClick={() => setMobileOpen(true)}
-              className="p-2 text-muted-foreground hover:text-foreground transition-colors"
+              className="p-3 text-muted-foreground hover:text-foreground transition-colors"
               aria-label="Open navigation"
             >
               <Menu className="h-5 w-5" />

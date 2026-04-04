@@ -6,7 +6,7 @@ export default function BlockDetailLoading() {
       {/* Hero skeleton */}
       <div className="relative h-72 md:h-[28rem] bg-card">
         <div className="absolute inset-0 flex items-end">
-          <div className="mx-auto max-w-7xl w-full px-6 pb-10 space-y-4">
+          <div className="mx-auto max-w-6xl w-full px-6 pb-10 space-y-4">
             <Skeleton className="h-4 w-48" />
             <Skeleton className="h-5 w-24" />
             <Skeleton className="h-10 w-96" />
@@ -16,7 +16,7 @@ export default function BlockDetailLoading() {
       </div>
 
       {/* Content skeleton */}
-      <div className="mx-auto max-w-7xl px-6 py-12 space-y-8">
+      <div className="mx-auto max-w-6xl px-6 py-12 space-y-8">
         <Skeleton className="h-6 w-32" />
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (

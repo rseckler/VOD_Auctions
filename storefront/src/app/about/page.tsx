@@ -245,7 +245,7 @@ export default async function AboutPage() {
             <Disc3 className="h-4 w-4" />
             Est. 2003
           </div>
-          <h1 className="font-serif text-5xl md:text-6xl leading-[1.1] mb-5">
+          <h1 className="heading-hero mb-5">
             {heroTitle.includes("VOD") ? (
               <>
                 {heroTitle.split("VOD")[0]}

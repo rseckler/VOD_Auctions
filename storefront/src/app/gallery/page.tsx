@@ -331,7 +331,7 @@ export default async function GalleryPage() {
 
       {/* ── Section 3: Visual Gallery ── */}
       <section className="pb-20 md:pb-28">
-        <div className="mx-auto max-w-7xl px-6">
+        <div className="mx-auto max-w-6xl px-6">
           {/* Hero image — full width */}
           {galleryImages[0] && (
             <div className="relative overflow-hidden rounded-lg group aspect-[16/9] mb-3 md:mb-4">

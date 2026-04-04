@@ -261,6 +261,7 @@ export function ItemBidSection({
     <>
       <Card className="p-4">
         {/* Bid status indicator for authenticated user */}
+        <div aria-live="assertive" aria-atomic="true">
         {isAuthenticated && userIsWinning !== null && (
           <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg mb-2.5 text-sm font-medium ${
             userIsWinning
@@ -274,9 +275,10 @@ export function ItemBidSection({
             )}
           </div>
         )}
+        </div>
 
         {/* Current Price */}
-        <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center justify-between mb-1" aria-live="polite" aria-atomic="true">
           <span className="text-sm text-muted-foreground">
             {bidCount > 0 ? "Current Bid" : "Starting Price"}
           </span>
