@@ -536,11 +536,10 @@ If YES (mobile admin needed):
   GAP-1206: Email editor form inputs max-width 100%             (emails/page.tsx — 30 min)
 ```
 
-If NO (admin is desktop-only — recommended for now):
+If NO (admin is desktop-only): **← ENTSCHEIDUNG: DIESE OPTION GEWÄHLT (2026-04-04)**
 ```
-  → Document "Admin requires desktop browser" in user guide
-  → Add admin middleware redirecting mobile to "Please use desktop" message
-  → Defer all GAP-12xx fixes to post-launch
+  → Admin ist Desktop-only. GAP-12xx Fixes deferred.
+  → Kein mobile Redirect nötig — Admin-Nutzer (Frank) nutzt Desktop.
   → Total effort saved: ~7 hours
 ```
 
