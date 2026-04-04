@@ -4,6 +4,36 @@ Vollständiger Entwicklungs-Changelog. Neue Einträge werden direkt hier ergänz
 
 ---
 
+## 2026-04-04 — Post-Review Remediation: Bid Parsing, A11y, Security
+
+### Critical: Bid Input Money Bug
+- **`parseAmount()` Helper:** Normalisiert Komma-Dezimalzahlen vor dem Parsen (`"12,50"` → `12.5` statt `12`)
+- Ersetzt alle 7 `parseFloat(amount/maxAmount)` Aufrufe in ItemBidSection.tsx
+- Betrifft: Gebot, Proxy-Maximum, Bestätigungs-Modal, Button-Labels
+
+### Critical: Kaputte Bidding-Tests
+- **Selektoren:** `input[type='number']` → `input[inputmode='decimal']` (2 Stellen)
+- **Bid-Increment:** `+0.5` → `+1` (whole_euros_only ist `true`, Dezimal wird abgelehnt)
+
+### Accessibility: Apply + Invite Formulare
+- **apply/page.tsx:** `id`/`htmlFor` auf 4 Inputs + 1 Textarea, raw `<button>` → `<Button>`
+- **invite/[token]/page.tsx:** `id`/`htmlFor` auf 5 Inputs, raw `<button>` → `<Button>`
+- Vorher: Kein Label programmatisch mit Input verknüpft (WCAG 2.1 AA Verstoß)
+
+### UX: Checkout + Account Overview
+- **Postal Code:** `inputMode="numeric"` entfernt — blockierte alphanumerische PLZ (UK: SW1A 1AA)
+- **Account Overview:** `Promise.all` → `Promise.allSettled` — partielle Darstellung bei Teilausfällen statt komplettem Absturz
+
+### Token Cleanup
+- **HomeContent.tsx:** `via-[#1a1612]/20` → `via-card-hover/20` (letzter übersehener Token)
+
+### Security
+- **Next.js:** 16.1.6 → 16.2.2 (5 moderate Advisories behoben: HTTP Smuggling, CSRF Bypass, DoS)
+- **brace-expansion + picomatch:** Vulnerabilities gefixt
+- **npm audit:** 0 Vulnerabilities
+
+---
+
 ## 2026-04-04 — UI/UX Final Implementation Pass (40/53 Gaps resolved, 75%)
 
 ### Design-System Token-Erweiterung
