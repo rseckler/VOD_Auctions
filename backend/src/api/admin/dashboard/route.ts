@@ -1,7 +1,9 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
+import * as path from "path"
 import { getSiteConfig } from "../../../lib/site-config"
+import { getScriptsDir } from "../../../lib/paths"
 
 /**
  * GET /admin/dashboard
@@ -209,7 +211,8 @@ export async function GET(
   let lastSyncTime: string | null = null
   try {
     const fs = await import("fs")
-    const stat = fs.statSync("/root/VOD_Auctions/scripts/legacy_sync.log")
+    const logPath = path.join(getScriptsDir(), "legacy_sync.log")
+    const stat = fs.statSync(logPath)
     lastSyncTime = new Date(stat.mtime).toISOString()
   } catch {
     // Dev environment or file not found

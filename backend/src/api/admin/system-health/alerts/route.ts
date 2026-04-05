@@ -1,6 +1,8 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
+import * as path from "path"
+import { getScriptsDir } from "../../../../lib/paths"
 
 const SENTRY_TOKEN = process.env.SENTRY_API_TOKEN || ""
 const SENTRY_ORG = "vod-records"
@@ -77,7 +79,7 @@ export async function GET(
   // ── Legacy sync status (log file mtime + optional DB change count) ──────────
   try {
     const fs = await import("fs")
-    const SYNC_LOG_PATH = "/root/VOD_Auctions/scripts/legacy_sync.log"
+    const SYNC_LOG_PATH = path.join(getScriptsDir(), "legacy_sync.log")
 
     let logStat: any = null
     try { logStat = fs.statSync(SYNC_LOG_PATH) } catch { /* file not found on dev */ }

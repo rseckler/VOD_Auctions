@@ -444,6 +444,13 @@ const SyncDashboardPage = () => {
   const eligibleMatched = overview?.overview?.eligible_matched || 0
   const eligibleWithPrice = overview?.overview?.eligible_with_price || 0
   const coveragePercent = eligible > 0 ? Math.round((eligibleMatched / eligible) * 100) : 0
+
+  // Legacy sync — changes in last run (from sync_log.changes JSONB).
+  // The Python legacy_sync.py script writes this summary on every run.
+  const legacyChanges = (overview?.last_legacy_sync?.changes as Record<string, unknown> | undefined) || {}
+  const legacyChanged = Number(legacyChanges.release_changes_logged ?? 0)
+  const legacyProcessed = Number(legacyChanges.releases_processed ?? 0)
+  const legacyNewImages = Number(legacyChanges.new_images ?? 0)
   const bp = batchProgress?.progress
   const batchRunning = bp && bp.processed > 0
 
@@ -470,7 +477,7 @@ const SyncDashboardPage = () => {
             </span>
             <h2 style={{ fontSize: "16px", fontWeight: 600 }}>Legacy MySQL Sync</h2>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "16px" }}>
             <div>
               <div style={labelStyle}>Last Sync</div>
               <div style={valueStyle}>{formatDate(overview?.last_legacy_sync?.sync_date || overview?.overview?.last_legacy_sync || null)}</div>
@@ -482,6 +489,20 @@ const SyncDashboardPage = () => {
             <div>
               <div style={labelStyle}>Eligible (Music)</div>
               <div style={bigValueStyle}>{eligible.toLocaleString("en-US")}</div>
+            </div>
+            <div>
+              <div style={labelStyle}>Changes (last run)</div>
+              <div style={bigValueStyle}>{legacyChanged.toLocaleString("en-US")}</div>
+              {legacyProcessed > 0 && (
+                <div style={{ fontSize: "11px", color: C.muted, marginTop: "2px" }}>
+                  of {legacyProcessed.toLocaleString("en-US")} processed
+                </div>
+              )}
+              {legacyNewImages > 0 && legacyChanged === 0 && (
+                <div style={{ fontSize: "11px", color: C.muted, marginTop: "2px" }}>
+                  {legacyNewImages.toLocaleString("en-US")} images tracked
+                </div>
+              )}
             </div>
           </div>
         </div>
