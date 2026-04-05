@@ -68,9 +68,38 @@ export const FEATURES = {
     description: "Trial flag — adds a _debug field with server-time to GET /store/site-mode. Used to validate the feature-flag infrastructure end-to-end (registry → DB → backend handler → conditional response).",
     category: "experimental",
   },
+  EXPERIMENTAL_SKIP_BID_CONFIRMATION: {
+    key: "EXPERIMENTAL_SKIP_BID_CONFIRMATION",
+    default: false,
+    description: "Trial flag — when ON, skips the bid-confirmation modal and submits directly (power-user mode). Default OFF preserves current behavior so enabling this flag is strictly additive. Client-safe: exposed via /store/platform-flags. Used to validate the full client-side feature-flag stack end-to-end.",
+    category: "experimental",
+  },
 } as const satisfies Record<string, FeatureFlagDefinition>
 
 export type FeatureFlagKey = keyof typeof FEATURES
+
+// ─── Client-Safe Flag Whitelist ────────────────────────────────────────────
+//
+// Flags listed here MAY be exposed to unauthenticated storefront clients via
+// GET /store/platform-flags. Every other flag — especially every ERP_* flag —
+// is considered server-only and will never leave the backend.
+//
+// Rules for adding a flag to this list:
+//   1. The flag must be safe to know about publicly. An attacker seeing it
+//      must not gain any advantage (no bypass potential, no enumeration of
+//      unreleased business logic).
+//   2. The flag's effect must be purely presentational OR the enabling
+//      condition is already public knowledge.
+//   3. ERP / billing / tax / payment / marketplace flags are NEVER safe.
+//
+// Keep this list short and deliberate. A flag is private by default.
+export const CLIENT_SAFE_FLAGS: readonly FeatureFlagKey[] = [
+  "EXPERIMENTAL_SKIP_BID_CONFIRMATION",
+] as const
+
+export function isClientSafeFlag(key: string): key is FeatureFlagKey {
+  return (CLIENT_SAFE_FLAGS as readonly string[]).includes(key)
+}
 
 export function isKnownFlag(key: string): key is FeatureFlagKey {
   return Object.prototype.hasOwnProperty.call(FEATURES, key)

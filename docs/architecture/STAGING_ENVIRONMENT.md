@@ -1,8 +1,12 @@
 # Staging Environment — Setup Plan & Blockers
 
-**Status:** Planning document. No infrastructure has been provisioned yet.
+**Status:** Decision taken (2026-04-05) — Option B1 approved. Project creation pending (see §3 for the one manual step).
 **Last Updated:** 2026-04-05
 **Related:** `docs/architecture/DEPLOYMENT_METHODOLOGY.md` §6
+
+## Decision Log
+
+- **2026-04-05:** Option B1 chosen — separate Free Supabase project in the `backfire` organization (org id `raindgavnjxbqomuoyfo`). Rationale: backfire org has 0 projects, so the Free-tier 2-active-projects limit does not apply. The Seckler org is at the limit (`vod-auctions` + `blackfire-service` active) and the user explicitly forbade touching/pausing any existing Seckler-org projects. Pro upgrade was rejected in favour of zero-cost. Schema will be copied from production (`bofblwqieuvmqybzxapx`) via `pg_dump --schema-only` from the VPS once the staging project exists.
 
 ---
 
@@ -128,6 +132,72 @@ These items do not create any running infrastructure and can land immediately:
 - [x] **Feature-flag infrastructure** so staging can actually *do something* when it exists — done (Phase 1)
 - [ ] **Migration inventory script** — a small shell script that lists every raw SQL file under `backend/scripts/migrations/` and every Medusa migration under `backend/src/modules/*/migrations/`, sorted by date. Useful for Option B to track what needs applying to staging. **Not yet built** — deferred until the DB decision is made.
 - [ ] **`.env.staging.example`** templates for `backend/` and `storefront/` showing which variables differ from production. **Not yet built** — deferred until credentials exist.
+
+---
+
+## 5b. Concrete Setup Steps (B1)
+
+Once the staging Supabase project exists, the remaining setup is automatable from the VPS. The single manual step is the project creation itself — Supabase does not allow the MCP-scoped API token used by Claude Code to target a different organization, so the project must be created via the Supabase dashboard.
+
+### Step 1 — Create the project (MANUAL, ~1 min)
+
+1. Open https://supabase.com/dashboard/org/raindgavnjxbqomuoyfo
+2. Click **New project**
+3. Name: `vod-auctions-staging`
+4. Region: `eu-central-1` (match production — `bofblwqieuvmqybzxapx`)
+5. DB password: generate a strong one, store in 1Password as `Supabase vod-auctions-staging DB`
+6. Wait ~1-2 minutes for provisioning
+7. Copy the **Connection string → URI** from Project Settings → Database. This becomes `STAGING_DATABASE_URL` below.
+
+### Step 2 — Schema copy from production (AUTOMATABLE, ~30 s)
+
+Run on the VPS (single SSH session). Uses `pg_dump` against production with `--schema-only` — no data is copied, no production state is modified:
+
+```bash
+ssh vps
+cd /root/VOD_Auctions/backend
+
+# Load production DATABASE_URL from .env
+PROD_DB=$(grep "^DATABASE_URL=" .env | cut -d'=' -f2- | tr -d '"')
+
+# Paste the staging URL here before running
+STAGING_DB="postgres://postgres:<PW>@db.<PROJECT_REF>.supabase.co:5432/postgres"
+
+# Dump production schema (excluding Supabase-managed schemas)
+pg_dump --schema-only --no-owner --no-acl \
+  --exclude-schema=auth \
+  --exclude-schema=storage \
+  --exclude-schema=realtime \
+  --exclude-schema=supabase_functions \
+  --exclude-schema=pgsodium \
+  --exclude-schema=graphql \
+  --exclude-schema=graphql_public \
+  --exclude-schema=pgbouncer \
+  --exclude-schema=vault \
+  --exclude-schema=extensions \
+  "$PROD_DB" > /tmp/vod-auctions-schema.sql
+
+# Sanity check: file size and table count
+wc -l /tmp/vod-auctions-schema.sql
+grep -c "^CREATE TABLE" /tmp/vod-auctions-schema.sql
+
+# Apply schema to staging
+psql "$STAGING_DB" < /tmp/vod-auctions-schema.sql
+
+# Verify — should list all tables
+psql "$STAGING_DB" -c "\dt public.*" | head -20
+
+# Clean up dump file
+rm /tmp/vod-auctions-schema.sql
+```
+
+### Step 3 — Env templates (AUTOMATABLE)
+
+Create `backend/.env.staging.example` and `storefront/.env.staging.example` once — document which vars differ from production. These are templates, never actual credentials.
+
+### Step 4 — Nothing more until first use
+
+No VPS PM2 entries, no nginx configs, no DNS records — those are only needed when the first feature actually wants to run in staging over HTTP. The database alone is sufficient for migration rehearsals, schema-diff testing, and seeding experiments. Add the HTTP layer only when the first feature demands it.
 
 ---
 

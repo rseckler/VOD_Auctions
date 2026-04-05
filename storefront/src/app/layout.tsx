@@ -3,6 +3,7 @@ import { cookies } from "next/headers"
 import { Suspense } from "react"
 import { DM_Sans, DM_Serif_Display } from "next/font/google"
 import { AuthProvider } from "@/components/AuthProvider"
+import { FeatureFlagProvider } from "@/components/FeatureFlagProvider"
 import { Header } from "@/components/layout/Header"
 import { Footer } from "@/components/layout/Footer"
 import { GoogleAnalytics } from "@/components/GoogleAnalytics"
@@ -130,18 +131,20 @@ export default async function RootLayout({
           <TopLoadingBar />
         </Suspense>
         <AuthProvider>
-          <TooltipProvider>
-            <Header />
-            <main id="main-content" className="flex-1">{children}</main>
-            <Footer />
-            <Toaster richColors position="bottom-right" />
-            <BackToTop />
-            <BrevoTracker />
-            <CookieConsent />
-            <OnboardingModal />
-            <ClarityProvider />
-            <RudderstackProvider />
-          </TooltipProvider>
+          <FeatureFlagProvider>
+            <TooltipProvider>
+              <Header />
+              <main id="main-content" className="flex-1">{children}</main>
+              <Footer />
+              <Toaster richColors position="bottom-right" />
+              <BackToTop />
+              <BrevoTracker />
+              <CookieConsent />
+              <OnboardingModal />
+              <ClarityProvider />
+              <RudderstackProvider />
+            </TooltipProvider>
+          </FeatureFlagProvider>
         </AuthProvider>
       </body>
     </html>

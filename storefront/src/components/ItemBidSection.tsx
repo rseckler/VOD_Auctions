@@ -7,6 +7,7 @@ import Link from "next/link"
 import { toast } from "sonner"
 import { useAuth } from "./AuthProvider"
 import { AuthModal } from "./AuthModal"
+import { useFeatureFlag } from "./FeatureFlagProvider"
 import { getToken } from "@/lib/auth"
 import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
@@ -452,6 +453,11 @@ function BidForm({
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [bidSuccess, setBidSuccess] = useState(false)
 
+  // Trial flag — client-side, fetched once via FeatureFlagProvider.
+  // When ON, the confirmation modal is skipped and the bid submits
+  // directly (see handleSubmitClick below).
+  const skipBidConfirmation = useFeatureFlag("EXPERIMENTAL_SKIP_BID_CONFIRMATION")
+
   // Track whether the initial amount has been set once
   const suggestedBidUsed = useRef(false)
 
@@ -516,6 +522,15 @@ function BidForm({
         toast.error("Maximum bid must be a whole Euro amount (no cents).", { duration: 5000 })
         return
       }
+    }
+
+    // Trial flag: EXPERIMENTAL_SKIP_BID_CONFIRMATION
+    // When enabled, bypass the confirmation modal and submit the bid
+    // directly. Default OFF preserves the current behaviour — this flag
+    // is strictly additive.
+    if (skipBidConfirmation) {
+      confirmBid()
+      return
     }
 
     setConfirmOpen(true)
