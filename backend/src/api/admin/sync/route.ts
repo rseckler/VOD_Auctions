@@ -11,7 +11,7 @@ export async function GET(
     ContainerRegistrationKeys.PG_CONNECTION
   )
 
-  const [discogsStats, eligibleStats, lastLegacySync, lastDiscogsSync, recentLogs, monthlyAgg] =
+  const [discogsStats, eligibleStats, lastTwoLegacySyncs, lastDiscogsSync, recentLogs, monthlyAgg] =
     await Promise.all([
       // Total + Discogs coverage (all releases)
       pgConnection("Release")
@@ -40,11 +40,14 @@ export async function GET(
         .where("product_category", "release")
         .first(),
 
-      // Last legacy sync log
+      // Last TWO legacy sync logs — we need both the current and the previous
+      // run's sync_date to compute the exact time-window of the last run.
+      // Images inserted BETWEEN (prev.sync_date, current.sync_date] are the
+      // ones picked up by the last sync run.
       pgConnection("sync_log")
         .where("sync_type", "legacy")
         .orderBy("sync_date", "desc")
-        .first(),
+        .limit(2),
 
       // Last discogs sync log
       pgConnection("sync_log")
@@ -70,6 +73,38 @@ export async function GET(
         .groupBy("sync_type", "status"),
     ])
 
+  const lastLegacySync = lastTwoLegacySyncs[0] || null
+  const prevLegacySync = lastTwoLegacySyncs[1] || null
+
+  // Compute ACTUAL new-image count for the last legacy sync run by querying
+  // the Image table directly for the time window [prev_sync.sync_date, last_sync.sync_date].
+  // This bypasses the flaky `new_images` field in sync_log.changes (which is
+  // cumulative "attempted inserts" due to ON CONFLICT DO NOTHING — not actual
+  // new rows). The Image.createdAt timestamp is set via NOW() during the
+  // INSERT, so it uniquely identifies the sync run that inserted the row.
+  let newImagesInLastRun: number | null = null
+  if (lastLegacySync?.sync_date) {
+    const windowEnd = lastLegacySync.sync_date
+    const windowStart = prevLegacySync?.sync_date ?? null
+    const imgQuery = pgConnection("Image").count("* as count").where(
+      "createdAt",
+      "<=",
+      windowEnd
+    )
+    if (windowStart) {
+      imgQuery.where("createdAt", ">", windowStart)
+    } else {
+      // No previous run — use a 2h window before last sync as a reasonable floor
+      imgQuery.where(
+        "createdAt",
+        ">",
+        pgConnection.raw("? - INTERVAL '2 hours'", [windowEnd])
+      )
+    }
+    const imgResult = await imgQuery.first()
+    newImagesInLastRun = Number(imgResult?.count ?? 0)
+  }
+
   res.json({
     overview: {
       total: Number(discogsStats?.total || 0),
@@ -81,7 +116,15 @@ export async function GET(
       last_discogs_sync: discogsStats?.last_discogs_sync,
       last_legacy_sync: discogsStats?.last_legacy_sync,
     },
-    last_legacy_sync: lastLegacySync,
+    last_legacy_sync: lastLegacySync
+      ? {
+          ...lastLegacySync,
+          // Computed server-side: actual new-image count in the last run's
+          // time window. Replaces the flaky `new_images` field from
+          // sync_log.changes. See query comment above for rationale.
+          new_images_actual: newImagesInLastRun,
+        }
+      : null,
     last_discogs_sync: lastDiscogsSync,
     recent_logs: recentLogs,
     monthly_stats: monthlyAgg.map((r: any) => ({

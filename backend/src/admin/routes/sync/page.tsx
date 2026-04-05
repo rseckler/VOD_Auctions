@@ -14,7 +14,7 @@ type SyncOverview = {
     last_discogs_sync: string | null
     last_legacy_sync: string | null
   }
-  last_legacy_sync: { sync_date: string; status: string; changes: Record<string, unknown> } | null
+  last_legacy_sync: { sync_date: string; status: string; changes: Record<string, unknown>; new_images_actual: number | null } | null
   last_discogs_sync: { sync_date: string; status: string; changes: Record<string, unknown> } | null
   recent_logs: SyncLogEntry[]
   monthly_stats: { sync_type: string; status: string; count: number }[]
@@ -445,12 +445,23 @@ const SyncDashboardPage = () => {
   const eligibleWithPrice = overview?.overview?.eligible_with_price || 0
   const coveragePercent = eligible > 0 ? Math.round((eligibleMatched / eligible) * 100) : 0
 
-  // Legacy sync — changes in last run (from sync_log.changes JSONB).
-  // The Python legacy_sync.py script writes this summary on every run.
+  // Legacy sync — changes in last run.
+  // Two data sources:
+  //   1. sync_log.changes JSONB (written by legacy_sync.py) — currently
+  //      only tracks 4 fields (price, availability, title, coverImage)
+  //      and its `new_images` is cumulative/attempted, not actual new.
+  //   2. Server-computed `new_images_actual` — queried directly from the
+  //      Image table for the last run's time window. This is the HONEST
+  //      new-image count. See backend/src/api/admin/sync/route.ts.
+  //
+  // Until legacy_sync.py is fixed (Phase B) to track all fields and
+  // accurate image counts, we prefer `new_images_actual` as the primary
+  // "Changes" metric because it's real.
   const legacyChanges = (overview?.last_legacy_sync?.changes as Record<string, unknown> | undefined) || {}
-  const legacyChanged = Number(legacyChanges.release_changes_logged ?? 0)
+  const legacyFieldChanges = Number(legacyChanges.release_changes_logged ?? 0)
   const legacyProcessed = Number(legacyChanges.releases_processed ?? 0)
-  const legacyNewImages = Number(legacyChanges.new_images ?? 0)
+  const legacyNewImagesActual = overview?.last_legacy_sync?.new_images_actual ?? 0
+  const legacyTotalChanges = legacyFieldChanges + legacyNewImagesActual
   const bp = batchProgress?.progress
   const batchRunning = bp && bp.processed > 0
 
@@ -492,17 +503,14 @@ const SyncDashboardPage = () => {
             </div>
             <div>
               <div style={labelStyle}>Changes (last run)</div>
-              <div style={bigValueStyle}>{legacyChanged.toLocaleString("en-US")}</div>
-              {legacyProcessed > 0 && (
-                <div style={{ fontSize: "11px", color: C.muted, marginTop: "2px" }}>
-                  of {legacyProcessed.toLocaleString("en-US")} processed
-                </div>
-              )}
-              {legacyNewImages > 0 && legacyChanged === 0 && (
-                <div style={{ fontSize: "11px", color: C.muted, marginTop: "2px" }}>
-                  {legacyNewImages.toLocaleString("en-US")} images tracked
-                </div>
-              )}
+              <div style={bigValueStyle}>{legacyTotalChanges.toLocaleString("en-US")}</div>
+              <div style={{ fontSize: "11px", color: C.muted, marginTop: "2px" }}>
+                {legacyNewImagesActual > 0 && <>{legacyNewImagesActual.toLocaleString("en-US")} new image{legacyNewImagesActual !== 1 ? "s" : ""}</>}
+                {legacyNewImagesActual > 0 && legacyFieldChanges > 0 && <> · </>}
+                {legacyFieldChanges > 0 && <>{legacyFieldChanges.toLocaleString("en-US")} field edit{legacyFieldChanges !== 1 ? "s" : ""}</>}
+                {legacyTotalChanges === 0 && legacyProcessed > 0 && <>no changes · {legacyProcessed.toLocaleString("en-US")} touched</>}
+                {legacyTotalChanges === 0 && legacyProcessed === 0 && <>—</>}
+              </div>
             </div>
           </div>
         </div>
