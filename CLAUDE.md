@@ -48,11 +48,13 @@ cd backend && npx medusa db:generate auction && npx medusa db:migrate
 **SSH Rate-Limiting:** Hostinger sperrt IP nach 2-3 schnellen Verbindungen (~10-15 Min). SSH ControlMaster in `~/.ssh/config` (ControlPersist 30m) nutzen. Nie parallele SSH-Calls.
 
 ```bash
-# Backend + Admin deployen
+# Backend + Admin deployen — KOMPLETTE Sequenz, alle Schritte PFLICHT
 ssh root@72.62.148.205
 cd /root/VOD_Auctions && git pull && cd backend
+rm -rf node_modules/.vite .medusa    # clean build (bei neuen Admin-Routes PFLICHT)
 npx medusa build
-rm -rf public/admin && cp -r .medusa/server/public/admin public/admin  # PFLICHT!
+rm -rf public/admin && cp -r .medusa/server/public/admin public/admin   # Admin-Assets PFLICHT
+ln -sf /root/VOD_Auctions/backend/.env /root/VOD_Auctions/backend/.medusa/server/.env   # .env PFLICHT
 pm2 restart vodauction-backend
 
 # Storefront deployen
@@ -63,6 +65,10 @@ npm run build && pm2 restart vodauction-storefront
 **Admin Build Gotcha:** `medusa build` → `.medusa/server/public/admin/`. Muss nach `public/admin/` kopiert werden — sonst 502 Bad Gateway!
 
 **Neue Admin-Route hinzugefügt?** Vite-Cache clearen vor dem Build: `rm -rf node_modules/.vite .medusa && npx medusa build`. Sonst registriert der Vite-Plugin die neue Route nicht (→ 404 oder silent crash).
+
+**🔴 PM2 cwd PFLICHT auf `.medusa/server/`** (Incident 2026-04-05): Medusa 2.x Production-Runtime lädt `medusa-config.js` + kompilierte Routes ausschließlich aus `.medusa/server/`. PM2-Eintrag für `vodauction-backend` MUSS `cwd: "/root/VOD_Auctions/backend/.medusa/server"` haben — sowohl in `backend/ecosystem.config.js` als auch in der Root-`ecosystem.config.js`. Mit cwd auf `backend/` crasht der Boot mit `Cannot find module '/root/VOD_Auctions/backend/medusa-config'`, weil dort nur die `.ts`-Source liegt und der Prod-Runtime keine TypeScript-Transpilation macht.
+
+**🔴 .env Symlink NACH jedem `medusa build`** (Incident 2026-04-05): `npx medusa build` löscht `.medusa/server/` komplett und baut neu. Der `.env`-Symlink `.medusa/server/.env → ../../.env` geht dabei verloren und Medusa bootet mit `JWT_SECRET must be set in production — refusing to start with insecure default`. Lösung: nach JEDEM Build den Symlink neu setzen (siehe Deploy-Sequenz oben). Ohne Symlink lädt dotenv keine Env-Variablen, weil `process.cwd()` = `.medusa/server/` ist und die `.env` in `backend/` liegt.
 
 **Git Workflow:** NIE `git pull` auf VPS machen wenn VPS-Code nicht vorher auf GitHub gepusht wurde. Deploy-Reihenfolge IMMER: `git push origin main` auf Mac → dann `git pull` auf VPS. Sonst sagt VPS "Already up to date" obwohl neue Commits fehlen.
 

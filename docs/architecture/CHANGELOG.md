@@ -4,6 +4,58 @@ Vollständiger Entwicklungs-Changelog. Neue Einträge werden direkt hier ergänz
 
 ---
 
+## 2026-04-05 — Feature-Flag-Infrastruktur + Deployment-Methodology + PM2/Env Hotfix
+
+### Feature-Flag-System (neu)
+- **Registry** in `backend/src/lib/feature-flags.ts` mit 6 ERP-Flags (`ERP_INVOICING`, `ERP_SENDCLOUD`, `ERP_INVENTORY`, `ERP_COMMISSION`, `ERP_TAX_25A`, `ERP_MARKETPLACE`), alle default `false`. Kategorien: `erp` / `platform` / `experimental`. Neue Flags = Code-only (kein DB-Migration nötig).
+- **Helper-API:** `getFeatureFlag(pg, key)`, `getAllFeatureFlags(pg)`, `setFeatureFlag(pg, key, enabled, adminEmail)`. `getFeatureFlag` fällt auf Registry-Default zurück wenn DB-Wert fehlt. Nutzt den existierenden 5-min `site_config` Cache.
+- **Transaktionale Writes:** `setFeatureFlag` wrappt Update + Audit-Log-Insert in eine einzige DB-Transaction (`FOR UPDATE` Lock auf site_config row). Read-before-write bypassed den Cache um Staleness zu vermeiden. Cache-Invalidation erst nach Commit.
+
+### DB-Schema (additive Migration)
+- **Neue Spalte:** `site_config.features JSONB NOT NULL DEFAULT '{}'::jsonb` via `backend/scripts/migrations/2026-04-05_add_site_config_features.sql`. Idempotent (`ADD COLUMN IF NOT EXISTS`). Seed preserved existing values via `COALESCE(features->'KEY', 'false'::jsonb)`. Rollback: `DROP COLUMN features;`.
+- **Live verifiziert:** auf Supabase-Projekt `bofblwqieuvmqybzxapx` angewendet, alle 6 ERP-Keys auf `false`.
+
+### Admin API
+- **Route:** `GET/POST /admin/platform-flags` in `backend/src/api/admin/platform-flags/route.ts`. Auth-inherited via Medusa Admin-Middleware.
+- **⚠ Pfad-Collision vermieden:** Medusa 2.10+ shippt eine native unauthenticated `/admin/feature-flags` Route für interne Modul-Flags. Unsere Route liegt deshalb unter `/admin/platform-flags`. Kollision würde unsere Route silent shadowen ("native Route gewinnt immer" — CLAUDE.md Gotcha erweitert).
+- **Fehlerbehandlung:** 400 für Validation, 500 für unerwartete Fehler, **503 mit actionable Message** wenn die `features`-Spalte noch nicht migriert ist.
+
+### Admin UI
+- **Neuer Tab** "Feature Flags" in `/app/config` (backend/src/admin/routes/config/page.tsx). Generische Toggle-Liste gruppiert nach Category, angetrieben von der `FEATURES` Registry. Info-Banner mit Link zur Methodology-Doc. Toasts bei Toggle. Hard-Reload zeigt persistierten Zustand.
+- **Audit-Log sichtbar:** Jeder Flag-Toggle schreibt nach `config_audit_log` mit `config_key = "feature_flag:<KEY>"` — erscheint automatisch im existierenden "Change History" Tab.
+
+### Dokumentation
+- **`docs/architecture/DEPLOYMENT_METHODOLOGY.md`** (neu, ~150 Zeilen): Verbindliche "Deploy early, activate when ready" Methodik. Abschnitte: Core Principle, Flag-Mechanism, Migration-Discipline (additiv-only, keine `DROP`/`RENAME`/`TYPE` auf Live-Tabellen), Infrastructure-vs-Domain Separation, `/admin/erp/*` Prefix-Reservation, Staging-Before-Prod Regel, Governance-Checklist.
+- **`docs/architecture/STAGING_ENVIRONMENT.md`** (neu): Planungsdokument mit 3 DB-Optionen (Supabase Branching Pro $25/mo, zweites Free-Projekt, lokales Postgres auf VPS), VPS-Layout-Skizze, Blocker-Liste. **Keine Infrastruktur provisioniert** — wartet auf Entscheidung.
+- **`CLAUDE.md`:** Pointer auf Methodology-Doc eingefügt. Admin-Route-Gotcha erweitert (`feature-flags` als reservierter Pfad). Deploy-Sequenz erweitert um den `.env`-Symlink-Schritt. Zwei neue 🔴 Gotchas: PM2 cwd muss `.medusa/server` sein, `.env` Symlink nach jedem Build neu setzen.
+
+### Deployment & Hotfix (Incident 2026-04-05 12:02–12:32 UTC)
+- **Crash 1 — `Cannot find module 'medusa-config'`:** PM2-Instance seit 04.04. lief mit Legacy-cwd im Kernel; `pm2 restart` nach dem Deploy setzte cwd auf den ecosystem.config.js-Wert (`backend/`) zurück, wo nur die `.ts`-Source liegt. Medusa 2.x Prod-Runtime hat keinen TypeScript-Loader → Boot-Crash, 520 Restarts bis `pm2 stop`.
+- **Fix 1:** `cwd` in `backend/ecosystem.config.js` (und root `ecosystem.config.js` für Konsistenz) auf `/root/VOD_Auctions/backend/.medusa/server` umgestellt. Root-Ecosystem zusätzlich von `script: "node_modules/.bin/medusa"` auf `script: "npm", args: "run start"` umgestellt (da `node_modules/` relativ zum neuen cwd nicht existiert).
+- **Crash 2 — `JWT_SECRET must be set in production`:** Neuer cwd hat dotenv von `backend/.env` abgekoppelt, weil dotenv `.env` aus `process.cwd()` lädt.
+- **Fix 2:** Symlink `backend/.medusa/server/.env → ../../.env`. Persistent, aber geht bei jedem `medusa build` verloren → muss Teil der Deploy-Sequenz werden (in CLAUDE.md dokumentiert).
+- **Verifiziert:** Backend bootet (~2.6s), `GET /store/site-mode` → 200, `GET /admin/platform-flags` → 401 (Route existiert, Auth aktiv). Smoke-Test im Admin-UI erfolgreich: Tab sichtbar, Toggle funktioniert, Audit-Log schreibt, Cache invalidiert korrekt.
+
+### Touched Files
+```
+Neu:
+  backend/scripts/migrations/2026-04-05_add_site_config_features.sql
+  backend/src/lib/feature-flags.ts
+  backend/src/api/admin/platform-flags/route.ts
+  docs/architecture/DEPLOYMENT_METHODOLOGY.md
+  docs/architecture/STAGING_ENVIRONMENT.md
+
+Geändert:
+  backend/src/lib/site-config.ts                    (+1: features-Feld im Type)
+  backend/src/admin/routes/config/page.tsx          (+93: Feature Flags Tab)
+  backend/ecosystem.config.js                       (cwd fix)
+  ecosystem.config.js                               (cwd fix + pattern unification)
+  CLAUDE.md                                         (Methodology-Pointer + Deploy-Gotchas)
+  docs/architecture/CHANGELOG.md                    (dieser Eintrag)
+```
+
+---
+
 ## 2026-04-04 — Catalog Pagination Refactor: URL-basiert via Next.js Router
 
 ### Architektur-Wechsel (Best Practice)

@@ -3,7 +3,7 @@ module.exports = {
     name: "vodauction-backend",
     script: "npm",
     args: "run start",
-    cwd: "/root/VOD_Auctions/backend",
+    cwd: "/root/VOD_Auctions/backend/.medusa/server",
     env: {
       NODE_ENV: "production",
     },
