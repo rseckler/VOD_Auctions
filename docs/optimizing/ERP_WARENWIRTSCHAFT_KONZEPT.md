@@ -1,10 +1,19 @@
 # ERP / Warenwirtschaft — Architektur- und Entscheidungsdokument
 
-**Version:** 4.2
-**Erstellt:** 2026-04-02 | **Aktualisiert:** 2026-04-04
+**Version:** 5.0
+**Erstellt:** 2026-04-02 | **Aktualisiert:** 2026-04-05
 **Autor:** Robin Seckler (digital spread UG)
 **Betreiber:** VOD Records, Friedrichshafen (Frank Bull)
-**Status:** Entscheidungsvorlage — vor Implementierung müssen die unter Abschnitt 14 gelisteten offenen Punkte geklärt werden
+**Status:** Entscheidungsvorlage + teilweise umgesetzt — **Infrastructure-Layer (Abschnitte 8 + 9) ist LIVE seit 2026-04-05**. Domain-Layer wartet weiterhin auf fachliche Freigaben aus Abschnitt 14. Siehe **Teil E: Umsetzungsstand 2026-04-05**.
+
+## Versionshistorie
+
+| Version | Datum | Änderungen |
+|---------|-------|------------|
+| **5.0** | **2026-04-05** | **Infrastructure-Layer umgesetzt:** Feature-Flag-System live (6 ERP-Flags, alle default `false`), Deployment-Methodology als verbindliches Governance-Doc, Staging-DB provisioniert (Supabase Free in `backfire`-Account, Schema 1:1 von Production), Trial-Flag `EXPERIMENTAL_SKIP_BID_CONFIRMATION` End-to-End validiert. Status-Marker an §8.2, §8.3, §8.4, §8.5, §9.1. Teil C aktualisiert (technische Punkte abgehakt). Teil D um Status-Spalte erweitert. **Neuer Teil E** mit vollständigem Implementation-Delta (16-Zeilen-Status-Tabelle, "was wurde nicht umgesetzt und warum", Infrastructure-Invarianten, Next-Step-Empfehlungen, Commit-Liste). Inhaltliche Kapitel 1-7 und 10-13 sowie alle Anhänge sind unverändert — sie beschreiben den Domain-Layer, der weiterhin auf fachliche Freigaben wartet. |
+| 4.2 | 2026-04-04 | Formale Bereinigung Abschnitt 13, steuerlich-rechtliche Marker ergänzt, Empfehlung präzisiert. |
+| 4.1 | 2026-04-03 | Struktur-Rewrite, Geschäftsmodell-Matrix, Aktivierungs-Matrix. |
+| 4.0 | 2026-04-02 | Erste Fassung. |
 
 ---
 
