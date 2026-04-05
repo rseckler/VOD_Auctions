@@ -1,6 +1,8 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { Knex } from "knex"
 import { createHmac } from "crypto"
-import { sendEmail } from "../../../lib/email"
+import { sendEmailWithLog } from "../../../lib/email"
 import { newsletterConfirmEmail } from "../../../emails/newsletter-confirm"
 
 const STOREFRONT_URL = process.env.STOREFRONT_URL || "http://localhost:3000"
@@ -55,7 +57,8 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
   const { subject, html } = newsletterConfirmEmail({ email: normalised, confirmUrl })
 
   try {
-    await sendEmail({ to: normalised, subject, html })
+    const pgConnection: Knex = req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
+    await sendEmailWithLog(pgConnection, { to: normalised, subject, html, template: "newsletter-confirm" })
     res.json({ success: true })
   } catch (error: any) {
     console.error("[newsletter] Failed to send confirmation email:", error.message)

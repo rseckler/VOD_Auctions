@@ -88,7 +88,7 @@ export function shippingEmail(opts: {
       ${opts.trackingUrl ? emailButton("Track Shipment", opts.trackingUrl) : ""}
 
       <p style="margin:20px 0 0;font-size:13px;color:#6b6560;line-height:1.6;font-family:'DM Sans',-apple-system,sans-serif;">
-        Any questions? Write to <a href="mailto:info@vod-records.com" style="color:#d4a54a;text-decoration:none;">info@vod-records.com</a>
+        Any questions? Write to <a href="mailto:support@vod-auctions.com" style="color:#d4a54a;text-decoration:none;">support@vod-auctions.com</a>
       </p>
     `, {
       preheader: "Your records are on their way — here's your tracking info",

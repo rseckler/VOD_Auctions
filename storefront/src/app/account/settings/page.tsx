@@ -556,7 +556,7 @@ export default function SettingsPage() {
               disabled={deleteConfirmation !== "DELETE"}
               onClick={() => {
                 toast.info(
-                  "To delete your account, please contact info@vod-records.com"
+                  "To delete your account, please contact privacy@vod-auctions.com"
                 )
               }}
             >
@@ -565,10 +565,10 @@ export default function SettingsPage() {
             <p className="text-xs text-muted-foreground">
               To delete your account, please contact{" "}
               <a
-                href="mailto:info@vod-records.com"
+                href="mailto:privacy@vod-auctions.com"
                 className="text-primary hover:underline"
               >
-                info@vod-records.com
+                privacy@vod-auctions.com
               </a>
               .
             </p>

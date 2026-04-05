@@ -3,9 +3,14 @@ import { blockTomorrowEmail } from "../emails/block-tomorrow"
 import { blockLiveEmail } from "../emails/block-live"
 import { blockEndingEmail } from "../emails/block-ending"
 import type { NewsletterItem } from "../emails/newsletter-layout"
+import { SUPPORT_EMAIL } from "./email"
 
 const BREVO_API_KEY = process.env.BREVO_API_KEY
 const BREVO_BASE_URL = "https://api.brevo.com/v3"
+
+// Reply-To for all campaigns + transactional Brevo mails.
+// Customers replying to newsletter@ / noreply@ land in support@ mailbox.
+const BREVO_REPLY_TO = { email: SUPPORT_EMAIL, name: "VOD Auctions Support" }
 
 if (!BREVO_API_KEY) {
   console.warn("[brevo] BREVO_API_KEY not set — CRM/Newsletter features will not work")
@@ -157,6 +162,7 @@ export async function sendCampaign(opts: {
     name: opts.name,
     subject: opts.subject,
     sender: { name: BREVO_SENDER_NAME, email: BREVO_SENDER_EMAIL },
+    replyTo: BREVO_REPLY_TO.email,
     recipients: { listIds: opts.listIds },
     params: opts.params,
     scheduledAt: opts.scheduledAt,
@@ -215,6 +221,7 @@ export async function sendTransactionalTemplate(
     body: {
       templateId,
       to: [{ email: to }],
+      replyTo: BREVO_REPLY_TO,
       params,
     },
   })

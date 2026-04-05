@@ -80,10 +80,10 @@ export function Footer() {
             <div className="flex flex-col gap-2">
               <p className="text-foreground font-medium">Contact</p>
               <a
-                href="mailto:shop@vod-records.com"
+                href="mailto:support@vod-auctions.com"
                 className="text-muted-foreground hover:text-primary transition-colors"
               >
-                shop@vod-records.com
+                support@vod-auctions.com
               </a>
               <p className="text-muted-foreground">Mon–Fri 10:00–18:00</p>
               <a

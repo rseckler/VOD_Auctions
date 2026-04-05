@@ -45,7 +45,7 @@ export function welcomeEmail(opts: {
       ${emailButton("Browse Current Auctions", opts.auctionsUrl)}
 
       <p style="margin:24px 0 0;font-size:13px;color:#6b6560;line-height:1.6;font-family:'DM Sans',-apple-system,sans-serif;">
-        Questions? Reply to this email or write to <a href="mailto:info@vod-records.com" style="color:#d4a54a;text-decoration:none;">info@vod-records.com</a>
+        Questions? Reply to this email or write to <a href="mailto:support@vod-auctions.com" style="color:#d4a54a;text-decoration:none;">support@vod-auctions.com</a>
       </p>
     `, {
       preheader: "Great to have you — 40,000+ rare industrial records are waiting for new owners.",

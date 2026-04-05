@@ -9,12 +9,18 @@ const resend = process.env.RESEND_API_KEY
 const FROM_EMAIL = process.env.EMAIL_FROM || "VOD Auctions <noreply@vod-auctions.com>"
 const APP_URL = process.env.STOREFRONT_URL || "http://localhost:3000"
 
+// Public contact addresses (single source of truth).
+// Mailboxes live at all-inkl; all operational aliases forward to SUPPORT_EMAIL.
+export const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "support@vod-auctions.com"
+export const PRIVACY_EMAIL = process.env.PRIVACY_EMAIL || "privacy@vod-auctions.com"
+
 export { APP_URL }
 
 export async function sendEmail(opts: {
   to: string
   subject: string
   html: string
+  replyTo?: string
 }) {
   if (!resend) {
     console.warn("[email] Resend not configured — skipping email:", opts.subject, "→", opts.to)
@@ -27,6 +33,7 @@ export async function sendEmail(opts: {
       to: opts.to,
       subject: opts.subject,
       html: opts.html,
+      replyTo: opts.replyTo || SUPPORT_EMAIL,
     })
     console.log("[email] Sent:", opts.subject, "→", opts.to)
     return result
@@ -59,7 +66,7 @@ export async function logEmail(
 /** Send email with logging. Returns true if sent. */
 export async function sendEmailWithLog(
   pgConnection: Knex,
-  opts: { to: string; subject: string; html: string; template: string }
+  opts: { to: string; subject: string; html: string; template: string; replyTo?: string }
 ): Promise<boolean> {
   const result = await sendEmail(opts)
   const status = result ? "sent" : "failed"

@@ -1,7 +1,7 @@
 import { SubscriberArgs, type SubscriberConfig } from "@medusajs/framework"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
-import { sendEmail, APP_URL } from "../lib/email"
+import { sendEmailWithLog, APP_URL } from "../lib/email"
 import { passwordResetEmail } from "../emails/password-reset"
 
 type PasswordResetData = {
@@ -29,7 +29,7 @@ export default async function passwordResetHandler({
     const resetUrl = `${APP_URL}/reset-password?token=${data.token}`
 
     const { subject, html } = passwordResetEmail({ firstName, resetUrl })
-    await sendEmail({ to: data.entity_id, subject, html })
+    await sendEmailWithLog(pgConnection, { to: data.entity_id, subject, html, template: "password-reset" })
     console.log("[password-reset] Sent customer reset email to:", data.entity_id)
   } else if (data.actor_type === "user") {
     // Admin user password reset → Medusa admin /app/reset-password
@@ -39,7 +39,7 @@ export default async function passwordResetHandler({
       firstName: "Admin",
       resetUrl: adminResetUrl,
     })
-    await sendEmail({ to: data.entity_id, subject, html })
+    await sendEmailWithLog(pgConnection, { to: data.entity_id, subject, html, template: "password-reset-admin" })
     console.log("[password-reset] Sent admin reset email to:", data.entity_id)
   }
 }

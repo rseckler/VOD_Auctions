@@ -4,7 +4,7 @@ import { Knex } from "knex"
 import crypto from "crypto"
 import { sendWelcomeEmail } from "../../../../lib/email-helpers"
 import { crmSyncRegistration } from "../../../../lib/crm-sync"
-import { sendEmail, APP_URL } from "../../../../lib/email"
+import { sendEmailWithLog, APP_URL } from "../../../../lib/email"
 import { verifyEmailTemplate } from "../../../../emails/verify-email"
 
 // POST /store/account/send-welcome — Send welcome email after registration
@@ -66,5 +66,5 @@ async function sendVerificationEmail(pg: Knex, customerId: string) {
     verifyUrl,
   })
 
-  await sendEmail({ to: customer.email, subject, html })
+  await sendEmailWithLog(pg, { to: customer.email, subject, html, template: "verify-email" })
 }

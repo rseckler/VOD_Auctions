@@ -2,7 +2,7 @@ import crypto from "crypto"
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, generateEntityId } from "@medusajs/framework/utils"
 import { Knex } from "knex"
-import { sendEmail, APP_URL } from "../../../../lib/email"
+import { sendEmailWithLog, APP_URL } from "../../../../lib/email"
 import { verifyEmailTemplate } from "../../../../emails/verify-email"
 
 // POST /store/account/verify-email — Generate token and send verification email
@@ -54,7 +54,7 @@ export async function POST(
     verifyUrl,
   })
 
-  await sendEmail({ to: customer.email, subject, html })
+  await sendEmailWithLog(pgConnection, { to: customer.email, subject, html, template: "verify-email" })
 
   res.json({ success: true })
 }

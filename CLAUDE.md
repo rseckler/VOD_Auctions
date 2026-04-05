@@ -205,8 +205,18 @@ Fallback: DE €4.99 / EU €9.99 / World €14.99
 
 ## Email
 
-**Resend** (`noreply@vod-auctions.com`, frank@vod-records.com) — 6 Transaktionale Mails (welcome, bid-won, outbid, payment, shipping, feedback-request)
-**Brevo** (`newsletter@vod-auctions.com`) — 4 Newsletter-Templates (IDs 2-5), CRM (3.580 tape-mag Kontakte, List ID 5)
+**Sender (Technical, Reply-To: support@vod-auctions.com bei allen customer-relevant Mails):**
+- **Resend** (`noreply@vod-auctions.com`, Account-Owner: frank@vod-records.com) — Transaktionale Mails (welcome, bid-placed, bid-won, outbid, payment, shipping, feedback-request, payment-reminder, waitlist, invite, password-reset etc.). Zukunfts-Target: `notifications@vod-auctions.com` (deferred).
+- **Brevo** (`newsletter@vod-auctions.com`) — 4 Newsletter-Templates (block-teaser/tomorrow/live/ending), CRM (3.580 tape-mag Kontakte, List ID 5). Reply-To auf support@.
+
+**Public Mailboxes (all-inkl):**
+- **`support@vod-auctions.com`** (Postfach) — Zentrale Kunden-Anlaufstelle. Footer-Kontakt, Reply-To aller Resend/Brevo-Sends.
+- **`privacy@vod-auctions.com`** (Postfach) — DSGVO / Account-Löschung (Account-Settings-Seite).
+
+**Aliase → support@:** `info@`, `billing@`, `orders@`, `abuse@`, `postmaster@` (RFC 2142 + Impressum).
+**Aliase → Frank:** `frank@vod-auctions.com`, `press@vod-auctions.com`.
+
+**ENV:** `SUPPORT_EMAIL`, `PRIVACY_EMAIL`, `EMAIL_FROM` in `backend/.env`. Single Source of Truth: `backend/src/lib/email.ts` exportiert `SUPPORT_EMAIL` + `PRIVACY_EMAIL`, Brevo wrapper importiert von dort.
 
 ## Entity Content Overhaul (RSE-227)
 

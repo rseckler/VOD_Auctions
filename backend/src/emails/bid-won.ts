@@ -57,7 +57,7 @@ export function bidWonEmail(opts: {
       ${emailButton("Complete Payment", opts.paymentUrl)}
 
       <p style="margin:20px 0 0;font-size:13px;color:#6b6560;line-height:1.6;font-family:'DM Sans',-apple-system,sans-serif;">
-        Questions about your win? Write to <a href="mailto:info@vod-records.com" style="color:#d4a54a;text-decoration:none;">info@vod-records.com</a>
+        Questions about your win? Write to <a href="mailto:support@vod-auctions.com" style="color:#d4a54a;text-decoration:none;">support@vod-auctions.com</a>
       </p>
     `, {
       preheader: "You won! Complete your payment within 5 days to secure your records",
