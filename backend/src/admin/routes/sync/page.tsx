@@ -14,7 +14,7 @@ type SyncOverview = {
     last_discogs_sync: string | null
     last_legacy_sync: string | null
   }
-  last_legacy_sync: { sync_date: string; status: string; changes: Record<string, unknown>; new_images_actual: number | null } | null
+  last_legacy_sync: { sync_date: string; status: string; changes: Record<string, unknown>; new_images_last_24h: number; new_images_last_7d: number } | null
   last_discogs_sync: { sync_date: string; status: string; changes: Record<string, unknown> } | null
   recent_logs: SyncLogEntry[]
   monthly_stats: { sync_type: string; status: string; count: number }[]
@@ -445,23 +445,22 @@ const SyncDashboardPage = () => {
   const eligibleWithPrice = overview?.overview?.eligible_with_price || 0
   const coveragePercent = eligible > 0 ? Math.round((eligibleMatched / eligible) * 100) : 0
 
-  // Legacy sync — changes in last run.
-  // Two data sources:
-  //   1. sync_log.changes JSONB (written by legacy_sync.py) — currently
-  //      only tracks 4 fields (price, availability, title, coverImage)
-  //      and its `new_images` is cumulative/attempted, not actual new.
-  //   2. Server-computed `new_images_actual` — queried directly from the
-  //      Image table for the last run's time window. This is the HONEST
-  //      new-image count. See backend/src/api/admin/sync/route.ts.
+  // Legacy sync — recent activity counts.
+  // Rolling window (24h / 7d) rather than strict last-run window, because
+  // hourly syncs produce a short (1h) last-run window that is almost always
+  // empty of changes even when Frank has been actively editing throughout
+  // the day. Strict-last-run misleads operators into thinking nothing is
+  // happening. See SYNC_ROBUSTNESS_PLAN.md lesson 3.2.
   //
-  // Until legacy_sync.py is fixed (Phase B) to track all fields and
-  // accurate image counts, we prefer `new_images_actual` as the primary
-  // "Changes" metric because it's real.
+  // Two data sources:
+  //   1. Server-computed new_images_last_24h / last_7d — queried directly
+  //      from the Image table (HONEST, real counts).
+  //   2. sync_log.changes.release_changes_logged — field edits, currently
+  //      only tracked for 4 of 14 synced fields. Phase B fixes this.
   const legacyChanges = (overview?.last_legacy_sync?.changes as Record<string, unknown> | undefined) || {}
-  const legacyFieldChanges = Number(legacyChanges.release_changes_logged ?? 0)
-  const legacyProcessed = Number(legacyChanges.releases_processed ?? 0)
-  const legacyNewImagesActual = overview?.last_legacy_sync?.new_images_actual ?? 0
-  const legacyTotalChanges = legacyFieldChanges + legacyNewImagesActual
+  const legacyFieldChangesLastRun = Number(legacyChanges.release_changes_logged ?? 0)
+  const legacyNewImages24h = overview?.last_legacy_sync?.new_images_last_24h ?? 0
+  const legacyNewImages7d = overview?.last_legacy_sync?.new_images_last_7d ?? 0
   const bp = batchProgress?.progress
   const batchRunning = bp && bp.processed > 0
 
@@ -502,14 +501,16 @@ const SyncDashboardPage = () => {
               <div style={bigValueStyle}>{eligible.toLocaleString("en-US")}</div>
             </div>
             <div>
-              <div style={labelStyle}>Changes (last run)</div>
-              <div style={bigValueStyle}>{legacyTotalChanges.toLocaleString("en-US")}</div>
+              <div style={labelStyle}>New images (24h)</div>
+              <div style={bigValueStyle}>{legacyNewImages24h.toLocaleString("en-US")}</div>
               <div style={{ fontSize: "11px", color: C.muted, marginTop: "2px" }}>
-                {legacyNewImagesActual > 0 && <>{legacyNewImagesActual.toLocaleString("en-US")} new image{legacyNewImagesActual !== 1 ? "s" : ""}</>}
-                {legacyNewImagesActual > 0 && legacyFieldChanges > 0 && <> · </>}
-                {legacyFieldChanges > 0 && <>{legacyFieldChanges.toLocaleString("en-US")} field edit{legacyFieldChanges !== 1 ? "s" : ""}</>}
-                {legacyTotalChanges === 0 && legacyProcessed > 0 && <>no changes · {legacyProcessed.toLocaleString("en-US")} touched</>}
-                {legacyTotalChanges === 0 && legacyProcessed === 0 && <>—</>}
+                {legacyNewImages7d > legacyNewImages24h && (
+                  <>{legacyNewImages7d.toLocaleString("en-US")} in last 7 days</>
+                )}
+                {legacyNewImages7d === 0 && legacyNewImages24h === 0 && <>no recent uploads</>}
+                {legacyFieldChangesLastRun > 0 && (
+                  <> · {legacyFieldChangesLastRun} field edit{legacyFieldChangesLastRun !== 1 ? "s" : ""} in last run</>
+                )}
               </div>
             </div>
           </div>

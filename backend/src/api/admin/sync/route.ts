@@ -74,36 +74,43 @@ export async function GET(
     ])
 
   const lastLegacySync = lastTwoLegacySyncs[0] || null
-  const prevLegacySync = lastTwoLegacySyncs[1] || null
 
-  // Compute ACTUAL new-image count for the last legacy sync run by querying
-  // the Image table directly for the time window [prev_sync.sync_date, last_sync.sync_date].
-  // This bypasses the flaky `new_images` field in sync_log.changes (which is
-  // cumulative "attempted inserts" due to ON CONFLICT DO NOTHING — not actual
+  // Compute actual new-image counts directly from the Image table — this
+  // bypasses the flaky `new_images` field in sync_log.changes (which is
+  // cumulative attempted-inserts due to ON CONFLICT DO NOTHING, not per-run
   // new rows). The Image.createdAt timestamp is set via NOW() during the
-  // INSERT, so it uniquely identifies the sync run that inserted the row.
-  let newImagesInLastRun: number | null = null
-  if (lastLegacySync?.sync_date) {
-    const windowEnd = lastLegacySync.sync_date
-    const windowStart = prevLegacySync?.sync_date ?? null
-    const imgQuery = pgConnection("Image").count("* as count").where(
-      "createdAt",
-      "<=",
-      windowEnd
-    )
-    if (windowStart) {
-      imgQuery.where("createdAt", ">", windowStart)
-    } else {
-      // No previous run — use a 2h window before last sync as a reasonable floor
-      imgQuery.where(
+  // INSERT, so each row is attributable to the sync run that inserted it.
+  //
+  // We report TWO counts for the UI:
+  //   - new_images_last_24h: all images created in the rolling 24h window.
+  //     This is the "did anything happen recently" metric — usually what
+  //     the admin wants to see at a glance.
+  //   - new_images_last_7d: same but 7 days, for longer-term context.
+  //
+  // We deliberately do NOT report "images in the last run's window"
+  // because the window is short (1h for hourly sync) and the answer is
+  // almost always 0, which misleads the operator into thinking no activity
+  // is happening when it is. See SYNC_ROBUSTNESS_PLAN.md lesson 3.2.
+  const [img24h, img7d] = await Promise.all([
+    pgConnection("Image")
+      .count("* as count")
+      .where(
         "createdAt",
-        ">",
-        pgConnection.raw("? - INTERVAL '2 hours'", [windowEnd])
+        ">=",
+        pgConnection.raw("NOW() - INTERVAL '24 hours'")
       )
-    }
-    const imgResult = await imgQuery.first()
-    newImagesInLastRun = Number(imgResult?.count ?? 0)
-  }
+      .first(),
+    pgConnection("Image")
+      .count("* as count")
+      .where(
+        "createdAt",
+        ">=",
+        pgConnection.raw("NOW() - INTERVAL '7 days'")
+      )
+      .first(),
+  ])
+  const newImagesLast24h = Number(img24h?.count ?? 0)
+  const newImagesLast7d = Number(img7d?.count ?? 0)
 
   res.json({
     overview: {
@@ -119,10 +126,10 @@ export async function GET(
     last_legacy_sync: lastLegacySync
       ? {
           ...lastLegacySync,
-          // Computed server-side: actual new-image count in the last run's
-          // time window. Replaces the flaky `new_images` field from
-          // sync_log.changes. See query comment above for rationale.
-          new_images_actual: newImagesInLastRun,
+          // Server-computed rolling-window image counts. Replaces the flaky
+          // `new_images` field in sync_log.changes. See query comment above.
+          new_images_last_24h: newImagesLast24h,
+          new_images_last_7d: newImagesLast7d,
         }
       : null,
     last_discogs_sync: lastDiscogsSync,
