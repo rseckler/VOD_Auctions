@@ -2,6 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import * as fs from "fs"
 import * as path from "path"
 import * as crypto from "crypto"
+import { getStorefrontPublicDir } from "../../../../lib/paths"
 
 const ALLOWED_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"]
 const MAX_SIZE = 10 * 1024 * 1024 // 10MB
@@ -69,7 +70,7 @@ export async function POST(
   // On VPS: set GALLERY_UPLOAD_DIR=/root/VOD_Auctions/storefront/public/gallery
   const uploadDir =
     process.env.GALLERY_UPLOAD_DIR ||
-    path.resolve(process.cwd(), "../storefront/public/gallery")
+    path.join(getStorefrontPublicDir(), "gallery")
 
   // Ensure directory exists
   try {

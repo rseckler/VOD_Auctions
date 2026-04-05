@@ -2,16 +2,16 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { spawn } from "child_process"
 import { readFileSync, existsSync, writeFileSync } from "fs"
 import { join } from "path"
+import { getProjectRoot, getTestsDir } from "../../../lib/paths"
 
 // playwright.config.ts writes JSON to storefront/playwright-report/results.json
 const REPORT_PATH = join(
-  process.cwd(),
-  "..",
+  getProjectRoot(),
   "storefront",
   "playwright-report",
   "results.json"
 )
-const HISTORY_PATH = join(process.cwd(), "..", "tests", "test-history.json")
+const HISTORY_PATH = join(getTestsDir(), "test-history.json")
 
 type Job = {
   status: "running" | "completed" | "failed"
@@ -88,7 +88,7 @@ export async function POST(
     exitCode: null,
   }
 
-  const projectRoot = join(process.cwd(), "..")
+  const projectRoot = getProjectRoot()
   const storefrontDir = join(projectRoot, "storefront")
 
   // Use spawn so we can stream output line by line

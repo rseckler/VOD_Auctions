@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import * as fs from "fs"
 import * as path from "path"
+import { getScriptsDir } from "../../../../lib/paths"
 
 // GET /admin/entity-content/overhaul-status — Status dashboard for entity content overhaul
 export async function GET(
@@ -14,9 +15,11 @@ export async function GET(
   )
 
   // 1. Read pipeline progress file (if exists)
-  const progressPath = path.resolve(
-    __dirname,
-    "../../../../../../scripts/entity_overhaul/data/entity_overhaul_progress.json"
+  const progressPath = path.join(
+    getScriptsDir(),
+    "entity_overhaul",
+    "data",
+    "entity_overhaul_progress.json"
   )
   let pipelineStatus: any = null
   try {

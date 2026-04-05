@@ -3,12 +3,13 @@ import * as fs from "fs"
 import * as path from "path"
 import { exec } from "child_process"
 import { promisify } from "util"
+import { getDataDir, getScriptsDir } from "../../../../lib/paths"
 
 const execAsync = promisify(exec)
 
-const HEALTH_FILE = path.resolve(process.cwd(), "..", "data", "discogs_sync_health.json")
-const PROGRESS_FILE = path.resolve(process.cwd(), "..", "data", "discogs_daily_progress.json")
-const SCRIPTS_DIR = path.resolve(process.cwd(), "..", "scripts")
+const HEALTH_FILE = path.join(getDataDir(), "discogs_sync_health.json")
+const PROGRESS_FILE = path.join(getDataDir(), "discogs_daily_progress.json")
+const SCRIPTS_DIR = getScriptsDir()
 
 type HealthData = {
   status: string

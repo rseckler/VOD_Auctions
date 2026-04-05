@@ -1,10 +1,11 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import * as fs from "fs"
 import * as path from "path"
+import { getScriptsDir } from "../../../../lib/paths"
 
 const R2_PUBLIC_URL = "https://pub-433520acd4174598939bc51f96e2b8b9.r2.dev"
 const TEST_IMAGE = "tape-mag/standard/Die_Gesunden_kommen_live_Tempodrom.jpg"
-const PROGRESS_FILE = path.resolve(__dirname, "../../../../../../scripts/r2_sync_progress.json")
+const PROGRESS_FILE = path.join(getScriptsDir(), "r2_sync_progress.json")
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   // 1. Read R2 sync progress file (written by legacy_sync.py)

@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import * as fs from "fs"
 import * as path from "path"
+import { getDataDir } from "../../../../lib/paths"
 
 // GET /admin/sync/batch-progress — Live batch matching progress
 export async function GET(
@@ -14,7 +15,7 @@ export async function GET(
   )
 
   // Read progress file (written by discogs_batch.py every 100 releases)
-  const progressPath = path.resolve(process.cwd(), "..", "data", "discogs_batch_progress.json")
+  const progressPath = path.join(getDataDir(), "discogs_batch_progress.json")
   let progress: Record<string, unknown> | null = null
   try {
     if (fs.existsSync(progressPath)) {
@@ -26,7 +27,7 @@ export async function GET(
   }
 
   // Count JSONL results file lines for real-time processed count
-  const resultsPath = path.resolve(process.cwd(), "..", "data", "discogs_batch_results.jsonl")
+  const resultsPath = path.join(getDataDir(), "discogs_batch_results.jsonl")
   let resultsCount = 0
   try {
     if (fs.existsSync(resultsPath)) {
