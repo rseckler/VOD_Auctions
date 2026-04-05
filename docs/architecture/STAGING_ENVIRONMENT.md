@@ -84,7 +84,11 @@ Staging is a tool for de-risking, not a universal gate.
 
 ---
 
-## 3. Database Decision (BLOCKER — requires Robin's input)
+## 3. Database Decision (RESOLVED — Option B1, see Decision Log)
+
+**→ Resolved 2026-04-05.** Option B1 was chosen: separate Free Supabase project in the backfire organization (a distinct Supabase account, not a sub-org of Seckler). Project `vod-auctions-staging` (ref `aebcwjjcextzvflrjgei`, region eu-west-1) is live with production schema copied. See the **Current State** table at the top for live connection details.
+
+The historical trade-off analysis below is kept for future reference in case the decision ever needs to be revisited (e.g. if the 1Password-based credential flow becomes painful or if schema drift turns out to require Pro-tier branching).
 
 Three viable options. Each has cost / complexity trade-offs.
 
@@ -124,9 +128,11 @@ Three viable options. Each has cost / complexity trade-offs.
 
 ---
 
-## 4. VPS Shape (After DB Decision)
+## 4. VPS Shape (Planned — Not Yet Built)
 
-Assuming Option B:
+The HTTP layer below is **not yet provisioned** — the staging DB is currently used for schema rehearsals and `psql` work only. This section is the blueprint for when the first feature actually needs HTTP staging (see §6 for the deferred items list).
+
+Based on the chosen Option B1 (Free Supabase project, eu-west-1):
 
 ```
 VPS 72.62.148.205
@@ -163,9 +169,10 @@ These items do not create any running infrastructure and can land immediately:
 
 - [x] **Methodology doc** (`docs/architecture/DEPLOYMENT_METHODOLOGY.md`) — done
 - [x] **This staging plan** (`docs/architecture/STAGING_ENVIRONMENT.md`) — done
-- [x] **Feature-flag infrastructure** so staging can actually *do something* when it exists — done (Phase 1)
-- [ ] **Migration inventory script** — a small shell script that lists every raw SQL file under `backend/scripts/migrations/` and every Medusa migration under `backend/src/modules/*/migrations/`, sorted by date. Useful for Option B to track what needs applying to staging. **Not yet built** — deferred until the DB decision is made.
-- [ ] **`.env.staging.example`** templates for `backend/` and `storefront/` showing which variables differ from production. **Not yet built** — deferred until credentials exist.
+- [x] **Feature-flag infrastructure** so staging can actually *do something* when it exists — done (2026-04-05)
+- [x] **`.env.staging.example`** templates for `backend/` and `storefront/` — done (2026-04-05, committed in `5bf2085`)
+- [x] **Staging DB provisioned and schema-synced** — done (2026-04-05, see §5b as-built runbook)
+- [ ] **Migration inventory script** — a small shell script that lists every raw SQL file under `backend/scripts/migrations/` and every Medusa migration under `backend/src/modules/*/migrations/`, sorted by date. Useful to track what still needs applying to staging after production migrations land. **Not yet built** — low priority, a manual `docker run postgres:17 pg_dump --schema-only` re-sync is a reasonable ad-hoc alternative. Build this when schema drift actually becomes painful.
 
 ---
 

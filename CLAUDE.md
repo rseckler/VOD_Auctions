@@ -62,17 +62,12 @@ cd /root/VOD_Auctions/storefront
 npm run build && pm2 restart vodauction-storefront
 ```
 
-**Admin Build Gotcha:** `medusa build` → `.medusa/server/public/admin/`. Muss nach `public/admin/` kopiert werden — sonst 502 Bad Gateway!
-
-**Neue Admin-Route hinzugefügt?** Vite-Cache clearen vor dem Build: `rm -rf node_modules/.vite .medusa && npx medusa build`. Sonst registriert der Vite-Plugin die neue Route nicht (→ 404 oder silent crash).
-
-**🔴 PM2 cwd PFLICHT auf `.medusa/server/`** (Incident 2026-04-05): Medusa 2.x Production-Runtime lädt `medusa-config.js` + kompilierte Routes ausschließlich aus `.medusa/server/`. PM2-Eintrag für `vodauction-backend` MUSS `cwd: "/root/VOD_Auctions/backend/.medusa/server"` haben — sowohl in `backend/ecosystem.config.js` als auch in der Root-`ecosystem.config.js`. Mit cwd auf `backend/` crasht der Boot mit `Cannot find module '/root/VOD_Auctions/backend/medusa-config'`, weil dort nur die `.ts`-Source liegt und der Prod-Runtime keine TypeScript-Transpilation macht.
-
-**🔴 .env Symlink NACH jedem `medusa build`** (Incident 2026-04-05): `npx medusa build` löscht `.medusa/server/` komplett und baut neu. Der `.env`-Symlink `.medusa/server/.env → ../../.env` geht dabei verloren und Medusa bootet mit `JWT_SECRET must be set in production — refusing to start with insecure default`. Lösung: nach JEDEM Build den Symlink neu setzen (siehe Deploy-Sequenz oben). Ohne Symlink lädt dotenv keine Env-Variablen, weil `process.cwd()` = `.medusa/server/` ist und die `.env` in `backend/` liegt.
+**Warum jede Zeile in der Deploy-Sequenz Pflicht ist:**
+- `rm -rf node_modules/.vite .medusa` → neue Admin-Routes werden sonst nicht vom Vite-Plugin registriert (404 / silent crash)
+- `cp .medusa/server/public/admin public/admin` → sonst 502 Bad Gateway auf admin.vod-auctions.com
+- `ln -sf .env .medusa/server/.env` → PM2 cwd ist `.medusa/server/`, dotenv sucht `.env` im cwd. Jeder `medusa build` löscht `.medusa/` inkl. Symlink neu. Ohne Symlink bootet Medusa mit `JWT_SECRET must be set in production`. **PM2-cwd MUSS `.medusa/server/` sein** (nicht `backend/`) — sonst `Cannot find module '/root/VOD_Auctions/backend/medusa-config'`, weil dort nur die `.ts`-Source liegt und der Prod-Runtime keine TypeScript-Transpilation macht. Siehe `backend/ecosystem.config.js`.
 
 **Git Workflow:** NIE `git pull` auf VPS machen wenn VPS-Code nicht vorher auf GitHub gepusht wurde. Deploy-Reihenfolge IMMER: `git push origin main` auf Mac → dann `git pull` auf VPS. Sonst sagt VPS "Already up to date" obwohl neue Commits fehlen.
-
-**Neue API-Route nicht in Build:** Wenn `backend/src/api/admin/X/route.ts` nach dem Build nicht in `.medusa/server/src/api/admin/X/` erscheint → Clean Build: `rm -rf .medusa node_modules/.vite && npx medusa build`. Inkrementelle Builds registrieren neue Route-Verzeichnisse nicht zuverlässig.
 
 ## Key Gotchas
 
@@ -85,12 +80,11 @@ npm run build && pm2 restart vodauction-storefront
 - **Vite Cache bei neuen Admin-Routen:** Neues `src/admin/routes/X/`-Verzeichnis → VPS Vite-Cache MUSS gecleart werden: `rm -rf node_modules/.vite .medusa && npx medusa build`. Sonst findet der Vite-Plugin die neue Route nicht → 404 oder korrupter Bundle → silent crash.
 - **CamelCase vs snake_case:** Legacy-Tabellen (`Release`, `Artist`) → camelCase; Auction-Tabellen → snake_case
 - **SSL Supabase:** `rejectUnauthorized: false` in `medusa-config.ts` nötig
-- **Supabase Free: Direct-Connection Port 5432 unzuverlässig** (Incident 2026-04-05): Neue Free-Projekte haben IPv4 auf Direct-Connection deaktiviert, IPv6 läuft in Slot-Limits. Für alle `pg_dump`/`psql`-Admin-Ops den **Session Pooler** nutzen: `aws-0-<region>.pooler.supabase.com:5432` mit Username `postgres.<project-ref>` (nicht bare `postgres`). Transaction Pooler (6543) unterstützt kein `pg_dump`.
-- **Supabase Pooler Region-spezifisch:** Hostname muss zur Projekt-Region passen. Prod = `aws-0-eu-central-1.pooler.supabase.com`, Staging = `aws-0-eu-west-1.pooler.supabase.com`. Falsche Region → `FATAL: Tenant or user not found`.
-- **`pg_dump` Version Mismatch gegen Supabase PG17:** VPS hat `pg_dump 16.13` (Ubuntu 24.04 default), Supabase läuft auf PostgreSQL 17. `pg_dump` refused to dump from a newer server. Workaround: `docker run --rm --network=host postgres:17 pg_dump ...` — keine System-Package-Änderung auf VPS nötig. `--network=host` ist Pflicht, sonst hat der Container kein IPv6-Routing und erreicht die Supabase-Direct-Hosts nicht.
-- **Passwörter mit Sonderzeichen in DB URLs:** `*`, `#`, `$`, `&` in DB-Passwords machen beim Shell-Paste und URL-Parsing Ärger. **Immer Supabase's "Generate password" nutzen** (rein alphanumerisch) oder manuell nur `[a-zA-Z0-9]` tippen. Reset via Dashboard → Settings → Database → Reset database password.
+- **Supabase Admin-Ops nur via Session Pooler:** Direct-Connection `db.<ref>.supabase.co:5432` ist auf Free unzuverlässig (IPv4 disabled, IPv6 slot-limited). Immer Session Pooler nutzen: `aws-0-<REGION>.pooler.supabase.com:5432`, User = `postgres.<project-ref>`, Region muss zum Projekt passen (Prod = eu-central-1, Staging = eu-west-1). Transaction Pooler (Port 6543) unterstützt kein `pg_dump`. Volle Post-Mortem siehe CHANGELOG 2026-04-05.
+- **`pg_dump` Version Mismatch + Docker IPv6:** VPS hat `pg_dump 16`, Supabase läuft auf PG17 → Dump refused. Workaround: `docker run --rm --network=host postgres:17 pg_dump ...`. `--network=host` ist Pflicht, sonst hat Container kein IPv6 und erreicht Supabase-Direct-Hosts nicht.
+- **Supabase DB-Passwörter alphanumerisch halten:** Sonderzeichen (`*`/`#`/`$`/`&`) machen beim Shell-Paste und URL-Parsing Ärger. Immer Supabase's "Generate password" nutzen oder manuell nur `[a-zA-Z0-9]`.
 - **Medusa/Vite Build:** IIFE `(() => {...})()` in JSX-Ternary → silent build failure → Blank Page. Separate Komponenten verwenden.
-- **pdfkit auf VPS:** Nach jedem Deploy `npm install` ausführen wenn neue Native-Dependencies dazu kommen. `pdfkit` fehlt → `Cannot find module` → PM2 restart-loop. Steht jetzt in `package.json`.
+- **Neue Native-Dependencies:** Wenn `package.json` eine neue Native-Dep bekommt (pdfkit, sharp, bcrypt etc.), nach Deploy `npm install` auf VPS ausführen — sonst `Cannot find module` → PM2 restart-loop. **Niemals `npm install --omit=optional`** — das strippt platform-specific Binaries wie `@swc/core-linux-x64-gnu` und kaputtmacht `medusa build`.
 - **Discogs Prices ausgeblendet:** `{/* HIDDEN: ... */}` Marker in 5 Storefront-Dateien. Wiederherstellen wenn echte Sale-Daten verfügbar.
 - **LEFT JOIN in Transaction APIs:** Direktkäufe haben kein `block_item_id` → immer LEFT JOIN, nie INNER JOIN
 - **COALESCE:** `COALESCE(block_item.release_id, transaction.release_id)` in Transaction-Queries
