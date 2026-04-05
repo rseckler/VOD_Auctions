@@ -1,555 +1,561 @@
-# Sync Robustness Plan — Neu-Architektur aller Synchronisations-Flows
+# Sync Robustness Plan
 
-**Version:** 1.0
-**Erstellt:** 2026-04-05
-**Status:** Entscheidungsvorlage — vor Umsetzung einzelner Phasen durch Robin freigeben
-**Scope:** Alle Daten-Synchronisationen in VOD Auctions. Ausgenommen: Blackfire (eigenes Projekt), MyNews, Stromportal, etc.
-
----
-
-## 0. Warum dieses Dokument existiert
-
-Am 2026-04-05 wurde offensichtlich, dass die Sync-Infrastruktur von VOD Auctions mehrere stille Probleme hat, die über Monate unbemerkt blieben:
-
-- Der Legacy-Sync-Script loggt nur 4 von 14 gesynchten Feldern als Change-Events. Änderungen an `legacy_condition`, `description`, `year`, `format`, `catalogNumber`, `country`, `artistId`, `labelId`, `legacy_format_detail` werden korrekt nach Supabase geschrieben, aber **nie** im Change-Log festgehalten.
-- Die `new_images`-Metrik in `sync_log.changes` ist kumulativ/misleading (zählt Insert-Attempts, nicht tatsächlich neue Zeilen).
-- `sync_change_log` war 7 Tage lang komplett leer, ohne dass es jemandem aufgefallen wäre.
-- Mehrere Admin-Routes lasen Progress-Files über `process.cwd()/..` oder `__dirname/../../../...` — beide wurden heute durch den PM2-cwd-Wechsel gleichzeitig broken. Sieben Dateien waren betroffen.
-- Zwei zusätzliche hardcoded `/root/VOD_Auctions/`-Pfade fielen erst im Deep-Search-Audit auf.
-- CLAUDE.md behauptete "Legacy Sync täglich 04:00 UTC" — tatsächlich läuft er stündlich (Drift zwischen Doku und Reality).
-- Niemand alertet wenn ein Sync-Run fehlschlägt (`status = 'error'`), niemand alertet wenn ein Sync über Stunden nicht läuft.
-- Bei auffälligen Ereignissen (Frank editiert live 54 Einträge) wäre die einzige Erkennungsmöglichkeit gewesen, dass Robin aktiv ins Admin-Dashboard schaut und sich wundert.
-
-Das sind keine Einzelfälle, sondern ein Muster: **Sync ist historisch als "läuft schon irgendwie" behandelt worden, ohne Invarianten, ohne Validierung, ohne proaktive Erkennung von Drift oder Fehlern.** Dieses Dokument plant die Neuaufstellung.
+**Version:** 2.0 (hardened)
+**Datum:** 2026-04-05
+**Status:** Entscheidungsvorlage
+**Ersetzt:** v1.0 (zu breit, überbaut — git history `e2af928`)
 
 ---
 
 ## 1. Executive Summary
 
-**Ziel:** Jeder Sync-Flow in VOD Auctions ist (a) vollständig in seiner Feldabdeckung, (b) selbst-validierend, (c) auto-korrigierend bei Drift, (d) beobachtbar für den Admin, (e) alertend bei echten Problemen.
+Der Legacy-MySQL-Sync schreibt Daten korrekt nach Supabase, lügt aber in seinen Metriken und trackt Änderungen nur auf 4 von 14 gesyncten Feldern. Es gibt keine Validierung, keine Alarmierung, keinen Dead-Man's-Switch, keine Drift-Erkennung. Stille Fehler blieben heute 7 Tage lang unsichtbar, bis Robin zufällig ins Dashboard schaute.
 
-**Nicht-Ziel:** Echt-Zeit-Sync. Die stündliche Batch-Synchronisation bleibt die Basis. "Robust" bedeutet nicht "schneller", sondern "verlässlich und transparent".
+**Zielbild:** Jeder Sync-Run schreibt eine vollständige, ehrliche Summary. Fehlschläge und ausbleibende Runs alarmieren. Drift wird erkannt und markiert. Jede Änderung an einer gesyncten Tabelle ist nachvollziehbar. Keine zweite Plattform, um die erste zu überwachen.
 
-**Kernprinzip:** *Wenn die Sync-Infrastruktur fehlerfrei läuft, merkt niemand etwas. Wenn sie Fehler macht, wird es sofort sichtbar und automatisch korrigiert wo möglich.*
-
-**Scope:** Drei produktive Sync-Flows:
-1. **Legacy MySQL → Supabase** (stündlich, via `legacy_sync.py`) — die am häufigsten problembehaftete Pipeline
-2. **Discogs → Supabase** (täglich Mo-Fr 02:00 UTC, 5 Chunks rotating, via `discogs_daily_sync.py`)
-3. **R2 Image CDN** (derzeit gekoppelt an Legacy-Sync, läuft stündlich) — Dateien, nicht DB-Zeilen
-
-Plus zwei sekundäre Flows die weniger kritisch aber ebenfalls im Scope sind:
-4. **Discogs Batch-Matching** (manuell, via `discogs_batch.py`) — bulk matching existing releases to Discogs IDs
-5. **Entity Content Overhaul** (AI enrichment, aktuell P2 paused)
+**Priorisierung:** Sechs Muss-Maßnahmen zuerst. Alles andere später oder nie. Keine Gleichrangigkeit zwischen Legacy, Discogs und R2 — Legacy hat Vorrang, weil dort täglich aktiv editiert wird.
 
 ---
 
-## 2. Aktueller Zustand — Inventar
+## 2. Ausgangsprobleme und Lessons Learned
 
-### 2.1 Legacy MySQL → Supabase Sync
+Reduziert auf die Punkte, die architektonische Konsequenzen haben:
 
-| Attribut | Wert |
-|---|---|
-| Script | `scripts/legacy_sync.py` |
-| Laufzeit | stündlich per cron (real) — CLAUDE.md sagt fälschlich "täglich 04:00 UTC" |
-| Datenquelle | MySQL Legacy-DB (tape-mag) |
-| Datenziel | Supabase `Release`, `Artist`, `Label`, `PressOrga`, `Image` |
-| Zieldaten-Volumen | ~41,500 Releases (aufgeteilt in release/band_lit/label_lit/press_lit) + 12,451 Artists + 3,077 Labels + 1,983 PressOrga + ~75,000 Images |
-| Durchschnittliche Laufzeit | ~30-45 Sekunden |
-| Gesyncte Felder im Release (UPSERT) | 14: `title, description, year, format, format_id, catalogNumber, country, artistId, labelId, coverImage, legacy_price, legacy_condition, legacy_format_detail, legacy_available` + Timestamps |
-| Change-Tracking-Coverage | 4 Felder: `legacy_price, legacy_available, title, coverImage` — **71% Coverage-Lücke** |
-| Image-Handling | `INSERT ... ON CONFLICT DO NOTHING` — skippt existierende. Keine Change-Log-Einträge für neue Bilder. |
-| Protection-Layer | `label_enriched = TRUE` schützt `labelId` vor Überschreibung. `discogs_*` Felder sind vor Sync geschützt (werden separat durch discogs_daily_sync gepflegt). |
-| Validation nach Run | Keine — Script committed und beendet. |
-| Drift-Detection | Keine. |
-| Alert bei Fehler | Keine. Failed Run schreibt nur `sync_log.status = 'error'`, niemand liest das. |
-| Dead-Man's-Switch | Keine. Wenn Cron stirbt, merkt es niemand. |
+1. **Stille Coverage-Lücken.** `legacy_sync.py` schreibt 14 Felder, trackt 4. Alles außer `title`, `legacy_price`, `legacy_available`, `coverImage` ist unsichtbar im Audit-Trail.
+2. **Metriken lügen.** `sync_log.new_images: 32866` ist kumulativer Insert-Attempt-Count (ON CONFLICT DO NOTHING), kein Per-Run-Delta. Stabil über alle Runs, täuscht Aktivität vor.
+3. **`sync_change_log` war 7 Tage leer.** Niemand wurde gewarnt. Die Existenz der Tabelle suggeriert Vollständigkeit, die Befüllung leistet sie nicht.
+4. **Path-Fragilität.** `process.cwd()/..` und `__dirname/../../../...` in Backend-Routes und potenziell in Python-Scripts. Heute haben wir 7 Backend-Dateien gefixt; ob der Python-Script betroffen ist, ist ungeprüft.
+5. **Kein Alert bei Fehler.** `sync_log.status='error'` wird geschrieben, niemand liest es.
+6. **Kein Dead-Man's-Switch.** Wenn der Cron stirbt, läuft stundenlang nichts, und es fällt nicht auf.
+7. **Dokumentations-Drift.** CLAUDE.md sagte "täglich 04:00 UTC", real läuft der Cron stündlich. Niemand hat abgeglichen.
+8. **Kein Dry-Run-Modus.** Scripts können nicht gegen Staging getestet werden ohne Produktionsrisiko.
 
-**Felder die NICHT getrackt aber möglicherweise sync-relevant sind:**
-- `subtitle` — existiert in Supabase-Release, unklar ob legacy_sync.py sie mitsyncs
-- `barcode` — ebenso
-- `language` — ebenso
-- `pages` — Bücher/Literatur-spezifisch
-- `releaseDate` — taucht nur in Supabase-Schema auf, unklar legacy-Quelle
-- `tracklist` (JSONB) — ebenso
-- `credits` — ebenso
-- `media_condition`, `sleeve_condition` — separat von `legacy_condition`?
-- `article_number` — unique index, unklar wer es setzt
-- `tape_mag_url` — Deeplink zurück zu tape-mag
-- `pressOrgaId` — Press-Literature-Zuordnung
-- `legacy_availability` (integer, nicht zu verwechseln mit `legacy_available` boolean) — unklar
-
-**→ Audit-Pflicht in Phase 1 dieses Plans: für jedes dieser Felder feststellen, ob es in MySQL existiert, ob es sync-relevant ist, und ob es aktuell gesynct wird.**
-
-### 2.2 Discogs Daily Sync
-
-| Attribut | Wert |
-|---|---|
-| Script | `scripts/discogs_daily_sync.py` |
-| Laufzeit | Mo-Fr 02:00 UTC, 5 Chunks rotating (jeder Chunk einmal pro Woche) |
-| Datenquelle | Discogs API |
-| Datenziel | Supabase `Release.discogs_*` Felder |
-| Gesyncte Felder | `discogs_id, discogs_lowest_price, discogs_median_price, discogs_highest_price, discogs_num_for_sale, discogs_have, discogs_want, discogs_last_synced` |
-| Rate-Limit | Discogs API hat strikte Limits → deshalb Chunks + Exponential Backoff |
-| Change-Tracking | Keines. Niemand weiß, welche Releases in einem Run ihre Discogs-Preise geändert haben. |
-| Validation | Eigene Health-File-Logik (`discogs_sync_health.json`) die `discogs-health` Admin-Widget liest |
-| Drift-Detection | Keine (aber Discogs API ist die Wahrheit, Drift ist nicht das Risiko) |
-| Alert | `discogs-health` Widget zeigt severity im Admin, aber es gibt keinen Push-Alert |
-
-### 2.3 R2 Image Sync
-
-| Attribut | Wert |
-|---|---|
-| Script | Teil von `legacy_sync.py` (kein eigenes Script) |
-| Laufzeit | gekoppelt an Legacy-Sync — stündlich |
-| Datenquelle | Cover-Image-URLs aus MySQL (oder aus Image-Tabelle) |
-| Datenziel | Cloudflare R2 Bucket `vod-images` (pub-URL: `https://pub-433520acd4174598939bc51f96e2b8b9.r2.dev`) |
-| Bucket-Stand (2026-04-05) | 160,957 Files / 108 GB |
-| Progress-File | `scripts/r2_sync_progress.json` — Admin-Widget liest daraus |
-| Change-Tracking | ja, über Progress-File (`uploaded, failed, skipped, updated_at, run_id`) |
-| Validation | Keine End-to-End-Verifikation, dass URLs wirklich erreichbar sind (nur ein HEAD-Request auf ein einziges Test-Bild im system-health Endpoint) |
-| Alert | Keine |
-
-### 2.4 Discogs Batch Matching (sekundär)
-
-Manuell gestartet, matched existing releases ohne `discogs_id` zu Discogs-Releases per bulk matching. Läuft sporadisch. Progress in `data/discogs_batch_progress.json`. Nicht kritisch für den Normalbetrieb, aber unterlag derselben cwd-Bug-Klasse die heute gefixt wurde.
-
-### 2.5 Entity Content Overhaul (sekundär, aktuell P2 pausiert)
-
-10-Modul-Python-Pipeline zum Enrichment von Band/Label/Press-Entities via GPT-4o. Läuft nicht automatisch, Budget-basiert. Progress in `scripts/entity_overhaul/data/entity_overhaul_progress.json`. Im Scope dieses Plans nur insofern, als das Admin-Widget dafür heute auch gebrochen war.
+Alle weiteren Befunde (misleading naming, ungeprüfte Felder in MySQL, alte hardcoded Pfade) sind Ausprägungen dieser acht Kern-Probleme.
 
 ---
 
-## 3. Lessons Learned
+## 3. Zielbild und Design-Prinzipien
 
-Eine Liste aller Probleme die in der aktuellen Sync-Architektur stecken oder heute aufgefallen sind. Jedes davon muss der Plan adressieren.
+Fünf Prinzipien. Nicht verhandelbar bei jeder Muss-Maßnahme.
 
-### 3.1 Stille Coverage-Lücken
-Der Legacy-Sync-Script trackt 4 von 14 gesyncten Feldern als Changes. Die restlichen 10 sind komplett unsichtbar — keine Audit-Trail, keine Möglichkeit nachzuvollziehen was Frank wann geändert hat. Heute entdeckt nach Frank's Arbeit an 54 Literatur-Einträgen.
-
-### 3.2 Misleading Metrics
-`sync_log.changes.new_images: 32866` bei jedem Run. Ist kumulativ (Insert-Attempts inkl. Duplicates), nicht per-run. Nutzer liest die Zahl als "neue Bilder in diesem Run" und wird getäuscht.
-
-### 3.3 Keine Feld-Liste als Contract
-Nirgendwo im Code oder in der Doku gibt es eine verbindliche Liste "diese Felder werden gesynct, diese nicht". Wissen ist implizit verteilt (Python-Script + CLAUDE.md + Mental Model). Drift zwischen Code und Doku ist garantiert.
-
-### 3.4 Keine Drift-Detection
-Wenn MySQL und Supabase irgendwann auseinanderlaufen (z.B. durch einen partiellen Sync-Fehler, eine manuelle SQL-Änderung in Supabase, einen Script-Bug), würde das niemand merken bis ein Nutzer etwas Konkretes sucht und nicht findet.
-
-### 3.5 Keine Validation nach Sync-Run
-Der Script committed und beendet. Niemand prüft: "Stimmen die Counts nach dem Run? Wurden alle erwarteten Rows berührt? Haben die UPSERTs Sinn gemacht?"
-
-### 3.6 Stille Fehler
-Wenn `sync_log.status = 'error'` gesetzt wird, passiert nichts weiter. Keine E-Mail, kein Slack, keine Admin-UI-Notification, kein Dashboard-Alert.
-
-### 3.7 Kein Dead-Man's-Switch
-Wenn der Cron-Job stirbt (Crontab-Bug, VPS-Reboot ohne korrekten Restore, Permissions-Problem), läuft stunden- oder tagelang nichts, und niemand bemerkt es bis zufällig jemand ins Admin-UI schaut.
-
-### 3.8 Path-Fragilität
-Heute: 7 Admin-Routes nutzten `process.cwd()/..` oder `__dirname/../../../...` um auf `scripts/` und `data/` zuzugreifen. Der PM2-cwd-Wechsel hat alle 7 gleichzeitig broken. Fix via `backend/src/lib/paths.ts` Helper ist deployed, aber: **derselbe Fail-Modus könnte für den Python-Script gelten** — wenn jemand den Cron in einer anderen Working-Directory startet, könnten die relativen Pfade im Python-Script brechen. Nicht verifiziert.
-
-### 3.9 Hardcoded Absolute Paths
-2 zusätzliche Files mit `/root/VOD_Auctions/scripts/legacy_sync.log` hardcoded. Funktioniert heute, bricht auf Staging/Local-Dev. Heute gefixt.
-
-### 3.10 Doku-Drift
-CLAUDE.md sagt "Legacy Sync täglich 04:00 UTC". Real: stündlich. Niemand hat die Cron-Tab direkt mit CLAUDE.md abgeglichen.
-
-### 3.11 Leere Audit-Tabellen
-`sync_change_log` war **7 Tage lang leer**. Das ist ein Symptom mehrerer Probleme oben, aber besonders bemerkenswert: die Existenz der Tabelle wurde nie validiert. Niemand hat je gefragt "wieso steht da nichts drin?"
-
-### 3.12 Keine End-to-End-Verifikation externer Systeme
-R2 Image CDN: Test auf genau ein Bild. Wenn 999 von 160,957 Bildern broken sind (z.B. weil der Upload fehlgeschlagen war), wird es nicht erkannt.
-
-### 3.13 Keine Versionierung der Sync-Scripte
-Wenn der Python-Script geändert wird, gibt es keinen Marker "diese Sync-Runs sind v1, diese sind v2". Nach einem Script-Update kann man nicht mehr klar sagen, welche Daten vom alten vs. neuen Script stammen. Relevant wenn ein Script-Bug später entdeckt wird und rückwirkend repariert werden muss.
-
-### 3.14 Keine Idempotency-Garantien dokumentiert
-Script wird angenommen idempotent zu sein (re-run produziert keine Duplikate). Ist das wirklich so? Für UPSERTs ja. Für `sync_change_log`-Einträge? Unklar — re-running ein Script würde neue Change-Einträge mit neuer `sync_run_id` erzeugen, auch wenn sich nichts geändert hat.
+1. **Ehrlichkeit vor Vollständigkeit.** Eine Metrik, die `new_images` heißt, muss tatsächlich neue Images pro Run zählen. Lieber weniger Metriken, die stimmen, als viele, die lügen.
+2. **Feld-Contract als Wahrheit.** Was gesynct wird, steht als maschinenlesbare Liste im Code. UPSERT-SQL, Diff-Logik und Validation iterieren über dieselbe Liste. Kein Copy-Paste-Drift.
+3. **Observability nur mit Mehrwert.** Kein unchanged-Row-Logging. Kein Voll-Audit auf Ewigkeit. Beobachtet wird, was zur Fehler-Erkennung oder zur Rechenschaft gegenüber Frank nötig ist. Nicht mehr.
+4. **Fail loud, aber einmal.** Jeder Fehler erzeugt genau einen Alert, nicht tausend. Stille Fehler sind verboten, Alert-Spam auch.
+5. **Keine Meta-Plattform.** Die Überwachung läuft in denselben Tabellen und denselben Admin-Pages wie die Sync-Logik selbst. Keine zweite Datenbank, kein Prometheus, kein Grafana. Reicht Supabase + Admin-UI + E-Mail.
 
 ---
 
-## 4. Design-Prinzipien
+## 4. Harte Priorisierung
 
-Diese Prinzipien gelten für JEDEN Sync-Flow in VOD Auctions, heute und in Zukunft.
+Jede Maßnahme bekommt eine Prio-Klasse. Entscheidungskriterium: operativer Schmerz bei Ausbleiben.
 
-### 4.1 Feld-Contract als Single Source of Truth
-Für jeden Sync-Flow existiert eine **explizite, maschinenlesbare Liste der gesyncten Felder** mit Metadaten:
-- Feldname in Quelle und Ziel
-- Typ-Mapping (MySQL → Postgres oder API → Postgres)
-- Protection-Level (schützbar durch Medusa, überschreibbar durch Sync, etc.)
-- Change-Log-Tracking (ja/nein)
-- Validation-Rules (nullable, range, pattern)
+### Priorität A — Muss jetzt (Wochen 1-2)
 
-Form: eine Python-Konstante `LEGACY_SYNC_FIELDS` (und analog für Discogs). Der Script iteriert über diese Liste für UPSERT, Diff, Validation. Kein Copy-Paste zwischen UPSERT-SQL und Diff-Logik.
-
-### 4.2 Jede Änderung ist auditierbar
-Jede Row-Änderung in einer gesyncten Tabelle produziert **genau einen** Change-Log-Eintrag mit:
-- `sync_run_id` (eindeutig pro Run)
-- `entity_type` (release/artist/label/...)
-- `entity_id`
-- `change_type` (inserted/updated/unchanged/skipped — ja, unchanged auch loggen für Completeness-Checks)
-- `delta` (JSONB mit `{field: {old, new}}` für jedes geänderte Feld)
-- `synced_at`
-
-**Warum `unchanged` auch loggen?** Damit Completeness-Checks möglich sind. Wenn ich wissen will "hat der letzte Sync wirklich alle 41k Releases angefasst?", zähle ich Change-Log-Einträge für den run_id. Wenn es 30k sind statt 41k, ist etwas schiefgegangen. (Alternative: nur `changed`-Einträge loggen plus Summary mit `total_processed` im sync_log. Pragmatischer. Wird in Phase 1 entschieden.)
-
-### 4.3 Jeder Run ist idempotent
-Re-run eines Sync-Scripts darf keine Duplikate und keine spurious Change-Events produzieren. Wenn der Script sofort nach einem erfolgreichen Run nochmal läuft, müssen alle Diffs `unchanged` sein. Re-run ist ein legitimer Recovery-Mechanismus und muss sicher sein.
-
-### 4.4 Jeder Run validiert sich selbst
-Nach jedem Sync-Run läuft eine Validations-Phase, die prüft:
-- Anzahl der erwarteten Source-Rows stimmt mit Ziel-Rows überein (+/- Filter)
-- Keine NULL-Werte in NOT-NULL-Feldern
-- Referenzielle Integrität (alle artistId-Referenzen existieren)
-- Sanity-Ranges (legacy_price zwischen 0 und 99999, year zwischen 1900 und 2100)
-- Keine Zeilen mit `legacy_last_synced` älter als 2x Cron-Intervall (= wurde beim letzten Run vergessen)
-
-Fails der Validation setzen `sync_log.status = 'validation_failed'` und lösen Alert aus. Der Run selbst ist dann nicht "success" sondern "success_with_validation_errors".
-
-### 4.5 Drift wird aktiv detektiert
-Einmal täglich (z.B. 03:00 UTC, vor dem nächsten Sync-Zyklus) läuft ein **Drift-Detection-Job**, der stichprobenartig MySQL und Supabase vergleicht:
-- Zufällige 100 Releases: alle gesyncten Felder Byte-für-Byte vergleichen
-- Zählt MySQL-Rows vs. Supabase-Rows pro Kategorie
-- Zählt MySQL-Images vs. Supabase-Images
-- Vergleicht letzte-Modifikations-Timestamps
-
-Ergebnisse werden in eine neue Tabelle `sync_drift_report` geschrieben. Wenn Drift > Threshold → Alert + optionaler Auto-Heal.
-
-### 4.6 Auto-Heal bei Drift
-Wenn Drift-Detection Inkonsistenzen findet, gibt es zwei Eskalations-Stufen:
-1. **Soft-Heal:** Betroffene IDs werden beim nächsten regulären Sync-Run priorisiert/force-updated.
-2. **Hard-Heal:** Bei schwerer Drift (>5% Zeilen, oder bei Feldern die nicht durch den regulären Sync abgedeckt sind) wird ein Full-Resync eingeplant. Full-Resync ist eine separate Funktion des Scripts, die explizit alle Zeilen berührt statt inkrementell.
-
-Auto-Heal ist konservativ: im Zweifel lieber Alert senden als automatisch schreiben. Hard-Heal ist opt-in, nicht automatisch.
-
-### 4.7 Dead-Man's-Switch
-Ein kleiner Watchdog prüft alle 15 Minuten: "Gab es in den letzten N Minuten einen erwarteten Sync-Run?" N ist per-Flow konfigurierbar (Legacy: 75min, Discogs daily: 26h, R2: 75min). Wenn nein → Alert.
-
-Implementation: eigenes Cron-Script oder Admin-API-Endpoint der alle X Minuten von einem externen Monitoring (oder selbst-gehostetem Cron) gepollt wird.
-
-### 4.8 Beobachtbarkeit statt stille Erfolge
-Alle Metriken aus Sync-Runs landen in einer konsistenten Schema-Form in `sync_log` und werden vom Admin-Dashboard gelesen. Keine "versteckten" Progress-Files, keine Log-Parsing-Tricks. Eine Tabelle ist Single Source of Truth.
-
-Dazu gehört auch: die Metriken sind **ehrlich**. `new_images` ist wirklich "neue Bilder, die in diesem Run zum ersten Mal in die Tabelle kamen", nicht "Anzahl Insert-Attempts".
-
-### 4.9 Alle Pfade sind cwd-unabhängig
-Kein Python-Script nutzt `os.getcwd()` oder relative Pfade zur Auflösung von Daten-Files. Alle Pfade kommen aus:
-- Environment-Variablen (z.B. `VOD_PROJECT_ROOT=/root/VOD_Auctions`)
-- Oder absolute Pfade
-- Oder walk-up-Heuristik analog zum TypeScript-Helper `paths.ts`
-
-Das Script muss funktionieren egal von welchem Verzeichnis aus es gestartet wird.
-
-### 4.10 Versionierung pro Script
-Jeder Python-Sync-Script trägt eine Versions-Konstante (`SCRIPT_VERSION = "1.2.3"`) die bei jedem Run in `sync_log.changes.script_version` landet. Bei Script-Änderungen wird die Version erhöht. So kann man später sagen "alle Runs vor v1.2.0 hatten den Bug X, ich muss die betroffenen Rows re-syncen".
-
-### 4.11 Graceful Degradation
-Wenn das Ziel (Supabase) erreichbar aber langsam ist, oder wenn ein einzelnes Feld ein Schema-Problem hat, soll der Script nicht komplett abbrechen. Er isoliert das Problem auf Feld- oder Zeilen-Level, schreibt was er kann, und loggt was nicht.
-
-### 4.12 Test-Mode
-Jeder Script hat einen `--dry-run` Flag, der alle Queries ausführt (inkl. Diff-Computation), aber keine Writes committed. Output: "hätte diese Änderungen gemacht" + vollständiges Change-Log. Wird für Validierung vor Script-Updates genutzt.
-
----
-
-## 5. Feld-Coverage-Matrix (Legacy → Release)
-
-Stand 2026-04-05. **Muss in Phase 1 dieses Plans verifiziert und ergänzt werden.**
-
-| Supabase-Feld | Syncs aktuell? | Diff-getrackt? | Frank editiert? | Priorität für Tracking |
-|---|---|---|---|---|
-| `title` | ✅ | ✅ | gelegentlich | hoch |
-| `description` | ✅ | ❌ | oft | **hoch** |
-| `year` | ✅ | ❌ | selten | mittel |
-| `format` | ✅ | ❌ | selten | mittel |
-| `format_id` | ✅ | ❌ | selten | mittel |
-| `catalogNumber` | ✅ | ❌ | gelegentlich | mittel |
-| `country` | ✅ | ❌ | selten | niedrig |
-| `artistId` | ✅ | ❌ | kaum | niedrig |
-| `labelId` | ✅ (bedingt) | ❌ | kaum (wegen label_enriched) | niedrig |
-| `coverImage` | ✅ | ✅ | ja | hoch |
-| `legacy_price` | ✅ | ✅ | oft | **hoch** |
-| `legacy_condition` | ✅ | ❌ | **oft** — Zustand wird regelmäßig gepflegt | **kritisch** |
-| `legacy_format_detail` | ✅ | ❌ | gelegentlich | mittel |
-| `legacy_available` | ✅ | ✅ | **oft** — Verfügbarkeit ändert sich | hoch |
-| `subtitle` | ❓ unbekannt | n/a | unbekannt | muss verifiziert werden |
-| `barcode` | ❓ unbekannt | n/a | unbekannt | muss verifiziert werden |
-| `language` | ❓ unbekannt | n/a | unbekannt | muss verifiziert werden |
-| `pages` | ❓ unbekannt | n/a | bei Literatur: ja | muss verifiziert werden |
-| `releaseDate` | ❓ unbekannt | n/a | unbekannt | muss verifiziert werden |
-| `tracklist` (JSONB) | ❓ unbekannt | n/a | wahrscheinlich ja | muss verifiziert werden |
-| `credits` | ❓ unbekannt | n/a | wahrscheinlich ja | muss verifiziert werden |
-| `media_condition` | ❓ unbekannt | n/a | ja (wenn es aus legacy kommt) | muss verifiziert werden |
-| `sleeve_condition` | ❓ unbekannt | n/a | ja | muss verifiziert werden |
-| `article_number` | ❓ unbekannt | n/a | unbekannt | muss verifiziert werden |
-| `tape_mag_url` | ❓ unbekannt | n/a | unbekannt | muss verifiziert werden |
-| `pressOrgaId` | ❓ unbekannt | n/a | unbekannt | muss verifiziert werden |
-| `legacy_availability` (int) | ❓ unbekannt | n/a | unbekannt — möglicherweise tote Spalte | muss verifiziert werden |
-| `Image[]` (related) | ✅ via INSERT | ❌ | **oft** — heute 54 neue | **kritisch** |
-
-**Protected by Medusa/Auction (dürfen NIE vom Sync überschrieben werden):**
-- `id`, `createdAt`, `updatedAt` (letzteres wird derzeit jeden Run angefasst — prüfen ob das nötig ist)
-- `auction_status`, `current_block_id`, `estimated_value`
-- `sale_mode`, `direct_price`, `inventory`, `shipping_item_type_id`
-- `label_enriched` (boolean, schützt `labelId`)
-- `viewCount`, `averageRating`, `ratingCount`, `favoriteCount`
-
-**Owned by Discogs sync:**
-- `discogs_id`, `discogs_lowest_price`, `discogs_median_price`, `discogs_highest_price`
-- `discogs_num_for_sale`, `discogs_have`, `discogs_want`, `discogs_last_synced`
-
-**→ Phase 1.1 Aufgabe:** Legacy MySQL-Schema dumpen und feldweise abgleichen mit der Unbekannten-Liste oben. Ergebnis: definitives `LEGACY_SYNC_FIELDS` Dict mit vollständiger Coverage.
-
----
-
-## 6. Robustheits-Layer
-
-Drei architektonische Layer, die jedem Sync-Flow vorgeschaltet werden.
-
-### 6.1 Contract Layer
-- Maschinenlesbare Feld-Definition (siehe §4.1) als Python-Konstante im Script und als TypeScript-Konstante im Backend für UI-Anzeige.
-- Bei jedem Script-Start wird das Ziel-Schema (Supabase) gegen den Contract validiert. Wenn eine Spalte fehlt oder einen anderen Typ hat → Abort mit klarer Fehlermeldung.
-- Das Admin-Dashboard zeigt die Contract-Liste sichtbar an: "Legacy Sync trackt 23 Felder auf Release (alle diffbar)".
-
-### 6.2 Execution Layer
-- Sync-Script läuft mit strukturiertem Logging (JSON-Lines zu STDOUT/STDERR).
-- Vor jedem Batch wird der Source-Row-Count gezählt. Nach jedem Batch wird der Write-Count gegen den erwarteten Count verifiziert.
-- Jeder Script-Run schreibt seinen Status in `sync_log` in drei Phasen:
-  - `started` (vor dem ersten Query)
-  - `running` (updated während des Runs)
-  - `success` / `failed` / `validation_failed` / `partial_success` (am Ende)
-- Auch bei Crashes soll noch ein `sync_log` Eintrag existieren (try/except + finally block).
-
-### 6.3 Validation & Drift Layer
-- Nach jedem regulären Sync-Run: eigene Validation-Queries (siehe §4.4).
-- Einmal täglich: Drift-Detection-Job (siehe §4.5) auf separater Cron-Schedule.
-- Ergebnisse in `sync_drift_report` mit Columns: `id, run_id, sync_type, drift_type, expected_count, actual_count, sample_diffs JSONB, severity, detected_at`.
-
-### 6.4 Observability Layer
-- Admin-Dashboard hat eine neue Hauptseite `/app/sync` mit:
-  - Live-Status jedes Sync-Flows (last run, next run, success rate last 7d)
-  - Feld-Coverage-Matrix visualisiert
-  - Change-Log der letzten 100 Änderungen filterable nach Feld, Entity, Run-ID
-  - Drift-Report-Liste der letzten 30 Tage
-  - Manual-Trigger-Button für Force-Resync einzelner Entities
-- Alerting über Sentry + eine neue `sync_alerts` Tabelle, die der Admin direkt sieht.
-
-### 6.5 Alerting Layer
-Alerts werden in drei Schweregrade unterteilt:
-- **Info:** "Sync-Run erfolgreich, 54 neue Bilder, 3 Feld-Changes" — nur Log
-- **Warning:** "Run dauerte 3x länger als Durchschnitt" oder "2% Drift detektiert" — Dashboard-Notification, keine E-Mail
-- **Error:** "Run fehlgeschlagen" oder "Dead-Man's-Switch: kein Run in 2h" oder ">5% Drift" — Dashboard + E-Mail an Admin
-
-Keine Push-Notifications, keine Slack/SMS/Pager. E-Mail reicht für Solo-Operator.
-
----
-
-## 7. Per-Flow Redesign
-
-### 7.1 Legacy MySQL → Supabase
-
-**Phase B-1: Full Field Audit (1 Tag, pur Research)**
-- MySQL-Schema dumpen, alle `tape_mag.releases` (+ relevante Tabellen) Spalten listen
-- Mapping zu Supabase Release-Feldern erstellen
-- Lücken (Felder die in MySQL existieren aber nicht gesynct werden) bewusst entscheiden: sync oder explizit "wir wollen das nicht"
-- Ergebnis: `LEGACY_SYNC_FIELDS` Contract
-
-**Phase B-2: Script Rewrite (2-3 Tage)**
-- `legacy_sync.py` refactor: Schleife über `LEGACY_SYNC_FIELDS` für UPSERT-Generierung, Diff-Computation, Change-Log-Writing
-- Image-Handling: `INSERT ... RETURNING id` nutzen um echte Neu-Counts zu bekommen
-- Alle Pfade via Environment-Variable (`VOD_PROJECT_ROOT`) oder walk-up-Heuristik
-- Versioning-Konstante
-- Dry-run-Flag
-- Validation-Phase am Ende jedes Runs
-
-**Phase B-3: Change-Log-Struktur neu**
-- Neue Tabelle `sync_change_log_v2` mit vollständigem Schema (siehe §4.2)
-- Migration-Script kopiert historische (leere) `sync_change_log`-Einträge — oder diese Tabelle wird einfach deprecated zugunsten v2
-- Backend-API liest ab jetzt aus v2
-- Admin-UI zeigt v2-Daten
-
-**Phase B-4: Deployment**
-- Erst `--dry-run` auf Staging-DB (wo wir heute die Schema-Kopie gemacht haben) → Diff-Output gegen echte Supabase-Daten vergleichen
-- Dann echter Run auf Staging gegen Staging-Supabase
-- Wenn sauber: Cron auf VPS für Produktions-Supabase umstellen (alter Script bleibt bis dann im Repo als Backup)
-
-### 7.2 Discogs Daily Sync
-
-**Phase D-1: Change-Tracking hinzufügen**
-- Discogs-Sync trackt aktuell gar keine Changes. Das ist weniger kritisch weil Discogs-Preise sich kontinuierlich ändern und keine Editierarbeit von Frank sind, aber für Drift-Detection und "wann hat dieser Preis zuletzt seinen Wert geändert" wäre es nützlich.
-- Minimale Version: Diff auf `discogs_lowest_price`, `discogs_median_price`, `discogs_num_for_sale` loggen
-- Nicht-Ziele: keine historische Zeitreihe der Preise (das wäre ein separates Projekt)
-
-**Phase D-2: Robustheit**
-- Rate-Limit-Handling bereits vorhanden, aber Chunk-Completion-Tracking fehlt (wenn Chunk 3 crasht, startet der nächste Run wieder bei Chunk 1)
-- Fix: jeder Chunk schreibt seinen Status einzeln in sync_log
-
-### 7.3 R2 Image Sync
-
-**Phase R-1: Entkopplung vom Legacy-Sync**
-- R2-Upload aktuell im Legacy-Sync eingebettet. Das macht es schwer zu isolieren und separat zu debuggen.
-- Separater Python-Script `r2_sync.py`, der die Image-Tabelle als Input nimmt (nicht MySQL)
-- Eigener Cron
-
-**Phase R-2: End-to-End-Verifikation**
-- Statt nur ein Test-Bild zu pingen: stichprobenartig 50 zufällige Image-URLs aus der DB nehmen und HEAD-Request machen
-- Broken URLs in eine Fehler-Tabelle schreiben, Admin-UI zeigt sie
-
-**Phase R-3: Bucket-Count-Drift**
-- Bucket-API abfragen, Anzahl der Files vergleichen mit Anzahl der `Image`-Rows mit `r2_synced = true` (neues Feld)
-- Drift > 1% → Alert
-
-### 7.4 Drift Detector (neuer Job)
-
-**Phase DD-1:**
-- Neues Python-Script `sync_drift_detector.py`
-- Läuft einmal täglich um 03:00 UTC (vor dem Legacy-Sync-Zyklus)
-- Zieht 100 zufällige `legacy-release-*` IDs, holt sich die Zeile aus MySQL und aus Supabase, vergleicht alle Felder aus `LEGACY_SYNC_FIELDS`
-- Schreibt Findings in `sync_drift_report`
-
-### 7.5 Dead-Man's-Switch (neuer Watchdog)
-
-**Phase DM-1:**
-- Neuer Admin-API-Endpoint `/admin/sync/watchdog` der für jeden bekannten Sync-Flow prüft: "gab es in den letzten N Minuten einen success-Run?"
-- Admin-Dashboard zeigt diesen Status als Ampel
-- Optional: Cron-Job der alle 15min den Endpoint intern pingt und bei Fails E-Mail sendet
-
----
-
-## 8. Implementierungs-Phasen
-
-Reihenfolge nach Risiko-zu-Nutzen-Verhältnis. Jede Phase ist separat deploybar, abhängig von vorheriger Phase wo nötig.
-
-### Phase 0 — Quick Win (bereits erledigt 2026-04-05)
-- ✅ Phase A: Backend-Query auf Image-Tabelle, Widget zeigt echte New-Image-Counts
-- ✅ Path-Helper in `backend/src/lib/paths.ts`, alle 7 betroffenen Routes fixed
-- ✅ 2 zusätzliche hardcoded Paths gefixt
-- ✅ Sync-Robustheits-Plan dokumentiert (dieses Dokument)
-
-### Phase 1 — Audit & Contract (1-2 Tage, ReadOnly)
-**Keine Code-Deployments.** Nur Erkenntnis-Generierung.
-1.1 Legacy MySQL-Schema vollständig dumpen
-1.2 Feld-Mapping zu Supabase erstellen, Lücken markieren
-1.3 Mit Frank: welche Felder editiert er wie oft? Prioritäten schärfen
-1.4 `LEGACY_SYNC_FIELDS` Contract als Python + TypeScript-Konstanten vorschreiben (nicht deployen)
-1.5 CLAUDE.md Cron-Schedule korrigieren ("stündlich", nicht "täglich 04:00")
-1.6 Dieses Dokument auf v1.1 updaten mit verifizierter Feld-Matrix
-
-### Phase 2 — Script Version v2 mit Full Field Coverage (2-3 Tage)
-**Hohes Risiko, hohe Sorgfalt.** Der Script läuft stündlich in Produktion.
-2.1 `legacy_sync.py` → `legacy_sync_v2.py` im Repo, v1 bleibt als Backup
-2.2 Refactor um `LEGACY_SYNC_FIELDS` Contract
-2.3 Dry-run-Flag implementieren
-2.4 Neue `sync_change_log_v2` Tabelle deployen (additive Migration)
-2.5 Dry-run gegen Staging-DB, Diff-Output inspizieren
-2.6 Echter Run gegen Staging, Validierung
-2.7 Cutover: Cron-Job umstellen auf v2, v1 läuft nicht mehr
-2.8 Nach 7 Tagen stabiler Run: v1 aus dem Repo entfernen
-
-### Phase 3 — Validation & Observability (2 Tage)
-3.1 Script-Seite: Validation-Phase am Ende jedes Runs
-3.2 Backend-API: erweiterte `/admin/sync` Response mit Validation-Ergebnissen
-3.3 Admin-UI: neuer Tab "Field Coverage" zeigt `LEGACY_SYNC_FIELDS` live
-3.4 Admin-UI: Change-Log-Viewer mit Filter-Funktion (nach Feld, Entity, Zeitraum)
-3.5 Alert-Infrastruktur: `sync_alerts` Tabelle + Admin-UI-Bell-Icon
-
-### Phase 4 — Drift Detection (2 Tage)
-4.1 Neuer Python-Script `sync_drift_detector.py`
-4.2 Neue `sync_drift_report` Tabelle
-4.3 Cron-Schedule 03:00 UTC täglich
-4.4 Admin-UI: Drift-Report-View
-4.5 Erster manueller Run, erste Drift-Findings durchgehen
-
-### Phase 5 — Dead-Man's-Switch (1 Tag)
-5.1 Admin-API-Endpoint `/admin/sync/watchdog`
-5.2 Cron-Script das alle 15min den Endpoint intern pingt
-5.3 E-Mail-Alerting bei Fails via Resend
-5.4 Dashboard-Ampel
-
-### Phase 6 — R2 Entkopplung (2-3 Tage)
-6.1 `r2_sync.py` als separates Script
-6.2 Cron-Schedule entkoppelt von Legacy-Sync
-6.3 End-to-End-Verification mit Sample-HEAD-Requests
-6.4 Bucket-Count-Drift-Detection
-6.5 Admin-Widget-Update
-
-### Phase 7 — Discogs Change-Tracking (1-2 Tage)
-7.1 Discogs-Sync trackt Preis-Deltas
-7.2 `sync_change_log_v2` wird auch von Discogs-Sync befüllt
-7.3 Admin-UI zeigt kombinierte Change-Log-Ansicht
-
-### Phase 8 — Dokumentation finalisieren (0.5 Tage)
-8.1 CLAUDE.md Sync-Section komplett re-write basierend auf tatsächlichem Stand
-8.2 Dieses Dokument von "Plan" zu "Architecture Reference" umbenennen
-8.3 Runbooks für häufige Operations (Force-Resync eines Entitys, Alert-Triage, etc.)
-
-**Gesamte Zeit für alle Phasen:** ~15-20 Arbeitstage verteilt, vermutlich über 4-6 Wochen, da man zwischen Deploys warten will um Seiteneffekte zu sehen.
-
----
-
-## 9. Rollback-Strategie
-
-Jede Phase hat einen definierten Rollback-Weg.
-
-| Phase | Rollback | Datenverlust-Risiko |
+| # | Maßnahme | Warum zwingend |
 |---|---|---|
-| Phase 1 (Audit) | N/A — nur Research, keine Änderungen | Kein |
-| Phase 2 (Script v2) | Cron-Job zurück auf v1. `sync_change_log_v2` Tabelle bleibt (additive Migration). | Kein Datenverlust. Neue v2-Einträge bleiben aber unbenutzt. |
-| Phase 3 (Validation) | Validation-Phase im Script auskommentieren, UI-Tab entfernen. | Kein |
-| Phase 4 (Drift Detection) | Cron-Job deaktivieren. `sync_drift_report` Tabelle bleibt. | Kein |
-| Phase 5 (Dead-Man's-Switch) | Cron-Job deaktivieren. | Kein |
-| Phase 6 (R2 Entkopplung) | Legacy-Sync zurück auf R2-Upload, separaten `r2_sync.py` deaktivieren. | Kein |
-| Phase 7 (Discogs Tracking) | Discogs-Sync-Änderungen revertieren. | Kein |
+| A1 | **Feld-Contract für Legacy-Sync** | Ohne Contract ist jede weitere Arbeit Blindflug. Inventur liefert Wahrheit über gesyncte Felder. |
+| A2 | **Run-Summary mit ehrlichen Metriken** | Heute lügen die Zahlen. Das ist gefährlicher als gar keine Zahlen. |
+| A3 | **Full-Field Change-Detection im Python-Script** | Alle 14 Felder diffen, nicht nur 4. Frank's Edits müssen sichtbar sein. |
+| A4 | **Post-Run Validation** | Row-Count-Check, NULL-Check, Integrity-Check. Scheitert lautstark wenn etwas nicht stimmt. |
+| A5 | **Dead-Man's-Switch** | Wenn der letzte Run > 90 Min alt ist, alert. Das ist die minimale Sicherheit gegen einen toten Cron. |
+| A6 | **E-Mail-Alert bei Fehler oder Validation-Fail** | Genau ein E-Mail-Kanal über Resend. Kein Slack, kein Pager. |
 
-**Alle Phasen sind additiv.** Keine Phase erfordert eine destructive DB-Migration. Keine Phase kann historische Daten verlieren. Das ist by-design — Sync-Arbeit darf NIEMALS Datenverlust-Risiko haben.
+### Priorität B — Phase 2 (Wochen 3-6, nach A stabil)
 
----
+| # | Maßnahme | Warum sinnvoll, aber nicht sofort |
+|---|---|---|
+| B1 | **Drift Detection (Count + Schedule)** | Erkennt Divergenzen die A nicht abdeckt. |
+| B2 | **Python-Script-Pfade härten** | Cwd-Unabhängigkeit analog zum TypeScript-Helper. Heute spekulativ — fixen sobald Phase-A-Script angefasst wird. |
+| B3 | **Dry-Run-Flag für Legacy-Sync** | Testbarkeit gegen Staging-DB. |
+| B4 | **CLAUDE.md Sync-Section korrigieren** | Cron-Schedule, Tabellen, Feld-Liste. Ein Mal sauber machen. |
 
-## 10. Erfolgs-Kriterien
+### Priorität C — Später (Monat 2+)
 
-Dieser Plan ist erfolgreich umgesetzt, wenn alle folgenden Aussagen wahr sind:
+| # | Maßnahme | Warum nicht jetzt |
+|---|---|---|
+| C1 | **Drift Detection (Field + Referential)** | Voll-Vergleich ist teuer, Count+Schedule reichen als Einstieg. |
+| C2 | **Discogs Change-Tracking** | Discogs-Daten sind externe Preise, nicht Frank's Arbeit. Niedrige Priorität. |
+| C3 | **R2 Entkopplung vom Legacy-Sync** | Funktioniert derzeit. Erst trennen wenn es schmerzt. |
+| C4 | **Admin-UI-Ausbau (Change-Log-Browser, Drift-Reports)** | Erst wenn die Daten sauber fließen. Vorher reicht die bestehende `/app/sync` Seite. |
 
-1. **Feld-Coverage:** 100% der Felder die vom Sync-Script in Ziel-Tabellen geschrieben werden, sind auch im Change-Log getrackt. Kein Schreibvorgang ist unsichtbar.
-2. **Metrik-Ehrlichkeit:** Jede Zahl im Admin-Dashboard ist semantisch präzise. "New Images" heißt "in diesem Run neu eingefügte Zeilen in der Image-Tabelle", nicht "Insert-Attempts".
-3. **Change-Log-Vollständigkeit:** `sync_change_log_v2` hat für jeden erfolgreichen Sync-Run Einträge. Leere Days werden durch Drift-Detection oder Dead-Man's-Switch erkannt.
-4. **Alert-Abdeckung:** Jeder fehlgeschlagene Sync-Run oder jede erkannte Drift > 5% produziert einen Alert den Robin spätestens bei der nächsten Admin-Dashboard-Öffnung sieht.
-5. **Cwd-Unabhängigkeit:** Scripts und Backend-Routes funktionieren unabhängig vom Start-Verzeichnis. Verifiziert durch manuellen Start aus verschiedenen Verzeichnissen.
-6. **Idempotency:** Ein doppelter Sync-Run innerhalb 1 Minute produziert keine spurious Change-Events. Verifiziert durch Integration-Test.
-7. **Doku-Realitäts-Übereinstimmung:** CLAUDE.md beschreibt exakt was real läuft. Wird durch vierteljährlichen Audit verifiziert.
-8. **Staging-Dry-Run:** Jede Script-Änderung wird vor Produktions-Deploy auf Staging-DB dry-run'd.
+### Priorität D — Optional / bewusst zurückgestellt
 
----
-
-## 11. Nicht im Scope
-
-Explizite Klarstellung was dieses Dokument NICHT löst:
-
-- **Echtzeit-Sync / CDC (Change Data Capture):** MySQL → Supabase bleibt Batch. Real-time würde Debezium oder ähnliches erfordern und ist aktuell nicht rechtfertigbar.
-- **Vollständige Historie aller Feld-Änderungen (Audit-Trail auf Ewigkeit):** Das `sync_change_log_v2` sammelt Changes seit seiner Einführung. Historische Daten vor v2 sind verloren für immer. Das ist akzeptabel.
-- **Multi-Region-Replikation:** Nicht nötig. Eine Production-DB reicht.
-- **Backup-Sync:** Supabase macht eigene Backups. Kein zweites Backup-Ziel.
-- **Rückwärts-Sync (Supabase → MySQL):** MySQL bleibt Single Source of Truth für Legacy-Daten. Kein Schreibvorgang von Auction-Plattform zurück nach MySQL. Wenn das je gewünscht würde, wäre es ein komplett separates Projekt.
-- **AGB-Konforme Change-Historie für Legal-Zwecke:** `sync_change_log_v2` ist operational, nicht legal-grade. Wenn für GoBD-Compliance ein anderer Audit-Trail nötig ist, kommt der vom ERP-Modul (siehe ERP_WARENWIRTSCHAFT_KONZEPT.md v5).
-- **Performance-Optimierung:** Der aktuelle Sync braucht 30-45 Sekunden für 41k Releases. Das ist ausreichend. Speed ist kein Ziel dieses Plans.
+| # | Maßnahme | Warum nicht gebaut |
+|---|---|---|
+| D1 | **Auto-Heal bei Drift** | Zu riskant. Drift-Erkennung + manueller Re-Sync reicht. Auto-Heal erst bei stabilen Drift-Metriken über Monate. |
+| D2 | **Unchanged-Row-Logging** | Macht `sync_change_log` um Faktor 1000 größer, keinen messbaren Mehrwert. Vollständigkeits-Checks laufen über Run-Summary, nicht über Voll-Logging. |
+| D3 | **Real-time CDC / Debezium** | Batch-Sync reicht. Real-time braucht niemand. |
+| D4 | **Zweite Monitoring-Plattform** | Supabase + Admin-UI + E-Mail reicht. Prometheus/Grafana ist Overkill. |
+| D5 | **Multi-Region / Backup-Sync** | Supabase macht Backups. Kein zweites Ziel. |
+| D6 | **Asset-Integrity-Check für R2 (Bulk-HEAD)** | Teuer, unklarer Nutzen. Einzelnes Test-Bild wie heute reicht als Liveness. |
 
 ---
 
-## 12. Offene Fragen für Robin
+## 5. Kernarchitektur für Robustheit
 
-Vor Beginn von Phase 1:
+Drei Datenstrukturen, kein neues Framework. Alle leben in Supabase neben den existierenden Tabellen.
 
-1. **Field-Audit mit Frank:** Willst du Frank fragen welche Felder er am häufigsten editiert, oder machen wir das aus dem Code / den existierenden Daten? (Empfehlung: kurzer Chat reicht, 15min)
-2. **Staging-DB für Dry-Runs:** Die Staging-DB ist schema-synchron (heute provisioniert). Sollen Dry-Runs dorthin oder gegen eine lokale Postgres? Ich empfehle Staging — dafür ist sie da.
-3. **Alerting-Kanal:** Nur E-Mail, oder auch Dashboard-Banner? (Empfehlung: beides, aber E-Mail ist das Minimum.)
-4. **Phase-2-Risiko:** Phase 2 tauscht das laufende Sync-Script aus. Willst du während des Cutovers eine Backup-Wiederholung einlegen (v1 läuft parallel für 48h), oder direkter Cutover? (Empfehlung: paralleler Betrieb, additive — `sync_log` kann beide Varianten unterscheiden über `script_version`).
-5. **Start-Priorität:** Ich empfehle Reihenfolge Phase 1 → 2 → 3 → 5 → 4 → 6 → 7 → 8. Phase 5 (Dead-Man's-Switch) ist kurz und nützlich, deshalb vor Phase 4 (Drift, aufwändiger). Einverstanden?
+### 5.1 `sync_run` (existiert bereits als `sync_log`, wird erweitert)
+
+Eine Zeile pro Sync-Run. Die existierende Tabelle `sync_log` wird beibehalten, aber mit zusätzlichen Spalten und einer geschärften Semantik für das `changes` JSONB-Feld.
+
+**Neue oder zu präzisierende Felder in `sync_log`:**
+
+| Feld | Typ | Zweck |
+|---|---|---|
+| `run_id` | text | Eindeutige ID (UUID), wird von Script generiert und in `sync_change_log_v2.sync_run_id` referenziert. |
+| `script_version` | text | z.B. "legacy_sync.py v2.1.0". Bei Script-Änderungen inkrementiert. |
+| `phase` | text | `started / running / success / failed / validation_failed` |
+| `started_at` | timestamp | Script-Start. |
+| `ended_at` | timestamp | Script-Ende (auch bei Crash via finally). |
+| `duration_ms` | integer | Computed. |
+| `rows_source` | integer | Wie viele Zeilen in der Quelle (MySQL)? |
+| `rows_written` | integer | Wie viele UPSERTs ausgeführt? |
+| `rows_changed` | integer | Wie viele hatten tatsächlich Field-Deltas? |
+| `rows_inserted` | integer | Wie viele waren neu? |
+| `images_inserted` | integer | Wie viele Image-Rows tatsächlich neu (nicht Insert-Attempts)? |
+| `validation_status` | text | `ok / warnings / failed` — gesetzt von Phase A4. |
+| `validation_errors` | jsonb | Array von Fehler-Objekten wenn validation_status ≠ ok. |
+
+**Das `changes`-JSONB-Feld wird nicht mehr als Free-Form-Container benutzt.** Stattdessen: strukturierte Felder oben. `changes` bleibt leer oder wird für script-spezifische Extras genutzt, nie für Haupt-Metriken.
+
+### 5.2 `sync_change_log_v2` (neu, additive Migration)
+
+**Ersetzt** die existierende (und leere) `sync_change_log` Tabelle. Enthält ausschließlich **echte Änderungen**, keine `unchanged`-Zeilen.
+
+| Feld | Typ | Zweck |
+|---|---|---|
+| `id` | bigserial | PK |
+| `run_id` | text | FK auf `sync_log.run_id` |
+| `synced_at` | timestamp | wann dieser Eintrag geschrieben wurde |
+| `entity_type` | text | `release / artist / label / pressorga / image` |
+| `entity_id` | text | z.B. `legacy-release-12345` |
+| `change_type` | text | `inserted / updated / image_inserted` — keine `unchanged` |
+| `field` | text | Nullable. Bei `updated` der Feldname. Bei `inserted` null. |
+| `old_value` | text | Nullable. Stringified. |
+| `new_value` | text | Nullable. Stringified. |
+
+**Design-Entscheidung:** Eine Zeile **pro geändertem Feld**, nicht pro Entity. Ein einzelner Release-Update der 3 Felder ändert, schreibt 3 Zeilen. Macht Filter-Queries ("wann hat sich legacy_price von X Release geändert?") trivial und vermeidet JSONB-Queries auf `delta`-Spalten.
+
+**Größen-Abschätzung:** Bei 41k Releases und stündlichem Sync: wenn pro Run durchschnittlich 10 Felder auf 5 Releases geändert werden, sind das 50 Zeilen/Stunde = 1200/Tag = 438k/Jahr. Bei 100 Byte pro Zeile = 44 MB/Jahr. Unproblematisch.
+
+### 5.3 `sync_drift_report` (neu, Phase B)
+
+Eine Zeile pro detektiertem Drift-Vorkommen, nicht pro Drift-Check-Run. Wird nur befüllt wenn Drift > Threshold.
+
+| Feld | Typ | Zweck |
+|---|---|---|
+| `id` | bigserial | PK |
+| `detected_at` | timestamp | Wann erkannt |
+| `drift_type` | text | `count / field / referential / schedule / asset` (siehe §8) |
+| `severity` | text | `info / warning / error` |
+| `details` | jsonb | Drift-Typ-spezifische Daten |
+| `resolved` | boolean | Default false — wird per Admin-UI oder Auto-Resolve geschlossen |
+| `resolution_note` | text | Optional |
+
+### 5.4 Was NICHT gebaut wird
+
+- **Keine Voll-Audit-Tabelle mit jeder unveränderten Row.** Völlig unnötige Datenmenge.
+- **Keine separate Monitoring-DB.** Sync-State und Sync-Observability leben in derselben Supabase-DB wie die Produktions-Daten.
+- **Kein Metriken-Stream / Prometheus-Export.** Admin-UI liest direkt aus den oben genannten Tabellen.
 
 ---
 
-## 13. Nächster Schritt
+## 6. Feld-Ownership und Schutzregeln
 
-Nach Freigabe dieses Dokuments durch Robin: **Phase 1 (Audit & Contract) starten**. Das ist read-only, braucht keine Deploys, kein Produktions-Risiko. Ergebnis ist ein konkretes `LEGACY_SYNC_FIELDS`-Dict plus eine aktualisierte Version dieses Dokuments mit der verifizierten Feld-Matrix.
+Die wichtigste neue Artefakt dieses Plans. Ohne klare Ownership ist jede Robustheits-Logik beliebig.
 
-Phase 2 (Script v2) beginnt erst, wenn Phase 1 abgeschlossen und das `LEGACY_SYNC_FIELDS`-Dict review'd ist.
+**Prinzip:** Für jedes Feld in `Release` (und analog in den anderen gesyncten Tabellen) existiert genau eine Source of Truth. Alle anderen Akteure sind Read-Only oder Override-Only-unter-Bedingung.
+
+### 6.1 Release-Feld-Matrix (aktueller Stand — muss in Phase A1 verifiziert werden)
+
+**Legende Spalte "Sync überschreibt?":**
+- **Ja** = Jeder Sync-Run setzt dieses Feld auf den MySQL-Wert.
+- **Bedingt** = Mit Schutzregel (z.B. `label_enriched`).
+- **Nein** = Sync darf dieses Feld nie anfassen.
+- **Insert-only** = Nur bei erstem Einfügen.
+
+| Feld | Source of Truth | Sync überschreibt? | Schutzregel | Konflikt → Entscheider |
+|---|---|---|---|---|
+| `id` | Legacy MySQL | Insert-only | Deterministische `legacy-*-{id}` Mapping | N/A |
+| `slug` | Legacy MySQL | Ja | Keine | Frank / MySQL wins |
+| `title` | Legacy MySQL | Ja | Keine | Frank |
+| `subtitle` | ❓ | ❓ | — | zu klären (A1) |
+| `description` | Legacy MySQL | Ja | Keine | Frank |
+| `year` | Legacy MySQL | Ja | Keine | Frank |
+| `releaseDate` | ❓ | ❓ | — | zu klären (A1) |
+| `format` | Legacy MySQL | Ja | Keine | Frank |
+| `format_id` | Legacy MySQL | Ja | Keine | Frank |
+| `catalogNumber` | Legacy MySQL | Ja | Keine | Frank |
+| `barcode` | ❓ | ❓ | — | zu klären (A1) |
+| `country` | Legacy MySQL | Ja | Keine | Frank |
+| `language` | ❓ | ❓ | — | zu klären (A1) |
+| `pages` | ❓ | ❓ (Literatur) | — | zu klären (A1) |
+| `artistId` | Legacy MySQL | Ja | Keine | Frank |
+| `labelId` | Legacy MySQL | **Bedingt** | Wenn `label_enriched=TRUE` nie überschreiben | Admin (Label-Enrichment-Pipeline) |
+| `pressOrgaId` | Legacy MySQL | Ja | Keine | Frank |
+| `coverImage` | Legacy MySQL | Ja | Keine | Frank |
+| `tracklist` | ❓ | ❓ | — | zu klären (A1) |
+| `credits` | ❓ | ❓ | — | zu klären (A1) |
+| `legacy_price` | Legacy MySQL | Ja | Keine | Frank |
+| `legacy_condition` | Legacy MySQL | Ja | Keine | Frank |
+| `legacy_format_detail` | Legacy MySQL | Ja | Keine | Frank |
+| `legacy_available` | Legacy MySQL | Ja | Keine | Frank |
+| `legacy_availability` | ❓ (int, unklare Semantik) | ❓ | — | zu klären (A1) |
+| `article_number` | ❓ | ❓ | — | zu klären (A1) |
+| `tape_mag_url` | ❓ | ❓ | — | zu klären (A1) |
+| `legacy_last_synced` | Sync-Logik | Ja | Technisches Marker-Feld | Sync-Script |
+| `updatedAt` | Postgres | Ja (auf NOW()) | Technisches Marker-Feld | Sync-Script |
+| `createdAt` | Postgres | Insert-only | — | N/A |
+| `media_condition` | Admin / Medusa | **Nein** | — | Admin (manuell) |
+| `sleeve_condition` | Admin / Medusa | **Nein** | — | Admin |
+| `estimated_value` | Admin | **Nein** | — | Admin |
+| `auction_status` | Auction-Logik | **Nein** | — | Auction-Engine |
+| `current_block_id` | Auction-Logik | **Nein** | — | Auction-Engine |
+| `sale_mode` | Admin | **Nein** | — | Admin |
+| `direct_price` | Admin | **Nein** | — | Admin |
+| `inventory` | Admin | **Nein** | — | Admin |
+| `shipping_item_type_id` | Admin | **Nein** | — | Admin |
+| `product_category` | Sync (aus MySQL Typ abgeleitet) | Insert-only | — | Script-Logik |
+| `label_enriched` | Label-Enrichment-Pipeline | **Nein** | — | Script (separates Tool) |
+| `viewCount` | Storefront | **Nein** | — | User-Traffic |
+| `averageRating` / `ratingCount` / `favoriteCount` | Storefront | **Nein** | — | User-Aktion |
+| `discogs_*` (9 Felder) | Discogs API | **Nein** (vom Legacy-Sync) / Ja (vom Discogs-Sync) | — | Discogs-Sync |
+
+**Offene Fragen aus A1:** 10 Felder mit `❓` müssen in Phase A1 gegen das MySQL-Schema verifiziert werden. Erwartung: entweder sie werden gesynct (dann Contract aufnehmen) oder sie sind Legacy-Tote (dann bewusst als "nicht gesynct" markieren).
+
+**Konflikt-Verhalten:** Wenn ein Feld, das Sync überschreibt, gleichzeitig manuell im Admin-UI geändert wird, gewinnt **Frank (MySQL)**. Der Admin-UI-Wert wird beim nächsten Sync überschrieben. Das ist Design, nicht Bug. Wenn Robin das ändern will (Admin wins), muss das Feld zu `label_enriched`-analogen Schutzregeln migriert werden — separate Arbeit, pro Feld, nicht pauschal.
+
+### 6.2 Image-Ownership
+
+Images (`Image`-Tabelle, verknüpft über `releaseId`) haben eine eigene Regel:
+
+- **Image-Rows sind insert-only vom Legacy-Sync.** Einmal eingefügt, nie überschrieben. Kein Update, kein Delete vom Sync.
+- **Löschung** passiert nicht automatisch. Wenn Frank ein Bild in MySQL entfernt, bleibt die Supabase-Row bestehen. Das ist eine bewusste Einschränkung — Supabase-Image-Deletion würde Image-URLs in Auction-Blocks invalidieren. Cleanup-Job ist separate, spätere Arbeit (Prio D).
+- **`coverImage`-Feld auf Release** wird via Sync überschrieben, aber verwaiste `Image`-Rows (deren URL nicht mehr Cover ist) bleiben bestehen und sind im Storefront-Galerie-Panel sichtbar. Das ist Verhalten, keine Bug.
 
 ---
 
-*Dieses Dokument ist ein Arbeits-Plan. Es beschreibt nicht, wie die Sync-Infrastruktur JETZT aussieht, sondern wie sie aussehen soll. Der aktuelle Zustand ist in §2 dokumentiert. Jede Phase-Umsetzung aktualisiert §8 mit Status-Markern und fügt ein Kapitel "Lessons Learned" hinzu.*
+## 7. Validation, Alerting, Dead-Man's-Switch
+
+Die drei Muss-Mechanismen aus Prio A. Alle drei sind minimal.
+
+### 7.1 Post-Run Validation (A4)
+
+Nach jedem Sync-Run läuft der Script eine Validation-Phase aus vier Checks:
+
+| # | Check | Failure-Verhalten |
+|---|---|---|
+| V1 | Row-Count Source vs. Target: `|count(MySQL) - count(Supabase)| <= tolerance` (tolerance = 5 Zeilen, für Race-Conditions) | `validation_status='warnings'`, Alert auf Warning-Level |
+| V2 | Keine NOT-NULL-Verletzungen in den gesyncten Feldern (z.B. `title IS NULL`) | `validation_status='failed'`, Alert auf Error-Level |
+| V3 | Referenzielle Integrität: jede `artistId` existiert in `Artist`-Tabelle, jede `labelId` in `Label`, jede `pressOrgaId` in `PressOrga` | `validation_status='warnings'`, Alert auf Warning |
+| V4 | `legacy_last_synced` für alle Releases ist jünger als 2 x Cron-Intervall (sonst: verlorene Zeilen) | `validation_status='warnings'`, Alert auf Warning |
+
+**Keine Sanity-Range-Checks** (z.B. `legacy_price < 99999`) in Phase A. Das ist Phase B, weil es Kalibrierung braucht und False-Positive-Risiko hat.
+
+**Output:** `sync_log.validation_status` und `sync_log.validation_errors` (JSONB mit Details). Admin-UI zeigt Status-Ampel pro Run.
+
+### 7.2 Alerting (A6)
+
+**Ein einziger Kanal: E-Mail an Robin via Resend.** Keine Slack, kein Pager, keine Push.
+
+**Alert-Regeln:**
+
+| Trigger | Severity | Latenz |
+|---|---|---|
+| `sync_log.phase='failed'` | Error | Sofort (Script sendet am Ende) |
+| `sync_log.validation_status='failed'` | Error | Sofort |
+| Dead-Man's-Switch feuert (siehe 7.3) | Error | Max 15 Min |
+| `sync_log.validation_status='warnings'` | Warning | Gebündelt täglich 09:00 UTC (1 E-Mail mit allen Warnings der letzten 24h) |
+| Drift Count > threshold (Phase B) | Warning | Täglich gebündelt |
+
+**Error-Mails** gehen sofort raus, eine pro Event, mit klarer Betreff-Zeile (`[VOD Sync] Legacy sync failed: connection timeout`). Body enthält Run-ID, Link zum Admin-UI, kurzer Tail des Logs.
+
+**Warning-Mails** werden gebündelt, um Spam zu verhindern. Eine Mail pro Tag, alle Warnings enthalten. Wenn keine Warnings: keine Mail.
+
+**Dedupe:** Wenn der gleiche Fehler 5x hintereinander feuert (Script crasht alle 5 Min), nur die ERSTE Error-Mail senden. Danach alle 30 Min eine "still failing"-Reminder, bis der Zustand sich ändert.
+
+**Implementation:** Einfacher Resend-Wrapper in `backend/src/lib/sync-alerts.ts`. Aufrufbar von Python (via HTTP-POST an internen Admin-Endpoint) und von TypeScript.
+
+### 7.3 Dead-Man's-Switch (A5)
+
+**Mechanismus:** Ein separater Cron-Job (alle 15 Min) prüft: "Gab es in den letzten N Minuten einen erfolgreichen Sync-Run pro Flow?"
+
+**Thresholds (konfigurierbar, Default-Werte):**
+
+| Flow | Max-Alter ohne Alert | Quelle |
+|---|---|---|
+| Legacy MySQL (stündlich) | 90 Min | Letztes `sync_log.phase='success'` WHERE `sync_type='legacy'` |
+| Discogs Daily (Mo-Fr 02:00) | 30 h | Letztes `sync_log.phase='success'` WHERE `sync_type='discogs'`, ignoriert Sa/So |
+| R2 Image Sync (an Legacy gekoppelt) | 90 Min | Via Image-Table `MAX(createdAt)` als Proxy |
+
+**Implementation:** Neuer Python-Script `sync_watchdog.py` im Cron, prüft die oben genannten Queries und sendet E-Mail wenn ein Threshold überschritten ist. Nutzt denselben Resend-Wrapper wie 7.2.
+
+**Alternativ (einfacher):** Admin-UI hat eine Seite `/admin/sync/health` die die Threshold-Checks live ausführt beim Seitenaufruf. Robin schaut regelmäßig drauf, sieht Ampel. Das ersetzt NICHT den E-Mail-Watchdog (Robin schaut nicht alle 15 Min), ist aber eine zusätzliche Layer.
+
+**Implementations-Reihenfolge:** Erst Admin-UI-Ampel (billig, 2 Stunden Arbeit), dann Cron-Watchdog (4 Stunden), dann E-Mail-Integration (2 Stunden).
+
+---
+
+## 8. Drift Detection nach Drift-Typen
+
+Statt einer universellen Drift-Logik: fünf spezifische Drift-Typen mit jeweils einfacher, prüfbarer Regel.
+
+### 8.1 Count Drift (Priorität B)
+
+**Frage:** Ist die Anzahl der `legacy-*`-Rows in Supabase gleich der Anzahl in MySQL?
+
+**Prüfung:** Täglicher Job, ~5 Sekunden Laufzeit.
+```
+SELECT COUNT(*) FROM tape_mag.releases WHERE ... (MySQL)
+SELECT COUNT(*) FROM "Release" WHERE id LIKE 'legacy-release-%' (Supabase)
+```
+
+**Threshold:** `abs(diff) > 10` → Warning. `abs(diff) > 100` → Error.
+
+**Ausnahmen:** Zeitfenster der letzten Sync-Run-Dauer ignorieren (Race Condition, wenn Sync gerade läuft).
+
+### 8.2 Field Drift (Priorität C)
+
+**Frage:** Für eine Stichprobe von 50 Releases, sind die gesyncten Felder in Supabase exakt identisch mit MySQL?
+
+**Prüfung:** Täglicher Job, ~30 Sekunden Laufzeit. Zufällige ID-Sample, Zeilen-für-Zeilen-Vergleich über alle Felder aus dem Feld-Contract.
+
+**Threshold:** Pro Feld: `diff_rate > 5%` → Warning. Pro Sample-Set: `> 10% Zeilen mit mindestens einem Feld-Diff` → Error.
+
+**Nicht in Phase A**, weil Field-Vergleich über 50 Zeilen * 14 Felder nicht trivial zu implementieren ist und Kalibrierung braucht (was ist ein legitimer Diff zwischen Sync-Runs?).
+
+### 8.3 Referential Drift (Priorität C)
+
+**Frage:** Existieren alle `artistId`/`labelId`/`pressOrgaId`-Referenzen im Target?
+
+**Prüfung:** Bereits Teil der Post-Run Validation (V3 in 7.1). Hier würde ein separater Drift-Job das zusätzlich täglich laufen lassen, nicht nur nach Sync-Runs.
+
+**Redundant zu Phase A**, deshalb Prio C.
+
+### 8.4 Schedule Drift (Priorität B)
+
+**Frage:** Läuft der Sync wirklich so oft wie erwartet?
+
+**Prüfung:** `SELECT COUNT(*), MIN(sync_date), MAX(sync_date) FROM sync_log WHERE sync_type='legacy' AND sync_date >= NOW() - INTERVAL '24 hours'`. Erwartung bei stündlichem Sync: 24 Runs. Drift: < 20 oder > 30.
+
+**Überlappt mit Dead-Man's-Switch** (Phase A), geht aber darüber hinaus: Dead-Man's-Switch alertet bei "zu lange her", Schedule Drift alertet bei "weniger Runs als erwartet im Zeitfenster".
+
+### 8.5 Asset Drift (Priorität D)
+
+**Frage:** Sind alle R2-Image-URLs tatsächlich abrufbar?
+
+**Prüfung:** Stichprobe 50 URLs, HEAD-Request, HTTP-Status sammeln.
+
+**Bewusst zurückgestellt**, weil: teuer (50 HTTP-Calls pro Check), unklarer operativer Mehrwert (wenn eine URL stirbt, will Robin dann automatisch neu uploaden oder nur einen Report? Unklar, Kalibrierung später.)
+
+**Wird gebraucht spätestens wenn:** Storefront-User sich über kaputte Bilder beschweren UND der Bug nicht sofort gefunden werden kann.
+
+---
+
+## 9. Logging, Audit und Metrik-Strategie
+
+### 9.1 Was wird geloggt
+
+| Daten | Ziel | Retention |
+|---|---|---|
+| Sync-Run-Summary (eine Zeile/Run) | `sync_log` | 1 Jahr |
+| Field-Level-Changes (nur echte Änderungen) | `sync_change_log_v2` | 6 Monate |
+| Drift-Reports (nur detektierte Drift) | `sync_drift_report` | 1 Jahr |
+| Unhandled Exceptions im Script | stderr → Sentry (wenn konfiguriert) | Sentry-Default |
+| Strukturiertes Script-Log (JSON-Lines) | stdout → PM2-Log-File | PM2 rotation default (30 Tage) |
+
+**Keine** Full-Audit-Logs. **Kein** unchanged-Row-Logging. Wenn für eine spätere GoBD-Anforderung ein Audit-Trail auf Feld-Ebene gebraucht wird, kommt der separat aus dem ERP-Modul (siehe `ERP_WARENWIRTSCHAFT_KONZEPT.md` v5).
+
+### 9.2 Metrik-Regel
+
+Jede Metrik im Admin-UI und in `sync_log` muss die Doku-Frage "was heißt das konkret?" in einem Satz beantworten können.
+
+**Beispiele:**
+- `rows_written: 30168` = "Anzahl UPSERTs, die erfolgreich an Supabase geschickt wurden" ✓
+- `rows_changed: 3` = "Anzahl Zeilen, deren mindestens ein Feld-Wert sich zwischen prev und new unterscheidet" ✓
+- `images_inserted: 12` = "Anzahl Image-Rows, die in diesem Run neu eingefügt wurden (nicht ON CONFLICT skipped)" ✓
+- ~~`new_images: 32866`~~ = **verboten** (war alter Wert, kumulativ, gelöscht)
+
+Wenn eine Metrik diese Frage nicht klar beantworten kann → aus dem Script und aus der UI entfernen.
+
+### 9.3 Größen-Budget
+
+Geschätzte Tabellen-Wachstumsraten:
+
+| Tabelle | Wachstum/Jahr | OK auf Free-Plan? |
+|---|---|---|
+| `sync_log` | ~9k Zeilen/Jahr (stündlich Legacy + täglich Discogs + R2) | Ja (trivial) |
+| `sync_change_log_v2` | ~500k Zeilen/Jahr bei normaler Edit-Frequenz | Ja (~50 MB) |
+| `sync_drift_report` | <1000 Zeilen/Jahr | Ja (trivial) |
+
+**Wenn Edit-Frequenz stark steigt** (z.B. Frank editiert 1000 Releases/Tag statt 50): `sync_change_log_v2` auf 10 Mio Zeilen/Jahr = 1 GB. Immer noch Free-Plan-verträglich, aber bei dieser Grenze Retention auf 3 Monate reduzieren.
+
+**Abfrage-Performance:** Alle drei Tabellen bekommen Indizes auf `run_id` und `synced_at/detected_at` (zeitbasierte Filter). Admin-UI-Queries nie ohne Zeit-Filter.
+
+---
+
+## 10. Betriebsverantwortung und Incident-Logik
+
+**Ausgangspunkt:** Solo-Operator (Robin) + gelegentlicher Content-Editor (Frank). Keine Ops-Team-Struktur.
+
+### 10.1 Rollen
+
+| Rolle | Verantwortung |
+|---|---|
+| **Robin** | Einziger Empfänger aller Alerts. Einzige Person mit Admin-UI-Schreibrechten. Entscheidet bei Drift, Validation-Fails, Cutover-Fragen. |
+| **Frank** | Content-Editor in MySQL Legacy. Kein Admin-UI-Zugriff für Sync-Operations. Wird nur informiert wenn seine Edits nicht durchkommen (z.B. "dein Edit um 14:00 landete nicht in Supabase, bitte nochmal prüfen"). |
+| **Claude Code** | Keine Laufzeit-Verantwortung. Wird nur auf Anforderung für Fixes, Analysen, Code-Changes gezogen. Schreibt keine Alerts aus, löst keine Re-Syncs aus. |
+
+### 10.2 Incident-Kategorien
+
+| Severity | Beispiele | Reaktions-SLA | Aktion |
+|---|---|---|---|
+| **Critical** | Sync-Cron tot > 3h, Validation-Fail mit Datenverlust, Supabase unerreichbar | Sofort (Robin wacht auf) | SSH auf VPS, Cron prüfen, Logs lesen, Script manuell starten |
+| **Error** | Einzelner Sync-Run gescheitert, NOT-NULL-Verletzung, Schedule-Drift | Innerhalb 2 h | Admin-UI öffnen, Run-Details lesen, Root-Cause identifizieren, entscheiden: Re-Run oder warten auf nächsten Cron |
+| **Warning** | Count-Drift, Referential-Drift, Long-Running-Run | Täglicher Digest morgens | Lesen, entscheiden ob Trend, ggf. Issue für Claude aufmachen |
+| **Info** | Erfolgreicher Run, neue Images synced | Nicht reaktiv | Im Dashboard sichtbar, keine Aktion nötig |
+
+### 10.3 Re-Sync-Auslösung
+
+**Wer darf einen Full-Resync auslösen?** Nur Robin, manuell über einen Admin-UI-Button `/app/sync/actions/force-legacy-resync`. Kein automatischer Auto-Heal in Phase A oder B.
+
+**Wer darf einen Einzel-Row-Resync auslösen?** Robin, über einen separaten Admin-UI-Flow (Phase B, nicht jetzt) — oder manuell via `UPDATE "Release" SET legacy_last_synced = '2000-01-01' WHERE id = ?` um den nächsten Sync-Run zu zwingen, die Zeile anzufassen.
+
+**Wer darf Drift-Reports als resolved markieren?** Robin, über Admin-UI.
+
+---
+
+## 11. Phasenplan
+
+Keine harten Wochen-Deadlines. Jede Phase ist abgeschlossen, wenn die Erfolgs-Kriterien erfüllt sind. Phasen sind strikt sequentiell — keine Parallelität zwischen A und B.
+
+### Phase A — Muss (target: 1-2 Wochen Arbeit, verteilt)
+
+| ID | Maßnahme | Abhängigkeiten |
+|---|---|---|
+| A1 | Field-Audit Legacy MySQL → Feld-Contract vollständig | — |
+| A2 | `sync_log` Schema-Erweiterung (neue Spalten) | A1 |
+| A3 | `legacy_sync.py` Rewrite: Contract-basiert, alle 14 Felder, ehrliche Metriken | A1, A2 |
+| A4 | Post-Run Validation im Script | A3 |
+| A5 | Dead-Man's-Switch: Admin-UI-Ampel + Cron-Watchdog | A2 |
+| A6 | E-Mail-Alerting via Resend | A4, A5 |
+| A7 | Python-Script-Pfade härten (Environment-Variable oder walk-up) | A3 |
+
+**Erfolgs-Kriterium Phase A (Mindeststandard):**
+- Nach einem Sync-Run sind `rows_changed`, `images_inserted`, `validation_status` in `sync_log` befüllt und ehrlich.
+- Wenn ein Sync-Run scheitert oder länger als 90 Min ausbleibt, bekommt Robin eine E-Mail.
+- Admin-UI `/app/sync` zeigt live die echten Metriken, keine kumulativen Lügen mehr.
+
+### Phase B — Später (target: 2-4 Wochen nach A)
+
+| ID | Maßnahme | Abhängigkeiten |
+|---|---|---|
+| B1 | `sync_change_log_v2` Tabelle + Script schreibt Feld-Level-Changes | Phase A abgeschlossen |
+| B2 | Drift Detection: Count Drift + Schedule Drift | Phase A |
+| B3 | `sync_drift_report` Tabelle + Admin-UI-View | B2 |
+| B4 | Dry-Run-Modus im Script | A3 |
+| B5 | CLAUDE.md Sync-Section komplett rewrite (nach Phase A-Realität) | Phase A abgeschlossen |
+
+**Erfolgs-Kriterium Phase B (Zielstandard):**
+- Jede Änderung eines gesyncten Felds produziert einen Eintrag in `sync_change_log_v2`.
+- Count-Drift wird einmal täglich geprüft und bei Überschreiten gemeldet.
+- Script-Änderungen können vor Produktions-Deploy auf Staging-DB dry-run'd werden.
+
+### Phase C — Optional (target: nach Bedarf)
+
+| ID | Maßnahme |
+|---|---|
+| C1 | Field Drift Detection |
+| C2 | Referential Drift als separater Job |
+| C3 | Admin-UI-Erweiterung: Change-Log-Browser mit Filter |
+| C4 | Discogs Change-Tracking |
+| C5 | R2 Entkopplung + Asset Drift Detection |
+
+**Erfolgs-Kriterium Phase C (Ausbaustufe):**
+- Alle Nebenschauplätze sind abgedeckt.
+- Manuelle Operator-Arbeit ist auf "Dashboard einmal täglich anschauen" reduziert.
+
+---
+
+## 12. Risiken, Grenzen und zurückgestellte Themen
+
+### 12.1 Aktive Risiken in Phase A
+
+| Risiko | Wahrscheinlichkeit | Impact | Mitigation |
+|---|---|---|---|
+| Script-Rewrite hat Regression → gesyncte Daten verlieren Felder | Mittel | Hoch | Dry-Run auf Staging-DB vor Cutover, alte Script-Version als Backup behalten, 48h Parallel-Betrieb |
+| Post-Run Validation ist zu streng → False-Positive-Alarm-Flut | Mittel | Mittel | Warnings statt Errors für die ersten 2 Wochen, dann Thresholds kalibrieren |
+| Dead-Man's-Switch feuert bei legitimen Wartungsfenstern | Niedrig | Niedrig (nur nervige E-Mail) | Silence-Fenster konfigurierbar |
+| Feld-Contract entspricht nicht der MySQL-Realität (Felder fehlen oder sind falsch getypt) | Mittel | Hoch | Phase A1 ist reiner Audit, keine Code-Änderung. Fehler dort schlägt sich nicht auf Produktion durch. |
+| Frank editiert während Script-Rewrite → Edits gehen verloren | Niedrig | Mittel | Parallel-Betrieb alt + neu, v1 bleibt Source of Truth bis v2 verifiziert |
+
+### 12.2 Irreführende Beobachtbarkeit
+
+**Risiko:** Ein robustes Sync-System verleitet Robin zu dem Glauben, dass Daten korrekt sind, wenn das Dashboard grün ist — und verpasst Fehler, die das System nicht erkennt.
+
+**Beispiele:**
+- Validation V1 prüft Count, aber nicht Content. Wenn alle Preise auf 0 gesetzt werden, ist Count gleich, Validation grün, Katastrophe.
+- Drift-Detection Count bemerkt keine Feld-Änderungen.
+- Admin-UI zeigt "letzter Run erfolgreich", aber der Run hat tatsächlich nur 10% der Rows angefasst (Race Condition mit MySQL-Query).
+
+**Mitigation:** Erfolgs-Kriterien sind gestuft. Grün im Dashboard bedeutet "keine der geprüften Regeln ist verletzt", nicht "alles ist in Ordnung". Robin muss weiterhin stichprobenartig prüfen. Das ist Design, nicht Lücke.
+
+### 12.3 Performance- und Kostenrisiken
+
+| Maßnahme | Performance-Impact | Kosten-Impact |
+|---|---|---|
+| `sync_change_log_v2` mit Feld-Level-Writes | Zusätzliche INSERTs pro Sync-Run (geschätzt +5-10% Run-Dauer) | Trivial (MB-Bereich) |
+| Post-Run Validation Queries | +5-10 Sekunden pro Run | Null |
+| Drift-Detection täglicher Job | +10 Sekunden Cron-Zeit | Null |
+| Dead-Man's-Switch alle 15 Min | Trivial (1 Query) | Null |
+| E-Mail-Alerts via Resend | — | ~0€ (Resend Free-Tier sehr großzügig) |
+
+**Gesamt-Impact:** Legacy-Sync-Laufzeit von 30-45s auf ~45-60s. Akzeptabel bei stündlichem Intervall.
+
+### 12.4 Zurückgestellte Themen (keine Arbeit in Phase A+B)
+
+| Thema | Grund der Zurückstellung |
+|---|---|
+| Auto-Heal bei Drift | Zu riskant ohne über Monate stabile Drift-Metriken. Manueller Re-Sync reicht initial. |
+| Unchanged-Row-Logging | Keine Mehrwert gegenüber Run-Summary. Datenmenge wäre Faktor 1000. |
+| Real-Time CDC (Debezium o.ä.) | Batch reicht. Real-Time braucht niemand. |
+| Zweite Monitoring-Plattform (Prometheus/Grafana) | Supabase + Admin-UI + E-Mail reicht. |
+| Legal-Grade-Audit-Trail | Aus dem ERP-Modul. |
+| Discogs Full-History (Preis-Zeitreihe) | Eigenes Projekt. |
+| R2 Full-Asset-Integrity-Check | Teuer, unklarer Nutzen. |
+| Admin-UI "Change-Log-Browser" mit Such- und Filter-UI | Erst wenn Daten sauber fließen (nach Phase A+B). |
+| Multi-Tenant-Sync (mehrere Tape-Mag-Instanzen) | Nicht im Scope. |
+| Frank-facing Error-Notifications ("dein Edit kam nicht an") | Erst nach mehreren Monaten Erfahrung mit Phase A. |
+
+---
+
+## 13. Klare Empfehlung
+
+**Start mit Phase A1 (Field-Audit), bevor irgendein Code geschrieben wird.**
+
+Dauer: 1-2 Stunden. Ergebnis: eine Python-Konstante `LEGACY_SYNC_FIELDS` plus aktualisierte Feld-Matrix in diesem Dokument (§6.1 mit allen `❓` aufgelöst).
+
+**Gate für Phase A2+:** Robin hat die Feld-Matrix gelesen und für jedes Feld bestätigt: "gesynct ja/nein, Ownership stimmt". Ohne dieses Gate wird kein Script verändert.
+
+**Nicht gemacht in der ersten Iteration:**
+- Kein neuer Admin-UI-Tab
+- Keine neue Tabelle `sync_change_log_v2`
+- Keine Drift-Detection
+- Kein Dry-Run-Modus
+
+**Das sind bewusst Phase B und später.** Die erste Iteration macht den Python-Script ehrlich und löst Alerts aus. Das ist 80% des operativen Mehrwerts bei 30% der Komplexität.
+
+**Erfolgs-Check nach 2 Wochen Phase A:**
+- Sind die Metriken im Admin-Dashboard ehrlich? (Test: Frank editiert 5 Releases → beim nächsten Sync erscheint `rows_changed: 5`)
+- Alertet das System bei einem induzierten Fehler? (Test: Script manuell mit broken DB-URL starten → E-Mail kommt)
+- Alertet der Dead-Man's-Switch? (Test: Cron deaktivieren → 90 Min warten → E-Mail kommt)
+
+Wenn alle drei Tests grün: Phase A ist abgeschlossen, Phase B kann starten.
+
+Wenn nicht: Phase A nachbessern, **nicht** Phase B starten. Keine Komplexität auf unstabiler Basis.
+
+---
+
+*Dieses Dokument ersetzt v1.0. Zurückgestellte Themen aus v1.0 (Auto-Heal, Full-Admin-UI, unchanged-Logging, Prometheus-Style-Observability) sind bewusst gestrichen, nicht vergessen. Wenn in 6 Monaten die Basis steht und diese Themen immer noch sinnvoll sind, werden sie als separate Dokumente/Phasen aufgesetzt.*
