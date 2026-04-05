@@ -62,6 +62,12 @@ export const FEATURES = {
     description: "Multi-Seller Marketplace (Stripe Connect, Seller-Onboarding)",
     category: "erp",
   },
+  EXPERIMENTAL_STORE_SITE_MODE_DEBUG: {
+    key: "EXPERIMENTAL_STORE_SITE_MODE_DEBUG",
+    default: false,
+    description: "Trial flag — adds a _debug field with server-time to GET /store/site-mode. Used to validate the feature-flag infrastructure end-to-end (registry → DB → backend handler → conditional response).",
+    category: "experimental",
+  },
 } as const satisfies Record<string, FeatureFlagDefinition>
 
 export type FeatureFlagKey = keyof typeof FEATURES
