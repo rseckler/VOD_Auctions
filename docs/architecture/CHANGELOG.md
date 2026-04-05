@@ -4,6 +4,140 @@ Vollständiger Entwicklungs-Changelog. Neue Einträge werden direkt hier ergänz
 
 ---
 
+## 2026-04-05 (evening) — Sync Robustness Overhaul: Path Regression Fix + legacy_sync v2
+
+Massive session covering a cwd-regression discovery, a full sync-robustness architectural plan, and a complete Python-sync-script rewrite.
+
+### Part 1 — Path regression cascade (triggered by today's PM2 cwd fix)
+
+The morning's PM2 cwd fix (moving backend from `backend/` to `backend/.medusa/server/`) silently broke seven admin routes and exposed two hardcoded absolute paths. Symptoms: R2 Image CDN admin widget showed "No sync yet" despite 160,957 files in the bucket; other sync dashboards showed empty data.
+
+**Root cause:** Routes used `process.cwd()/..` or `__dirname/../../../...` to resolve `scripts/` and `data/` at the project root. Both patterns assumed cwd=`backend/` or `__dirname` pointing at TypeScript source. After cwd moved to `.medusa/server/` and compiled JS lives under `.medusa/server/src/...`, every relative path pointed at non-existent directories.
+
+**Fix:** Central helper `backend/src/lib/paths.ts` with walk-up resolution from `process.cwd()` looking for a directory containing `backend/`, `scripts/`, and `storefront/` as siblings. Cached result. All 7 affected routes refactored to use `getProjectRoot()`, `getScriptsDir()`, `getDataDir()`, `getStorefrontPublicDir()`, `getTestsDir()` helpers. Two additional hardcoded `/root/VOD_Auctions/` paths cleaned up as bonus.
+
+**Routes fixed:**
+- `admin/sync/r2-sync/route.ts` (the visible R2 widget bug)
+- `admin/sync/batch-progress/route.ts`
+- `admin/sync/discogs-health/route.ts`
+- `admin/sync/extraartists-progress/route.ts`
+- `admin/gallery/upload/route.ts`
+- `admin/test-runner/route.ts`
+- `admin/entity-content/overhaul-status/route.ts`
+- `admin/dashboard/route.ts` (hardcoded `/root/VOD_Auctions/scripts/legacy_sync.log`)
+- `admin/system-health/alerts/route.ts` (same hardcoded path)
+
+Deep-search agent audit confirmed: zero remaining `process.cwd()` or `__dirname`-relative-path usages in backend source outside `paths.ts` itself. Zero hardcoded `/root/VOD_Auctions/` strings in active code (one remaining hit is a comment documenting a env-var pattern).
+
+### Part 2 — Legacy sync widget honest metrics
+
+The Legacy MySQL Sync widget's "Changes (last run)" tile was reading from `sync_log.changes.new_images`, which turned out to be cumulative "attempted inserts" from `ON CONFLICT DO NOTHING` — stable at 32,866 across runs regardless of actual new images. Misleading.
+
+**Fix:** Server-computed counts directly from the `Image` table for a rolling 24h and 7d window. `GET /admin/sync` now returns `last_legacy_sync.new_images_last_24h` and `new_images_last_7d`. Widget renamed from "Changes (last run)" to "New images (24h)" — honest about what's shown. Subline shows 7d rollup and (once v2 sync is live) field-edit counts.
+
+**Lesson recorded in SYNC_ROBUSTNESS_PLAN §3.2:** strict-last-run windows on hourly-sync pipelines almost always read zero even when activity is happening; rolling windows match operator mental models better.
+
+### Part 3 — SYNC_ROBUSTNESS_PLAN (v1.0 → v2.0 → v2.1 → v2.2 → v2.3)
+
+New architectural planning document at `docs/architecture/SYNC_ROBUSTNESS_PLAN.md`. Went through four versions in one session:
+
+- **v1.0:** First draft. Too broad, over-engineered (555 lines). Mixed must-have with nice-to-have. Auto-Heal, unchanged-row-logging, full UI rewrite treated as core building blocks.
+
+- **v2.0:** Complete rewrite per Robin's hardening feedback. Hard A/B/C/D priority ranking. Auto-Heal → Priority D (deferred). Unchanged-row-logging → explicitly rejected. UI ambitions trimmed. Drift Detection split into 5 typed checks (Count, Field, Referential, Schedule, Asset). New Field-Ownership matrix (§6) as the core artifact. Operational Responsibility section (solo operator model). Realistic risk section including misleading observability and false positives.
+
+- **v2.1:** Phase A1 (Field Audit) complete. Every `❓` in the ownership matrix resolved via read-only analysis of the Python script and MySQL source schemas. **Key finding:** MySQL source is much smaller than the Supabase target — the main `3wadmin_tapes_releases` table has only 14 columns. Many Supabase Release fields have no MySQL source at all (`subtitle`, `barcode`, `language`, `pages`, `releaseDate`, `tracklist`, `credits`, `article_number`, `tape_mag_url`, `legacy_availability`, `media_condition`, `sleeve_condition`) — they can never be synced regardless of intent. `LEGACY_SYNC_FIELDS` dict published as the formal Python contract.
+
+- **v2.2:** Phase A2 (sync_log schema extension) complete. 13 new nullable columns added via additive migration (`run_id`, `script_version`, `phase`, `started_at`, `ended_at`, `duration_ms`, `rows_source`, `rows_written`, `rows_changed`, `rows_inserted`, `images_inserted`, `validation_status`, `validation_errors`) plus 2 partial indexes. Applied to Staging first, then Production. **Critical verification:** v1 script continued writing successfully through the Production migration — rows 11902 (14:00 UTC) and 11903 (15:00 UTC) arrived with NULL values in new columns, zero errors, zero lock conflicts.
+
+- **v2.3:** Phase A3+A4+A7 complete. See Part 4 below.
+
+### Part 4 — legacy_sync.py v2 rewrite (Phase A3+A4+A7)
+
+New file: `scripts/legacy_sync_v2.py` (1316 lines). v1 (`legacy_sync.py`, 805 lines) preserved as rollback backup.
+
+**v2 features per plan:**
+- **Full-field diff:** 14 fields for music releases (`title, description, year, format, format_id, catalogNumber, country, artistId, labelId, coverImage, legacy_price, legacy_condition, legacy_format_detail, legacy_available`), 11 fields for literature (no `catalogNumber/legacy_condition/legacy_available` — MySQL lit tables lack those columns). v1 only diffed 4 of 14 — meaning Frank's edits to `legacy_condition`, `description`, `year`, etc. were silently unreported.
+- **Accurate image counts:** `INSERT ... RETURNING id` with `fetch=True` returns actual new rows, not attempted inserts.
+- **Structured sync_log writes:** `start_run()` creates row with `phase='started'`; `end_run()` updates with all metrics and `phase='success'/'failed'/'validation_failed'`. Populates all 13 new columns from A2. Legacy `changes` JSONB still written with extras (R2 stats, new entity counts) for backward-compat with existing admin queries.
+- **Post-run validation (A4, delivered with A3 since trivial to include):** V1 MySQL↔Supabase row count parity (tolerance 10, error ≥100), V2 title NOT NULL, V3 referential integrity (orphan artistId/labelId), V4 sync freshness (legacy_last_synced < 2h).
+- **`--dry-run` flag:** Computes full diff, prints summary, commits nothing.
+- **`--pg-url` override:** Point at staging Supabase without editing `.env`.
+- **`label_enriched` guard respected in diff logic** (not just in UPSERT).
+- **SCRIPT_VERSION constant** (`legacy_sync.py v2.0.0`) written to sync_log for run attribution.
+- **Exit codes:** 0 success, 2 fatal error, 3 validation_failed.
+
+**Path hardening (A7):** The Python scripts already used `Path(__file__)` throughout (cwd-independent). v2 preserves this. Nothing to fix — A7 was a no-op once the audit confirmed current state.
+
+### Verification sequence (3 stages)
+
+1. **Dry-run on Staging** (empty DB from today's provision): 41,540 rows "would insert", 0 errors, 15.0s.
+2. **Dry-run on Production** (real data): 0 diffs reported — correct behavior because v1 has been hourly UPSERT-ing all fields for weeks, so MySQL and Supabase are in sync. Zero false positives across 41k rows.
+3. **Real-write run on Production:** 0 changes, 0 inserts, 32.0s. `sync_log` row 11904 verified populated with all new columns. Post-run validation ran — **found 216 orphan labels** (Release rows with `labelId` pointing to deleted Label entries). This is a genuine previously-unknown drift that v1 never would have detected. Warning severity, non-blocking for deploy. Tracked as separate cleanup task for after Phase B.
+
+### Cron cutover
+
+After successful verification, crontab on VPS was edited to point at `legacy_sync_v2.py` instead of `legacy_sync.py`. Backup at `/tmp/crontab.bak-1775402626`. Rollback path: `crontab /tmp/crontab.bak-1775402626` — 10 seconds, reverts to v1. v1 script remains in place for 7 days as safety backup; removal only after extended stable v2 operation.
+
+### Phase A status
+
+| ID | Maßnahme | Status |
+|---|---|---|
+| A1 | Field Audit | ✅ |
+| A2 | sync_log schema extension | ✅ |
+| A3 | legacy_sync.py rewrite | ✅ |
+| A4 | Post-run validation | ✅ (delivered with A3) |
+| A5 | Dead-Man's-Switch | pending (tomorrow) |
+| A6 | E-Mail alerting via Resend | pending (tomorrow) |
+| A7 | Python path hardening | ✅ (no-op — already safe) |
+
+### Commits (this session)
+
+- `370f48b` — Fix cwd-independent project paths (7 files + paths.ts helper)
+- `f0ad27a` — Legacy Sync "Changes (last run)" tile + 2 hardcoded path fixes
+- `fdd4ea7` — Honest server-computed new-image counts for widget
+- `7023e96` — Switch widget to 24h rolling window (strict-last-run was misleading)
+- `e2af928` — SYNC_ROBUSTNESS_PLAN v1.0 (too broad, superseded)
+- `97b4873` — SYNC_ROBUSTNESS_PLAN v2.0 (hardened per Robin feedback)
+- `1705982` — Fix ERP concept v5.0 header (from earlier issue discovered mid-session)
+- `aa2c4ef` — Phase A1 Field Audit → plan v2.1 with verified ownership matrix
+- `b5c16fc` — Phase A2 sync_log schema extension migration
+- `cf3856e` — Phase A3 legacy_sync_v2.py (1316 lines)
+- `e1c893a` — Plan v2.3 marking A3+A4+A7 complete
+
+### Files
+
+**New:**
+```
+backend/src/lib/paths.ts
+backend/scripts/migrations/2026-04-05_sync_log_schema_extension.sql
+docs/architecture/SYNC_ROBUSTNESS_PLAN.md
+scripts/legacy_sync_v2.py
+```
+
+**Changed (non-trivial):**
+```
+backend/src/api/admin/sync/r2-sync/route.ts           (path hardening)
+backend/src/api/admin/sync/batch-progress/route.ts    (path hardening)
+backend/src/api/admin/sync/discogs-health/route.ts    (path hardening)
+backend/src/api/admin/sync/extraartists-progress/route.ts (path hardening)
+backend/src/api/admin/gallery/upload/route.ts         (path hardening)
+backend/src/api/admin/test-runner/route.ts            (path hardening)
+backend/src/api/admin/entity-content/overhaul-status/route.ts (path hardening)
+backend/src/api/admin/dashboard/route.ts              (hardcoded path fix)
+backend/src/api/admin/system-health/alerts/route.ts   (hardcoded path fix)
+backend/src/api/admin/sync/route.ts                   (24h rolling window for new_images)
+backend/src/admin/routes/sync/page.tsx                (new widget tile)
+docs/architecture/CHANGELOG.md                        (this entry)
+```
+
+**VPS-only:**
+```
+crontab → legacy_sync.py replaced with legacy_sync_v2.py
+/tmp/crontab.bak-1775402626 (backup for rollback)
+```
+
+---
+
 ## 2026-04-05 (afternoon) — Trial-Flag `EXPERIMENTAL_SKIP_BID_CONFIRMATION` + Staging-DB live
 
 ### Trial Flag — validation of client-side flag stack
