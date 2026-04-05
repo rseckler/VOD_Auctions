@@ -4,6 +4,111 @@ Vollständiger Entwicklungs-Changelog. Neue Einträge werden direkt hier ergänz
 
 ---
 
+## 2026-04-05 (night) — Email Addressing Overhaul: Reply-To, Mailbox Structure, DMARC
+
+Nach dem ersten Live-Testlauf am Fr 3.4.2026 ("Throbbing Gristle & Industrial Records", 6 echte Bieter, 17 Transaktionen) wurde sichtbar dass customer-relevant Mails auf zwei Domains verteilt waren: Absender `noreply@`/`newsletter@vod-auctions.com`, Kontakt-Footer aber `info@vod-records.com`. Antworten auf Transaktions-Mails landeten im Nichts (kein `Reply-To`-Header). Keine dedizierte DSGVO-Adresse. Kein konsistenter Brand.
+
+### Mailbox-Struktur bei all-inkl (manuell angelegt)
+
+**Echte Postfächer (2):**
+- `support@vod-auctions.com` — zentrale Kunden-Anlaufstelle
+- `privacy@vod-auctions.com` — DSGVO, Account-Löschung
+
+**Aliase → support@:** `info@`, `billing@`, `orders@`, `abuse@`, `postmaster@` (RFC 2142 + Impressum-Pflicht)
+**Aliase → Frank:** `frank@vod-auctions.com`, `press@vod-auctions.com`
+
+### Code-Änderungen (Commit `2e2f5a6`)
+
+**Single Source of Truth:**
+- `backend/src/lib/email.ts` exportiert `SUPPORT_EMAIL` + `PRIVACY_EMAIL` aus ENV-Vars
+- `backend/.env` + `.env.example` um `SUPPORT_EMAIL`, `PRIVACY_EMAIL`, `EMAIL_FROM` ergänzt
+- VPS `.env` manuell synchronisiert (git-ignored)
+
+**Reply-To auf allen customer-facing Sends:**
+- Resend Wrapper (`lib/email.ts`) — `sendEmail()` setzt automatisch `replyTo: SUPPORT_EMAIL`, Override per Parameter möglich
+- Brevo Wrapper (`lib/brevo.ts`) — `sendCampaign()` + `sendTransactionalTemplate()` setzen `replyTo` auf support@. Gilt für alle 4 Newsletter-Templates und alle Transaktions-Brevo-Sends.
+
+**Kundenkontakte ersetzt (Storefront + Templates):**
+- `storefront/src/components/layout/Footer.tsx`: `shop@vod-records.com` → `support@vod-auctions.com`
+- `storefront/src/app/account/settings/page.tsx`: `info@vod-records.com` → `privacy@vod-auctions.com` (Account-Löschung, DSGVO)
+- `backend/src/emails/welcome.ts`, `bid-won.ts`, `shipping.ts`: `info@vod-records.com` → `support@vod-auctions.com` im Template-Footer
+
+**Weitere 4 Call-Sites auf `sendEmailWithLog` migriert** (ergänzt die am 3.4. begonnene Audit-Trail-Arbeit aus Release `v2026.04.03-auction-review`):
+- `backend/src/subscribers/password-reset.ts` (Customer + Admin Reset)
+- `backend/src/api/store/account/verify-email/route.ts`
+- `backend/src/api/store/account/send-welcome/route.ts` (`sendVerificationEmail`)
+- `backend/src/api/store/newsletter/route.ts` (Newsletter Double-Opt-In)
+
+Damit sind jetzt auch Password-Reset, Verify-Email und Newsletter-Confirm-Mails im `email_log`-Table sichtbar — nicht nur die 13 Helper aus `email-helpers.ts`.
+
+**`vod-records.com` bleibt unangetastet** wo rein technisch (nicht kundensichtbar): Stripe-Owner, PayPal-Owner, Resend-Account-Owner (alle `frank@vod-records.com`), Admin-Notification-Empfänger in `payment-deadline.ts` und `site-config/go-live/route.ts`.
+
+### DNS / DMARC (manuell via all-inkl KAS)
+
+Vorher:
+```
+_dmarc.vod-auctions.com → "v=DMARC1; p=none; rua=mailto:rua@dmarc.brevo.com"
+```
+
+Nachher:
+```
+_dmarc.vod-auctions.com → "v=DMARC1; p=quarantine; sp=quarantine; adkim=r; aspf=r; pct=100;
+                           rua=mailto:postmaster@vod-auctions.com;
+                           ruf=mailto:postmaster@vod-auctions.com; fo=1"
+```
+
+- `p=quarantine` + `sp=quarantine`: SPF/DKIM-Fails landen bei Empfängern im Spam
+- `rua` + `ruf` auf `postmaster@` → Reports landen via Alias in `support@` Postfach
+- `fo=1`: Failure-Reports bei SPF **oder** DKIM-Fail (nicht nur wenn beide fallen)
+
+**SPF bereits korrekt:** `v=spf1 a mx include:spf.kasserver.com include:amazonses.com include:sendinblue.com ~all` (Amazon SES deckt Resend, sendinblue.com ist Brevos Legacy-Name).
+
+**DKIM bereits korrekt:** Resend via `resend._domainkey` TXT-Record, Brevo via `brevo1._domainkey` + `brevo2._domainkey` CNAMEs.
+
+### Testlauf-Kontext (3.4.2026)
+
+Die fehlenden `email_log`-Einträge für Welcome/Bid-Placed/Bid-Won/Payment-Confirmation/Shipping Mails vom 3.4. vormittags sind korrekt — das Audit-Trail wurde erst am 3.4. 14:15 UTC durch Release `v2026.04.03-auction-review` eingeführt, die Auction lief 30.3.–3.4. 10:00 UTC. Alle Mails nach 14:15 UTC am 3.4. sind geloggt (z.B. `payment-reminder-1` an Gundel Zillmann + Anna Zillmann am 5.4. 07:00 UTC).
+
+### Bekannte Altlasten (nicht in diesem Commit)
+
+- `backend/src/jobs/payment-deadline.ts` — Admin-Notification-Empfänger noch `frank@vod-records.com` (intern, nicht customer-facing — bewusst nicht geändert)
+- `storefront/src/app/impressum/page.tsx` + `datenschutz/page.tsx` — Legal-Kontakt `frank@vinyl-on-demand.com` (juristische Firmen-Adresse, separate Klärung nötig)
+- `admin@vod.de` — Test-Admin-Login (intern)
+
+### Deploy
+
+Vollständiger VPS-Deploy via Standard-Sequenz (git pull, rm `.vite` + `.medusa`, `medusa build`, admin assets copy, `.env` symlink, pm2 restart backend, storefront build + restart). Port 9000 bootet in 3.9s, `api.vod-auctions.com/health` HTTP 200, compiled `.medusa/server/src/lib/email.js` enthält `replyTo`/`SUPPORT_EMAIL` Referenzen.
+
+### Commits
+
+- `2e2f5a6` — Email: Reply-To support@ + migrate customer contacts to vod-auctions.com (13 files, +55/-21)
+
+### Files
+
+**Changed:**
+```
+backend/.env.example                                 (neue ENVs dokumentiert)
+backend/src/lib/email.ts                             (SUPPORT_EMAIL/PRIVACY_EMAIL exports + replyTo)
+backend/src/lib/brevo.ts                             (replyTo in sendCampaign + sendTransactionalTemplate)
+backend/src/emails/welcome.ts                        (info@vod-records → support@vod-auctions)
+backend/src/emails/bid-won.ts                        (dto.)
+backend/src/emails/shipping.ts                       (dto.)
+backend/src/subscribers/password-reset.ts            (sendEmail → sendEmailWithLog, customer + admin)
+backend/src/api/store/account/verify-email/route.ts  (sendEmail → sendEmailWithLog)
+backend/src/api/store/account/send-welcome/route.ts  (sendEmail → sendEmailWithLog)
+backend/src/api/store/newsletter/route.ts            (sendEmail → sendEmailWithLog + pgConnection resolve)
+storefront/src/components/layout/Footer.tsx          (shop@vod-records → support@vod-auctions)
+storefront/src/app/account/settings/page.tsx         (info@vod-records → privacy@vod-auctions)
+CLAUDE.md                                            (Email-Sektion komplett umgeschrieben)
+```
+
+### Follow-Ups
+
+- Verification der Reply-To-Header sobald nächste Transaktions-Mail an einen der 6 echten Testbieter rausgeht (via Gmail MCP auf `robin@seckler.de` prüfbar)
+- Impressum/Datenschutz Legal-Adressen (vinyl-on-demand.com) — separate Entscheidung ob auch auf vod-auctions.com migrieren
+
+---
+
 ## 2026-04-05 (evening) — Sync Robustness Overhaul: Path Regression Fix + legacy_sync v2
 
 Massive session covering a cwd-regression discovery, a full sync-robustness architectural plan, and a complete Python-sync-script rewrite.
