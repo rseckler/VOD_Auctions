@@ -96,7 +96,8 @@ npm run build && pm2 restart vodauction-storefront
 
 ### Legacy Tabellen (camelCase, Knex-Only)
 - `Release` — ~41.500 Produkte (product_category: release/band_literature/label_literature/press_literature). Visibility: `coverImage IS NOT NULL`. Kaufbar: `legacy_price > 0 AND legacy_available = true`.
-- `sync_change_log` — Change-Log des Legacy-Sync (sync_run_id, release_id, change_type: inserted/updated, changes JSONB mit old/new je Feld). Befüllt täglich durch `legacy_sync.py`. Admin: `/app/sync` → Tab "Change Log".
+- `sync_change_log` — Change-Log des Legacy-Sync (sync_run_id, release_id, change_type: inserted/updated, changes JSONB mit old/new je Feld). Befüllt stündlich durch `legacy_sync_v2.py`, trackt alle 14 gesyncten Felder (v2 seit 2026-04-05; v1 trackte nur 4). Admin: `/app/sync` → Tab "Change Log".
+- `sync_log` — Run-Summary pro Sync-Lauf. v2-Erweiterung (2026-04-05): zusätzliche Spalten `run_id, script_version, phase, started_at, ended_at, duration_ms, rows_source, rows_written, rows_changed, rows_inserted, images_inserted, validation_status, validation_errors`. Alte Spalten (`sync_type, sync_date, status, changes, error_message`) bleiben für Backward-Compat.
 - `Artist`, `Label`, `PressOrga`, `Format` (39 Einträge), `Image` (+`rang` für Ordering), `Track`, `ReleaseArtist`
 - `entity_content` — CMS für Band/Label/Press Seiten (description, short_description, genre_tags TEXT[], external_links JSONB, is_published, ai_generated)
 - `gallery_media` — Gallery CMS (section, position, is_active). 9 Sektionen.
@@ -260,8 +261,8 @@ SUPABASE_DB_URL, LEGACY_DB_*
 ## Cronjobs (VPS)
 
 ```bash
-# Legacy MySQL → Supabase (täglich 04:00 UTC)
-0 4 * * * cd ~/VOD_Auctions/scripts && venv/bin/python3 legacy_sync.py >> legacy_sync.log 2>&1
+# Legacy MySQL → Supabase (stündlich)
+0 * * * * cd ~/VOD_Auctions/scripts && venv/bin/python3 legacy_sync_v2.py >> legacy_sync.log 2>&1
 # Discogs Daily (Mo-Fr 02:00 UTC, 5 Chunks rotating)
 0 2 * * 1-5 cd ~/VOD_Auctions/scripts && venv/bin/python3 discogs_daily_sync.py >> discogs_daily.log 2>&1
 ```
@@ -273,7 +274,9 @@ SUPABASE_DB_URL, LEGACY_DB_*
 ```bash
 cd VOD_Auctions/scripts && source venv/bin/activate
 
-python3 legacy_sync.py           # Incremental sync (daily)
+python3 legacy_sync_v2.py        # Incremental sync (hourly via cron; v1 legacy_sync.py bleibt als Rollback-Backup)
+python3 legacy_sync_v2.py --dry-run                   # Simulate, no writes
+python3 legacy_sync_v2.py --pg-url "$STAGING_URL"     # Target staging Supabase
 python3 discogs_daily_sync.py    # Daily Discogs price update (Mon-Fri chunks)
 python3 discogs_daily_sync.py --chunk 2 --rate 25  # Specific chunk
 
@@ -299,7 +302,8 @@ VOD_Auctions/
 │   ├── api/store/                 # auction-blocks/, catalog/, band/, label/, press/, gallery/, account/, waitlist/, invite/, site-mode/
 │   ├── api/webhooks/              # stripe/, paypal/, brevo/
 │   ├── api/middlewares.ts         # Auth + rawBodyMiddleware (DON'T REMOVE rawBody!)
-│   ├── lib/                       # stripe.ts, paypal.ts, checkout-helpers.ts, shipping.ts, brevo.ts, crm-sync.ts, site-config.ts, invite.ts
+│   ├── lib/                       # stripe.ts, paypal.ts, checkout-helpers.ts, shipping.ts, brevo.ts, crm-sync.ts, site-config.ts, invite.ts, feature-flags.ts, paths.ts
+│   ├── scripts/migrations/         # Raw SQL migrations für non-ORM Tabellen (site_config, sync_log etc.), idempotent, manuell angewendet
 │   ├── admin/components/          # admin-nav.tsx, admin-tokens.ts, admin-layout.tsx, admin-ui.tsx (Shared Component Library)
 │   └── admin/routes/              # auction-blocks/, media/, transactions/, entity-content/, gallery/, sync/, config/, waitlist/, dashboard/
 ├── storefront/src/
@@ -307,12 +311,16 @@ VOD_Auctions/
 │   ├── components/                # AuthProvider, Header, Footer, ItemBidSection, BlockItemsGrid, ImageGallery, CollapsibleDescription
 │   └── middleware.ts              # Platform mode gate — reads from backend API, supports password + invite cookies
 ├── scripts/
-│   ├── legacy_sync.py             # Daily MySQL→Supabase sync (bilder_typ: release=10, band=13, label=14, press=12)
+│   ├── legacy_sync_v2.py          # Hourly MySQL→Supabase sync, active cron target (bilder_typ: release=10, band=13, label=14, press=12). Full 14-field diff, RETURNING-verified image counts, post-run validation, --dry-run / --pg-url flags.
+│   ├── legacy_sync.py             # v1 backup, replaced by v2 on 2026-04-05, will be removed after 7 days stable v2 operation
 │   ├── discogs_daily_sync.py      # Daily Discogs (5 chunks, exponential backoff)
 │   └── entity_overhaul/           # 10-Module Pipeline (orchestrator, enricher, writer, quality_agent, ...)
 ├── nginx/                         # vodauction-api.conf, vodauction-store.conf, vodauction-admin.conf
 └── docs/
-    ├── architecture/CHANGELOG.md  # Vollständiger Changelog
+    ├── architecture/CHANGELOG.md        # Vollständiger Changelog
+    ├── architecture/DEPLOYMENT_METHODOLOGY.md  # Deploy early, activate when ready — verbindlich
+    ├── architecture/SYNC_ROBUSTNESS_PLAN.md    # Sync-Architektur v2.3 mit Field-Contract und Phase-Plan
+    ├── architecture/STAGING_ENVIRONMENT.md     # Staging DB Setup + Runbook (aebcwjjcextzvflrjgei, eu-west-1)
     ├── UI_UX/                     # UI/UX Governance (Style Guide, Gap Analysis, Plan, Report, PR Checklist)
     ├── DESIGN_GUIDE_BACKEND.md    # Admin Design System v2.0 (verbindlich)
     ├── PRE_LAUNCH_KONZEPT.md      # Waitlist + Invite Flow
@@ -339,6 +347,10 @@ VOD_Auctions/
 **Admin Navigation:** 7 Sidebar-Items (Dashboard, Auction Blocks, Orders, Catalog, Marketing, Operations, AI Assistant). Sub-Pages nur über Hub-Karten erreichbar. Kein `defineRouteConfig` auf Sub-Pages.
 
 **Deployment Methodology:** "Deploy early, activate when ready" ist verbindlich für alle nicht-trivialen Features. Feature Flags in `backend/src/lib/feature-flags.ts` (Registry) und `site_config.features` JSONB (State). Admin Toggle unter `/app/config` → Feature Flags. Additive-only Migrationen auf Live-Tabellen, keine `DROP`/`RENAME`/`TYPE`-Änderungen. Reservierter Prefix `/admin/erp/*` für zukünftige ERP-Routen (aktuell ungenutzt). Siehe [`docs/architecture/DEPLOYMENT_METHODOLOGY.md`](docs/architecture/DEPLOYMENT_METHODOLOGY.md).
+
+**Sync-Architektur:** Legacy-MySQL→Supabase-Sync läuft stündlich via `legacy_sync_v2.py`, schreibt alle 14 gesyncten Felder in `sync_change_log` und strukturierte Run-Summary nach `sync_log` (mit `run_id`, `phase`, `rows_*`, `validation_status`). Feld-Contract und Ownership-Matrix in `SYNC_ROBUSTNESS_PLAN.md` §6. Post-Run-Validation läuft nach jedem Run (V1 Row-Count, V2 NOT-NULL, V3 Referential, V4 Freshness). Staging-DB für Dry-Runs: `aebcwjjcextzvflrjgei` (eu-west-1, backfire account — 1Password: "Supabase 2. Account"). Phase A5/A6 (Dead-Man's-Switch + E-Mail-Alerting) pending.
+
+**Cwd-independente Pfade:** Backend-Code nutzt NIE `process.cwd()` oder relative `__dirname`-Pfade zur Auflösung von Projekt-Files. Immer `getProjectRoot()`, `getScriptsDir()`, `getDataDir()`, `getStorefrontPublicDir()`, `getTestsDir()` aus `backend/src/lib/paths.ts`. Python-Scripts nutzen `Path(__file__).parent.parent` o.ä. Grund: PM2 cwd ist `backend/.medusa/server/`, nicht das Source-Tree (siehe Gotcha-Liste oben). Walk-up-Helper macht's cwd-unabhängig.
 
 **Catalog Visibility:** Artikel mit `coverImage IS NOT NULL` = sichtbar. `legacy_price > 0 AND legacy_available = true` = kaufbar (`is_purchasable`).
 **legacy_available:** Spiegelt MySQL `frei`-Feld — `frei=1` → true (verfügbar), `frei=0` → false (gesperrt), `frei>1` (Unix-Timestamp) → false (auf tape-mag verkauft). Wird täglich per Legacy-Sync aktualisiert.
