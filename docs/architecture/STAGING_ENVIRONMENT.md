@@ -1,12 +1,46 @@
-# Staging Environment — Setup Plan & Blockers
+# Staging Environment — Setup Plan & Status
 
-**Status:** Decision taken (2026-04-05) — Option B1 approved. Project creation pending (see §3 for the one manual step).
+**Status:** 🟢 **Database provisioned and schema-synced with production** (2026-04-05). No HTTP layer yet — that comes when the first feature needs it.
 **Last Updated:** 2026-04-05
 **Related:** `docs/architecture/DEPLOYMENT_METHODOLOGY.md` §6
 
+## Current State
+
+| | |
+|---|---|
+| **Project name** | `vod-auctions-staging` |
+| **Project ref** | `aebcwjjcextzvflrjgei` |
+| **Organization** | `backfire` (ref `raindgavnjxbqomuoyfo`) — separate Supabase account, not the Seckler org |
+| **Region** | eu-west-1 (Ireland) — note: differs from production (eu-central-1 Frankfurt), acceptable for non-latency-critical staging |
+| **Instance** | t4g.nano (Free plan default) |
+| **Schema** | 1:1 copy of production — 227 tables, 531 indexes, all custom DDL (Medusa ORM + legacy + auction + CRM + CMS) |
+| **Data** | Empty — schema-only, zero rows copied |
+| **Login account** | Separate Supabase account (not `robin@seckler.de`). Credentials in 1Password as **`Supabase 2. Account`** |
+| **DB password** | In the `Database password` field of the `Supabase 2. Account` 1Password entry |
+| **Dashboard URL** | https://supabase.com/dashboard/project/aebcwjjcextzvflrjgei |
+| **REST URL** | https://aebcwjjcextzvflrjgei.supabase.co |
+
+## Connection
+
+**Session pooler (for `pg_dump` / `psql` admin ops — required on Free plan):**
+```
+postgresql://postgres.aebcwjjcextzvflrjgei:<DB_PASSWORD>@aws-0-eu-west-1.pooler.supabase.com:5432/postgres
+```
+
+**Transaction pooler (for application code, if ever needed):**
+```
+postgresql://postgres.aebcwjjcextzvflrjgei:<DB_PASSWORD>@aws-0-eu-west-1.pooler.supabase.com:6543/postgres
+```
+
+Fetch the password non-interactively via 1Password CLI:
+```bash
+op item get "Supabase 2. Account" --fields "Database password" --reveal
+```
+
 ## Decision Log
 
-- **2026-04-05:** Option B1 chosen — separate Free Supabase project in the `backfire` organization (org id `raindgavnjxbqomuoyfo`). Rationale: backfire org has 0 projects, so the Free-tier 2-active-projects limit does not apply. The Seckler org is at the limit (`vod-auctions` + `blackfire-service` active) and the user explicitly forbade touching/pausing any existing Seckler-org projects. Pro upgrade was rejected in favour of zero-cost. Schema will be copied from production (`bofblwqieuvmqybzxapx`) via `pg_dump --schema-only` from the VPS once the staging project exists.
+- **2026-04-05:** Option B1 chosen — separate Free Supabase project in the `backfire` organization. Rationale: backfire org had 0 projects, so the Free-tier 2-active-projects limit did not apply. The Seckler org was at the limit (`vod-auctions` + `blackfire-service` active) and touching/pausing any Seckler-org project was explicitly forbidden. Pro upgrade was rejected in favour of zero-cost. Initial plan was to reuse CLAUDE.md's reference to the `backfire` org inside Seckler — this was wrong; `backfire` turned out to be a separate Supabase account altogether, accessed via `Supabase 2. Account` in 1Password.
+- **2026-04-05 (same session):** Schema copied from production via `docker run --rm --network=host postgres:17 pg_dump --schema-only --no-owner --no-acl --schema=public` (see §5b for the full runbook). Production DB was read-only for this operation — no rows touched, no schema modified. Staging table count (227) matches production exactly.
 
 ---
 
@@ -135,100 +169,131 @@ These items do not create any running infrastructure and can land immediately:
 
 ---
 
-## 5b. Concrete Setup Steps (B1)
+## 5b. Runbook — What Was Actually Done (2026-04-05)
 
-Once the staging Supabase project exists, the remaining setup is automatable from the VPS. The single manual step is the project creation itself — Supabase does not allow the MCP-scoped API token used by Claude Code to target a different organization, so the project must be created via the Supabase dashboard.
+This section is the **as-built** reference. Use it as the template for any future re-provisioning (disaster recovery, second staging environment, etc.).
 
-### Step 1 — Create the project (MANUAL, ~1 min)
+### Gotchas discovered during the first run
 
-1. Open https://supabase.com/dashboard/org/raindgavnjxbqomuoyfo
+Five issues surfaced in sequence. All five are now documented in `CLAUDE.md`:
+
+1. **Supabase Free disables direct-connection port 5432** for new projects (IPv4 refused, IPv6 hit a connection limit). All admin ops must go through the Session pooler at `aws-0-<region>.pooler.supabase.com:5432`.
+2. **Pooler username format is `postgres.<project-ref>`**, not bare `postgres`. The pooler uses the prefix to route to the correct tenant.
+3. **Pooler hostname is region-specific.** Production is `aws-0-eu-central-1.pooler.supabase.com`, staging is `aws-0-eu-west-1.pooler.supabase.com`. Using the wrong region returns `Tenant or user not found`.
+4. **VPS `pg_dump` is version 16**, but Supabase runs PG17. `pg_dump` refuses to dump from a newer server. Workaround: run `pg_dump` inside `docker run --rm postgres:17` — no system package change needed.
+5. **Docker default bridge network has no IPv6.** Supabase direct-connection hostnames may resolve to IPv6 only, causing `Network is unreachable` inside the container. Use `--network=host` so the container inherits the VPS IPv6 stack.
+
+### Step 1 — Create the project (MANUAL, one-time, ~1 min)
+
+**Note:** the backfire Supabase organization is a **separate Supabase account**, not the Seckler org under `robin@seckler.de`. Login credentials (email + dashboard password) are in 1Password entry `Supabase 2. Account`.
+
+1. Log into Supabase dashboard with the backfire account (1Password `Supabase 2. Account`)
 2. Click **New project**
 3. Name: `vod-auctions-staging`
-4. Region: `eu-central-1` (match production — `bofblwqieuvmqybzxapx`)
-5. DB password: generate a strong one, store in 1Password as `Supabase vod-auctions-staging DB`
-6. Wait ~1-2 minutes for provisioning
-7. Copy the **Connection string → URI** from Project Settings → Database. This becomes `STAGING_DATABASE_URL` below.
+4. Region: `eu-west-1` (West EU / Ireland) — chosen during first provision
+5. DB password: generate via Supabase's password generator (ALPHANUMERIC only, no `*`/`#`/`$` — shell-escaping issues). Store immediately in 1Password under `Supabase 2. Account` → field `Database password`.
+6. Wait ~1-2 min for provisioning
+7. Verify project ref is `aebcwjjcextzvflrjgei`
 
-### Step 2 — Schema copy from production (AUTOMATABLE, ~30 s)
+### Step 2 — Schema copy from production (AUTOMATED, ~30 s on VPS)
 
-Run on the VPS (single SSH session). Uses `pg_dump` against production with `--schema-only` — no data is copied, no production state is modified:
+Connect via SSH once (ControlMaster socket). Fetch DB password from 1Password to avoid any paste in shell history:
 
 ```bash
-ssh vps
-cd /root/VOD_Auctions/backend
+# On your Mac — pre-fetch the staging password from 1Password
+STAGING_PW=$(op item get "Supabase 2. Account" --fields "Database password" --reveal)
 
-# Load production DATABASE_URL from .env
-PROD_DB=$(grep "^DATABASE_URL=" .env | cut -d'=' -f2- | tr -d '"')
+# Pass it to the VPS via SSH env var (SendEnv, or inline)
+ssh vps "bash -s" <<REMOTE
+set -e
 
-# Paste the staging URL here before running
-STAGING_DB="postgres://postgres:<PW>@db.<PROJECT_REF>.supabase.co:5432/postgres"
+# Production URL from existing backend/.env (untouched, read-only)
+PROD_URL=\$(grep "^DATABASE_URL=" /root/VOD_Auctions/backend/.env | cut -d'=' -f2- | tr -d '"')
 
-# Dump production schema (excluding Supabase-managed schemas)
-pg_dump --schema-only --no-owner --no-acl \
-  --exclude-schema=auth \
-  --exclude-schema=storage \
-  --exclude-schema=realtime \
-  --exclude-schema=supabase_functions \
-  --exclude-schema=pgsodium \
-  --exclude-schema=graphql \
-  --exclude-schema=graphql_public \
-  --exclude-schema=pgbouncer \
-  --exclude-schema=vault \
-  --exclude-schema=extensions \
-  "$PROD_DB" > /tmp/vod-auctions-schema.sql
+# Staging env vars (no URL-escape headaches, use env-vars form)
+export PGHOST='aws-0-eu-west-1.pooler.supabase.com'
+export PGPORT='5432'
+export PGUSER='postgres.aebcwjjcextzvflrjgei'
+export PGPASSWORD='${STAGING_PW}'
+export PGDATABASE='postgres'
 
-# Sanity check: file size and table count
-wc -l /tmp/vod-auctions-schema.sql
-grep -c "^CREATE TABLE" /tmp/vod-auctions-schema.sql
+# Sanity: staging reachable and empty
+psql -c "SELECT count(*) AS existing FROM pg_tables WHERE schemaname='public';"
 
-# Apply schema to staging
-psql "$STAGING_DB" < /tmp/vod-auctions-schema.sql
+# Dump production schema via Docker postgres:17 (VPS pg_dump is v16, too old for PG17 server)
+# --network=host so the container inherits the VPS IPv6 stack (Supabase direct host is IPv6)
+docker run --rm --network=host postgres:17 \\
+  pg_dump --schema-only --no-owner --no-acl --schema=public \\
+  "\$PROD_URL" > /tmp/vod-staging-schema.sql
 
-# Verify — should list all tables
-psql "$STAGING_DB" -c "\dt public.*" | head -20
+# Apply to staging
+psql -v ON_ERROR_STOP=0 < /tmp/vod-staging-schema.sql
 
-# Clean up dump file
-rm /tmp/vod-auctions-schema.sql
+# Verify count matches production (was 227 on 2026-04-05)
+psql -c "SELECT count(*) AS total FROM pg_tables WHERE schemaname='public';"
+
+# Cleanup
+rm -f /tmp/vod-staging-schema.sql
+REMOTE
 ```
 
-### Step 3 — Env templates (AUTOMATABLE)
+**Expected outcomes:**
+- Production DB is only READ from (`pg_dump`) — never written.
+- Staging DB gets 227 tables, 531 indexes, same count as production on 2026-04-05.
+- Only non-fatal "ERROR" line is `schema "public" already exists` — harmless, every new Postgres DB has the `public` schema pre-created.
+- Staging tables are empty (`--schema-only` excludes data).
 
-Create `backend/.env.staging.example` and `storefront/.env.staging.example` once — document which vars differ from production. These are templates, never actual credentials.
+### Step 3 — Env templates
 
-### Step 4 — Nothing more until first use
+Created in this session:
+- `backend/.env.staging.example` — documents which variables differ from production
+- `storefront/.env.staging.example` — ditto for the storefront
 
-No VPS PM2 entries, no nginx configs, no DNS records — those are only needed when the first feature actually wants to run in staging over HTTP. The database alone is sufficient for migration rehearsals, schema-diff testing, and seeding experiments. Add the HTTP layer only when the first feature demands it.
+Never commit actual secrets. Fetch live values via `op item get "Supabase 2. Account" --fields "<field>" --reveal` at runtime.
+
+### Step 4 — HTTP layer deferred
+
+No PM2 entries, no nginx configs, no DNS records yet. The DB alone is sufficient for:
+- Migration rehearsals (apply new SQL files to staging first, verify, then apply to production)
+- Schema diff testing
+- Seeded-data experiments via psql
+- ORM model validation
+
+The full HTTP layer (backend on port 9001, storefront on port 3007, nginx subdomains) only gets built when the first feature actually needs to serve HTTP traffic from staging — typically the first ERP feature that depends on external sandbox services (Sendcloud, sevDesk, Stripe Connect).
 
 ---
 
-## 6. Blockers (Must Be Resolved Before Staging Is Usable)
+## 6. Outstanding Items (Deferred Until First HTTP-Layer Need)
 
-| Blocker | Owner | Notes |
+| Item | Owner | Notes |
 |---------|-------|-------|
-| **Database decision (A / B / C)** | Robin | See §3. Cost vs. ops trade-off. |
-| **DNS: create staging subdomains** | Robin | Three A-records pointing to `72.62.148.205`. |
-| **nginx: staging configs + basic auth** | Robin + Claude | Straightforward once DNS resolves. |
-| **SSL certificates for staging subdomains** | Robin | Let's Encrypt via certbot, same as existing domains. |
-| **Sandbox credentials for external services** | Robin | sevDesk/easybill sandbox, Sendcloud test mode, Stripe is already dual-mode. Only collect when a feature that needs them enters staging. |
-| **Seed data strategy** | Robin + Claude | Anonymized production snapshot (one-time SQL dump + redaction) vs. synthetic fixtures. Decision can wait until first staging use. |
-| **Monitoring / alerts for staging** | Deferred | Staging failures do not page. Staging logs should still be tail-able via `pm2 logs vodauction-*-staging`. |
+| **DNS: staging subdomains** | Robin | Deferred. Three A-records pointing to `72.62.148.205` — only needed when the first feature wants HTTP staging. |
+| **nginx: staging configs + basic auth** | Robin + Claude | Deferred. Straightforward once DNS resolves. |
+| **SSL certificates for staging subdomains** | Robin | Deferred. Let's Encrypt via certbot, same as existing domains. |
+| **Sandbox credentials for external services** | Robin | Deferred. sevDesk/easybill sandbox, Sendcloud test mode, Stripe already dual-mode. Only collect when a feature that needs them enters staging. |
+| **Seed data strategy** | Robin + Claude | Deferred. Anonymized production snapshot (one-time SQL dump + redaction) vs. synthetic fixtures. Decision can wait until first real use. |
+| **Monitoring / alerts for staging** | Deferred | Staging failures do not page. Logs via `pm2 logs vodauction-*-staging` when the HTTP layer exists. |
+
+None of the above blocks current usage — the DB alone is fully functional for migration rehearsals and schema-diff testing via `psql` from a developer machine or the VPS.
 
 ---
 
 ## 7. What Not to Do
 
-- **Do not provision staging "on spec"** — building it costs ops time every week for maintenance, even when unused. Build it when the first feature that actually needs it is underway. That feature will likely be the first ERP component (sevDesk/easybill or Sendcloud).
+- **Do not build HTTP layer on spec.** The DB is enough for 80% of use cases (migration rehearsals, schema diffs, seed experiments). Add PM2/nginx/DNS only when the first feature actually serves HTTP from staging.
 - **Do not share production credentials with staging.** Every external service must have its own sandbox account or test mode. Mixing them risks sending real emails, creating real shipping labels, or billing real customers during tests.
 - **Do not point staging at the production database under any circumstances.** The whole point of staging is isolation.
-- **Do not expose staging publicly.** Basic auth at the nginx layer is mandatory. Search engines must not index it.
+- **Do not expose staging publicly** once the HTTP layer exists. Basic auth at the nginx layer is mandatory. Search engines must not index it.
+- **Do not commit secrets.** Always fetch from 1Password at runtime. The `backend/.env.staging.example` template documents which variables exist but never their values.
 
 ---
 
 ## 8. Next Actions
 
-1. **Robin:** pick database option (A / B / C).
-2. **Robin:** confirm whether staging should be built now (pre-ERP) or deferred until first ERP feature begins.
-3. If "build now": create DNS records and collect sandbox credentials. Then Claude provisions nginx + PM2 + env files.
-4. If "defer": this document sits untouched until the first ERP feature is ready to leave local dev. No code or infra action required.
+Staging is **ready for DB-level use right now**. The next action is driven by actual feature need, not by a schedule:
 
-The feature-flag infrastructure (Phase 1 of this prep milestone) is fully functional *without* staging. Staging is only needed when a flag reaches stage 2 of its activation lifecycle (see `DEPLOYMENT_METHODOLOGY.md` §2).
+1. **Next time a migration candidate is non-trivial** (multi-table, involves data backfill, or depends on external services): apply the SQL to staging first via `psql` with the pooler connection, verify, then apply to production.
+2. **When the first ERP feature** (likely Sendcloud or sevDesk/easybill) enters code-complete state: build the HTTP layer (PM2 + nginx + DNS).
+3. **When schema drift becomes a concern**: build a small helper script (`backend/scripts/sync-staging-schema.sh`) that re-runs the production → staging dump. Not yet needed.
+
+The feature-flag infrastructure is fully functional *without* staging (production-only toggles are fine for experimental flags). Staging becomes mandatory only when a flag reaches stage 2 of its activation lifecycle (see `DEPLOYMENT_METHODOLOGY.md` §2) and involves external sandbox services.

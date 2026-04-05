@@ -4,6 +4,58 @@ Vollständiger Entwicklungs-Changelog. Neue Einträge werden direkt hier ergänz
 
 ---
 
+## 2026-04-05 (afternoon) — Trial-Flag `EXPERIMENTAL_SKIP_BID_CONFIRMATION` + Staging-DB live
+
+### Trial Flag — validation of client-side flag stack
+- **`EXPERIMENTAL_SKIP_BID_CONFIRMATION`** added to `FEATURES` registry, category `experimental`, default `false` (current behavior preserved — zero regression).
+- **`CLIENT_SAFE_FLAGS` whitelist** in `backend/src/lib/feature-flags.ts` — only explicitly listed flags can be exposed to unauthenticated clients. All `ERP_*` flags remain private.
+- **`GET /store/platform-flags`** public endpoint returns only whitelisted flags as `{flags: {[key]: boolean}}`.
+- **`FeatureFlagProvider`** in `storefront/src/components/FeatureFlagProvider.tsx` — fetches once per mount via `useFeatureFlag(key)` hook. Fail-closed: on fetch error all flags default to `false`.
+- **Wired into `BidForm` inside `ItemBidSection.tsx`** — when flag is ON, `handleSubmitClick` bypasses `setConfirmOpen(true)` and calls `confirmBid()` directly. Strictly additive.
+- **Verification:** curl `/store/platform-flags` shows only `EXPERIMENTAL_SKIP_BID_CONFIRMATION` (ERP flags hidden); DB-toggle + pm2 restart roundtrip confirmed flag ON/OFF state changes the endpoint response; production state reset to default `false`.
+- **Minimal backend-only trial** (`EXPERIMENTAL_STORE_SITE_MODE_DEBUG`) added earlier same session — adds a `_debug` field to `GET /store/site-mode` when enabled. Kept in registry alongside the new one as backend-only validation of the infrastructure.
+
+### Staging environment — DB provisioned
+- **Decision:** Option B1 (separate Free Supabase project in a secondary account). Initial assumption that backfire was an org under `robin@seckler.de` was wrong — turned out to be a **completely separate Supabase account**, accessible only via the credentials stored in 1Password as `Supabase 2. Account`.
+- **Created:** `vod-auctions-staging`, ref `aebcwjjcextzvflrjgei`, region eu-west-1 (Ireland), t4g.nano Free instance.
+- **Schema copy from production:** 227 tables, 531 indexes, 433 KB DDL. Used `docker run --rm --network=host postgres:17 pg_dump --schema-only --no-owner --no-acl --schema=public` against production Supabase, applied via `psql` through the eu-west-1 Session pooler. **Production was read-only throughout — zero rows written to production.**
+- **Data:** empty — staging holds schema only, no rows copied.
+- **HTTP layer:** NOT built. No PM2, no nginx, no DNS records. DB alone is sufficient for migration rehearsals and schema-diff testing. HTTP layer will be added when the first ERP feature actually needs HTTP-level staging (likely Sendcloud or sevDesk/easybill).
+
+### Five new gotchas discovered during staging setup (all now in `CLAUDE.md`)
+1. **Supabase Free direct-connection port 5432 is unreliable** — IPv4 disabled, IPv6 has slot limits. All admin ops must use the Session pooler (`aws-0-<region>.pooler.supabase.com:5432`).
+2. **Pooler username format is `postgres.<project-ref>`**, not bare `postgres`.
+3. **Pooler hostname is region-specific** — wrong region returns `FATAL: Tenant or user not found`. Staging is `aws-0-eu-west-1.pooler.supabase.com`, production is `aws-0-eu-central-1.pooler.supabase.com`.
+4. **`pg_dump` on VPS is v16, Supabase runs PG17** — version mismatch refuses dumps. Workaround: `docker run --rm --network=host postgres:17`.
+5. **Docker default bridge has no IPv6** — when targeting Supabase direct hosts (IPv6-only on Free), use `--network=host` so the container inherits the VPS IPv6 stack.
+
+### Files
+**Neu:**
+```
+backend/src/api/store/platform-flags/route.ts
+storefront/src/components/FeatureFlagProvider.tsx
+backend/.env.staging.example
+storefront/.env.staging.example
+```
+
+**Geändert:**
+```
+backend/src/lib/feature-flags.ts                  (+CLIENT_SAFE_FLAGS whitelist, +2 experimental flags)
+backend/src/api/store/site-mode/route.ts          (+conditional _debug field for trial flag 1)
+storefront/src/app/layout.tsx                     (+FeatureFlagProvider wrap)
+storefront/src/components/ItemBidSection.tsx      (+useFeatureFlag hook in BidForm, +conditional skip)
+docs/architecture/STAGING_ENVIRONMENT.md          (complete rewrite with as-built runbook)
+docs/architecture/CHANGELOG.md                    (this entry)
+CLAUDE.md                                         (+5 gotchas: Supabase pooler, region, PG17, Docker IPv6, password special chars)
+```
+
+**Commits:**
+- `f7eeb49` — Minimal backend trial flag (`EXPERIMENTAL_STORE_SITE_MODE_DEBUG`)
+- `0f5976e` — Full storefront trial flag (`EXPERIMENTAL_SKIP_BID_CONFIRMATION`) + public endpoint + provider
+- (pending) — This staging doc update + gotchas + env templates
+
+---
+
 ## 2026-04-05 — Feature-Flag-Infrastruktur + Deployment-Methodology + PM2/Env Hotfix
 
 ### Feature-Flag-System (neu)
