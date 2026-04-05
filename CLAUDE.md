@@ -75,7 +75,7 @@ npm run build && pm2 restart vodauction-storefront
 - **Medusa ULID IDs:** Bei Knex-Insert immer `id: generateEntityId()` aus `@medusajs/framework/utils` mitgeben — sonst `NOT NULL violation`
 - **Stripe Webhook Raw Body:** `rawBodyMiddleware` in `middlewares.ts` NICHT entfernen — ohne es scheitern ALLE Webhooks mit "No webhook payload"
 - **Admin Routes:** `defineRouteConfig()` NUR auf Top-Level `page.tsx`, NICHT auf `[id]/page.tsx` (Routing-Konflikte)
-- **Admin Route Pfade:** Niemals native Medusa-Pfade verwenden (`customers`, `orders`, `products`, `settings` etc.) → native Route gewinnt immer. Stattdessen eigene Pfade: `crm`, `auction-blocks`, `catalog` etc.
+- **Admin Route Pfade:** Niemals native Medusa-Pfade verwenden (`customers`, `orders`, `products`, `settings`, `feature-flags` etc.) → native Route gewinnt immer. Stattdessen eigene Pfade: `crm`, `auction-blocks`, `catalog`, `platform-flags` etc. Verifizieren via `find backend/node_modules/@medusajs/medusa/dist/api/admin -maxdepth 2 -type d` bevor neue Route-Verzeichnisse angelegt werden.
 - **Vite Cache bei neuen Admin-Routen:** Neues `src/admin/routes/X/`-Verzeichnis → VPS Vite-Cache MUSS gecleart werden: `rm -rf node_modules/.vite .medusa && npx medusa build`. Sonst findet der Vite-Plugin die neue Route nicht → 404 oder korrupter Bundle → silent crash.
 - **CamelCase vs snake_case:** Legacy-Tabellen (`Release`, `Artist`) → camelCase; Auction-Tabellen → snake_case
 - **SSL Supabase:** `rejectUnauthorized: false` in `medusa-config.ts` nötig
@@ -333,6 +333,8 @@ VOD_Auctions/
 **Admin Design System:** Shared Component Library in `admin/components/` — `admin-tokens.ts` (Farben, Typo), `admin-layout.tsx` (PageHeader, Tabs, StatsGrid), `admin-ui.tsx` (Badge, Toggle, Toast, Modal). Verbindlicher Design Guide: `docs/DESIGN_GUIDE_BACKEND.md` v2.0.
 
 **Admin Navigation:** 7 Sidebar-Items (Dashboard, Auction Blocks, Orders, Catalog, Marketing, Operations, AI Assistant). Sub-Pages nur über Hub-Karten erreichbar. Kein `defineRouteConfig` auf Sub-Pages.
+
+**Deployment Methodology:** "Deploy early, activate when ready" ist verbindlich für alle nicht-trivialen Features. Feature Flags in `backend/src/lib/feature-flags.ts` (Registry) und `site_config.features` JSONB (State). Admin Toggle unter `/app/config` → Feature Flags. Additive-only Migrationen auf Live-Tabellen, keine `DROP`/`RENAME`/`TYPE`-Änderungen. Reservierter Prefix `/admin/erp/*` für zukünftige ERP-Routen (aktuell ungenutzt). Siehe [`docs/architecture/DEPLOYMENT_METHODOLOGY.md`](docs/architecture/DEPLOYMENT_METHODOLOGY.md).
 
 **Catalog Visibility:** Artikel mit `coverImage IS NOT NULL` = sichtbar. `legacy_price > 0 AND legacy_available = true` = kaufbar (`is_purchasable`).
 **legacy_available:** Spiegelt MySQL `frei`-Feld — `frei=1` → true (verfügbar), `frei=0` → false (gesperrt), `frei>1` (Unix-Timestamp) → false (auf tape-mag verkauft). Wird täglich per Legacy-Sync aktualisiert.

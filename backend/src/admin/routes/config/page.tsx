@@ -38,7 +38,17 @@ interface GoLiveCheck {
 
 // ─── Constants ─────────────────────────────────────────────────────────────
 
-const TABS = ["Access / Launch", "Auction", "Change History"] as const
+const TABS = ["Access / Launch", "Auction", "Feature Flags", "Change History"] as const
+
+// ─── Feature Flag Types ────────────────────────────────────────────────────
+
+interface FeatureFlag {
+  key: string
+  enabled: boolean
+  default: boolean
+  description: string
+  category: "erp" | "platform" | "experimental"
+}
 
 const MODE_OPTIONS = [
   { value: "beta_test", label: "BETA TEST", color: "#f97316" },
@@ -251,6 +261,10 @@ function ConfigPage() {
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null)
   const [showGoLive, setShowGoLive] = useState(false)
 
+  // Feature flags
+  const [flags, setFlags] = useState<FeatureFlag[] | null>(null)
+  const [flagsLoading, setFlagsLoading] = useState(false)
+
   // Audit log
   const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([])
   const [auditCount, setAuditCount] = useState(0)
@@ -309,6 +323,37 @@ function ConfigPage() {
   useEffect(() => {
     if (tab === "Change History") loadAudit(0)
   }, [tab, loadAudit])
+
+  // ── Load / toggle feature flags ──
+
+  const loadFlags = useCallback(async () => {
+    setFlagsLoading(true)
+    try {
+      const data = await apiFetch<{ flags: FeatureFlag[] }>("/admin/platform-flags")
+      setFlags(data.flags)
+    } catch (e: any) {
+      setToast({ message: e.message, type: "error" })
+    } finally {
+      setFlagsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (tab === "Feature Flags" && flags === null) loadFlags()
+  }, [tab, flags, loadFlags])
+
+  const toggleFlag = async (key: string, nextEnabled: boolean) => {
+    try {
+      const data = await apiFetch<{ flags: FeatureFlag[] }>("/admin/platform-flags", {
+        method: "POST",
+        body: JSON.stringify({ key, enabled: nextEnabled }),
+      })
+      setFlags(data.flags)
+      setToast({ message: `${key} → ${nextEnabled ? "ON" : "OFF"}`, type: "success" })
+    } catch (e: any) {
+      setToast({ message: e.message, type: "error" })
+    }
+  }
 
   // ── Save helper ──
 
@@ -650,6 +695,51 @@ function ConfigPage() {
     </div>
   )
 
+  // ── Tab: Feature Flags ──
+
+  const CATEGORY_LABELS: Record<FeatureFlag["category"], string> = {
+    erp: "ERP",
+    platform: "Platform",
+    experimental: "Experimental",
+  }
+
+  const renderFlags = () => {
+    if (flagsLoading && !flags) {
+      return <p style={{ color: C.muted, fontSize: 13 }}>Loading flags...</p>
+    }
+    if (!flags || flags.length === 0) {
+      return <p style={{ color: C.muted, fontSize: 13 }}>No feature flags defined.</p>
+    }
+
+    // Group by category
+    const grouped = flags.reduce<Record<string, FeatureFlag[]>>((acc, f) => {
+      (acc[f.category] ||= []).push(f)
+      return acc
+    }, {})
+
+    return (
+      <div>
+        <Alert type="info" style={{ marginBottom: 20 }}>
+          <strong>Deploy early, activate when ready.</strong> Flags control whether a
+          deployed feature is operationally active. Disabled flags keep code dormant —
+          no effect on live business processes. See{" "}
+          <code style={{ fontSize: 11 }}>docs/architecture/DEPLOYMENT_METHODOLOGY.md</code>.
+        </Alert>
+
+        {Object.entries(grouped).map(([category, items]) => (
+          <div key={category} style={{ marginBottom: 24 }}>
+            <SectionHeader title={CATEGORY_LABELS[category as FeatureFlag["category"]] || category} />
+            {items.map((f) => (
+              <ConfigRow key={f.key} label={f.key} hint={f.description}>
+                <Toggle active={f.enabled} onChange={() => toggleFlag(f.key, !f.enabled)} />
+              </ConfigRow>
+            ))}
+          </div>
+        ))}
+      </div>
+    )
+  }
+
   // ── Tab: Change History ──
 
   const totalPages = Math.ceil(auditCount / 50)
@@ -886,6 +976,7 @@ function ConfigPage() {
       {/* Tab content */}
       {tab === "Access / Launch" && renderAccess()}
       {tab === "Auction" && renderAuction()}
+      {tab === "Feature Flags" && renderFlags()}
       {tab === "Change History" && renderHistory()}
 
       {/* Go Live Modal */}

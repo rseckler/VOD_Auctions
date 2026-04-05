@@ -17,6 +17,7 @@ export interface SiteConfig {
   auction_direct_purchase_enabled: boolean
   auction_reserve_price_visible: boolean
   bid_ending_reminders_enabled: boolean
+  features?: Record<string, boolean>
   updated_at: string
 }
 
