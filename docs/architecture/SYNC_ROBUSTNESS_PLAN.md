@@ -1,11 +1,13 @@
 # Sync Robustness Plan
 
-**Version:** 2.2 (A1 + A2 abgeschlossen)
+**Version:** 2.3 (A1 + A2 + A3 + A7 abgeschlossen)
 **Datum:** 2026-04-05
-**Status:** Phase A1 + A2 live, bereit für Phase A3 nach Robin-Review
-**Vorgänger:** v2.1 (A1 done, git `aa2c4ef`), v2.0 (Ausgangsdokument, git `97b4873`), v1.0 (zu breit, git `e2af928`)
+**Status:** Phase A1–A3 und A7 live, Phase A4–A6 in Warteschlange
+**Vorgänger:** v2.2 (A2 done, git `b5c16fc`), v2.1 (A1 done, git `aa2c4ef`), v2.0 (git `97b4873`), v1.0 (git `e2af928`)
 
 ## Änderungshistorie
+
+**v2.3 (2026-04-05 Abend):** Phase A3 (Script-Rewrite) und A7 (Path-Härtung — war bereits im Script via `Path(__file__)`, keine Änderung nötig) abgeschlossen. Neuer Script `scripts/legacy_sync_v2.py` (1316 Zeilen): Full-14-Feld-Diff für Music-Releases, Full-11-Feld-Diff für Literatur, `INSERT … RETURNING id` für echte Image-Insert-Counts, Dry-Run-Mode, `--pg-url` Override, Post-Run-Validation (V1–V4), strukturierte sync_log-Writes via start_run/end_run. Verifikation: Dry-Run auf Staging (leere DB, 41.540 "would insert"), Dry-Run auf Production (0 Diffs, data in sync — korrekt), echter Run auf Production (32s, 0 changes/inserted, validation findet 216 orphan labels als Warning). v1 bleibt als Backup. **Cron auf v2 umgestellt**; v1 wird nach 7-tägigem stabilem v2-Betrieb entfernt. Validation-Befund "216 orphan labels" ist ein echter bisher unbemerkter Drift — label_enriched-geschützte Zeilen verweisen auf nicht mehr existierende Labels; nicht blockierend, wird separat als Cleanup-Task geführt.
 
 **v2.2 (2026-04-05):** Phase A2 (sync_log Schema-Erweiterung) abgeschlossen. 13 neue Spalten additive auf `sync_log` aufgeschaltet (`run_id`, `script_version`, `phase`, `started_at`, `ended_at`, `duration_ms`, `rows_source`, `rows_written`, `rows_changed`, `rows_inserted`, `images_inserted`, `validation_status`, `validation_errors`) plus 2 partielle Indizes (`idx_sync_log_run_id`, `idx_sync_log_phase`). Migration läuft erst auf Staging (eu-west-1, schemasync) verifiziert, dann auf Production. Der existierende v1-Script schrieb während der Production-Migration durchgehend (Runs 14:00 und 15:00 beobachtet), ohne Fehler oder Lock-Konflikte. SQL-File unter `backend/scripts/migrations/2026-04-05_sync_log_schema_extension.sql`. Phase A3 (Script-Rewrite) jetzt unblocked, wartet auf expliziten Go von Robin.
 
@@ -544,11 +546,11 @@ Keine harten Wochen-Deadlines. Jede Phase ist abgeschlossen, wenn die Erfolgs-Kr
 |---|---|---|---|
 | A1 | Field-Audit Legacy MySQL → Feld-Contract vollständig | — | ✅ **abgeschlossen 2026-04-05** — siehe §6.1/§6.2 |
 | A2 | `sync_log` Schema-Erweiterung (neue Spalten) | A1 | ✅ **abgeschlossen 2026-04-05** — Migration live auf Staging + Production, v1-Script weiter funktional |
-| A3 | `legacy_sync.py` Rewrite: Contract-basiert, alle 14 Felder, ehrliche Metriken | A1, A2 | ⏸ wartet auf Robin-Go |
-| A4 | Post-Run Validation im Script | A3 | pending |
+| A3 | `legacy_sync.py` Rewrite: Contract-basiert, alle 14 Felder, ehrliche Metriken | A1, A2 | ✅ **abgeschlossen 2026-04-05** — `legacy_sync_v2.py` live, Cron umgestellt, v1 als Backup |
+| A4 | Post-Run Validation im Script | A3 | ✅ **zusammen mit A3 implementiert** — V1–V4 Checks aktiv, erster Befund: 216 orphan labels |
 | A5 | Dead-Man's-Switch: Admin-UI-Ampel + Cron-Watchdog | A2 | pending |
 | A6 | E-Mail-Alerting via Resend | A4, A5 | pending |
-| A7 | Python-Script-Pfade härten (Environment-Variable oder walk-up) | A3 | pending |
+| A7 | Python-Script-Pfade härten (Environment-Variable oder walk-up) | A3 | ✅ **kein Rewrite nötig** — v1 nutzte bereits `Path(__file__)`, in v2 beibehalten |
 
 **Erfolgs-Kriterium Phase A (Mindeststandard):**
 - Nach einem Sync-Run sind `rows_changed`, `images_inserted`, `validation_status` in `sync_log` befüllt und ehrlich.
