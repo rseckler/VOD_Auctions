@@ -1,13 +1,15 @@
 # Sync Robustness Plan
 
-**Version:** 2.1 (Field Audit complete)
+**Version:** 2.2 (A1 + A2 abgeschlossen)
 **Datum:** 2026-04-05
-**Status:** Entscheidungsvorlage — Phase A1 abgeschlossen, bereit für Robin-Review vor Phase A2
-**Vorgänger:** v2.0 (Ausgangsdokument, git history `97b4873`), v1.0 (zu breit, git history `e2af928`)
+**Status:** Phase A1 + A2 live, bereit für Phase A3 nach Robin-Review
+**Vorgänger:** v2.1 (A1 done, git `aa2c4ef`), v2.0 (Ausgangsdokument, git `97b4873`), v1.0 (zu breit, git `e2af928`)
 
-## Änderung v2.0 → v2.1
+## Änderungshistorie
 
-Phase A1 (Field Audit) abgeschlossen. Die MySQL-Quell-Schemas aller Legacy-Tabellen wurden verifiziert und gegen den Python-Script-Code abgeglichen. §6 (Feld-Ownership-Matrix) ist jetzt mit realen Werten befüllt, alle `❓`-Felder aus v2.0 sind aufgelöst. Zusätzlich ein neues §6.3 mit Audit-Befunden (ungenutzte MySQL-Spalten, tote Supabase-Spalten, Literatur-Sonderregeln).
+**v2.2 (2026-04-05):** Phase A2 (sync_log Schema-Erweiterung) abgeschlossen. 13 neue Spalten additive auf `sync_log` aufgeschaltet (`run_id`, `script_version`, `phase`, `started_at`, `ended_at`, `duration_ms`, `rows_source`, `rows_written`, `rows_changed`, `rows_inserted`, `images_inserted`, `validation_status`, `validation_errors`) plus 2 partielle Indizes (`idx_sync_log_run_id`, `idx_sync_log_phase`). Migration läuft erst auf Staging (eu-west-1, schemasync) verifiziert, dann auf Production. Der existierende v1-Script schrieb während der Production-Migration durchgehend (Runs 14:00 und 15:00 beobachtet), ohne Fehler oder Lock-Konflikte. SQL-File unter `backend/scripts/migrations/2026-04-05_sync_log_schema_extension.sql`. Phase A3 (Script-Rewrite) jetzt unblocked, wartet auf expliziten Go von Robin.
+
+**v2.1 (2026-04-05):** Phase A1 (Field Audit) abgeschlossen. Die MySQL-Quell-Schemas aller Legacy-Tabellen wurden verifiziert und gegen den Python-Script-Code abgeglichen. §6 (Feld-Ownership-Matrix) ist jetzt mit realen Werten befüllt, alle `❓`-Felder aus v2.0 sind aufgelöst. Zusätzlich ein neues §6.3 mit Audit-Befunden (ungenutzte MySQL-Spalten, tote Supabase-Spalten, Literatur-Sonderregeln).
 
 ---
 
@@ -538,15 +540,15 @@ Keine harten Wochen-Deadlines. Jede Phase ist abgeschlossen, wenn die Erfolgs-Kr
 
 ### Phase A — Muss (target: 1-2 Wochen Arbeit, verteilt)
 
-| ID | Maßnahme | Abhängigkeiten |
-|---|---|---|
-| A1 | Field-Audit Legacy MySQL → Feld-Contract vollständig | — |
-| A2 | `sync_log` Schema-Erweiterung (neue Spalten) | A1 |
-| A3 | `legacy_sync.py` Rewrite: Contract-basiert, alle 14 Felder, ehrliche Metriken | A1, A2 |
-| A4 | Post-Run Validation im Script | A3 |
-| A5 | Dead-Man's-Switch: Admin-UI-Ampel + Cron-Watchdog | A2 |
-| A6 | E-Mail-Alerting via Resend | A4, A5 |
-| A7 | Python-Script-Pfade härten (Environment-Variable oder walk-up) | A3 |
+| ID | Maßnahme | Abhängigkeiten | Status |
+|---|---|---|---|
+| A1 | Field-Audit Legacy MySQL → Feld-Contract vollständig | — | ✅ **abgeschlossen 2026-04-05** — siehe §6.1/§6.2 |
+| A2 | `sync_log` Schema-Erweiterung (neue Spalten) | A1 | ✅ **abgeschlossen 2026-04-05** — Migration live auf Staging + Production, v1-Script weiter funktional |
+| A3 | `legacy_sync.py` Rewrite: Contract-basiert, alle 14 Felder, ehrliche Metriken | A1, A2 | ⏸ wartet auf Robin-Go |
+| A4 | Post-Run Validation im Script | A3 | pending |
+| A5 | Dead-Man's-Switch: Admin-UI-Ampel + Cron-Watchdog | A2 | pending |
+| A6 | E-Mail-Alerting via Resend | A4, A5 | pending |
+| A7 | Python-Script-Pfade härten (Environment-Variable oder walk-up) | A3 | pending |
 
 **Erfolgs-Kriterium Phase A (Mindeststandard):**
 - Nach einem Sync-Run sind `rows_changed`, `images_inserted`, `validation_status` in `sync_log` befüllt und ehrlich.
