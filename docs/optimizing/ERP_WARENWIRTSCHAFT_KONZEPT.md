@@ -28,6 +28,7 @@ A. [Anhänge](#anhänge)
 B. [Teil B — Durchgeführte Final Touches (v4.1 → v4.2)](#teil-b--durchgeführte-final-touches-v41--v42)
 C. [Teil C — Verbleibende offene Punkte vor finaler Freigabe](#teil-c--verbleibende-offene-punkte-vor-finaler-freigabe)
 D. [Teil D — Freigabebedingungen](#teil-d--freigabebedingungen)
+E. [Teil E — Umsetzungsstand 2026-04-05 (Delta v4.2 → v5.0)](#teil-e--umsetzungsstand-2026-04-05-delta-v42--v50)
 
 ---
 
@@ -2694,13 +2695,13 @@ Jedes Modul hat eigene Go-Live-Bedingungen. Kein Modul geht live, ohne dass die 
 
 **Monatliche Kosten nach Implementierung:**
 
-| Position | Kosten |
-|----------|--------|
-| Sendcloud (Free → Growth bei > 400 Labels/Monat) | 0-59 EUR/Monat |
-| easybill Plus (oder sevDesk Buchhaltung) | 14-18 EUR/Monat |
-| DHL Geschäftskunden (per Paket) | 0 EUR/Monat (Stückpreis) |
-| Stripe Connect (nur Transaktionsgebühr) | 0 EUR/Monat |
-| **Gesamt** | **~14-77 EUR/Monat** |
+| Position                                         | Kosten                   |
+| ------------------------------------------------ | ------------------------ |
+| Sendcloud (Free → Growth bei > 400 Labels/Monat) | 0-59 EUR/Monat           |
+| easybill Plus (oder sevDesk Buchhaltung)         | 14-18 EUR/Monat          |
+| DHL Geschäftskunden (per Paket)                  | 0 EUR/Monat (Stückpreis) |
+| Stripe Connect (nur Transaktionsgebühr)          | 0 EUR/Monat              |
+| **Gesamt**                                       | **~14-77 EUR/Monat**     |
 
 **Einmalige Kosten:**
 
@@ -3034,3 +3035,110 @@ Identisch mit Abschnitt 13.6 — dort als Teil der Empfehlung aufgeführt, hier 
 ---
 
 *Dieses Dokument ist eine Entscheidungsvorlage. Es ersetzt keine steuerliche oder rechtliche Beratung. Alle steuerlichen Aussagen sind als fachliche Zielannahmen gekennzeichnet und müssen vom Steuerberater validiert werden. Alle regulatorischen Aussagen zum Marketplace müssen von einem Rechtsanwalt geprüft werden.*
+
+---
+
+## Teil E — Umsetzungsstand 2026-04-05 (Delta v4.2 → v5.0)
+
+Dieser Abschnitt fasst zusammen, **was seit v4.2 tatsächlich umgesetzt wurde**, und markiert damit den Übergang von "reine Entscheidungsvorlage" zu "Infrastructure-Layer live, Domain-Layer wartet auf Freigaben".
+
+### E.1 Was umgesetzt wurde
+
+**Infrastructure-Layer — komplett live:**
+
+| Komponente | Status | Referenz im Konzept | Code / Doc |
+|-----------|--------|---------------------|-----------|
+| Feature-Flag-Registry (6 ERP-Flags, alle `false`) | ✅ live | §8.2, §9.2 | `backend/src/lib/feature-flags.ts` |
+| `site_config.features` JSONB-Spalte + idempotente Migration | ✅ live | §8.2 | `backend/scripts/migrations/2026-04-05_add_site_config_features.sql` |
+| Admin-Toggle-UI (generisch, kategorisiert, mit Info-Banner) | ✅ live | §8.2 | `backend/src/admin/routes/config/page.tsx` (Tab "Feature Flags") |
+| Transaktionale Flag-Writes (`setFeatureFlag`) mit `FOR UPDATE`-Lock + Audit-Log | ✅ live | §8.2 (implizit) | `backend/src/lib/feature-flags.ts` + `config_audit_log` |
+| Admin-API `GET/POST /admin/platform-flags` | ✅ live | — (neu) | `backend/src/api/admin/platform-flags/route.ts` |
+| Public Flag-Endpoint `GET /store/platform-flags` (nur whitelisted Flags) | ✅ live | — (neu) | `backend/src/api/store/platform-flags/route.ts` |
+| Storefront `FeatureFlagProvider` + `useFeatureFlag` Hook | ✅ live | — (neu) | `storefront/src/components/FeatureFlagProvider.tsx` |
+| `CLIENT_SAFE_FLAGS` Whitelist (ERP-Flags bleiben privat) | ✅ live | — (Security-Addition) | `backend/src/lib/feature-flags.ts` |
+| Trial-Flag `EXPERIMENTAL_SKIP_BID_CONFIRMATION` End-to-End validiert | ✅ live | — (Infrastruktur-Validierung) | `storefront/src/components/ItemBidSection.tsx` (BidForm) |
+| Deployment-Methodology als verbindliches Governance-Doc | ✅ live | §8 + §9 (komplett) | `docs/architecture/DEPLOYMENT_METHODOLOGY.md` |
+| Migration-Discipline als Policy (additiv-only, no DROP/RENAME/TYPE) | ✅ verbindlich | §8.3 | `DEPLOYMENT_METHODOLOGY.md` §3 |
+| `/admin/erp/*` Prefix-Reservation | ✅ reserviert | §8.4 | `DEPLOYMENT_METHODOLOGY.md` §5 |
+| Staging-DB provisioniert (`vod-auctions-staging`, eu-west-1, Schema 1:1) | ✅ live | §8.5 | `docs/architecture/STAGING_ENVIRONMENT.md` |
+| 1Password-Integration für Staging-Credentials (`Supabase 2. Account`) | ✅ live | — (Security-Addition) | `STAGING_ENVIRONMENT.md` + `backend/.env.staging.example` |
+| PM2-`cwd`-Hotfix (backend → `.medusa/server/`) + `.env`-Symlink | ✅ live | — (Incident 2026-04-05) | `backend/ecosystem.config.js`, `CLAUDE.md` gotchas |
+| Fünf neue Supabase/Deployment-Gotchas dokumentiert | ✅ live | — | `CLAUDE.md` |
+
+### E.2 Was NICHT umgesetzt wurde (bewusst)
+
+**Domain-Layer — wartet weiterhin auf fachliche Freigaben (Abschnitt 14):**
+
+| Komponente | Warum noch nicht | Abhängigkeit |
+|-----------|------------------|--------------|
+| `inventory_item` Tabelle + Bestandsmigration | Wartet auf StB-Validierung EK=0, Lagerort-Granularität | StB + Frank |
+| `tax_margin_record` + §25a-Tracking | Wartet auf StB-Entscheidung Einzel/Sammel + Kontenplan | StB (Pflicht) |
+| `commission_owner` + Settlement-Logik | Wartet auf Kommissionsvertrag-Vorlage + Abrechnungszyklus | Anwalt + Frank |
+| sevDesk/easybill-Integration | Wartet auf Produktwahl + 5 Test-Rechnungen | Robin + Frank + StB |
+| Sendcloud-Integration | Wartet auf DHL-Geschäftskundennummer + Sendcloud-Account | Frank |
+| DATEV-Export | Baut auf sevDesk/easybill + §25a auf | StB |
+| Marketplace-Tabellen (`seller`, `seller_payout`, Stripe Connect) | Wartet auf Stripe Connect Application + §22f/§25e-Prüfung + GmbH-Entscheidung | Anwalt + Frank + Stripe |
+| `/admin/erp/*` Routes | Werden erst mit dem jeweils ersten ERP-Feature angelegt | siehe oben |
+| Staging HTTP-Layer (PM2 Port 9001, nginx, DNS) | Wird erst mit dem ersten Feature das HTTP-Staging braucht gebaut | Robin (schnell) |
+| `develop`-Branch-Workflow | Bisher nicht nötig (solo auf `main`); wird etabliert wenn parallele ERP-Branches starten | — |
+
+### E.3 Welche Infrastructure-Invariante ist jetzt hergestellt?
+
+Ab 2026-04-05 gilt für jede zukünftige ERP-Komponente:
+
+1. **Ein neuer Flag ist eine Code-Zeile in `FEATURES`.** Kein DB-Migration, kein Deploy-Sonderfall. Default `false`.
+2. **Der Flag erscheint automatisch in der Admin-UI.** Robin kann ihn toggeln, ohne dass ein Dev etwas macht.
+3. **Jeder Toggle ist auditierbar.** `config_audit_log` hat `feature_flag:<KEY>` Einträge, sichtbar im "Change History" Tab.
+4. **Deployment und Aktivierung sind entkoppelt.** Ein Feature kann Wochen deployed sein ohne dass irgendwer es merkt. Ein Rollback ist ein Flag-Toggle (30 Sekunden).
+5. **Staging steht bereit für Migration-Rehearsals.** Jede neue SQL-Datei kann auf Staging angewendet werden bevor sie Production berührt. Die `docker run postgres:17 pg_dump | psql` Pipeline ist dokumentiert und wiederholbar.
+6. **Client-side Flag-Exposure ist sicher by default.** ERP-Flags sind PRIVAT, außer ein Dev ergänzt explizit die `CLIENT_SAFE_FLAGS` Whitelist.
+
+### E.4 Was als nächstes sinnvoll ist
+
+**Nicht-ERP-Arbeit (kann jederzeit, ohne fachliche Freigabe):**
+- Storefront-Features mit client-side Flag (z.B. Layout-Experimente, Bid-Flow-Variationen) — nutzen die bestehende Trial-Flag-Infrastruktur
+- Backend-Admin-Features mit admin-only Flag (z.B. neue Dashboard-Widgets hinter `EXPERIMENTAL_*`)
+- Migration-Rehearsal-Pipeline (Skript das pending Migrations sequentiell auf Staging anwendet)
+
+**ERP-Domain-Arbeit (braucht fachliche Freigaben aus Abschnitt 14):**
+- **Wahrscheinlich erster sinnvoller ERP-Meilenstein: Sendcloud-Integration.** Grund: eigenständig aktivierbar, additiv zum bestehenden manuellen Workflow, niedrige Komplexität, einzige externe Abhängigkeit ist die DHL-Geschäftskundennummer (die Frank ohnehin braucht). Kein Steuerberater im Critical Path. `ERP_SENDCLOUD`-Flag + neue `shipping_label` Tabelle + `/admin/erp/shipping/*` Routes + Sendcloud-Client-Wrapper.
+- **Zweiter sinnvoller Meilenstein: sevDesk/easybill + Rechnungsstellung.** Braucht StB-Validierung aber ist eigenständig aktivierbar nach Setup. `ERP_INVOICING`-Flag + sevDesk-Client + Webhook-Handler nach Payment-Success.
+- **Dritter: `inventory_item` + Bestandsmigration.** Braucht mehr Setup und Validierung. Hebelweise aktivierbar: erst Read-Path (legacy_available bleibt Source-of-Truth), dann Stichtag-Cutover.
+- **Später: §25a-Tracking, Kommission, DATEV-Export.** Verbunden, brauchen alle StB, daher als Paket.
+- **Noch später: Marketplace.** Eigenständiger Meilenstein mit Rechts-Prüfung, Stripe Connect, etc.
+
+### E.5 Freigabestatus
+
+| Freigabe | Status |
+|----------|--------|
+| Architektur (Composable Stack A) | ✅ angenommen |
+| Marketplace strukturell mitdenken | ✅ angenommen (Whitelist-Policy enforcet private by default) |
+| Deployment-Methodology als verbindlich | ✅ `CLAUDE.md` + `DEPLOYMENT_METHODOLOGY.md` |
+| Infrastructure-Layer implementiert | ✅ 2026-04-05 |
+| Staging-DB einsatzbereit | ✅ 2026-04-05 (nur DB, kein HTTP) |
+| StB-Termin für §25a | ⏸ offen |
+| sevDesk/easybill Entscheidung | ⏸ offen |
+| DHL-Geschäftskundennummer | ⏸ offen (Frank) |
+| Kommissionsvertrag-Vorlage | ⏸ offen (Anwalt) |
+| Stripe Connect Application | ⏸ offen (Robin) |
+| Marketplace Rechts-Prüfung (§22f/§25e) | ⏸ offen (Anwalt) |
+
+Die Infrastructure-Freigaben sind erledigt. Von hier aus ist der nächste Schritt **nicht technisch, sondern fachlich**: sobald Frank die DHL-Nummer hat und/oder ein Steuerberater-Termin stattgefunden hat, kann das erste ERP-Domain-Feature beginnen. Die Code-Seite ist darauf vorbereitet.
+
+### E.6 Commits der Umsetzung
+
+Alle 2026-04-05 auf `main`:
+
+| Commit | Scope |
+|--------|-------|
+| `b349763` | Feature-Flag-Infrastruktur + Deployment-Methodology (core) |
+| `35a99e0` | PM2 cwd + .env symlink Hotfix + Deploy-Sequenz-Doku |
+| `f7eeb49` | Minimaler Backend-Trial-Flag (`EXPERIMENTAL_STORE_SITE_MODE_DEBUG`) |
+| `0f5976e` | Vollständiger Storefront-Trial-Flag (`EXPERIMENTAL_SKIP_BID_CONFIRMATION`) + `/store/platform-flags` + Provider |
+| `5bf2085` | Staging-DB-Umsetzung + 5 neue Gotchas + Env-Templates |
+
+GitHub Release: [`v2026.04.05`](https://github.com/rseckler/VOD_Auctions/releases/tag/v2026.04.05)
+
+---
+
+*Ende Teil E. Teil A-D (v4.2) bleiben inhaltlich unverändert und sind weiterhin der Referenz-Plan für den Domain-Layer.*
