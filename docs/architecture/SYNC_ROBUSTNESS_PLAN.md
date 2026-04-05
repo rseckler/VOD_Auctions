@@ -1,9 +1,13 @@
 # Sync Robustness Plan
 
-**Version:** 2.0 (hardened)
+**Version:** 2.1 (Field Audit complete)
 **Datum:** 2026-04-05
-**Status:** Entscheidungsvorlage
-**Ersetzt:** v1.0 (zu breit, überbaut — git history `e2af928`)
+**Status:** Entscheidungsvorlage — Phase A1 abgeschlossen, bereit für Robin-Review vor Phase A2
+**Vorgänger:** v2.0 (Ausgangsdokument, git history `97b4873`), v1.0 (zu breit, git history `e2af928`)
+
+## Änderung v2.0 → v2.1
+
+Phase A1 (Field Audit) abgeschlossen. Die MySQL-Quell-Schemas aller Legacy-Tabellen wurden verifiziert und gegen den Python-Script-Code abgeglichen. §6 (Feld-Ownership-Matrix) ist jetzt mit realen Werten befüllt, alle `❓`-Felder aus v2.0 sind aufgelöst. Zusätzlich ein neues §6.3 mit Audit-Befunden (ungenutzte MySQL-Spalten, tote Supabase-Spalten, Literatur-Sonderregeln).
 
 ---
 
@@ -168,66 +172,167 @@ Die wichtigste neue Artefakt dieses Plans. Ohne klare Ownership ist jede Robusth
 
 **Prinzip:** Für jedes Feld in `Release` (und analog in den anderen gesyncten Tabellen) existiert genau eine Source of Truth. Alle anderen Akteure sind Read-Only oder Override-Only-unter-Bedingung.
 
-### 6.1 Release-Feld-Matrix (aktueller Stand — muss in Phase A1 verifiziert werden)
+### 6.1 Release-Feld-Matrix (verifiziert 2026-04-05 via Phase A1)
+
+**MySQL-Quell-Realität:** Die Tabelle `3wadmin_tapes_releases` hat nur **14 Spalten**. Die Literatur-Tabellen (`3wadmin_tapes_{band,labels,pressorga}_lit`) haben je **8 Spalten** (kleinere Teilmenge). Viele Felder im Supabase-`Release`-Schema haben schlicht **keine Legacy-Quelle** und werden deshalb nie gesynct — egal ob wir wollen oder nicht. Zwei MySQL-Spalten werden vom Script ignoriert (`review`, `frei_user`).
 
 **Legende Spalte "Sync überschreibt?":**
-- **Ja** = Jeder Sync-Run setzt dieses Feld auf den MySQL-Wert.
-- **Bedingt** = Mit Schutzregel (z.B. `label_enriched`).
-- **Nein** = Sync darf dieses Feld nie anfassen.
-- **Insert-only** = Nur bei erstem Einfügen.
+- **Ja (r)** = Überschrieben nur bei Music-Releases (sync_releases)
+- **Ja (r+l)** = Überschrieben bei Music-Releases UND Literatur (sync_literature)
+- **Ja (l only)** = Nur bei Literatur (z.B. pressOrgaId)
+- **Bedingt** = Mit Schutzregel (`label_enriched`)
+- **Nein** = Sync fasst das Feld nie an
+- **Insert-only** = Nur beim ersten Einfügen gesetzt
+- **Technisch** = Immer NOW(), nicht inhaltlich
 
-| Feld | Source of Truth | Sync überschreibt? | Schutzregel | Konflikt → Entscheider |
+| Supabase-Feld | MySQL-Quelle | Sync überschreibt? | Owner / Konflikt-Entscheider | Notiz |
 |---|---|---|---|---|
-| `id` | Legacy MySQL | Insert-only | Deterministische `legacy-*-{id}` Mapping | N/A |
-| `slug` | Legacy MySQL | Ja | Keine | Frank / MySQL wins |
-| `title` | Legacy MySQL | Ja | Keine | Frank |
-| `subtitle` | ❓ | ❓ | — | zu klären (A1) |
-| `description` | Legacy MySQL | Ja | Keine | Frank |
-| `year` | Legacy MySQL | Ja | Keine | Frank |
-| `releaseDate` | ❓ | ❓ | — | zu klären (A1) |
-| `format` | Legacy MySQL | Ja | Keine | Frank |
-| `format_id` | Legacy MySQL | Ja | Keine | Frank |
-| `catalogNumber` | Legacy MySQL | Ja | Keine | Frank |
-| `barcode` | ❓ | ❓ | — | zu klären (A1) |
-| `country` | Legacy MySQL | Ja | Keine | Frank |
-| `language` | ❓ | ❓ | — | zu klären (A1) |
-| `pages` | ❓ | ❓ (Literatur) | — | zu klären (A1) |
-| `artistId` | Legacy MySQL | Ja | Keine | Frank |
-| `labelId` | Legacy MySQL | **Bedingt** | Wenn `label_enriched=TRUE` nie überschreiben | Admin (Label-Enrichment-Pipeline) |
-| `pressOrgaId` | Legacy MySQL | Ja | Keine | Frank |
-| `coverImage` | Legacy MySQL | Ja | Keine | Frank |
-| `tracklist` | ❓ | ❓ | — | zu klären (A1) |
-| `credits` | ❓ | ❓ | — | zu klären (A1) |
-| `legacy_price` | Legacy MySQL | Ja | Keine | Frank |
-| `legacy_condition` | Legacy MySQL | Ja | Keine | Frank |
-| `legacy_format_detail` | Legacy MySQL | Ja | Keine | Frank |
-| `legacy_available` | Legacy MySQL | Ja | Keine | Frank |
-| `legacy_availability` | ❓ (int, unklare Semantik) | ❓ | — | zu klären (A1) |
-| `article_number` | ❓ | ❓ | — | zu klären (A1) |
-| `tape_mag_url` | ❓ | ❓ | — | zu klären (A1) |
-| `legacy_last_synced` | Sync-Logik | Ja | Technisches Marker-Feld | Sync-Script |
-| `updatedAt` | Postgres | Ja (auf NOW()) | Technisches Marker-Feld | Sync-Script |
-| `createdAt` | Postgres | Insert-only | — | N/A |
-| `media_condition` | Admin / Medusa | **Nein** | — | Admin (manuell) |
-| `sleeve_condition` | Admin / Medusa | **Nein** | — | Admin |
-| `estimated_value` | Admin | **Nein** | — | Admin |
-| `auction_status` | Auction-Logik | **Nein** | — | Auction-Engine |
-| `current_block_id` | Auction-Logik | **Nein** | — | Auction-Engine |
-| `sale_mode` | Admin | **Nein** | — | Admin |
-| `direct_price` | Admin | **Nein** | — | Admin |
-| `inventory` | Admin | **Nein** | — | Admin |
-| `shipping_item_type_id` | Admin | **Nein** | — | Admin |
-| `product_category` | Sync (aus MySQL Typ abgeleitet) | Insert-only | — | Script-Logik |
-| `label_enriched` | Label-Enrichment-Pipeline | **Nein** | — | Script (separates Tool) |
-| `viewCount` | Storefront | **Nein** | — | User-Traffic |
-| `averageRating` / `ratingCount` / `favoriteCount` | Storefront | **Nein** | — | User-Aktion |
-| `discogs_*` (9 Felder) | Discogs API | **Nein** (vom Legacy-Sync) / Ja (vom Discogs-Sync) | — | Discogs-Sync |
+| `id` | `r.id` / `t.id` (mit Präfix) | Insert-only | System | Deterministisch: `legacy-{release,bandlit,labellit,presslit}-{id}` |
+| `slug` | computed (artist + title + id) | Ja (r+l) | Script | Kein direktes MySQL-Feld |
+| `title` | `r.title` / `t.title` | Ja (r+l) | Frank (MySQL) | |
+| `description` | `r.moreinfo` / `t.text` | Ja (r+l) | Frank | |
+| `year` | `r.year` / `t.year` | Ja (r+l) | Frank | 0/NULL → Supabase NULL |
+| `format` (enum) | mapped from `r.format` / `t.format` | Ja (r+l) | Frank | ReleaseFormat-Enum |
+| `format_id` | `r.format` / `t.format` | Ja (r+l) | Frank | |
+| `catalogNumber` | `r.cataloguenumber` | Ja (**r only**) | Frank | Literatur hat keine cataloguenumber |
+| `country` | JOIN `3wadmin_shop_countries` → translated | Ja (r+l) | Frank (via MySQL country FK) | DE → EN translation im Script |
+| `artistId` | `legacy-artist-{r.artist}` | Ja (r + band_lit) | Frank | Für band_lit als "Band-of-literature" |
+| `labelId` | `legacy-label-{r.label}` | **Bedingt** | Label-Enrichment-Pipeline | `label_enriched=TRUE` schützt vor Überschreibung |
+| `pressOrgaId` | `legacy-pressorga-{t.aid}` | Ja (**press_lit only**) | Frank | Nur von sync_literature für press_lit gesetzt |
+| `coverImage` | `bilder_1.bild` (WHERE typ=10/12/13/14) | Ja (r+l) | Frank | Subquery, nur erstes Bild pro Entity |
+| `legacy_price` | `r.preis` / `t.preis` | Ja (r+l) | Frank | |
+| `legacy_condition` | `r.spezifikation` | Ja (**r only**) | Frank | **Literatur-Tabellen haben kein spezifikation-Feld** |
+| `legacy_format_detail` | JOIN `3wadmin_tapes_formate.name` | Ja (r+l) | Frank | Vom Format-FK, nicht eigene Spalte |
+| `legacy_available` (bool) | computed: `r.frei == 1` | Ja (**r only**) | Frank | **Literatur-Tabellen haben kein frei-Feld**, bleibt Default `TRUE` |
+| `legacy_last_synced` | — | Technisch (r+l) | Script | NOW() bei jedem Run |
+| `updatedAt` | — | Technisch (r+l) | Script | NOW() bei jedem Run — Sync berührt ALLE Zeilen jede Stunde |
+| `createdAt` | — | Insert-only | Postgres Default | |
+| `product_category` | aus Tabellen-Zuordnung abgeleitet | Insert-only | Script | `release` / `band_literature` / `label_literature` / `press_literature` |
+| `label_enriched` | — | **Nein** | Label-Enrichment-Pipeline (separates Tool) | Schutz-Flag für `labelId` |
+| `subtitle` | **existiert nicht in MySQL** | **Nie** | — | Supabase-Feld ohne Legacy-Quelle |
+| `barcode` | **existiert nicht in MySQL** | **Nie** | — | Supabase-Feld ohne Legacy-Quelle |
+| `language` | **existiert nicht in MySQL** | **Nie** | — | |
+| `pages` | **existiert nicht in MySQL** (auch nicht in lit) | **Nie** | — | |
+| `releaseDate` | **existiert nicht in MySQL** | **Nie** | — | |
+| `tracklist` (JSONB) | **existiert nicht in MySQL** | **Nie** | — | |
+| `credits` | **existiert nicht in MySQL** | **Nie** | — | |
+| `article_number` | **existiert nicht in MySQL** | **Nie** | — | Unique index existiert aber niemand schreibt das Feld — wohl komplett tot |
+| `tape_mag_url` | **existiert nicht in MySQL** | **Nie** | — | |
+| `legacy_availability` (integer) | **existiert nicht in MySQL** | **Nie** | — | **Tote Spalte.** Nicht zu verwechseln mit `legacy_available` (bool). Bug in Schema-Design, kein Script schreibt das je. |
+| `media_condition` | **existiert nicht in MySQL** | **Nein** | Admin (manuell) | |
+| `sleeve_condition` | **existiert nicht in MySQL** | **Nein** | Admin | |
+| `estimated_value` | — | **Nein** | Admin | |
+| `auction_status` | — | **Nein** | Auction-Engine | |
+| `current_block_id` | — | **Nein** | Auction-Engine | |
+| `sale_mode` | — | **Nein** | Admin | Default `'auction_only'` |
+| `direct_price` | — | **Nein** | Admin | |
+| `inventory` | — | **Nein** | Admin | |
+| `shipping_item_type_id` | — | **Nein** | Admin | |
+| `viewCount` | — | **Nein** | Storefront-Traffic | |
+| `averageRating` / `ratingCount` / `favoriteCount` | — | **Nein** | User-Aktion | |
+| `discogs_id` | Discogs API | **Nein** vom Legacy-Sync / **Ja** vom Discogs-Sync | Discogs-Sync-Script | |
+| `discogs_lowest_price` | Discogs API | **Nein/Ja** (siehe oben) | Discogs-Sync | |
+| `discogs_median_price` | Discogs API | **Nein/Ja** | Discogs-Sync | |
+| `discogs_highest_price` | Discogs API | **Nein/Ja** | Discogs-Sync | |
+| `discogs_num_for_sale` | Discogs API | **Nein/Ja** | Discogs-Sync | |
+| `discogs_have` | Discogs API | **Nein/Ja** | Discogs-Sync | |
+| `discogs_want` | Discogs API | **Nein/Ja** | Discogs-Sync | |
+| `discogs_last_synced` | — | **Nein/Ja** (NOW() vom Discogs-Sync) | Discogs-Sync | |
 
-**Offene Fragen aus A1:** 10 Felder mit `❓` müssen in Phase A1 gegen das MySQL-Schema verifiziert werden. Erwartung: entweder sie werden gesynct (dann Contract aufnehmen) oder sie sind Legacy-Tote (dann bewusst als "nicht gesynct" markieren).
+### 6.2 LEGACY_SYNC_FIELDS (Contract als Python-Literal)
 
-**Konflikt-Verhalten:** Wenn ein Feld, das Sync überschreibt, gleichzeitig manuell im Admin-UI geändert wird, gewinnt **Frank (MySQL)**. Der Admin-UI-Wert wird beim nächsten Sync überschrieben. Das ist Design, nicht Bug. Wenn Robin das ändern will (Admin wins), muss das Feld zu `label_enriched`-analogen Schutzregeln migriert werden — separate Arbeit, pro Feld, nicht pauschal.
+Die folgende Python-Datenstruktur ist das verbindliche Ergebnis des Audits. Sie soll in Phase A3 als zentrale Konstante im Script leben. Alle UPSERT-SQL-Statements, Diff-Checks, Validation-Queries iterieren über diese Liste.
 
-### 6.2 Image-Ownership
+```python
+LEGACY_SYNC_FIELDS = {
+    "release": {
+        # Music releases — full 14-field coverage
+        "title":                {"mysql": "r.title",                      "type": "text",    "nullable": False, "diff": True},
+        "description":          {"mysql": "r.moreinfo",                   "type": "text",    "nullable": True,  "diff": True},
+        "year":                 {"mysql": "r.year (if > 0)",              "type": "int",     "nullable": True,  "diff": True},
+        "format":               {"mysql": "map_format(r.format)",         "type": "enum",    "nullable": False, "diff": True},
+        "format_id":            {"mysql": "r.format",                     "type": "int",     "nullable": True,  "diff": True},
+        "catalogNumber":        {"mysql": "r.cataloguenumber",            "type": "text",    "nullable": True,  "diff": True},
+        "country":              {"mysql": "translate(country_name)",      "type": "text",    "nullable": True,  "diff": True},
+        "artistId":             {"mysql": "legacy-artist-{r.artist}",     "type": "text",    "nullable": True,  "diff": True},
+        "labelId":              {"mysql": "legacy-label-{r.label}",       "type": "text",    "nullable": True,  "diff": True, "guard": "label_enriched"},
+        "coverImage":           {"mysql": "bilder_1.bild (typ=10)",       "type": "text",    "nullable": True,  "diff": True},
+        "legacy_price":         {"mysql": "r.preis",                      "type": "decimal", "nullable": True,  "diff": True},
+        "legacy_condition":     {"mysql": "r.spezifikation",              "type": "text",    "nullable": True,  "diff": True},
+        "legacy_format_detail": {"mysql": "3wadmin_tapes_formate.name",   "type": "text",    "nullable": True,  "diff": True},
+        "legacy_available":     {"mysql": "r.frei == 1",                  "type": "bool",    "nullable": False, "diff": True},
+    },
+    "literature": {
+        # band_lit, labels_lit, pressorga_lit — 10 fields (no condition, no availability)
+        "title":                {"mysql": "t.title",                      "type": "text",    "nullable": False, "diff": True},
+        "description":          {"mysql": "t.text",                       "type": "text",    "nullable": True,  "diff": True},
+        "year":                 {"mysql": "t.year",                       "type": "int",     "nullable": True,  "diff": True},
+        "format":               {"mysql": "map_format(t.format)",         "type": "enum",    "nullable": False, "diff": True},
+        "format_id":            {"mysql": "t.format",                     "type": "int",     "nullable": True,  "diff": True},
+        "country":              {"mysql": "translate(country_name)",      "type": "text",    "nullable": True,  "diff": True},
+        "artistId":             {"mysql": "legacy-artist-{t.aid}",        "type": "text",    "nullable": True,  "diff": True, "only": "band_lit"},
+        "labelId":              {"mysql": "legacy-label-{t.aid}",         "type": "text",    "nullable": True,  "diff": True, "guard": "label_enriched", "only": "labels_lit"},
+        "pressOrgaId":          {"mysql": "legacy-pressorga-{t.aid}",     "type": "text",    "nullable": True,  "diff": True, "only": "pressorga_lit"},
+        "coverImage":           {"mysql": "bilder_1.bild (typ=12/13/14)", "type": "text",    "nullable": True,  "diff": True},
+        "legacy_price":         {"mysql": "t.preis",                      "type": "decimal", "nullable": True,  "diff": True},
+        "legacy_format_detail": {"mysql": "3wadmin_tapes_formate.name",   "type": "text",    "nullable": True,  "diff": True},
+        # Not synced for literature (no MySQL source):
+        # - legacy_condition (no spezifikation column in lit tables)
+        # - legacy_available (no frei column in lit tables — default stays TRUE)
+        # - catalogNumber (no cataloguenumber column in lit tables)
+    },
+    "artist": {
+        "name": {"mysql": "3wadmin_tapes_band.name", "type": "text", "nullable": False, "diff": True},
+        # Insert-only: slug (computed from name)
+        # NOT synced: text, alias, country, members, gender (ignored by script)
+    },
+    "label": {
+        "name": {"mysql": "3wadmin_tapes_labels.label", "type": "text", "nullable": False, "diff": True},
+        # Insert-only: slug
+        # NOT synced: text, country, years_running (ignored by script)
+    },
+    "pressorga": {
+        "name": {"mysql": "3wadmin_tapes_pressorga.name", "type": "text", "nullable": False, "diff": True},
+        # NOT synced: text, country, year, format (ignored by script)
+    },
+    "image": {
+        # Images are insert-only via ON CONFLICT DO NOTHING.
+        # id pattern: legacy-image-{release_id}  for music releases (from 3wadmin_tapes_releases subquery)
+        # id pattern: legacy-image-lit-{image_id} for literature (from bilder_1.id subquery)
+        # Image.createdAt is set to NOW() at insert time — this is the signal
+        # that the 24h rolling-window query in /admin/sync relies on.
+    },
+}
+```
+
+### 6.3 Audit-Befunde — Auffälligkeiten im aktuellen Stand
+
+Aus dem Phase-A1-Audit sind fünf Punkte aufgefallen, die über die reine Feld-Matrix hinausgehen und Robin's Aufmerksamkeit brauchen:
+
+1. **`review` Spalte in MySQL wird komplett ignoriert.** Das `3wadmin_tapes_releases.review` Feld (Typ `text`) wird vom Script nicht gelesen und nirgendwo in Supabase geschrieben. Wenn dort Inhalte drin stehen (z.B. von Frank geschriebene Reviews), gehen sie verloren. **Aktion nötig:** Stichproben-Query in MySQL ob `review`-Feld substantiellen Content hat. Wenn ja → Feld in `LEGACY_SYNC_FIELDS` aufnehmen und `review` → neuer Supabase-Spalte (z.B. `legacy_review TEXT`) mappen.
+
+2. **`legacy_availability` (int) in Supabase ist eine tote Spalte.** Kein Script schreibt sie je. Die korrekte Availability-Spalte ist `legacy_available` (bool). Die `legacy_availability`-int wurde wahrscheinlich als Schema-Relikt eingefügt und nie entfernt. **Aktion nötig (Phase B):** additive Migration, die die tote Spalte als `DEPRECATED` kommentiert oder entfernt. Kein Produktions-Risiko, aber sauberes Schema-Design.
+
+3. **Literatur-Einträge haben kein `legacy_condition` und kein `legacy_available`.** Weil die MySQL-Lit-Tabellen diese Felder nicht haben. Alle Literatur-Rows in Supabase haben `legacy_condition=NULL` und `legacy_available=TRUE` (Default). Das ist by design — MySQL kann es nicht liefern. **Wichtig für Admin-UI:** Condition-Filter darf diese Einträge nicht ausschließen oder als "unbekannt" falsch anzeigen.
+
+4. **Literatur-Einträge haben kein `catalogNumber`.** Gleiche Begründung wie #3. 6,326 Press-Literature-Einträge haben alle `catalogNumber=NULL`. Kein Feature-Bug, nur Wissen.
+
+5. **Image-IDs kollidieren nicht zwischen Release-Typen.** Das Script nutzt zwei verschiedene ID-Patterns: `legacy-image-{release_id}` für Music-Releases (aus dem release-internen subquery) und `legacy-image-lit-{image_id}` für Literatur. Das ist sauber — keine Sorge wegen Kollisionen. Aber: die beiden Pattern sind **nicht dokumentiert** außer im Code. In CLAUDE.md nachtragen.
+
+Diese fünf Befunde ändern nichts an Phase-A-Prioritäten. Sie sind als "zu berücksichtigen bei Phase A3 (Script-Rewrite)" markiert. Punkt 1 (review-Feld) ist optional — nur wenn dort wertvoller Content steckt.
+
+### 6.4 Konflikt-Verhalten
+
+Wenn ein Feld, das Sync überschreibt, gleichzeitig manuell im Admin-UI geändert wird, gewinnt **Frank (MySQL)** beim nächsten stündlichen Sync. Der Admin-UI-Wert wird überschrieben. Das ist Design, nicht Bug.
+
+Wenn Robin das für ein bestimmtes Feld ändern will (Admin wins), muss das Feld eine Schutzregel analog zu `label_enriched` bekommen:
+1. Neue boolean-Spalte `{field}_manual_override` in `Release`
+2. Script prüft vor UPSERT: `IF {field}_manual_override THEN keep existing ELSE overwrite`
+3. Admin-UI setzt das Flag beim Bearbeiten
+
+Das ist per Feld einzeln zu entscheiden. Phase C, nicht jetzt. Phase A und B bleiben bei "Frank in MySQL wins".
+
+### 6.5 Image-Ownership
 
 Images (`Image`-Tabelle, verknüpft über `releaseId`) haben eine eigene Regel:
 
