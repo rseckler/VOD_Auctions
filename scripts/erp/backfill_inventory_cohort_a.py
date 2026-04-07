@@ -143,8 +143,8 @@ def main():
                  (id, release_id, source, status, quantity, tax_scheme, created_at, updated_at)
                VALUES %s
                ON CONFLICT (id) DO NOTHING""",
-            [(iid, rid, "frank_collection", "in_stock", 1, "margin_scheme_25a",
-              "NOW()", "NOW()") for iid, rid in item_rows],
+            [(iid, rid, "frank_collection", "in_stock", 1, "margin_scheme_25a")
+             for iid, rid in item_rows],
             template="(%s, %s, %s, %s, %s, %s, NOW(), NOW())",
         )
 
