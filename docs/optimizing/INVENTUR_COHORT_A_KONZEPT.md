@@ -1,10 +1,11 @@
-# Inventur Cohort A + Bulk +20% — erste Aktivierung des ERP_INVENTORY Moduls
+# Inventur Cohort A + Bulk +15% — erste Aktivierung des ERP_INVENTORY Moduls
 
-**Version:** 1.0
-**Erstellt:** 2026-04-05
+**Version:** 2.0
+**Erstellt:** 2026-04-05 | **Aktualisiert:** 2026-04-07
 **Autor:** Robin Seckler
-**Status:** Approved (2026-04-07) — alle 7 Frank-Fragen beantwortet, Plan freigegeben, Implementierung startet
+**Status:** ✅ Implementiert (2026-04-07) — Code deployed, ERP_INVENTORY Flag OFF, wartet auf Aktivierung nach 24h Sync-Check
 **Bezug:** `ERP_WARENWIRTSCHAFT_KONZEPT.md` §8.4 / §10 / R2, `SYNC_ROBUSTNESS_PLAN.md` §6, `STAGING_ENVIRONMENT.md`, `DESIGN_GUIDE_BACKEND.md` v2.0, `UI_UX/UI_UX_STYLE_GUIDE.md`
+**GitHub Release:** [`v2026.04.07-inventur-cohort-a`](https://github.com/rseckler/VOD_Auctions/releases/tag/v2026.04.07-inventur-cohort-a)
 
 ---
 
@@ -335,3 +336,92 @@ Alle fünf offenen Punkte aus der v1-Fassung sind durch Franks Antworten und arc
 | **Missing-Status** | ✅ Kein eigener Status | F2: `legacy_price=0 + price_locked=true`. Status bleibt `in_stock`. `is_purchasable`-Logik der Storefront erledigt das. Kein `written_off`. |
 | **Sortierung** | ✅ Format-Gruppe → Artist → Title | F5: `CASE WHEN format='LP' THEN 1 WHEN format IN ('CASSETTE','REEL') THEN 2 WHEN format IN (...print...) THEN 3 ELSE 4 END, artist, title` |
 | **Cohort B/C** | ⏸ Separat, nach A | Gleicher Workflow, andere WHERE-Klausel. Nicht Teil dieses PRs. |
+
+---
+
+## 13. Implementierungs-Status (2026-04-07)
+
+### Abweichungen vom Konzept v1.0 bei der Implementierung
+
+| Punkt | Konzept v1.0 | Implementierung | Grund |
+|---|---|---|---|
+| **Cohort-A-Größe** | ~7.407 Items | **13.107 Items** (10.762 Musik + 2.345 Literatur) | Konzept zählte nur Musik, aber Franks F5 nennt "Magazin" als Format-Gruppe → Literatur gehört dazu |
+| **Tabellennamen** | `inventory_item`, `inventory_movement` | **`erp_inventory_item`**, **`erp_inventory_movement`** | Medusa hat eine native `inventory_item` Tabelle (aus `@medusajs/inventory` Modul). `erp_` Prefix vermeidet Kollision. Gleicher Fehlertyp wie `/admin/feature-flags` Route-Kollision. |
+| **Missing-Mechanik** | `status='written_off'` + Storefront-Filter | **`legacy_price=0` + `price_locked=true`**, Status bleibt `in_stock` | F2: Franks Wunsch. Vereinfacht Storefront massiv — bestehende `is_purchasable`-Logik (`legacy_price > 0`) deckt es ab. Null Storefront-Code-Änderungen. |
+| **Undo bei Missing** | Nicht spezifiziert | Alter Preis in `erp_inventory_movement.reference` als JSON gespeichert | Reset-Route liest den alten Preis aus dem Movement und stellt ihn wieder her |
+| **Queue-Cursor** | `?cursor=<release_id>` mit composite comparison | Vereinfacht: Queue gibt immer `WHERE last_stocktake_at IS NULL` zurück, kein expliziter Cursor nötig | Bei Refresh/Resume holt der Client einfach die nächsten unbearbeiteten Items. Simpler, gleicher Effekt. |
+
+### Implementierte Dateien
+
+**Neue Dateien (14):**
+```
+backend/scripts/migrations/2026-04-07_erp_inventory_bootstrap.sql
+scripts/erp/backfill_inventory_cohort_a.py
+backend/src/lib/inventory.ts
+backend/src/api/admin/erp/inventory/stats/route.ts
+backend/src/api/admin/erp/inventory/bulk-price-adjust/route.ts
+backend/src/api/admin/erp/inventory/queue/route.ts
+backend/src/api/admin/erp/inventory/items/[id]/verify/route.ts
+backend/src/api/admin/erp/inventory/items/[id]/missing/route.ts
+backend/src/api/admin/erp/inventory/items/[id]/note/route.ts
+backend/src/api/admin/erp/inventory/items/[id]/reset/route.ts
+backend/src/api/admin/erp/inventory/export/route.ts
+backend/src/admin/routes/erp/inventory/page.tsx
+backend/src/admin/routes/erp/inventory/session/page.tsx
+```
+
+**Modifizierte Dateien (3):**
+```
+scripts/legacy_sync_v2.py                          (Sync-Schutz: ON CONFLICT guard + Diff-Exclusion + V5)
+backend/src/admin/routes/operations/page.tsx       (HubCard "Inventory Stocktake")
+CLAUDE.md                                          (Medusa-Tabellen-Gotcha + ERP Module Status)
+```
+
+### Phasen-Status
+
+| Phase | Inhalt | Status | Commit |
+|---|---|---|---|
+| 1a | Migration SQL + Backfill 13.107 Items | ✅ Production | `ef27907`, `3e3739b` |
+| 1b | Sync-Schutz (ON CONFLICT + Diff + V5) | ✅ Production, verifiziert | `b99ede7` |
+| 2 | Bulk +15% Route + Helper + Stats API | ✅ Deployed (Flag OFF) | `219e3f9` |
+| 3a | 6 Session-API-Routes | ✅ Deployed (Flag OFF) | `28ecc10` |
+| 3b+4 | Hub Page + Session Screen | ✅ Deployed (Flag OFF) | `e996e6c` |
+| Finalisierung | Ops-Hub-Card + CLAUDE.md + CHANGELOG + Release | ✅ Deployed | `92fdcb7` |
+
+### DB-Stand auf Production (2026-04-07)
+
+```
+erp_inventory_item:        13.107 Zeilen (alle source='frank_collection', status='in_stock', price_locked=false)
+erp_inventory_movement:    13.107 Zeilen (alle type='inbound', reason='Initial backfill Cohort A')
+bulk_price_adjustment_log: 0 Zeilen (Bulk +15% noch nicht ausgeführt)
+```
+
+### Verifikationen durchgeführt
+
+| Test | Ergebnis |
+|---|---|
+| Migration auf Staging | ✅ 3 Tabellen + 10 Indizes |
+| Migration auf Production | ✅ |
+| Backfill Dry-Run | ✅ 13.107 Items erwartet |
+| Backfill Real | ✅ 13.107 Items + 13.107 Movements in 3s |
+| Backfill Idempotenz | ✅ Zweiter Lauf = 0 neue Rows |
+| Sync-Schutz: price_locked Test-Item | ✅ Preis-Mismatch €9↔€99 überlebt Dry-Run |
+| Sync-Schutz: V5 Validation | ✅ Keine price_locked Violations |
+| TypeScript Type-Check | ✅ 0 neue Errors in allen 14 neuen Dateien |
+| VPS Deploy (Build + Admin Assets + PM2) | ✅ |
+| Medusa-Tabellen-Kollision entdeckt + behoben | ✅ `erp_*` Prefix |
+
+### Aktivierungs-Checkliste (nächster Schritt)
+
+**Voraussetzung:** 24h stabiler Sync mit dem neuen Schutz (V5 darf nie "failed" zeigen).
+
+- [ ] **Sync-Check:** `/app/sync` → Legacy MySQL Sync → alle Runs seit 07.04. abends zeigen `script_version = legacy_sync.py v2.0.0` und `phase = success`
+- [ ] **Flag aktivieren:** `/app/config` → Feature Flags → `ERP_INVENTORY` → ON
+- [ ] **Bulk +15% Preview:** `/app/erp/inventory` → "Preview +15%" → Sample-Tabelle prüfen (ganze Euro)
+- [ ] **Bulk +15% Execute:** Confirmation `RAISE PRICES 15 PERCENT` → Execute
+- [ ] **Spot-Check:** 10 zufällige Releases in Supabase prüfen: `legacy_price = ROUND(alter_preis * 1.15, 0)`
+- [ ] **Frank informieren:** Session-URL `/app/erp/inventory/session`, Keyboard-Shortcuts erklären
+- [ ] **Erster Test-Durchlauf:** Frank verifiziert 5-10 Items, markiert 1-2 als Missing, testet Undo
+- [ ] **Sync nach Frank-Test:** Nächster stündlicher Sync darf verifizierte Preise NICHT überschreiben (V5 passed)
+
+**E-Mail-Reminder** für diesen Check liegt als Draft in Gmail (`rseckler@gmail.com`).
