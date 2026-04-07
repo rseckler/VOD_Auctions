@@ -130,47 +130,48 @@ MySQL (tape-mag)                         Discogs API
 
 ---
 
-### 2.3 Discogs Batch Matching (manuell)
+### 2.3 Discogs Batch Matching — ✅ ABGESCHLOSSEN
 
 | | |
 |---|---|
 | **Script** | `scripts/discogs_batch.py` |
-| **Cron** | Keiner — wird manuell gestartet |
-| **Ziel** | Release-Zeilen in Supabase, die noch keine `discogs_id` haben, mit Discogs-Einträgen matchen |
+| **Cron** | Keiner — war manuell, jetzt abgeschlossen |
+| **Status** | **100% der Musik-Releases verarbeitet.** Kein erneuter Lauf nötig. |
+| **AI/LLM** | **Nein.** Rein deterministisches Matching gegen Discogs REST API. |
 
 **Matching-Strategien:**
 - `full` (13.229 Matches): Vollständiger Title + Artist + Label + Year Vergleich
 - `catno` (1.936 Matches): Katalognummer-Abgleich
 - `basic` (733 Matches): Vereinfachter Title-Match
 
-**Aktueller Stand:**
-- 29.471 / 43.052 Releases verarbeitet (**68,5%**)
-- 15.898 Matches (54% Match-Rate)
-- 7.146 davon mit Preis-Daten
+**Endergebnis (verifiziert 07.04.2026):**
+- 30.171 Musik-Releases verarbeitet (**100%** — die 43.052 im alten Dashboard schlossen fälschlich Literatur mit ein)
+- 16.590 gematcht (**55%** Match-Rate)
+- 13.581 auf Discogs nicht gefunden (zu obskur oder unter anderem Namen gelistet)
+- 7.456 mit Preis-Daten
 - 0 Fehler
-- Letzter Lauf: 07.03.2026 (vor 1 Monat — manueller Trigger nötig für den Rest)
+- Admin-Widget entfernt am 07.04.2026 (zeigte irreführende 68,5% wegen Literatur im Nenner)
+
+**Warum kein erneuter Lauf?** Der Script hat den gesamten ID-Raum durchprobiert (`legacy-release-1` bis `legacy-release-9999` in String-Sort, was alle 30k+ IDs abdeckt). Resume-Punkt `legacy-release-9999` → "Found 0 releases to process". Die 13.581 Ungematchten sind auf Discogs schlicht nicht vorhanden — ein Retry ändert daran nichts.
 
 ---
 
-### 2.4 Discogs Extraartists Import (manuell)
+### 2.4 Discogs Extraartists Import — ✅ ABGESCHLOSSEN
 
 | | |
 |---|---|
 | **Script** | `scripts/discogs_extraartists_import.py` |
-| **Cron** | Keiner — einmaliger/manueller Lauf |
-| **Ziel** | Für gematchte Releases die beteiligten Künstler (Produzenten, Mixer, Engineers etc.) aus Discogs importieren und mit den bestehenden Releases verknüpfen |
+| **Cron** | Keiner — einmaliger Lauf, abgeschlossen |
+| **Status** | **100% der gematchten Releases verarbeitet (10.03.2026).** Admin-Widget entfernt 07.04.2026. |
+| **AI/LLM** | **Nein.** Discogs API für Credits, kein ML. |
 
-**Was es tut:**
-- Liest die `extraartists` (Credits) jedes gematchten Releases von Discogs
-- Erstellt neue `Artist`-Einträge für noch unbekannte Personen
-- Erstellt `ReleaseArtist`-Verknüpfungen (many-to-many mit Rolle)
-
-**Aktueller Stand (abgeschlossen 10.03.2026):**
+**Endergebnis:**
 - 16.590 / 16.590 Releases verarbeitet (**100%**)
 - 9.802 hatten Extraartists, 6.788 ohne
-- 27.743 neue Artists erstellt
+- 27.743 neue Artists erstellt (deshalb sind es 37.269 Artists gesamt: 12.454 Legacy + 24.815 Discogs Extraartists + einige hundert Overlap)
 - 46.470 Links erstellt, 19.587 alte Links gelöscht (Bereinigung)
 - 0 Fehler
+- Laufzeit: 09.03. 19:10 → 10.03. 06:17 (ca. 11 Stunden)
 
 ---
 
@@ -272,7 +273,7 @@ Discogs Batch und Extraartists haben keinen Cron — werden bei Bedarf manuell g
 | Punkt | Severity | Status |
 |---|---|---|
 | **216 orphan labels** — Releases verweisen auf Label-IDs die nicht existieren | Warning | Bekannt seit v2-Validation 05.04. Cleanup geplant nach Phase B. |
-| **Discogs Batch nur 68,5% durch** — 13.581 ungematchte Releases | Info | Nächster manueller Run steht aus. |
+| ~~Discogs Batch nur 68,5% durch~~ | ✅ erledigt | Batch ist 100% durch. 55% gematcht, Rest existiert nicht auf Discogs. Widget entfernt. |
 | **Kein Dead-Man's-Switch** — wenn Cron ausfällt, merkt es niemand | Mittel | Phase A5 geplant. |
 | **Kein E-Mail-Alert bei Sync-Fehler** | Mittel | Phase A6 geplant. |
 | **R2 nicht entkoppelt** — Image-Upload läuft innerhalb von `legacy_sync_v2.py` | Info | Phase C (SYNC_ROBUSTNESS_PLAN). Funktioniert derzeit, Entkopplung nur bei Bedarf. |
