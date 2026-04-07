@@ -3,7 +3,7 @@
 **Version:** 1.0
 **Erstellt:** 2026-04-05
 **Autor:** Robin Seckler
-**Status:** Entwurf — wartet auf Approval vor Implementierungs-Start
+**Status:** Approved (2026-04-07) — alle 7 Frank-Fragen beantwortet, Plan freigegeben, Implementierung startet
 **Bezug:** `ERP_WARENWIRTSCHAFT_KONZEPT.md` §8.4 / §10 / R2, `SYNC_ROBUSTNESS_PLAN.md` §6, `STAGING_ENVIRONMENT.md`, `DESIGN_GUIDE_BACKEND.md` v2.0, `UI_UX/UI_UX_STYLE_GUIDE.md`
 
 ---
@@ -12,12 +12,12 @@
 
 Frank hat ~41.500 Legacy-Releases. Nur **~7.407** sind aktuell verkaufbar (Bild + Preis, Cohort A). Vor dem Launch brauchen wir:
 
-1. **Einmaliger Bulk-Preis-Anstieg +20%** auf Cohort A (Margen-Korrektur).
-2. **Physische Inventur** auf Cohort A: Ist der Artikel da? Stimmt der neue Preis, oder muss er individuell angepasst werden? Nicht auffindbare Artikel müssen aus der Storefront verschwinden.
-3. **Sync-Schutz**: Verifizierte Artikel dürfen vom stündlichen `legacy_sync_v2.py` nicht mehr überschrieben werden.
-4. **Effizienter Workflow**: Single-Item-Review-Screen mit Tastatur-Shortcuts (Shopify POS / Lightspeed Stocktake Pattern). Die bestehende `/app/catalog/media` Tabelle ist für 7.000 Durchläufe zu dicht.
+1. **Einmaliger Bulk-Preis-Anstieg +15%** auf Cohort A (Margen-Korrektur), gerundet auf **ganze Euro** (Franks Entscheidung F1).
+2. **Physische Inventur** auf Cohort A: Ist der Artikel da? Stimmt der neue Preis, oder muss er individuell angepasst werden? Nicht auffindbare Artikel bekommen **Preis = 0** und bleiben im Katalog für spätere Reaktivierung (Franks Entscheidung F2).
+3. **Sync-Schutz**: Verifizierte Artikel dürfen vom stündlichen `legacy_sync_v2.py` nicht mehr überschrieben werden (`price_locked`).
+4. **Effizienter Workflow**: Single-Item-Review-Screen mit Tastatur-Shortcuts, sortiert nach **Format-Gruppe** (Vinyl → Tape → Print → Other), dann alphabetisch (Franks Entscheidung F5). Zeitraum: 4-6 Wochen (F6).
 
-**Reihenfolge (bestätigt):** Erst Bulk +20%, dann Inventur. Die Inventur lockt dann pro Item den neuen Preis oder korrigiert ihn erneut.
+**Reihenfolge (bestätigt):** Erst Bulk +15%, dann Inventur. Die Inventur lockt dann pro Item den neuen Preis oder korrigiert ihn erneut.
 
 ## 2. Architektur-Entscheidung: ERP_INVENTORY first activation
 
@@ -88,7 +88,9 @@ ULID via `generateEntityId()` (Python-Äquivalent oder TS-Helper-Endpoint). Idem
   - Neue Zeile: `inventory_item.*` → Owner Admin, Sync ignoriert
 - Post-Run-Validation **V5** (neu): `SELECT COUNT(*) FROM sync_change_log WHERE run_id=? AND field='legacy_price' AND release_id IN (SELECT release_id FROM inventory_item WHERE price_locked)` muss 0 sein, sonst `validation_status='failed'`.
 
-## 5. Bulk +20% Schalter
+## 5. Bulk +15% Schalter
+
+**Entscheidung Frank (F1):** 15% statt 20%, auf **ganze Euro** runden. Beispiele: €10 → €12, €50 → €58, €179 → €206.
 
 **Route:** `backend/src/api/admin/erp/inventory/bulk-price-adjust/route.ts`
 
@@ -97,18 +99,20 @@ ULID via `generateEntityId()` (Python-Äquivalent oder TS-Helper-Endpoint). Idem
   {
     "eligible_count": 7407,
     "already_executed": null,
-    "sample": [{ "release_id": "...", "artist": "...", "title": "...", "old_price": 12.00, "new_price": 14.40 }]
+    "percentage": 15,
+    "sample": [{ "release_id": "...", "artist": "...", "title": "...", "old_price": 50.00, "new_price": 58 }]
   }
   ```
   Eligibility: `inventory_item.source='frank_collection' AND price_locked=false AND status='in_stock'` verknüpft mit `Release.legacy_price > 0`.
 
-- `POST { percentage: 20, confirmation: "RAISE PRICES 20 PERCENT" }`
+- `POST { percentage: 15, confirmation: "RAISE PRICES 15 PERCENT" }`
   - Confirmation-String exakt matchen (Typo-Schutz) — analog `backend/src/api/admin/auction-blocks/[id]/items/bulk-price/route.ts`.
-  - Idempotenz: `SELECT 1 FROM bulk_price_adjustment_log WHERE status='success' AND percentage=20` → 409 wenn bereits ausgeführt.
+  - Idempotenz: `SELECT 1 FROM bulk_price_adjustment_log WHERE status='success'` → 409 wenn bereits ausgeführt.
   - Transaction:
     1. `INSERT bulk_price_adjustment_log (..., status='running')`
-    2. `UPDATE "Release" SET legacy_price = ROUND(legacy_price * 1.20, 2) WHERE id IN (<eligible IDs>)`
-    3. `UPDATE bulk_price_adjustment_log SET affected_rows=?, status='success'`
+    2. `UPDATE "Release" SET legacy_price = ROUND(legacy_price * 1.15, 0) WHERE id IN (<eligible IDs>)` — `ROUND(x, 0)` = ganze Euro
+    3. Für jedes betroffene Release: `INSERT inventory_movement type='adjustment', reason='bulk_15pct_2026'` — lückenlose Audit-Trail (7.400 Movements)
+    4. `UPDATE bulk_price_adjustment_log SET affected_rows=?, status='success'`
   - **Zuerst auf Staging** (`aebcwjjcextzvflrjgei`, `STAGING_ENVIRONMENT.md` Runbook) mit eigenem Log-Eintrag testen.
 
 - Audit: `executed_by` = Admin-Email aus Session.
@@ -262,83 +266,72 @@ Alle destruktiven Schritte **erst auf Staging** (`aebcwjjcextzvflrjgei`, eu-west
 - [ ] CLAUDE.md aktualisiert (ERP Module Status)
 - [ ] `docs/UI_UX/PR_CHECKLIST.md` vollständig abgehakt
 
-## 11. Offene Fragen an Frank (VOR Implementierungsstart)
+## 11. Franks Antworten (beantwortet 2026-04-07)
 
-Alle sieben Fragen müssen beantwortet sein bevor die Implementierung beginnt. Die Antworten fließen direkt in die technische Umsetzung (Sortierung, Filter, UI-Felder, Dropdown-Optionen).
+### F1 — Preiserhöhung: +15%, ganze Euro ✅
 
-### F1 — Preiserhöhung +20% Bestätigung
+**Antwort:** „Lass uns 15% machen, 20 ist glaub zuviel. Und bitte auf ganze Zahlen auf/abrunden."
 
-> Frank, stimmst du zu dass **alle ~7.407 verkaufbaren Artikel** (mit Bild, Preis und Status "verfügbar") pauschal um 20% im Preis angehoben werden, bevor die Inventur startet?
+**Technische Umsetzung:** `ROUND(legacy_price * 1.15, 0)`. Postgres `ROUND(x, 0)` rundet kaufmännisch (0.5 auf). Beispiele: €10→€12, €50→€58, €179→€206. Confirmation-String: `"RAISE PRICES 15 PERCENT"`. §5 entsprechend aktualisiert.
 
-**Kontext:** Das ist ein irreversibler Eingriff auf alle Preise. Beispiele: €10 → €12, €50 → €60, €179 → €214,80. Die Inventur gibt dir danach die Möglichkeit, Einzelpreise nochmal manuell anzupassen — aber der Ausgangspunkt ist der neue +20%-Preis.
+### F2 — Missing: Preis auf 0, im Shop behalten ✅
 
-**Entscheidung nötig:** Falls bestimmte Artikel keine Erhöhung bekommen sollen (z.B. bereits hochpreisige Raritäten), brauchen wir VORHER eine Ausnahmeliste oder eine Preisgrenze ("nur unter €X erhöhen").
+**Antwort:** „Aus dem Shop NICHT entfernen, nur Preis auf 0 setzen! Da ich ja Sammlungen kaufe und der Artikel dann ohnehin wieder rein kommt, dann kann ich einfach wieder frei schalten."
 
-**Antwort Frank:** *(ausstehend)*
+**Technische Umsetzung:** Kein `status='written_off'`. Stattdessen: `Release.legacy_price = 0` + `inventory_item.price_locked = true`. Item bleibt im Katalog, ist aber nicht kaufbar (`is_purchasable = legacy_price > 0`, Zeile 365 in `store/catalog/route.ts`). Beim Reaktivieren: `price_locked = false` → nächster Sync schreibt den MySQL-Preis. **Null Storefront-Code-Änderungen nötig** — bestehende `is_purchasable`-Logik reicht. Alter Preis wird in `inventory_movement.reference` als JSON gespeichert für Undo.
 
-### F2 — Was bedeutet "Missing" konkret?
+### F3 — Missing-Grund: Optional, kein Dropdown ✅
 
-> Frank, wenn ein Artikel bei der physischen Inventur **nicht auffindbar** ist: soll er direkt aus dem Shop entfernt werden (Storefront sieht ihn nicht mehr), oder nur als "nicht gefunden" markiert bleiben (du kannst später nochmal nachsuchen)?
+**Antwort:** „Nein, kein Grund, für wen soll der Grund sein? Intern?"
 
-**Kontext:** Das Konzept sieht `status='written_off'` vor = Artikel verschwindet sofort aus der Storefront. Wenn das zu endgültig ist, könnte `status='missing'` als Zwischenstufe dienen (sichtbar im Admin, aber nicht mehr im Shop). "Missing" wäre reversibel, "written_off" erfordert manuellen Re-Stock.
+**Technische Umsetzung:** Optionaler Freitext über `N` (Note) Taste. Kein Pflicht-Dropdown, kein Grund-Feld. Vereinfacht den Missing-Flow auf einen Tastendruck (`M` → optional Note → nächstes Item).
 
-**Antwort Frank:** *(ausstehend)*
+### F4 — Discogs-Preise: Ja, mit Link zu Marketplace ✅
 
-### F3 — Missing-Grund: Pflicht-Dropdown oder optional?
+**Antwort:** „Ja Discogs Preis hilft immer aber muss sich Preis-Historie (Chart) ansehen und Zustände anschauen sonst nützt der Preis nichts, auch nicht mal der Median."
 
-> Frank, wenn ein Artikel als "Missing" markiert wird, soll ein **Grund angegeben werden müssen** (Dropdown: nicht gefunden / beschädigt / anderweitig verkauft / sonstiges), oder reicht ein optionaler Freitext?
+**Technische Umsetzung:** Discogs-Felder (`discogs_lowest_price`, `discogs_median_price`, `discogs_highest_price`, `discogs_num_for_sale`) per LEFT JOIN im Queue-Query. Zusätzlich: **Link zu `https://www.discogs.com/release/{discogs_id}`** (neuer Tab) — dort kann Frank die vollständige Marketplace-Seite mit Preis-Historie, Zustands-Listings und Trends sehen. Kein eigener Chart im MVP (keine historischen Daten in Supabase). Wenn `discogs_id` NULL: "No Discogs data".
 
-**Empfehlung:** Pflicht-Dropdown mit 4 Optionen. Kostet dich pro Artikel einen Klick, liefert aber saubere Auswertungsdaten ("wie viele wurden als beschädigt vs. nicht auffindbar aussortiert?").
+### F5 — Reihenfolge: Format-Gruppe → Alphabet ✅
 
-**Antwort Frank:** *(ausstehend)*
+**Antwort:** „Nach Format: Vinyl (inkl. Subarten wie 7inch, 10", LP, LP-2….), Tape (inkl. Sub-Formate wie Reels, Tape-2, Tape-3), Magazin (inkl. Subformate wie Poster etc…) und dann nach Alphabet."
 
-### F4 — Preis-Korrekturen: Brauchst du Discogs-Preise im Session-Screen?
+**Technische Umsetzung:**
+```sql
+ORDER BY 
+  CASE 
+    WHEN "Release".format = 'LP' THEN 1                                              -- Vinyl
+    WHEN "Release".format IN ('CASSETTE', 'REEL') THEN 2                             -- Tape
+    WHEN "Release".format IN ('MAGAZINE', 'BOOK', 'ZINE', 'POSTER', 'PHOTO', 'POSTCARD') THEN 3  -- Print
+    ELSE 4                                                                            -- Other (CD, VHS, etc.)
+  END,
+  "Artist".name ASC NULLS LAST,
+  "Release".title ASC
+```
+Progress-Bar im Session-Screen zeigt Format-Gruppen-Breakdown: „Vinyl: 234/3200 | Tape: 0/2800 | Print: 0/1000 | Other: 0/407"
 
-> Frank, nach der +20%-Erhöhung und während der Inventur: wie willst du entscheiden ob ein individueller Preis nochmal angepasst werden soll? Hast du Referenz-Listen, oder gehst du nach Gefühl? Hilft dir der Discogs-Marktpreis als Referenz auf dem Bildschirm?
+### F6 — Zeitraum: 4-6 Wochen ✅
 
-**Kontext:** Der Session-Screen kann den Discogs-Preis (wo vorhanden) neben dem aktuellen Preis anzeigen. Das hilft bei der Einschätzung, aber nur 55% der Artikel haben Discogs-Daten. Wenn du das nicht brauchst, bleibt der Screen simpler.
+**Antwort:** „4-6 Wochen."
 
-**Technische Auswirkung:** Wenn ja → zusätzlicher JOIN auf `discogs_lowest_price` in der Queue-Query. Wenn nein → kein JOIN, einfacherer Code.
+**Technische Umsetzung:** URL-basierter Cursor (`?cursor=<id>&pos=234`) für jederzeit pausier- und resumebare Sessions. Prefetch nächste 50 Items bei Position 40. Browser-Refresh = gleiche Position. Kein Zeitdruck im Code (keine Timeout-Logik).
 
-**Antwort Frank:** *(ausstehend)*
+### F7 — Keine Ausschlüsse ✅
 
-### F5 — Inventur-Reihenfolge im Session-Screen
+**Antwort:** „Nein, meine Privaten sind da noch mit Preis 0 und noch nicht zum Verkauf."
 
-> Frank, in welcher Reihenfolge willst du die ~7.407 Artikel durchgehen?
-
-Optionen:
-- **A) Alphabetisch nach Künstler** (Standard im Konzept — passt wenn dein Lager so sortiert ist)
-- **B) Nach Lagerort** (erfordert ein Lagerort-Feld, das aktuell nicht existiert)
-- **C) Nach Genre** (greift auf Discogs-Genre-Tags zurück, nicht alle haben welche)
-- **D) Nach Preis, teuerste zuerst** (höchste Werte zuerst verifizieren)
-- **E) Andere Reihenfolge** — wie ist dein physischer Bestand tatsächlich sortiert?
-
-**Kontext:** Die Sortierung bestimmt wie der Session-Screen die Queue präsentiert. Wenn dein Regal alphabetisch nach Künstler sortiert ist, passt Option A perfekt. Wenn du z.B. nach Format (LP, CD, Kassette) und dann alphabetisch sortierst, sag es — dann passen wir die Query an.
-
-**Antwort Frank:** *(ausstehend)*
-
-### F6 — Zeitraum und Durchsatz
-
-> Frank, wie viele Artikel pro Stunde schätzt du schaffen zu können? Und bis wann soll die Inventur fertig sein?
-
-**Rechnung zur Orientierung:** Bei 7.407 Artikeln und ~30 Sekunden pro Artikel (schauen, Taste drücken) sind das ~62 Stunden reine Durchlaufzeit. Bei 4 Stunden pro Tag = ~15 Arbeitstage. Die Software ist jederzeit pausier- und resumebar (URL-basierter Cursor), aber die Erwartung beeinflusst wie aggressiv wir die Session-UI auf Speed optimieren.
-
-**Antwort Frank:** *(ausstehend)*
-
-### F7 — Gibt es Ausschlüsse innerhalb der 7.407?
-
-> Frank, die 7.407 basieren auf "hat Bild + hat Preis > 0 + ist verfügbar (frei=1)". Gibt es davon welche, die du **sicher nicht verkaufen willst** (z.B. persönliche Sammlung, beschädigte Exemplare die noch mit Preis dastehen, Testeinträge)?
-
-**Kontext:** Falls ja, filtern wir die VOR der Inventur raus. Sonst tauchen sie im Session-Screen auf und du müsstest sie einzeln skippen — bei 50+ wäre das nervig.
-
-**Antwort Frank:** *(ausstehend)*
+**Technische Umsetzung:** Keine Filter-Änderung. `WHERE legacy_price > 0` schließt Franks Privat-Artikel automatisch aus (Preis=0). Die ~7.407 Cohort-A Items sind exakt die verkaufbaren.
 
 ---
 
-## 12. Offene Punkte (Robin, technisch — nach Franks Antworten)
+## 12. Technische Entscheidungen (aufgelöst)
 
-- **Discogs-Preis im Session-Screen:** JOIN einbauen oder nicht? Hängt von F4 ab.
-- **Audit-Tiefe Bulk +20%:** Wollen wir zusätzlich zu `bulk_price_adjustment_log` für jede betroffene Release eine `inventory_movement type='adjustment' reason='bulk_20pct_2026'` schreiben? Kosten: 7.400 Movement-Rows. Nutzen: lückenlose Audit-Trail. **Empfehlung: Ja**, ist im ERP-Geist und billig.
-- **Missing-Status-Bezeichnung:** `written_off` vs. `missing` als eigener Zwischen-Status? Hängt von F2 ab.
-- **Sortierung der Queue:** Hängt von F5 ab. Default `ORDER BY r."artistName", r.title, r.id`.
-- **Cohort B/C später:** Gleicher Workflow, aber Backfill-Script mit anderer WHERE-Klausel (`legacy_price = 0 OR coverImage IS NULL`). Nicht Teil dieses PRs.
+Alle fünf offenen Punkte aus der v1-Fassung sind durch Franks Antworten und architektonische Analyse aufgelöst:
+
+| Punkt | Entscheidung | Begründung |
+|---|---|---|
+| **Discogs-Preis im Session** | ✅ Ja, JOIN einbauen + Link zu Discogs-Seite | F4: Frank will Preise + Trends sehen. Link zu Discogs-Marketplace statt eigenem Chart (keine historischen Daten). |
+| **Audit-Tiefe Bulk** | ✅ Ja, Movement pro Release | `inventory_movement type='adjustment' reason='bulk_15pct_2026'` für jede der ~7.400 Releases. 7.400 Rows, ~1 MB, lückenlose Audit-Trail. |
+| **Missing-Status** | ✅ Kein eigener Status | F2: `legacy_price=0 + price_locked=true`. Status bleibt `in_stock`. `is_purchasable`-Logik der Storefront erledigt das. Kein `written_off`. |
+| **Sortierung** | ✅ Format-Gruppe → Artist → Title | F5: `CASE WHEN format='LP' THEN 1 WHEN format IN ('CASSETTE','REEL') THEN 2 WHEN format IN (...print...) THEN 3 ELSE 4 END, artist, title` |
+| **Cohort B/C** | ⏸ Separat, nach A | Gleicher Workflow, andere WHERE-Klausel. Nicht Teil dieses PRs. |
