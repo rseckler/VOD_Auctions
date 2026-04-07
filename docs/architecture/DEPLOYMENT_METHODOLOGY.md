@@ -142,3 +142,64 @@ VOD Auctions is operated by a single developer running live commerce. Downtime, 
 - **Parallel work streams:** multiple features can be mid-development on `main` without stepping on each other, because each one is gated independently.
 
 Non-adherence to this document on anything labeled a "larger feature" is treated as a bug, not a shortcut.
+
+---
+
+## 9. Release Tagging
+
+**Git tags are the release record.** Every meaningful production snapshot gets a tag. Tags are the single source of truth for "what was live when."
+
+### Format
+
+```
+v{MAJOR}.{MINOR}.{PATCH}[-rc.N]
+```
+
+- **Pre-production:** `-rc.N` suffix (Release Candidate). Informal — no formal QA gate required.
+- **Minor release** `v1.x.0`: a cohesive group of features activated together (flag flips + infrastructure).
+- **Patch release** `v1.0.x`: critical bugfixes between planned minor releases.
+- **Major release** `v2.0.0`: architecture change, platform shift, or breaking change.
+
+### When to tag
+
+Tag **after** deploy + smoke-test on production — never before. A tag certifies the system as observed on production, not the intention.
+
+Not every commit gets a tag. A tag is warranted when:
+- A significant batch of work has landed (multiple related features, end of a development session)
+- A flag was flipped on production (activation = state change worth recording)
+- A hotfix resolved a production incident
+- A platform mode transition occurred (`beta_test` → `pre_launch` → `live`)
+
+### Workflow
+
+```bash
+# 1. Ensure HEAD is on main and pushed
+git push origin main
+
+# 2. Create annotated tag (NOT lightweight — annotated includes date + author)
+git tag -a v1.2.0 -m "Release v1.2.0: ERP Invoicing + Sendcloud"
+
+# 3. Push tag to GitHub
+git push origin v1.2.0
+
+# 4. Update the Release Index in docs/architecture/CHANGELOG.md
+#    — add a row to the table (version, date, platform mode, active flags, milestone)
+#    — update the Flag Activation Roadmap table if any flags were flipped
+```
+
+### What to record in the Release Index
+
+Each tag row in `CHANGELOG.md` → Release Index must capture:
+- The platform mode at time of tag (`beta_test` / `pre_launch` / `live`)
+- Which feature flags are **active on production** (flag=true) — not which ones are deployed
+- A one-line milestone description linking to Linear issues where relevant
+
+The Release Index is the bridge between the flat commit history and the feature flag state. It answers the question "what was the system capable of at release vX.Y.Z" — which git log alone cannot answer.
+
+### Relationship to feature flags
+
+A "release" in this project is not primarily defined by a code snapshot — it is defined by **which flags are active**. The same code can represent two different releases if the flags differ. This is intentional: it means hotfixes and experimental work can land on `main` without constituting a "release" until flags are deliberately flipped.
+
+The tagging workflow therefore runs in two modes:
+- **Infrastructure release:** tag when a batch of features lands behind flags. Flags remain off. Example: `v1.0.0-rc6`.
+- **Activation release:** tag when one or more flags are flipped on production. This is the "release" from a user-visible perspective. Example: `v1.1.0` with `ERP_INVOICING=true`.

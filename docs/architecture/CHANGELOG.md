@@ -4,6 +4,49 @@ Vollständiger Entwicklungs-Changelog. Neue Einträge werden direkt hier ergänz
 
 ---
 
+## Release Index
+
+Jeder Git-Tag entspricht einem Snapshot des Gesamtsystems. Feature Flags zeigen welche Capabilities zum Release-Zeitpunkt auf Production **aktiv** waren (flag=true). Flags die noch auf `false` stehen sind zwar deployed aber noch nicht aktiviert — das ist beabsichtigt (vgl. `DEPLOYMENT_METHODOLOGY.md`).
+
+| Version | Datum | Platform Mode | Feature Flags aktiv (prod) | Milestone / Inhalt |
+|---------|-------|--------------|---------------------------|-------------------|
+| **v1.0.0** | TBD | `live` | ERP: TBD | RSE-78: Erster öffentlicher Launch |
+| **v1.0.0-rc6** | 2026-04-07 | `beta_test` | — | Sync Robustness v2, Email Overhaul, Feature-Flag-Infrastruktur, ERP Konzept v5.0, Staging DB, UI/UX Pass, Sentry, Redis, R2 CDN, CRM, Pre-Launch System |
+| **v1.0.0-rc5** | 2026-03 | `beta_test` | — | Sync Dashboard + Change Log Tab |
+| **v1.0.0-rc4** | 2026-03 | `beta_test` | — | Diverse Bugfixes |
+| **v1.0.0-rc1** | 2026-03 | `beta_test` | — | README.md |
+| **v0.10.0** | 2026-03 | `beta_test` | — | E2E Tests + Storefront OOM Fix |
+| **v0.9.0** | 2026-03 | `beta_test` | — | Share Feature + Catalog Mobile Fix |
+| **v0.8.0** | 2026-03 | `beta_test` | — | legacy_price.toFixed Crash-Fix |
+| **v0.7.0** | 2026-02 | `beta_test` | — | Cart + Direktkauf für alle Auth-User |
+| **v0.1.0–v0.6.0** | 2026-02 | `alpha` | — | Clickdummy → Grundsystem |
+
+### Feature Flag Aktivierungs-Roadmap
+
+Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Release aktualisiert):
+
+| Flag | Status | Planned für | Voraussetzung |
+|------|--------|-------------|---------------|
+| `ERP_INVOICING` | deployed, off | v1.1.0 | Steuerberater-Sign-off, sevDesk-Integration |
+| `ERP_SENDCLOUD` | deployed, off | v1.1.0 | Sendcloud-Account, Tarif-Mapping |
+| `ERP_INVENTORY` | deployed, off | v1.1.0 | Nach ersten Live-Auktionen validieren |
+| `ERP_COMMISSION` | deployed, off | v1.2.0 | Konsignationsverträge |
+| `ERP_TAX_25A` | deployed, off | v1.2.0 | §25a Prüfung Steuerberater |
+| `ERP_MARKETPLACE` | deployed, off | v2.0.0 | Multi-Seller Konzept, Stripe Connect |
+| `EXPERIMENTAL_SKIP_BID_CONFIRMATION` | deployed, off | — | Trial-Only, kein Prod-Termin |
+| `EXPERIMENTAL_STORE_SITE_MODE_DEBUG` | deployed, off | — | Trial-Only, kein Prod-Termin |
+
+### Konventionen
+
+- **Versionsformat:** `v{MAJOR}.{MINOR}.{PATCH}[-rc.N]`
+- **Pre-Production:** `-rc.N` Suffix (Release Candidate), kein formales QA-Gate
+- **Minor Release** (`v1.x.0`): Gruppe von Features die gemeinsam aktiviert werden
+- **Patch Release** (`v1.0.x`): Kritische Bugfixes zwischen geplanten Releases
+- **Tagging-Workflow:** `git tag -a vX.Y.Z -m "Release vX.Y.Z: <Kurzname>"` → `git push origin vX.Y.Z`
+- **Tag-Zeitpunkt:** Direkt nach Deploy + Smoke-Test auf Production — nicht vor dem Deploy
+
+---
+
 ## 2026-04-05 (night) — Email Addressing Overhaul: Reply-To, Mailbox Structure, DMARC
 
 Nach dem ersten Live-Testlauf am Fr 3.4.2026 ("Throbbing Gristle & Industrial Records", 6 echte Bieter, 17 Transaktionen) wurde sichtbar dass customer-relevant Mails auf zwei Domains verteilt waren: Absender `noreply@`/`newsletter@vod-auctions.com`, Kontakt-Footer aber `info@vod-records.com`. Antworten auf Transaktions-Mails landeten im Nichts (kein `Reply-To`-Header). Keine dedizierte DSGVO-Adresse. Kein konsistenter Brand.
