@@ -3271,3 +3271,100 @@ Mit den Entscheidungen aus F.1 ist die Implementierungsreihenfolge jetzt klarer:
 ---
 
 *Ende Teil F. v6.0 beginnt mit der Implementierung von Phase 1.*
+
+---
+
+## Teil G — To-Do-Liste: Robin × Frank (Stand 2026-04-07)
+
+Lebende Checkliste. Wird nach jeder Session aktualisiert. Aufgeteilt nach Verantwortlichkeit.
+
+---
+
+### 🔴 Blocker — Ohne diese geht es nicht weiter
+
+| # | Was | Wer | Warum Blocker |
+|---|-----|-----|---------------|
+| B1 | E-Commerce-Anwalt für AGB-Prüfung beauftragen | **Frank** | RSE-78: Plattform kann erst live gehen wenn AGB rechtssicher sind |
+| B2 | Steuerberater-Termin für §25a-Konfiguration | **Frank + Robin** | ERP_INVOICING + ERP_TAX_25A: kein Go-Live ohne StB-Freigabe |
+
+---
+
+### 🟡 Robin — Technische Aufgaben (kann sofort beginnen)
+
+| # | Was | Phase | Status |
+|---|-----|-------|--------|
+| R1 | Lagerorte in Admin UI anlegen (`/app/erp/locations`) | Foundation | ⏳ Infrastruktur live, Daten fehlen noch |
+| R2 | ERP Phase 2: `inventory_item` Tabelle + Read-Path implementieren | ERP P2 | 🔲 offen |
+| R3 | ERP Phase 2: `ERP_INVENTORY`-Flag auf Staging testen + aktivieren | ERP P2 | 🔲 offen (nach R2) |
+| R4 | ERP Phase 3: easybill Sandbox einrichten + Client-Wrapper bauen | ERP P3 | 🔲 offen (nach B2) |
+| R5 | ERP Phase 3: Webhook-Handler `payment_intent.succeeded` → easybill | ERP P3 | 🔲 offen (nach R4) |
+| R6 | ERP Phase 4: Sendcloud Client-Wrapper + DHL `5115313430` konfigurieren | ERP P4 | 🔲 offen (nach R5 + F3) |
+| R7 | ERP Phase 4: Admin UI für Shipping-Label-Generierung aus Order-View | ERP P4 | 🔲 offen (nach R6) |
+| R8 | ERP Phase 5: `commission_owner`, `commission_settlement`, `tax_margin_record` | ERP P5 | 🔲 offen (nach B2) |
+| R9 | ERP Phase 5: DATEV-Export via easybill | ERP P5 | 🔲 offen (nach R8) |
+| R10 | platform_mode `beta_test` → `pre_launch` → `live` setzen | Launch | 🔲 offen (nach B1) |
+
+---
+
+### 🟡 Frank — Operative Aufgaben
+
+| # | Was | Für | Status |
+|---|-----|-----|--------|
+| F1 | **AGB-Anwalt beauftragen** (E-Commerce, Deutschland) | Launch / RSE-78 | 🔲 offen |
+| F2 | **Steuerberater-Termin** buchen (§25a-Agenda aus §14.3 vorbereiten) | ERP P3+P5 | 🔲 offen |
+| F3 | **Sendcloud-Account anlegen** (sendcloud.de, Free-Plan zum Start) | ERP P4 | 🔲 offen |
+| F4 | **easybill-Account anlegen** (Plus-Plan, 14 EUR/Monat) | ERP P3 | 🔲 offen |
+| F5 | **Lagerorte definieren und in Admin eintragen** (`/app/erp/locations`) | Foundation | 🔲 offen — welche Standorte gibt es? |
+| F6 | Kommissionsvertrag-Vorlage (Anwalt) für Konsignationsware | ERP P5 | 🔲 offen |
+| F7 | Stripe Connect Application stellen (für Marketplace, wenn relevant) | ERP P6 | 🔲 offen (niedrige Priorität) |
+
+---
+
+### ✅ Bereits erledigt (zur Übersicht)
+
+| Was | Erledigt |
+|-----|---------|
+| Domain vod-auctions.com registriert + SSL | ✅ |
+| Vinyl Culture Design System (Frontend + Admin) | ✅ |
+| VPS Deployment (nginx + PM2 + HTTPS) | ✅ |
+| Stripe Live-Mode (Card, Klarna, Bancontact, EPS, Link) | ✅ |
+| PayPal Live-Mode | ✅ |
+| Shipping-Konfiguration (3 Zonen, 15 Gewichtsstufen) | ✅ |
+| Rechtliche Seiten: Impressum, Datenschutz, Widerrufsbelehrung | ✅ |
+| Cookie-Consent | ✅ |
+| Analytics: GA4 + RudderStack + Microsoft Clarity | ✅ |
+| Error-Tracking: Sentry | ✅ |
+| Testlauf RSE-77 (10 Lots, echte Bieter, echte Zahlungen, 03.04.2026) | ✅ |
+| Feature-Flag-Infrastruktur (Registry, Admin UI, Dependency-Enforcement) | ✅ |
+| Warehouse Locations: Tabelle + API + Admin UI | ✅ |
+| ERP Hub in Admin-Navigation | ✅ |
+| ERP_WARENWIRTSCHAFT_KONZEPT.md v6.0 (alle Entscheidungen dokumentiert) | ✅ |
+| DHL-Geschäftskundennummer beschafft (5115313430) | ✅ |
+
+---
+
+### Prioritäten-Reihenfolge
+
+```
+Jetzt sofort:
+  Frank:  F1 (Anwalt) + F2 (Steuerberater Termin) + F5 (Lagerorte eintragen)
+  Robin:  R1 (Lagerorte anlegen) + R2 (ERP_INVENTORY implementieren)
+
+Nach Anwalt-Freigabe (B1):
+  Robin:  R10 → platform_mode live
+
+Nach StB-Termin (B2):
+  Frank:  F4 (easybill Account)
+  Robin:  R4 + R5 (easybill Integration)
+
+Nach easybill:
+  Frank:  F3 (Sendcloud Account)
+  Robin:  R6 + R7 (Sendcloud Integration)
+
+Nach Sendcloud:
+  Robin:  R8 + R9 (Commission + §25a + DATEV)
+```
+
+---
+
+*Teil G wird laufend aktualisiert. Letzte Aktualisierung: 2026-04-07.*
