@@ -1,7 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
-import { requireFeatureFlag, createMovement, lockPrice } from "../../../../../../lib/inventory"
+import { requireFeatureFlag, createMovement, lockPrice, assignBarcode } from "../../../../../../lib/inventory"
 
 /**
  * POST /admin/erp/inventory/items/:id/verify
@@ -66,6 +66,9 @@ export async function POST(
       })
     }
 
+    // Assign barcode if not already set
+    const barcode = await assignBarcode(trx, inventoryItemId)
+
     // Lock price + mark as stocktake'd
     await trx("erp_inventory_item")
       .where("id", inventoryItemId)
@@ -79,5 +82,16 @@ export async function POST(
       })
   })
 
-  res.json({ message: "Verified", inventory_item_id: inventoryItemId })
+  // Read back the assigned barcode
+  const updated = await pg("erp_inventory_item")
+    .where("id", inventoryItemId)
+    .select("barcode")
+    .first()
+
+  res.json({
+    message: "Verified",
+    inventory_item_id: inventoryItemId,
+    barcode: updated?.barcode || null,
+    label_url: `/admin/erp/inventory/items/${inventoryItemId}/label`,
+  })
 }

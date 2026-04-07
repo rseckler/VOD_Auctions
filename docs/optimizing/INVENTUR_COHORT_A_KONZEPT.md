@@ -1,6 +1,6 @@
 # Inventur Cohort A + Bulk +15% — erste Aktivierung des ERP_INVENTORY Moduls
 
-**Version:** 2.0
+**Version:** 3.0
 **Erstellt:** 2026-04-05 | **Aktualisiert:** 2026-04-07
 **Autor:** Robin Seckler
 **Status:** ✅ Implementiert (2026-04-07) — Code deployed, ERP_INVENTORY Flag OFF, wartet auf Aktivierung nach 24h Sync-Check
@@ -425,3 +425,290 @@ bulk_price_adjustment_log: 0 Zeilen (Bulk +15% noch nicht ausgeführt)
 - [ ] **Sync nach Frank-Test:** Nächster stündlicher Sync darf verifizierte Preise NICHT überschreiben (V5 passed)
 
 **E-Mail-Reminder** für diesen Check liegt als Draft in Gmail (`rseckler@gmail.com`).
+
+---
+
+## 14. Barcode-Labeling in der Inventur (v3.0, 2026-04-07)
+
+### 14.1 Motivation
+
+Die Inventur-Phase ist der ideale Zeitpunkt, um **jeden Artikel mit einem Barcode-Kleber zu versehen**. Frank geht ohnehin alle 13.107 Cohort-A-Items einzeln durch — wenn bei jedem Verify automatisch ein Barcode-Label gedruckt und aufgeklebt wird, ist die gesamte Sammlung nach der Inventur barcoded und scanbar. Das spart eine separate Etikettier-Phase und bereitet den Live-Betrieb optimal vor.
+
+**Nutzen nach der Inventur:**
+- **Schnelles Auffinden:** Barcode scannen → Artikel sofort im System gefunden (statt manueller Suche nach Artist/Title)
+- **Versand-Workflow:** Besteller Artikel scannen → Order verknüpft → Paketschein drucken
+- **Retouren:** Rückläufer scannen → sofort identifiziert + zurückgebucht
+- **Zukünftige Inventuren:** Scan statt manueller Durchsicht, 10× schneller
+
+### 14.2 Barcode-Format
+
+**Code128** mit kurzem Nummernkreis:
+
+```
+VOD-000001  bis  VOD-041500
+```
+
+| Eigenschaft | Wert |
+|---|---|
+| **Symbologie** | Code128 (ISO/IEC 15417) |
+| **Zeichensatz** | `VOD-` Prefix + 6-stellige Nummer (zero-padded) |
+| **Gesamtlänge** | 10 Zeichen |
+| **Physische Breite** | ~35mm bei Standard-Modulgröße |
+| **Menschenlesbar** | Ja — Klartext unter dem Barcode |
+| **Eindeutigkeit** | UNIQUE Constraint auf `erp_inventory_item.barcode` |
+| **Nummernkreis** | Sequentiell, fortlaufend, nie wiederverwendet |
+
+**Warum Code128 statt EAN-13:**
+- EAN-13 ist nur numerisch (13 Ziffern), erfordert GS1-Registrierung
+- Code128 ist alphanumerisch, frei verwendbar, kompakter bei Text
+- Code128 ist der Standard für interne Lagerverwaltung
+
+**Warum nicht die volle ULID direkt:** 26-Zeichen-ULID = ~80mm breiter Barcode, zu groß für Etiketten. `VOD-XXXXXX` ist ein kompakter Lookup-Key.
+
+### 14.3 Datenmodell-Erweiterung
+
+**Migration:** `2026-04-XX_erp_barcode.sql` (additive, kein Breaking Change)
+
+```sql
+-- Barcode-Spalte auf erp_inventory_item
+ALTER TABLE erp_inventory_item
+  ADD COLUMN barcode TEXT UNIQUE;
+
+-- Index für schnellen Lookup (Scanner-Workflow)
+CREATE UNIQUE INDEX idx_erp_inventory_item_barcode 
+  ON erp_inventory_item(barcode) WHERE barcode IS NOT NULL;
+
+-- Sequenz für Nummernkreis
+CREATE SEQUENCE erp_barcode_seq START WITH 1 INCREMENT BY 1;
+```
+
+**Barcode-Generierung:** Beim Verify eines Items (§6.3, Taste `V`) wird automatisch ein Barcode zugewiesen:
+
+```typescript
+const nextSeq = await knex.raw("SELECT nextval('erp_barcode_seq') AS seq");
+const barcode = `VOD-${String(nextSeq.rows[0].seq).padStart(6, '0')}`;
+await knex('erp_inventory_item').where({ id }).update({ barcode });
+```
+
+Items die bereits einen Barcode haben (Re-Verify, Undo+Redo), behalten ihren bestehenden Barcode.
+
+### 14.4 Erweiterter Inventur-Workflow
+
+Der bisherige Session-Flow (§6.3) wird um Barcode-Druck erweitert:
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  BISHERIG:  Item anzeigen → V (Verify) → Nächstes Item         │
+│                                                                  │
+│  NEU:       Item anzeigen → V (Verify) → Label druckt auto →   │
+│             Frank klebt Label auf → Nächstes Item               │
+│                                                                  │
+│  MIT SCANNER (spätere Inventuren / Versand):                    │
+│             Scanner piept → Item wird automatisch geladen →     │
+│             Verify/Aktion → Label druckt → Nächstes             │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+**Erweiterung des Session-Screens (§6.3):**
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  PageHeader: "Stocktake Session"    Progress: 234/13107 (1.8%)  │
+│  🖨️ Printer: Brother QL-810W [Connected]   [Exit Session]       │
+├──────────────────────────────────────────────────────────────────┤
+│  ┌─────────────┐   ARTIST NAME                                  │
+│  │             │   Release Title                                │
+│  │   Cover     │   Cat #: VOD-123 · Label · Format · Year       │
+│  │   Image     │   Barcode: VOD-003241 (oder "wird vergeben")   │
+│  │   (400px)   │                                                │
+│  │             │   Price before +15%:  €12.00                   │
+│  └─────────────┘   Current price:      €14.00                   │
+│                     Discogs: Low €8 · Med €15 · High €30        │
+│                                                                  │
+│                     ┌─ New price ─────────┐                     │
+│                     │  14               € │                     │
+│                     └─────────────────────┘                     │
+│                                                                  │
+│   [V] Verify+Print  [P] Price  [M] Missing  [S] Skip           │
+│   [N] Note  [L] Reprint Label  [U] Undo  [←] Prev  [→] Next   │
+│                                                                  │
+│  ┌─ Scanner Input (fokussiert wenn kein anderes Feld aktiv) ──┐ │
+│  │  Scan barcode to jump to item...                           │ │
+│  └────────────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+**Neue/geänderte Keyboard-Shortcuts:**
+
+| Key | Aktion (NEU/GEÄNDERT) |
+|---|---|
+| `V` | **Verify + Auto-Print:** Barcode zuweisen (falls keiner) → Preis locken → **Label drucken** → Nächstes Item |
+| `L` | **Reprint Label:** Label erneut drucken (z.B. wenn Drucker-Fehler, Kleber schlecht) |
+| `M` | Missing: Preis auf 0, price_locked — **kein Label** (Item ist nicht da) |
+| Scanner-Input | `onScan.js` fängt HID-Input ab → springt zum gescannten Item (für Re-Checks / spätere Inventuren) |
+
+### 14.5 Label-Design
+
+**Labelgröße:** 29mm × 62mm (Brother DK-22210 Endlosband, Standardbreite 29mm, Länge variabel)
+
+```
+┌──────────────────────────────────────┐
+│  |||||||||||||||||||||||||||||||||||  │  ← Code128 Barcode
+│          VOD-003241                  │  ← Klartext unter Barcode
+│  Cabaret Voltaire                    │  ← Artist (gekürzt auf 30 Zeichen)
+│  Red Mecca · LP · 1981              │  ← Title · Format · Year
+│  vod-auctions.com                   │  ← Domain (Branding)
+└──────────────────────────────────────┘
+```
+
+**Generierung:** `bwip-js` (Barcode) + `pdfkit` (Label-PDF, bereits im Projekt für Invoices/Shipping Labels)
+
+### 14.6 Hardware — Einkaufsliste
+
+**Alle Artikel macOS-kompatibel geprüft (Frank nutzt ausschließlich Mac).**
+
+| # | Artikel | Modell | Preis (ca.) | Bezugsquelle | macOS-Status |
+|---|---|---|---|---|---|
+| 1 | **Labeldrucker** | Brother QL-810W | ~€130 | Amazon / Cyberport | ✅ Offizielle macOS-Treiber, CUPS-Integration, WiFi+USB, Bonjour-Discovery |
+| 2 | **Etiketten** | Brother DK-22210 Endlos 29mm (30,48m) | ~€8/Rolle | Amazon | — (Verbrauchsmaterial) |
+| 3 | **Etiketten Vorrat** | 5× DK-22210 (reicht für ~15.000 Labels à 30mm) | ~€40 | Amazon | — |
+| 4 | **USB Barcode Scanner** | Inateck BCST-70 (2D, USB kabelgebunden) | ~€40 | Amazon | ✅ USB HID Keyboard-Mode, zero config auf Mac |
+| 5 | **Software: QZ Tray** | QZ Tray v2.2+ (Stilles Drucken) | €0 (Open Source, LGPL) | qz.io | ✅ Signed+Notarized, bringt eigene JRE mit, Gatekeeper OK |
+| | | | | | |
+| | **Gesamt** | | **~€220** | | |
+
+**Upgrade-Option:** Brother QL-820NWB (~€220) statt QL-810W — zusätzlich Bluetooth + kleines Display. Nur nötig wenn Frank kabellos vom iPad/iPhone drucken will.
+
+**Nicht benötigt:**
+- Kein USB-Hub (Scanner + Drucker gehen beide direkt an den Mac, Drucker über WiFi)
+- Kein spezielles Kabel (Scanner kommt mit USB-A Kabel; für USB-C Mac: ggf. USB-C-Hub, hat Frank vermutlich)
+- Keine zusätzliche Software außer QZ Tray + Brother-Treiber
+
+### 14.7 Software-Abhängigkeiten (NPM)
+
+| Paket | Zweck | Größe | Status |
+|---|---|---|---|
+| `bwip-js` | Barcode-Generierung (Code128, QR, 100+ Formate) | ~2 MB, zero native deps | **NEU — Backend** |
+| `onscan.js` | Scanner-HID-Erkennung im Browser | ~15 KB, zero deps | **NEU — Admin Frontend (CDN oder Bundle)** |
+| `pdfkit` | Label-PDF-Generierung | Bereits im Projekt (Invoices, Shipping Labels) | ✅ Vorhanden |
+| `qz-tray` | Stilles Browser-Drucken via WebSocket | ~50 KB (JS Client) | **NEU — Admin Frontend** |
+
+### 14.8 Neue API-Endpoints
+
+| Method | Path | Body / Query | Effekt |
+|---|---|---|---|
+| GET | `/admin/erp/inventory/items/:id/label` | `?format=pdf` | Generiert Label-PDF (29×62mm) mit Code128 Barcode + Metadaten |
+| POST | `/admin/erp/inventory/items/:id/label/print` | `{ printer_name? }` | Generiert Label + sendet Druck-Befehl (wenn QZ Tray; sonst PDF-Response) |
+| GET | `/admin/erp/inventory/batch-labels` | `?item_ids=id1,id2,...` | Batch-PDF mit mehreren Labels (für Nachdruck-Szenario) |
+| GET | `/admin/erp/inventory/scan/:barcode` | — | Lookup: Barcode → `erp_inventory_item` + Release-Daten (für Scanner-Jump) |
+
+**Änderung an bestehenden Endpoints:**
+- `POST /admin/erp/inventory/items/:id/verify` — Erweitert: vergibt Barcode (falls keiner) + gibt `barcode` + `label_pdf_url` in Response zurück
+- `GET /admin/erp/inventory/queue` — Erweitert: inkludiert `barcode` Feld pro Item
+
+### 14.9 Druck-Architektur (macOS)
+
+```
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│   Admin UI      │     │   VPS Backend    │     │  Franks Mac     │
+│   (Browser)     │────►│   (Medusa API)   │     │                 │
+│                 │     │                  │     │  ┌───────────┐  │
+│  1. V (Verify)  │     │  2. Barcode      │     │  │ QZ Tray   │  │
+│     Click/Key   │────►│     zuweisen     │     │  │ (lokal)   │  │
+│                 │     │  3. Label-PDF    │     │  └─────┬─────┘  │
+│  4. PDF empfangen│◄───│     generieren   │     │        │        │
+│                 │     │     + Response   │     │        ▼        │
+│  5. An QZ Tray  │─────────────────────────────►│  ┌───────────┐  │
+│     senden      │     │                  │     │  │ Brother   │  │
+│                 │     │                  │     │  │ QL-810W   │  │
+│  6. ✅ Gedruckt │     │                  │     │  │ (WiFi)    │  │
+│     → Nächstes  │     │                  │     │  └───────────┘  │
+└─────────────────┘     └──────────────────┘     └─────────────────┘
+```
+
+**Fallback ohne QZ Tray:** PDF öffnet in neuem Browser-Tab → `Ctrl+P` → Drucker auswählen → Drucken. Funktioniert immer, aber manueller Schritt.
+
+**Print-Status im Session-Screen:**
+- 🟢 `Printer: Brother QL-810W [Connected]` — QZ Tray verbunden, stilles Drucken aktiv
+- 🟡 `Printer: Browser Print (manual)` — QZ Tray nicht gefunden, Fallback auf Print-Dialog
+- 🔴 `Printer: Not configured` — Kein Drucker eingerichtet
+
+### 14.10 Scanner-Integration
+
+**Primär: USB HID Scanner** (Inateck BCST-70 oder ähnlich)
+
+Der Scanner tippt den Barcode-Text als Tastatur-Input, gefolgt von Enter. Die Library `onScan.js` erkennt den schnellen Input (< 30ms pro Zeichen) und unterscheidet ihn von normalem Tippen:
+
+```typescript
+// In session/page.tsx
+import onScan from 'onscan.js';
+
+useEffect(() => {
+  onScan.attachTo(document, {
+    suffixKeyCodes: [13],      // Enter-Key am Ende
+    avgTimeByChar: 30,         // Max ms zwischen Zeichen (Scanner ist schneller)
+    minLength: 8,              // "VOD-000001" = 10 Zeichen
+    onScan: (barcode: string) => {
+      // API-Call: GET /admin/erp/inventory/scan/{barcode}
+      // → Item laden und in Session anzeigen
+      fetchItemByBarcode(barcode);
+    },
+  });
+  return () => onScan.detachFrom(document);
+}, []);
+```
+
+**Use Cases für Scanner in der Session:**
+1. **Re-Check:** Frank findet einen Artikel im Regal, scannt den Barcode → System springt direkt zum Item
+2. **Versand (Post-Inventur):** Bestellung kommt rein, Frank nimmt Artikel aus Regal, scannt → Order verknüpft
+3. **Spätere Inventuren:** Scan statt manuelle Suche → 10× schneller
+
+**Sekundär: Kamera-Scanning (nice-to-have, Phase 2+)**
+`html5-qrcode` Library für Smartphone-Kamera als Scanner. Nicht Teil der ersten Implementierung.
+
+### 14.11 Implementierungs-Phasen
+
+**Was wir JETZT bauen können (ohne Hardware):**
+
+| Phase | Was | Hardware nötig? | Aufwand |
+|---|---|---|---|
+| **B1** | Migration: `barcode`-Spalte + Sequenz auf `erp_inventory_item` | Nein | 30 Min |
+| **B2** | `bwip-js` installieren + Label-PDF-Endpoint (`/items/:id/label`) | Nein | 2h |
+| **B3** | Verify-Route erweitern: Barcode zuweisen + `label_pdf_url` in Response | Nein | 1h |
+| **B4** | Scan-Lookup-Endpoint (`/scan/:barcode`) | Nein | 30 Min |
+| **B5** | Session-UI: Barcode-Anzeige + Print-Button + Scanner-Input-Feld | Nein | 2h |
+| **B6** | `onScan.js` Integration in Session-UI | Nein (testbar mit Tastatur) | 1h |
+| **B7** | QZ Tray JS-Client Integration (stilles Drucken) | Nein (Fallback auf Browser-Print) | 2h |
+| **B8** | Batch-Label-Endpoint für Nachdruck | Nein | 1h |
+
+**Was NACH Hardware-Lieferung getestet wird:**
+
+| Test | Hardware |
+|---|---|
+| Label auf Brother QL-810W drucken, Größe/Qualität prüfen | Drucker + Etiketten |
+| QZ Tray → Brother Silent Print End-to-End | Drucker + QZ Tray |
+| Scanner HID-Input in Safari/Chrome testen | Scanner |
+| Voller Workflow: Scan → Verify → Print → Aufkleben → Nächstes | Alles |
+
+### 14.12 TODOs — Einkauf + Setup
+
+**Sofort bestellen:**
+- [ ] Brother QL-810W bestellen (Amazon, ~€130, Lieferung 1-2 Tage)
+- [ ] 5× Brother DK-22210 Endlos 29mm bestellen (~€40)
+- [ ] Inateck BCST-70 USB Barcode Scanner bestellen (~€40)
+- [ ] Prüfen ob Frank einen USB-C Hub mit USB-A Ports hat (für Scanner-Kabel)
+
+**Setup auf Franks Mac (wenn Hardware da):**
+- [ ] Brother QL-810W Treiber installieren (brother.com → Support → macOS)
+- [ ] Drucker über WiFi einrichten (System Settings → Printers → Add, Bonjour findet ihn)
+- [ ] Test-Druck über macOS Print-Dialog (Textedit → Drucken → Brother auswählen)
+- [ ] QZ Tray installieren (qz.io, .pkg Installer, ~2 Min)
+- [ ] QZ Tray Zertifikat-Setup durchführen (einmaliger Wizard)
+- [ ] USB Scanner einstecken → macOS "Keyboard Setup Assistant" wegklicken → testen im Textedit
+- [ ] End-to-End-Test: Admin UI → Verify → Label druckt → Scanner liest Label
+
+**Code-TODOs (Robin):**
+- [ ] Phase B1–B8 implementieren (siehe §14.11)
+- [ ] Aktivierungs-Checkliste (§13) um Barcode-Test erweitern
+- [ ] `CLAUDE.md` aktualisieren: Barcode-Endpoints + `bwip-js` Dependency
+- [ ] `ERP_WARENWIRTSCHAFT_KONZEPT.md` §10 aktualisieren: `barcode`-Spalte

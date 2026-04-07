@@ -8,6 +8,7 @@ import { Btn, Toast, Modal, inputStyle, Alert } from "../../../../components/adm
 
 interface QueueItem {
   inventory_item_id: string
+  barcode: string | null
   release_id: string
   title: string
   artist_name: string | null
@@ -30,6 +31,87 @@ interface QueueItem {
   discogs_num_for_sale: number | null
   discogs_url: string | null
   inventory_notes: string | null
+}
+
+// ─── Printer Status ────────────────────────────────────────────────────────
+
+type PrinterStatus = "connected" | "browser" | "none"
+
+/** Try to connect to QZ Tray via WebSocket. Returns true if available. */
+async function checkQzTray(): Promise<boolean> {
+  try {
+    const ws = new WebSocket("wss://localhost:8181")
+    return new Promise((resolve) => {
+      ws.onopen = () => { ws.close(); resolve(true) }
+      ws.onerror = () => resolve(false)
+      setTimeout(() => { ws.close(); resolve(false) }, 1000)
+    })
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Print a label PDF. Tries QZ Tray first (silent print), falls back to browser print.
+ * Returns the barcode string for toast feedback.
+ */
+async function printLabel(inventoryItemId: string, printerStatus: PrinterStatus): Promise<string | null> {
+  const labelUrl = `/admin/erp/inventory/items/${inventoryItemId}/label`
+
+  if (printerStatus === "connected") {
+    // QZ Tray silent print: fetch PDF as blob, send to QZ Tray
+    // For now, we open in new tab — full QZ Tray integration in B6
+    window.open(labelUrl, "_blank")
+    return inventoryItemId
+  }
+
+  // Browser fallback: open PDF in new tab for Ctrl+P
+  window.open(labelUrl, "_blank")
+  return inventoryItemId
+}
+
+// ─── Scanner Detection (onScan.js logic inlined) ───────────────────────────
+
+/**
+ * Lightweight scanner detection: USB HID scanners type characters faster than
+ * humans (~10-30ms per char). We buffer rapid keystrokes and fire onScan
+ * when we detect a barcode-length string typed within the time threshold.
+ */
+function useScannerDetection(onScan: (barcode: string) => void) {
+  const bufferRef = useRef("")
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      // Ignore if a text input is focused
+      const tag = (document.activeElement as HTMLElement)?.tagName
+      if (tag === "INPUT" || tag === "TEXTAREA") return
+
+      // Enter key = end of scan
+      if (e.key === "Enter" && bufferRef.current.length >= 8) {
+        e.preventDefault()
+        const barcode = bufferRef.current
+        bufferRef.current = ""
+        if (timerRef.current) clearTimeout(timerRef.current)
+        onScan(barcode)
+        return
+      }
+
+      // Single printable character
+      if (e.key.length === 1) {
+        bufferRef.current += e.key
+
+        // Reset buffer after 100ms of no input (human typing speed threshold)
+        if (timerRef.current) clearTimeout(timerRef.current)
+        timerRef.current = setTimeout(() => {
+          bufferRef.current = ""
+        }, 100)
+      }
+    }
+
+    window.addEventListener("keydown", handleKey, true) // capture phase
+    return () => window.removeEventListener("keydown", handleKey, true)
+  }, [onScan])
 }
 
 // ─── API Helper ─────────────────────────────────────────────────────────────
@@ -74,6 +156,37 @@ function StocktakeSessionPage() {
 
   // Undo stack
   const [undoStack, setUndoStack] = useState<Array<{ itemId: string; action: string }>>([])
+
+  // Printer status
+  const [printerStatus, setPrinterStatus] = useState<PrinterStatus>("none")
+  const [autoPrint, setAutoPrint] = useState(true)
+
+  // Check QZ Tray on mount
+  useEffect(() => {
+    checkQzTray().then((available) => {
+      setPrinterStatus(available ? "connected" : "browser")
+    })
+  }, [])
+
+  // ── Scanner detection ──
+
+  const handleScanBarcode = useCallback(async (barcode: string) => {
+    if (!barcode.startsWith("VOD-")) return
+    try {
+      const item = await apiFetch<QueueItem>(`/admin/erp/inventory/scan/${barcode}`)
+      // Insert scanned item at current position for immediate display
+      setItems((prev) => {
+        const filtered = prev.filter((i) => i.inventory_item_id !== item.inventory_item_id)
+        return [item, ...filtered]
+      })
+      setCurrentIndex(0)
+      setToast({ message: `Scanned: ${barcode}`, type: "success" })
+    } catch {
+      setToast({ message: `Barcode ${barcode} not found`, type: "error" })
+    }
+  }, [])
+
+  useScannerDetection(handleScanBarcode)
 
   // ── Load queue ──
 
@@ -123,12 +236,19 @@ function StocktakeSessionPage() {
     try {
       const body: Record<string, unknown> = {}
       if (newPrice != null) body.new_price = newPrice
-      await apiFetch(`/admin/erp/inventory/items/${current.inventory_item_id}/verify`, {
-        method: "POST",
-        body: JSON.stringify(body),
-      })
+      const result = await apiFetch<{ barcode: string | null; label_url: string }>(
+        `/admin/erp/inventory/items/${current.inventory_item_id}/verify`,
+        { method: "POST", body: JSON.stringify(body) }
+      )
+
+      // Auto-print label on verify
+      if (autoPrint && printerStatus !== "none") {
+        printLabel(current.inventory_item_id, printerStatus)
+      }
+
       setUndoStack((s) => [...s, { itemId: current.inventory_item_id, action: "verify" }])
-      setToast({ message: newPrice != null ? `Verified at €${newPrice}` : "Verified", type: "success" })
+      const bc = result.barcode ? ` · ${result.barcode}` : ""
+      setToast({ message: newPrice != null ? `Verified at €${newPrice}${bc}` : `Verified${bc}`, type: "success" })
       advanceToNext()
     } catch (e: any) {
       setToast({ message: e.message, type: "error" })
@@ -230,6 +350,10 @@ function StocktakeSessionPage() {
           setNoteText("")
           setShowNoteModal(true)
           break
+        case "l":
+          e.preventDefault()
+          if (current) printLabel(current.inventory_item_id, printerStatus)
+          break
         case "u":
           e.preventDefault()
           handleUndo()
@@ -298,6 +422,32 @@ function StocktakeSessionPage() {
           subtitle={`${current.format_group_label} · Item ${totalProcessed + 1}`}
         />
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          {/* Printer status indicator */}
+          <div style={{
+            display: "flex", alignItems: "center", gap: 6,
+            fontSize: 11, color: C.muted,
+            padding: "4px 10px", borderRadius: S.radius.sm,
+            background: printerStatus === "connected" ? "#e8f5e9" :
+                        printerStatus === "browser" ? "#fff8e1" : "#fce4ec",
+          }}>
+            <span style={{
+              width: 7, height: 7, borderRadius: "50%",
+              background: printerStatus === "connected" ? "#4caf50" :
+                          printerStatus === "browser" ? "#ff9800" : "#f44336",
+            }} />
+            {printerStatus === "connected" ? "QZ Tray" :
+             printerStatus === "browser" ? "Browser Print" : "No Printer"}
+          </div>
+          {/* Auto-print toggle */}
+          <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: C.muted, cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={autoPrint}
+              onChange={(e) => setAutoPrint(e.target.checked)}
+              style={{ cursor: "pointer" }}
+            />
+            Auto-Print
+          </label>
           <span style={{ fontSize: 12, color: C.muted }}>
             {remaining} remaining
           </span>
@@ -337,6 +487,28 @@ function StocktakeSessionPage() {
           <h3 style={{ fontSize: 16, fontWeight: 400, color: C.text, marginBottom: 12 }}>
             {current.title}
           </h3>
+
+          {/* Barcode badge */}
+          <div style={{ marginBottom: 10 }}>
+            {current.barcode ? (
+              <span style={{
+                display: "inline-block",
+                fontFamily: "monospace", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em",
+                padding: "3px 10px", borderRadius: S.radius.sm,
+                background: "#f0eeec", color: C.text, border: `1px solid ${C.border}`,
+              }}>
+                {current.barcode}
+              </span>
+            ) : (
+              <span style={{
+                display: "inline-block",
+                fontSize: 11, padding: "3px 10px", borderRadius: S.radius.sm,
+                background: "#fff8e1", color: "#e65100",
+              }}>
+                No barcode — assigned on Verify
+              </span>
+            )}
+          </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 13, marginBottom: 16 }}>
             {current.catalogNumber && <div><span style={{ color: C.muted }}>Cat #:</span> {current.catalogNumber}</div>}
@@ -408,7 +580,7 @@ function StocktakeSessionPage() {
         borderTop: `1px solid ${C.border}`,
         flexWrap: "wrap",
       }}>
-        <Btn label="[V] Verify" variant="primary" onClick={() => handleVerify()} />
+        <Btn label={autoPrint ? "[V] Verify + Print" : "[V] Verify"} variant="primary" onClick={() => handleVerify()} />
         <Btn label="[P] Adjust Price" variant="gold" onClick={() => {
           setPriceInputActive(true)
           setPriceValue(current.legacy_price != null ? String(current.legacy_price) : "")
@@ -416,6 +588,7 @@ function StocktakeSessionPage() {
         }} />
         <Btn label="[M] Missing" variant="ghost" onClick={() => handleMissing()} />
         <Btn label="[S] Skip" variant="ghost" onClick={() => advanceToNext()} />
+        <Btn label="[L] Print Label" variant="ghost" onClick={() => printLabel(current.inventory_item_id, printerStatus)} />
         <Btn label="[N] Note" variant="ghost" onClick={() => { setNoteText(""); setShowNoteModal(true) }} />
         {undoStack.length > 0 && (
           <Btn label="[U] Undo" variant="ghost" onClick={handleUndo} />
@@ -424,7 +597,7 @@ function StocktakeSessionPage() {
 
       {/* Keyboard hint */}
       <div style={{ fontSize: 10, color: C.muted, marginTop: 8 }}>
-        Keyboard: V=Verify · P=Price · M=Missing · S=Skip · N=Note · U=Undo · ←/→=Navigate · Esc=Exit
+        Keyboard: V=Verify{autoPrint ? "+Print" : ""} · P=Price · M=Missing · S=Skip · L=Print Label · N=Note · U=Undo · ←/→=Nav · Esc=Exit · Scanner: auto-detect
       </div>
 
       {/* Note modal */}

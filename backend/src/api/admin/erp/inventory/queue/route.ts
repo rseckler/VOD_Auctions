@@ -41,6 +41,7 @@ export async function GET(
   let query = pg.raw(`
     SELECT
       ii.id AS inventory_item_id,
+      ii.barcode,
       ii.status,
       ii.price_locked,
       ii.last_stocktake_at,

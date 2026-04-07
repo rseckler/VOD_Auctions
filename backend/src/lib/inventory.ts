@@ -75,6 +75,39 @@ export async function createMovement(
   return id
 }
 
+// ─── Barcode Assignment ───────────────────────────────────────────────────
+
+/**
+ * Assign a barcode to an inventory item if it doesn't have one yet.
+ * Uses the erp_barcode_seq sequence for sequential numbering.
+ * Format: VOD-000001 through VOD-041500+
+ *
+ * Returns the barcode string (existing or newly assigned).
+ */
+export async function assignBarcode(
+  trx: Knex,
+  inventoryItemId: string
+): Promise<string> {
+  // Check if already has barcode
+  const item = await trx("erp_inventory_item")
+    .where("id", inventoryItemId)
+    .select("barcode")
+    .first()
+
+  if (item?.barcode) return item.barcode
+
+  // Get next sequence value
+  const seqResult = await trx.raw("SELECT nextval('erp_barcode_seq') AS seq")
+  const seq = seqResult.rows[0].seq
+  const barcode = `VOD-${String(seq).padStart(6, "0")}`
+
+  await trx("erp_inventory_item")
+    .where("id", inventoryItemId)
+    .update({ barcode, updated_at: new Date() })
+
+  return barcode
+}
+
 // ─── Price Lock ────────────────────────────────────────────────────────────
 
 /**

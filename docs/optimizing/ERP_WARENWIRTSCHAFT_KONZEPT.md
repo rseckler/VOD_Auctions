@@ -1,7 +1,7 @@
 # ERP / Warenwirtschaft — Architektur- und Entscheidungsdokument
 
-**Version:** 5.0
-**Erstellt:** 2026-04-02 | **Aktualisiert:** 2026-04-05
+**Version:** 5.1
+**Erstellt:** 2026-04-02 | **Aktualisiert:** 2026-04-07
 **Autor:** Robin Seckler (digital spread UG)
 **Betreiber:** VOD Records, Friedrichshafen (Frank Bull)
 **Status:** Entscheidungsvorlage + teilweise umgesetzt — **Infrastructure-Layer (Abschnitte 8 + 9) ist LIVE seit 2026-04-05**. Domain-Layer wartet weiterhin auf fachliche Freigaben aus Abschnitt 14. Siehe **Teil E: Umsetzungsstand 2026-04-05**.
@@ -10,7 +10,8 @@
 
 | Version | Datum | Änderungen |
 |---------|-------|------------|
-| **5.0** | **2026-04-05** | **Infrastructure-Layer umgesetzt:** Feature-Flag-System live (6 ERP-Flags, alle default `false`), Deployment-Methodology als verbindliches Governance-Doc, Staging-DB provisioniert (Supabase Free in `backfire`-Account, Schema 1:1 von Production), Trial-Flag `EXPERIMENTAL_SKIP_BID_CONFIRMATION` End-to-End validiert. Status-Marker an §8.2, §8.3, §8.4, §8.5, §9.1. Teil C aktualisiert (technische Punkte abgehakt). Teil D um Status-Spalte erweitert. **Neuer Teil E** mit vollständigem Implementation-Delta (16-Zeilen-Status-Tabelle, "was wurde nicht umgesetzt und warum", Infrastructure-Invarianten, Next-Step-Empfehlungen, Commit-Liste). Inhaltliche Kapitel 1-7 und 10-13 sowie alle Anhänge sind unverändert — sie beschreiben den Domain-Layer, der weiterhin auf fachliche Freigaben wartet. |
+| **5.1** | **2026-04-07** | **Barcode/Labeling-Infrastruktur:** §10.2 `inventory_item` um `barcode` + `barcode_printed_at` erweitert, neuer Index `idx_inventory_item_barcode`, neue Sequenz `erp_barcode_seq`. Neuer Abschnitt §10.7 mit komplettem Barcode/Label/Scanner/Drucker-Stack (Hardware-geprüft für macOS). Bezug: `INVENTUR_COHORT_A_KONZEPT.md` §14 (detaillierter Inventur-Workflow). |
+| 5.0 | 2026-04-05 | **Infrastructure-Layer umgesetzt:** Feature-Flag-System live (6 ERP-Flags, alle default `false`), Deployment-Methodology als verbindliches Governance-Doc, Staging-DB provisioniert (Supabase Free in `backfire`-Account, Schema 1:1 von Production), Trial-Flag `EXPERIMENTAL_SKIP_BID_CONFIRMATION` End-to-End validiert. Status-Marker an §8.2, §8.3, §8.4, §8.5, §9.1. Teil C aktualisiert (technische Punkte abgehakt). Teil D um Status-Spalte erweitert. **Neuer Teil E** mit vollständigem Implementation-Delta (16-Zeilen-Status-Tabelle, "was wurde nicht umgesetzt und warum", Infrastructure-Invarianten, Next-Step-Empfehlungen, Commit-Liste). Inhaltliche Kapitel 1-7 und 10-13 sowie alle Anhänge sind unverändert — sie beschreiben den Domain-Layer, der weiterhin auf fachliche Freigaben wartet. |
 | 4.2 | 2026-04-04 | Formale Bereinigung Abschnitt 13, steuerlich-rechtliche Marker ergänzt, Empfehlung präzisiert. |
 | 4.1 | 2026-04-03 | Struktur-Rewrite, Geschäftsmodell-Matrix, Aktivierungs-Matrix. |
 | 4.0 | 2026-04-02 | Erste Fassung. |
@@ -1705,6 +1706,12 @@ CREATE TABLE inventory_item (
     tax_scheme_override BOOLEAN DEFAULT false,     -- true wenn Admin manuell geändert hat
     tax_scheme_override_reason TEXT,               -- Pflicht wenn override = true
     
+    -- Barcode / Labeling (v5.1, 2026-04-07)
+    barcode TEXT UNIQUE,                           -- 'VOD-000001' bis 'VOD-041500', Code128
+                                                   -- Zugewiesen bei Stocktake-Verify, UNIQUE + Index
+                                                   -- Nummernkreis via erp_barcode_seq (CREATE SEQUENCE)
+    barcode_printed_at TIMESTAMPTZ,                -- Wann zuletzt Label gedruckt wurde
+    
     -- Lager
     warehouse_location TEXT,                       -- Freitext: "Regal A3", "Box 17", "Palette 2"
     condition TEXT                                  -- Goldmine-Standard
@@ -1740,6 +1747,10 @@ CREATE INDEX idx_inventory_item_release ON inventory_item(release_id);
 CREATE INDEX idx_inventory_item_source ON inventory_item(source);
 CREATE INDEX idx_inventory_item_status ON inventory_item(status);
 CREATE INDEX idx_inventory_item_owner ON inventory_item(commission_owner_id) WHERE commission_owner_id IS NOT NULL;
+CREATE UNIQUE INDEX idx_inventory_item_barcode ON inventory_item(barcode) WHERE barcode IS NOT NULL;
+
+-- Barcode-Nummernkreis (v5.1)
+CREATE SEQUENCE erp_barcode_seq START WITH 1 INCREMENT BY 1;
 
 
 -- Bestandsbewegungen: Jede Änderung am Bestand wird als Event gespeichert
@@ -2231,6 +2242,105 @@ Dashboard | Auction Blocks | Orders | Catalog | Marketing | Operations | ERP | A
 | Steuern / §25a | `/app/erp/tax` | §25a-Übersicht, Marge-Tracking, Steuerreport |
 
 Jede Sub-Page folgt dem bestehenden Admin Design System. Kein `defineRouteConfig` auf Sub-Pages.
+
+---
+
+### 10.7 Barcode / Labeling-Infrastruktur (v5.1, 2026-04-07)
+
+Querschnittsfunktion für alle ERP-Module. Erste Aktivierung während Inventur Cohort A (siehe `INVENTUR_COHORT_A_KONZEPT.md` §14).
+
+#### 10.7.1 Barcode-Schema
+
+| Eigenschaft | Wert |
+|---|---|
+| **Format** | Code128 (ISO/IEC 15417) |
+| **Muster** | `VOD-000001` bis `VOD-041500` (erweiterbar) |
+| **Spalte** | `erp_inventory_item.barcode` (TEXT, UNIQUE, nullable) |
+| **Sequenz** | `erp_barcode_seq` (PostgreSQL SEQUENCE) |
+| **Generierung** | Serverseitig via `bwip-js` (Node.js, zero native deps) |
+
+**Vergabe-Trigger:** Barcode wird zugewiesen bei:
+- Stocktake Verify (Inventur-Workflow)
+- Manueller Zuweisung via Admin UI
+- Bulk-Backfill für Cohort B/C (spätere Phase)
+
+**Lookup:** `GET /admin/erp/inventory/scan/:barcode` → `erp_inventory_item` + Release-Daten. Für Scanner-Integration und Cross-Modul-Suche.
+
+#### 10.7.2 Label-Generierung
+
+**Technologie:** `bwip-js` (Barcode-Bitmap) + `pdfkit` (Label-PDF). Beide bereits im Projekt oder zero-native-dependency.
+
+**Labelformat:** 29mm × 62mm (Brother DK-22210 Endlos, Standardbreite 29mm, Länge variabel geschnitten)
+
+```
+┌──────────────────────────────────────┐
+│  |||||||||||||||||||||||||||||||||||  │  ← Code128 Barcode
+│          VOD-003241                  │  ← Klartext
+│  Cabaret Voltaire                    │  ← Artist (max 30 Zeichen)
+│  Red Mecca · LP · 1981              │  ← Title · Format · Year
+│  vod-auctions.com                   │  ← Domain
+└──────────────────────────────────────┘
+```
+
+**API-Endpoints:**
+
+| Method | Path | Effekt |
+|---|---|---|
+| GET | `/admin/erp/inventory/items/:id/label` | Label-PDF (einzeln) |
+| POST | `/admin/erp/inventory/items/:id/label/print` | Label generieren + Druck-Befehl |
+| GET | `/admin/erp/inventory/batch-labels` | Batch-PDF (mehrere Items) |
+| GET | `/admin/erp/inventory/scan/:barcode` | Barcode → Item Lookup |
+
+#### 10.7.3 Druck-Infrastruktur
+
+**Hardware:** Brother QL-810W (WiFi, macOS CUPS-kompatibel, ~€130)
+
+**Druck-Pfad (Client-seitig):**
+```
+Admin UI (Browser) → VPS API generiert Label-PDF → Browser empfängt PDF
+  → QZ Tray (stilles Drucken, kein Dialog) ODER
+  → Browser Print Dialog (Fallback, manueller Schritt)
+```
+
+Der VPS kann nicht direkt an Franks lokalen Drucker senden (verschiedene Netzwerke). Daher: API generiert das PDF, der Browser auf Franks Mac übernimmt das Drucken — entweder still via QZ Tray oder manuell via Print-Dialog.
+
+**Software-Stack:**
+
+| Komponente | Zweck | Installation |
+|---|---|---|
+| Brother macOS Treiber | CUPS-Integration, Bonjour-Discovery | brother.com, einmalig |
+| QZ Tray v2.2+ | Stilles Drucken aus Browser via WebSocket | qz.io, einmalig, signed+notarized für macOS |
+| `qz-tray` npm (JS Client) | Browser ↔ QZ Tray Kommunikation | Admin-Frontend Bundle |
+
+#### 10.7.4 Scanner-Infrastruktur
+
+**Hardware:** USB Barcode Scanner (HID Keyboard Mode, z.B. Inateck BCST-70, ~€40)
+
+**Funktionsprinzip:** Scanner emuliert USB-Tastatur. Scannt Barcode → tippt `VOD-003241` + Enter ins fokussierte Feld. macOS erkennt den Scanner als Keyboard, zero Treiber.
+
+**Software-Stack:**
+
+| Komponente | Zweck | Integration |
+|---|---|---|
+| `onScan.js` | Unterscheidet Scanner-Input von Tastatur | Admin-Frontend, `useEffect` Hook |
+
+**Cross-Modul-Nutzung des Scanners:**
+- **Inventur (ERP_INVENTORY):** Item per Scan identifizieren, Re-Check
+- **Versand (ERP_SENDCLOUD):** Bestellte Artikel scannen → Order verknüpfen → Paketschein
+- **Wareneingang (zukünftig):** Neue Sammlungen einbuchen per Scan
+- **Retoure (zukünftig):** Rückläufer identifizieren + zurückbuchen
+
+#### 10.7.5 Hardware-Übersicht (macOS-geprüft)
+
+| # | Artikel | Modell | Preis | macOS |
+|---|---|---|---|---|
+| 1 | Labeldrucker | Brother QL-810W (WiFi+USB) | ~€130 | ✅ CUPS, Bonjour, offizielle Treiber |
+| 2 | Etiketten (Vorrat) | 5× Brother DK-22210 (29mm Endlos, je 30m) | ~€40 | — |
+| 3 | Barcode Scanner | Inateck BCST-70 (2D, USB) | ~€40 | ✅ HID Keyboard, zero config |
+| 4 | Stilles Drucken | QZ Tray v2.2+ (Open Source) | €0 | ✅ Signed+Notarized |
+| | **Gesamt** | | **~€210** | |
+
+**Upgrade-Option:** Brother QL-820NWB (~€220) mit zusätzlich Bluetooth + Display. Nur relevant für iPad/iPhone-Druck.
 
 ---
 

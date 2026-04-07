@@ -47,6 +47,42 @@ Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Rel
 
 ---
 
+## 2026-04-07 (night) — ERP Barcode/Labeling-Infrastruktur
+
+Barcode-System für die Inventur-Phase: Jeder verifizierte Artikel bekommt automatisch einen Code128-Barcode (`VOD-000001` ff.), ein druckbares Label (29×62mm PDF für Brother QL-810W), und ist per USB-Scanner scanbar.
+
+### Neue Dateien
+- `backend/scripts/migrations/2026-04-07_erp_barcode.sql` — `barcode` TEXT UNIQUE + `barcode_printed_at` auf `erp_inventory_item`, Sequenz `erp_barcode_seq`
+- `backend/src/lib/barcode-label.ts` — Label-PDF-Generator (Code128 via `bwip-js` + `pdfkit`, 29×62mm Brother-Format)
+- `backend/src/api/admin/erp/inventory/items/[id]/label/route.ts` — `GET` Einzellabel-PDF
+- `backend/src/api/admin/erp/inventory/scan/[barcode]/route.ts` — `GET` Barcode → Item Lookup (für Scanner)
+- `backend/src/api/admin/erp/inventory/batch-labels/route.ts` — `GET` Batch-PDF (max 200 Labels)
+
+### Geänderte Dateien
+- `backend/src/lib/inventory.ts` — neuer Helper `assignBarcode()` (Sequenz → `VOD-XXXXXX`)
+- `backend/src/api/admin/erp/inventory/items/[id]/verify/route.ts` — vergibt Barcode bei Verify, gibt `barcode` + `label_url` zurück
+- `backend/src/api/admin/erp/inventory/queue/route.ts` — `barcode`-Feld in Response
+- `backend/src/admin/routes/erp/inventory/session/page.tsx` — Printer-Status-Indicator (QZ Tray / Browser / None), Auto-Print Toggle, Barcode-Badge pro Item, `[L]` Reprint-Button, Scanner-HID-Detection, QZ Tray WebSocket-Check
+- `backend/package.json` — `bwip-js` ^4.9.0
+
+### Dokumentation
+- `docs/optimizing/INVENTUR_COHORT_A_KONZEPT.md` → v3.0: neuer §14 "Barcode-Labeling in der Inventur" (Hardware-Einkaufsliste, Label-Design, Druck-Architektur, Scanner-Integration, Phasen, TODOs)
+- `docs/optimizing/ERP_WARENWIRTSCHAFT_KONZEPT.md` → v5.1: §10.2 `barcode`-Spalten, neuer §10.7 "Barcode/Labeling-Infrastruktur" (Schema, Label-Generierung, Druck-Infra, Scanner-Infra, Hardware macOS-geprüft)
+
+### Hardware-Empfehlung (macOS-geprüft)
+- Brother QL-810W (~€130) — WiFi, CUPS, Bonjour, offizielle macOS-Treiber
+- Inateck BCST-70 USB Scanner (~€40) — HID Keyboard, zero config
+- QZ Tray (€0, Open Source) — Stilles Drucken aus Browser, signed+notarized für macOS
+- 5× Brother DK-22210 Etiketten (~€40)
+- **Gesamt: ~€210**
+
+### Deployment
+- Migration erst auf Staging, dann Production
+- Feature-Flag `ERP_INVENTORY` muss aktiv sein
+- Kein Breaking Change — alle Spalten nullable, Endpoints hinter Flag-Gate
+
+---
+
 ## 2026-04-07 (evening) — Inventur Cohort A: Full Implementation (Phase 1-4)
 
 Komplette Implementierung des Inventur-Stocktake-Workflows basierend auf Franks 7 Antworten.
