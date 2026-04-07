@@ -3084,7 +3084,7 @@ Dieser Abschnitt fasst zusammen, **was seit v4.2 tatsächlich umgesetzt wurde**,
 | `tax_margin_record` + §25a-Tracking | Wartet auf StB-Entscheidung Einzel/Sammel + Kontenplan | StB (Pflicht) |
 | `commission_owner` + Settlement-Logik | Wartet auf Kommissionsvertrag-Vorlage + Abrechnungszyklus | Anwalt + Frank |
 | sevDesk/easybill-Integration | Wartet auf Produktwahl + 5 Test-Rechnungen | Robin + Frank + StB |
-| Sendcloud-Integration | Wartet auf DHL-Geschäftskundennummer + Sendcloud-Account | Frank |
+| Sendcloud-Integration | ⚠️ **Externe Abhängigkeiten erfüllt** (DHL-GK-Nr ✅ + Sendcloud-Account ✅ 2026-04-07). Wartet auf Implementierung (`ERP_SENDCLOUD`-Flag + Routes) | Robin |
 | DATEV-Export | Baut auf sevDesk/easybill + §25a auf | StB |
 | Marketplace-Tabellen (`seller`, `seller_payout`, Stripe Connect) | Wartet auf Stripe Connect Application + §22f/§25e-Prüfung + GmbH-Entscheidung | Anwalt + Frank + Stripe |
 | `/admin/erp/*` Routes | Werden erst mit dem jeweils ersten ERP-Feature angelegt | siehe oben |
@@ -3312,7 +3312,7 @@ Lebende Checkliste. Wird nach jeder Session aktualisiert. Aufgeteilt nach Verant
 |---|-----|-----|--------|
 | F1 | **AGB-Anwalt beauftragen** (E-Commerce, Deutschland) | Launch / RSE-78 | 🔲 offen |
 | F2 | **Steuerberater-Termin** buchen (§25a-Agenda aus §14.3 vorbereiten) | ERP P3+P5 | 🔲 offen |
-| F3 | **Sendcloud-Account anlegen** (sendcloud.de, Free-Plan zum Start) | ERP P4 | 🔲 offen |
+| F3 | **Sendcloud-Account anlegen** (sendcloud.de, Free-Plan zum Start) | ERP P4 | ✅ **erledigt 2026-04-07** — User: `admin@vod-auctions.com`, Credentials in 1Password |
 | F4 | **easybill-Account anlegen** (Plus-Plan, 14 EUR/Monat) | ERP P3 | 🔲 offen |
 | F5 | **Lagerorte definieren und in Admin eintragen** (`/app/erp/locations`) | Foundation | 🔲 offen — welche Standorte gibt es? |
 | F6 | Kommissionsvertrag-Vorlage (Anwalt) für Konsignationsware | ERP P5 | 🔲 offen |
@@ -3340,6 +3340,7 @@ Lebende Checkliste. Wird nach jeder Session aktualisiert. Aufgeteilt nach Verant
 | ERP Hub in Admin-Navigation | ✅ |
 | ERP_WARENWIRTSCHAFT_KONZEPT.md v6.0 (alle Entscheidungen dokumentiert) | ✅ |
 | DHL-Geschäftskundennummer beschafft (5115313430) | ✅ |
+| Sendcloud-Account erstellt (`admin@vod-auctions.com`, Credentials in 1Password) | ✅ 2026-04-07 |
 
 ---
 
