@@ -83,6 +83,7 @@ npm run build && pm2 restart vodauction-storefront
 - **Supabase Admin-Ops nur via Session Pooler:** Direct-Connection `db.<ref>.supabase.co:5432` ist auf Free unzuverlässig (IPv4 disabled, IPv6 slot-limited). Immer Session Pooler nutzen: `aws-0-<REGION>.pooler.supabase.com:5432`, User = `postgres.<project-ref>`, Region muss zum Projekt passen (Prod = eu-central-1, Staging = eu-west-1). Transaction Pooler (Port 6543) unterstützt kein `pg_dump`. Volle Post-Mortem siehe CHANGELOG 2026-04-05.
 - **`pg_dump` Version Mismatch + Docker IPv6:** VPS hat `pg_dump 16`, Supabase läuft auf PG17 → Dump refused. Workaround: `docker run --rm --network=host postgres:17 pg_dump ...`. `--network=host` ist Pflicht, sonst hat Container kein IPv6 und erreicht Supabase-Direct-Hosts nicht.
 - **Supabase DB-Passwörter alphanumerisch halten:** Sonderzeichen (`*`/`#`/`$`/`&`) machen beim Shell-Paste und URL-Parsing Ärger. Immer Supabase's "Generate password" nutzen oder manuell nur `[a-zA-Z0-9]`.
+- **Medusa-native Tabellennamen:** Niemals Medusa-native Tabellennamen verwenden (`inventory_item`, `inventory_level`, `stock_location` etc.) → Medusa's eigene ORM-Tabellen gewinnen. ERP-Tabellen stattdessen mit `erp_` Prefix: `erp_inventory_item`, `erp_inventory_movement`. Verifizieren via `\dt` auf Supabase bevor neue Tabellen angelegt werden.
 - **Medusa/Vite Build:** IIFE `(() => {...})()` in JSX-Ternary → silent build failure → Blank Page. Separate Komponenten verwenden.
 - **Neue Native-Dependencies:** Wenn `package.json` eine neue Native-Dep bekommt (pdfkit, sharp, bcrypt etc.), nach Deploy `npm install` auf VPS ausführen — sonst `Cannot find module` → PM2 restart-loop. **Niemals `npm install --omit=optional`** — das strippt platform-specific Binaries wie `@swc/core-linux-x64-gnu` und kaputtmacht `medusa build`.
 - **Discogs Prices ausgeblendet:** `{/* HIDDEN: ... */}` Marker in 5 Storefront-Dateien. Wiederherstellen wenn echte Sale-Daten verfügbar.
@@ -367,7 +368,13 @@ VOD_Auctions/
 **Cwd-independente Pfade:** Backend-Code nutzt NIE `process.cwd()` oder relative `__dirname`-Pfade zur Auflösung von Projekt-Files. Immer `getProjectRoot()`, `getScriptsDir()`, `getDataDir()`, `getStorefrontPublicDir()`, `getTestsDir()` aus `backend/src/lib/paths.ts`. Python-Scripts nutzen `Path(__file__).parent.parent` o.ä. Grund: PM2 cwd ist `backend/.medusa/server/`, nicht das Source-Tree (siehe Gotcha-Liste oben). Walk-up-Helper macht's cwd-unabhängig.
 
 **Catalog Visibility:** Artikel mit `coverImage IS NOT NULL` = sichtbar. `legacy_price > 0 AND legacy_available = true` = kaufbar (`is_purchasable`).
-**legacy_available:** Spiegelt MySQL `frei`-Feld — `frei=1` → true (verfügbar), `frei=0` → false (gesperrt), `frei>1` (Unix-Timestamp) → false (auf tape-mag verkauft). Wird täglich per Legacy-Sync aktualisiert.
+**legacy_available:** Spiegelt MySQL `frei`-Feld — `frei=1` → true (verfügbar), `frei=0` → false (gesperrt), `frei>1` (Unix-Timestamp) → false (auf tape-mag verkauft). Wird stündlich per Legacy-Sync aktualisiert.
+
+**ERP Module Status:**
+- `ERP_INVENTORY` — **Code deployed, Flag OFF.** Tabellen `erp_inventory_item` (13.107 Cohort-A Items backfilled), `erp_inventory_movement`, `bulk_price_adjustment_log`. Sync-Schutz (`price_locked`) in `legacy_sync_v2.py`. Admin-UI: `/app/erp/inventory` (Hub) + `/app/erp/inventory/session` (Keyboard-Stocktake). Aktivierung: Flag ON → Bulk +15% → Frank startet Inventur-Sessions (4-6 Wochen). Siehe `docs/optimizing/INVENTUR_COHORT_A_KONZEPT.md`.
+- `ERP_INVOICING` — nicht implementiert (wartet auf easybill-Account + StB-Termin)
+- `ERP_SENDCLOUD` — nicht implementiert (Sendcloud-Account erstellt am 07.04., DHL-GK-Nr vorhanden, Code pending)
+- `ERP_COMMISSION`, `ERP_TAX_25A`, `ERP_MARKETPLACE` — nicht implementiert (wartet auf fachliche Freigaben §14)
 
 ## Linear
 

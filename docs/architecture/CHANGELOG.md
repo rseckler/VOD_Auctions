@@ -47,6 +47,59 @@ Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Rel
 
 ---
 
+## 2026-04-07 (evening) — Inventur Cohort A: Full Implementation (Phase 1-4)
+
+Komplette Implementierung des Inventur-Stocktake-Workflows basierend auf Franks 7 Antworten.
+
+### Franks Entscheidungen
+
+- **F1:** +15% statt +20%, ganze Euro (`ROUND(price * 1.15, 0)`)
+- **F2:** Missing = Preis auf 0, im Shop behalten (nicht `written_off`). Reversibel via Unlock.
+- **F3:** Kein Pflicht-Dropdown, optionaler Freitext
+- **F4:** Discogs-Preise anzeigen + Link zu Discogs-Marketplace
+- **F5:** Sort: Format-Gruppe (Vinyl→Tape→Print→Other) → Alphabet
+- **F6:** 4-6 Wochen, URL-basierter Cursor
+- **F7:** Keine Ausschlüsse
+
+### Phase 1 — DB + Sync-Schutz
+- 3 Tabellen: `erp_inventory_item` (ERP-Konzept §10 + 4 Stocktake-Spalten), `erp_inventory_movement`, `bulk_price_adjustment_log`. `erp_` Prefix vermeidet Kollision mit Medusa's nativer `inventory_item` Tabelle.
+- Backfill: **13.107** Cohort-A Items (10.762 Musik + 2.345 Literatur) — mehr als die geschätzten 7.407 im Konzept weil Literatur mit-gezählt wird.
+- Sync-Schutz in `legacy_sync_v2.py`: ON CONFLICT CASE-Guard für `price_locked`, Diff-Exclusion, V5 Validation. Verifiziert: Preis-Mismatch €9↔€99 überlebt Dry-Run.
+
+### Phase 2 — Bulk +15% + Helper
+- `backend/src/lib/inventory.ts`: requireFeatureFlag, createMovement, lockPrice, unlockPrice
+- `GET/POST /admin/erp/inventory/bulk-price-adjust`: Preview mit Sample (ganze Euro), Execute mit Confirmation "RAISE PRICES 15 PERCENT", idempotent, Movement-Audit pro Item
+- `GET /admin/erp/inventory/stats`: eligible/verified/missing/remaining/bulk_status
+
+### Phase 3 — Session API
+- `GET /admin/erp/inventory/queue`: Format-Gruppen-Sort (F5), Discogs-Felder (F4), Cursor-Pagination
+- `POST .../items/:id/verify`: lock + optional new_price + movement
+- `POST .../items/:id/missing`: price→0 + lock (F2), alter Preis in movement.reference für Undo
+- `POST .../items/:id/note`: optionaler Freitext (F3)
+- `POST .../items/:id/reset`: Undo mit Preis-Restore aus movement.reference
+- `GET .../export`: CSV mit BOM (all/verified/missing/pending)
+
+### Phase 4 — Session Screen
+- Keyboard-driven: V=Verify, P=Price, M=Missing, S=Skip, N=Note, U=Undo, ←/→, Esc
+- Cover-Image + Details + Discogs-Panel mit Marketplace-Link
+- Price-Input mit Enter-Confirm (ganze Euro)
+- Format-Gruppen-Labels in Progress
+- Queue auto-reload bei Batch-Ende, Completion-Screen bei 0 remaining
+
+### Operations Hub
+- Neue HubCard "Inventory Stocktake" in `/app/operations`
+
+### CLAUDE.md
+- Medusa-Tabellen-Gotcha (`erp_*` Prefix)
+- ERP Module Status Section (alle 6 Flags mit aktuellem Stand)
+
+### Activation Sequence (nach 24h Sync-Schutz stabil)
+1. `ERP_INVENTORY` Flag → ON
+2. Bulk +15% über Admin-UI
+3. Frank startet Inventur-Sessions (4-6 Wochen)
+
+---
+
 ## 2026-04-07 — ERP Foundation: Flag Dependencies + Warehouse Locations + ERP Admin Hub
 
 Erster ERP-Implementierungssprint. Keine Domain-Logik (kein easybill, kein Sendcloud) — nur die Infrastruktur die alle späteren ERP-Module benötigen.

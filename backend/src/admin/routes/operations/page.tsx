@@ -467,6 +467,17 @@ function OperationsHub() {
           <SyncStatusContent discogs={discogsData} legacy={legacyData} loading={dataLoading} />
         </HubCard>
 
+        {/* Inventory Stocktake */}
+        <HubCard
+          icon="📦"
+          title="Inventory Stocktake"
+          description="Physical inventory verification for Cohort A. Verify stock, adjust prices, mark missing items."
+          statusLine="ERP_INVENTORY flag required"
+          statusColor={C.gold}
+          href="/app/erp/inventory"
+          actionLabel="Open Stocktake →"
+        />
+
         {/* Test Runner */}
         <HubCard
           icon="🧪"
