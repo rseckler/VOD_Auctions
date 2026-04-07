@@ -672,7 +672,12 @@ def sync_releases_v2(mysql_conn, pg_conn, run_id, dry_run=False):
                         ELSE EXCLUDED."labelId"
                     END,
                     "coverImage" = EXCLUDED."coverImage",
-                    legacy_price = EXCLUDED.legacy_price,
+                    legacy_price = CASE
+                        WHEN EXISTS(SELECT 1 FROM erp_inventory_item ii
+                                    WHERE ii.release_id = "Release".id AND ii.price_locked = true)
+                        THEN "Release".legacy_price
+                        ELSE EXCLUDED.legacy_price
+                    END,
                     legacy_condition = EXCLUDED.legacy_condition,
                     legacy_format_detail = EXCLUDED.legacy_format_detail,
                     legacy_available = EXCLUDED.legacy_available,
@@ -681,6 +686,17 @@ def sync_releases_v2(mysql_conn, pg_conn, run_id, dry_run=False):
                 release_values,
                 template="(%s, %s, %s, %s, %s, %s::\"ReleaseFormat\", %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW())",
             )
+
+        # Pre-fetch price-locked release IDs for this batch (sync protection)
+        price_locked_ids = set()
+        if release_values:
+            pl_cur = pg_conn.cursor()
+            pl_cur.execute(
+                "SELECT release_id FROM erp_inventory_item WHERE price_locked = true AND release_id = ANY(%s)",
+                ([rv[0] for rv in release_values],),
+            )
+            price_locked_ids = {row[0] for row in pl_cur.fetchall()}
+            pl_cur.close()
 
         # Full-field diff: compare each new value against existing state
         for release_id, new_values in new_values_by_id.items():
@@ -692,6 +708,11 @@ def sync_releases_v2(mysql_conn, pg_conn, run_id, dry_run=False):
                 fields_to_diff = list(DIFF_FIELDS_RELEASE)
                 if old_state.get("label_enriched"):
                     fields_to_diff = [f for f in fields_to_diff if f != "labelId"]
+                # Respect price_locked guard: if the item has price_locked=true,
+                # the sync won't overwrite legacy_price (see ON CONFLICT above),
+                # so we must not report it as a change either.
+                if release_id in price_locked_ids:
+                    fields_to_diff = [f for f in fields_to_diff if f != "legacy_price"]
                 delta = compute_diff(old_state, new_values, fields_to_diff)
                 if delta:
                     rows_changed += 1
@@ -935,13 +956,29 @@ def sync_literature_v2(mysql_conn, pg_conn, run_id, table, category,
                     END,
                     "pressOrgaId" = EXCLUDED."pressOrgaId",
                     "coverImage" = EXCLUDED."coverImage",
-                    legacy_price = EXCLUDED.legacy_price,
+                    legacy_price = CASE
+                        WHEN EXISTS(SELECT 1 FROM erp_inventory_item ii
+                                    WHERE ii.release_id = "Release".id AND ii.price_locked = true)
+                        THEN "Release".legacy_price
+                        ELSE EXCLUDED.legacy_price
+                    END,
                     legacy_format_detail = EXCLUDED.legacy_format_detail,
                     "updatedAt" = NOW(),
                     legacy_last_synced = NOW()""",
                 release_values,
                 template="(%s, %s, %s, %s, %s, %s::\"ReleaseFormat\", %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW())",
             )
+
+        # Pre-fetch price-locked release IDs for this literature batch
+        price_locked_ids = set()
+        if release_values:
+            pl_cur = pg_conn.cursor()
+            pl_cur.execute(
+                "SELECT release_id FROM erp_inventory_item WHERE price_locked = true AND release_id = ANY(%s)",
+                ([rv[0] for rv in release_values],),
+            )
+            price_locked_ids = {row[0] for row in pl_cur.fetchall()}
+            pl_cur.close()
 
         # Full-field diff for literature
         for release_id, new_values in new_values_by_id.items():
@@ -950,6 +987,8 @@ def sync_literature_v2(mysql_conn, pg_conn, run_id, table, category,
                 effective_fields = list(fields_to_diff)
                 if old_state.get("label_enriched") and "labelId" in effective_fields:
                     effective_fields = [f for f in effective_fields if f != "labelId"]
+                if release_id in price_locked_ids:
+                    effective_fields = [f for f in effective_fields if f != "legacy_price"]
                 delta = compute_diff(old_state, new_values, effective_fields)
                 if delta:
                     rows_changed += 1
@@ -1116,6 +1155,32 @@ def run_validation(mysql_conn, pg_conn):
                 status = "warnings"
     except Exception as e:
         errors.append({"check": "V4_sync_freshness", "severity": "error", "error": str(e)})
+
+    # V5: No price changes on price-locked items
+    # If sync_change_log contains a legacy_price change for a price-locked
+    # release, the ON CONFLICT guard failed or was bypassed. This is a
+    # critical integrity violation.
+    try:
+        pcur = pg_conn.cursor()
+        pcur.execute("""
+            SELECT COUNT(*) FROM sync_change_log scl
+            WHERE scl.synced_at >= NOW() - INTERVAL '2 hours'
+              AND scl.changes::text LIKE '%legacy_price%'
+              AND scl.release_id IN (
+                  SELECT release_id FROM erp_inventory_item WHERE price_locked = true
+              )
+        """)
+        v5_violations = pcur.fetchone()[0]
+        pcur.close()
+        if v5_violations > 0:
+            errors.append({
+                "check": "V5_price_locked_integrity",
+                "severity": "error",
+                "violations": v5_violations,
+            })
+            status = "failed"
+    except Exception as e:
+        errors.append({"check": "V5_price_locked_integrity", "severity": "error", "error": str(e)})
 
     return (status, errors)
 
