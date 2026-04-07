@@ -173,6 +173,10 @@ npm run build && pm2 restart vodauction-storefront
 - `GET|POST /admin/customers/:id/notes` + `DELETE .../notes/:noteId` — Interne Notizen
 - `GET /admin/customers/:id/timeline` — Unified Event-Feed (bid/order/note)
 - `POST /admin/customers/:id/block` + `/unblock` | `/anonymize` | `/gdpr-export` | `/delete`
+- `GET /admin/erp/locations` — Warehouse Locations Liste
+- `POST /admin/erp/locations` — Neuen Lagerort anlegen (code, name required)
+- `PATCH /admin/erp/locations/:id` — Lagerort bearbeiten (inkl. is_default setzen)
+- `DELETE /admin/erp/locations/:id` — Soft-deactivate (kein Hard-Delete; Default-Location geblockt)
 
 ## Payment
 
@@ -354,9 +358,9 @@ VOD_Auctions/
 
 **Admin Design System:** Shared Component Library in `admin/components/` — `admin-tokens.ts` (Farben, Typo), `admin-layout.tsx` (PageHeader, Tabs, StatsGrid), `admin-ui.tsx` (Badge, Toggle, Toast, Modal). Verbindlicher Design Guide: `docs/DESIGN_GUIDE_BACKEND.md` v2.0.
 
-**Admin Navigation:** 7 Sidebar-Items (Dashboard, Auction Blocks, Orders, Catalog, Marketing, Operations, AI Assistant). Sub-Pages nur über Hub-Karten erreichbar. Kein `defineRouteConfig` auf Sub-Pages.
+**Admin Navigation:** 8 Sidebar-Items (Dashboard, Auction Blocks, Orders, Catalog, Marketing, Operations, ERP, AI Assistant). Sub-Pages nur über Hub-Karten erreichbar. Kein `defineRouteConfig` auf Sub-Pages.
 
-**Deployment Methodology:** "Deploy early, activate when ready" ist verbindlich für alle nicht-trivialen Features. Feature Flags in `backend/src/lib/feature-flags.ts` (Registry) und `site_config.features` JSONB (State). Admin Toggle unter `/app/config` → Feature Flags. Additive-only Migrationen auf Live-Tabellen, keine `DROP`/`RENAME`/`TYPE`-Änderungen. Reservierter Prefix `/admin/erp/*` für zukünftige ERP-Routen (aktuell ungenutzt). Siehe [`docs/architecture/DEPLOYMENT_METHODOLOGY.md`](docs/architecture/DEPLOYMENT_METHODOLOGY.md).
+**Deployment Methodology:** "Deploy early, activate when ready" ist verbindlich für alle nicht-trivialen Features. Feature Flags in `backend/src/lib/feature-flags.ts` (Registry, inkl. `requires`-Dependency-Chain) und `site_config.features` JSONB (State). Admin Toggle unter `/app/config` → Feature Flags (Toggles deaktiviert wenn Deps fehlen). Additive-only Migrationen auf Live-Tabellen, keine `DROP`/`RENAME`/`TYPE`-Änderungen. Prefix `/admin/erp/*` wird aktiv genutzt (Locations live). Siehe [`docs/architecture/DEPLOYMENT_METHODOLOGY.md`](docs/architecture/DEPLOYMENT_METHODOLOGY.md).
 
 **Sync-Architektur:** Legacy-MySQL→Supabase-Sync läuft stündlich via `legacy_sync_v2.py`, schreibt alle 14 gesyncten Felder in `sync_change_log` und strukturierte Run-Summary nach `sync_log` (mit `run_id`, `phase`, `rows_*`, `validation_status`). Feld-Contract und Ownership-Matrix in `SYNC_ROBUSTNESS_PLAN.md` §6. Post-Run-Validation läuft nach jedem Run (V1 Row-Count, V2 NOT-NULL, V3 Referential, V4 Freshness). Staging-DB für Dry-Runs: `aebcwjjcextzvflrjgei` (eu-west-1, backfire account — 1Password: "Supabase 2. Account"). Phase A5/A6 (Dead-Man's-Switch + E-Mail-Alerting) pending.
 

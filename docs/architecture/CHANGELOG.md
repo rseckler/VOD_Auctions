@@ -47,6 +47,77 @@ Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Rel
 
 ---
 
+## 2026-04-07 — ERP Foundation: Flag Dependencies + Warehouse Locations + ERP Admin Hub
+
+Erster ERP-Implementierungssprint. Keine Domain-Logik (kein easybill, kein Sendcloud) — nur die Infrastruktur die alle späteren ERP-Module benötigen.
+
+### Entscheidungen (dokumentiert in ERP_WARENWIRTSCHAFT_KONZEPT.md Teil F)
+
+- **easybill** (statt sevDesk) für Invoicing bestätigt
+- **Sendcloud** für Versand bestätigt
+- **Composable Stack Option A** explizit bestätigt
+- **DHL-Geschäftskundennummer** vorhanden (in Memory, geht in `.env` wenn ERP_SENDCLOUD implementiert)
+
+### Feature Flag Dependencies
+
+`FeatureFlagDefinition` erhält `requires?: string[]`. Enforcement in `setFeatureFlag()` (HTTP 400 bei unerfüllten Deps). Aktivierungsreihenfolge erzwungen:
+
+```
+ERP_INVENTORY → ERP_INVOICING → (ERP_SENDCLOUD / ERP_COMMISSION / ERP_TAX_25A) → ERP_MARKETPLACE
+```
+
+Admin Config → Feature Flags Tab: Toggles deaktiviert wenn Dep fehlt, Dep-Status per Flag angezeigt (`ERP_INVENTORY ✓/✗`).
+
+`ERP_INVOICING.description` korrigiert: "sevDesk/easybill" → "easybill".
+
+### Warehouse Locations
+
+Neue Tabelle `warehouse_location` — konfigurierbare Lagerorte (leer, via Admin UI befüllt). Constraints: `UNIQUE INDEX WHERE is_default = true` (genau ein Default), Soft-Delete (kein Hard-Delete).
+
+- API: `GET/POST /admin/erp/locations`, `PATCH/DELETE /admin/erp/locations/:id`
+- Admin UI: `/app/erp/locations` — vollständiges CRUD (Tabelle, Modal, Empty State, Set Default, Deactivate)
+- Default-Location-Deaktivierung geblockt (400) bis anderer Lagerort als Default gesetzt
+
+### ERP Admin Hub
+
+Neuer 8. Sidebar-Eintrag "ERP" (Icon: DocumentText, Rank 7). Hub-Seite `/app/erp` mit 6 Karten:
+- **Warehouse Locations** — aktiv (zeigt Live-Anzahl)
+- **Inventory, Invoicing, Shipping, Commission, §25a** — muted mit "FLAG OFF" Badge bis Flags aktiviert
+
+Erster aktiver Use des reservierten `/admin/erp/*` Namespace.
+
+### Migrations
+
+- `backend/scripts/migrations/2026-04-07_erp_warehouse_locations.sql` — angewendet auf Production (`bofblwqieuvmqybzxapx`) + Staging (`aebcwjjcextzvflrjgei`)
+
+### Deploy
+
+Vollständiger VPS-Deploy (Vite-Cache clear Pflicht wegen neuer Admin-Routes). Build: 45.94s. `api.vod-auctions.com/health` OK, `/admin/erp/locations` → 401 (Auth-Gate aktiv).
+
+### Commits
+
+- `fc95134` — Release docs: Release Index + §9 Release Tagging
+- `9e95228` — ERP Foundation: Flag dependencies + Warehouse Locations + ERP Admin Hub
+
+### Files
+
+```
+backend/src/lib/feature-flags.ts                       (requires-Deps, easybill-Description, getFlagDependencies, setFeatureFlag-Validation)
+backend/src/api/admin/platform-flags/route.ts          (requires in Response, 400 für Dep-Fehler)
+backend/src/admin/routes/config/page.tsx               (Dep-Status in Feature Flags Tab)
+backend/scripts/migrations/2026-04-07_erp_warehouse_locations.sql  (neu)
+backend/src/api/admin/erp/locations/route.ts           (neu — GET/POST)
+backend/src/api/admin/erp/locations/[id]/route.ts      (neu — PATCH/DELETE)
+backend/src/admin/routes/erp/page.tsx                  (neu — ERP Hub)
+backend/src/admin/routes/erp/locations/page.tsx        (neu — Locations CRUD)
+backend/src/admin/components/admin-nav.tsx             (ERP Sub-Pages in PARENT_HUB)
+backend/.env.example                                   (DHL_ACCOUNT_NUMBER, SENDCLOUD_*, EASYBILL_API_KEY)
+docs/optimizing/ERP_WARENWIRTSCHAFT_KONZEPT.md         (Teil F — alle Session-Entscheidungen)
+CLAUDE.md                                              (8 Sidebar-Items, ERP API Quickref, Deployment Methodology aktualisiert)
+```
+
+---
+
 ## 2026-04-05 (night) — Email Addressing Overhaul: Reply-To, Mailbox Structure, DMARC
 
 Nach dem ersten Live-Testlauf am Fr 3.4.2026 ("Throbbing Gristle & Industrial Records", 6 echte Bieter, 17 Transaktionen) wurde sichtbar dass customer-relevant Mails auf zwei Domains verteilt waren: Absender `noreply@`/`newsletter@vod-auctions.com`, Kontakt-Footer aber `info@vod-records.com`. Antworten auf Transaktions-Mails landeten im Nichts (kein `Reply-To`-Header). Keine dedizierte DSGVO-Adresse. Kein konsistenter Brand.
