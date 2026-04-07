@@ -372,7 +372,7 @@ VOD_Auctions/
 ## Linear
 
 **Project:** https://linear.app/rseckler/project/vod-auctions-37f35d4e90be
-**Nächster Schritt:** RSE-77 (Testlauf — 1 Block mit 10-20 Produkten)
+**Nächster Schritt:** RSE-78 (Launch, offen: AGB-Anwalt)
 **In Progress:** RSE-227 (Entity Content Overhaul, P2 paused bis 01.04.2026)
 **Backlog:** RSE-78 (Launch, offen: AGB-Anwalt) | RSE-79 (Erste öffentliche Auktionen) | RSE-80 (Marketing)
 
