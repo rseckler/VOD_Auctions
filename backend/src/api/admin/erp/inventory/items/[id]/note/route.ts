@@ -1,7 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
-import { requireFeatureFlag } from "../../../../../../lib/inventory"
+import { requireFeatureFlag } from "../../../../../../../lib/inventory"
 
 /**
  * POST /admin/erp/inventory/items/:id/note
