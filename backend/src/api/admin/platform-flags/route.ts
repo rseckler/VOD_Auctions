@@ -5,6 +5,7 @@ import {
   FEATURES,
   FeatureFlagKey,
   getAllFeatureFlags,
+  getFlagDependencies,
   isKnownFlag,
   listFlagDefinitions,
   setFeatureFlag,
@@ -26,6 +27,7 @@ interface FlagResponse {
   default: boolean
   description: string
   category: "erp" | "platform" | "experimental"
+  requires: string[]  // Keys that must be enabled before this flag can be activated
 }
 
 function serializeFlags(values: Record<FeatureFlagKey, boolean>): FlagResponse[] {
@@ -35,6 +37,7 @@ function serializeFlags(values: Record<FeatureFlagKey, boolean>): FlagResponse[]
     default: def.default,
     description: def.description,
     category: def.category,
+    requires: getFlagDependencies(def.key as FeatureFlagKey),
   }))
 }
 
@@ -112,7 +115,7 @@ export async function POST(
     }
     // Validation errors from setFeatureFlag → 400. Everything else → 500.
     const isValidation =
-      /^Unknown feature flag|^Flag value must be boolean/.test(err?.message || "")
+      /^Unknown feature flag|^Flag value must be boolean|^Cannot enable/.test(err?.message || "")
     res
       .status(isValidation ? 400 : 500)
       .json({ message: err?.message || "Failed to update feature flag" })

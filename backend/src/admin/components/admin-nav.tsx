@@ -17,6 +17,12 @@ const PARENT_HUB: Record<string, { label: string; href: string }> = {
   "/app/sync":           { label: "Operations", href: "/app/operations" },
   "/app/test-runner":    { label: "Operations", href: "/app/operations" },
   "/app/config":         { label: "Operations", href: "/app/operations" },
+  "/app/erp/locations":  { label: "ERP",        href: "/app/erp" },
+  "/app/erp/inventory":  { label: "ERP",        href: "/app/erp" },
+  "/app/erp/invoicing":  { label: "ERP",        href: "/app/erp" },
+  "/app/erp/shipping":   { label: "ERP",        href: "/app/erp" },
+  "/app/erp/commission": { label: "ERP",        href: "/app/erp" },
+  "/app/erp/tax":        { label: "ERP",        href: "/app/erp" },
   "/app/waitlist":       { label: "Marketing",  href: "/app/marketing" },
 }
 

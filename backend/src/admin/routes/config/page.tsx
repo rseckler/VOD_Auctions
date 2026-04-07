@@ -48,6 +48,7 @@ interface FeatureFlag {
   default: boolean
   description: string
   category: "erp" | "platform" | "experimental"
+  requires: string[]
 }
 
 const MODE_OPTIONS = [
@@ -729,11 +730,46 @@ function ConfigPage() {
         {Object.entries(grouped).map(([category, items]) => (
           <div key={category} style={{ marginBottom: 24 }}>
             <SectionHeader title={CATEGORY_LABELS[category as FeatureFlag["category"]] || category} />
-            {items.map((f) => (
-              <ConfigRow key={f.key} label={f.key} hint={f.description}>
-                <Toggle active={f.enabled} onChange={() => toggleFlag(f.key, !f.enabled)} />
-              </ConfigRow>
-            ))}
+            {items.map((f) => {
+              const unmetDeps = (f.requires ?? []).filter(
+                (dep) => !flags?.find((ff) => ff.key === dep)?.enabled
+              )
+              const blocked = unmetDeps.length > 0 && !f.enabled
+              return (
+                <div key={f.key}>
+                  <ConfigRow
+                    label={f.key}
+                    hint={f.description}
+                  >
+                    <Toggle
+                      active={f.enabled}
+                      onChange={() => !blocked && toggleFlag(f.key, !f.enabled)}
+                      disabled={blocked}
+                    />
+                  </ConfigRow>
+                  {f.requires && f.requires.length > 0 && (
+                    <div style={{
+                      fontSize: 11, color: C.muted,
+                      paddingLeft: 16, paddingBottom: 6, marginTop: -4,
+                      display: "flex", gap: 8, flexWrap: "wrap",
+                    }}>
+                      <span style={{ fontWeight: 600 }}>Requires:</span>
+                      {f.requires.map((dep) => {
+                        const depEnabled = flags?.find((ff) => ff.key === dep)?.enabled
+                        return (
+                          <span key={dep} style={{
+                            color: depEnabled ? C.success : C.error,
+                            fontWeight: 600,
+                          }}>
+                            {dep} {depEnabled ? "✓" : "✗"}
+                          </span>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         ))}
       </div>

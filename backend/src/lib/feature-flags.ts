@@ -23,44 +23,53 @@ export interface FeatureFlagDefinition {
   default: boolean
   description: string
   category: "erp" | "platform" | "experimental"
+  requires?: string[]  // Keys of flags that must be enabled before this flag can be activated
 }
 
 export const FEATURES = {
+  // ─── ERP flags — activation order is enforced via `requires` ────────────────
+  // Sequence: INVENTORY → INVOICING → (SENDCLOUD, COMMISSION, TAX_25A) → MARKETPLACE
+  ERP_INVENTORY: {
+    key: "ERP_INVENTORY",
+    default: false,
+    description: "Artikelgenaue Bestandsführung (inventory_item) — Fundament aller ERP-Module",
+    category: "erp",
+    requires: [],  // no dependencies — activate first
+  },
   ERP_INVOICING: {
     key: "ERP_INVOICING",
     default: false,
-    description: "GoBD-konforme Rechnungsstellung via sevDesk/easybill",
+    description: "GoBD-konforme Rechnungsstellung via easybill",
     category: "erp",
+    requires: ["ERP_INVENTORY"],
   },
   ERP_SENDCLOUD: {
     key: "ERP_SENDCLOUD",
     default: false,
-    description: "Sendcloud Versandautomation (Labels, Tracking)",
+    description: "Sendcloud Versandautomation (Labels, Tracking via DHL)",
     category: "erp",
-  },
-  ERP_INVENTORY: {
-    key: "ERP_INVENTORY",
-    default: false,
-    description: "Artikelgenaue Bestandsführung (inventory_item)",
-    category: "erp",
+    requires: ["ERP_INVENTORY", "ERP_INVOICING"],
   },
   ERP_COMMISSION: {
     key: "ERP_COMMISSION",
     default: false,
     description: "Kommissionsabrechnung für Konsignationsware",
     category: "erp",
+    requires: ["ERP_INVENTORY", "ERP_INVOICING"],
   },
   ERP_TAX_25A: {
     key: "ERP_TAX_25A",
     default: false,
     description: "§25a Differenzbesteuerung mit margengenauem Tracking",
     category: "erp",
+    requires: ["ERP_INVENTORY", "ERP_INVOICING"],
   },
   ERP_MARKETPLACE: {
     key: "ERP_MARKETPLACE",
     default: false,
     description: "Multi-Seller Marketplace (Stripe Connect, Seller-Onboarding)",
     category: "erp",
+    requires: ["ERP_INVENTORY", "ERP_INVOICING", "ERP_COMMISSION", "ERP_TAX_25A", "ERP_SENDCLOUD"],
   },
   EXPERIMENTAL_STORE_SITE_MODE_DEBUG: {
     key: "EXPERIMENTAL_STORE_SITE_MODE_DEBUG",
@@ -107,6 +116,15 @@ export function isKnownFlag(key: string): key is FeatureFlagKey {
 
 export function listFlagDefinitions(): FeatureFlagDefinition[] {
   return Object.values(FEATURES)
+}
+
+/**
+ * Returns the list of flag keys that must be enabled before the given flag
+ * can be activated. All returned keys are validated against the registry.
+ */
+export function getFlagDependencies(key: FeatureFlagKey): FeatureFlagKey[] {
+  const deps = FEATURES[key].requires ?? []
+  return deps.filter(isKnownFlag) as FeatureFlagKey[]
 }
 
 // ─── Read ──────────────────────────────────────────────────────────────────
@@ -173,6 +191,22 @@ export async function setFeatureFlag(
   }
   if (typeof enabled !== "boolean") {
     throw new Error(`Flag value must be boolean, got ${typeof enabled}`)
+  }
+
+  // Dependency check: before attempting the write, verify all required flags are on.
+  // This is done OUTSIDE the transaction intentionally — it's a read-only pre-check,
+  // and failing here produces a clean 400 without needing to roll back anything.
+  if (enabled) {
+    const deps = getFlagDependencies(key)
+    if (deps.length > 0) {
+      const currentFlags = await getAllFeatureFlags(pg)
+      const unmet = deps.filter((dep) => !currentFlags[dep])
+      if (unmet.length > 0) {
+        throw new Error(
+          `Cannot enable ${key}: required flags not active: ${unmet.join(", ")}`
+        )
+      }
+    }
   }
 
   await pg.transaction(async (trx) => {

@@ -3151,3 +3151,123 @@ GitHub Release: [`v2026.04.05`](https://github.com/rseckler/VOD_Auctions/release
 ---
 
 *Ende Teil E. Teil A-D (v4.2) bleiben inhaltlich unverändert und sind weiterhin der Referenz-Plan für den Domain-Layer.*
+
+---
+
+## Teil F — Implementierungsstart 2026-04-07 (v5.0 → v6.0)
+
+Dieser Teil dokumentiert alle Entscheidungen und Klarstellungen die am 2026-04-07 getroffen wurden, bevor die erste ERP-Implementierungsrunde beginnt. Dient als Referenz für zukünftige Gespräche.
+
+### F.1 Getroffene Architekturentscheidungen
+
+| Entscheidung | Ergebnis | Vorherige Offenheit |
+|--------------|----------|---------------------|
+| **Invoicing-Dienst** | **easybill** (Plus, 14 EUR/Monat) | Offen: sevDesk vs. easybill |
+| **Versand-Automatisierung** | **Sendcloud** | Bereits gesetzt, jetzt bestätigt |
+| **Architekturrichtung** | **Composable Stack (Option A)** | Bereits gesetzt in §11, jetzt explizit bestätigt |
+| **Marketplace** | Strukturell mitgedacht (Tabellen, Flags) — operativ NICHT aktiviert | Offen: Scope |
+| **Staging-Umgebung** | ✅ einsatzbereit (DB `aebcwjjcextzvflrjgei`, eu-west-1) | War bereits live (2026-04-05) |
+| **DHL-Geschäftskundennummer** | ✅ `5115313430` — geht in `backend/.env` als `DHL_ACCOUNT_NUMBER` wenn ERP_SENDCLOUD implementiert | War offen (Frank) |
+
+### F.2 Feature Flag Dependencies — Finale Abhängigkeitskette
+
+Neu in v6.0: `FeatureFlagDefinition` erhält ein `requires?: string[]`-Feld. `setFeatureFlag()` blockiert Aktivierung wenn Voraussetzungen nicht erfüllt sind (HTTP 400). Admin-UI deaktiviert Toggles von Flags deren Deps noch off sind.
+
+```
+ERP_INVENTORY     requires: []                                                       (Fundament — zuerst aktivieren)
+ERP_INVOICING     requires: [ERP_INVENTORY]                                          (Bestand nötig um zu fakturieren)
+ERP_SENDCLOUD     requires: [ERP_INVENTORY, ERP_INVOICING]                           (Rechnung geht mit dem Paket)
+ERP_COMMISSION    requires: [ERP_INVENTORY, ERP_INVOICING]                           (Bestand + Faktura für Settlement)
+ERP_TAX_25A       requires: [ERP_INVENTORY, ERP_INVOICING]                           (Margenverfolgung braucht Bestand)
+ERP_MARKETPLACE   requires: [ERP_INVENTORY, ERP_INVOICING, ERP_COMMISSION,
+                              ERP_TAX_25A, ERP_SENDCLOUD]                            (alles vorher)
+```
+
+**Aktivierungsreihenfolge (Pflicht-Sequence):**
+1. `ERP_INVENTORY` — kann solo aktiviert werden
+2. `ERP_INVOICING` — nach Inventory
+3. `ERP_SENDCLOUD` + `ERP_COMMISSION` + `ERP_TAX_25A` — nach Invoicing (Reihenfolge untereinander frei)
+4. `ERP_MARKETPLACE` — als letztes, nach allen anderen
+
+**Enforcement:** Hard Block (HTTP 400, kein Soft-Warning). Admin-UI zeigt Dependency-Status je Toggle ("Requires ERP_INVENTORY ✓/✗").
+
+### F.3 Warehouse Locations — Neue Anforderung
+
+VOD Auctions hat mehrere physische Lagerorte (Details werden im Admin gepflegt). Anforderung:
+
+- Konfigurierbare Tabelle `warehouse_location` (leer gestartet, via Admin-UI befüllt und verwaltet)
+- Felder: `code` (eindeutig, z.B. "FRANK_MAIN"), `name`, `description`, `address`, `contact_name`, `contact_email`, `is_active`, `is_default` (genau einer), `sort_order`, `notes`
+- Constraint: `UNIQUE INDEX WHERE is_default = true` — verhindert mehrere Defaults auf DB-Ebene
+- Soft-Delete: `is_active = false` (nie hard delete — zukünftige `inventory_item`-Referenzen)
+- Deaktivierung des Default-Lagerortes geblockt (400) bis ein anderer als Default gesetzt wird
+- Erster aktiver Use des reservierten `/admin/erp/*`-Namespace
+
+### F.4 ERP Admin-Navigation
+
+ERP erhält einen **eigenen 8. Sidebar-Eintrag** (statt Unterpunkt von Operations). Begründung: ERP ist ein eigenständiges Domain-Modul das in Umfang mit Operations gleichwertig wird.
+
+- Sidebar-Icon: `DocumentText` aus `@medusajs/icons`
+- Sidebar-Label: "ERP"
+- Rank: 7 (nach Operations rank 5)
+- Hub-Page: `/app/erp` mit 6 Karten (1 aktiv: Locations; 5 muted mit Flag-Status-Badge)
+- Sub-Pages erreichbar per URL, kein `defineRouteConfig` (Standard-Konvention)
+- `admin-nav.tsx` PARENT_HUB erweitert um `/app/erp/locations → { label: "ERP", href: "/app/erp" }`
+
+### F.5 Überarbeiteter Freigabestatus (2026-04-07)
+
+| Freigabe | Status |
+|----------|--------|
+| Architektur (Composable Stack A) | ✅ bestätigt |
+| Invoicing-Dienst: easybill | ✅ **entschieden 2026-04-07** |
+| Sendcloud für Versand | ✅ **bestätigt 2026-04-07** |
+| Marketplace strukturell mitgedacht | ✅ bestätigt |
+| Deployment-Methodology als verbindlich | ✅ |
+| Infrastructure-Layer implementiert | ✅ 2026-04-05 |
+| Staging-DB einsatzbereit | ✅ 2026-04-05 |
+| Feature Flag Dependencies (Code) | 🔧 **in Implementierung 2026-04-07** |
+| Warehouse Locations (Code) | 🔧 **in Implementierung 2026-04-07** |
+| DHL-Geschäftskundennummer | ✅ **5115313430** (in Memory + .env.example) |
+| StB-Termin für §25a | ⏸ offen |
+| Kommissionsvertrag-Vorlage | ⏸ offen (Anwalt) |
+| Stripe Connect Application | ⏸ offen (Robin) |
+| Marketplace Rechts-Prüfung (§22f/§25e) | ⏸ offen (Anwalt) |
+
+### F.6 Nächste ERP-Implementierungsphasen (revidiert)
+
+Mit den Entscheidungen aus F.1 ist die Implementierungsreihenfolge jetzt klarer:
+
+**Phase 1 (Foundation — 2026-04-07, dieser Sprint):**
+- Feature Flag Dependencies in Code
+- Warehouse Locations (Tabelle + Admin-UI)
+- ERP Hub Page als 8. Sidebar-Eintrag
+
+**Phase 2 (Inventory — nach Phase 1):**
+- `inventory_item` Tabelle (Migration, Schema per §10)
+- Read-Path: Legacy `Release.legacy_available` bleibt Source-of-Truth, `inventory_item` parallel befüllt
+- `ERP_INVENTORY`-Flag aktivierbar wenn Phase 2 deployed und auf Staging getestet
+
+**Phase 3 (Invoicing — nach Phase 2):**
+- easybill Client-Wrapper + API-Credentials
+- `invoice` + `invoice_line` Tabellen (Migration per §10)
+- Webhook-Handler: `payment_intent.succeeded` → `POST /easybill/invoices`
+- `ERP_INVOICING`-Flag aktivierbar nach StB-Validierung
+
+**Phase 4 (Sendcloud — nach Phase 3):**
+- Sendcloud Client-Wrapper + DHL-Konfiguration (`DHL_ACCOUNT_NUMBER=5115313430`)
+- `shipping_event` Tabelle (Webhook-Speicher)
+- Admin-UI: Label-Generierung aus Order-View
+- `ERP_SENDCLOUD`-Flag aktivierbar nach Sendcloud-Account-Setup
+
+**Phase 5 (Commission + §25a + DATEV — nach Phase 4):**
+- Steuerberater-Freigabe Voraussetzung
+- `commission_owner`, `commission_settlement`, `tax_margin_record` (Schema per §10)
+- DATEV-Export via easybill
+
+**Phase 6 (Marketplace — nach Phase 5 + Rechts-Freigaben):**
+- Stripe Connect
+- `seller`, `seller_listing` Tabellen
+- Eigenständiger Meilenstein
+
+---
+
+*Ende Teil F. v6.0 beginnt mit der Implementierung von Phase 1.*
