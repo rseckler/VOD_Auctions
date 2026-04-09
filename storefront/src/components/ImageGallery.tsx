@@ -4,11 +4,6 @@ import { useState, useCallback, useEffect, useRef } from "react"
 import Image from "next/image"
 import { motion, AnimatePresence } from "framer-motion"
 import { Disc3, ZoomIn, Grid3X3, X, ChevronLeft, ChevronRight } from "lucide-react"
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-} from "@/components/ui/dialog"
 
 const THUMBNAIL_LIMIT = 8
 
@@ -96,16 +91,25 @@ export function ImageGallery({
     return () => mql.removeEventListener("change", handler)
   }, [])
 
-  // Keyboard navigation in lightbox
+  // Keyboard navigation + ESC close in lightbox
   useEffect(() => {
     if (!lightboxOpen) return
     const handler = (e: KeyboardEvent) => {
       if (e.key === "ArrowLeft") goTo("prev")
       else if (e.key === "ArrowRight") goTo("next")
+      else if (e.key === "Escape") setLightboxOpen(false)
     }
     window.addEventListener("keydown", handler)
     return () => window.removeEventListener("keydown", handler)
   }, [lightboxOpen, goTo])
+
+  // Lock body scroll when lightbox is open
+  useEffect(() => {
+    if (lightboxOpen) {
+      document.body.style.overflow = "hidden"
+      return () => { document.body.style.overflow = "" }
+    }
+  }, [lightboxOpen])
 
   if (images.length === 0) {
     return (
@@ -216,75 +220,116 @@ export function ImageGallery({
         )}
       </div>
 
-      {/* Lightbox with navigation */}
-      <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
-        <DialogContent className="max-w-4xl p-2 bg-[rgba(28,25,21,0.95)] backdrop-blur-xl border-[rgba(232,224,212,0.1)]">
-          <DialogTitle className="sr-only">{title}</DialogTitle>
-          <div
-            className="relative w-full max-h-[85vh] aspect-square"
-            onTouchStart={handleTouchStart}
-            onTouchEnd={handleTouchEnd}
+      {/* Fullscreen Lightbox */}
+      <AnimatePresence>
+        {lightboxOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 flex flex-col items-center justify-center"
+            role="dialog"
+            aria-modal="true"
+            aria-label={title}
           >
-            <Image
-              src={images[selected]}
-              alt={title}
-              fill
-              sizes="(max-width: 1024px) 100vw, 896px"
-              className="object-contain rounded-lg"
-              priority
+            {/* Backdrop — click to close */}
+            <div
+              className="absolute inset-0 bg-black/90 backdrop-blur-sm"
+              onClick={() => setLightboxOpen(false)}
             />
-            {/* Prev / Next buttons */}
-            {images.length > 1 && (
-              <>
-                <button
-                  onClick={() => goTo("prev")}
-                  aria-label="Previous image"
-                  className="absolute left-2 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/50 hover:bg-black/70 text-white/80 hover:text-white transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
-                >
-                  <ChevronLeft className="h-5 w-5" />
-                </button>
-                <button
-                  onClick={() => goTo("next")}
-                  aria-label="Next image"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/50 hover:bg-black/70 text-white/80 hover:text-white transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
-                >
-                  <ChevronRight className="h-5 w-5" />
-                </button>
-              </>
-            )}
-          </div>
-          {/* Counter */}
-          {images.length > 1 && (
-            <p className="text-center text-xs text-muted-foreground mt-1">
-              {selected + 1} / {images.length}
-            </p>
-          )}
-          {/* Scrollable thumbnail strip */}
-          {images.length > 1 && (
-            <div className="flex gap-2 mt-1 overflow-x-auto pb-1 scrollbar-thin">
-              {images.map((url, i) => (
-                <button
-                  key={i}
-                  onClick={() => setSelected(i)}
-                  className={`relative w-12 h-12 rounded-lg overflow-hidden border-2 transition-all flex-shrink-0 ${
-                    i === selected
-                      ? "border-primary ring-1 ring-primary/30"
-                      : "border-border hover:border-[rgba(232,224,212,0.2)]"
-                  }`}
-                >
-                  <Image
-                    src={url}
-                    alt={`${title} — image ${i + 1}`}
-                    fill
-                    sizes="48px"
-                    className="object-cover"
-                  />
-                </button>
-              ))}
+
+            {/* Close button */}
+            <button
+              onClick={() => setLightboxOpen(false)}
+              aria-label="Close lightbox"
+              className="absolute top-4 right-4 z-10 p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-colors"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            {/* Main image area */}
+            <div className="relative z-10 flex flex-col items-center w-full max-w-[1400px] px-4 sm:px-8">
+              <div
+                className="relative w-full"
+                style={{ height: "min(75vh, 1200px)" }}
+                onTouchStart={handleTouchStart}
+                onTouchEnd={handleTouchEnd}
+              >
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={images[selected]}
+                    initial={{ opacity: 0, scale: 0.96 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.96 }}
+                    transition={{ duration: 0.2 }}
+                    className="w-full h-full"
+                  >
+                    <Image
+                      src={images[selected]}
+                      alt={title}
+                      fill
+                      sizes="(max-width: 1024px) 95vw, 1400px"
+                      className="object-contain"
+                      priority
+                    />
+                  </motion.div>
+                </AnimatePresence>
+
+                {/* Prev / Next buttons */}
+                {images.length > 1 && (
+                  <>
+                    <button
+                      onClick={() => goTo("prev")}
+                      aria-label="Previous image"
+                      className="absolute left-0 sm:-left-2 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/60 hover:bg-black/80 text-white/80 hover:text-white transition-colors min-w-[48px] min-h-[48px] flex items-center justify-center"
+                    >
+                      <ChevronLeft className="h-6 w-6" />
+                    </button>
+                    <button
+                      onClick={() => goTo("next")}
+                      aria-label="Next image"
+                      className="absolute right-0 sm:-right-2 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/60 hover:bg-black/80 text-white/80 hover:text-white transition-colors min-w-[48px] min-h-[48px] flex items-center justify-center"
+                    >
+                      <ChevronRight className="h-6 w-6" />
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {/* Counter + Thumbnail strip */}
+              {images.length > 1 && (
+                <div className="relative z-10 mt-4 flex flex-col items-center gap-3">
+                  <p className="text-sm text-white/60 font-mono">
+                    {selected + 1} / {images.length}
+                  </p>
+                  <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin max-w-[90vw]">
+                    {images.map((url, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setSelected(i)}
+                        className={`relative w-16 h-16 rounded-lg overflow-hidden border-2 transition-all flex-shrink-0 ${
+                          i === selected
+                            ? "border-primary ring-1 ring-primary/30"
+                            : "border-white/10 hover:border-white/30"
+                        }`}
+                      >
+                        <Image
+                          src={url}
+                          alt={`${title} — image ${i + 1}`}
+                          fill
+                          sizes="64px"
+                          className="object-cover"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-        </DialogContent>
-      </Dialog>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Extended Gallery overlay */}
       <AnimatePresence>
