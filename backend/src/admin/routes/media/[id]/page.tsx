@@ -107,6 +107,16 @@ function cleanRawText(raw: string): string[] {
     .replace(/&ndash;/g, '\u2013')
     .replace(/&mdash;/g, '\u2014')
     .replace(/&amp;/g, '&')
+    .replace(/&auml;/g, 'ä')
+    .replace(/&ouml;/g, 'ö')
+    .replace(/&uuml;/g, 'ü')
+    .replace(/&Auml;/g, 'Ä')
+    .replace(/&Ouml;/g, 'Ö')
+    .replace(/&Uuml;/g, 'Ü')
+    .replace(/&szlig;/g, 'ß')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
 
   let lines = text.split('\n').map(line => line.replace(/\s+/g, ' ').trim())
 
@@ -159,8 +169,11 @@ function cleanRawText(raw: string): string[] {
   return merged.filter(Boolean)
 }
 
-const POSITION_RE = /^([A-Z]{1,2}\d{0,2}[a-z]?|\d{1,2})\.?$/
+// Matches: A1, B2, 1, 12, 1-1, 2-3, A1a
+const POSITION_RE = /^([A-Z]{1,2}\d{0,2}[a-z]?|\d{1,2}(-\d{1,2})?)\.?$/
 const DURATION_RE = /^\d{1,3}:\d{2}$/
+// Section headers like -I-, -II-, -III-
+const SECTION_RE = /^-[IVX]+[-.]?$/
 
 type ParsedTrack = { position?: string; title: string; duration?: string }
 
@@ -175,10 +188,15 @@ function extractTracklistFromText(raw: string): { tracks: ParsedTrack[]; remaini
   while (i < lines.length) {
     const line = lines[i]
 
+    // Skip section headers (-I-, -II-, "Tracklist" label)
+    if (SECTION_RE.test(line) || /^tracklist$/i.test(line)) {
+      i++; continue
+    }
+
     if (DURATION_RE.test(line)) {
       let peek = i + 1
       while (peek < lines.length && lines[peek] === '') peek++
-      if (peek < lines.length && POSITION_RE.test(lines[peek])) {
+      if (peek < lines.length && (POSITION_RE.test(lines[peek]) || SECTION_RE.test(lines[peek]))) {
         if (tracks.length > 0 && !tracks[tracks.length - 1].duration) tracks[tracks.length - 1].duration = line
         i++; continue
       }
@@ -191,7 +209,7 @@ function extractTracklistFromText(raw: string): { tracks: ParsedTrack[]; remaini
 
       let j = i + 1
       while (j < lines.length && lines[j] === '') j++
-      if (j < lines.length && !POSITION_RE.test(lines[j]) && !DURATION_RE.test(lines[j])) {
+      if (j < lines.length && !POSITION_RE.test(lines[j]) && !DURATION_RE.test(lines[j]) && !SECTION_RE.test(lines[j])) {
         title = lines[j]; j++
         while (j < lines.length && lines[j] === '') j++
         if (j < lines.length && DURATION_RE.test(lines[j])) { duration = lines[j]; j++ }
@@ -217,8 +235,10 @@ function extractTracklistFromText(raw: string): { tracks: ParsedTrack[]; remaini
   return { tracks, remainingCredits: creditLines.length > 0 ? creditLines.join('\n') : null }
 }
 
-const FLAT_POS_RE = /^[A-Z]{0,2}\d{0,2}$/
+// Matches: A, B, A1, B2, 1, 12, 1-1, 2-3
+const FLAT_POS_RE = /^[A-Z]{0,2}\d{0,2}(-\d{1,2})?$/
 const FLAT_DUR_RE = /^\d{1,3}:\d{2}$/
+const FLAT_SECTION_RE = /^-[IVX]+[-.]?$/
 
 function parseUnstructuredTracklist(
   tracks: { position?: string | null; title?: string | null; duration?: string | null }[]
@@ -230,11 +250,17 @@ function parseUnstructuredTracklist(
 
   while (i < tracks.length) {
     const t0 = (tracks[i]?.title || tracks[i]?.position || "").trim()
+
+    // Skip section headers (-I-, -II-, "Tracklist" label)
+    if (FLAT_SECTION_RE.test(t0) || /^tracklist$/i.test(t0)) {
+      i++; continue
+    }
+
     const t1 = (tracks[i + 1]?.title || tracks[i + 1]?.position || "").trim()
     const t2 = (tracks[i + 2]?.title || tracks[i + 2]?.position || "").trim()
 
-    const t0isPos = t0.length > 0 && t0.length <= 4 && FLAT_POS_RE.test(t0)
-    const t1isTitle = t1.length > 0 && !FLAT_POS_RE.test(t1) && !FLAT_DUR_RE.test(t1)
+    const t0isPos = t0.length > 0 && t0.length <= 5 && FLAT_POS_RE.test(t0)
+    const t1isTitle = t1.length > 0 && !FLAT_POS_RE.test(t1) && !FLAT_DUR_RE.test(t1) && !FLAT_SECTION_RE.test(t1)
     const t2isDur = t2.length > 0 && FLAT_DUR_RE.test(t2)
 
     if (t0isPos && t1isTitle && t2isDur && i + 2 < tracks.length) {
