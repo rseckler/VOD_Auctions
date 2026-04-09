@@ -414,67 +414,38 @@ function TrackRow({ track, index }: { track: ParsedTrack; index: number }) {
 
 // ─── Notes + Tracklist Section ───────────────────────────────────────────────
 
-function NotesAndTracklist({ credits, tracklist, description }: {
+function NotesAndTracklist({ credits, tracklist }: {
   credits: string | null
   tracklist: { position?: string; title?: string; duration?: string }[] | null
-  description: string | null
+  description: string | null  // kept in signature for compat but NOT used (matches frontend)
 }) {
-  if (!credits && !tracklist && !description) return null
+  if (!credits && !tracklist) return null
 
-  let parsedTracks: ParsedTrack[] = []
+  // === STEP 1: Tracklist — mirrors storefront/src/app/catalog/[id]/page.tsx lines 149-157 ===
+  const extracted = credits ? extractTracklistFromText(credits) : null
+  const effectiveTracklist: ParsedTrack[] =
+    extracted?.tracks.length
+      ? extracted.tracks
+      : (tracklist?.length
+          ? (parseUnstructuredTracklist(tracklist as { position?: string | null; title?: string | null; duration?: string | null }[])
+              ?? tracklist.filter((t) => t.title).map((t) => ({
+                   position: t.position,
+                   title: cleanRawText(t.title || "").join(" "),
+                   duration: t.duration,
+                 })))
+          : [])
+
+  // === STEP 2: Credits — mirrors storefront lines 159-161 ===
+  const effectiveCredits = extracted?.tracks.length
+    ? extracted.remainingCredits
+    : credits
+
+  // === STEP 3: Parse credits for structured display (mirrors CreditsTable.tsx) ===
   let creditEntries: CreditEntry[] | null = null
-
-  // Check if JSONB tracklist has structured data (position + title filled)
-  const hasStructuredTracklist = tracklist?.length && tracklist.some((t) => t.position && t.title)
-
-  if (hasStructuredTracklist) {
-    // JSONB tracklist is authoritative
-    parsedTracks = tracklist!.filter((t) => t.title).map((t) => ({
-      position: t.position,
-      title: cleanRawText(t.title || "").join(" "),
-      duration: t.duration,
-    }))
-
-    // Credits → parse as role/name, strip track header lines
-    if (credits) {
-      const trackTitles = new Set(parsedTracks.map((t) => (t.title || "").toLowerCase()))
-      const cleaned = cleanRawText(credits).filter((line) => {
-        // Remove "A1 Robot Factory" lines (position + track title on one line)
-        const stripped = line.replace(/^[A-Z]{0,2}\d{0,2}(-\d{1,2})?[a-z]?\s+/, "").trim()
-        if (trackTitles.has(stripped.toLowerCase())) return false
-        if (POSITION_RE.test(line)) return false
-        if (DURATION_RE.test(line)) return false
-        if (SECTION_RE.test(line) || /^tracklist$/i.test(line)) return false
-        return true
-      })
-      if (cleaned.length > 0) {
-        creditEntries = parseCredits(cleaned.join('\n'))
-      }
-    }
-  } else {
-    // No structured tracklist — try extracting from credits
-    const extracted = credits ? extractTracklistFromText(credits) : null
-    if (extracted?.tracks.length) {
-      parsedTracks = extracted.tracks
-      if (extracted.remainingCredits) {
-        creditEntries = parseCredits(extracted.remainingCredits)
-      }
-    } else if (tracklist?.length) {
-      const parsed = parseUnstructuredTracklist(tracklist as { position?: string | null; title?: string | null; duration?: string | null }[])
-      parsedTracks = parsed ?? tracklist.filter((t) => t.title).map((t) => ({
-        position: t.position,
-        title: cleanRawText(t.title || "").join(" "),
-        duration: t.duration,
-      }))
-      if (credits) creditEntries = parseCredits(credits)
-    }
+  if (effectiveCredits) {
+    creditEntries = parseCredits(effectiveCredits)
   }
-
-  // Fallback: description as notes
-  if (!creditEntries && description) {
-    const cleaned = cleanRawText(description)
-    if (cleaned.length > 0) creditEntries = parseCredits(cleaned.join('\n'))
-  }
+  // NO description fallback — frontend never uses description for credits
 
   const hasCredits = creditEntries && creditEntries.length > 0
   const hasTracks = parsedTracks.length > 0
