@@ -275,6 +275,45 @@ function parseUnstructuredTracklist(
   return result.length >= 2 ? result : null
 }
 
+type CreditEntry = { role: string; name: string }
+
+function parseCredits(raw: string): CreditEntry[] | null {
+  const lines = cleanRawText(raw)
+  if (lines.length === 0) return null
+
+  const entries: CreditEntry[] = []
+
+  for (const line of lines) {
+    if (line === '') continue
+
+    // Discogs-style: "Role – Name" or "Role — Name"
+    const dashMatch = line.match(/^(.+?)\s+[\u2013\u2014]\s+(.+)$/)
+    if (dashMatch) {
+      entries.push({ role: dashMatch[1].trim(), name: dashMatch[2].trim() })
+      continue
+    }
+
+    // "Role by Name"
+    const byMatch = line.match(/^(.+?)\s+by\s+(.+)$/i)
+    if (byMatch && byMatch[1].length < 40) {
+      entries.push({ role: byMatch[1].trim(), name: byMatch[2].trim() })
+      continue
+    }
+
+    // "Role: Name"
+    const colonMatch = line.match(/^([^:]{2,40}):\s+(.+)$/)
+    if (colonMatch) {
+      entries.push({ role: colonMatch[1].trim(), name: colonMatch[2].trim() })
+      continue
+    }
+
+    // Fallback: unstructured line
+    entries.push({ role: '', name: line })
+  }
+
+  return entries.length > 0 ? entries : null
+}
+
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
 const CONDITION_OPTIONS: { value: string; label: string }[] = [
@@ -382,45 +421,91 @@ function NotesAndTracklist({ credits, tracklist, description }: {
 }) {
   if (!credits && !tracklist && !description) return null
 
-  // Mirror storefront logic (catalog/[id]/page.tsx lines 145-161):
-  // 1. Prefer credits-parser → extracts tracklist from HTML credits field
-  // 2. JSONB tracklist is fallback only
-  const extracted = credits
-    ? extractTracklistFromText(credits)
-    : null
-  const parsedTracks: ParsedTrack[] =
-    extracted?.tracks.length
-      ? extracted.tracks
-      : (tracklist?.length
-          ? (parseUnstructuredTracklist(tracklist as { position?: string | null; title?: string | null; duration?: string | null }[]) ?? tracklist.filter((t) => t.title).map((t) => ({ position: t.position, title: cleanRawText(t.title || "").join(" "), duration: t.duration })))
-          : [])
-  // Strip parsed tracklist lines from credits display
-  const effectiveCredits = extracted?.tracks.length
-    ? extracted.remainingCredits
-    : credits
+  let parsedTracks: ParsedTrack[] = []
+  let creditEntries: CreditEntry[] | null = null
 
-  // Clean credits/description for notes display
-  let notesText: string | null = null
-  if (effectiveCredits) {
-    const cleaned = cleanRawText(effectiveCredits)
-    notesText = cleaned.length > 0 ? cleaned.join('\n') : null
-  } else if (description) {
-    const cleaned = cleanRawText(description)
-    notesText = cleaned.length > 0 ? cleaned.join('\n') : null
+  // Check if JSONB tracklist has structured data (position + title filled)
+  const hasStructuredTracklist = tracklist?.length && tracklist.some((t) => t.position && t.title)
+
+  if (hasStructuredTracklist) {
+    // JSONB tracklist is authoritative
+    parsedTracks = tracklist!.filter((t) => t.title).map((t) => ({
+      position: t.position,
+      title: cleanRawText(t.title || "").join(" "),
+      duration: t.duration,
+    }))
+
+    // Credits → parse as role/name, strip track header lines
+    if (credits) {
+      const trackTitles = new Set(parsedTracks.map((t) => (t.title || "").toLowerCase()))
+      const cleaned = cleanRawText(credits).filter((line) => {
+        // Remove "A1 Robot Factory" lines (position + track title on one line)
+        const stripped = line.replace(/^[A-Z]{0,2}\d{0,2}(-\d{1,2})?[a-z]?\s+/, "").trim()
+        if (trackTitles.has(stripped.toLowerCase())) return false
+        if (POSITION_RE.test(line)) return false
+        if (DURATION_RE.test(line)) return false
+        if (SECTION_RE.test(line) || /^tracklist$/i.test(line)) return false
+        return true
+      })
+      if (cleaned.length > 0) {
+        creditEntries = parseCredits(cleaned.join('\n'))
+      }
+    }
+  } else {
+    // No structured tracklist — try extracting from credits
+    const extracted = credits ? extractTracklistFromText(credits) : null
+    if (extracted?.tracks.length) {
+      parsedTracks = extracted.tracks
+      if (extracted.remainingCredits) {
+        creditEntries = parseCredits(extracted.remainingCredits)
+      }
+    } else if (tracklist?.length) {
+      const parsed = parseUnstructuredTracklist(tracklist as { position?: string | null; title?: string | null; duration?: string | null }[])
+      parsedTracks = parsed ?? tracklist.filter((t) => t.title).map((t) => ({
+        position: t.position,
+        title: cleanRawText(t.title || "").join(" "),
+        duration: t.duration,
+      }))
+      if (credits) creditEntries = parseCredits(credits)
+    }
   }
 
-  const hasNotes = notesText && notesText.trim().length > 0
-  const hasTracks = parsedTracks.length > 0
-  if (!hasNotes && !hasTracks) return null
+  // Fallback: description as notes
+  if (!creditEntries && description) {
+    const cleaned = cleanRawText(description)
+    if (cleaned.length > 0) creditEntries = parseCredits(cleaned.join('\n'))
+  }
 
-  const columns = hasNotes && hasTracks ? "1fr 1fr" : "1fr"
+  const hasCredits = creditEntries && creditEntries.length > 0
+  const hasTracks = parsedTracks.length > 0
+  if (!hasCredits && !hasTracks) return null
+
+  const hasStructuredCredits = hasCredits && creditEntries!.some((e) => e.role)
+  const columns = hasCredits && hasTracks ? "1fr 1fr" : "1fr"
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: columns, gap: S.gap.xl, marginBottom: S.sectionGap }}>
-      {hasNotes && (
+      {hasCredits && (
         <div style={cardStyle}>
-          <SectionHeader title="Notes" style={{ marginTop: 0 }} />
-          <div style={{ ...T.body, whiteSpace: "pre-wrap", lineHeight: 1.5, marginTop: S.gap.md }}>{notesText}</div>
+          <SectionHeader title="Credits" style={{ marginTop: 0 }} />
+          <div style={{ marginTop: S.gap.md }}>
+            {hasStructuredCredits ? (
+              creditEntries!.map((entry, i) =>
+                entry.role ? (
+                  <div key={i} style={{ padding: "3px 0" }}>
+                    <div style={{ ...T.micro, fontSize: 10, marginBottom: 1 }}>{entry.role}</div>
+                    <div style={{ ...T.body, borderBottom: `1px solid ${C.border}`, paddingBottom: 4 }}>{entry.name}</div>
+                  </div>
+                ) : (
+                  <div key={i} style={{ ...T.body, padding: "3px 0" }}>{entry.name}</div>
+                )
+              )
+            ) : (
+              <div style={{ ...T.body, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>
+                {creditEntries!.map((e) => e.name).join('\n')}
+              </div>
+            )}
+          </div>
         </div>
       )}
       {hasTracks && (
