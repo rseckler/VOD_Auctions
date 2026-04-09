@@ -11,6 +11,7 @@ Jeder Git-Tag entspricht einem Snapshot des Gesamtsystems. Feature Flags zeigen 
 | Version | Datum | Platform Mode | Feature Flags aktiv (prod) | Milestone / Inhalt |
 |---------|-------|--------------|---------------------------|-------------------|
 | **v1.0.0** | TBD | `live` | ERP: TBD | RSE-78: Erster öffentlicher Launch |
+| **v1.0.0-rc10** | 2026-04-09 | `beta_test` | — | 3-Tier Pricing Model, Discogs Price Suggestions, Condition/Inventory/Markup Settings |
 | **v1.0.0-rc9** | 2026-04-09 | `beta_test` | — | Discogs Import v2: Full Enrichment, Admin Approval, Condition/Inventory, Live Progress |
 | **v1.0.0-rc8** | 2026-04-09 | `beta_test` | — | Fullscreen Image Lightbox |
 | **v1.0.0-rc7** | 2026-04-09 | `beta_test` | — | Discogs Collection Importer v1: CLI + Admin UI + 4 API Routes |
@@ -47,6 +48,44 @@ Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Rel
 - **Patch Release** (`v1.0.x`): Kritische Bugfixes zwischen geplanten Releases
 - **Tagging-Workflow:** `git tag -a vX.Y.Z -m "Release vX.Y.Z: <Kurzname>"` → `git push origin vX.Y.Z`
 - **Tag-Zeitpunkt:** Direkt nach Deploy + Smoke-Test auf Production — nicht vor dem Deploy
+
+---
+
+## 2026-04-09 (night) — 3-Tier Pricing Model + Discogs Price Suggestions
+
+Verbindliches Preiskonzept implementiert (PRICING_KONZEPT.md, freigegeben durch Frank). Trennt klar: Referenzpreise → Richtwert → finaler Verkaufspreis.
+
+### Preiskonzept (3 Ebenen)
+1. **Referenzpreise** (automatisch): `legacy_price` (Frank), `discogs_lowest/median/highest_price`, NEU: `discogs_suggested_prices` JSONB (Preise pro Zustand aus echten Verkäufen)
+2. **Richtwert** (automatisch): `estimated_value` = Discogs VG+ × 1.2 (20% Aufschlag)
+3. **Verkaufspreis** (nur Admin/Inventur): `direct_price` — wird NIE automatisch gesetzt
+
+### Entscheidungen (Frank)
+- Aufschlagsfaktor: 20% auf Discogs VG+
+- Richtwert auch für bestehende Legacy-Releases: Ja
+- Discogs Suggested Prices Update: Wöchentlich
+- `direct_price` als Kaufbar-Kriterium: Nach Go-Live
+
+### Neue Felder
+- `Release.discogs_suggested_prices` JSONB — Preise pro Condition (M, NM, VG+, VG, G+, G, F, P) mit Currency + Timestamp
+
+### Importer-Erweiterungen
+- Python CLI: 2. API-Call pro Release (`/marketplace/price_suggestions/{id}`) — getestet, funktioniert
+- Commit Route: schreibt `discogs_suggested_prices` + `estimated_value`, nie `direct_price`
+- Admin UI: Price Markup Dropdown (1.0× bis 1.5×, Default 1.2×)
+- Condition Dropdown (Default VG+/VG+) + Inventory Toggle (Default ON)
+- Live Import Progress via SSE
+
+### Bestandsanalyse (41.546 Releases)
+| Gruppe | Anzahl | Situation |
+|--------|--------|-----------|
+| Legacy + Discogs + Preis | 6.541 | Franks Preis Ø€34,51 vs. Discogs Median Ø€20,11 (172%) |
+| Discogs, kein Preis | 10.049 | Nur Discogs-Referenz |
+| Franks Preis, kein Discogs | 7.027 | Nur Legacy-Referenz |
+| Weder noch | 17.929 | Kein Preis |
+
+### Dokumentation
+- `docs/PRICING_KONZEPT.md` — Verbindliches Preiskonzept (Management Summary + technische Details)
 
 ---
 
