@@ -11,6 +11,7 @@ Jeder Git-Tag entspricht einem Snapshot des Gesamtsystems. Feature Flags zeigen 
 | Version | Datum | Platform Mode | Feature Flags aktiv (prod) | Milestone / Inhalt |
 |---------|-------|--------------|---------------------------|-------------------|
 | **v1.0.0** | TBD | `live` | ERP: TBD | RSE-78: Erster öffentlicher Launch |
+| **v1.0.0-rc13** | 2026-04-10 | `beta_test` | — | Discogs Import: Server-side API Fetch with SSE, complete end-to-end workflow |
 | **v1.0.0-rc12** | 2026-04-10 | `beta_test` | — | Media Detail: Field Contrast, Storage Location, Credits/Tracklist 1:1 Frontend-Logik |
 | **v1.0.0-rc11** | 2026-04-09 | `beta_test` | — | Admin Media Detail: Light-Mode Design System + Tracklist/Notes Parsing |
 | **v1.0.0-rc10** | 2026-04-09 | `beta_test` | — | 3-Tier Pricing Model, Discogs Price Suggestions, Condition/Inventory/Markup Settings |
@@ -50,6 +51,36 @@ Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Rel
 - **Patch Release** (`v1.0.x`): Kritische Bugfixes zwischen geplanten Releases
 - **Tagging-Workflow:** `git tag -a vX.Y.Z -m "Release vX.Y.Z: <Kurzname>"` → `git push origin vX.Y.Z`
 - **Tag-Zeitpunkt:** Direkt nach Deploy + Smoke-Test auf Production — nicht vor dem Deploy
+
+---
+
+## 2026-04-10 — Discogs Import: Complete End-to-End Workflow (rc13)
+
+Schliesst die letzte Lücke im Discogs Import Workflow: Der API-Fetch (Bilder, Tracklist, Credits, Genres, Preise pro Condition) läuft jetzt direkt aus der Admin UI — kein Terminal/SSH mehr nötig.
+
+### Kompletter Workflow (alle 4 Schritte in Admin UI)
+1. **Upload & Parse** — CSV/XLSX hochladen, Rows parsen
+2. **Fetch Discogs Data** — NEU: Server-side API Fetch mit SSE Live-Progress (Fortschrittsbalken, aktueller Artikel, ETA, Fetched/Cached/Errors Counter). ~20 Releases/min, resumable.
+3. **Start Analysis** — Matching gegen DB (EXISTING/LINKABLE/NEW/SKIPPED) mit Detail-Preview (Bilder, Tracklist, Credits, Genres)
+4. **Approve & Import** — Review mit Checkboxen, Condition/Inventory/Markup Settings, SSE Live-Progress
+
+### Neue Dateien
+- `backend/src/api/admin/discogs-import/fetch/route.ts` — SSE-Endpoint, fetcht `/releases/{id}` + `/marketplace/price_suggestions/{id}` pro Release
+
+### Geänderte Dateien
+- `backend/src/admin/routes/discogs-import/page.tsx` — Rewrite: "Step 2: Fetch Discogs Data" UI (Progress, ETA, Skip-Button)
+- `docs/DISCOGS_IMPORT_SERVICE.md` — Alle TODOs → Live, vollständiger 4-Step-Workflow dokumentiert
+
+### Konfiguration
+- `DISCOGS_TOKEN` in `backend/.env` (lokal + VPS)
+- `client_max_body_size 10m` in nginx (api + admin)
+
+### Performance
+- 2 API-Calls pro Release (Release-Daten + Price Suggestions)
+- Rate Limit: 40 req/min → ~20 Releases/min
+- ~130 min für 2.619 Releases, ~37 min für 750 Releases
+- Resumable: gecachte Releases werden übersprungen
+- Cache: `scripts/data/discogs_import_cache.json`
 
 ---
 

@@ -2,7 +2,7 @@
 
 **Version:** 3.0
 **Datum:** 2026-04-09
-**Status:** In Entwicklung — Fetch-Step fehlt noch (siehe §3 "TODO")
+**Status:** Live — Kompletter Workflow über Admin UI
 
 ## Zweck
 
@@ -16,7 +16,7 @@ Genereller, wiederverwendbarer Importer für Discogs Collection Exports. Wird ge
 |-----------|------|--------|-------|
 | Admin UI | `/app/discogs-import` (Operations Hub) | **Live** | Upload, Fetch, Analyse, Review, Import — kompletter Workflow |
 | Upload API | `backend/src/api/admin/discogs-import/upload/` | **Live** | CSV/XLSX Parsing (Collection + Inventory Formate) |
-| Fetch API | `backend/src/api/admin/discogs-import/fetch/` | **TODO** | Discogs API Fetch mit SSE Live-Progress |
+| Fetch API | `backend/src/api/admin/discogs-import/fetch/` | **Live** | Discogs API Fetch mit SSE Live-Progress |
 | Analyze API | `backend/src/api/admin/discogs-import/analyze/` | **Live** | DB-Matching gegen Snapshots |
 | Commit API | `backend/src/api/admin/discogs-import/commit/` | **Live** | DB-Import mit SSE Live-Progress |
 | History API | `backend/src/api/admin/discogs-import/history/` | **Live** | Import-Übersicht aus `import_log` |
@@ -50,7 +50,7 @@ Schritt 1: UPLOAD       — Export-Datei hochladen + parsen
                           Admin UI → "Upload & Parse"
                           Ergebnis: Row Count, Unique IDs, Format, Sample
 
-Schritt 2: FETCH        — Discogs API für jede Release abfragen        ← TODO (noch nicht in UI)
+Schritt 2: FETCH        — Discogs API für jede Release abfragen        ← Live
                           Admin UI → "Fetch Discogs Data" (SSE Live-Progress)
                           Holt: Bilder, Tracklist, Credits, Genres, Styles, Preise/Condition
                           ~130 min für 2.619 Releases (2 API-Calls pro Release, 40 req/min)
@@ -68,7 +68,7 @@ Schritt 4: IMPORT       — Nach Admin-Freigabe in DB schreiben
                           Ergebnis: Releases in DB + import_log Tracking
 ```
 
-### Schritt 2 Detail: Discogs API Fetch (TODO)
+### Schritt 2 Detail: Discogs API Fetch
 
 Neue API Route `POST /admin/discogs-import/fetch` mit SSE:
 
@@ -135,7 +135,7 @@ Der komplette Workflow läuft über die Admin UI unter `admin.vod-auctions.com/a
 3. Collection Name eingeben (z.B. "Sammlung Müller")
 4. "Upload & Parse" → Summary: Row Count, Unique IDs, Format
 
-### Schritt 2: Fetch Discogs Data (TODO — noch nicht in UI)
+### Schritt 2: Fetch Discogs Data (Live)
 5. "Fetch Discogs Data" → SSE Live-Progress (aktueller Artikel, Fortschrittsbalken, ETA)
 6. Holt für jede Release: Bilder, Tracklist, Credits, Genres, Preise pro Condition
 7. ~130 min für 2.619 Releases, resumable, überspringt gecachte Releases
