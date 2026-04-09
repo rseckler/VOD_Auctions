@@ -14,9 +14,18 @@ export async function POST(
   res: MedusaResponse
 ): Promise<void> {
   try {
-    const { session_id, selected_discogs_ids } = req.body as {
+    const {
+      session_id,
+      selected_discogs_ids,
+      media_condition = "VG+",
+      sleeve_condition = "VG+",
+      inventory = 1,
+    } = req.body as {
       session_id: string
       selected_discogs_ids?: number[]
+      media_condition?: string
+      sleeve_condition?: string
+      inventory?: number
     }
     if (!session_id) {
       res.status(400).json({ error: "Missing session_id" })
@@ -27,6 +36,16 @@ export async function POST(
     if (!session) {
       res.status(404).json({ error: "Session not found or expired. Please re-upload." })
       return
+    }
+
+    // Set up SSE for live progress
+    res.setHeader("Content-Type", "text/event-stream")
+    res.setHeader("Cache-Control", "no-cache")
+    res.setHeader("Connection", "keep-alive")
+    res.flushHeaders()
+
+    const sendEvent = (data: Record<string, unknown>) => {
+      res.write(`data: ${JSON.stringify(data)}\n\n`)
     }
 
     const pgConnection: Knex = req.scope.resolve(
@@ -81,6 +100,8 @@ export async function POST(
     const selectedSet = selected_discogs_ids
       ? new Set(selected_discogs_ids)
       : null
+    const totalToProcess = selectedSet ? selectedSet.size : session.rows.length
+    let processedCount = 0
 
     for (const row of session.rows) {
       const did = row.discogs_id
@@ -193,6 +214,7 @@ export async function POST(
                 id, title, slug, "artistId", "labelId",
                 "catalogNumber", year, country, format_group, legacy_format_detail,
                 description, credits, genres, styles,
+                media_condition, sleeve_condition, inventory,
                 discogs_id, discogs_lowest_price, discogs_num_for_sale,
                 discogs_have, discogs_want, discogs_last_synced,
                 discogs_price_history, additional_labels, data_source,
@@ -201,6 +223,7 @@ export async function POST(
                 ?, ?, ?, ?, ?,
                 ?, ?, ?, ?, ?,
                 ?, ?, ?, ?,
+                ?, ?, ?,
                 ?, ?, ?,
                 ?, ?, ?,
                 ?::jsonb, ?::jsonb, 'discogs_import',
@@ -222,6 +245,9 @@ export async function POST(
                 creditsText,
                 cached?.genres ? (cached.genres as string[]) : null,
                 cached?.styles ? (cached.styles as string[]) : null,
+                media_condition,
+                sleeve_condition,
+                inventory,
                 did,
                 priceEntry.lowest,
                 priceEntry.num_for_sale,
@@ -311,16 +337,35 @@ export async function POST(
         console.error(`[discogs-import] Error for discogs:${did}:`, err)
         counters.errors++
       }
+
+      // Send progress event
+      processedCount++
+      sendEvent({
+        type: "progress",
+        current: processedCount,
+        total: totalToProcess,
+        artist: row.artist,
+        title: row.title,
+      })
     }
 
-    res.json({
+    // Send final result
+    sendEvent({
+      type: "done",
       run_id: runId,
       collection: session.collection,
       ...counters,
     })
+    res.end()
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Commit failed"
-    res.status(500).json({ error: msg })
+    try {
+      res.write(`data: ${JSON.stringify({ type: "error", error: msg })}\n\n`)
+      res.end()
+    } catch {
+      // Headers may not have been sent yet
+      res.status(500).json({ error: msg })
+    }
   }
 }
 

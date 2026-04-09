@@ -101,9 +101,14 @@ const DiscogsImportPage = () => {
   // Selection state (for admin approval)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
 
+  // Import settings
+  const [condition, setCondition] = useState("VG+/VG+")
+  const [inventoryOn, setInventoryOn] = useState(true)
+
   // Commit state
   const [committing, setCommitting] = useState(false)
   const [commitResult, setCommitResult] = useState<CommitResult | null>(null)
+  const [importProgress, setImportProgress] = useState<{ current: number; total: number; artist?: string; title?: string } | null>(null)
 
   // History state
   const [history, setHistory] = useState<HistoryRun[] | null>(null)
@@ -204,12 +209,14 @@ const DiscogsImportPage = () => {
 
   const handleCommit = useCallback(async () => {
     if (!uploadResult?.session_id) return
-    if (!confirm("Are you sure you want to import? This will write to the database.")) return
+    if (!confirm(`Import ${selectedIds.size} releases? This will write to the database.`)) return
 
     setCommitting(true)
+    setImportProgress({ current: 0, total: selectedIds.size })
     setError(null)
 
     try {
+      const [mediaCond, sleeveCond] = condition.split("/")
       const resp = await fetch("/admin/discogs-import/commit", {
         method: "POST",
         credentials: "include",
@@ -217,19 +224,51 @@ const DiscogsImportPage = () => {
         body: JSON.stringify({
           session_id: uploadResult.session_id,
           selected_discogs_ids: Array.from(selectedIds),
+          media_condition: mediaCond.trim(),
+          sleeve_condition: sleeveCond.trim(),
+          inventory: inventoryOn ? 1 : 0,
         }),
       })
 
-      const data = await resp.json()
-      if (!resp.ok) throw new Error(data.error || `Import failed (${resp.status})`)
-      setCommitResult(data)
-      setHistory(null) // refresh on next visit
+      // SSE-style: read streaming response line by line
+      if (resp.headers.get("content-type")?.includes("text/event-stream")) {
+        const reader = resp.body?.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ""
+        while (reader) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split("\n")
+          buffer = lines.pop() || ""
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              try {
+                const evt = JSON.parse(line.slice(6))
+                if (evt.type === "progress") {
+                  setImportProgress({ current: evt.current, total: evt.total, artist: evt.artist, title: evt.title })
+                } else if (evt.type === "done") {
+                  setCommitResult(evt)
+                  setHistory(null)
+                }
+              } catch { /* skip malformed */ }
+            }
+          }
+        }
+      } else {
+        // Fallback: non-streaming response
+        const data = await resp.json()
+        if (!resp.ok) throw new Error(data.error || `Import failed (${resp.status})`)
+        setCommitResult(data)
+        setHistory(null)
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Import failed")
     } finally {
       setCommitting(false)
+      setImportProgress(null)
     }
-  }, [uploadResult])
+  }, [uploadResult, selectedIds, condition, inventoryOn])
 
   // ─── Render ──────────────────────────────────────────────────────────────
 
@@ -275,9 +314,14 @@ const DiscogsImportPage = () => {
             setExpanded={setExpanded}
             selectedIds={selectedIds}
             setSelectedIds={setSelectedIds}
+            condition={condition}
+            setCondition={setCondition}
+            inventoryOn={inventoryOn}
+            setInventoryOn={setInventoryOn}
             onCommit={handleCommit}
             committing={committing}
             commitResult={commitResult}
+            importProgress={importProgress}
           />
         )}
 
@@ -442,24 +486,38 @@ function UploadTab({
 
 // ─── Analysis Tab ────────────────────────────────────────────────────────────
 
+const CONDITION_OPTIONS = [
+  "M/M", "NM/NM", "VG+/VG+", "VG+/VG", "VG/VG", "VG/G+", "G+/G+", "G/G", "F/F",
+]
+
 function AnalysisTab({
   analysis,
   expanded,
   setExpanded,
   selectedIds,
   setSelectedIds,
+  condition,
+  setCondition,
+  inventoryOn,
+  setInventoryOn,
   onCommit,
   committing,
   commitResult,
+  importProgress,
 }: {
   analysis: AnalysisResult | null
   expanded: Record<string, boolean>
   setExpanded: (v: Record<string, boolean>) => void
   selectedIds: Set<number>
   setSelectedIds: (v: Set<number>) => void
+  condition: string
+  setCondition: (v: string) => void
+  inventoryOn: boolean
+  setInventoryOn: (v: boolean) => void
   onCommit: () => void
   committing: boolean
   commitResult: CommitResult | null
+  importProgress: { current: number; total: number; artist?: string; title?: string } | null
 }) {
   if (!analysis) {
     return <EmptyState icon="📊" title="No analysis yet" description="Upload a file and click 'Start Analysis' first." />
@@ -579,20 +637,84 @@ function AnalysisTab({
         </CollapsibleSection>
       )}
 
-      {/* Approve & Import */}
+      {/* ── Import Settings + Action ── */}
       {!commitResult && (
-        <div style={{ marginTop: S.gap.md }}>
-          <Btn
-            label={committing ? "Importing..." : `Approve & Import (${totalSelected} selected)`}
-            variant="gold"
-            disabled={totalSelected === 0 || committing}
-            onClick={onCommit}
-          />
-          {totalSelected === 0 && (
-            <span style={{ ...T.small, marginLeft: 12 }}>
-              Select at least one release to import.
-            </span>
+        <div style={{ background: C.card, borderRadius: S.radius.lg, border: `1px solid ${C.border}`, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ ...T.body, fontWeight: 700 }}>Import Settings</div>
+
+          <div style={{ display: "flex", gap: 24, alignItems: "center", flexWrap: "wrap" }}>
+            {/* Condition Dropdown */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <label style={{ ...T.small, fontWeight: 600 }}>Condition (Media/Sleeve):</label>
+              <select
+                value={condition}
+                onChange={(e) => setCondition(e.target.value)}
+                style={{
+                  padding: "6px 10px",
+                  borderRadius: S.radius.sm,
+                  border: `1px solid ${C.border}`,
+                  fontSize: 13,
+                  background: "white",
+                }}
+              >
+                {CONDITION_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Inventory Toggle */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <label style={{ ...T.small, fontWeight: 600 }}>Inventory = 1:</label>
+              <input
+                type="checkbox"
+                checked={inventoryOn}
+                onChange={(e) => setInventoryOn(e.target.checked)}
+                style={{ cursor: "pointer", width: 18, height: 18 }}
+              />
+              <span style={T.small}>{inventoryOn ? "Each article set to stock 1" : "Articles created with stock 0"}</span>
+            </div>
+          </div>
+
+          {/* Live Progress */}
+          {importProgress && (
+            <div style={{ marginTop: 4 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                <span style={T.small}>
+                  {importProgress.artist && importProgress.title
+                    ? `${importProgress.artist} — ${importProgress.title}`
+                    : "Starting..."}
+                </span>
+                <span style={{ ...T.mono, ...T.small }}>
+                  {importProgress.current} / {importProgress.total}
+                </span>
+              </div>
+              <div style={{ height: 6, borderRadius: 3, background: C.border, overflow: "hidden" }}>
+                <div style={{
+                  height: "100%",
+                  width: `${importProgress.total > 0 ? (importProgress.current / importProgress.total * 100) : 0}%`,
+                  background: C.gold,
+                  borderRadius: 3,
+                  transition: "width 0.3s ease",
+                }} />
+              </div>
+            </div>
           )}
+
+          {/* Action Button */}
+          <div>
+            <Btn
+              label={committing ? `Importing... (${importProgress?.current || 0}/${importProgress?.total || 0})` : `Approve & Import (${totalSelected} selected)`}
+              variant="gold"
+              disabled={totalSelected === 0 || committing}
+              onClick={onCommit}
+            />
+            {totalSelected === 0 && !committing && (
+              <span style={{ ...T.small, marginLeft: 12 }}>
+                Select at least one release to import.
+              </span>
+            )}
+          </div>
         </div>
       )}
     </div>
