@@ -11,7 +11,8 @@ Jeder Git-Tag entspricht einem Snapshot des Gesamtsystems. Feature Flags zeigen 
 | Version | Datum | Platform Mode | Feature Flags aktiv (prod) | Milestone / Inhalt |
 |---------|-------|--------------|---------------------------|-------------------|
 | **v1.0.0** | TBD | `live` | ERP: TBD | RSE-78: Erster öffentlicher Launch |
-| **v1.0.0-rc8** | 2026-04-09 | `beta_test` | — | Discogs Import v2: Full Enrichment, Admin Approval, Condition/Inventory, Live Progress |
+| **v1.0.0-rc9** | 2026-04-09 | `beta_test` | — | Discogs Import v2: Full Enrichment, Admin Approval, Condition/Inventory, Live Progress |
+| **v1.0.0-rc8** | 2026-04-09 | `beta_test` | — | Fullscreen Image Lightbox |
 | **v1.0.0-rc7** | 2026-04-09 | `beta_test` | — | Discogs Collection Importer v1: CLI + Admin UI + 4 API Routes |
 | **v1.0.0-rc6** | 2026-04-07 | `beta_test` | — | Sync Robustness v2, Email Overhaul, Feature-Flag-Infrastruktur, ERP Konzept v5.0, Staging DB, UI/UX Pass, Sentry, Redis, R2 CDN, CRM, Pre-Launch System |
 | **v1.0.0-rc5** | 2026-03 | `beta_test` | — | Sync Dashboard + Change Log Tab |
