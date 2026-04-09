@@ -48,6 +48,7 @@ type Release = {
   genre: string | null
   styles: string | null
   tracklist: { position?: string; title?: string; duration?: string }[] | string | null
+  credits: string | null
   description: string | null
   discogs_id: number | null
   discogs_lowest_price: number | null
@@ -342,54 +343,38 @@ function TrackRow({ track, index }: { track: ParsedTrack; index: number }) {
 
 // ─── Notes + Tracklist Section ───────────────────────────────────────────────
 
-function NotesAndTracklist({ description, tracklist }: {
+function NotesAndTracklist({ credits, tracklist, description }: {
+  credits: string | null
+  tracklist: { position?: string; title?: string; duration?: string }[] | null
   description: string | null
-  tracklist: { position?: string; title?: string; duration?: string }[] | string | null
 }) {
-  if (!description && !tracklist) return null
+  if (!credits && !tracklist && !description) return null
 
-  let parsedTracks: ParsedTrack[] = []
+  // Mirror storefront logic (catalog/[id]/page.tsx lines 145-161):
+  // 1. Prefer credits-parser → extracts tracklist from HTML credits field
+  // 2. JSONB tracklist is fallback only
+  const extracted = credits
+    ? extractTracklistFromText(credits)
+    : null
+  const parsedTracks: ParsedTrack[] =
+    extracted?.tracks.length
+      ? extracted.tracks
+      : (tracklist?.length
+          ? (parseUnstructuredTracklist(tracklist as { position?: string | null; title?: string | null; duration?: string | null }[]) ?? tracklist.filter((t) => t.title).map((t) => ({ position: t.position, title: cleanRawText(t.title || "").join(" "), duration: t.duration })))
+          : [])
+  // Strip parsed tracklist lines from credits display
+  const effectiveCredits = extracted?.tracks.length
+    ? extracted.remainingCredits
+    : credits
+
+  // Clean credits/description for notes display
   let notesText: string | null = null
-
-  // 1. Try JSONB tracklist field first (most reliable source)
-  if (tracklist) {
-    if (Array.isArray(tracklist)) {
-      const parsed = parseUnstructuredTracklist(tracklist as { position?: string | null; title?: string | null; duration?: string | null }[])
-      if (parsed) {
-        parsedTracks = parsed
-      } else {
-        // Already structured — clean titles of any HTML
-        parsedTracks = tracklist
-          .filter((t) => t.title)
-          .map((t) => ({
-            position: t.position,
-            title: cleanRawText(t.title || "").join(" "),
-            duration: t.duration,
-          }))
-      }
-    } else if (typeof tracklist === "string") {
-      const extracted = extractTracklistFromText(tracklist)
-      if (extracted.tracks.length > 0) {
-        parsedTracks = extracted.tracks
-      }
-    }
-  }
-
-  // 2. Clean description for Notes — strip any tracklist data from it
-  if (description) {
-    const extracted = extractTracklistFromText(description)
-    if (extracted.tracks.length > 0) {
-      // Description contained tracklist data — use remaining text as notes
-      notesText = extracted.remainingCredits
-      // If no JSONB tracklist was found, use the one extracted from description
-      if (parsedTracks.length === 0) {
-        parsedTracks = extracted.tracks
-      }
-    } else {
-      // No tracklist in description — just clean the HTML
-      const cleaned = cleanRawText(description)
-      notesText = cleaned.length > 0 ? cleaned.join('\n') : null
-    }
+  if (effectiveCredits) {
+    const cleaned = cleanRawText(effectiveCredits)
+    notesText = cleaned.length > 0 ? cleaned.join('\n') : null
+  } else if (description) {
+    const cleaned = cleanRawText(description)
+    notesText = cleaned.length > 0 ? cleaned.join('\n') : null
   }
 
   const hasNotes = notesText && notesText.trim().length > 0
@@ -761,7 +746,7 @@ const MediaDetailPage = () => {
       </div>
 
       {/* Notes + Tracklist */}
-      <NotesAndTracklist description={release.description} tracklist={release.tracklist} />
+      <NotesAndTracklist credits={release.credits} tracklist={release.tracklist} description={release.description} />
 
       {/* Sync History */}
       <div style={{ ...cardStyle, marginBottom: S.sectionGap }}>
