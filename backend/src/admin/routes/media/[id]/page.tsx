@@ -448,7 +448,7 @@ function NotesAndTracklist({ credits, tracklist }: {
   // NO description fallback — frontend never uses description for credits
 
   const hasCredits = creditEntries && creditEntries.length > 0
-  const hasTracks = parsedTracks.length > 0
+  const hasTracks = effectiveTracklist.length > 0
   if (!hasCredits && !hasTracks) return null
 
   const hasStructuredCredits = hasCredits && creditEntries!.some((e) => e.role)
@@ -481,9 +481,9 @@ function NotesAndTracklist({ credits, tracklist }: {
       )}
       {hasTracks && (
         <div style={cardStyle}>
-          <SectionHeader title="Tracklist" count={parsedTracks.length} style={{ marginTop: 0 }} />
+          <SectionHeader title="Tracklist" count={effectiveTracklist.length} style={{ marginTop: 0 }} />
           <div style={{ ...T.body, lineHeight: 1.5, marginTop: S.gap.md }}>
-            {parsedTracks.map((t, i) => <TrackRow key={i} track={t} index={i} />)}
+            {effectiveTracklist.map((t, i) => <TrackRow key={i} track={t} index={i} />)}
           </div>
         </div>
       )}
