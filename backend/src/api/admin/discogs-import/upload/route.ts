@@ -50,10 +50,11 @@ export async function POST(
   res: MedusaResponse
 ): Promise<void> {
   try {
-    const { data, filename, collection_name } = req.body as {
+    const { data, filename, collection_name, encoding } = req.body as {
       data: string
       filename: string
       collection_name: string
+      encoding?: string  // "text" for CSV (raw text), "base64" for XLSX
     }
 
     if (!data || !filename || !collection_name) {
@@ -61,17 +62,16 @@ export async function POST(
       return
     }
 
-    // Decode base64
-    const base64Data = data.replace(/^data:[^;]+;base64,/, "")
-    const buffer = Buffer.from(base64Data, "base64")
-
     // Parse based on extension
     const ext = filename.toLowerCase().split(".").pop() || ""
     let rows: ParsedRow[]
 
     if (ext === "csv") {
-      rows = parseCsv(buffer.toString("utf-8"))
+      // CSV: data is either plain text or base64-encoded
+      const content = encoding === "text" ? data : Buffer.from(data.replace(/^data:[^;]+;base64,/, ""), "base64").toString("utf-8")
+      rows = parseCsv(content)
     } else if (ext === "xlsx" || ext === "xls") {
+      const buffer = Buffer.from(data.replace(/^data:[^;]+;base64,/, ""), "base64")
       rows = parseXlsx(buffer)
     } else {
       res.status(400).json({ error: `Unsupported format: .${ext} (expected .csv or .xlsx)` })

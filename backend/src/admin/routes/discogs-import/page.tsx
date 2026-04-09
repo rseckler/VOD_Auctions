@@ -150,25 +150,33 @@ const DiscogsImportPage = () => {
     setError(null)
 
     try {
-      // Read file as ArrayBuffer, then convert to base64 (more reliable than readAsDataURL for large files)
-      const buffer = await file.arrayBuffer()
-      const bytes = new Uint8Array(buffer)
-      let binary = ""
-      const chunkSize = 8192
-      for (let i = 0; i < bytes.length; i += chunkSize) {
-        binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize))
+      // Read file as text (CSV) or base64 (XLSX)
+      const ext = file.name.toLowerCase().split(".").pop() || ""
+      let payload: { data: string; filename: string; collection_name: string; encoding: string }
+
+      if (ext === "csv") {
+        // CSV: send as plain text (no base64 needed)
+        const text = await file.text()
+        payload = { data: text, filename: file.name, collection_name: collectionName.trim(), encoding: "text" }
+      } else {
+        // XLSX: must use base64 — use FileReader which handles this reliably
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => {
+            const result = reader.result as string
+            resolve(result.split(",")[1] || result) // strip data:...;base64, prefix
+          }
+          reader.onerror = () => reject(new Error("Failed to read file"))
+          reader.readAsDataURL(file)
+        })
+        payload = { data: base64, filename: file.name, collection_name: collectionName.trim(), encoding: "base64" }
       }
-      const base64 = btoa(binary)
 
       const resp = await fetch("/admin/discogs-import/upload", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          data: base64,
-          filename: file.name,
-          collection_name: collectionName.trim(),
-        }),
+        body: JSON.stringify(payload),
       })
 
       const data = await resp.json()
