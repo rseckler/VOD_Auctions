@@ -47,6 +47,45 @@ Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Rel
 
 ---
 
+## 2026-04-09 — Discogs Collection Importer
+
+Genereller, wiederverwendbarer Importer für Discogs Collection Exports. Nutzt VOD bei Sammlungs-Ankäufen: Verkäufer liefern Discogs-Export (CSV/XLSX), der Importer parsed, fetcht API-Daten, gleicht gegen bestehende DB ab und importiert mit vollem Tracking.
+
+### Neue Dateien
+- `scripts/discogs_collection_import.py` — Python CLI (3 Phasen: Fetch → Match → Import), resumable, rate-limited, `--simulate` default
+- `backend/src/admin/routes/discogs-import/page.tsx` — Admin UI (3 Tabs: Upload, Analysis, History)
+- `backend/src/api/admin/discogs-import/upload/route.ts` — File-Upload + CSV/XLSX-Parsing (SheetJS)
+- `backend/src/api/admin/discogs-import/analyze/route.ts` — Matching gegen DB-Snapshots (3-stufig: exact discogs_id → fuzzy artist+title+catno → new)
+- `backend/src/api/admin/discogs-import/commit/route.ts` — DB-Import (Release + Artist + Label + Track + import_log)
+- `backend/src/api/admin/discogs-import/history/route.ts` — Import-History aus `import_log` Tabelle
+- `discogs/import_test_report.md` — Test-Report (20 Entries aus eigenem Export, Simulation)
+
+### Geänderte Dateien
+- `backend/src/admin/components/admin-nav.tsx` — Parent-Mapping `/app/discogs-import` → Operations
+- `backend/src/admin/routes/operations/page.tsx` — HubCard "Discogs Collection Import" (📀)
+- `backend/package.json` — `xlsx` (SheetJS) Dependency
+- `scripts/shared.py` — Lazy psycopg2 Import (Python 3.14 Kompatibilität)
+
+### Neue DB-Tabelle
+- `import_log` — Tracking pro Import-Lauf (id, import_type, collection_name, import_source, run_id, release_id, discogs_id, action, data_snapshot JSONB). Erstellt automatisch bei erstem `--commit`.
+
+### Matching-Strategie
+1. **EXISTING:** `discogs_id` bereits in DB → Preise/Community updaten
+2. **LINKABLE:** Artist+Title+CatNo matcht Release ohne discogs_id → discogs_id ergänzen
+3. **NEW:** Kein Match → voller Import (Release + Artist + Label + Tracks)
+
+### Test-Ergebnis (VOD Eigenbestand, 20 Entries)
+- 4 EXISTING, 16 NEW, 0 LINKABLE, 0 SKIPPED
+
+### CLI-Nutzung
+```bash
+cd scripts && source venv/bin/activate
+python3 discogs_collection_import.py --file ../discogs/export.xlsx --collection "Sammlung Müller"        # Simulation
+python3 discogs_collection_import.py --file ../discogs/export.xlsx --collection "Sammlung Müller" --commit  # Import
+```
+
+---
+
 ## 2026-04-07 (night) — ERP Barcode/Labeling-Infrastruktur
 
 Barcode-System für die Inventur-Phase: Jeder verifizierte Artikel bekommt automatisch einen Code128-Barcode (`VOD-000001` ff.), ein druckbares Label (29×62mm PDF für Brother QL-810W), und ist per USB-Scanner scanbar.
