@@ -295,8 +295,33 @@ def fetch_discogs_data(
                     ],
                     "notes": data.get("notes", ""),
                     "data_quality": data.get("data_quality", ""),
+                    "suggested_prices": None,  # filled below
                     "fetched_at": datetime.now(timezone.utc).isoformat(),
                 }
+
+                # 2nd API call: Price Suggestions (condition-based prices from real sales)
+                rate_limiter.wait()
+                try:
+                    ps_resp = requests.get(
+                        f"{DISCOGS_BASE}/marketplace/price_suggestions/{did}",
+                        headers=DISCOGS_HEADERS,
+                        timeout=30,
+                    )
+                    if ps_resp.status_code == 200:
+                        ps_data = ps_resp.json()
+                        cache[str(did)]["suggested_prices"] = {
+                            "M": ps_data.get("Mint (M)", {}).get("value"),
+                            "NM": ps_data.get("Near Mint (NM or M-)", {}).get("value"),
+                            "VG+": ps_data.get("Very Good Plus (VG+)", {}).get("value"),
+                            "VG": ps_data.get("Very Good (VG)", {}).get("value"),
+                            "G+": ps_data.get("Good Plus (G+)", {}).get("value"),
+                            "G": ps_data.get("Good (G)", {}).get("value"),
+                            "F": ps_data.get("Fair (F)", {}).get("value"),
+                            "P": ps_data.get("Poor (P)", {}).get("value"),
+                            "currency": ps_data.get("Mint (M)", {}).get("currency", "EUR"),
+                        }
+                except requests.RequestException:
+                    pass  # suggested_prices stays None
             elif resp.status_code == 404:
                 cache[str(did)] = {"error": "not_found", "fetched_at": datetime.now(timezone.utc).isoformat()}
                 errors.append((did, "404 Not Found"))

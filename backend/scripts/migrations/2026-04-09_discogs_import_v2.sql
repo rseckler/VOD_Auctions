@@ -19,3 +19,7 @@ ALTER TABLE "Release" ADD COLUMN IF NOT EXISTS additional_labels JSONB;
 
 -- 5. Release: Data-Source Marker (legacy | discogs_import | manual)
 ALTER TABLE "Release" ADD COLUMN IF NOT EXISTS data_source TEXT DEFAULT 'legacy';
+
+-- 6. Release: Discogs Suggested Prices (condition-based, from real sales)
+-- Format: {"M": 23.75, "NM": 21.25, "VG+": 16.25, ..., "currency": "EUR", "fetched_at": "ISO"}
+ALTER TABLE "Release" ADD COLUMN IF NOT EXISTS discogs_suggested_prices JSONB;

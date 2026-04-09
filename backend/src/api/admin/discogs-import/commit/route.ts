@@ -20,12 +20,14 @@ export async function POST(
       media_condition = "VG+",
       sleeve_condition = "VG+",
       inventory = 1,
+      price_markup = 1.2,
     } = req.body as {
       session_id: string
       selected_discogs_ids?: number[]
       media_condition?: string
       sleeve_condition?: string
       inventory?: number
+      price_markup?: number
     }
     if (!session_id) {
       res.status(400).json({ error: "Missing session_id" })
@@ -119,6 +121,13 @@ export async function POST(
       }
 
       const community = (cached?.community || {}) as { have?: number; want?: number }
+      const suggestedPrices = (cached?.suggested_prices || null) as Record<string, unknown> | null
+
+      // Calculate estimated_value: VG+ suggested price × markup (default 1.2)
+      const vgPlusPrice = suggestedPrices?.["VG+"] as number | null
+      const estimatedValue = vgPlusPrice
+        ? Math.round(vgPlusPrice * price_markup * 100) / 100
+        : null
 
       // Build price history entry
       const priceEntry = {
@@ -127,6 +136,8 @@ export async function POST(
         lowest: (cached?.lowest_price as number) ?? null,
         median: null,
         highest: null,
+        suggested_vgplus: vgPlusPrice,
+        estimated_value: estimatedValue,
         num_for_sale: (cached?.num_for_sale as number) ?? 0,
         have: community.have ?? 0,
         want: community.want ?? 0,
@@ -134,7 +145,7 @@ export async function POST(
 
       try {
         if (existingByDiscogs[String(did)]) {
-          // ── EXISTING — update prices + genres/styles + price history ──
+          // ── EXISTING — update prices + suggested + estimated (NEVER direct_price) ──
           const dbId = existingByDiscogs[String(did)]
           await pgConnection.raw(
             `UPDATE "Release" SET
@@ -143,6 +154,8 @@ export async function POST(
               discogs_have = ?,
               discogs_want = ?,
               discogs_last_synced = ?,
+              discogs_suggested_prices = COALESCE(?::jsonb, discogs_suggested_prices),
+              estimated_value = COALESCE(?, estimated_value),
               genres = COALESCE(?, genres),
               styles = COALESCE(?, styles),
               discogs_price_history = COALESCE(discogs_price_history, '[]'::jsonb) || ?::jsonb,
@@ -154,6 +167,8 @@ export async function POST(
               priceEntry.have,
               priceEntry.want,
               now,
+              suggestedPrices ? JSON.stringify({ ...suggestedPrices, fetched_at: now }) : null,
+              estimatedValue,
               cached?.genres ? (cached.genres as string[]) : null,
               cached?.styles ? (cached.styles as string[]) : null,
               JSON.stringify([priceEntry]),
@@ -166,7 +181,7 @@ export async function POST(
         } else {
           const key = fuzzyKey(row.artist, row.title, row.catalog_number)
           if (key && fuzzyIndex.has(key)) {
-            // ── LINKABLE — add discogs_id + prices + enrichment ──
+            // ── LINKABLE — add discogs_id + prices + suggested + estimated (NEVER direct_price) ──
             const dbId = fuzzyIndex.get(key)!
             await pgConnection.raw(
               `UPDATE "Release" SET
@@ -176,6 +191,8 @@ export async function POST(
                 discogs_have = ?,
                 discogs_want = ?,
                 discogs_last_synced = ?,
+                discogs_suggested_prices = COALESCE(?::jsonb, discogs_suggested_prices),
+                estimated_value = COALESCE(?, estimated_value),
                 genres = COALESCE(?, genres),
                 styles = COALESCE(?, styles),
                 description = COALESCE(description, ?),
@@ -189,6 +206,8 @@ export async function POST(
                 priceEntry.have,
                 priceEntry.want,
                 now,
+                suggestedPrices ? JSON.stringify({ ...suggestedPrices, fetched_at: now }) : null,
+                estimatedValue,
                 cached?.genres ? (cached.genres as string[]) : null,
                 cached?.styles ? (cached.styles as string[]) : null,
                 (cached?.notes as string) || null,
@@ -209,12 +228,15 @@ export async function POST(
             const creditsText = buildCreditsText(cached)
             const additionalLabels = getAdditionalLabels(cached)
 
+            // NOTE: direct_price is NEVER set by the importer (see PRICING_KONZEPT.md)
+            // Only estimated_value (= VG+ × markup) is set as a suggestion
             await pgConnection.raw(
               `INSERT INTO "Release" (
                 id, title, slug, "artistId", "labelId",
                 "catalogNumber", year, country, format_group, legacy_format_detail,
                 description, credits, genres, styles,
                 media_condition, sleeve_condition, inventory,
+                estimated_value, discogs_suggested_prices,
                 discogs_id, discogs_lowest_price, discogs_num_for_sale,
                 discogs_have, discogs_want, discogs_last_synced,
                 discogs_price_history, additional_labels, data_source,
@@ -224,6 +246,7 @@ export async function POST(
                 ?, ?, ?, ?, ?,
                 ?, ?, ?, ?,
                 ?, ?, ?,
+                ?, ?::jsonb,
                 ?, ?, ?,
                 ?, ?, ?,
                 ?::jsonb, ?::jsonb, 'discogs_import',
@@ -248,6 +271,8 @@ export async function POST(
                 media_condition,
                 sleeve_condition,
                 inventory,
+                estimatedValue,
+                suggestedPrices ? JSON.stringify({ ...suggestedPrices, fetched_at: now }) : null,
                 did,
                 priceEntry.lowest,
                 priceEntry.num_for_sale,

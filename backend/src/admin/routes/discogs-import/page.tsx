@@ -104,6 +104,7 @@ const DiscogsImportPage = () => {
   // Import settings
   const [condition, setCondition] = useState("VG+/VG+")
   const [inventoryOn, setInventoryOn] = useState(true)
+  const [priceMarkup, setPriceMarkup] = useState(1.2)
 
   // Commit state
   const [committing, setCommitting] = useState(false)
@@ -227,6 +228,7 @@ const DiscogsImportPage = () => {
           media_condition: mediaCond.trim(),
           sleeve_condition: sleeveCond.trim(),
           inventory: inventoryOn ? 1 : 0,
+          price_markup: priceMarkup,
         }),
       })
 
@@ -268,7 +270,7 @@ const DiscogsImportPage = () => {
       setCommitting(false)
       setImportProgress(null)
     }
-  }, [uploadResult, selectedIds, condition, inventoryOn])
+  }, [uploadResult, selectedIds, condition, inventoryOn, priceMarkup])
 
   // ─── Render ──────────────────────────────────────────────────────────────
 
@@ -673,6 +675,29 @@ function AnalysisTab({
                 style={{ cursor: "pointer", width: 18, height: 18 }}
               />
               <span style={T.small}>{inventoryOn ? "Each article set to stock 1" : "Articles created with stock 0"}</span>
+            </div>
+
+            {/* Price Markup */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <label style={{ ...T.small, fontWeight: 600 }}>Price Markup (VG+ ×):</label>
+              <select
+                value={priceMarkup}
+                onChange={(e) => setPriceMarkup(parseFloat(e.target.value))}
+                style={{
+                  padding: "6px 10px",
+                  borderRadius: S.radius.sm,
+                  border: `1px solid ${C.border}`,
+                  fontSize: 13,
+                  background: "white",
+                }}
+              >
+                <option value={1.0}>1.0 (no markup)</option>
+                <option value={1.1}>1.1 (+10%)</option>
+                <option value={1.2}>1.2 (+20%)</option>
+                <option value={1.3}>1.3 (+30%)</option>
+                <option value={1.5}>1.5 (+50%)</option>
+              </select>
+              <span style={T.small}>Sets estimated_value (not selling price)</span>
             </div>
           </div>
 
