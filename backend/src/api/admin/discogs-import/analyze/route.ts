@@ -107,6 +107,14 @@ export async function POST(
             community: cached.community as { have: number; want: number },
             lowest_price: cached.lowest_price as number | null,
             num_for_sale: cached.num_for_sale as number,
+            notes: cached.notes as string,
+            images: (cached.images as Array<{ uri: string; type: string }>) || [],
+            tracklist: (cached.tracklist as Array<{ position: string; title: string; duration: string }>) || [],
+            extraartists: (cached.extraartists as Array<{ name: string; id: number; role: string }>) || [],
+            labels: (cached.labels as Array<{ name: string; catno: string; id: number }>) || [],
+            formats: (cached.formats as Array<{ name: string; descriptions: string[]; qty: string }>) || [],
+            data_quality: cached.data_quality as string,
+            fetched_at: cached.fetched_at as string,
           }
         : undefined
 

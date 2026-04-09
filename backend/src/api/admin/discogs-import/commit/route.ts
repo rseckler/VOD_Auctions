@@ -14,7 +14,10 @@ export async function POST(
   res: MedusaResponse
 ): Promise<void> {
   try {
-    const { session_id } = req.body as { session_id: string }
+    const { session_id, selected_discogs_ids } = req.body as {
+      session_id: string
+      selected_discogs_ids?: number[]
+    }
     if (!session_id) {
       res.status(400).json({ error: "Missing session_id" })
       return
@@ -49,7 +52,7 @@ export async function POST(
     await pgConnection.raw(`CREATE INDEX IF NOT EXISTS idx_import_log_release ON import_log(release_id)`)
     await pgConnection.raw(`CREATE INDEX IF NOT EXISTS idx_import_log_collection ON import_log(collection_name)`)
 
-    // Re-run analysis to get categorized results
+    // Load matching data
     const dataDir = path.join(getScriptsDir(), "data")
     const existingByDiscogs: Record<string, string> = JSON.parse(
       fs.readFileSync(path.join(dataDir, "db_discogs_ids.json"), "utf-8")
@@ -74,9 +77,20 @@ export async function POST(
     const now = new Date().toISOString()
     const counters = { inserted: 0, linked: 0, updated: 0, skipped: 0, errors: 0 }
 
+    // Filter by selection if provided
+    const selectedSet = selected_discogs_ids
+      ? new Set(selected_discogs_ids)
+      : null
+
     for (const row of session.rows) {
       const did = row.discogs_id
       const cached = apiCache[String(did)] as Record<string, unknown> | undefined
+
+      // Skip if not in selection
+      if (selectedSet && !selectedSet.has(did)) {
+        counters.skipped++
+        continue
+      }
 
       if (cached?.error) {
         counters.skipped++
@@ -85,9 +99,21 @@ export async function POST(
 
       const community = (cached?.community || {}) as { have?: number; want?: number }
 
+      // Build price history entry
+      const priceEntry = {
+        date: now,
+        source: "discogs_collection_import",
+        lowest: (cached?.lowest_price as number) ?? null,
+        median: null,
+        highest: null,
+        num_for_sale: (cached?.num_for_sale as number) ?? 0,
+        have: community.have ?? 0,
+        want: community.want ?? 0,
+      }
+
       try {
         if (existingByDiscogs[String(did)]) {
-          // EXISTING — update prices
+          // ── EXISTING — update prices + genres/styles + price history ──
           const dbId = existingByDiscogs[String(did)]
           await pgConnection.raw(
             `UPDATE "Release" SET
@@ -96,23 +122,30 @@ export async function POST(
               discogs_have = ?,
               discogs_want = ?,
               discogs_last_synced = ?,
+              genres = COALESCE(?, genres),
+              styles = COALESCE(?, styles),
+              discogs_price_history = COALESCE(discogs_price_history, '[]'::jsonb) || ?::jsonb,
               "updatedAt" = NOW()
             WHERE id = ?`,
             [
-              (cached?.lowest_price as number) ?? null,
-              (cached?.num_for_sale as number) ?? 0,
-              community.have ?? 0,
-              community.want ?? 0,
+              priceEntry.lowest,
+              priceEntry.num_for_sale,
+              priceEntry.have,
+              priceEntry.want,
               now,
+              cached?.genres ? (cached.genres as string[]) : null,
+              cached?.styles ? (cached.styles as string[]) : null,
+              JSON.stringify([priceEntry]),
               dbId,
             ]
           )
-          await logImport(pgConnection, runId, session, dbId, did, "updated", row)
+          await logImport(pgConnection, runId, session, dbId, did, "updated", row, cached)
           counters.updated++
+
         } else {
           const key = fuzzyKey(row.artist, row.title, row.catalog_number)
           if (key && fuzzyIndex.has(key)) {
-            // LINKABLE — add discogs_id + prices
+            // ── LINKABLE — add discogs_id + prices + enrichment ──
             const dbId = fuzzyIndex.get(key)!
             await pgConnection.raw(
               `UPDATE "Release" SET
@@ -122,35 +155,57 @@ export async function POST(
                 discogs_have = ?,
                 discogs_want = ?,
                 discogs_last_synced = ?,
+                genres = COALESCE(?, genres),
+                styles = COALESCE(?, styles),
+                description = COALESCE(description, ?),
+                discogs_price_history = COALESCE(discogs_price_history, '[]'::jsonb) || ?::jsonb,
                 "updatedAt" = NOW()
               WHERE id = ?`,
               [
                 did,
-                (cached?.lowest_price as number) ?? null,
-                (cached?.num_for_sale as number) ?? 0,
-                community.have ?? 0,
-                community.want ?? 0,
+                priceEntry.lowest,
+                priceEntry.num_for_sale,
+                priceEntry.have,
+                priceEntry.want,
                 now,
+                cached?.genres ? (cached.genres as string[]) : null,
+                cached?.styles ? (cached.styles as string[]) : null,
+                (cached?.notes as string) || null,
+                JSON.stringify([priceEntry]),
                 dbId,
               ]
             )
-            await logImport(pgConnection, runId, session, dbId, did, "linked", row)
+            await logImport(pgConnection, runId, session, dbId, did, "linked", row, cached)
             counters.linked++
+
           } else {
-            // NEW — full insert
+            // ── NEW — full insert with all enriched data ──
             const releaseId = `discogs-release-${did}`
             const artistId = await ensureArtist(pgConnection, row.artist, cached)
             const labelId = await ensureLabel(pgConnection, row.label, cached)
-            const formatGroup = mapDiscogsFormat(cached)
+            const formatResult = mapDiscogsFormat(cached)
+            const formatDetail = getFormatDetail(cached)
+            const creditsText = buildCreditsText(cached)
+            const additionalLabels = getAdditionalLabels(cached)
 
             await pgConnection.raw(
               `INSERT INTO "Release" (
                 id, title, slug, "artistId", "labelId",
-                "catalogNumber", year, country, format_group,
+                "catalogNumber", year, country, format_group, legacy_format_detail,
+                description, credits, genres, styles,
                 discogs_id, discogs_lowest_price, discogs_num_for_sale,
                 discogs_have, discogs_want, discogs_last_synced,
+                discogs_price_history, additional_labels, data_source,
                 product_category, "createdAt", "updatedAt"
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'release', NOW(), NOW())
+              ) VALUES (
+                ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?,
+                ?, ?, ?, ?,
+                ?, ?, ?,
+                ?, ?, ?,
+                ?::jsonb, ?::jsonb, 'discogs_import',
+                'release', NOW(), NOW()
+              )
               ON CONFLICT (id) DO NOTHING`,
               [
                 releaseId,
@@ -161,13 +216,20 @@ export async function POST(
                 row.catalog_number,
                 (cached?.year as number) || row.year,
                 (cached?.country as string) || "",
-                formatGroup,
+                formatResult,
+                formatDetail,
+                (cached?.notes as string) || null,
+                creditsText,
+                cached?.genres ? (cached.genres as string[]) : null,
+                cached?.styles ? (cached.styles as string[]) : null,
                 did,
-                (cached?.lowest_price as number) ?? null,
-                (cached?.num_for_sale as number) ?? 0,
-                community.have ?? 0,
-                community.want ?? 0,
+                priceEntry.lowest,
+                priceEntry.num_for_sale,
+                priceEntry.have,
+                priceEntry.want,
                 now,
+                JSON.stringify([priceEntry]),
+                additionalLabels ? JSON.stringify(additionalLabels) : null,
               ]
             )
 
@@ -192,7 +254,56 @@ export async function POST(
               )
             }
 
-            await logImport(pgConnection, runId, session, releaseId, did, "inserted", row)
+            // Credits → ReleaseArtist with roles
+            const extraartists = (cached?.extraartists || []) as Array<{
+              name?: string
+              id?: number
+              role?: string
+            }>
+            for (const ea of extraartists) {
+              if (!ea.name || !ea.id) continue
+              const eaId = await ensureArtistByDiscogs(pgConnection, ea)
+              if (eaId) {
+                await pgConnection.raw(
+                  `INSERT INTO "ReleaseArtist" (id, "releaseId", "artistId", role, "createdAt")
+                  VALUES (?, ?, ?, ?, NOW()) ON CONFLICT ("releaseId", "artistId") DO NOTHING`,
+                  [`dra-${did}-${ea.id}`, releaseId, eaId, ea.role || "performer"]
+                )
+              }
+            }
+
+            // Images → Image table + coverImage
+            const images = (cached?.images || []) as Array<{ uri?: string; type?: string }>
+            const maxImages = Math.min(images.length, 5)
+            for (let i = 0; i < maxImages; i++) {
+              const img = images[i]
+              if (!img.uri) continue
+              const imageId = `discogs-image-${did}-${i + 1}`
+              const rang = i + 1
+
+              // Store Discogs URL directly (R2 upload deferred to batch process)
+              await pgConnection.raw(
+                `INSERT INTO "Image" (id, url, alt, "releaseId", rang, source, "createdAt")
+                VALUES (?, ?, ?, ?, ?, 'discogs', NOW()) ON CONFLICT (id) DO NOTHING`,
+                [
+                  imageId,
+                  img.uri,
+                  `${row.artist} — ${row.title}`,
+                  releaseId,
+                  rang,
+                ]
+              )
+
+              // Primary image → coverImage
+              if (i === 0) {
+                await pgConnection.raw(
+                  `UPDATE "Release" SET "coverImage" = ? WHERE id = ? AND "coverImage" IS NULL`,
+                  [img.uri, releaseId]
+                )
+              }
+            }
+
+            await logImport(pgConnection, runId, session, releaseId, did, "inserted", row, cached)
             counters.inserted++
           }
         }
@@ -246,6 +357,10 @@ const FORMAT_MAP: Record<string, string> = {
   "Box Set": "BOXSET",
   File: "DIGITAL",
   "Reel-To-Reel": "REEL",
+  Shellac: "LP",
+  "Lathe Cut": "LP",
+  "8-Track Cartridge": "CASSETTE",
+  Minidisc: "CD",
 }
 
 function mapDiscogsFormat(cached: Record<string, unknown> | undefined): string {
@@ -255,24 +370,58 @@ function mapDiscogsFormat(cached: Record<string, unknown> | undefined): string {
   return FORMAT_MAP[formats[0].name || ""] || "OTHER"
 }
 
+function getFormatDetail(cached: Record<string, unknown> | undefined): string | null {
+  if (!cached) return null
+  const formats = cached.formats as Array<{ name?: string; descriptions?: string[]; qty?: string }> | undefined
+  if (!formats?.length) return null
+  const f = formats[0]
+  const parts = [f.name, ...(f.descriptions || [])].filter(Boolean)
+  return parts.length ? parts.join(", ") : null
+}
+
+function buildCreditsText(cached: Record<string, unknown> | undefined): string | null {
+  if (!cached) return null
+  const extraartists = (cached.extraartists || []) as Array<{ name?: string; role?: string }>
+  if (!extraartists.length) return null
+  // Group by role
+  const byRole = new Map<string, string[]>()
+  for (const ea of extraartists) {
+    if (!ea.name || !ea.role) continue
+    const name = ea.name.replace(/\s*\(\d+\)$/, "")
+    const role = ea.role
+    if (!byRole.has(role)) byRole.set(role, [])
+    byRole.get(role)!.push(name)
+  }
+  return Array.from(byRole.entries())
+    .map(([role, names]) => `${role}: ${names.join(", ")}`)
+    .join("\n")
+}
+
+function getAdditionalLabels(cached: Record<string, unknown> | undefined): Array<{ name: string; catno: string; discogs_id: number }> | null {
+  if (!cached) return null
+  const labels = (cached.labels || []) as Array<{ name?: string; catno?: string; id?: number }>
+  if (labels.length <= 1) return null
+  return labels.slice(1).map((l) => ({
+    name: (l.name || "").replace(/\s*\(\d+\)$/, ""),
+    catno: l.catno || "",
+    discogs_id: l.id || 0,
+  }))
+}
+
 async function ensureArtist(
   pg: Knex,
   name: string,
   cached: Record<string, unknown> | undefined
 ): Promise<string | null> {
   if (!name) return null
-
-  // Try from API data first
   const artists = (cached?.artists || []) as Array<{ name?: string; id?: number }>
   const discogsArtist = artists[0]
   const artistName = (discogsArtist?.name || name).replace(/\s*\(\d+\)$/, "")
   const slug = slugify(artistName)
 
-  // Check existing by slug
   const existing = await pg.raw(`SELECT id FROM "Artist" WHERE slug = ? LIMIT 1`, [slug])
   if (existing.rows.length) return existing.rows[0].id
 
-  // Insert
   const artistId = discogsArtist?.id
     ? `discogs-artist-${discogsArtist.id}`
     : `import-artist-${slug}`
@@ -284,13 +433,37 @@ async function ensureArtist(
   return artistId
 }
 
+async function ensureArtistByDiscogs(
+  pg: Knex,
+  ea: { name?: string; id?: number }
+): Promise<string | null> {
+  if (!ea.name) return null
+  const name = ea.name.replace(/\s*\(\d+\)$/, "")
+  const slug = slugify(name)
+
+  if (ea.id) {
+    const byId = await pg.raw(`SELECT id FROM "Artist" WHERE id = ? LIMIT 1`, [`discogs-artist-${ea.id}`])
+    if (byId.rows.length) return byId.rows[0].id
+  }
+
+  const existing = await pg.raw(`SELECT id FROM "Artist" WHERE slug = ? LIMIT 1`, [slug])
+  if (existing.rows.length) return existing.rows[0].id
+
+  const artistId = ea.id ? `discogs-artist-${ea.id}` : `import-artist-${slug}`
+  await pg.raw(
+    `INSERT INTO "Artist" (id, name, slug, "createdAt", "updatedAt")
+    VALUES (?, ?, ?, NOW(), NOW()) ON CONFLICT (id) DO NOTHING`,
+    [artistId, name, slug]
+  )
+  return artistId
+}
+
 async function ensureLabel(
   pg: Knex,
   name: string,
   cached: Record<string, unknown> | undefined
 ): Promise<string | null> {
   if (!name) return null
-
   const labels = (cached?.labels || []) as Array<{ name?: string; id?: number }>
   const discogsLabel = labels[0]
   const labelName = (discogsLabel?.name || name).replace(/\s*\(\d+\)$/, "")
@@ -328,7 +501,8 @@ async function logImport(
   releaseId: string,
   discogsId: number,
   action: string,
-  row: ParsedRow
+  row: ParsedRow,
+  cached?: Record<string, unknown> | null
 ): Promise<void> {
   const logId = `ilog-${runId.substring(0, 8)}-${discogsId}`
   await pg.raw(
@@ -344,11 +518,21 @@ async function logImport(
       discogsId,
       action,
       JSON.stringify({
-        artist: row.artist,
-        title: row.title,
-        catalog_number: row.catalog_number,
-        year: row.year,
-        format: row.format,
+        excel: { artist: row.artist, title: row.title, catalog_number: row.catalog_number, year: row.year, format: row.format },
+        api: cached ? {
+          title: cached.title,
+          year: cached.year,
+          country: cached.country,
+          genres: cached.genres,
+          styles: cached.styles,
+          lowest_price: cached.lowest_price,
+          num_for_sale: cached.num_for_sale,
+          community: cached.community,
+          images_count: ((cached.images || []) as unknown[]).length,
+          tracks_count: ((cached.tracklist || []) as unknown[]).length,
+          credits_count: ((cached.extraartists || []) as unknown[]).length,
+          fetched_at: cached.fetched_at,
+        } : null,
       }),
     ]
   )

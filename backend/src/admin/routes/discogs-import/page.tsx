@@ -98,6 +98,9 @@ const DiscogsImportPage = () => {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null)
   const [expanded, setExpanded] = useState({ new: true, existing: false, linkable: false, skipped: false })
 
+  // Selection state (for admin approval)
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+
   // Commit state
   const [committing, setCommitting] = useState(false)
   const [commitResult, setCommitResult] = useState<CommitResult | null>(null)
@@ -183,6 +186,12 @@ const DiscogsImportPage = () => {
       const data = await resp.json()
       if (!resp.ok) throw new Error(data.error || `Analysis failed (${resp.status})`)
       setAnalysis(data)
+      // Initialize selection: all NEW + LINKABLE selected by default
+      const ids = new Set<number>()
+      for (const r of (data.new || [])) ids.add(r.discogs_id)
+      for (const r of (data.linkable || [])) ids.add(r.discogs_id)
+      for (const r of (data.existing || [])) ids.add(r.discogs_id)
+      setSelectedIds(ids)
       setTab("Analysis")
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Analysis failed")
@@ -205,7 +214,10 @@ const DiscogsImportPage = () => {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session_id: uploadResult.session_id }),
+        body: JSON.stringify({
+          session_id: uploadResult.session_id,
+          selected_discogs_ids: Array.from(selectedIds),
+        }),
       })
 
       const data = await resp.json()
@@ -261,6 +273,8 @@ const DiscogsImportPage = () => {
             analysis={analysis}
             expanded={expanded}
             setExpanded={setExpanded}
+            selectedIds={selectedIds}
+            setSelectedIds={setSelectedIds}
             onCommit={handleCommit}
             committing={committing}
             commitResult={commitResult}
@@ -432,6 +446,8 @@ function AnalysisTab({
   analysis,
   expanded,
   setExpanded,
+  selectedIds,
+  setSelectedIds,
   onCommit,
   committing,
   commitResult,
@@ -439,6 +455,8 @@ function AnalysisTab({
   analysis: AnalysisResult | null
   expanded: Record<string, boolean>
   setExpanded: (v: Record<string, boolean>) => void
+  selectedIds: Set<number>
+  setSelectedIds: (v: Set<number>) => void
   onCommit: () => void
   committing: boolean
   commitResult: CommitResult | null
@@ -448,7 +466,23 @@ function AnalysisTab({
   }
 
   const s = analysis.summary
-  const canCommit = s.new > 0 || s.linkable > 0
+  const totalSelected = selectedIds.size
+
+  const toggleId = (id: number) => {
+    const next = new Set(selectedIds)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    setSelectedIds(next)
+  }
+
+  const toggleAllInCategory = (rows: MatchResult[], on: boolean) => {
+    const next = new Set(selectedIds)
+    for (const r of rows) {
+      if (on) next.add(r.discogs_id)
+      else next.delete(r.discogs_id)
+    }
+    setSelectedIds(next)
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: S.gap.lg }}>
@@ -460,6 +494,10 @@ function AnalysisTab({
           { label: "Skipped", value: fmtNum(s.skipped), color: C.muted },
         ]}
       />
+
+      <div style={{ ...T.body, color: C.muted }}>
+        {totalSelected} of {s.existing + s.linkable + s.new} releases selected for import
+      </div>
 
       {!s.has_api_cache && (
         <Alert type="warning">
@@ -486,17 +524,10 @@ function AnalysisTab({
           hint="Will be fully imported"
           expanded={expanded.new}
           onToggle={() => setExpanded({ ...expanded, new: !expanded.new })}
+          onSelectAll={(on) => toggleAllInCategory(analysis.new, on)}
+          allSelected={analysis.new.every((r) => selectedIds.has(r.discogs_id))}
         >
-          <ResultTable
-            rows={analysis.new}
-            columns={[
-              { key: "artist", label: "Artist" },
-              { key: "title", label: "Title" },
-              { key: "year", label: "Year" },
-              { key: "format", label: "Format" },
-              { key: "discogs_id", label: "Discogs ID", mono: true },
-            ]}
-          />
+          <ReleaseList rows={analysis.new} selectedIds={selectedIds} onToggle={toggleId} showDetail />
         </CollapsibleSection>
       )}
 
@@ -504,19 +535,13 @@ function AnalysisTab({
       {analysis.linkable.length > 0 && (
         <CollapsibleSection
           title={`Linkable (${fmtNum(s.linkable)})`}
-          hint="Existing release matched — discogs_id will be added"
+          hint="Existing release matched — discogs_id + enrichment will be added"
           expanded={expanded.linkable}
           onToggle={() => setExpanded({ ...expanded, linkable: !expanded.linkable })}
+          onSelectAll={(on) => toggleAllInCategory(analysis.linkable, on)}
+          allSelected={analysis.linkable.every((r) => selectedIds.has(r.discogs_id))}
         >
-          <ResultTable
-            rows={analysis.linkable}
-            columns={[
-              { key: "db_release_id", label: "DB Release ID", mono: true },
-              { key: "artist", label: "Artist" },
-              { key: "title", label: "Title" },
-              { key: "discogs_id", label: "Discogs ID", mono: true },
-            ]}
-          />
+          <ReleaseList rows={analysis.linkable} selectedIds={selectedIds} onToggle={toggleId} showDbId />
         </CollapsibleSection>
       )}
 
@@ -527,16 +552,10 @@ function AnalysisTab({
           hint="Already in DB — prices + community data will be updated"
           expanded={expanded.existing}
           onToggle={() => setExpanded({ ...expanded, existing: !expanded.existing })}
+          onSelectAll={(on) => toggleAllInCategory(analysis.existing, on)}
+          allSelected={analysis.existing.every((r) => selectedIds.has(r.discogs_id))}
         >
-          <ResultTable
-            rows={analysis.existing}
-            columns={[
-              { key: "db_release_id", label: "DB Release ID", mono: true },
-              { key: "artist", label: "Artist" },
-              { key: "title", label: "Title" },
-              { key: "discogs_id", label: "Discogs ID", mono: true },
-            ]}
-          />
+          <ReleaseList rows={analysis.existing} selectedIds={selectedIds} onToggle={toggleId} showDbId />
         </CollapsibleSection>
       )}
 
@@ -560,24 +579,225 @@ function AnalysisTab({
         </CollapsibleSection>
       )}
 
-      {/* Commit */}
+      {/* Approve & Import */}
       {!commitResult && (
         <div style={{ marginTop: S.gap.md }}>
           <Btn
-            label={committing ? "Importing..." : "Confirm Import"}
+            label={committing ? "Importing..." : `Approve & Import (${totalSelected} selected)`}
             variant="gold"
-            disabled={!canCommit || committing}
+            disabled={totalSelected === 0 || committing}
             onClick={onCommit}
           />
-          {!canCommit && (
+          {totalSelected === 0 && (
             <span style={{ ...T.small, marginLeft: 12 }}>
-              Nothing to import — all releases are already in the database.
+              Select at least one release to import.
             </span>
           )}
         </div>
       )}
     </div>
   )
+}
+
+// ─── Release List with checkboxes + detail preview ───────────────────────────
+
+function ReleaseList({
+  rows,
+  selectedIds,
+  onToggle,
+  showDetail,
+  showDbId,
+}: {
+  rows: MatchResult[]
+  selectedIds: Set<number>
+  onToggle: (id: number) => void
+  showDetail?: boolean
+  showDbId?: boolean
+}) {
+  const [expandedId, setExpandedId] = useState<number | null>(null)
+  const MAX_DISPLAY = 200
+  const displayRows = rows.slice(0, MAX_DISPLAY)
+
+  return (
+    <>
+      {displayRows.map((row, i) => {
+        const selected = selectedIds.has(row.discogs_id)
+        const isExpanded = expandedId === row.discogs_id
+        return (
+          <div key={row.discogs_id} style={{ borderBottom: `1px solid ${C.border}` }}>
+            {/* Row header */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "8px 4px",
+                cursor: "pointer",
+                opacity: selected ? 1 : 0.5,
+              }}
+              onClick={() => showDetail && setExpandedId(isExpanded ? null : row.discogs_id)}
+            >
+              <input
+                type="checkbox"
+                checked={selected}
+                onChange={(e) => { e.stopPropagation(); onToggle(row.discogs_id) }}
+                onClick={(e) => e.stopPropagation()}
+                style={{ cursor: "pointer" }}
+              />
+              {row.api_data?.images?.[0]?.uri && (
+                <img
+                  src={row.api_data.images[0].uri}
+                  alt=""
+                  style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 4, flexShrink: 0 }}
+                />
+              )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ ...T.body, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {row.artist} — {row.title}
+                </div>
+                <div style={{ ...T.small, display: "flex", gap: 12 }}>
+                  {row.year && <span>{row.year}</span>}
+                  <span>{row.format}</span>
+                  {showDbId && row.db_release_id && (
+                    <span style={T.mono}>{row.db_release_id}</span>
+                  )}
+                  <a
+                    href={`https://www.discogs.com/release/${row.discogs_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: C.blue, textDecoration: "none" }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    discogs:{row.discogs_id}
+                  </a>
+                </div>
+              </div>
+              {showDetail && (
+                <span style={{ ...T.small, color: C.muted }}>{isExpanded ? "▼" : "▶"}</span>
+              )}
+            </div>
+
+            {/* Expanded detail */}
+            {showDetail && isExpanded && row.api_data && (
+              <ReleaseDetail data={row.api_data} artist={row.artist} title={row.title} />
+            )}
+          </div>
+        )
+      })}
+      {rows.length > MAX_DISPLAY && (
+        <div style={{ ...T.small, padding: "8px 0" }}>
+          Showing {MAX_DISPLAY} of {fmtNum(rows.length)} entries.
+        </div>
+      )}
+    </>
+  )
+}
+
+// ─── Release Detail Preview ──────────────────────────────────────────────────
+
+function ReleaseDetail({ data, artist, title }: { data: NonNullable<MatchResult["api_data"]>; artist: string; title: string }) {
+  return (
+    <div style={{ padding: "8px 8px 16px 46px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, background: C.hover, borderRadius: S.radius.md, margin: "0 4px 8px" }}>
+      {/* Left column */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {/* Images */}
+        {data.images && data.images.length > 0 && (
+          <div>
+            <div style={detailLabel}>Images ({data.images.length})</div>
+            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+              {data.images.slice(0, 5).map((img, i) => (
+                <img key={i} src={img.uri} alt="" style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 4 }} />
+              ))}
+            </div>
+          </div>
+        )}
+        {/* Description */}
+        {data.notes && (
+          <div>
+            <div style={detailLabel}>Description</div>
+            <div style={{ ...T.small, maxHeight: 60, overflow: "hidden" }}>{data.notes}</div>
+          </div>
+        )}
+        {/* Tracklist */}
+        {data.tracklist && data.tracklist.length > 0 && (
+          <div>
+            <div style={detailLabel}>Tracklist ({data.tracklist.length})</div>
+            <div style={T.small}>
+              {data.tracklist.slice(0, 8).map((t, i) => (
+                <div key={i}>{t.position} {t.title} {t.duration ? `(${t.duration})` : ""}</div>
+              ))}
+              {data.tracklist.length > 8 && <div style={{ color: C.muted }}>+{data.tracklist.length - 8} more</div>}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Right column */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {/* Genres + Styles */}
+        {data.genres && data.genres.length > 0 && (
+          <div>
+            <div style={detailLabel}>Genres</div>
+            <div style={T.small}>{data.genres.join(", ")}</div>
+          </div>
+        )}
+        {data.styles && data.styles.length > 0 && (
+          <div>
+            <div style={detailLabel}>Styles</div>
+            <div style={T.small}>{data.styles.join(", ")}</div>
+          </div>
+        )}
+        {/* Format */}
+        {data.formats && data.formats.length > 0 && (
+          <div>
+            <div style={detailLabel}>Format</div>
+            <div style={T.small}>{data.formats.map((f) => [f.name, ...(f.descriptions || [])].join(", ")).join(" + ")}</div>
+          </div>
+        )}
+        {/* Labels */}
+        {data.labels && data.labels.length > 0 && (
+          <div>
+            <div style={detailLabel}>Labels</div>
+            <div style={T.small}>{data.labels.map((l) => `${l.name} (${l.catno})`).join(", ")}</div>
+          </div>
+        )}
+        {/* Credits */}
+        {data.extraartists && data.extraartists.length > 0 && (
+          <div>
+            <div style={detailLabel}>Credits ({data.extraartists.length})</div>
+            <div style={{ ...T.small, maxHeight: 60, overflow: "hidden" }}>
+              {data.extraartists.slice(0, 5).map((ea, i) => (
+                <div key={i}>{ea.role}: {ea.name}</div>
+              ))}
+              {data.extraartists.length > 5 && <div style={{ color: C.muted }}>+{data.extraartists.length - 5} more</div>}
+            </div>
+          </div>
+        )}
+        {/* Price + Community */}
+        <div>
+          <div style={detailLabel}>Market Data</div>
+          <div style={T.small}>
+            {data.lowest_price != null && <div>Lowest: {data.lowest_price.toFixed(2)}</div>}
+            <div>For Sale: {data.num_for_sale ?? 0}</div>
+            <div>Have: {data.community?.have ?? 0} / Want: {data.community?.want ?? 0}</div>
+          </div>
+        </div>
+        {/* Source */}
+        {data.fetched_at && (
+          <div>
+            <div style={detailLabel}>Source</div>
+            <div style={{ ...T.mono, ...T.small }}>Discogs API, fetched {data.fetched_at.substring(0, 10)}</div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+const detailLabel: React.CSSProperties = {
+  ...T.micro,
+  color: C.muted,
+  marginBottom: 2,
 }
 
 // ─── History Tab ─────────────────────────────────────────────────────────────
@@ -633,12 +853,16 @@ function CollapsibleSection({
   hint,
   expanded,
   onToggle,
+  onSelectAll,
+  allSelected,
   children,
 }: {
   title: string
   hint: string
   expanded: boolean
   onToggle: () => void
+  onSelectAll?: (on: boolean) => void
+  allSelected?: boolean
   children: React.ReactNode
 }) {
   return (
@@ -653,14 +877,23 @@ function CollapsibleSection({
           alignItems: "center",
         }}
       >
-        <div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {onSelectAll && (
+            <input
+              type="checkbox"
+              checked={allSelected}
+              onChange={(e) => { e.stopPropagation(); onSelectAll(!allSelected) }}
+              onClick={(e) => e.stopPropagation()}
+              style={{ cursor: "pointer" }}
+            />
+          )}
           <span style={{ ...T.body, fontWeight: 600 }}>{title}</span>
-          <span style={{ ...T.small, marginLeft: 8 }}>{hint}</span>
+          <span style={{ ...T.small }}>{hint}</span>
         </div>
         <span style={{ ...T.body, color: C.muted }}>{expanded ? "▼" : "▶"}</span>
       </div>
       {expanded && (
-        <div style={{ padding: "0 16px 16px", maxHeight: 500, overflowY: "auto" }}>
+        <div style={{ padding: "0 16px 16px", maxHeight: 600, overflowY: "auto" }}>
           {children}
         </div>
       )}

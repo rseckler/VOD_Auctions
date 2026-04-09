@@ -113,6 +113,31 @@ def check_r2_exists(filename: str) -> bool:
     except Exception:
         return False
 
+
+def download_and_upload_to_r2(source_url: str, target_filename: str) -> str | None:
+    """Download image from any URL and upload to R2. Returns public URL on success, None on failure."""
+    client = get_r2_client()
+    if not client:
+        return None
+    try:
+        resp = _requests.get(source_url, timeout=30, headers={"User-Agent": "VODAuctions/1.0"})
+        if resp.status_code != 200:
+            print(f"[r2-upload] Download failed ({resp.status_code}): {source_url[:80]}")
+            return None
+        content_type = resp.headers.get("Content-Type", "image/jpeg")
+        if "jpeg" not in content_type and "png" not in content_type:
+            content_type = "image/jpeg"
+        client.put_object(
+            Bucket=R2_BUCKET,
+            Key=R2_PREFIX + target_filename,
+            Body=resp.content,
+            ContentType=content_type,
+        )
+        return IMAGE_BASE_URL + target_filename
+    except Exception as e:
+        print(f"[r2-upload] Failed for {target_filename}: {e}")
+        return None
+
 # Format name -> format_group mapping (string-based, used by map_format())
 FORMAT_MAP = {
     # Release formats
