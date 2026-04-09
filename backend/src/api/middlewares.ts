@@ -15,6 +15,12 @@ function rawBodyMiddleware(req: Request, _res: Response, next: NextFunction) {
 export default defineMiddlewares({
   routes: [
     {
+      // Discogs import upload — allow large file uploads (up to 5 MB base64)
+      matcher: "/admin/discogs-import/upload",
+      methods: ["POST"],
+      bodyParser: { sizeLimit: "5mb" },
+    },
+    {
       // Stripe webhook — raw body for signature verification, no auth
       matcher: "/webhooks/stripe",
       methods: ["POST"],
