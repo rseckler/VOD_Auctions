@@ -320,6 +320,8 @@ const DiscogsImportPage = () => {
             setCondition={setCondition}
             inventoryOn={inventoryOn}
             setInventoryOn={setInventoryOn}
+            priceMarkup={priceMarkup}
+            setPriceMarkup={setPriceMarkup}
             onCommit={handleCommit}
             committing={committing}
             commitResult={commitResult}
@@ -516,6 +518,8 @@ function AnalysisTab({
   setCondition: (v: string) => void
   inventoryOn: boolean
   setInventoryOn: (v: boolean) => void
+  priceMarkup: number
+  setPriceMarkup: (v: number) => void
   onCommit: () => void
   committing: boolean
   commitResult: CommitResult | null
