@@ -11,12 +11,16 @@ interface UploadResult {
   row_count: number
   unique_discogs_ids: number
   format_detected: string
+  export_type?: string  // "COLLECTION" | "INVENTORY"
   sample_rows: Array<{
     artist: string
     title: string
     year: number | null
     format: string
     discogs_id: number
+    listing_price?: number | null
+    media_condition?: string
+    status?: string
   }>
 }
 
@@ -146,12 +150,15 @@ const DiscogsImportPage = () => {
     setError(null)
 
     try {
-      const reader = new FileReader()
-      const base64 = await new Promise<string>((resolve, reject) => {
-        reader.onload = () => resolve(reader.result as string)
-        reader.onerror = reject
-        reader.readAsDataURL(file)
-      })
+      // Read file as ArrayBuffer, then convert to base64 (more reliable than readAsDataURL for large files)
+      const buffer = await file.arrayBuffer()
+      const bytes = new Uint8Array(buffer)
+      let binary = ""
+      const chunkSize = 8192
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize))
+      }
+      const base64 = btoa(binary)
 
       const resp = await fetch("/admin/discogs-import/upload", {
         method: "POST",

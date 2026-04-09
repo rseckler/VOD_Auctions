@@ -18,7 +18,7 @@ export default defineMiddlewares({
       // Discogs import upload — allow large file uploads (up to 5 MB base64)
       matcher: "/admin/discogs-import/upload",
       methods: ["POST"],
-      bodyParser: { sizeLimit: "5mb" },
+      bodyParser: { sizeLimit: "10mb" },
     },
     {
       // Stripe webhook — raw body for signature verification, no auth
