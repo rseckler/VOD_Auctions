@@ -92,6 +92,11 @@ const DiscogsImportPage = () => {
   const [historyLoading, setHistoryLoading] = useState(false)
   const [expandedRow, setExpandedRow] = useState<number | null>(null)
 
+  // Fetch state
+  const [fetching, setFetching] = useState(false)
+  const [fetchProgress, setFetchProgress] = useState<{ current: number; total: number; fetched: number; cached: number; errors: number; artist?: string; title?: string; eta_min?: number } | null>(null)
+  const [fetchResult, setFetchResult] = useState<{ fetched: number; cached: number; errors: number; duration_min: number } | null>(null)
+
   // Load history on tab switch
   useEffect(() => {
     if (tab === "History" && history === null) {
@@ -129,6 +134,40 @@ const DiscogsImportPage = () => {
       setError(err instanceof Error ? err.message : "Upload failed")
     } finally { setUploading(false) }
   }, [file, collectionName])
+
+  const handleFetch = useCallback(async () => {
+    if (!uploadResult) return
+    setFetching(true)
+    setFetchProgress(null)
+    setFetchResult(null)
+    setError(null)
+    try {
+      const resp = await fetch("/admin/discogs-import/fetch", {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: uploadResult.session_id }),
+      })
+      const reader = resp.body?.getReader()
+      const dec = new TextDecoder()
+      let buf = ""
+      while (reader) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += dec.decode(value, { stream: true })
+        const lines = buf.split("\n"); buf = lines.pop() || ""
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue
+          try {
+            const evt = JSON.parse(line.slice(6))
+            if (evt.type === "progress") setFetchProgress(evt)
+            else if (evt.type === "done") setFetchResult(evt)
+            else if (evt.type === "error") setError(evt.error)
+          } catch { /* skip */ }
+        }
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Fetch failed")
+    } finally { setFetching(false) }
+  }, [uploadResult])
 
   const handleAnalyze = useCallback(async () => {
     if (!uploadResult) return
@@ -222,7 +261,54 @@ const DiscogsImportPage = () => {
                   { label: "Unique Discogs IDs", value: fmtNum(uploadResult.unique_discogs_ids) },
                   { label: "Format", value: uploadResult.format_detected + (uploadResult.export_type ? " (" + uploadResult.export_type + ")" : "") },
                 ]} />
-                <Btn label={analyzing ? "Analyzing..." : "Start Analysis"} onClick={handleAnalyze} disabled={analyzing} />
+
+                {/* Step 2: Fetch Discogs Data */}
+                <div style={{ background: C.card, borderRadius: 8, border: "1px solid " + C.border, padding: "16px 18px" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Step 2: Fetch Discogs Data</div>
+                  <div style={{ fontSize: 12, color: C.muted, marginBottom: 12 }}>
+                    Fetches images, tracklist, credits, genres, and prices for each release from the Discogs API.
+                    {!fetching && !fetchResult && <> Estimated time: ~{Math.ceil(uploadResult.unique_discogs_ids / 20)} minutes.</>}
+                  </div>
+
+                  {/* Fetch Progress */}
+                  {fetchProgress && (
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                        <span>{fetchProgress.artist ? fetchProgress.artist + " — " + fetchProgress.title : "Starting..."}</span>
+                        <span style={{ fontFamily: "monospace" }}>
+                          {fetchProgress.current} / {fetchProgress.total}
+                          {fetchProgress.eta_min != null && fetchProgress.eta_min > 0 && <span style={{ color: C.muted }}> (~{fetchProgress.eta_min} min left)</span>}
+                        </span>
+                      </div>
+                      <div style={{ height: 6, borderRadius: 3, background: C.border, overflow: "hidden" }}>
+                        <div style={{ height: "100%", width: (fetchProgress.total > 0 ? fetchProgress.current / fetchProgress.total * 100 : 0) + "%", background: C.gold, borderRadius: 3, transition: "width 0.3s" }} />
+                      </div>
+                      <div style={{ display: "flex", gap: 16, fontSize: 11, color: C.muted, marginTop: 4 }}>
+                        <span>Fetched: {fetchProgress.fetched || 0}</span>
+                        <span>Cached: {fetchProgress.cached || 0}</span>
+                        {(fetchProgress.errors || 0) > 0 && <span style={{ color: C.error }}>Errors: {fetchProgress.errors}</span>}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Fetch Result */}
+                  {fetchResult && (
+                    <Alert type="success" style={{ marginBottom: 12 }}>
+                      Fetch complete! {fetchResult.fetched} fetched, {fetchResult.cached} cached, {fetchResult.errors} errors ({fetchResult.duration_min} min)
+                    </Alert>
+                  )}
+
+                  {/* Buttons */}
+                  {!fetchResult && (
+                    <div style={{ display: "flex", gap: 12 }}>
+                      <Btn label={fetching ? "Fetching..." : "Fetch Discogs Data"} variant="gold" onClick={handleFetch} disabled={fetching} />
+                      <Btn label="Skip (use cached only)" variant="ghost" onClick={handleAnalyze} disabled={fetching || analyzing} />
+                    </div>
+                  )}
+                  {fetchResult && (
+                    <Btn label={analyzing ? "Analyzing..." : "Start Analysis"} onClick={handleAnalyze} disabled={analyzing} />
+                  )}
+                </div>
               </div>
             )}
           </div>

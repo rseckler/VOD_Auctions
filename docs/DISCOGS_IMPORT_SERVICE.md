@@ -1,21 +1,28 @@
 # Discogs Collection Import Service
 
+**Version:** 3.0
+**Datum:** 2026-04-09
+**Status:** In Entwicklung — Fetch-Step fehlt noch (siehe §3 "TODO")
+
 ## Zweck
 
 Genereller, wiederverwendbarer Importer für Discogs Collection Exports. Wird genutzt wenn VOD Sammlungen aufkauft — Verkäufer liefern ihren Discogs-Export (CSV oder Excel), der Service parsed die Datei, zieht Detaildaten von der Discogs API, gleicht gegen die bestehende Supabase-DB ab und importiert mit vollständigem Tracking.
 
+**Der gesamte Workflow läuft über die Admin UI** — kein Terminal/SSH nötig.
+
 ## Komponenten
 
-| Komponente | Pfad | Zweck |
-|-----------|------|-------|
-| Python CLI | `scripts/discogs_collection_import.py` | API-Fetching, Matching, Import (Haupt-Engine) |
-| Admin UI | `/app/discogs-import` (Operations Hub) | Upload, Preview, Commit über Browser |
-| Upload API | `backend/src/api/admin/discogs-import/upload/` | CSV/XLSX Parsing |
-| Analyze API | `backend/src/api/admin/discogs-import/analyze/` | DB-Matching |
-| Commit API | `backend/src/api/admin/discogs-import/commit/` | DB-Import |
-| History API | `backend/src/api/admin/discogs-import/history/` | Import-Übersicht |
-| DB Snapshots | `scripts/data/db_discogs_ids.json` + `db_unlinked_releases.json` | Offline-Match-Daten |
-| API Cache | `scripts/data/discogs_import_cache.json` | Gecachte Discogs-API-Responses |
+| Komponente | Pfad | Status | Zweck |
+|-----------|------|--------|-------|
+| Admin UI | `/app/discogs-import` (Operations Hub) | **Live** | Upload, Fetch, Analyse, Review, Import — kompletter Workflow |
+| Upload API | `backend/src/api/admin/discogs-import/upload/` | **Live** | CSV/XLSX Parsing (Collection + Inventory Formate) |
+| Fetch API | `backend/src/api/admin/discogs-import/fetch/` | **TODO** | Discogs API Fetch mit SSE Live-Progress |
+| Analyze API | `backend/src/api/admin/discogs-import/analyze/` | **Live** | DB-Matching gegen Snapshots |
+| Commit API | `backend/src/api/admin/discogs-import/commit/` | **Live** | DB-Import mit SSE Live-Progress |
+| History API | `backend/src/api/admin/discogs-import/history/` | **Live** | Import-Übersicht aus `import_log` |
+| Python CLI | `scripts/discogs_collection_import.py` | **Backup** | CLI-Alternative (nicht für Normalbetrieb) |
+| DB Snapshots | `scripts/data/db_discogs_ids.json` + `db_unlinked_releases.json` | **Live** | Offline-Match-Daten |
+| API Cache | `scripts/data/discogs_import_cache.json` | **Live** | Gecachte Discogs-API-Responses |
 
 ## Unterstützte Export-Formate
 
@@ -36,11 +43,62 @@ TAP 1,The Distributors,T.V. Me / Wireless,? Records ?,7",",1979,955745,Uncategor
 
 ### 3-Phasen-Ablauf
 
+### Kompletter Workflow (4 Schritte, alle in Admin UI)
+
 ```
-Phase 1: FETCH    — Export-Datei lesen + Discogs API abfragen (rate-limited, resumable)
-Phase 2: MATCH    — Gegen Supabase-DB abgleichen → EXISTING / LINKABLE / NEW / SKIPPED
-Phase 3: IMPORT   — Nach Bestätigung in DB schreiben mit Tracking
+Schritt 1: UPLOAD       — Export-Datei hochladen + parsen
+                          Admin UI → "Upload & Parse"
+                          Ergebnis: Row Count, Unique IDs, Format, Sample
+
+Schritt 2: FETCH        — Discogs API für jede Release abfragen        ← TODO (noch nicht in UI)
+                          Admin UI → "Fetch Discogs Data" (SSE Live-Progress)
+                          Holt: Bilder, Tracklist, Credits, Genres, Styles, Preise/Condition
+                          ~130 min für 2.619 Releases (2 API-Calls pro Release, 40 req/min)
+                          Resumable: überspringt bereits gecachte Releases
+                          Ergebnis: Voller API-Cache
+
+Schritt 3: ANALYSE      — Gegen DB abgleichen + Preview
+                          Admin UI → "Start Analysis"  
+                          Matching: Exact (discogs_id) → Fuzzy (Artist+Title+CatNo) → New
+                          Ergebnis: EXISTING / LINKABLE / NEW / SKIPPED mit Detail-Preview
+
+Schritt 4: IMPORT       — Nach Admin-Freigabe in DB schreiben
+                          Admin UI → Review (Checkboxen, Detail-Preview) → "Approve & Import"
+                          SSE Live-Progress (aktueller Artikel, Fortschrittsbalken)
+                          Ergebnis: Releases in DB + import_log Tracking
 ```
+
+### Schritt 2 Detail: Discogs API Fetch (TODO)
+
+Neue API Route `POST /admin/discogs-import/fetch` mit SSE:
+
+**Für jede `discogs_id` werden 2 API-Calls gemacht:**
+1. `GET /releases/{id}` → Title, Year, Country, Artists, Labels, Formats, Tracklist, Genres, Styles, Images, Notes, Community, lowest_price
+2. `GET /marketplace/price_suggestions/{id}` → Preise pro Condition (M, NM, VG+, VG, G+, G, F, P)
+
+**Rate Limit:** 40 req/min (Discogs erlaubt 60, Sicherheitsmarge)
+**Dauer:** ~1,5 Sekunden pro Release (2 Calls + Rate Limit Wait) → ~65 min pro 2.619 Releases
+**Cache:** `scripts/data/discogs_import_cache.json` — gleiche Datei die Analyse + Python nutzen
+**Resumable:** Releases die schon im Cache sind werden übersprungen
+**SSE Events:** `{ type: "progress", current: 42, total: 2619, artist: "39 Clocks", title: "Pain It Dark" }`
+
+**Admin UI Darstellung:**
+```
+┌─────────────────────────────────────────────────────────┐
+│ Step 2: Fetch Discogs Data                              │
+│                                                         │
+│ 2.619 releases to fetch (20 already cached)             │
+│ Estimated time: ~128 minutes                            │
+│                                                         │
+│ [Fetch Discogs Data]    [Skip → Use cached only]        │
+│                                                         │
+│ 39 Clocks — Pain It Dark                                │
+│ [████████░░░░░░░░░░░░░░] 42 / 2619 (1.6%)              │
+│ ~125 min remaining                                      │
+└─────────────────────────────────────────────────────────┘
+```
+
+**"Skip → Use cached only"** für den Fall dass der Cache schon von einem früheren Import existiert.
 
 ### Matching-Strategie (3-stufig)
 
@@ -67,79 +125,49 @@ Jeder Import-Lauf wird in der `import_log` Tabelle protokolliert:
 
 → Nachvollziehbar: "Diese 621 Releases kamen am 09.04.2026 aus Sammlung Müller."
 
-## Nutzung: Python CLI
+## Nutzung: Admin UI (Primär)
+
+Der komplette Workflow läuft über die Admin UI unter `admin.vod-auctions.com/app/discogs-import`:
+
+### Schritt 1: Upload & Parse
+1. Operations Hub → "Discogs Collection Import"
+2. Datei (CSV/XLSX) per Dropzone hochladen
+3. Collection Name eingeben (z.B. "Sammlung Müller")
+4. "Upload & Parse" → Summary: Row Count, Unique IDs, Format
+
+### Schritt 2: Fetch Discogs Data (TODO — noch nicht in UI)
+5. "Fetch Discogs Data" → SSE Live-Progress (aktueller Artikel, Fortschrittsbalken, ETA)
+6. Holt für jede Release: Bilder, Tracklist, Credits, Genres, Preise pro Condition
+7. ~130 min für 2.619 Releases, resumable, überspringt gecachte Releases
+8. Alternative: "Skip → Use cached only" wenn Cache von früherem Import existiert
+
+### Schritt 3: Analyse & Preview
+9. "Start Analysis" → Matching gegen DB: EXISTING / LINKABLE / NEW / SKIPPED
+10. Detail-Preview pro Release: Cover, Tracklist, Credits, Genres, Preise, Labels
+11. Checkboxen zur Auswahl (Default: alle ON)
+
+### Schritt 4: Import Settings & Approve
+12. Condition Dropdown (Default: VG+/VG+)
+13. Inventory Toggle (Default: ON = Stock 1)
+14. Price Markup (Default: VG+ × 1.2)
+15. "Approve & Import" → SSE Live-Progress → Releases in DB
+
+### History Tab
+- Vergangene Imports mit Datum, Collection, Counters (Inserted/Linked/Updated/Skipped)
+
+### Performance
+- **API Fetch:** 40 req/min, 2 Calls pro Release → ~20 Releases/min → ~130 min für 2.619
+- **Resumable:** gecachte Releases werden übersprungen
+- **Cache:** `scripts/data/discogs_import_cache.json`
+
+## Nutzung: Python CLI (Backup)
+
+Das Python CLI Script ist die Backup-Alternative falls die Admin UI nicht nutzbar ist:
 
 ```bash
 cd scripts && source venv/bin/activate
-
-# Simulation (default) — kein DB-Write
-python3 discogs_collection_import.py \
-  --file ../discogs/VOD_discogs_export.xlsx \
-  --collection "VOD Eigenbestand"
-
-# Mit Markdown-Report
-python3 discogs_collection_import.py \
-  --file ../discogs/export.csv \
-  --collection "Sammlung Müller" \
-  --limit 20 \
-  --report ../discogs/report.md
-
-# Echter Import
-python3 discogs_collection_import.py \
-  --file ../discogs/export.xlsx \
-  --collection "Sammlung Müller" \
-  --commit
-
-# Nur Cache nutzen (kein API-Fetch)
-python3 discogs_collection_import.py \
-  --file ../discogs/export.xlsx \
-  --collection "Test" \
-  --skip-fetch
-```
-
-### CLI-Optionen
-
-| Flag | Default | Beschreibung |
-|------|---------|-------------|
-| `--file` | *required* | Pfad zur Export-Datei (.csv oder .xlsx) |
-| `--collection` | *required* | Name der Sammlung (für Tracking) |
-| `--commit` | `false` | Tatsächlich in DB schreiben |
-| `--skip-fetch` | `false` | API-Cache nutzen, nicht neu fetchen |
-| `--limit N` | alle | Nur erste N Einträge verarbeiten |
-| `--report FILE` | — | Markdown-Report speichern |
-
-### Performance
-
-- **API Rate Limit:** 40 req/min (Discogs erlaubt 60, Sicherheitsmarge)
-- **Dauer:** ~1 min pro 40 Releases (z.B. 2.619 IDs ≈ 66 min)
-- **Resumable:** Bei Abbruch (Ctrl+C) wird Progress gespeichert, nächster Lauf setzt fort
-- **Cache:** API-Responses werden in `data/discogs_import_cache.json` gespeichert
-
-## Nutzung: Admin UI
-
-1. **Operations Hub** → "Discogs Collection Import" Karte klicken
-2. **Upload Tab:**
-   - Datei (CSV/XLSX) per Dropzone hochladen
-   - Collection Name eingeben (z.B. "Sammlung Müller")
-   - "Upload & Parse" → Summary (Rows, Unique IDs, Format)
-   - "Start Analysis" → Matching gegen DB
-3. **Analysis Tab:**
-   - StatsGrid: EXISTING / LINKABLE / NEW / SKIPPED
-   - Collapsible Tabellen mit allen Einträgen pro Kategorie
-   - Discogs-IDs verlinkt zu discogs.com
-   - "Confirm Import" → DB-Write
-4. **History Tab:**
-   - Vergangene Imports mit Datum, Collection, Counters
-
-### Hinweis: API-Daten
-
-Die Admin UI nutzt **gecachte API-Daten** aus `scripts/data/discogs_import_cache.json`. Für neue Sammlungen muss zuerst das Python CLI laufen um die API-Daten zu fetchen:
-
-```bash
-# 1. Zuerst: API-Daten fetchen (dauert ~1h für 2.500 Releases)
-python3 discogs_collection_import.py --file ../discogs/export.xlsx --collection "Test"
-
-# 2. Dann: Admin UI nutzen für Preview + Commit
+python3 discogs_collection_import.py --file ../discogs/export.xlsx --collection "Sammlung Müller"          # Simulation
+python3 discogs_collection_import.py --file ../discogs/export.xlsx --collection "Sammlung Müller" --commit  # Import
 ```
 
 ## DB-Snapshots aktualisieren
