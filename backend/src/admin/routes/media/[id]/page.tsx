@@ -348,27 +348,12 @@ function NotesAndTracklist({ description, tracklist }: {
 }) {
   if (!description && !tracklist) return null
 
-  // Parse tracklist: try JSONB array first, then extract from text
   let parsedTracks: ParsedTrack[] = []
   let notesText: string | null = null
 
-  // 1. Try to extract tracklist from description (HTML text with embedded tracklist)
-  if (description) {
-    const extracted = extractTracklistFromText(description)
-    if (extracted.tracks.length > 0) {
-      parsedTracks = extracted.tracks
-      notesText = extracted.remainingCredits
-    } else {
-      // Just clean the HTML
-      const cleaned = cleanRawText(description)
-      notesText = cleaned.length > 0 ? cleaned.join('\n') : null
-    }
-  }
-
-  // 2. If no tracklist from description, try JSONB tracklist field
-  if (parsedTracks.length === 0 && tracklist) {
+  // 1. Try JSONB tracklist field first (most reliable source)
+  if (tracklist) {
     if (Array.isArray(tracklist)) {
-      // Try to parse unstructured flat format first
       const parsed = parseUnstructuredTracklist(tracklist as { position?: string | null; title?: string | null; duration?: string | null }[])
       if (parsed) {
         parsedTracks = parsed
@@ -386,10 +371,24 @@ function NotesAndTracklist({ description, tracklist }: {
       const extracted = extractTracklistFromText(tracklist)
       if (extracted.tracks.length > 0) {
         parsedTracks = extracted.tracks
-      } else {
-        const cleaned = cleanRawText(tracklist)
-        notesText = notesText ? notesText + '\n\n' + cleaned.join('\n') : cleaned.join('\n')
       }
+    }
+  }
+
+  // 2. Clean description for Notes — strip any tracklist data from it
+  if (description) {
+    const extracted = extractTracklistFromText(description)
+    if (extracted.tracks.length > 0) {
+      // Description contained tracklist data — use remaining text as notes
+      notesText = extracted.remainingCredits
+      // If no JSONB tracklist was found, use the one extracted from description
+      if (parsedTracks.length === 0) {
+        parsedTracks = extracted.tracks
+      }
+    } else {
+      // No tracklist in description — just clean the HTML
+      const cleaned = cleanRawText(description)
+      notesText = cleaned.length > 0 ? cleaned.join('\n') : null
     }
   }
 
