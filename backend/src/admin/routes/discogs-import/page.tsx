@@ -659,7 +659,15 @@ function ReleaseList({
                   {row.year && <span>{row.year}</span>}
                   <span>{row.format}</span>
                   {showDbId && row.db_release_id && (
-                    <span style={T.mono}>{row.db_release_id}</span>
+                    <a
+                      href={`https://vod-auctions.com/catalog/${row.db_release_id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: C.gold, textDecoration: "none", ...T.mono }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {row.db_release_id}
+                    </a>
                   )}
                   <a
                     href={`https://www.discogs.com/release/${row.discogs_id}`}
