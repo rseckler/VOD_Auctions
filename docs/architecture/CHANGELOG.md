@@ -11,6 +11,8 @@ Jeder Git-Tag entspricht einem Snapshot des Gesamtsystems. Feature Flags zeigen 
 | Version | Datum | Platform Mode | Feature Flags aktiv (prod) | Milestone / Inhalt |
 |---------|-------|--------------|---------------------------|-------------------|
 | **v1.0.0** | TBD | `live` | ERP: TBD | RSE-78: Erster öffentlicher Launch |
+| **v1.0.0-rc8** | 2026-04-09 | `beta_test` | — | Discogs Import v2: Full Enrichment, Admin Approval, Condition/Inventory, Live Progress |
+| **v1.0.0-rc7** | 2026-04-09 | `beta_test` | — | Discogs Collection Importer v1: CLI + Admin UI + 4 API Routes |
 | **v1.0.0-rc6** | 2026-04-07 | `beta_test` | — | Sync Robustness v2, Email Overhaul, Feature-Flag-Infrastruktur, ERP Konzept v5.0, Staging DB, UI/UX Pass, Sentry, Redis, R2 CDN, CRM, Pre-Launch System |
 | **v1.0.0-rc5** | 2026-03 | `beta_test` | — | Sync Dashboard + Change Log Tab |
 | **v1.0.0-rc4** | 2026-03 | `beta_test` | — | Diverse Bugfixes |
@@ -44,6 +46,43 @@ Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Rel
 - **Patch Release** (`v1.0.x`): Kritische Bugfixes zwischen geplanten Releases
 - **Tagging-Workflow:** `git tag -a vX.Y.Z -m "Release vX.Y.Z: <Kurzname>"` → `git push origin vX.Y.Z`
 - **Tag-Zeitpunkt:** Direkt nach Deploy + Smoke-Test auf Production — nicht vor dem Deploy
+
+---
+
+## 2026-04-09 (evening) — Discogs Import v2: Full Enrichment + Admin Approval
+
+Erweitert den Discogs Collection Importer um volle Datenübernahme und Admin-Freigabe-Workflow.
+
+### Erweiterte Datenübernahme (v2)
+- **Bilder** → `Image` Tabelle mit `source='discogs'` + `Release.coverImage`
+- **Beschreibung** → `Release.description` (aus Discogs `notes`)
+- **Format-Detail** → `Release.legacy_format_detail` (z.B. `"Vinyl, 7", 45 RPM"`)
+- **Credits** → `ReleaseArtist` mit Roles + `Release.credits` als Text
+- **Alle Labels** → erstes = `labelId`, weitere = `Release.additional_labels` JSONB
+- **Genres/Styles** → `Release.genres TEXT[]` + `Release.styles TEXT[]`
+- **Preise mit History** → `Release.discogs_price_history` JSONB (Zeitstempel + Quelle pro Eintrag)
+- **Source-Tracking** → `Release.data_source = 'discogs_import'`, `Image.source = 'discogs'`
+
+### Admin-Freigabe
+- Checkbox pro Release (alle default ON), Kategorie-Checkbox für Select All/None
+- Detail-Preview aufklappbar: Cover-Thumbnail, Tracklist, Credits, Genres/Styles, Format, Labels, Preise, Beschreibung, Quelle+Datum
+- DB-Release-ID als klickbarer Gold-Link zum Storefront-Katalog
+- "Approve & Import (X selected)" — nur ausgewählte werden importiert
+
+### Import Settings
+- **Condition Dropdown** (Default: VG+/VG+) → `media_condition` + `sleeve_condition`
+- **Inventory Toggle** (Default: ON=1, OFF=0) → `inventory`
+
+### Live Import Progress
+- SSE-Stream zeigt nach Klick auf "Approve & Import" live den aktuellen Artikel
+- Fortschrittsbalken + Counter (z.B. "1.234 / 2.619")
+
+### Schema-Migration
+5 neue Spalten auf `Release` (genres, styles, discogs_price_history, additional_labels, data_source) + `Image.source`. Migration: `backend/scripts/migrations/2026-04-09_discogs_import_v2.sql`.
+
+### Fixes
+- Body-Size-Limit für Upload-Route auf 5 MB erhöht (base64-encoded Excel > default 100 KB)
+- DB-Snapshot-Dateien (`db_discogs_ids.json`, `db_unlinked_releases.json`) auf VPS kopiert
 
 ---
 
