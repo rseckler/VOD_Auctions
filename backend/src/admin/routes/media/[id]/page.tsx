@@ -89,6 +89,167 @@ type ImageEntry = {
   sort_order: number | null
 }
 
+// ─── HTML Cleaning & Tracklist Parsing (ported from storefront/src/lib/utils.ts) ─
+
+function cleanRawText(raw: string): string[] {
+  let text = raw
+    .replace(/\\r\\n/g, '\n')
+    .replace(/\\r/g, '\n')
+    .replace(/\\n/g, '\n')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\xA0/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&#39;/g, "'")
+    .replace(/&ndash;/g, '\u2013')
+    .replace(/&mdash;/g, '\u2014')
+    .replace(/&amp;/g, '&')
+
+  let lines = text.split('\n').map(line => line.replace(/\s+/g, ' ').trim())
+
+  lines = lines.reduce<string[]>((acc, line) => {
+    if (line === '') {
+      if (acc.length > 0 && acc[acc.length - 1] !== '') acc.push('')
+    } else {
+      acc.push(line)
+    }
+    return acc
+  }, [])
+
+  // Merge Discogs fragment suffixes
+  const prefixed: string[] = []
+  for (let k = 0; k < lines.length; k++) {
+    const line = lines[k]
+    if (line === '*' && prefixed.length > 0) {
+      let prevIdx = prefixed.length - 1
+      while (prevIdx >= 0 && prefixed[prevIdx] === '') prevIdx--
+      if (prevIdx >= 0) { prefixed[prevIdx] += ' *'; continue }
+    }
+    if (line === '/' && prefixed.length > 0) {
+      let prevIdx = prefixed.length - 1
+      while (prevIdx >= 0 && prefixed[prevIdx] === '') prevIdx--
+      let next = k + 1
+      while (next < lines.length && lines[next] === '') next++
+      if (prevIdx >= 0 && next < lines.length) { prefixed[prevIdx] += ' / ' + lines[next]; k = next; continue }
+    }
+    prefixed.push(line)
+  }
+
+  // Merge fragmented "Role \n – \n Name" patterns
+  const merged: string[] = []
+  for (let i = 0; i < prefixed.length; i++) {
+    const line = prefixed[i]
+    if (/^[\u2013\-\u2014]+$/.test(line) && merged.length > 0) {
+      let next = i + 1
+      while (next < prefixed.length && prefixed[next] === '') next++
+      if (next < prefixed.length) {
+        let prevIdx = merged.length - 1
+        while (prevIdx >= 0 && merged[prevIdx] === '') prevIdx--
+        if (prevIdx >= 0) merged[prevIdx] += ' \u2013 ' + prefixed[next]
+        i = next
+      }
+    } else {
+      merged.push(line)
+    }
+  }
+
+  return merged.filter(Boolean)
+}
+
+const POSITION_RE = /^([A-Z]{1,2}\d{0,2}[a-z]?|\d{1,2})\.?$/
+const DURATION_RE = /^\d{1,3}:\d{2}$/
+
+type ParsedTrack = { position?: string; title: string; duration?: string }
+
+function extractTracklistFromText(raw: string): { tracks: ParsedTrack[]; remainingCredits: string | null } {
+  const lines = cleanRawText(raw)
+  if (lines.length === 0) return { tracks: [], remainingCredits: null }
+
+  const tracks: ParsedTrack[] = []
+  const creditLines: string[] = []
+  let i = 0
+
+  while (i < lines.length) {
+    const line = lines[i]
+
+    if (DURATION_RE.test(line)) {
+      let peek = i + 1
+      while (peek < lines.length && lines[peek] === '') peek++
+      if (peek < lines.length && POSITION_RE.test(lines[peek])) {
+        if (tracks.length > 0 && !tracks[tracks.length - 1].duration) tracks[tracks.length - 1].duration = line
+        i++; continue
+      }
+    }
+
+    if (POSITION_RE.test(line)) {
+      const position = line
+      let title: string | null = null
+      let duration: string | undefined
+
+      let j = i + 1
+      while (j < lines.length && lines[j] === '') j++
+      if (j < lines.length && !POSITION_RE.test(lines[j]) && !DURATION_RE.test(lines[j])) {
+        title = lines[j]; j++
+        while (j < lines.length && lines[j] === '') j++
+        if (j < lines.length && DURATION_RE.test(lines[j])) { duration = lines[j]; j++ }
+      }
+
+      if (title) { tracks.push({ position, title, duration }); i = j; continue }
+    }
+
+    if (line !== '') creditLines.push(line)
+    i++
+  }
+
+  if (tracks.length > 0 && creditLines.length > 0) {
+    const lastCredit = creditLines[creditLines.length - 1]
+    if (DURATION_RE.test(lastCredit) && !tracks[tracks.length - 1].duration) {
+      tracks[tracks.length - 1].duration = lastCredit
+      creditLines.pop()
+    }
+  }
+
+  if (tracks.length < 2) return { tracks: [], remainingCredits: raw }
+
+  return { tracks, remainingCredits: creditLines.length > 0 ? creditLines.join('\n') : null }
+}
+
+const FLAT_POS_RE = /^[A-Z]{0,2}\d{0,2}$/
+const FLAT_DUR_RE = /^\d{1,3}:\d{2}$/
+
+function parseUnstructuredTracklist(
+  tracks: { position?: string | null; title?: string | null; duration?: string | null }[]
+): ParsedTrack[] | null {
+  if (!tracks || tracks.length < 3) return null
+
+  const result: ParsedTrack[] = []
+  let i = 0
+
+  while (i < tracks.length) {
+    const t0 = (tracks[i]?.title || tracks[i]?.position || "").trim()
+    const t1 = (tracks[i + 1]?.title || tracks[i + 1]?.position || "").trim()
+    const t2 = (tracks[i + 2]?.title || tracks[i + 2]?.position || "").trim()
+
+    const t0isPos = t0.length > 0 && t0.length <= 4 && FLAT_POS_RE.test(t0)
+    const t1isTitle = t1.length > 0 && !FLAT_POS_RE.test(t1) && !FLAT_DUR_RE.test(t1)
+    const t2isDur = t2.length > 0 && FLAT_DUR_RE.test(t2)
+
+    if (t0isPos && t1isTitle && t2isDur && i + 2 < tracks.length) {
+      result.push({ position: t0, title: t1, duration: t2 }); i += 3; continue
+    }
+    if (t0isPos && t1isTitle && i + 1 < tracks.length) {
+      result.push({ position: t0, title: t1 }); i += 2; continue
+    }
+    i++
+  }
+
+  return result.length >= 2 ? result : null
+}
+
+// ─── Data ─────────────────────────────────────────────────────────────────────
+
 const CONDITION_OPTIONS: { value: string; label: string }[] = [
   { value: "M",   label: "Mint" },
   { value: "NM",  label: "Near Mint" },
@@ -165,6 +326,97 @@ const tdStyle: React.CSSProperties = {
   ...T.body,
   borderBottom: `1px solid ${C.border}`,
   verticalAlign: "top",
+}
+
+// ─── Tracklist Row ───────────────────────────────────────────────────────────
+
+function TrackRow({ track, index }: { track: ParsedTrack; index: number }) {
+  return (
+    <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
+      <span style={{ color: C.muted, minWidth: 30, textAlign: "right", flexShrink: 0 }}>{track.position || `${index + 1}.`}</span>
+      <span style={{ flex: 1, color: C.text }}>{track.title}</span>
+      {track.duration && <span style={{ color: C.muted, flexShrink: 0 }}>{track.duration}</span>}
+    </div>
+  )
+}
+
+// ─── Notes + Tracklist Section ───────────────────────────────────────────────
+
+function NotesAndTracklist({ description, tracklist }: {
+  description: string | null
+  tracklist: { position?: string; title?: string; duration?: string }[] | string | null
+}) {
+  if (!description && !tracklist) return null
+
+  // Parse tracklist: try JSONB array first, then extract from text
+  let parsedTracks: ParsedTrack[] = []
+  let notesText: string | null = null
+
+  // 1. Try to extract tracklist from description (HTML text with embedded tracklist)
+  if (description) {
+    const extracted = extractTracklistFromText(description)
+    if (extracted.tracks.length > 0) {
+      parsedTracks = extracted.tracks
+      notesText = extracted.remainingCredits
+    } else {
+      // Just clean the HTML
+      const cleaned = cleanRawText(description)
+      notesText = cleaned.length > 0 ? cleaned.join('\n') : null
+    }
+  }
+
+  // 2. If no tracklist from description, try JSONB tracklist field
+  if (parsedTracks.length === 0 && tracklist) {
+    if (Array.isArray(tracklist)) {
+      // Try to parse unstructured flat format first
+      const parsed = parseUnstructuredTracklist(tracklist as { position?: string | null; title?: string | null; duration?: string | null }[])
+      if (parsed) {
+        parsedTracks = parsed
+      } else {
+        // Already structured — clean titles of any HTML
+        parsedTracks = tracklist
+          .filter((t) => t.title)
+          .map((t) => ({
+            position: t.position,
+            title: cleanRawText(t.title || "").join(" "),
+            duration: t.duration,
+          }))
+      }
+    } else if (typeof tracklist === "string") {
+      const extracted = extractTracklistFromText(tracklist)
+      if (extracted.tracks.length > 0) {
+        parsedTracks = extracted.tracks
+      } else {
+        const cleaned = cleanRawText(tracklist)
+        notesText = notesText ? notesText + '\n\n' + cleaned.join('\n') : cleaned.join('\n')
+      }
+    }
+  }
+
+  const hasNotes = notesText && notesText.trim().length > 0
+  const hasTracks = parsedTracks.length > 0
+  if (!hasNotes && !hasTracks) return null
+
+  const columns = hasNotes && hasTracks ? "1fr 1fr" : "1fr"
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: columns, gap: S.gap.xl, marginBottom: S.sectionGap }}>
+      {hasNotes && (
+        <div style={cardStyle}>
+          <SectionHeader title="Notes" style={{ marginTop: 0 }} />
+          <div style={{ ...T.body, whiteSpace: "pre-wrap", lineHeight: 1.5, marginTop: S.gap.md }}>{notesText}</div>
+        </div>
+      )}
+      {hasTracks && (
+        <div style={cardStyle}>
+          <SectionHeader title="Tracklist" count={parsedTracks.length} style={{ marginTop: 0 }} />
+          <div style={{ ...T.body, lineHeight: 1.5, marginTop: S.gap.md }}>
+            {parsedTracks.map((t, i) => <TrackRow key={i} track={t} index={i} />)}
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -510,31 +762,7 @@ const MediaDetailPage = () => {
       </div>
 
       {/* Notes + Tracklist */}
-      {(release.description || release.tracklist) && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: S.gap.xl, marginBottom: S.sectionGap }}>
-          {release.description && (
-            <div style={cardStyle}>
-              <SectionHeader title="Notes" style={{ marginTop: 0 }} />
-              <div style={{ ...T.body, whiteSpace: "pre-wrap", lineHeight: 1.5, marginTop: S.gap.md }}>{release.description}</div>
-            </div>
-          )}
-          {release.tracklist && (
-            <div style={cardStyle}>
-              <SectionHeader title="Tracklist" style={{ marginTop: 0 }} />
-              <div style={{ ...T.body, lineHeight: 1.5, marginTop: S.gap.md }}>
-                {Array.isArray(release.tracklist)
-                  ? release.tracklist.map((t, i) => (
-                      <div key={i} style={{ display: "flex", gap: 8, marginBottom: 4 }}>
-                        <span style={{ color: C.muted, minWidth: 30, textAlign: "right" }}>{t.position || `${i + 1}.`}</span>
-                        <span style={{ flex: 1 }}>{t.title}</span>
-                        {t.duration && <span style={{ color: C.muted }}>{t.duration}</span>}
-                      </div>))
-                  : typeof release.tracklist === "string" ? release.tracklist : JSON.stringify(release.tracklist, null, 2)}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+      <NotesAndTracklist description={release.description} tracklist={release.tracklist} />
 
       {/* Sync History */}
       <div style={{ ...cardStyle, marginBottom: S.sectionGap }}>
