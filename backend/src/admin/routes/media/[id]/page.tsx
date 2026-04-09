@@ -328,6 +328,12 @@ const labelStyle: React.CSSProperties = {
 
 const valueStyle: React.CSSProperties = {
   ...T.body,
+  fontWeight: 500,
+  background: C.card,
+  padding: "6px 10px",
+  borderRadius: S.radius.sm,
+  border: `1px solid ${C.border}`,
+  minHeight: 32,
 }
 
 const localInputStyle: React.CSSProperties = {
@@ -449,6 +455,8 @@ const MediaDetailPage = () => {
   const [inventory, setInventory] = useState<string>("")
   const [shippingTypeId, setShippingTypeId] = useState<string>("")
   const [shippingTypes, setShippingTypes] = useState<Array<{ id: string; name: string; default_weight_grams: number }>>([])
+  const [locations, setLocations] = useState<Array<{ id: string; code: string; name: string }>>([])
+  const [locationId, setLocationId] = useState<string>("")
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
 
   const goLightbox = useCallback((dir: "prev" | "next") => {
@@ -474,11 +482,13 @@ const MediaDetailPage = () => {
     Promise.all([
       fetch(`/admin/media/${id}`, { credentials: "include" }).then((r) => r.json()),
       fetch("/admin/shipping/item-types", { credentials: "include" }).then((r) => r.json()).catch(() => ({ item_types: [] })),
-    ]).then(([d, st]) => {
+      fetch("/admin/erp/locations", { credentials: "include" }).then((r) => r.json()).catch(() => ({ locations: [] })),
+    ]).then(([d, st, loc]) => {
         setRelease(d.release || null)
         setSyncHistory(d.sync_history || [])
         setImages(d.images || [])
         setShippingTypes(st.item_types || [])
+        setLocations((loc.locations || []).filter((l: { is_active: boolean }) => l.is_active))
         if (d.release) {
           setEstimatedValue(d.release.estimated_value != null ? String(d.release.estimated_value) : "")
           setMediaCondition(d.release.media_condition || "")
@@ -487,6 +497,7 @@ const MediaDetailPage = () => {
           setDirectPrice(d.release.direct_price != null ? String(d.release.direct_price) : "")
           setInventory(d.release.inventory != null ? String(d.release.inventory) : "")
           setShippingTypeId(d.release.shipping_item_type_id || "")
+          setLocationId(d.release.warehouse_location_id || "")
         }
         setLoading(false)
       })
@@ -510,6 +521,7 @@ const MediaDetailPage = () => {
       body.direct_price = directPrice !== "" ? parseFloat(directPrice) : null
       body.inventory = inventory !== "" ? parseInt(inventory) : null
       body.shipping_item_type_id = shippingTypeId || null
+      body.warehouse_location_id = locationId || null
 
       const res = await fetch(`/admin/media/${id}`, {
         method: "POST",
@@ -710,8 +722,8 @@ const MediaDetailPage = () => {
             </div>
           )}
         </div>
-        {shippingTypes.length > 0 && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: S.gap.lg, marginTop: S.gap.lg }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: S.gap.lg, marginTop: S.gap.lg }}>
+          {shippingTypes.length > 0 && (
             <div>
               <div style={labelStyle}>Shipping Type (override)</div>
               <select value={shippingTypeId} onChange={(e) => setShippingTypeId(e.target.value)} style={localSelectStyle}>
@@ -719,8 +731,17 @@ const MediaDetailPage = () => {
                 {shippingTypes.map((t) => (<option key={t.id} value={t.id}>{t.name} ({t.default_weight_grams}g)</option>))}
               </select>
             </div>
-          </div>
-        )}
+          )}
+          {locations.length > 0 && (
+            <div>
+              <div style={labelStyle}>Storage Location</div>
+              <select value={locationId} onChange={(e) => setLocationId(e.target.value)} style={localSelectStyle}>
+                <option value="">-- Not assigned --</option>
+                {locations.map((l) => (<option key={l.id} value={l.id}>{l.code} — {l.name}</option>))}
+              </select>
+            </div>
+          )}
+        </div>
         <div style={{ display: "flex", alignItems: "center", gap: S.gap.md, marginTop: S.gap.lg }}>
           <Btn label={saving ? "Saving..." : "Save"} variant="gold" onClick={handleSave} disabled={saving} style={{ padding: "8px 24px", fontSize: 13 }} />
         </div>

@@ -12,7 +12,7 @@ export async function GET(
   )
   const { id } = req.params
 
-  // Fetch release with artist + label + format + pressorga
+  // Fetch release with artist + label + format + pressorga + erp location
   const release = await pgConnection("Release")
     .select(
       "Release.*",
@@ -20,12 +20,14 @@ export async function GET(
       "Label.name as label_name",
       "Format.name as format_name",
       "Format.format_group",
-      "PressOrga.name as pressorga_name"
+      "PressOrga.name as pressorga_name",
+      "erp_inventory_item.warehouse_location_id"
     )
     .leftJoin("Artist", "Release.artistId", "Artist.id")
     .leftJoin("Label", "Release.labelId", "Label.id")
     .leftJoin("Format", "Release.format_id", "Format.id")
     .leftJoin("PressOrga", "Release.pressOrgaId", "PressOrga.id")
+    .leftJoin("erp_inventory_item", "Release.id", "erp_inventory_item.release_id")
     .where("Release.id", id)
     .first()
 
@@ -68,6 +70,7 @@ export async function POST(
     "direct_price",
     "inventory",
     "shipping_item_type_id",
+    "warehouse_location_id",
   ]
   const updates: Record<string, any> = {}
 
@@ -99,10 +102,30 @@ export async function POST(
     }
   }
 
+  // Handle warehouse_location_id separately (lives on erp_inventory_item, not Release)
+  const warehouseLocationId = req.body.warehouse_location_id
+  delete updates.warehouse_location_id
+
   updates.updatedAt = new Date()
 
   await pgConnection("Release").where("id", id).update(updates)
 
-  const release = await pgConnection("Release").where("id", id).first()
+  // Update or create erp_inventory_item if warehouse_location_id was provided
+  if (warehouseLocationId !== undefined) {
+    const existing = await pgConnection("erp_inventory_item").where("release_id", id).first()
+    if (existing) {
+      await pgConnection("erp_inventory_item").where("release_id", id).update({
+        warehouse_location_id: warehouseLocationId || null,
+        updated_at: new Date(),
+      })
+    }
+    // Don't auto-create erp_inventory_item — that's done via ERP inventory session
+  }
+
+  const release = await pgConnection("Release")
+    .select("Release.*", "erp_inventory_item.warehouse_location_id")
+    .leftJoin("erp_inventory_item", "Release.id", "erp_inventory_item.release_id")
+    .where("Release.id", id)
+    .first()
   res.json({ release })
 }
