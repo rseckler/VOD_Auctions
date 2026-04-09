@@ -11,6 +11,7 @@ Jeder Git-Tag entspricht einem Snapshot des Gesamtsystems. Feature Flags zeigen 
 | Version | Datum | Platform Mode | Feature Flags aktiv (prod) | Milestone / Inhalt |
 |---------|-------|--------------|---------------------------|-------------------|
 | **v1.0.0** | TBD | `live` | ERP: TBD | RSE-78: Erster öffentlicher Launch |
+| **v1.0.0-rc11** | 2026-04-09 | `beta_test` | — | Admin Media Detail: Light-Mode Design System + Tracklist/Notes Parsing |
 | **v1.0.0-rc10** | 2026-04-09 | `beta_test` | — | 3-Tier Pricing Model, Discogs Price Suggestions, Condition/Inventory/Markup Settings |
 | **v1.0.0-rc9** | 2026-04-09 | `beta_test` | — | Discogs Import v2: Full Enrichment, Admin Approval, Condition/Inventory, Live Progress |
 | **v1.0.0-rc8** | 2026-04-09 | `beta_test` | — | Fullscreen Image Lightbox |
@@ -48,6 +49,37 @@ Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Rel
 - **Patch Release** (`v1.0.x`): Kritische Bugfixes zwischen geplanten Releases
 - **Tagging-Workflow:** `git tag -a vX.Y.Z -m "Release vX.Y.Z: <Kurzname>"` → `git push origin vX.Y.Z`
 - **Tag-Zeitpunkt:** Direkt nach Deploy + Smoke-Test auf Production — nicht vor dem Deploy
+
+---
+
+## 2026-04-09 (late night) — Admin Media Detail: Light-Mode + Tracklist Parsing (rc11)
+
+Komplette Überarbeitung der Admin Media-Detail-Seite (`/app/media/[id]`). Dark-Mode-Farben entfernt, Shared Design System übernommen, Tracklist/Notes-Parsing aus Frontend portiert.
+
+### Design System Migration
+- **Dark-Mode entfernt:** Lokales `COLORS`-Objekt (`#1c1915`, `#2a2520`, `#3a3530`) durch shared `C`/`T`/`S` Tokens ersetzt
+- **Light-Mode:** Weiße Karten, helle Borders (`#e7e5e4`), transparenter Hintergrund — konsistent mit Medusa Shell
+- **Shared Components:** `PageHeader`, `PageShell`, `SectionHeader`, `Badge`, `Btn`, `Toast`, `EmptyState` statt Custom-Implementierungen
+- **`useAdminNav()`:** Back-Navigation zu Catalog Hub eingebaut
+- **Gold-Farbe korrigiert:** `#b8860b` (Design Guide) statt `#d4a54a`
+
+### Tracklist/Notes Parsing (aus Frontend portiert)
+- **Datenquelle-Hierarchie** (spiegelt `storefront/src/app/catalog/[id]/page.tsx` Zeilen 145-161):
+  1. `credits` → primäre Quelle via `extractTracklistFromText()` (HTML → strukturierte Tracks)
+  2. JSONB `tracklist` → Fallback via `parseUnstructuredTracklist()` (flache Einträge → gruppiert)
+  3. `description` → nur als Notes (Fallback wenn keine Credits)
+- **Credits-Rest** wird als Notes angezeigt (Tracklist-Zeilen entfernt → keine Doppelung)
+- **HTML-Stripping:** `<table>`, `<span class="MuiTypography-root">`, `<br>` etc. vollständig entfernt
+- **HTML-Entity-Decoding:** `&amp;`, `&ndash;`, `&mdash;`, `&#39;`, `&nbsp;` + Deutsche Umlaute (`&auml;`→ä, `&ouml;`→ö, `&uuml;`→ü, `&szlig;`→ß)
+- **Erweiterte Position-Erkennung:** `1-1`, `2-3` (Bindestrich-Positionen) neben Standard A1/B2/1/12
+- **Section-Header:** `-I-`, `-II-`, `-III-` und "Tracklist"-Label werden übersprungen statt als Tracks angezeigt
+
+### Commits
+- `4a2b761` Admin: migrate media detail page to light-mode design system
+- `c898134` Admin: parse HTML in notes/tracklist like storefront does
+- `50c7fd5` Fix: deduplicate tracklist — prefer JSONB field, strip from description
+- `f9eaad4` Fix: use credits field for tracklist extraction (mirror storefront logic)
+- `b4a1f97` Fix: handle 1-1/2-3 positions, section headers (-I-), German HTML entities
 
 ---
 
