@@ -1,6 +1,10 @@
 import { Component, useCallback, useEffect, useState } from "react"
 import type { ErrorInfo, ReactNode } from "react"
 import { useParams } from "react-router-dom"
+import { useAdminNav } from "../../../components/admin-nav"
+import { C, T, S, fmtDate, fmtMoney, BADGE_VARIANTS } from "../../../components/admin-tokens"
+import { PageHeader, PageShell, SectionHeader } from "../../../components/admin-layout"
+import { Badge, Btn, Toast, EmptyState, inputStyle, selectStyle } from "../../../components/admin-ui"
 
 class ErrorBoundary extends Component<
   { children: ReactNode },
@@ -16,7 +20,7 @@ class ErrorBoundary extends Component<
   render() {
     if (this.state.error) {
       return (
-        <div style={{ padding: 24, color: "#ef4444" }}>
+        <div style={{ padding: 24, color: C.error }}>
           <h2>Error in Media Detail:</h2>
           <pre style={{ whiteSpace: "pre-wrap", fontSize: 13 }}>
             {this.state.error.message}
@@ -85,27 +89,15 @@ type ImageEntry = {
   sort_order: number | null
 }
 
-const COLORS = {
-  bg: "#1c1915",
-  card: "#2a2520",
-  text: "#1a1714",
-  muted: "#a09080",
-  gold: "#d4a54a",
-  border: "#3a3530",
-  hover: "#353025",
-  success: "#22c55e",
-  error: "#ef4444",
-}
-
 const CONDITION_OPTIONS: { value: string; label: string }[] = [
-  { value: "M",   label: "M — Mint" },
-  { value: "NM",  label: "NM — Near Mint" },
-  { value: "VG+", label: "VG+ — Very Good Plus" },
-  { value: "VG",  label: "VG — Very Good" },
-  { value: "G+",  label: "G+ — Good Plus" },
-  { value: "G",   label: "G — Good" },
-  { value: "F",   label: "F — Fair" },
-  { value: "P",   label: "P — Poor" },
+  { value: "M",   label: "Mint" },
+  { value: "NM",  label: "Near Mint" },
+  { value: "VG+", label: "Very Good Plus" },
+  { value: "VG",  label: "Very Good" },
+  { value: "G+",  label: "Good Plus" },
+  { value: "G",   label: "Good" },
+  { value: "F",   label: "Fair" },
+  { value: "P",   label: "Poor" },
 ]
 
 const formatDate = (d: string | null) => {
@@ -124,15 +116,68 @@ const formatPrice = (p: number | string | null) => {
   return `\u20AC${Number(p).toFixed(2)}`
 }
 
+const AUCTION_STATUS_VARIANT: Record<string, keyof typeof BADGE_VARIANTS> = {
+  available: "success",
+  reserved: "warning",
+  in_auction: "info",
+  sold: "purple",
+  unsold: "neutral",
+}
+
+// ─── Styles ──────────────────────────────────────────────────────────────────
+
+const cardStyle: React.CSSProperties = {
+  background: "#fff",
+  borderRadius: S.radius.lg,
+  padding: S.cardPadding,
+  border: `1px solid ${C.border}`,
+}
+
+const labelStyle: React.CSSProperties = {
+  ...T.micro,
+  marginBottom: 4,
+}
+
+const valueStyle: React.CSSProperties = {
+  ...T.body,
+}
+
+const localInputStyle: React.CSSProperties = {
+  ...inputStyle,
+  maxWidth: "none",
+}
+
+const localSelectStyle: React.CSSProperties = {
+  ...selectStyle,
+  maxWidth: "none",
+}
+
+const thStyle: React.CSSProperties = {
+  padding: S.cellPadding,
+  textAlign: "left",
+  ...T.micro,
+  borderBottom: `1px solid ${C.border}`,
+  whiteSpace: "nowrap",
+}
+
+const tdStyle: React.CSSProperties = {
+  padding: S.cellPadding,
+  ...T.body,
+  borderBottom: `1px solid ${C.border}`,
+  verticalAlign: "top",
+}
+
+// ─── Component ───────────────────────────────────────────────────────────────
+
 const MediaDetailPage = () => {
+  useAdminNav()
   const { id } = useParams<{ id: string }>()
   const [release, setRelease] = useState<Release | null>(null)
   const [syncHistory, setSyncHistory] = useState<SyncEntry[]>([])
   const [images, setImages] = useState<ImageEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [saveSuccess, setSaveSuccess] = useState(false)
-  const [saveError, setSaveError] = useState("")
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null)
 
   const [estimatedValue, setEstimatedValue] = useState<string>("")
   const [mediaCondition, setMediaCondition] = useState<string>("")
@@ -192,8 +237,7 @@ const MediaDetailPage = () => {
   const handleSave = async () => {
     if (!id) return
     setSaving(true)
-    setSaveSuccess(false)
-    setSaveError("")
+    setToast(null)
     try {
       const body: Record<string, unknown> = {}
       if (estimatedValue !== "") body.estimated_value = parseFloat(estimatedValue)
@@ -214,41 +258,37 @@ const MediaDetailPage = () => {
       if (res.ok) {
         const d = await res.json()
         setRelease(d.release || release)
-        setSaveSuccess(true)
-        setTimeout(() => setSaveSuccess(false), 3000)
+        setToast({ message: "Saved successfully", type: "success" })
       } else {
         const err = await res.json().catch(() => ({}))
-        setSaveError(err.message || "Failed to save")
+        setToast({ message: err.message || "Failed to save", type: "error" })
       }
     } catch {
-      setSaveError("Network error")
+      setToast({ message: "Network error", type: "error" })
     } finally {
       setSaving(false)
     }
   }
 
-  const cardStyle: React.CSSProperties = { background: COLORS.card, borderRadius: "8px", padding: "20px", border: `1px solid ${COLORS.border}` }
-  const labelStyle: React.CSSProperties = { fontSize: "12px", color: COLORS.muted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }
-  const valueStyle: React.CSSProperties = { fontSize: "14px", color: COLORS.text }
-  const inputStyle: React.CSSProperties = { background: COLORS.bg, border: `1px solid ${COLORS.border}`, borderRadius: "6px", padding: "8px 12px", color: COLORS.text, fontSize: "14px", outline: "none", width: "100%" }
-  const selectStyle: React.CSSProperties = { ...inputStyle, cursor: "pointer" }
-  const thStyle: React.CSSProperties = { padding: "8px 12px", textAlign: "left", fontSize: "12px", fontWeight: 600, color: COLORS.muted, textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: `1px solid ${COLORS.border}`, whiteSpace: "nowrap" }
-  const tdStyle: React.CSSProperties = { padding: "8px 12px", fontSize: "13px", color: COLORS.text, borderBottom: `1px solid ${COLORS.border}`, verticalAlign: "top" }
-
   if (loading) {
-    return (<div style={{ padding: "24px", background: COLORS.bg, minHeight: "100vh", color: COLORS.text, minWidth: 0, width: "100%", overflowX: "hidden", boxSizing: "border-box" }}><div style={{ color: COLORS.muted }}>Loading...</div></div>)
+    return (
+      <PageShell>
+        <div style={{ color: C.muted, padding: "40px 0", textAlign: "center" }}>Loading...</div>
+      </PageShell>
+    )
   }
 
   if (!release) {
     return (
-      <div style={{ padding: "24px", background: COLORS.bg, minHeight: "100vh", color: COLORS.text, minWidth: 0, width: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
-        <div style={{ color: COLORS.error }}>Release not found.</div>
-        <a href="/app/media" style={{ color: COLORS.gold, textDecoration: "none", marginTop: "12px", display: "inline-block" }}>&larr; Back to Overview</a>
-      </div>
+      <PageShell>
+        <EmptyState icon="🔍" title="Release not found" description="This release does not exist or was removed." />
+      </PageShell>
     )
   }
 
   const tapeMagUrl = release.tape_mag_url
+  const pageTitle = release.artist_name ? `${release.artist_name} \u2014 ${release.title}` : release.title
+  const pageSubtitle = [release.format, release.year, release.label_name].filter(Boolean).join(" \u00B7 ")
 
   const infoFields: [string, string | null | number][] = [
     ["Article No.", release.article_number],
@@ -269,163 +309,225 @@ const MediaDetailPage = () => {
   ]
 
   return (
-    <div style={{ padding: "24px", background: COLORS.bg, minHeight: "100vh", color: COLORS.text, minWidth: 0, width: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
-      <a href="/app/media" style={{ color: COLORS.gold, textDecoration: "none", fontSize: "14px", display: "inline-block", marginBottom: "16px" }}>&larr; Back to Overview</a>
+    <PageShell maxWidth={1100}>
+      <PageHeader
+        title={pageTitle}
+        subtitle={pageSubtitle}
+        badge={release.auction_status ? {
+          label: release.auction_status.replace(/_/g, " "),
+          color: AUCTION_STATUS_VARIANT[release.auction_status] === "success" ? C.success
+            : AUCTION_STATUS_VARIANT[release.auction_status] === "warning" ? C.warning
+            : AUCTION_STATUS_VARIANT[release.auction_status] === "info" ? C.blue
+            : AUCTION_STATUS_VARIANT[release.auction_status] === "purple" ? C.purple
+            : C.muted,
+        } : undefined}
+        actions={
+          <div style={{ display: "flex", gap: S.gap.sm }}>
+            <a href={`https://vod-auctions.com/catalog/${release.id}`} target="_blank" rel="noopener noreferrer" style={{ ...T.small, color: C.gold, textDecoration: "none" }}>
+              View in Catalog &#8599;
+            </a>
+            {tapeMagUrl && (
+              <a href={tapeMagUrl} target="_blank" rel="noopener noreferrer" style={{ ...T.small, color: C.gold, textDecoration: "none" }}>
+                tape-mag.com &#8599;
+              </a>
+            )}
+          </div>
+        }
+      />
 
-      <h1 style={{ fontSize: "24px", fontWeight: 700, marginBottom: "4px" }}>
-        {release.artist_name ? `${release.artist_name} \u2014 ` : ""}{release.title}
-      </h1>
-      <div style={{ fontSize: "14px", color: COLORS.muted, marginBottom: "24px" }}>
-        {[release.format, release.year, release.label_name].filter(Boolean).join(" \u00B7 ")}
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: "24px", marginBottom: "32px" }}>
+      {/* Image + Release Info */}
+      <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: S.gap.xl, marginBottom: S.sectionGap }}>
+        {/* Cover Image */}
         <div>
           {release.coverImage || images.length > 0 ? (
             <div style={{ position: "relative", cursor: "pointer" }} onClick={() => setLightboxIndex(0)}>
-              <img src={release.coverImage || images[0]?.url} alt={release.title} style={{ width: "100%", borderRadius: "8px", border: `1px solid ${COLORS.border}`, aspectRatio: "1", objectFit: "cover" }} />
+              <img
+                src={release.coverImage || images[0]?.url}
+                alt={release.title}
+                style={{ width: "100%", borderRadius: S.radius.lg, border: `1px solid ${C.border}`, aspectRatio: "1", objectFit: "cover" }}
+              />
               {images.length > 1 && (
-                <span style={{ position: "absolute", bottom: "8px", right: "8px", fontSize: "11px", fontFamily: "monospace", background: "rgba(0,0,0,0.6)", color: "rgba(255,255,255,0.9)", padding: "2px 8px", borderRadius: "12px", backdropFilter: "blur(4px)" }}>
+                <span style={{
+                  position: "absolute", bottom: 8, right: 8,
+                  fontSize: 11, fontFamily: "monospace",
+                  background: "rgba(0,0,0,0.6)", color: "rgba(255,255,255,0.9)",
+                  padding: "2px 8px", borderRadius: 12, backdropFilter: "blur(4px)",
+                }}>
                   1 / {images.length}
                 </span>
               )}
             </div>
           ) : (
-            <div style={{ width: "100%", aspectRatio: "1", borderRadius: "8px", background: COLORS.card, border: `1px solid ${COLORS.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "48px", color: COLORS.muted }}>&#9835;</div>
+            <div style={{
+              width: "100%", aspectRatio: "1", borderRadius: S.radius.lg,
+              background: C.card, border: `1px solid ${C.border}`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 48, color: C.muted,
+            }}>
+              &#9835;
+            </div>
           )}
           {images.length > 1 && (
             <>
-              <div style={{ fontSize: "12px", color: COLORS.muted, marginTop: "8px", marginBottom: "4px" }}>{images.length} images</div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "6px", maxHeight: "320px", overflowY: "auto" }}>
-                {images.slice(1).map((img, i) => (<img key={img.id} src={img.url} alt="" style={{ width: "100%", aspectRatio: "1", objectFit: "cover", borderRadius: "4px", border: `1px solid ${COLORS.border}`, cursor: "pointer" }} onClick={() => setLightboxIndex(i + 1)} />))}
+              <div style={{ ...T.small, marginTop: 8, marginBottom: 4 }}>{images.length} images</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, maxHeight: 320, overflowY: "auto" }}>
+                {images.slice(1).map((img, i) => (
+                  <img
+                    key={img.id}
+                    src={img.url}
+                    alt=""
+                    style={{
+                      width: "100%", aspectRatio: "1", objectFit: "cover",
+                      borderRadius: S.radius.sm, border: `1px solid ${C.border}`, cursor: "pointer",
+                    }}
+                    onClick={() => setLightboxIndex(i + 1)}
+                  />
+                ))}
               </div>
             </>
           )}
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-          <div style={cardStyle}>
-            <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: COLORS.gold }}>Release Information</h2>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-              {infoFields.map(([label, value]) => (<div key={label}><div style={labelStyle}>{label}</div><div style={valueStyle}>{value ?? "\u2014"}</div></div>))}
-            </div>
-            <div style={{ marginTop: "16px", paddingTop: "12px", borderTop: `1px solid ${COLORS.border}`, display: "flex", gap: "24px", flexWrap: "wrap" }}>
-              <div>
-                <div style={labelStyle}>Storefront</div>
-                <a href={`https://vod-auctions.com/catalog/${release.id}`} target="_blank" rel="noopener noreferrer" style={{ color: COLORS.gold, textDecoration: "none", fontSize: "13px" }}>
-                  View in Catalog &#8599;
-                </a>
+        {/* Release Information Card */}
+        <div style={cardStyle}>
+          <SectionHeader title="Release Information" style={{ marginTop: 0 }} />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: S.gap.lg, marginTop: S.gap.md }}>
+            {infoFields.map(([label, value]) => (
+              <div key={label as string}>
+                <div style={labelStyle}>{label}</div>
+                <div style={valueStyle}>{value ?? "\u2014"}</div>
               </div>
-              {tapeMagUrl && (
-                <div>
-                  <div style={labelStyle}>tape-mag.com</div>
-                  <a href={tapeMagUrl} target="_blank" rel="noopener noreferrer" style={{ color: COLORS.gold, textDecoration: "none", fontSize: "13px" }}>
-                    Open on tape-mag.com &#8599;
-                  </a>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div style={{ ...cardStyle, border: `1px solid ${COLORS.gold}40` }}>
-            <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: COLORS.gold }}>Edit Valuation</h2>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "16px" }}>
-              <div>
-                <div style={labelStyle}>Inventory (pcs)</div>
-                <input type="number" step="1" min="0" value={inventory} onChange={(e) => setInventory(e.target.value)} placeholder="0" style={inputStyle} />
-              </div>
-              <div>
-                <div style={labelStyle}>Estimated Value (&euro;)</div>
-                <input type="number" step="0.01" min="0" value={estimatedValue} onChange={(e) => setEstimatedValue(e.target.value)} placeholder="0.00" style={inputStyle} />
-              </div>
-              <div>
-                <div style={labelStyle}>Media Condition</div>
-                <select value={mediaCondition} onChange={(e) => setMediaCondition(e.target.value)} style={selectStyle}>
-                  <option value="">-- Select --</option>
-                  {CONDITION_OPTIONS.map((c) => (<option key={c.value} value={c.value}>{c.label}</option>))}
-                </select>
-              </div>
-              <div>
-                <div style={labelStyle}>Sleeve Condition</div>
-                <select value={sleeveCondition} onChange={(e) => setSleeveCondition(e.target.value)} style={selectStyle}>
-                  <option value="">-- Select --</option>
-                  {CONDITION_OPTIONS.map((c) => (<option key={c.value} value={c.value}>{c.label}</option>))}
-                </select>
-              </div>
-            </div>
-            <div style={{ fontSize: "11px", color: COLORS.muted, marginTop: "6px", lineHeight: "1.4" }}>
-              Discogs/Goldmine grading: <strong style={{ color: COLORS.text, fontWeight: 500 }}>M</strong> Mint &rarr; <strong style={{ color: COLORS.text, fontWeight: 500 }}>NM</strong> Near Mint &rarr; <strong style={{ color: COLORS.text, fontWeight: 500 }}>VG+</strong> Very Good Plus &rarr; <strong style={{ color: COLORS.text, fontWeight: 500 }}>VG</strong> Very Good &rarr; <strong style={{ color: COLORS.text, fontWeight: 500 }}>G+</strong> Good Plus &rarr; <strong style={{ color: COLORS.text, fontWeight: 500 }}>G</strong> Good &rarr; <strong style={{ color: COLORS.text, fontWeight: 500 }}>F</strong> Fair &rarr; <strong style={{ color: COLORS.text, fontWeight: 500 }}>P</strong> Poor
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginTop: "16px" }}>
-              <div>
-                <div style={labelStyle}>Sale Mode</div>
-                <select value={saleMode} onChange={(e) => setSaleMode(e.target.value)} style={selectStyle}>
-                  <option value="auction_only">Auction Only</option>
-                  <option value="direct_purchase">Direct Purchase</option>
-                  <option value="both">Both (Auction + Direct)</option>
-                </select>
-              </div>
-              {saleMode !== "auction_only" && (
-                <div>
-                  <div style={labelStyle}>Direct Price (&euro;)</div>
-                  <input type="number" step="0.01" min="0.01" value={directPrice} onChange={(e) => setDirectPrice(e.target.value)} placeholder="0.00" style={inputStyle} />
-                </div>
-              )}
-            </div>
-            {shippingTypes.length > 0 && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginTop: "16px" }}>
-                <div>
-                  <div style={labelStyle}>Shipping Type (override)</div>
-                  <select value={shippingTypeId} onChange={(e) => setShippingTypeId(e.target.value)} style={selectStyle}>
-                    <option value="">Auto (from format)</option>
-                    {shippingTypes.map((t) => (<option key={t.id} value={t.id}>{t.name} ({t.default_weight_grams}g)</option>))}
-                  </select>
-                </div>
-              </div>
-            )}
-            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "16px" }}>
-              <button onClick={handleSave} disabled={saving} style={{ padding: "8px 24px", borderRadius: "6px", border: "none", background: COLORS.gold, color: "#1c1915", fontSize: "14px", fontWeight: 600, cursor: saving ? "wait" : "pointer", opacity: saving ? 0.7 : 1 }}>
-                {saving ? "Saving..." : "Save"}
-              </button>
-              {saveSuccess && <span style={{ color: COLORS.success, fontSize: "13px" }}>Saved successfully</span>}
-              {saveError && <span style={{ color: COLORS.error, fontSize: "13px" }}>{saveError}</span>}
-            </div>
-          </div>
-
-          <div style={cardStyle}>
-            <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: COLORS.gold }}>Discogs Data</h2>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr 1fr 1fr", gap: "16px" }}>
-              <div><div style={labelStyle}>Discogs ID</div><div style={valueStyle}>{release.discogs_id ? (<a href={`https://www.discogs.com/release/${release.discogs_id}`} target="_blank" rel="noopener noreferrer" style={{ color: COLORS.gold, textDecoration: "none" }}>{release.discogs_id} &#8599;</a>) : "\u2014"}</div></div>
-              <div><div style={labelStyle}>Low</div><div style={{ ...valueStyle, color: release.discogs_lowest_price ? COLORS.gold : COLORS.muted }}>{formatPrice(release.discogs_lowest_price)}</div></div>
-              <div><div style={labelStyle}>Median</div><div style={{ ...valueStyle, color: release.discogs_median_price ? COLORS.gold : COLORS.muted }}>{formatPrice(release.discogs_median_price)}</div></div>
-              <div><div style={labelStyle}>High</div><div style={{ ...valueStyle, color: release.discogs_highest_price ? COLORS.gold : COLORS.muted }}>{formatPrice(release.discogs_highest_price)}</div></div>
-              <div><div style={labelStyle}>For Sale</div><div style={valueStyle}>{release.discogs_num_for_sale ?? "\u2014"}</div></div>
-              <div><div style={labelStyle}>Have</div><div style={valueStyle}>{release.discogs_have ?? "\u2014"}</div></div>
-              <div><div style={labelStyle}>Want</div><div style={valueStyle}>{release.discogs_want ?? "\u2014"}</div></div>
-            </div>
-            <div style={{ marginTop: "12px" }}><div style={labelStyle}>Last Discogs Sync</div><div style={{ ...valueStyle, fontSize: "13px" }}>{formatDate(release.discogs_last_synced)}</div></div>
+            ))}
           </div>
         </div>
       </div>
 
+      {/* Edit Valuation */}
+      <div style={{ ...cardStyle, border: `1px solid ${C.gold}30`, marginBottom: S.sectionGap }}>
+        <SectionHeader title="Edit Valuation" style={{ marginTop: 0 }} />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: S.gap.lg, marginTop: S.gap.md }}>
+          <div>
+            <div style={labelStyle}>Inventory (pcs)</div>
+            <input type="number" step="1" min="0" value={inventory} onChange={(e) => setInventory(e.target.value)} placeholder="0" style={localInputStyle} />
+          </div>
+          <div>
+            <div style={labelStyle}>Estimated Value (&euro;)</div>
+            <input type="number" step="0.01" min="0" value={estimatedValue} onChange={(e) => setEstimatedValue(e.target.value)} placeholder="0.00" style={localInputStyle} />
+          </div>
+          <div>
+            <div style={labelStyle}>Media Condition</div>
+            <select value={mediaCondition} onChange={(e) => setMediaCondition(e.target.value)} style={localSelectStyle}>
+              <option value="">-- Select --</option>
+              {CONDITION_OPTIONS.map((c) => (<option key={c.value} value={c.value}>{c.value} \u2014 {c.label}</option>))}
+            </select>
+          </div>
+          <div>
+            <div style={labelStyle}>Sleeve Condition</div>
+            <select value={sleeveCondition} onChange={(e) => setSleeveCondition(e.target.value)} style={localSelectStyle}>
+              <option value="">-- Select --</option>
+              {CONDITION_OPTIONS.map((c) => (<option key={c.value} value={c.value}>{c.value} \u2014 {c.label}</option>))}
+            </select>
+          </div>
+        </div>
+        <div style={{ ...T.small, marginTop: 6, lineHeight: 1.4 }}>
+          Discogs/Goldmine grading: <strong style={{ color: C.text, fontWeight: 500 }}>M</strong> Mint &rarr; <strong style={{ color: C.text, fontWeight: 500 }}>NM</strong> Near Mint &rarr; <strong style={{ color: C.text, fontWeight: 500 }}>VG+</strong> Very Good Plus &rarr; <strong style={{ color: C.text, fontWeight: 500 }}>VG</strong> Very Good &rarr; <strong style={{ color: C.text, fontWeight: 500 }}>G+</strong> Good Plus &rarr; <strong style={{ color: C.text, fontWeight: 500 }}>G</strong> Good &rarr; <strong style={{ color: C.text, fontWeight: 500 }}>F</strong> Fair &rarr; <strong style={{ color: C.text, fontWeight: 500 }}>P</strong> Poor
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: S.gap.lg, marginTop: S.gap.lg }}>
+          <div>
+            <div style={labelStyle}>Sale Mode</div>
+            <select value={saleMode} onChange={(e) => setSaleMode(e.target.value)} style={localSelectStyle}>
+              <option value="auction_only">Auction Only</option>
+              <option value="direct_purchase">Direct Purchase</option>
+              <option value="both">Both (Auction + Direct)</option>
+            </select>
+          </div>
+          {saleMode !== "auction_only" && (
+            <div>
+              <div style={labelStyle}>Direct Price (&euro;)</div>
+              <input type="number" step="0.01" min="0.01" value={directPrice} onChange={(e) => setDirectPrice(e.target.value)} placeholder="0.00" style={localInputStyle} />
+            </div>
+          )}
+        </div>
+        {shippingTypes.length > 0 && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: S.gap.lg, marginTop: S.gap.lg }}>
+            <div>
+              <div style={labelStyle}>Shipping Type (override)</div>
+              <select value={shippingTypeId} onChange={(e) => setShippingTypeId(e.target.value)} style={localSelectStyle}>
+                <option value="">Auto (from format)</option>
+                {shippingTypes.map((t) => (<option key={t.id} value={t.id}>{t.name} ({t.default_weight_grams}g)</option>))}
+              </select>
+            </div>
+          </div>
+        )}
+        <div style={{ display: "flex", alignItems: "center", gap: S.gap.md, marginTop: S.gap.lg }}>
+          <Btn label={saving ? "Saving..." : "Save"} variant="gold" onClick={handleSave} disabled={saving} style={{ padding: "8px 24px", fontSize: 13 }} />
+        </div>
+      </div>
+
+      {/* Discogs Data */}
+      <div style={{ ...cardStyle, marginBottom: S.sectionGap }}>
+        <SectionHeader title="Discogs Data" style={{ marginTop: 0 }} />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr 1fr 1fr", gap: S.gap.lg, marginTop: S.gap.md }}>
+          <div>
+            <div style={labelStyle}>Discogs ID</div>
+            <div style={valueStyle}>
+              {release.discogs_id ? (
+                <a href={`https://www.discogs.com/release/${release.discogs_id}`} target="_blank" rel="noopener noreferrer" style={{ color: C.gold, textDecoration: "none" }}>
+                  {release.discogs_id} &#8599;
+                </a>
+              ) : "\u2014"}
+            </div>
+          </div>
+          <div>
+            <div style={labelStyle}>Low</div>
+            <div style={{ ...valueStyle, color: release.discogs_lowest_price ? C.success : C.muted }}>{formatPrice(release.discogs_lowest_price)}</div>
+          </div>
+          <div>
+            <div style={labelStyle}>Median</div>
+            <div style={{ ...valueStyle, color: release.discogs_median_price ? C.gold : C.muted }}>{formatPrice(release.discogs_median_price)}</div>
+          </div>
+          <div>
+            <div style={labelStyle}>High</div>
+            <div style={{ ...valueStyle, color: release.discogs_highest_price ? C.error : C.muted }}>{formatPrice(release.discogs_highest_price)}</div>
+          </div>
+          <div>
+            <div style={labelStyle}>For Sale</div>
+            <div style={valueStyle}>{release.discogs_num_for_sale ?? "\u2014"}</div>
+          </div>
+          <div>
+            <div style={labelStyle}>Have</div>
+            <div style={valueStyle}>{release.discogs_have ?? "\u2014"}</div>
+          </div>
+          <div>
+            <div style={labelStyle}>Want</div>
+            <div style={valueStyle}>{release.discogs_want ?? "\u2014"}</div>
+          </div>
+        </div>
+        <div style={{ marginTop: S.gap.md }}>
+          <div style={labelStyle}>Last Discogs Sync</div>
+          <div style={{ ...valueStyle, ...T.small }}>{formatDate(release.discogs_last_synced)}</div>
+        </div>
+      </div>
+
+      {/* Notes + Tracklist */}
       {(release.description || release.tracklist) && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", marginBottom: "32px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: S.gap.xl, marginBottom: S.sectionGap }}>
           {release.description && (
             <div style={cardStyle}>
-              <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "12px", color: COLORS.gold }}>Notes</h2>
-              <div style={{ fontSize: "13px", color: COLORS.text, whiteSpace: "pre-wrap", lineHeight: "1.5" }}>{release.description}</div>
+              <SectionHeader title="Notes" style={{ marginTop: 0 }} />
+              <div style={{ ...T.body, whiteSpace: "pre-wrap", lineHeight: 1.5, marginTop: S.gap.md }}>{release.description}</div>
             </div>
           )}
           {release.tracklist && (
             <div style={cardStyle}>
-              <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "12px", color: COLORS.gold }}>Tracklist</h2>
-              <div style={{ fontSize: "13px", color: COLORS.text, lineHeight: "1.5" }}>
+              <SectionHeader title="Tracklist" style={{ marginTop: 0 }} />
+              <div style={{ ...T.body, lineHeight: 1.5, marginTop: S.gap.md }}>
                 {Array.isArray(release.tracklist)
-                  ? release.tracklist.map((t: { position?: string; title?: string; duration?: string }, i: number) => (
-                      <div key={i} style={{ display: "flex", gap: "8px", marginBottom: "4px" }}>
-                        <span style={{ color: COLORS.muted, minWidth: "30px", textAlign: "right" }}>{t.position || `${i + 1}.`}</span>
+                  ? release.tracklist.map((t, i) => (
+                      <div key={i} style={{ display: "flex", gap: 8, marginBottom: 4 }}>
+                        <span style={{ color: C.muted, minWidth: 30, textAlign: "right" }}>{t.position || `${i + 1}.`}</span>
                         <span style={{ flex: 1 }}>{t.title}</span>
-                        {t.duration && <span style={{ color: COLORS.muted }}>{t.duration}</span>}
+                        {t.duration && <span style={{ color: C.muted }}>{t.duration}</span>}
                       </div>))
                   : typeof release.tracklist === "string" ? release.tracklist : JSON.stringify(release.tracklist, null, 2)}
               </div>
@@ -434,57 +536,43 @@ const MediaDetailPage = () => {
         </div>
       )}
 
-      {/* Lightbox Overlay */}
-      {lightboxIndex !== null && images.length > 0 && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.92)", backdropFilter: "blur(8px)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }} onClick={() => setLightboxIndex(null)}>
-          {/* Close button */}
-          <button onClick={() => setLightboxIndex(null)} style={{ position: "absolute", top: "16px", right: "16px", background: "rgba(0,0,0,0.08)", border: "none", color: "white", fontSize: "24px", width: "40px", height: "40px", borderRadius: "8px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>&times;</button>
-
-          {/* Main image */}
-          <div style={{ position: "relative", maxWidth: "85vw", maxHeight: "75vh", display: "flex", alignItems: "center", justifyContent: "center" }} onClick={(e) => e.stopPropagation()}>
-            <img src={images[lightboxIndex].url} alt="" style={{ maxWidth: "85vw", maxHeight: "75vh", objectFit: "contain", borderRadius: "8px" }} />
-
-            {/* Prev/Next */}
-            {images.length > 1 && (
-              <>
-                <button onClick={() => goLightbox("prev")} style={{ position: "absolute", left: "-48px", top: "50%", transform: "translateY(-50%)", background: "rgba(0,0,0,0.08)", border: "none", color: "white", fontSize: "20px", width: "36px", height: "36px", borderRadius: "50%", cursor: "pointer" }}>&lsaquo;</button>
-                <button onClick={() => goLightbox("next")} style={{ position: "absolute", right: "-48px", top: "50%", transform: "translateY(-50%)", background: "rgba(0,0,0,0.08)", border: "none", color: "white", fontSize: "20px", width: "36px", height: "36px", borderRadius: "50%", cursor: "pointer" }}>&rsaquo;</button>
-              </>
-            )}
-          </div>
-
-          {/* Counter */}
-          {images.length > 1 && (
-            <div style={{ color: "rgba(255,255,255,0.6)", fontSize: "13px", marginTop: "12px" }}>{lightboxIndex + 1} / {images.length}</div>
-          )}
-
-          {/* Thumbnail strip */}
-          {images.length > 1 && (
-            <div style={{ display: "flex", gap: "6px", marginTop: "8px", overflowX: "auto", maxWidth: "90vw", padding: "4px" }} onClick={(e) => e.stopPropagation()}>
-              {images.map((img, i) => (
-                <img key={img.id} src={img.url} alt="" onClick={() => setLightboxIndex(i)} style={{ width: "48px", height: "48px", objectFit: "cover", borderRadius: "6px", cursor: "pointer", flexShrink: 0, border: i === lightboxIndex ? `2px solid ${COLORS.gold}` : "2px solid transparent", opacity: i === lightboxIndex ? 1 : 0.5 }} />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      <div style={cardStyle}>
-        <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: COLORS.gold }}>Sync History</h2>
+      {/* Sync History */}
+      <div style={{ ...cardStyle, marginBottom: S.sectionGap }}>
+        <SectionHeader title="Sync History" count={syncHistory.length} style={{ marginTop: 0 }} />
         {syncHistory.length === 0 ? (
-          <div style={{ color: COLORS.muted, fontSize: "14px", padding: "20px 0", textAlign: "center" }}>No sync entries yet.</div>
+          <EmptyState icon="🔄" title="No sync entries yet" description="Sync history will appear here after the first sync run." />
         ) : (
-          <div style={{ overflow: "auto" }}>
+          <div style={{ overflow: "auto", marginTop: S.gap.md }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead><tr><th style={thStyle}>Date</th><th style={thStyle}>Type</th><th style={thStyle}>Changes</th><th style={thStyle}>Status</th><th style={thStyle}>Error</th></tr></thead>
+              <thead>
+                <tr style={{ background: C.card }}>
+                  <th style={thStyle}>Date</th>
+                  <th style={thStyle}>Type</th>
+                  <th style={thStyle}>Changes</th>
+                  <th style={thStyle}>Status</th>
+                  <th style={thStyle}>Error</th>
+                </tr>
+              </thead>
               <tbody>
                 {syncHistory.slice(0, 20).map((entry) => (
-                  <tr key={entry.id}>
+                  <tr key={entry.id} style={{ transition: "background 0.1s" }} onMouseOver={(e) => (e.currentTarget.style.background = C.hover)} onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}>
                     <td style={tdStyle}>{formatDate(entry.sync_date)}</td>
-                    <td style={tdStyle}><span style={{ padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: 600, background: entry.sync_type === "legacy" ? "#3b82f620" : "#a855f720", color: entry.sync_type === "legacy" ? "#60a5fa" : "#c084fc" }}>{entry.sync_type}</span></td>
-                    <td style={{ ...tdStyle, maxWidth: "400px" }}>{entry.changes ? (<pre style={{ fontSize: "11px", color: COLORS.muted, margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "monospace" }}>{JSON.stringify(entry.changes, null, 2)}</pre>) : (<span style={{ color: COLORS.muted }}>{"\u2014"}</span>)}</td>
-                    <td style={tdStyle}><span style={{ color: entry.status === "success" ? COLORS.success : COLORS.error }}>{entry.status === "success" ? "\u2713" : "\u2717"} {entry.status}</span></td>
-                    <td style={{ ...tdStyle, fontSize: "12px", color: COLORS.error }}>{entry.error_message || "\u2014"}</td>
+                    <td style={tdStyle}>
+                      <Badge label={entry.sync_type} variant={entry.sync_type === "legacy" ? "info" : "purple"} />
+                    </td>
+                    <td style={{ ...tdStyle, maxWidth: 400 }}>
+                      {entry.changes ? (
+                        <pre style={{ ...T.mono, color: C.muted, margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                          {JSON.stringify(entry.changes, null, 2)}
+                        </pre>
+                      ) : (
+                        <span style={{ color: C.muted }}>{"\u2014"}</span>
+                      )}
+                    </td>
+                    <td style={tdStyle}>
+                      <Badge label={entry.status} variant={entry.status === "success" ? "success" : "error"} />
+                    </td>
+                    <td style={{ ...tdStyle, fontSize: 12, color: C.error }}>{entry.error_message || "\u2014"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -492,7 +580,94 @@ const MediaDetailPage = () => {
           </div>
         )}
       </div>
-    </div>
+
+      {/* Lightbox Overlay */}
+      {lightboxIndex !== null && images.length > 0 && (
+        <div
+          style={{
+            position: "fixed", inset: 0, zIndex: 9999,
+            background: "rgba(0,0,0,0.92)", backdropFilter: "blur(8px)",
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          }}
+          onClick={() => setLightboxIndex(null)}
+        >
+          <button
+            onClick={() => setLightboxIndex(null)}
+            style={{
+              position: "absolute", top: 16, right: 16,
+              background: "rgba(255,255,255,0.1)", border: "none", color: "white",
+              fontSize: 24, width: 40, height: 40, borderRadius: 8, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}
+          >
+            &times;
+          </button>
+
+          <div
+            style={{ position: "relative", maxWidth: "85vw", maxHeight: "75vh", display: "flex", alignItems: "center", justifyContent: "center" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img src={images[lightboxIndex].url} alt="" style={{ maxWidth: "85vw", maxHeight: "75vh", objectFit: "contain", borderRadius: 8 }} />
+
+            {images.length > 1 && (
+              <>
+                <button
+                  onClick={() => goLightbox("prev")}
+                  style={{
+                    position: "absolute", left: -48, top: "50%", transform: "translateY(-50%)",
+                    background: "rgba(255,255,255,0.1)", border: "none", color: "white",
+                    fontSize: 20, width: 36, height: 36, borderRadius: "50%", cursor: "pointer",
+                  }}
+                >
+                  &lsaquo;
+                </button>
+                <button
+                  onClick={() => goLightbox("next")}
+                  style={{
+                    position: "absolute", right: -48, top: "50%", transform: "translateY(-50%)",
+                    background: "rgba(255,255,255,0.1)", border: "none", color: "white",
+                    fontSize: 20, width: 36, height: 36, borderRadius: "50%", cursor: "pointer",
+                  }}
+                >
+                  &rsaquo;
+                </button>
+              </>
+            )}
+          </div>
+
+          {images.length > 1 && (
+            <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 13, marginTop: 12 }}>
+              {lightboxIndex + 1} / {images.length}
+            </div>
+          )}
+
+          {images.length > 1 && (
+            <div
+              style={{ display: "flex", gap: 6, marginTop: 8, overflowX: "auto", maxWidth: "90vw", padding: 4 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {images.map((img, i) => (
+                <img
+                  key={img.id}
+                  src={img.url}
+                  alt=""
+                  onClick={() => setLightboxIndex(i)}
+                  style={{
+                    width: 48, height: 48, objectFit: "cover",
+                    borderRadius: 6, cursor: "pointer", flexShrink: 0,
+                    border: i === lightboxIndex ? `2px solid ${C.gold}` : "2px solid transparent",
+                    opacity: i === lightboxIndex ? 1 : 0.5,
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Toast */}
+      {toast && <Toast message={toast.message} type={toast.type} onDone={() => setToast(null)} />}
+    </PageShell>
   )
 }
 
