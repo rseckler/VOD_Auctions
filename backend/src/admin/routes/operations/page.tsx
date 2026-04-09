@@ -467,6 +467,17 @@ function OperationsHub() {
           <SyncStatusContent discogs={discogsData} legacy={legacyData} loading={dataLoading} />
         </HubCard>
 
+        {/* Discogs Collection Import */}
+        <HubCard
+          icon="📀"
+          title="Discogs Collection Import"
+          description="Import releases from Discogs collection exports (CSV/Excel). Match, preview, and commit to DB."
+          statusLine="CSV + XLSX supported"
+          statusColor={C.muted}
+          href="/app/discogs-import"
+          actionLabel="Open Importer →"
+        />
+
         {/* Inventory Stocktake */}
         <HubCard
           icon="📦"

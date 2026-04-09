@@ -21,9 +21,18 @@ from collections import deque
 from pathlib import Path
 
 import requests as _requests
-import psycopg2
-import psycopg2.extras
 from dotenv import load_dotenv
+
+# psycopg2 is imported lazily to avoid build errors on systems without libpq
+psycopg2 = None
+
+def _ensure_psycopg2():
+    global psycopg2
+    if psycopg2 is None:
+        import psycopg2 as _pg
+        import psycopg2.extras
+        psycopg2 = _pg
+    return psycopg2
 
 # Load .env from parent directory (VOD_Auctions/.env)
 load_dotenv(Path(__file__).parent.parent / ".env")
@@ -273,12 +282,13 @@ def get_mysql_connection():
 
 def get_pg_connection():
     """Create PostgreSQL connection to Supabase."""
+    pg = _ensure_psycopg2()
     db_url = os.getenv("SUPABASE_DB_URL")
     if not db_url:
         print("ERROR: SUPABASE_DB_URL not set in .env")
         print("Get it from: Supabase Dashboard -> Settings -> Database -> Connection String (URI)")
         sys.exit(1)
-    return psycopg2.connect(db_url)
+    return pg.connect(db_url)
 
 
 # ---------------------------------------------------------------------------
