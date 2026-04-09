@@ -11,6 +11,7 @@ Jeder Git-Tag entspricht einem Snapshot des Gesamtsystems. Feature Flags zeigen 
 | Version | Datum | Platform Mode | Feature Flags aktiv (prod) | Milestone / Inhalt |
 |---------|-------|--------------|---------------------------|-------------------|
 | **v1.0.0** | TBD | `live` | ERP: TBD | RSE-78: Erster öffentlicher Launch |
+| **v1.0.0-rc12** | 2026-04-10 | `beta_test` | — | Media Detail: Field Contrast, Storage Location, Credits/Tracklist 1:1 Frontend-Logik |
 | **v1.0.0-rc11** | 2026-04-09 | `beta_test` | — | Admin Media Detail: Light-Mode Design System + Tracklist/Notes Parsing |
 | **v1.0.0-rc10** | 2026-04-09 | `beta_test` | — | 3-Tier Pricing Model, Discogs Price Suggestions, Condition/Inventory/Markup Settings |
 | **v1.0.0-rc9** | 2026-04-09 | `beta_test` | — | Discogs Import v2: Full Enrichment, Admin Approval, Condition/Inventory, Live Progress |
@@ -49,6 +50,52 @@ Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Rel
 - **Patch Release** (`v1.0.x`): Kritische Bugfixes zwischen geplanten Releases
 - **Tagging-Workflow:** `git tag -a vX.Y.Z -m "Release vX.Y.Z: <Kurzname>"` → `git push origin vX.Y.Z`
 - **Tag-Zeitpunkt:** Direkt nach Deploy + Smoke-Test auf Production — nicht vor dem Deploy
+
+---
+
+## 2026-04-10 — Media Detail: Field Contrast, Storage Location, Credits Fix (rc12)
+
+Fortführung der Admin Media-Detail-Überarbeitung. Visuelle Verbesserungen + Lagerort-Dropdown + Credits/Tracklist-Parsing komplett auf Frontend-Logik umgestellt.
+
+### Visueller Kontrast (Release Information)
+- Feldwerte haben jetzt `background: C.card`, `border`, `padding`, `fontWeight: 500` — klare Label/Value-Unterscheidung
+- Labels bleiben `T.micro` (10px, uppercase, muted)
+
+### Storage Location Dropdown
+- Neues Dropdown im Edit-Valuation-Bereich (aus `warehouse_location` Tabelle, nur aktive)
+- API: GET joined `erp_inventory_item` für `warehouse_location_id`, POST updatet `erp_inventory_item`
+- Kein Auto-Create von `erp_inventory_item` — nur Update bestehender Einträge
+
+### Credits/Tracklist-Parsing: 1:1 Frontend-Logik
+**Problem:** Eigene Heuristiken im Backend wichen vom Frontend ab → Doppelung, gemischte Daten, `description`-Fallback zeigte HTML als Credits.
+
+**Lösung:** Exakte Übernahme der Frontend-Logik (`storefront/src/app/catalog/[id]/page.tsx` Zeilen 149-161):
+
+```
+1. extracted = credits ? extractTracklistFromText(credits) : null
+2. effectiveTracklist = extracted?.tracks.length
+     ? extracted.tracks
+     : (tracklist?.length ? (parseUnstructuredTracklist(tracklist) ?? tracklist) : null)
+3. effectiveCredits = extracted?.tracks.length
+     ? extracted.remainingCredits
+     : credits
+```
+
+**Entfernt:**
+- `hasStructuredTracklist`-Heuristik
+- Track-Header-Stripping Regex
+- `description`-Fallback (Frontend nutzt `description` **nie** für Credits)
+- Alle eigenen Entscheidungsbäume
+
+**Hinzugefügt:**
+- `parseCredits()` — portiert aus Frontend, parsed "Role – Name" Muster (Discogs-Style)
+- Strukturierte Credits-Anzeige: Role/Name-Grid wenn Roles gefunden, Plain-Text-Fallback sonst
+
+### Commits
+- `f50e3e4` Admin: visual field contrast + storage location dropdown
+- `15143fb` Fix: structured credits display + strip track headers from credits
+- `7894921` Fix: mirror frontend tracklist/credits logic exactly (no description fallback)
+- `15b19bc` Fix: rename parsedTracks → effectiveTracklist (runtime error)
 
 ---
 

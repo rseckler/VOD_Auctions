@@ -426,21 +426,36 @@ import { DataTable } from "../../components/admin-table"
 
 Admin-Seiten die Release-Daten anzeigen (z.B. `/app/media/[id]`) MÜSSEN die gleiche Parsing-Logik wie das Storefront nutzen (`storefront/src/lib/utils.ts`).
 
-### Datenquelle-Hierarchie (verbindlich)
-1. `credits` → primäre Quelle via `extractTracklistFromText()` (HTML → strukturierte Tracks)
-2. JSONB `tracklist` → Fallback via `parseUnstructuredTracklist()` (flache Einträge → gruppiert)
-3. `description` → nur als Notes-Fallback (wenn keine Credits)
+### Logik (1:1 Frontend, verbindlich)
 
-### Parsing-Anforderungen
-- HTML-Tags vollständig strippen (`<table>`, `<span>`, `<br>`, etc.)
-- HTML-Entities dekodieren: `&amp;`, `&ndash;`, `&mdash;`, `&#39;`, `&nbsp;`, `&auml;`/`&ouml;`/`&uuml;`/`&szlig;`
-- Section-Headers (`-I-`, `-II-`, "Tracklist") überspringen
-- Positionen erkennen: `A1`, `B2`, `1`, `12`, `1-1`, `2-3` (Bindestrich-Format)
-- Credits-Rest als Notes anzeigen (keine Doppelung mit Tracklist)
+Exakte Übernahme aus `storefront/src/app/catalog/[id]/page.tsx` (Zeilen 149-161):
+
+```typescript
+// Step 1: Tracklist
+const extracted = credits ? extractTracklistFromText(credits) : null
+const effectiveTracklist = extracted?.tracks.length
+  ? extracted.tracks
+  : (tracklist?.length ? (parseUnstructuredTracklist(tracklist) ?? tracklist) : null)
+
+// Step 2: Credits
+const effectiveCredits = extracted?.tracks.length
+  ? extracted.remainingCredits
+  : credits
+
+// Step 3: Render — parseCredits(effectiveCredits) → Role/Name-Grid oder Plain-Text
+```
+
+**VERBOTEN:** `description` als Fallback für Credits/Tracklist. Frontend nutzt `description` nie dafür.
+
+### Parsing-Funktionen (portiert aus `storefront/src/lib/utils.ts`)
+- `cleanRawText()` — HTML-Stripping, Entity-Decoding (inkl. Deutsche Umlaute), Discogs-Fragment-Merging
+- `extractTracklistFromText()` — Position/Title/Duration aus Text extrahieren
+- `parseUnstructuredTracklist()` — Flache JSONB-Arrays gruppieren
+- `parseCredits()` — "Role – Name" / "Role by Name" / "Role: Name" Muster erkennen
 
 ### Referenz-Implementierung
 `backend/src/admin/routes/media/[id]/page.tsx` — `NotesAndTracklist` Komponente
 
 ---
 
-*Version 2.1 — Verbindlich für alle neuen und bestehenden Custom Admin Pages.*
+*Version 2.2 — Verbindlich für alle neuen und bestehenden Custom Admin Pages.*
