@@ -83,6 +83,28 @@ interface HistoryRun {
   skipped: number
 }
 
+// ─── Shared styles (must be before components that use them) ─────────────────
+
+const cellStyle: React.CSSProperties = {
+  ...T.body,
+  padding: S.cellPadding,
+  borderBottom: `1px solid ${C.border}`,
+}
+
+const thStyle: React.CSSProperties = {
+  ...T.micro,
+  color: C.muted,
+  padding: S.cellPadding,
+  borderBottom: `1px solid ${C.border}`,
+  textAlign: "left" as const,
+}
+
+const detailLabel: React.CSSProperties = {
+  ...T.micro,
+  color: C.muted,
+  marginBottom: 2,
+}
+
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 const DiscogsImportPage = () => {
@@ -968,11 +990,6 @@ function ReleaseDetail({ data, artist, title }: { data: NonNullable<MatchResult[
   )
 }
 
-const detailLabel: React.CSSProperties = {
-  ...T.micro,
-  color: C.muted,
-  marginBottom: 2,
-}
 
 // ─── History Tab ─────────────────────────────────────────────────────────────
 
@@ -1131,22 +1148,6 @@ function ResultTable({ rows, columns }: { rows: MatchResult[]; columns: Column[]
       )}
     </>
   )
-}
-
-// ─── Shared styles ───────────────────────────────────────────────────────────
-
-const cellStyle: React.CSSProperties = {
-  ...T.body,
-  padding: S.cellPadding,
-  borderBottom: `1px solid ${C.border}`,
-}
-
-const thStyle: React.CSSProperties = {
-  ...T.micro,
-  color: C.muted,
-  padding: S.cellPadding,
-  borderBottom: `1px solid ${C.border}`,
-  textAlign: "left" as const,
 }
 
 export default DiscogsImportPage
