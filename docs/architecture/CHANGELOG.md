@@ -47,6 +47,22 @@ Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Rel
 
 ---
 
+## 2026-04-09 — Fullscreen Image Lightbox
+
+Product-Image-Lightbox von kleinem Radix Dialog (max-w 896px, aspect-square) auf near-fullscreen Custom Portal umgebaut. Best-Practice-Recherche (Discogs, eBay, Etsy, Shopify Dawn) als Grundlage.
+
+### Änderungen
+- **`storefront/src/components/ImageGallery.tsx`** — Radix Dialog durch Custom Framer Motion Fullscreen-Overlay ersetzt
+  - Bild-Container: `max-w-[1400px]` + `height: min(75vh, 1200px)` (vorher: `max-w-4xl aspect-square`)
+  - Backdrop: `bg-black/90 backdrop-blur-sm` (vorher: `bg-black/50`)
+  - Thumbnails: 64px (vorher: 48px)
+  - Nav-Buttons: 48px (vorher: 44px)
+  - ESC-Key schließt Lightbox, Body Scroll Lock
+  - Smooth scale Animation (0.96→1.0) beim Bildwechsel
+  - Click-outside-to-close auf Backdrop
+
+---
+
 ## 2026-04-09 — Discogs Collection Importer
 
 Genereller, wiederverwendbarer Importer für Discogs Collection Exports. Nutzt VOD bei Sammlungs-Ankäufen: Verkäufer liefern Discogs-Export (CSV/XLSX), der Importer parsed, fetcht API-Daten, gleicht gegen bestehende DB ab und importiert mit vollem Tracking.
