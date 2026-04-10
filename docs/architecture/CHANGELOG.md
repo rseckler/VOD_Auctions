@@ -174,12 +174,29 @@ Mit Cover: 3.190 von 3.251 (**98%**).
 | `2df9c3a` | Track INSERT entfernt nonexistent `createdAt` column |
 | `974db03` | UX Fix: Resume-Banner via /history active_sessions statt nur localStorage |
 | `d022ac1` | Session Status Fix: 'analyzed' statt 'done' bei errors > 0 + preserve completed_batches_* |
+| `23a6529` | Next.js images whitelist: `**.discogs.com` (sonst Placeholders statt Cover) |
+| `e45c469` | Docs: rc16 CHANGELOG + Session Post-Mortem (Erstversion) |
+| `f59286e` | Catalog Category Filter: Discogs-Imports in vinyl/tapes sichtbar (format_id NULL Bug) |
+| `0754f66` | Discogs Import estimated_value auf ganze Euros runden (whole_euros_only Policy) |
+
+### Post-Import Fixes (Visibility + Policy)
+
+Nach dem erfolgreichen Import traten weitere User-facing Bugs auf die gefixt wurden:
+
+**Discogs Cover Images unsichtbar (Commit `23a6529`):**
+`next.config.ts` hatte nur `tape-mag.com` und die R2 CDN-Domain in `images.remotePatterns`. Next.js Image Component blockiert jede nicht-whitelisted Domain → alle Discogs-hotlinked Images zeigten Placeholders. Fix: `**.discogs.com` Wildcard (deckt `i.discogs.com`, `img.discogs.com`, `s.discogs.com`).
+
+**Catalog Category Filter Bug (Commit `f59286e`):**
+Die Catalog-Filter "vinyl" und "tapes" joinen auf die Legacy `Format`-Tabelle via `format_id`. Unsere Discogs-Imports setzen `format_id = NULL` (nur die `format` enum Spalte), sodass der JOIN NULL lieferte und `Format.kat = 2` alle **3.190 Discogs-Imports komplett ausschloss**. User-Report: "im Catalog finde ich Beerdigung / Tollwut nicht". Fix: OR-Clause die zusätzlich via `Release.format` enum matcht wenn `format_id IS NULL` (`LP` → vinyl, `CASSETTE`/`REEL` → tapes). Impact: +2.170 Vinyl-Releases (von 8.450 auf 10.620), +~100 Tapes. CD/VHS-Kategorien waren nicht betroffen weil die schon `Release.format` direkt nutzen.
+
+**Price Rounding (Commit `0754f66`):**
+User-Report: "wir haben ja nur ganze Preise - bitte auf oder abrunden". Platform-Policy `BID_CONFIG.whole_euros_only = true` verlangt ganzzahlige Preise überall. `buildPriceEntry` berechnete aber `estimated_value = Math.round(vgPlusPrice * priceMarkup * 100) / 100` (2 Dezimalstellen, z.B. 76.83 €, 13.64 €). Fix: `Math.round(vgPlusPrice * priceMarkup)` → whole euros. Plus DB-Update für bestehende 2.360 Discogs-Imports: `UPDATE Release SET estimated_value = ROUND(estimated_value) WHERE data_source = 'discogs_import' AND estimated_value != ROUND(estimated_value)`.
 
 ### Referenz
 
 - Service Doc: `docs/DISCOGS_IMPORT_SERVICE.md` v5.1
 - Plan: `docs/DISCOGS_IMPORT_LIVE_FEEDBACK_PLAN.md` (rc15) — IMPLEMENTIERT
-- Session Learnings: `docs/architecture/DISCOGS_IMPORT_SESSION_2026-04-10.md` (NEU)
+- Session Learnings: `docs/architecture/DISCOGS_IMPORT_SESSION_2026-04-10.md`
 
 ---
 

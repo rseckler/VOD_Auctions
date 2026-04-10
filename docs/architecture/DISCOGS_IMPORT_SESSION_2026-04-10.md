@@ -95,6 +95,74 @@ Fehler → fail-fast, zero DB writes, klarer Error an den User.
 
 **Learnings:** State der nur im Browser lebt ist fragil. DB als Single Source of Truth + Frontend fragt ab.
 
+### Post-Import Problem 1: Discogs Cover Images unsichtbar
+
+**Symptom:** Nach erfolgreichem Import zeigten alle Discogs-Release Detail-Seiten (T.V. Me / Wireless, Manifestation) Placeholder-Icons statt echter Cover-Bilder. Obwohl die Image-URLs in der DB korrekt waren (11.277 Images, 98% der Releases mit Cover).
+
+**Diagnose:** `storefront/next.config.ts` hatte nur `tape-mag.com` und die R2-CDN-Domain in `images.remotePatterns`. Next.js Image Component blockiert aus Sicherheitsgründen jede nicht explizit whitelisted Hostname → `i.discogs.com` URLs wurden gar nicht geladen.
+
+**Fix (Commit `23a6529`):** Wildcard `**.discogs.com` zur `remotePatterns` hinzugefügt. Deckt `i.discogs.com`, `img.discogs.com`, `s.discogs.com` in einem Rutsch.
+
+**Learnings:** Next.js Image Component whitelist is easy to forget when adding new image sources. Jedes Mal wenn neue externe Bild-URLs eingeführt werden, muss `next.config.ts` mitbedacht werden.
+
+**Follow-up:** Mittelfristig sollten die Discogs-Bilder per Batch-Job zu R2 migriert werden (Hotlinking ist fragil — Discogs könnte URLs ändern oder blocken, plus bessere Performance). Aktuell ist `Image.source = 'discogs'` + URL direkt auf `i.discogs.com`. Der Batch-Job würde `source = 'discogs_r2'` und URL auf R2-CDN setzen.
+
+### Post-Import Problem 2: Catalog Category Filter — 3190 Discogs-Imports unsichtbar
+
+**Symptom:** User-Report: "im Catalog finde ich Beerdigung / Tollwut nicht" — obwohl der Release korrekt in der DB war (verifiziert per SQL query + suggest API + catalog `?search=Beerdigung` endpoint).
+
+**Diagnose:** Die Catalog Category-Filter "vinyl" und "tapes" joinen auf die Legacy `Format`-Tabelle via `format_id` und filtern via `Format.kat = 2` (vinyl) bzw. `Format.kat = 1` (tapes-generisch). Unsere Discogs-Imports setzen nur die `format` enum Spalte, **nicht** `format_id`. Dadurch war der LEFT JOIN auf Format immer NULL → `Format.kat = 2` Condition schloss alle 3190 Discogs-Imports komplett aus. User klickte vermutlich auf den "Vinyl" Filter und fand nichts.
+
+**Verifiziert per SQL:**
+```sql
+SELECT COUNT(*) FILTER (WHERE r.data_source = 'discogs_import' AND f.kat = 2) as discogs_in_vinyl
+-- → 0  (alle 3190 Discogs-Imports ausgeschlossen)
+```
+
+Davon waren 2.170 LPs die eigentlich im Vinyl-Filter sein müssten.
+
+**Fix (Commit `f59286e`):** OR-Clause hinzugefügt die auch via `Release.format` enum matcht wenn `format_id IS NULL`:
+
+```typescript
+case "vinyl":
+  query = query.where(function () {
+    this.where("Format.kat", 2)
+      .orWhere(function () {
+        this.whereNull("Release.format_id").whereIn("Release.format", ["LP"])
+      })
+  })
+```
+
+Analog für tapes mit `["CASSETTE", "REEL"]`. CD und VHS Kategorien waren nicht betroffen — die nutzen schon `Release.format` enum direkt.
+
+**Impact:** +2.170 Vinyl-Releases (total 10.620), +~100 Tapes sichtbar.
+
+**Learnings:** Wenn eine Tabelle zwei parallele Klassifikations-Systeme hat (alte `format_id` FK + neue `format` enum), müssen ALLE Queries beide Wege abdecken. Der ideale Fix wäre `format_id` beim Discogs-Import zu setzen (lookup in Format-Tabelle via Mapping-Tabelle) — aber das ist komplexer. OR-Clause-Workaround war pragmatischer.
+
+### Post-Import Problem 3: Preise mit Dezimalstellen
+
+**Symptom:** User-Report: "wir haben ja nur ganze Preise - bitte auf oder abrunden". Die importierten Releases zeigten Preise wie "€76.83" und "€13.64" statt ganzer Euros.
+
+**Diagnose:** Platform-Policy: `BID_CONFIG.whole_euros_only = true` — alle Auction-Preise müssen ganzzahlig sein. Der Discogs-Import berechnete aber:
+```typescript
+estimatedValue = Math.round(vgPlusPrice * priceMarkup * 100) / 100
+```
+→ 2 Dezimalstellen.
+
+**Fix (Commit `0754f66`):**
+- Code: `Math.round(vgPlusPrice * priceMarkup)` → whole euros
+- DB-Update für bestehende 2.360 Rows:
+  ```sql
+  UPDATE "Release" SET estimated_value = ROUND(estimated_value)
+  WHERE data_source = 'discogs_import'
+    AND estimated_value IS NOT NULL
+    AND estimated_value != ROUND(estimated_value);
+  ```
+
+**Verifiziert:** T.V. Me / Wireless €76.83 → €77, Manifestation €13.64 → €14.
+
+**Learnings:** Platform-Policies die in einem Modul definiert sind (z.B. BID_CONFIG) müssen in allen verwandten Code-Stellen beachtet werden. Hier hätte bei der initialen Implementation des Discogs-Imports schon dran gedacht werden müssen.
+
 ---
 
 ## Timeline (chronologisch)
@@ -164,6 +232,20 @@ Alle UI-State-Recovery (Resume-Banner, session restoration) muss aus der DB komm
 
 Unser existing/linkable UPDATE Queries sind idempotent (mehrfache Ausführung = gleicher End-Zustand). Plus `ON CONFLICT DO NOTHING` auf INSERTs. Das macht jeden Retry sicher.
 
+### 7. Ein Import ist nicht fertig wenn der Commit durchläuft
+
+Der Commit ist nur der Anfang der Sichtbarkeit. Zusätzliche Probleme nach dem eigentlichen Import:
+- **Next.js Image Whitelist** — neue externe Bild-Domains müssen in `remotePatterns` eingetragen werden
+- **Catalog/Listing Queries** — wenn die Daten einen neuen "Source-Pfad" haben (hier: `format_id = NULL`), müssen alle Query-Filter das abdecken
+- **Plattform-Policies** — `whole_euros_only`, Visibility-Rules, etc. müssen beim Import bereits berücksichtigt werden
+
+**Checklist für zukünftige Imports:**
+1. Image-Domains in `next.config.ts` whitelisted? 
+2. Alle Catalog-Filter (category, format, sort) funktionieren mit der neuen data_source?
+3. Alle Plattform-Policies respektiert (ganze Preise, visibility, etc.)?
+4. Detail-Page rendert korrekt?
+5. Sitemap picks up new releases?
+
 ---
 
 ## Was wir NICHT angefasst haben (Follow-ups)
@@ -175,6 +257,12 @@ Unser existing/linkable UPDATE Queries sind idempotent (mehrfache Ausführung = 
 3. **History Drill-Down mit Resume-Button.** Aktuell muss der User entweder localStorage haben oder /history active_sessions muss was zurückgeben. Follow-up: Button im History Modal "Resume this session".
 
 4. **Recurring FK-Checks als Pre-Import-Validation.** Wir sollten auch V4 validieren: "alle linkable release_ids haben valid labelId FK".
+
+5. **Discogs-Images → R2 Migration.** Aktuell hotgelinked von `i.discogs.com`. Batch-Job würde sie runterladen, zu R2 uploaden, `Image.url` updaten, `source` auf `discogs_r2` setzen. Vorteile: unabhängig von Discogs, schneller (eigenes CDN), keine Hotlinking-Risiken.
+
+6. **`format_id` beim Discogs-Import setzen.** Aktuell OR-Clause-Workaround im Catalog-Filter (format_id IS NULL + format enum matching). Sauberer wäre direkt den FK zu setzen beim Insert — erfordert ein Mapping von Discogs-Format-Namen (z.B. "Vinyl", "Cassette") zu unseren `Format.id` Einträgen.
+
+7. **Pending Deploy Commit `0754f66`.** Der Price-Rounding Code-Fix ist committed + gepushed, aber nicht auf VPS deployed (SSH-Agent konnte nicht zur Laufzeit erreicht werden). Das DB-Update für bestehende Releases ist durch, aber **zukünftige** Discogs-Imports würden ohne Deploy wieder mit Dezimalen importieren. Deploy beim nächsten Mac-Zugriff nachholen.
 
 ---
 

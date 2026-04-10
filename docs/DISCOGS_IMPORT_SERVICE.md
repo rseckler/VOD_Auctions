@@ -1,8 +1,9 @@
 # Discogs Collection Import Service
 
-**Version:** 5.1
+**Version:** 5.1.1
 **Datum:** 2026-04-10
 **Status:** Live — Vollständige Live-Transparenz + Commit-Hardening (Batching, Validation, Partial-Success Resume)
+**Post-Import Fixes:** Next.js images whitelist (`**.discogs.com`), Catalog Category Filter (`format_id IS NULL` OR-Clause), Price Rounding (whole_euros_only)
 
 ## Zweck
 
@@ -372,7 +373,39 @@ Run-Log mit einem Eintrag pro importierter Release: `run_id`, `collection_name`,
 | Upload + Parse | 2-5s | <1s |
 | Fetch (20/min rate limit) | ~4h | ~25min |
 | Analyze (pg_trgm, 12 Batches à 500) | 30-60s | 3-6s |
-| Commit (transaktional) | 3-8 min | 15-30s |
+| Commit (per-batch, 500 rows each) | ~7 min | 30-60s |
+
+**Gemessen in Produktion (Pargmann Run `cbce39b2`, 2026-04-10):** Commit von 3.251 neuen Releases in 7 Batches, durchschnittlich ~55s/Batch (erste 65s wegen Artist/Label Setup, später schneller durch Dedup-Cache). Inklusive 997 existing updates + 1.398 linkable updates: **6 Minuten 11 Sekunden Gesamt**.
+
+## Post-Import Checklist
+
+Bei jedem neuen Import-Source (oder großen Code-Changes am Commit) sollten diese Punkte nach dem ersten erfolgreichen Commit geprüft werden — sie sind alles Bugs die wir beim Pargmann-Import gefunden haben und die nicht durch den Commit selbst sichtbar werden:
+
+### Visibility
+- [ ] Release-Detail-Page lädt (keine 404)
+- [ ] Cover-Image erscheint (nicht nur Placeholder) → `next.config.ts` `images.remotePatterns` whitelist?
+- [ ] Additional Images erscheinen in der Gallery
+- [ ] Alle Image-Hostnames sind in Next.js whitelist
+
+### Catalog Integration
+- [ ] `GET /store/catalog?search=<Title>` findet den Release
+- [ ] `GET /store/catalog/suggest?q=<Title>` zeigt ihn im Autocomplete
+- [ ] `GET /store/catalog?category=vinyl` zeigt LPs (falls Release-Format LP)
+- [ ] `GET /store/catalog?category=tapes` zeigt Cassettes/Reels
+- [ ] Alphabetische Sortierung platziert ihn an der erwarteten Stelle
+
+### Plattform Policies
+- [ ] `estimated_value` ist Integer (`whole_euros_only: true`)
+- [ ] `direct_price` wenn gesetzt ist Integer
+- [ ] `legacy_available = false` (nicht true — Discogs ist nicht "legacy")
+- [ ] `product_category = 'release'` (nicht band_literature/etc.)
+
+### Datenintegrität
+- [ ] `coverImage IS NOT NULL` für visibility
+- [ ] `artistId` zeigt auf existierenden `Artist` row
+- [ ] `labelId` zeigt auf existierenden `Label` row (bei den neuen)
+- [ ] `Track` rows verknüpft via `releaseId`
+- [ ] `Image` rows mit `rang` korrekt geordnet (1 = primary cover)
 
 ## Cleanup
 
