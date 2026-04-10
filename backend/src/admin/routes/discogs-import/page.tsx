@@ -313,12 +313,17 @@ const DiscogsImportPage = () => {
                   {/* Buttons */}
                   {!fetchResult && (
                     <div style={{ display: "flex", gap: 12 }}>
-                      <Btn label={fetching ? "Fetching..." : "Fetch Discogs Data" + ((uploadResult as Record<string, unknown>).to_fetch != null ? " (" + fmtNum((uploadResult as Record<string, unknown>).to_fetch as number) + " releases)" : "")} variant="gold" onClick={handleFetch} disabled={fetching} />
-                      <Btn label="Skip (use cached only)" variant="ghost" onClick={handleAnalyze} disabled={fetching || analyzing} />
+                      <Btn label={fetching ? "Fetching..." : "Fetch Discogs Data" + ((uploadResult as Record<string, unknown>).to_fetch != null ? " (" + fmtNum((uploadResult as Record<string, unknown>).to_fetch as number) + " releases)" : "")} variant="gold" onClick={handleFetch} disabled={fetching || analyzing} />
+                      <Btn label={analyzing ? "Analyzing..." : "Skip (use cached only)"} variant="ghost" onClick={handleAnalyze} disabled={fetching || analyzing} />
                     </div>
                   )}
                   {fetchResult && (
                     <Btn label={analyzing ? "Analyzing..." : "Start Analysis"} onClick={handleAnalyze} disabled={analyzing} />
+                  )}
+                  {analyzing && (
+                    <div style={{ fontSize: 12, color: C.muted, marginTop: 10 }}>
+                      Running fuzzy matching against {fmtNum(uploadResult.unique_discogs_ids)} releases — this can take 30–90 seconds for large collections…
+                    </div>
                   )}
                 </div>
               </div>

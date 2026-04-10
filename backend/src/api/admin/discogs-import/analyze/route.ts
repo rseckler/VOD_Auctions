@@ -43,6 +43,10 @@ export async function POST(
 
     await updateSession(pgConnection, session_id, { status: "analyzing" })
 
+    // Set trigram threshold for `%` operator (pre-filter in fuzzy matching).
+    // 0.3 = generous enough to catch partial title matches via GIN index.
+    await pgConnection.raw(`SET pg_trgm.similarity_threshold = 0.3`)
+
     const compactRows = session.rows as Array<Record<string, unknown>>
     const rows = compactRows.map(expandRow)
     const allDiscogsIds = rows.map((r) => r.discogs_id)
@@ -117,40 +121,80 @@ export async function POST(
       unmatchedRows.push({ idx: i, row, base })
     }
 
-    // ── Stufe 2: Trigram Fuzzy Match (batch, only for unmatched) ────────
+    // ── Stufe 2: Trigram Fuzzy Match (BATCH mit LATERAL JOIN + % Operator) ──
+    // Performance: Statt 5000 sequentieller Queries → ~12 Batches à 500.
+    // Nutzt idx_release_title_trgm (GIN) via `lower(r.title) % lower(q.title)` als
+    // Pre-Filter (Index-Lookup statt Sequential Scan), dann similarity() ranking.
+    const BATCH_SIZE = 500
+    const MIN_SCORE = 0.4
+    const matchedMap = new Map<number, { db_release_id: string; match_score: number }>()
+
+    // Filter valid rows (need artist + title + length >= 3)
+    const validUnmatched = unmatchedRows.filter(({ row }) => {
+      const s = `${row.artist} ${row.title}`.trim()
+      return s.length >= 3
+    })
+
+    for (let batchStart = 0; batchStart < validUnmatched.length; batchStart += BATCH_SIZE) {
+      const batch = validUnmatched.slice(batchStart, batchStart + BATCH_SIZE)
+
+      // Build VALUES clause for batch
+      const valuesParts: string[] = []
+      const params: unknown[] = []
+      batch.forEach(({ row }, i) => {
+        const title = row.title || ""
+        const fullStr = `${row.artist} ${row.title}`.trim()
+        valuesParts.push(`(?::int, ?::text, ?::text, ?::int)`)
+        params.push(batchStart + i, title, fullStr, row.discogs_id)
+      })
+
+      try {
+        const batchResult = await pgConnection.raw(
+          `WITH q(idx, search_title, search_full, did) AS (VALUES ${valuesParts.join(",")})
+           SELECT q.idx, q.did, m.id as match_id, m.score
+           FROM q
+           LEFT JOIN LATERAL (
+             SELECT r.id,
+                    similarity(lower(COALESCE(a.name, '') || ' ' || r.title), lower(q.search_full)) as score
+             FROM "Release" r
+             LEFT JOIN "Artist" a ON r."artistId" = a.id
+             WHERE r.discogs_id IS NULL
+               AND lower(r.title) % lower(q.search_title)
+             ORDER BY similarity(lower(COALESCE(a.name, '') || ' ' || r.title), lower(q.search_full)) DESC
+             LIMIT 1
+           ) m ON m.score >= ?`,
+          [...params, MIN_SCORE]
+        )
+
+        for (const m of batchResult.rows || []) {
+          if (m.match_id && m.score != null) {
+            matchedMap.set(m.did, {
+              db_release_id: m.match_id,
+              match_score: Math.round(Number(m.score) * 100),
+            })
+          }
+        }
+      } catch (err) {
+        console.error(`[discogs-analyze] Batch fuzzy match failed (batch ${batchStart}):`, err)
+        // continue with other batches — failed rows fall through to "new"
+      }
+    }
+
+    // Distribute unmatched rows into linkable / new based on batch results
     for (const { row, base } of unmatchedRows) {
       const searchString = `${row.artist} ${row.title}`.trim()
-      if (!searchString || searchString.length < 3) {
+      if (searchString.length < 3) {
         newReleases.push(base)
         continue
       }
-
-      try {
-        const fuzzyResult = await pgConnection.raw(
-          `SELECT r.id, r.title, a.name as artist_name, r."catalogNumber",
-                  similarity(lower(COALESCE(a.name, '') || ' ' || r.title), lower(?)) as score
-           FROM "Release" r
-           LEFT JOIN "Artist" a ON r."artistId" = a.id
-           WHERE r.discogs_id IS NULL
-             AND similarity(lower(COALESCE(a.name, '') || ' ' || r.title), lower(?)) > 0.4
-           ORDER BY score DESC
-           LIMIT 1`,
-          [searchString, searchString]
-        )
-
-        if (fuzzyResult.rows?.length > 0) {
-          const match = fuzzyResult.rows[0]
-          const score = Math.round(Number(match.score) * 100)
-          linkable.push({
-            ...base,
-            db_release_id: match.id,
-            match_score: score,
-          })
-        } else {
-          newReleases.push(base)
-        }
-      } catch {
-        // Fuzzy match failed for this row — treat as new
+      const match = matchedMap.get(row.discogs_id)
+      if (match) {
+        linkable.push({
+          ...base,
+          db_release_id: match.db_release_id,
+          match_score: match.match_score,
+        })
+      } else {
         newReleases.push(base)
       }
     }
