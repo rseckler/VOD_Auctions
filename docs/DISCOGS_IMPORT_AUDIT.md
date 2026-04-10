@@ -1,8 +1,13 @@
 # Discogs Import Service — Architecture Audit
 
 **Datum:** 2026-04-10
-**Status:** Audit abgeschlossen — Refactoring nötig vor nächstem Import
+**Status:** ✅ Audit abgeschlossen — Refactoring IMPLEMENTIERT in rc14 + rc15
 **Auslöser:** Pargmann-Import: 5.653 Releases, nur 982 updated + 6 linked, **0 inserted**
+
+**Follow-ups:**
+- `docs/DISCOGS_IMPORT_REFACTORING_PLAN.md` — Phase 1 Plan (rc14, DB-Sessions + pg_trgm + Transaktionen)
+- `docs/DISCOGS_IMPORT_LIVE_FEEDBACK_PLAN.md` — Phase 2 Plan (rc15, Live-SSE + Resume + Cancel/Pause)
+- `docs/DISCOGS_IMPORT_SERVICE.md` v5.0 — Aktuelle Service-Dokumentation
 
 ---
 

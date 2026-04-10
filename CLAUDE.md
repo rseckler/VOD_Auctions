@@ -4,7 +4,7 @@
 **Goal:** Eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Beta Test (platform_mode: beta_test) — Pre-Launch Phase als nächster Schritt
 **Language:** Storefront + Admin-UI: Englisch
-**Last Updated:** 2026-04-04
+**Last Updated:** 2026-04-10
 
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
@@ -92,6 +92,8 @@ npm run build && pm2 restart vodauction-storefront
 - **Bid-Input `type="text"`:** Bid-Inputs nutzen `type="text" inputMode="decimal"` (nicht `type="number"`). Parsing IMMER über `parseAmount()` (normalisiert `,` → `.`). Nie `parseFloat()` direkt auf User-Input — EU-Nutzer tippen Komma-Dezimale.
 - **`whole_euros_only: true`:** BID_CONFIG erzwingt ganzzahlige Gebote. Betrifft Validation, Increments, Display. Proxy-Max ebenfalls ganzzahlig validiert.
 - **UI/UX Governance:** Verbindliche Docs in `docs/UI_UX/` — Style Guide (Source of Truth), Gap Analysis, Optimization Plan, Implementation Report, PR Checklist. Jede UI-Änderung muss Shared Components (`Button`, `Input`, `Label`, `Card`) nutzen. Siehe `docs/UI_UX/CLAUDE.md` für Workflow.
+- **Timeouts sind Idle-Detection, keine Job-Dauer-Begrenzung:** Für lang laufende Ops (Discogs Import, Fetch, Analyze) **niemals** `proxy_read_timeout` absurd hochdrehen. Stattdessen: SSE-Heartbeat alle 5s senden (`SSEStream.startHeartbeat(5000)` aus `backend/src/lib/discogs-import.ts`), dann reicht nginx-Default (300s) auch für 4h-Fetches. Per-Op Timeouts (z.B. `AbortSignal.timeout(30000)` pro externem HTTP-Call) sind OK — sie verhindern dass ein kaputter Call den Job blockiert.
+- **Discogs Import SSE Architektur:** Alle 4 Schritte (Upload, Fetch, Analyze, Commit) sind SSE-Streams. Sessions in `import_session`, Events in `import_event`, Cache in `discogs_api_cache`. Shared Lib: `backend/src/lib/discogs-import.ts` (`SSEStream`, `getSession`, `isCancelRequested`, `pushLastError`). Shared React-Components: `backend/src/admin/components/discogs-import.tsx`. Cancel während Commit → `throw "__CANCEL__"` im Loop → Transaction-Rollback. Siehe `docs/DISCOGS_IMPORT_SERVICE.md` v5.0.
 
 ## Database Schema
 
@@ -122,6 +124,12 @@ npm run build && pm2 restart vodauction-storefront
 - `customer_stats` — Aggregierte Kundendaten (total_spent, total_purchases, total_bids, total_wins, last_purchase_at, last_bid_at, tags TEXT[], is_vip ≥€500, is_dormant >90 Tage kein Kauf). Stündlicher Recalc via Cron-Job. Manueller Refresh: `POST /admin/customers/recalc-stats`.
 - `customer_note` — Interne Admin-Notizen (customer_id, body, author_email, soft-delete)
 - `customer_audit_log` — DSGVO-Audit-Trail (customer_id, action, details JSONB, admin_email)
+
+### Discogs Import Tabellen (snake_case)
+- `import_session` — Session-State für laufende/abgeschlossene Imports. Status: uploading → uploaded → fetching → fetched → analyzing → analyzed → importing → done. Progress-Felder: `parse_progress`, `fetch_progress`, `analyze_progress`, `commit_progress` (JSONB). Control: `cancel_requested`, `pause_requested` (BOOLEAN). Events-Buffer: `last_error` (rolling 10), `last_event_at`. Überlebt Server-Restart (früher In-Memory Map). Siehe `docs/DISCOGS_IMPORT_SERVICE.md`.
+- `import_event` — Event-Log pro Session (für Live-Log + Drill-Down). `(id, session_id FK, phase, event_type, payload JSONB, created_at)`. Wächst unbegrenzt — periodisches Cleanup empfohlen (>30d).
+- `discogs_api_cache` — Per-discogs_id API-Response Cache. `(discogs_id PK, api_data JSONB, suggested_prices JSONB, is_error, fetched_at, expires_at)`. TTL 30d (Errors 7d). Ersetzt das alte `scripts/data/discogs_import_cache.json`.
+- `import_log` — Run-Log mit einem Eintrag pro importierter Release: `run_id`, `action` (inserted/linked/updated/skipped), `data_snapshot` (Excel-Row + API-Summary). Drill-Down: `GET /admin/discogs-import/history?run_id=...`.
 
 ### Release sale_mode
 - `auction_only` (default) | `direct_purchase` | `both`
@@ -167,6 +175,13 @@ npm run build && pm2 restart vodauction-storefront
 - `GET /admin/entity-content/overhaul-status` — Entity Overhaul Status + Budget
 - `GET /admin/sync/discogs-health` | `POST` — Discogs Sync Health + Actions
 - `GET /admin/sync/change-log` — Legacy Sync Change Log (?run_id, ?field, limit, offset) — Runs-Übersicht + paginierte Einträge mit old/new Werten
+- `POST /admin/discogs-import/upload` — CSV/XLSX Parsing → `import_session` (SSE wenn `Accept: text/event-stream`)
+- `POST /admin/discogs-import/fetch` — SSE Stream: Discogs API fetch mit Heartbeat, Rate-Limit, Cancel/Pause
+- `POST /admin/discogs-import/analyze` — SSE Stream: 4-phasiges pg_trgm-Matching (exact → cache → fuzzy batches → aggregate)
+- `POST /admin/discogs-import/commit` — SSE Stream: 3-phasiger transaktionaler Import (existing → linkable → new → commit/rollback)
+- `GET /admin/discogs-import/history` (?run_id=...) — Runs + Drill-Down mit `import_event` Timeline
+- `GET /admin/discogs-import/session/:id/status` — Session-State + letzte 100 Events (Resume + Polling-Fallback)
+- `POST /admin/discogs-import/session/:id/cancel` | `/pause` | `/resume` — Operator Control-Flags (cancel triggert Commit-Rollback)
 - `GET /admin/customers/list` — Paginated Customer-Liste mit Stats (?q, sort, limit, offset)
 - `GET|PATCH /admin/customers/:id` — Customer-Detail + Edit (name/email/phone/tags/is_vip)
 - `POST /admin/customers/recalc-stats` — Force-Recalc aller customer_stats aus live Daten

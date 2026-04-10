@@ -2,9 +2,10 @@
 
 **Version:** 1.0
 **Datum:** 2026-04-10
-**Status:** IMPLEMENTIERT (2026-04-10)
-**Voraussetzung:** Kein weiterer Import bis Refactoring abgeschlossen — ERLEDIGT
+**Status:** ✅ IMPLEMENTIERT (2026-04-10, rc14)
 **Referenz:** `docs/DISCOGS_IMPORT_AUDIT.md` (Problembeschreibung)
+**Nachfolger:** `docs/DISCOGS_IMPORT_LIVE_FEEDBACK_PLAN.md` (rc15 — vollständige Live-Transparenz)
+**Dokumentation:** `docs/DISCOGS_IMPORT_SERVICE.md` v5.0
 
 ---
 

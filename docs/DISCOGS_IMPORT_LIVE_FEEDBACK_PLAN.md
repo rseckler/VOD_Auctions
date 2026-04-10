@@ -2,8 +2,16 @@
 
 **Version:** 1.0
 **Datum:** 2026-04-10
-**Status:** Plan — Implementierung nach Freigabe
+**Status:** ✅ IMPLEMENTIERT (2026-04-10, rc15)
 **Ziel:** Vollständige Live-Transparenz über alle 4 Import-Schritte. Kein Black-Box-Verhalten mehr.
+
+**Implementiert in:** siehe `docs/DISCOGS_IMPORT_SERVICE.md` v5.0 und `docs/architecture/CHANGELOG.md` (rc15).
+
+**Post-Implementierung-Anpassungen (gegenüber dem Plan):**
+- nginx `proxy_read_timeout` wurde **nicht** auf 6h hochgedreht (wie ursprünglich angedacht). Stattdessen: Heartbeat alle 5s + Default-Timeout reicht völlig — Timeouts sind Idle-Detection, nicht Job-Dauer-Begrenzung.
+- `import_event` Tabelle wurde sofort in Phase 1 eingeführt (nicht später).
+- Upload-Route nutzt Header-basiertes SSE (Accept: text/event-stream), bleibt backward-compatible mit plain JSON.
+- Cancel während Commit führt zu `throw "__CANCEL__"` → Transaction `ROLLBACK` → Event `rollback` mit `cancelled: true`.
 
 ---
 

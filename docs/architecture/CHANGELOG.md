@@ -11,6 +11,7 @@ Jeder Git-Tag entspricht einem Snapshot des Gesamtsystems. Feature Flags zeigen 
 | Version | Datum | Platform Mode | Feature Flags aktiv (prod) | Milestone / Inhalt |
 |---------|-------|--------------|---------------------------|-------------------|
 | **v1.0.0** | TBD | `live` | ERP: TBD | RSE-78: Erster öffentlicher Launch |
+| **v1.0.0-rc15** | 2026-04-10 | `beta_test` | — | Discogs Import Live Feedback: SSE für alle 4 Schritte, Heartbeat, Resume, Cancel/Pause, Event-Log |
 | **v1.0.0-rc14** | 2026-04-10 | `beta_test` | — | Discogs Import Refactoring: DB-Sessions, DB-Cache, pg_trgm Fuzzy-Matching, Transaktionen |
 | **v1.0.0-rc13** | 2026-04-10 | `beta_test` | — | Discogs Import: Server-side API Fetch with SSE, complete end-to-end workflow |
 | **v1.0.0-rc12** | 2026-04-10 | `beta_test` | — | Media Detail: Field Contrast, Storage Location, Credits/Tracklist 1:1 Frontend-Logik |
@@ -52,6 +53,86 @@ Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Rel
 - **Patch Release** (`v1.0.x`): Kritische Bugfixes zwischen geplanten Releases
 - **Tagging-Workflow:** `git tag -a vX.Y.Z -m "Release vX.Y.Z: <Kurzname>"` → `git push origin vX.Y.Z`
 - **Tag-Zeitpunkt:** Direkt nach Deploy + Smoke-Test auf Production — nicht vor dem Deploy
+
+---
+
+## 2026-04-10 — Discogs Import Live Feedback: SSE + Resume + Cancel/Pause (rc15)
+
+Komplett-Refactoring des Import-Workflows für **vollständige Live-Transparenz** über alle 4 Schritte. Kein Black-Box-Verhalten mehr bei großen Imports. Löst das Problem "nach dem Klick auf Skip passiert nichts" und ergänzt die rc14-Architektur um Event-Streaming, Session-Persistenz und Operator-Control.
+
+### Architektur
+
+- **Alle 4 Schritte** (Upload, Fetch, Analyze, Commit) sind jetzt SSE-Streams mit phasenbasiertem Progress, strukturierten Events und Heartbeat alle 5 Sekunden
+- **Single Source of Truth** ist die DB: `import_session` trackt alle Progress-Felder, `import_event` speichert jedes Event für Replay + Drill-Down
+- **Resume-fähig**: `localStorage` speichert active session-id, Page-Load zeigt Resume-Banner, Polling-Fallback (2s) wenn SSE droppt
+- **Cancel/Pause** via DB-Flags: `cancel_requested` / `pause_requested`, Loops pollen und brechen sauber ab (Commit → Transaction Rollback)
+- **Timeout-Philosophie**: Keine künstlichen Job-Dauer-Timeouts. Heartbeat hält nginx-Default-Timeout (300s) ausreichend — auch für mehrstündige Fetches
+
+### Migration (`2026-04-10_discogs_import_live_feedback.sql`)
+
+- `import_session` erweitert: `parse_progress`, `analyze_progress`, `commit_progress`, `last_event_at`, `last_error`, `cancel_requested`, `pause_requested` (JSONB/BOOLEAN)
+- Neue Tabelle `import_event`: `(id BIGSERIAL, session_id FK, phase, event_type, payload JSONB, created_at)` + Indizes
+
+### Neue API Routes
+
+- `GET /admin/discogs-import/session/:id/status` — full state + letzte 100 Events (Resume + Polling-Fallback)
+- `POST .../session/:id/cancel` — setzt `cancel_requested`, triggert Rollback bei laufendem Commit
+- `POST .../session/:id/pause` — setzt `pause_requested`
+- `POST .../session/:id/resume` — clearet `pause_requested`
+
+### Backend-Routes (SSE-Rewrite)
+
+- **Upload:** Header-basiertes SSE (`Accept: text/event-stream`), emittiert `parse_progress` jede 1000 Rows, Session wird skeleton-inserted für Event-Persistenz
+- **Fetch:** Heartbeat, `cancel_requested` / `pause_requested` Poll, `error_detail` Events, `pushLastError` Buffer (rolling 10)
+- **Analyze:** 4-phasiges SSE (`exact_match` → `cache_load` → `fuzzy_match` mit Batch-Progress → `aggregating`), Cancel/Pause zwischen Batches
+- **Commit:** 3-phasiges SSE (`existing_updates` → `linkable_updates` → `new_inserts` → `committing`), `throw "__CANCEL__"` im Loop triggert sauberen Transaction-Rollback mit `rollback`-Event
+
+### Shared Libraries
+
+- **`backend/src/lib/discogs-import.ts`**: `SSEStream`-Klasse (mit heartbeat, event persistence), `getSession`/`updateSession`, `isCancelRequested`/`awaitPauseClearOrCancel`, `pushLastError`, `clearControlFlags`, `compactRow`/`expandRow`
+- **`backend/src/admin/components/discogs-import.tsx`**: `useSSEPostReader` hook, `useSessionPolling` hook, Komponenten `ImportPhaseStepper` / `ImportPhaseProgressBar` / `ImportLiveLog` (mit Auto-Scroll + Filter) / `SessionResumeBanner`, localStorage helpers
+
+### Admin UI
+
+- Phase-Stepper oben im Workflow (5 Phasen visuell: Upload → Fetch → Analyze → Review → Import)
+- Live Progress-Bars mit Phase-Name, Current/Total, ETA, Sub-Label pro Schritt
+- Live-Log-Panel unter laufenden Operationen mit Auto-Scroll, Filter (all/progress/errors), monospace-formatiert
+- Cancel / Pause / Resume Buttons sichtbar während running ops
+- Resume-Banner beim Page-Load wenn Session aktiv ist
+- History-Tab Drill-Down-Modal: Click auf Run → Modal zeigt komplette Event-Timeline aus `import_event`
+
+### Nginx
+
+- Location-Block für `/admin/discogs-import/` mit `proxy_buffering off`, `X-Accel-Buffering no`, `client_max_body_size 50m`
+- **Kein** künstlich hoher `proxy_read_timeout` — Default (300s) reicht, weil Heartbeat alle 5s sendet
+- Timeout-Philosophie: "Timeouts sind Idle-Detection, nicht Job-Dauer-Begrenzung"
+
+### Dateien (geändert/neu)
+
+**Neu:**
+- `backend/scripts/migrations/2026-04-10_discogs_import_live_feedback.sql`
+- `backend/src/lib/discogs-import.ts` (shared library)
+- `backend/src/admin/components/discogs-import.tsx` (shared components)
+- `backend/src/api/admin/discogs-import/session/[id]/status/route.ts`
+- `backend/src/api/admin/discogs-import/session/[id]/cancel/route.ts`
+- `backend/src/api/admin/discogs-import/session/[id]/pause/route.ts`
+- `backend/src/api/admin/discogs-import/session/[id]/resume/route.ts`
+- `docs/DISCOGS_IMPORT_LIVE_FEEDBACK_PLAN.md` (Plan → implementiert)
+
+**Umgeschrieben:**
+- `backend/src/api/admin/discogs-import/upload/route.ts` (Header-based SSE)
+- `backend/src/api/admin/discogs-import/fetch/route.ts` (Heartbeat + cancel/pause + errors)
+- `backend/src/api/admin/discogs-import/analyze/route.ts` (4-phase SSE)
+- `backend/src/api/admin/discogs-import/commit/route.ts` (3-phase SSE + rollback)
+- `backend/src/api/admin/discogs-import/history/route.ts` (Drill-down mit events)
+- `backend/src/admin/routes/discogs-import/page.tsx` (SSE integration, stepper, live log, resume, cancel)
+- `nginx/vodauction-admin.conf` + `nginx/vodauction-api.conf` (SSE location block)
+- `docs/DISCOGS_IMPORT_SERVICE.md` → v5.0
+
+### Referenz
+
+- Plan: `docs/DISCOGS_IMPORT_LIVE_FEEDBACK_PLAN.md` — IMPLEMENTIERT
+- Service: `docs/DISCOGS_IMPORT_SERVICE.md` v5.0
 
 ---
 
