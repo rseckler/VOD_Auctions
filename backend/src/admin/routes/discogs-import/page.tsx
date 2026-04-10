@@ -169,25 +169,49 @@ const DiscogsImportPage = () => {
     }, [])
   )
 
-  // ── Initial mount: check for active session ──
+  // ── Initial mount: check for resumable sessions ──
+  // Strategy: query /history for active_sessions (any session not in terminal
+  // state). This catches sessions that localStorage doesn't know about — e.g.
+  // after a browser cookie clear, a different browser, or after a commit that
+  // finished with errors (where localStorage was cleared).
+  // localStorage is still used as a "preferred session" hint: if the saved id
+  // is in the active list, prioritize it; otherwise fall back to the newest.
   useEffect(() => {
-    const saved = loadActiveSessionId()
-    if (!saved) return
-    fetch(`/admin/discogs-import/session/${saved.id}/status`, { credentials: "include" })
-      .then((r) => r.ok ? r.json() : null)
-      .then((data: { session: SessionStatus } | null) => {
-        if (!data?.session) {
+    const loadResumable = async () => {
+      try {
+        const historyResp = await fetch("/admin/discogs-import/history", { credentials: "include" })
+        if (!historyResp.ok) return
+        const data = await historyResp.json() as {
+          active_sessions?: Array<{ id: string; collection_name: string; status: string }>
+        }
+        const active = data.active_sessions || []
+        if (active.length === 0) {
+          // No resumable sessions → clear any stale localStorage reference
           clearActiveSessionId()
           return
         }
-        // Only show resume banner if session is still in progress
-        if (!["done", "error"].includes(data.session.status)) {
-          setResumeCandidate(data.session)
-        } else {
-          clearActiveSessionId()
+
+        // Prefer the session id from localStorage if it's in the active list
+        const saved = loadActiveSessionId()
+        const preferred = saved && active.find((s) => s.id === saved.id)
+        const chosen = preferred || active[0]  // active[0] = most recent
+
+        // Fetch full session state (with progress fields + analysis_result)
+        const statusResp = await fetch(
+          `/admin/discogs-import/session/${chosen.id}/status`,
+          { credentials: "include" }
+        )
+        if (!statusResp.ok) return
+        const statusData = await statusResp.json() as { session: SessionStatus }
+        if (!statusData?.session) return
+        if (!["done", "error"].includes(statusData.session.status)) {
+          setResumeCandidate(statusData.session)
         }
-      })
-      .catch(() => { /* ignore */ })
+      } catch {
+        /* ignore — no blocking */
+      }
+    }
+    loadResumable()
   }, [])
 
   // ── Load history ──
