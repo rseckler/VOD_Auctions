@@ -5,7 +5,7 @@ import * as crypto from "crypto"
 import * as fs from "fs"
 import * as path from "path"
 import { getScriptsDir } from "../../../../lib/paths"
-import { sessions } from "../upload/route"
+import { sessions, touchSession } from "../upload/route"
 
 // ─── POST /admin/discogs-import/commit ───────────────────────────────────────
 
@@ -39,6 +39,7 @@ export async function POST(
       res.status(404).json({ error: "Session not found or expired. Please re-upload." })
       return
     }
+    touchSession(session_id)
 
     // Set up SSE for live progress
     res.setHeader("Content-Type", "text/event-stream")

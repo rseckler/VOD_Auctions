@@ -2,7 +2,12 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import * as fs from "fs"
 import * as path from "path"
 import { getScriptsDir } from "../../../../lib/paths"
-import { sessions } from "../upload/route"
+import { sessions, touchSession } from "../upload/route"
+
+// Touch session every 5 minutes during long fetch operations
+function startSessionKeepAlive(sessionId: string): NodeJS.Timeout {
+  return setInterval(() => touchSession(sessionId), 5 * 60 * 1000)
+}
 
 const DISCOGS_BASE = "https://api.discogs.com"
 const MAX_REQUESTS_PER_MIN = 40
@@ -81,6 +86,10 @@ export async function POST(
     if (fs.existsSync(cachePath)) {
       cache = JSON.parse(fs.readFileSync(cachePath, "utf-8"))
     }
+
+    // Keep session alive during long fetch
+    touchSession(session_id)
+    const keepAlive = startSessionKeepAlive(session_id)
 
     const rows = session.rows
     const total = rows.length
@@ -220,8 +229,10 @@ export async function POST(
       }
     }
 
-    // Final save
+    // Final save + cleanup
     fs.writeFileSync(cachePath, JSON.stringify(cache, null, 2))
+    clearInterval(keepAlive)
+    touchSession(session_id)
 
     const durationMin = Math.round((Date.now() - startTime) / 60000)
     send({ type: "done", fetched, cached: skippedCached, errors, duration_min: durationMin, total_in_cache: Object.keys(cache).length })

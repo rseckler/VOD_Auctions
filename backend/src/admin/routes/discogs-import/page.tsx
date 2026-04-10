@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useAdminNav } from "../../components/admin-nav"
 import { C, T, S, fmtDate, fmtNum } from "../../components/admin-tokens"
 import { PageHeader, PageShell, Tabs, StatsGrid, SectionHeader } from "../../components/admin-layout"
@@ -93,6 +93,7 @@ const DiscogsImportPage = () => {
   const [expandedRow, setExpandedRow] = useState<number | null>(null)
 
   // Fetch state
+  const fetchDoneRef = useRef(false)
   const [fetching, setFetching] = useState(false)
   const [fetchProgress, setFetchProgress] = useState<{ current: number; total: number; fetched: number; cached: number; errors: number; artist?: string; title?: string; eta_min?: number } | null>(null)
   const [fetchResult, setFetchResult] = useState<{ fetched: number; cached: number; errors: number; duration_min: number } | null>(null)
@@ -159,10 +160,15 @@ const DiscogsImportPage = () => {
           try {
             const evt = JSON.parse(line.slice(6))
             if (evt.type === "progress") setFetchProgress(evt)
-            else if (evt.type === "done") setFetchResult(evt)
+            else if (evt.type === "done") { setFetchResult(evt); fetchDoneRef.current = true }
             else if (evt.type === "error") setError(evt.error)
           } catch { /* skip */ }
         }
+      }
+      // Auto-start analysis after fetch completes
+      if (fetchDoneRef.current) {
+        fetchDoneRef.current = false
+        handleAnalyze()
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Fetch failed")
@@ -260,6 +266,10 @@ const DiscogsImportPage = () => {
                   { label: "Rows Parsed", value: fmtNum(uploadResult.row_count) },
                   { label: "Unique Discogs IDs", value: fmtNum(uploadResult.unique_discogs_ids) },
                   { label: "Format", value: uploadResult.format_detected + (uploadResult.export_type ? " (" + uploadResult.export_type + ")" : "") },
+                  ...((uploadResult as Record<string, unknown>).already_cached != null ? [
+                    { label: "Already Cached", value: fmtNum((uploadResult as Record<string, unknown>).already_cached as number), color: C.success },
+                    { label: "To Fetch", value: fmtNum((uploadResult as Record<string, unknown>).to_fetch as number), color: (uploadResult as Record<string, unknown>).to_fetch === 0 ? C.success : C.gold },
+                  ] : []),
                 ]} />
 
                 {/* Step 2: Fetch Discogs Data */}
@@ -301,7 +311,7 @@ const DiscogsImportPage = () => {
                   {/* Buttons */}
                   {!fetchResult && (
                     <div style={{ display: "flex", gap: 12 }}>
-                      <Btn label={fetching ? "Fetching..." : "Fetch Discogs Data"} variant="gold" onClick={handleFetch} disabled={fetching} />
+                      <Btn label={fetching ? "Fetching..." : "Fetch Discogs Data" + ((uploadResult as Record<string, unknown>).to_fetch != null ? " (" + fmtNum((uploadResult as Record<string, unknown>).to_fetch as number) + " releases)" : "")} variant="gold" onClick={handleFetch} disabled={fetching} />
                       <Btn label="Skip (use cached only)" variant="ghost" onClick={handleAnalyze} disabled={fetching || analyzing} />
                     </div>
                   )}

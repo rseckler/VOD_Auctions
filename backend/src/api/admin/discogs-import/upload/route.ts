@@ -1,6 +1,8 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import * as crypto from "crypto"
+import * as fs from "fs"
 import * as XLSX from "xlsx"
+import { getScriptsDir } from "../../../../lib/paths"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -29,17 +31,22 @@ interface Session {
   created: number
 }
 
-// ─── In-memory session store (1h TTL) ────────────────────────────────────────
+// ─── In-memory session store (24h TTL, touched on every API interaction) ─────
 
 const sessions = new Map<string, Session>()
 
-// Cleanup every 10 minutes
+// Cleanup every 30 minutes
 setInterval(() => {
-  const cutoff = Date.now() - 60 * 60 * 1000
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000
   for (const [id, session] of sessions) {
     if (session.created < cutoff) sessions.delete(id)
   }
-}, 10 * 60 * 1000)
+}, 30 * 60 * 1000)
+
+export function touchSession(id: string) {
+  const s = sessions.get(id)
+  if (s) s.created = Date.now()
+}
 
 export { sessions }
 
@@ -93,10 +100,25 @@ export async function POST(
     // Detect if inventory export (has listing prices + conditions)
     const isInventory = deduped.some((r) => r.listing_price != null || r.media_condition)
 
+    // Check how many are already in the API cache
+    let cachedCount = 0
+    try {
+      const cachePath = path.join(getScriptsDir(), "data", "discogs_import_cache.json")
+      if (fs.existsSync(cachePath)) {
+        const cache = JSON.parse(fs.readFileSync(cachePath, "utf-8")) as Record<string, unknown>
+        for (const r of deduped) {
+          const entry = cache[String(r.discogs_id)] as Record<string, unknown> | undefined
+          if (entry && !entry.error) cachedCount++
+        }
+      }
+    } catch { /* cache read failed — no problem */ }
+
     res.json({
       session_id: sessionId,
       row_count: rows.length,
       unique_discogs_ids: deduped.length,
+      already_cached: cachedCount,
+      to_fetch: deduped.length - cachedCount,
       format_detected: ext.toUpperCase(),
       export_type: isInventory ? "INVENTORY" : "COLLECTION",
       sample_rows: deduped.slice(0, 5).map((r) => ({

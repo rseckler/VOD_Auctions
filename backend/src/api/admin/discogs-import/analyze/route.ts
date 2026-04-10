@@ -2,7 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import * as fs from "fs"
 import * as path from "path"
 import { getScriptsDir } from "../../../../lib/paths"
-import { sessions } from "../upload/route"
+import { sessions, touchSession } from "../upload/route"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -45,6 +45,7 @@ export async function POST(
       res.status(404).json({ error: "Session not found or expired. Please re-upload." })
       return
     }
+    touchSession(session_id)
 
     const dataDir = path.join(getScriptsDir(), "data")
 
