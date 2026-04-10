@@ -606,13 +606,13 @@ export async function POST(
           ]
         )
 
-        // Tracklist
+        // Tracklist (Track table has no createdAt/updatedAt columns)
         const tracks = (cached?.tracklist || []) as Array<{ position?: string; title?: string; duration?: string }>
         for (const track of tracks) {
           if (!track.title) continue
           await trx.raw(
-            `INSERT INTO "Track" (id, "releaseId", position, title, duration, "createdAt")
-            VALUES (?, ?, ?, ?, ?, NOW()) ON CONFLICT DO NOTHING`,
+            `INSERT INTO "Track" (id, "releaseId", position, title, duration)
+            VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`,
             [
               `dt-${did}-${track.position || "0"}`,
               releaseId,
