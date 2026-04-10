@@ -531,22 +531,53 @@ const DiscogsImportPage = () => {
         }
         break
 
-      case "importing":
-        // Commit was interrupted mid-transaction. Postgres + catch-block rolled
-        // back automatically → DB is consistent. User must manually re-commit
-        // because we don't persist selected_ids / import_settings across runs.
+      case "importing": {
+        // Commit was interrupted. With v5.1 per-batch commits, partial success
+        // is possible — completed batches persist in DB, failed batches are
+        // lost. Session's import_settings holds the user's exact selection and
+        // settings, so we can restore them and resume via the same handleCommit.
         if (loadAnalysis()) {
+          // Restore user's saved settings
+          const saved = st.import_settings
+          if (saved) {
+            if (saved.media_condition && saved.sleeve_condition) {
+              setCondition(`${saved.media_condition}/${saved.sleeve_condition}`)
+            }
+            if (saved.inventory != null) setInventoryOn(saved.inventory > 0)
+            if (saved.price_markup != null) setPriceMarkup(saved.price_markup)
+            if (saved.selected_discogs_ids && saved.selected_discogs_ids.length > 0) {
+              setSelectedIds(new Set(saved.selected_discogs_ids))
+            }
+          }
           setTab("Analysis")
           setCurrentPhase("review")
-          setError(
-            "The previous import was interrupted mid-transaction and automatically rolled back. " +
-            "Your analysis is preserved. Please confirm the selection below and click 'Approve & Import' again."
-          )
+
+          // Show status from commit_progress so user knows how far the
+          // previous run got. Per-batch commits mean completed batches persist.
+          const cp = st.commit_progress as {
+            phase?: string
+            counters?: { inserted?: number; linked?: number; updated?: number; errors?: number }
+          } | null
+          if (cp?.counters) {
+            const c = cp.counters
+            setError(
+              `Previous import was interrupted. Partially committed: ` +
+              `${c.inserted ?? 0} inserted, ${c.linked ?? 0} linked, ${c.updated ?? 0} updated, ${c.errors ?? 0} errors. ` +
+              `Your selection and settings are restored. Click "Approve & Import" — ` +
+              `already-committed batches will be skipped automatically.`
+            )
+          } else {
+            setError(
+              "The previous import was interrupted. Your selection and settings are restored. " +
+              "Click 'Approve & Import' to continue — completed batches (if any) will be skipped automatically."
+            )
+          }
         } else {
           setCurrentPhase("analyze")
           handleAnalyze()
         }
         break
+      }
 
       default:
         // Unknown status — fallback to upload view

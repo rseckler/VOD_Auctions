@@ -27,6 +27,13 @@ export interface SessionStatus {
   analyze_progress: Record<string, unknown> | null
   commit_progress: Record<string, unknown> | null
   analysis_result: Record<string, unknown> | null
+  import_settings: {
+    media_condition?: string
+    sleeve_condition?: string
+    inventory?: number
+    price_markup?: number
+    selected_discogs_ids?: number[] | null
+  } | null
   cancel_requested: boolean
   pause_requested: boolean
   last_error: Array<Record<string, unknown>> | null

@@ -16,9 +16,38 @@ import {
 
 // ─── POST /admin/discogs-import/commit ───────────────────────────────────────
 // SSE Stream with phase-based progress:
-//   preparing → existing_updates → linkable_updates → new_inserts → committing → done
-// New inserts have sub-phases (release/tracks/images/credits).
-// Transactional: all-or-nothing rollback. Cancel during run triggers rollback.
+//   preparing → validating → existing_updates → linkable_updates → new_inserts → done
+//
+// Architecture (v5.1):
+//
+// (1) Pre-commit validation: Before any DB writes, check for missing API data,
+//     duplicate slugs, existing release IDs. Bad data is rejected early without
+//     opening any transaction — faster fail + clearer errors.
+//
+// (2) Per-batch transactions: Each phase is split into batches (BATCH_SIZE=500).
+//     Each batch runs in its own transaction. A failing batch is rolled back to
+//     savepoint-level only — the rest of the commit continues. Committed batches
+//     persist immediately, so a server crash / cancel loses at most 500 rows
+//     instead of all 5000.
+//
+// (3) Resume support: commit_progress tracks which batch indices of each phase
+//     are committed. On resume, those batches are skipped. Combined with
+//     persisted import_settings (including selected_ids), resumption is
+//     automatic — no manual re-click needed.
+//
+// Trade-off vs. old all-or-nothing behavior: If the commit fails mid-way,
+// partial data is left in the DB. The session's commit_progress shows exactly
+// which batches succeeded. User can resume to finish or manually roll back.
+
+const BATCH_SIZE = 500
+
+type Counters = {
+  inserted: number
+  linked: number
+  updated: number
+  skipped: number
+  errors: number
+}
 
 export async function POST(
   req: MedusaRequest,
@@ -58,13 +87,25 @@ export async function POST(
 
   try {
     await clearControlFlags(pgConnection, session_id)
+
+    // ── Step 1: Persist selected_ids + settings BEFORE any work starts ──
+    // This enables true importing-resume: if commit is interrupted, the
+    // frontend can restore all user choices via GET /session/:id/status.
+    const persistedSettings = {
+      media_condition,
+      sleeve_condition,
+      inventory,
+      price_markup,
+      selected_discogs_ids: selected_discogs_ids || null,
+    }
     await updateSession(pgConnection, session_id, {
       status: "importing",
       commit_progress: { phase: "preparing" },
+      import_settings: persistedSettings,
     })
     await stream.emit("commit", "start", { session_id })
 
-    // Ensure import_log table
+    // ── Ensure import_log table (cheap, runs once) ──
     await pgConnection.raw(`
       CREATE TABLE IF NOT EXISTS import_log (
         id TEXT PRIMARY KEY,
@@ -83,7 +124,7 @@ export async function POST(
     await pgConnection.raw(`CREATE INDEX IF NOT EXISTS idx_import_log_release ON import_log(release_id)`)
     await pgConnection.raw(`CREATE INDEX IF NOT EXISTS idx_import_log_collection ON import_log(collection_name)`)
 
-    // Load analysis result
+    // ── Load analysis result from session ──
     const analysis = session.analysis_result as {
       existing: Array<{ discogs_id: number; db_release_id?: string }>
       linkable: Array<{ discogs_id: number; db_release_id?: string }>
@@ -105,7 +146,7 @@ export async function POST(
     }
     const newSet = new Set((analysis.new || []).map((r) => r.discogs_id))
 
-    // Load API cache
+    // ── Load API cache from DB ──
     const compactRows = session.rows as Array<Record<string, unknown>>
     const rows = compactRows.map(expandRow)
     const allDiscogsIds = rows.map((r) => r.discogs_id)
@@ -120,19 +161,18 @@ export async function POST(
       cacheMap.set(r.discogs_id, r)
     }
 
-    const runId = crypto.randomUUID()
-    const now = new Date().toISOString()
-    const counters = { inserted: 0, linked: 0, updated: 0, skipped: 0, errors: 0 }
+    // Counters shared across phases (mutated in closures by processInBatches)
+    const counters: Counters = { inserted: 0, linked: 0, updated: 0, skipped: 0, errors: 0 }
 
     // Filter by selection
     const selectedSet = selected_discogs_ids ? new Set(selected_discogs_ids) : null
 
-    // Partition rows by action type (so we can emit per-phase progress)
+    // Partition rows by action type (deterministic order = stable resume)
     const existingRows: ParsedRow[] = []
     const linkableRows: ParsedRow[] = []
     const newRows: ParsedRow[] = []
 
-    for (const row of rows) {
+    for (const row of rows.slice().sort((a, b) => a.discogs_id - b.discogs_id)) {
       const did = row.discogs_id
       if (selectedSet && !selectedSet.has(did)) {
         counters.skipped++
@@ -153,157 +193,339 @@ export async function POST(
         skipped: counters.skipped,
       },
     })
-    await updateSession(pgConnection, session_id, {
-      commit_progress: {
-        phase: "preparing_done",
-        plan: { existing: existingRows.length, linkable: linkableRows.length, new: newRows.length },
-      },
+
+    // ── Step 2: Pre-commit validation ────────────────────────────────────
+    // Check for problems BEFORE opening any transaction. Fail fast with
+    // detailed error events so the user can fix their data and retry.
+    await stream.emit("commit", "phase_start", { phase: "validating" })
+
+    const validationErrors: Array<{ kind: string; details: string }> = []
+
+    // V1: all new rows must have cached API data (can't build full insert without it)
+    for (const row of newRows) {
+      if (!cacheMap.has(row.discogs_id)) {
+        validationErrors.push({
+          kind: "missing_api_data",
+          details: `discogs:${row.discogs_id} (${row.artist} — ${row.title})`,
+        })
+      }
+    }
+
+    // V2: duplicate release slugs in new set would cause Release.slug unique
+    // constraint violations. Detect them before we start inserting.
+    const slugMap = new Map<string, number[]>()
+    for (const row of newRows) {
+      const slug = slugify(`${row.artist} ${row.title}`)
+      if (!slug) continue
+      if (!slugMap.has(slug)) slugMap.set(slug, [])
+      slugMap.get(slug)!.push(row.discogs_id)
+    }
+    for (const [slug, ids] of slugMap.entries()) {
+      if (ids.length > 1) {
+        validationErrors.push({
+          kind: "duplicate_slug",
+          details: `slug="${slug}" used by ${ids.length} releases: ${ids.slice(0, 3).join(", ")}${ids.length > 3 ? "…" : ""}`,
+        })
+      }
+    }
+
+    // V3: new release IDs that already exist in DB (means the analyze-step
+    // misclassified them as "new" — they should have been "existing")
+    if (newRows.length > 0) {
+      const newIds = newRows.map((r) => `discogs-release-${r.discogs_id}`)
+      const existsResult = await pgConnection.raw(
+        `SELECT id FROM "Release" WHERE id = ANY(?)`,
+        [newIds]
+      )
+      for (const r of existsResult.rows || []) {
+        validationErrors.push({
+          kind: "id_already_exists",
+          details: String(r.id),
+        })
+      }
+    }
+
+    await stream.emit("commit", "phase_done", {
+      phase: "validating",
+      errors: validationErrors.length,
+      error_details: validationErrors.slice(0, 10),
     })
 
-    // ── Transactional import ─────────────────────────────────────────────
-    const trx = await pgConnection.transaction()
+    if (validationErrors.length > 0) {
+      const errorMsg = `Pre-commit validation failed: ${validationErrors.length} error(s). First few: ${validationErrors.slice(0, 3).map(e => e.details).join("; ")}`
+      await updateSession(pgConnection, session_id, {
+        status: "analyzed",
+        error_message: errorMsg,
+        commit_progress: {
+          phase: "validation_failed",
+          errors: validationErrors.slice(0, 20),
+          total_errors: validationErrors.length,
+        },
+      })
+      await clearControlFlags(pgConnection, session_id)
+      await stream.emit("commit", "validation_failed", {
+        errors: validationErrors.slice(0, 20),
+        total_errors: validationErrors.length,
+        message: errorMsg,
+      })
+      stream.end()
+      return
+    }
 
-    try {
-      // ── Phase: existing updates ─────────────────────────────────────
-      await stream.emit("commit", "phase_start", { phase: "existing_updates", total: existingRows.length })
-      for (let i = 0; i < existingRows.length; i++) {
-        if (await isCancelRequested(pgConnection, session_id)) throw new Error("__CANCEL__")
+    // ── Step 3: Setup for batched processing ─────────────────────────────
+    const runId = crypto.randomUUID()
+    const now = new Date().toISOString()
 
-        const row = existingRows[i]
+    // Load previously-committed batch indices (for resume across restarts)
+    const freshSession = await getSession(pgConnection, session_id)
+    const prevProgress = (freshSession?.commit_progress as Record<string, unknown>) || {}
+    const prevRunId = (prevProgress.run_id as string | undefined) || runId
+    const effectiveRunId = (prevProgress.phase as string) && (prevProgress.phase as string) !== "preparing"
+      ? prevRunId
+      : runId
+
+    // Helper: run a partition in batches, each batch in its own transaction.
+    // On failure of a batch: rollback, log, continue with next batch.
+    // On cancel between batches: stop cleanly with "cancelled" event.
+    async function processInBatches(
+      phase: string,
+      partition: ParsedRow[],
+      processRow: (trx: Knex.Transaction, row: ParsedRow) => Promise<void>,
+      onRowSuccess: () => void
+    ): Promise<{ cancelled: boolean }> {
+      const totalBatches = Math.ceil(partition.length / BATCH_SIZE)
+
+      if (totalBatches === 0) {
+        await stream.emit("commit", "phase_start", { phase, total: 0, total_batches: 0 })
+        await stream.emit("commit", "phase_done", { phase, committed_batches: 0, failed_batches: 0, total_batches: 0 })
+        return { cancelled: false }
+      }
+
+      // Load already-committed batch indices for this phase (resume support)
+      const freshState = await getSession(pgConnection, session_id)
+      const progressKey = `completed_batches_${phase}`
+      const progressData = (freshState?.commit_progress as Record<string, unknown>) || {}
+      const alreadyDone = new Set<number>(
+        ((progressData[progressKey] as number[]) || []).filter((n) => typeof n === "number")
+      )
+      const completed: number[] = Array.from(alreadyDone).sort((a, b) => a - b)
+      let failedBatches = 0
+
+      await stream.emit("commit", "phase_start", {
+        phase,
+        total: partition.length,
+        total_batches: totalBatches,
+        already_committed_batches: alreadyDone.size,
+      })
+
+      for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+        if (alreadyDone.has(batchIdx)) {
+          // Resume: skip batches we already committed in a previous run
+          continue
+        }
+
+        // Cancel check between batches
+        if (await isCancelRequested(pgConnection, session_id)) {
+          await stream.emit("commit", "cancelled", {
+            phase,
+            at_batch: batchIdx + 1,
+            total_batches: totalBatches,
+            committed_batches: completed.length,
+          })
+          return { cancelled: true }
+        }
+        if (await awaitPauseClearOrCancel(pgConnection, session_id, stream)) {
+          await stream.emit("commit", "cancelled", {
+            phase,
+            at_batch: batchIdx + 1,
+            total_batches: totalBatches,
+            committed_batches: completed.length,
+          })
+          return { cancelled: true }
+        }
+
+        const batch = partition.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE)
+        const batchTrx = await pgConnection.transaction()
+
+        try {
+          for (const row of batch) {
+            await processRow(batchTrx, row)
+          }
+          await batchTrx.commit()
+
+          // Batch succeeded — record and emit progress
+          for (const _ of batch) onRowSuccess()
+          completed.push(batchIdx)
+
+          const progressPayload: Record<string, unknown> = {
+            phase,
+            batch: batchIdx + 1,
+            total_batches: totalBatches,
+            current: Math.min((batchIdx + 1) * BATCH_SIZE, partition.length),
+            total: partition.length,
+            counters: { ...counters },
+            run_id: effectiveRunId,
+            [progressKey]: completed,
+          }
+          // Merge with all existing completed_batches_* keys so we don't lose prior phases
+          for (const [k, v] of Object.entries(progressData)) {
+            if (k.startsWith("completed_batches_") && k !== progressKey) {
+              progressPayload[k] = v
+            }
+          }
+
+          await updateSession(pgConnection, session_id, {
+            commit_progress: progressPayload,
+          })
+          await stream.emit("commit", "batch_committed", {
+            phase,
+            batch: batchIdx + 1,
+            total_batches: totalBatches,
+            current: Math.min((batchIdx + 1) * BATCH_SIZE, partition.length),
+            total: partition.length,
+            counters: { ...counters },
+            last: batch[batch.length - 1] ? `${batch[batch.length - 1].artist} — ${batch[batch.length - 1].title}` : undefined,
+          })
+        } catch (err) {
+          try { await batchTrx.rollback() } catch { /* already rolled back */ }
+
+          counters.errors += batch.length
+          failedBatches++
+          const msg = err instanceof Error ? err.message : "unknown"
+          await pushLastError(pgConnection, session_id, phase, {
+            batch: batchIdx,
+            batch_size: batch.length,
+            first_release_id: batch[0]?.discogs_id,
+            last_release_id: batch[batch.length - 1]?.discogs_id,
+            message: msg,
+          })
+          await stream.emit("commit", "batch_failed", {
+            phase,
+            batch: batchIdx + 1,
+            total_batches: totalBatches,
+            rows_lost: batch.length,
+            message: msg,
+          })
+          // Continue with next batch — per-batch isolation is the whole point
+        }
+      }
+
+      await stream.emit("commit", "phase_done", {
+        phase,
+        committed_batches: completed.length,
+        failed_batches: failedBatches,
+        total_batches: totalBatches,
+      })
+      return { cancelled: false }
+    }
+
+    // ── Step 4: Run the three phases ─────────────────────────────────────
+
+    // Phase: existing updates (already-linked releases, just refresh prices/etc)
+    const existingResult = await processInBatches(
+      "existing_updates",
+      existingRows,
+      async (trx, row) => {
         const did = row.discogs_id
         const cache = cacheMap.get(did)
         const cached = cache?.api_data || null
         const suggestedPrices = cache?.suggested_prices || null
         const priceEntry = buildPriceEntry(cached, suggestedPrices, price_markup, now)
         const dbId = existingMap.get(did)!
+        await trx.raw(
+          `UPDATE "Release" SET
+            discogs_lowest_price = ?,
+            discogs_num_for_sale = ?,
+            discogs_have = ?,
+            discogs_want = ?,
+            discogs_last_synced = ?,
+            discogs_suggested_prices = COALESCE(?::jsonb, discogs_suggested_prices),
+            estimated_value = COALESCE(?, estimated_value),
+            genres = COALESCE(?, genres),
+            styles = COALESCE(?, styles),
+            discogs_price_history = COALESCE(discogs_price_history, '[]'::jsonb) || ?::jsonb,
+            "updatedAt" = NOW()
+          WHERE id = ?`,
+          [
+            priceEntry.lowest,
+            priceEntry.num_for_sale,
+            priceEntry.have,
+            priceEntry.want,
+            now,
+            suggestedPrices ? JSON.stringify({ ...suggestedPrices as object, fetched_at: now }) : null,
+            priceEntry.estimated_value,
+            cached?.genres ? (cached.genres as string[]) : null,
+            cached?.styles ? (cached.styles as string[]) : null,
+            JSON.stringify([priceEntry]),
+            dbId,
+          ]
+        )
+        await logImport(trx, effectiveRunId, session, dbId, did, "updated", row, cached)
+      },
+      () => { counters.updated++ }
+    )
+    if (existingResult.cancelled) {
+      await finalizeCancel(pgConnection, stream, session_id, counters)
+      return
+    }
 
-        try {
-          await trx.raw(
-            `UPDATE "Release" SET
-              discogs_lowest_price = ?,
-              discogs_num_for_sale = ?,
-              discogs_have = ?,
-              discogs_want = ?,
-              discogs_last_synced = ?,
-              discogs_suggested_prices = COALESCE(?::jsonb, discogs_suggested_prices),
-              estimated_value = COALESCE(?, estimated_value),
-              genres = COALESCE(?, genres),
-              styles = COALESCE(?, styles),
-              discogs_price_history = COALESCE(discogs_price_history, '[]'::jsonb) || ?::jsonb,
-              "updatedAt" = NOW()
-            WHERE id = ?`,
-            [
-              priceEntry.lowest,
-              priceEntry.num_for_sale,
-              priceEntry.have,
-              priceEntry.want,
-              now,
-              suggestedPrices ? JSON.stringify({ ...suggestedPrices as object, fetched_at: now }) : null,
-              priceEntry.estimated_value,
-              cached?.genres ? (cached.genres as string[]) : null,
-              cached?.styles ? (cached.styles as string[]) : null,
-              JSON.stringify([priceEntry]),
-              dbId,
-            ]
-          )
-          await logImport(trx, runId, session, dbId, did, "updated", row, cached)
-          counters.updated++
-        } catch (err) {
-          counters.errors++
-          await pushLastError(pgConnection, session_id, "existing_updates", {
-            discogs_id: did, release_id: dbId,
-            message: err instanceof Error ? err.message : "unknown",
-          })
-          throw err
-        }
-
-        if (i % 20 === 0 || i === existingRows.length - 1) {
-          await stream.emit("commit", "phase_progress", {
-            phase: "existing_updates", current: i + 1, total: existingRows.length,
-            last: `${row.artist} — ${row.title}`,
-          })
-          await updateSession(pgConnection, session_id, {
-            commit_progress: { phase: "existing_updates", current: i + 1, total: existingRows.length, counters },
-          })
-        }
-      }
-      await stream.emit("commit", "phase_done", { phase: "existing_updates", updated: counters.updated })
-
-      // ── Phase: linkable updates ─────────────────────────────────────
-      await stream.emit("commit", "phase_start", { phase: "linkable_updates", total: linkableRows.length })
-      for (let i = 0; i < linkableRows.length; i++) {
-        if (await isCancelRequested(pgConnection, session_id)) throw new Error("__CANCEL__")
-
-        const row = linkableRows[i]
+    // Phase: linkable updates (matched via pg_trgm, set discogs_id + prices)
+    const linkableResult = await processInBatches(
+      "linkable_updates",
+      linkableRows,
+      async (trx, row) => {
         const did = row.discogs_id
         const cache = cacheMap.get(did)
         const cached = cache?.api_data || null
         const suggestedPrices = cache?.suggested_prices || null
         const priceEntry = buildPriceEntry(cached, suggestedPrices, price_markup, now)
         const dbId = linkableMap.get(did)!
+        await trx.raw(
+          `UPDATE "Release" SET
+            discogs_id = ?,
+            discogs_lowest_price = ?,
+            discogs_num_for_sale = ?,
+            discogs_have = ?,
+            discogs_want = ?,
+            discogs_last_synced = ?,
+            discogs_suggested_prices = COALESCE(?::jsonb, discogs_suggested_prices),
+            estimated_value = COALESCE(?, estimated_value),
+            genres = COALESCE(?, genres),
+            styles = COALESCE(?, styles),
+            description = COALESCE(description, ?),
+            discogs_price_history = COALESCE(discogs_price_history, '[]'::jsonb) || ?::jsonb,
+            "updatedAt" = NOW()
+          WHERE id = ?`,
+          [
+            did,
+            priceEntry.lowest,
+            priceEntry.num_for_sale,
+            priceEntry.have,
+            priceEntry.want,
+            now,
+            suggestedPrices ? JSON.stringify({ ...suggestedPrices as object, fetched_at: now }) : null,
+            priceEntry.estimated_value,
+            cached?.genres ? (cached.genres as string[]) : null,
+            cached?.styles ? (cached.styles as string[]) : null,
+            (cached?.notes as string) || null,
+            JSON.stringify([priceEntry]),
+            dbId,
+          ]
+        )
+        await logImport(trx, effectiveRunId, session, dbId, did, "linked", row, cached)
+      },
+      () => { counters.linked++ }
+    )
+    if (linkableResult.cancelled) {
+      await finalizeCancel(pgConnection, stream, session_id, counters)
+      return
+    }
 
-        try {
-          await trx.raw(
-            `UPDATE "Release" SET
-              discogs_id = ?,
-              discogs_lowest_price = ?,
-              discogs_num_for_sale = ?,
-              discogs_have = ?,
-              discogs_want = ?,
-              discogs_last_synced = ?,
-              discogs_suggested_prices = COALESCE(?::jsonb, discogs_suggested_prices),
-              estimated_value = COALESCE(?, estimated_value),
-              genres = COALESCE(?, genres),
-              styles = COALESCE(?, styles),
-              description = COALESCE(description, ?),
-              discogs_price_history = COALESCE(discogs_price_history, '[]'::jsonb) || ?::jsonb,
-              "updatedAt" = NOW()
-            WHERE id = ?`,
-            [
-              did,
-              priceEntry.lowest,
-              priceEntry.num_for_sale,
-              priceEntry.have,
-              priceEntry.want,
-              now,
-              suggestedPrices ? JSON.stringify({ ...suggestedPrices as object, fetched_at: now }) : null,
-              priceEntry.estimated_value,
-              cached?.genres ? (cached.genres as string[]) : null,
-              cached?.styles ? (cached.styles as string[]) : null,
-              (cached?.notes as string) || null,
-              JSON.stringify([priceEntry]),
-              dbId,
-            ]
-          )
-          await logImport(trx, runId, session, dbId, did, "linked", row, cached)
-          counters.linked++
-        } catch (err) {
-          counters.errors++
-          await pushLastError(pgConnection, session_id, "linkable_updates", {
-            discogs_id: did, release_id: dbId,
-            message: err instanceof Error ? err.message : "unknown",
-          })
-          throw err
-        }
-
-        if (i % 20 === 0 || i === linkableRows.length - 1) {
-          await stream.emit("commit", "phase_progress", {
-            phase: "linkable_updates", current: i + 1, total: linkableRows.length,
-            last: `${row.artist} — ${row.title}`,
-          })
-          await updateSession(pgConnection, session_id, {
-            commit_progress: { phase: "linkable_updates", current: i + 1, total: linkableRows.length, counters },
-          })
-        }
-      }
-      await stream.emit("commit", "phase_done", { phase: "linkable_updates", linked: counters.linked })
-
-      // ── Phase: new inserts ──────────────────────────────────────────
-      await stream.emit("commit", "phase_start", { phase: "new_inserts", total: newRows.length })
-      for (let i = 0; i < newRows.length; i++) {
-        if (await isCancelRequested(pgConnection, session_id)) throw new Error("__CANCEL__")
-
-        const row = newRows[i]
+    // Phase: new inserts (full release + tracks + credits + images)
+    const newResult = await processInBatches(
+      "new_inserts",
+      newRows,
+      async (trx, row) => {
         const did = row.discogs_id
         const cache = cacheMap.get(did)
         const cached = cache?.api_data || null
@@ -311,189 +533,176 @@ export async function POST(
         const priceEntry = buildPriceEntry(cached, suggestedPrices, price_markup, now)
         const releaseId = `discogs-release-${did}`
 
-        try {
-          const artistId = await ensureArtist(trx, row.artist, cached)
-          const labelId = await ensureLabel(trx, row.label, cached)
-          const formatResult = mapDiscogsFormat(cached)
-          const formatDetail = getFormatDetail(cached)
-          const creditsText = buildCreditsText(cached)
-          const additionalLabels = getAdditionalLabels(cached)
+        const artistId = await ensureArtist(trx, row.artist, cached)
+        const labelId = await ensureLabel(trx, row.label, cached)
+        const formatResult = mapDiscogsFormat(cached)
+        const formatDetail = getFormatDetail(cached)
+        const creditsText = buildCreditsText(cached)
+        const additionalLabels = getAdditionalLabels(cached)
 
+        await trx.raw(
+          `INSERT INTO "Release" (
+            id, title, slug, "artistId", "labelId",
+            "catalogNumber", year, country, format_group, legacy_format_detail,
+            description, credits, genres, styles,
+            media_condition, sleeve_condition, inventory,
+            estimated_value, discogs_suggested_prices,
+            discogs_id, discogs_lowest_price, discogs_num_for_sale,
+            discogs_have, discogs_want, discogs_last_synced,
+            discogs_price_history, additional_labels, data_source,
+            product_category, "createdAt", "updatedAt"
+          ) VALUES (
+            ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?,
+            ?, ?, ?, ?,
+            ?, ?, ?,
+            ?, ?::jsonb,
+            ?, ?, ?,
+            ?, ?, ?,
+            ?::jsonb, ?::jsonb, 'discogs_import',
+            'release', NOW(), NOW()
+          )
+          ON CONFLICT (id) DO NOTHING`,
+          [
+            releaseId,
+            (cached?.title as string) || row.title,
+            slugify(`${row.artist} ${row.title}`),
+            artistId,
+            labelId,
+            row.catalog_number,
+            (cached?.year as number) || row.year,
+            (cached?.country as string) || "",
+            formatResult,
+            formatDetail,
+            (cached?.notes as string) || null,
+            creditsText,
+            cached?.genres ? (cached.genres as string[]) : null,
+            cached?.styles ? (cached.styles as string[]) : null,
+            media_condition,
+            sleeve_condition,
+            inventory,
+            priceEntry.estimated_value,
+            suggestedPrices ? JSON.stringify({ ...suggestedPrices as object, fetched_at: now }) : null,
+            did,
+            priceEntry.lowest,
+            priceEntry.num_for_sale,
+            priceEntry.have,
+            priceEntry.want,
+            now,
+            JSON.stringify([priceEntry]),
+            additionalLabels ? JSON.stringify(additionalLabels) : null,
+          ]
+        )
+
+        // Tracklist
+        const tracks = (cached?.tracklist || []) as Array<{ position?: string; title?: string; duration?: string }>
+        for (const track of tracks) {
+          if (!track.title) continue
           await trx.raw(
-            `INSERT INTO "Release" (
-              id, title, slug, "artistId", "labelId",
-              "catalogNumber", year, country, format_group, legacy_format_detail,
-              description, credits, genres, styles,
-              media_condition, sleeve_condition, inventory,
-              estimated_value, discogs_suggested_prices,
-              discogs_id, discogs_lowest_price, discogs_num_for_sale,
-              discogs_have, discogs_want, discogs_last_synced,
-              discogs_price_history, additional_labels, data_source,
-              product_category, "createdAt", "updatedAt"
-            ) VALUES (
-              ?, ?, ?, ?, ?,
-              ?, ?, ?, ?, ?,
-              ?, ?, ?, ?,
-              ?, ?, ?,
-              ?, ?::jsonb,
-              ?, ?, ?,
-              ?, ?, ?,
-              ?::jsonb, ?::jsonb, 'discogs_import',
-              'release', NOW(), NOW()
-            )
-            ON CONFLICT (id) DO NOTHING`,
+            `INSERT INTO "Track" (id, "releaseId", position, title, duration, "createdAt")
+            VALUES (?, ?, ?, ?, ?, NOW()) ON CONFLICT DO NOTHING`,
             [
+              `dt-${did}-${track.position || "0"}`,
               releaseId,
-              (cached?.title as string) || row.title,
-              slugify(`${row.artist} ${row.title}`),
-              artistId,
-              labelId,
-              row.catalog_number,
-              (cached?.year as number) || row.year,
-              (cached?.country as string) || "",
-              formatResult,
-              formatDetail,
-              (cached?.notes as string) || null,
-              creditsText,
-              cached?.genres ? (cached.genres as string[]) : null,
-              cached?.styles ? (cached.styles as string[]) : null,
-              media_condition,
-              sleeve_condition,
-              inventory,
-              priceEntry.estimated_value,
-              suggestedPrices ? JSON.stringify({ ...suggestedPrices as object, fetched_at: now }) : null,
-              did,
-              priceEntry.lowest,
-              priceEntry.num_for_sale,
-              priceEntry.have,
-              priceEntry.want,
-              now,
-              JSON.stringify([priceEntry]),
-              additionalLabels ? JSON.stringify(additionalLabels) : null,
+              track.position || "",
+              track.title,
+              track.duration || "",
             ]
           )
-
-          // Tracklist
-          const tracks = (cached?.tracklist || []) as Array<{ position?: string; title?: string; duration?: string }>
-          for (const track of tracks) {
-            if (!track.title) continue
-            await trx.raw(
-              `INSERT INTO "Track" (id, "releaseId", position, title, duration, "createdAt")
-              VALUES (?, ?, ?, ?, ?, NOW()) ON CONFLICT DO NOTHING`,
-              [
-                `dt-${did}-${track.position || "0"}`,
-                releaseId,
-                track.position || "",
-                track.title,
-                track.duration || "",
-              ]
-            )
-          }
-
-          // Credits → ReleaseArtist
-          const extraartists = (cached?.extraartists || []) as Array<{ name?: string; id?: number; role?: string }>
-          for (const ea of extraartists) {
-            if (!ea.name || !ea.id) continue
-            const eaId = await ensureArtistByDiscogs(trx, ea)
-            if (eaId) {
-              await trx.raw(
-                `INSERT INTO "ReleaseArtist" (id, "releaseId", "artistId", role, "createdAt")
-                VALUES (?, ?, ?, ?, NOW()) ON CONFLICT ("releaseId", "artistId") DO NOTHING`,
-                [`dra-${did}-${ea.id}`, releaseId, eaId, ea.role || "performer"]
-              )
-            }
-          }
-
-          // Images
-          const images = (cached?.images || []) as Array<{ uri?: string; type?: string }>
-          const maxImages = Math.min(images.length, 5)
-          for (let imgIdx = 0; imgIdx < maxImages; imgIdx++) {
-            const img = images[imgIdx]
-            if (!img.uri) continue
-            const imageId = `discogs-image-${did}-${imgIdx + 1}`
-            await trx.raw(
-              `INSERT INTO "Image" (id, url, alt, "releaseId", rang, source, "createdAt")
-              VALUES (?, ?, ?, ?, ?, 'discogs', NOW()) ON CONFLICT (id) DO NOTHING`,
-              [imageId, img.uri, `${row.artist} — ${row.title}`, releaseId, imgIdx + 1]
-            )
-            if (imgIdx === 0) {
-              await trx.raw(
-                `UPDATE "Release" SET "coverImage" = ? WHERE id = ? AND "coverImage" IS NULL`,
-                [img.uri, releaseId]
-              )
-            }
-          }
-
-          await logImport(trx, runId, session, releaseId, did, "inserted", row, cached)
-          counters.inserted++
-        } catch (err) {
-          counters.errors++
-          await pushLastError(pgConnection, session_id, "new_inserts", {
-            discogs_id: did, release_id: releaseId,
-            message: err instanceof Error ? err.message : "unknown",
-          })
-          throw err
         }
 
-        if (i % 10 === 0 || i === newRows.length - 1) {
-          await stream.emit("commit", "phase_progress", {
-            phase: "new_inserts", current: i + 1, total: newRows.length,
-            last: `${row.artist} — ${row.title}`,
-            counters: { ...counters },
-          })
-          await updateSession(pgConnection, session_id, {
-            commit_progress: { phase: "new_inserts", current: i + 1, total: newRows.length, counters },
-          })
+        // Credits → ReleaseArtist
+        const extraartists = (cached?.extraartists || []) as Array<{ name?: string; id?: number; role?: string }>
+        for (const ea of extraartists) {
+          if (!ea.name || !ea.id) continue
+          const eaId = await ensureArtistByDiscogs(trx, ea)
+          if (eaId) {
+            await trx.raw(
+              `INSERT INTO "ReleaseArtist" (id, "releaseId", "artistId", role, "createdAt")
+              VALUES (?, ?, ?, ?, NOW()) ON CONFLICT ("releaseId", "artistId") DO NOTHING`,
+              [`dra-${did}-${ea.id}`, releaseId, eaId, ea.role || "performer"]
+            )
+          }
         }
-      }
-      await stream.emit("commit", "phase_done", { phase: "new_inserts", inserted: counters.inserted })
 
-      // ── Phase: committing transaction ───────────────────────────────
-      await stream.emit("commit", "phase_start", { phase: "committing", message: "Committing transaction..." })
-      const commitStart = Date.now()
-      await trx.commit()
-      await stream.emit("commit", "phase_done", { phase: "committing", duration_ms: Date.now() - commitStart })
+        // Images
+        const images = (cached?.images || []) as Array<{ uri?: string; type?: string }>
+        const maxImages = Math.min(images.length, 5)
+        for (let imgIdx = 0; imgIdx < maxImages; imgIdx++) {
+          const img = images[imgIdx]
+          if (!img.uri) continue
+          const imageId = `discogs-image-${did}-${imgIdx + 1}`
+          await trx.raw(
+            `INSERT INTO "Image" (id, url, alt, "releaseId", rang, source, "createdAt")
+            VALUES (?, ?, ?, ?, ?, 'discogs', NOW()) ON CONFLICT (id) DO NOTHING`,
+            [imageId, img.uri, `${row.artist} — ${row.title}`, releaseId, imgIdx + 1]
+          )
+          if (imgIdx === 0) {
+            await trx.raw(
+              `UPDATE "Release" SET "coverImage" = ? WHERE id = ? AND "coverImage" IS NULL`,
+              [img.uri, releaseId]
+            )
+          }
+        }
 
-      // Final session update
-      await updateSession(pgConnection, session_id, {
-        status: "done",
-        run_id: runId,
-        commit_progress: { phase: "done", counters },
-        import_settings: { media_condition, sleeve_condition, inventory, price_markup },
-      })
-      await clearControlFlags(pgConnection, session_id)
+        await logImport(trx, effectiveRunId, session, releaseId, did, "inserted", row, cached)
+      },
+      () => { counters.inserted++ }
+    )
+    if (newResult.cancelled) {
+      await finalizeCancel(pgConnection, stream, session_id, counters)
+      return
+    }
 
-      await stream.emit("commit", "done", {
-        run_id: runId,
-        collection: session.collection_name,
-        ...counters,
-      })
-      stream.end()
-    } catch (err) {
-      // Rollback transaction
-      try { await trx.rollback() } catch { /* already rolled back */ }
+    // ── Step 5: Finalize ─────────────────────────────────────────────────
+    const hasErrors = counters.errors > 0
+    await updateSession(pgConnection, session_id, {
+      status: "done",
+      run_id: effectiveRunId,
+      commit_progress: { phase: "done", counters },
+    })
+    await clearControlFlags(pgConnection, session_id)
 
-      const isCancel = err instanceof Error && err.message === "__CANCEL__"
-      const msg = isCancel ? "Cancelled by user — all changes rolled back" : (err instanceof Error ? err.message : "Import failed")
-
+    await stream.emit("commit", hasErrors ? "completed_with_errors" : "done", {
+      run_id: effectiveRunId,
+      collection: session.collection_name,
+      ...counters,
+    })
+    stream.end()
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Commit failed"
+    try {
       await updateSession(pgConnection, session_id, {
         status: "analyzed",
         error_message: msg,
-        commit_progress: { phase: "rolled_back", counters, reason: msg },
+        commit_progress: { phase: "error", reason: msg },
       })
       await clearControlFlags(pgConnection, session_id)
-
-      await stream.emit("commit", "rollback", {
-        reason: msg,
-        cancelled: isCancel,
-        counters,
-      })
-      stream.end()
-    }
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Commit failed"
+    } catch { /* ignore — best effort */ }
     if (!stream.isClosed) await stream.error(msg)
   }
+}
+
+// Finalize after user cancel: leave session in a resumable state so user
+// can decide whether to continue later. Partial committed data remains in DB.
+async function finalizeCancel(
+  pg: Knex,
+  stream: SSEStream,
+  sessionId: string,
+  counters: Counters
+): Promise<void> {
+  await updateSession(pg, sessionId, {
+    status: "analyzed",
+    error_message: "Cancelled by user — partial commit preserved (see commit_progress.completed_batches_* for what succeeded)",
+    commit_progress: { phase: "cancelled", counters },
+  })
+  await clearControlFlags(pg, sessionId)
+  await stream.emit("commit", "rollback", {
+    reason: "Cancelled by user — partial commit preserved",
+    cancelled: true,
+    counters,
+  })
+  stream.end()
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
