@@ -1,8 +1,8 @@
 # Discogs Collection Import Service
 
-**Version:** 5.0
+**Version:** 5.1
 **Datum:** 2026-04-10
-**Status:** Live — Vollständige Live-Transparenz über alle 4 Schritte
+**Status:** Live — Vollständige Live-Transparenz + Commit-Hardening (Batching, Validation, Partial-Success Resume)
 
 ## Zweck
 
@@ -103,17 +103,19 @@ listing_id,artist,title,label,catno,format,release_id,status,price,media_conditi
 │         rot <60% (pg_trgm similarity score)                 │
 │     └─ Detail-Preview pro Release                           │
 │                                                             │
-│  5. IMPORT         Transaktional (alles oder nichts)        │
+│  5. IMPORT         Per-Batch Transaktionen (v5.1)           │
 │     └─ SSE mit Heartbeat                                    │
-│     └─ 4 Phasen:                                            │
+│     └─ 5 Phasen:                                            │
 │        phase:preparing         → Row-Partitionierung        │
-│        phase:existing_updates  → UPDATE Preise etc.         │
-│        phase:linkable_updates  → UPDATE discogs_id + Preise │
-│        phase:new_inserts       → INSERT Release + Tracks +  │
-│                                  Credits + Images           │
-│        phase:committing        → Transaction COMMIT         │
-│     └─ Cancel → Transaction ROLLBACK → DB unverändert       │
-│     └─ Rollback-Event mit reason + counters bei Fehlern     │
+│        phase:validating        → Pre-Commit Checks (V1-V3)  │
+│        phase:existing_updates  → Batches à 500, jede eigene │
+│                                  Transaktion                │
+│        phase:linkable_updates  → dito                       │
+│        phase:new_inserts       → Batches INSERT Release +   │
+│                                  Tracks + Credits + Images  │
+│     └─ Bad Batch → Rollback + continue (max 500 verlust)    │
+│     └─ completed_batches_{phase} tracked für resume         │
+│     └─ Partial success → status='analyzed', resume möglich  │
 │                                                             │
 │  6. HISTORY        Run-Übersicht mit Drill-Down Modal       │
 │     └─ Tabelle mit Counters (Inserted/Linked/Updated)       │
@@ -163,7 +165,40 @@ Running SSE loop  → isCancelRequested() poll  → throw "__CANCEL__"
 
 Ähnlich für Pause: setzt `pause_requested=true`, running loop pollt via `awaitPauseClearOrCancel()` und wartet bis Resume oder Cancel.
 
-### 5. Echtes Fuzzy-Matching mit pg_trgm
+### 5. Commit Hardening v5.1: Per-Batch Transaktionen
+
+**Problem (bis v5.0):** Eine riesige Transaktion für alle INSERTs. Ein Fehler bei Release #4.999 wirft alle 4.998 vorherigen weg.
+
+**Lösung:** `BATCH_SIZE = 500` Rows, jede Batch in eigener `pgConnection.transaction()`. Bei Batch-Fehler: rollback + `continue` mit nächster Batch.
+
+**Progress-Tracking:** `commit_progress.completed_batches_{phase}: number[]` speichert welche Batch-Indices erfolgreich committed sind. Bei Resume werden diese skipped.
+
+**Trade-off:** Verliert "alles-oder-nichts" Semantik. Partial state möglich wenn ein Batch failt. Dafür:
+- Max 500 rows Verlust statt aller 5000 bei einem bad row
+- Resume nach Crash fängt genau bei dem nicht-committed Batch an
+- Transparenz via `commit_progress.completed_batches_*` zeigt exakt was schon drin ist
+
+**Pre-Commit Validation Pass** (vor erster Transaktion):
+- **V1:** Alle `new` rows haben cached API data (sonst kann der Full-Insert nicht gebaut werden)
+- **V2:** Keine duplicate slugs im new set (verhindert `Release_slug_key` unique violation)
+- **V3:** Keine Release IDs die schon in DB existieren (heißt analyze hat misklassifiziert)
+
+Fehler → `validation_failed` Event, Session zurück auf `analyzed`, **keine DB-Änderungen**.
+
+**Slug-Generator mit discogs_id suffix:**
+```typescript
+buildImportSlug(artist, title, discogs_id) → "{artist}-{title}-{discogs_id}"
+```
+Garantiert unique per Definition (discogs_id ist PK). Lässt legacy slugs unberührt — nur neue Imports bekommen suffix.
+
+**Settings Persistence:** Erster `updateSession` im Commit schreibt `import_settings = { media_condition, sleeve_condition, inventory, price_markup, selected_discogs_ids }`. Bei Resume auf Status `importing` werden diese Settings automatisch in den React-State restored — User muss nicht re-selecting.
+
+**Terminal State Logic:**
+- `errors === 0` → status `done` (alles committed)
+- `errors > 0` → status `analyzed` (partial success, resume möglich)
+- `completed_batches_*` Keys werden über den finalen updateSession hinweg **preserviert** — retry skippt bereits committed batches
+
+### 6. Echtes Fuzzy-Matching mit pg_trgm
 
 - Extension: `pg_trgm` + `fuzzystrmatch`
 - GIN-Index: `idx_release_title_trgm ON "Release" USING GIN ((lower(title)) gin_trgm_ops)`

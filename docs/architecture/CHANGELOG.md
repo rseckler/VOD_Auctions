@@ -11,6 +11,7 @@ Jeder Git-Tag entspricht einem Snapshot des Gesamtsystems. Feature Flags zeigen 
 | Version | Datum | Platform Mode | Feature Flags aktiv (prod) | Milestone / Inhalt |
 |---------|-------|--------------|---------------------------|-------------------|
 | **v1.0.0** | TBD | `live` | ERP: TBD | RSE-78: Erster öffentlicher Launch |
+| **v1.0.0-rc16** | 2026-04-10 | `beta_test` | — | Discogs Import Commit Hardening + Schema Fixes: Per-Batch Transaktionen, Pre-Commit Validation, Pargmann Import 5.646 releases done |
 | **v1.0.0-rc15** | 2026-04-10 | `beta_test` | — | Discogs Import Live Feedback: SSE für alle 4 Schritte, Heartbeat, Resume, Cancel/Pause, Event-Log |
 | **v1.0.0-rc14** | 2026-04-10 | `beta_test` | — | Discogs Import Refactoring: DB-Sessions, DB-Cache, pg_trgm Fuzzy-Matching, Transaktionen |
 | **v1.0.0-rc13** | 2026-04-10 | `beta_test` | — | Discogs Import: Server-side API Fetch with SSE, complete end-to-end workflow |
@@ -53,6 +54,132 @@ Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Rel
 - **Patch Release** (`v1.0.x`): Kritische Bugfixes zwischen geplanten Releases
 - **Tagging-Workflow:** `git tag -a vX.Y.Z -m "Release vX.Y.Z: <Kurzname>"` → `git push origin vX.Y.Z`
 - **Tag-Zeitpunkt:** Direkt nach Deploy + Smoke-Test auf Production — nicht vor dem Deploy
+
+---
+
+## 2026-04-10 — Discogs Import Commit Hardening + Schema Fixes (rc16)
+
+Proaktive Härtung der Commit-Phase + mehrere Schema-Mismatches gefixt die erst durch die neue v5.1-Architektur sichtbar wurden. Erfolgreicher Produktions-Import von 5.646 Releases (Pargmann Waschsalon-Berlin Collection).
+
+### Context — was der Auslöser war
+
+Der Pargmann Import (5.653 Rows) hatte in einem früheren Run einen Foreign-Key-Error in der linkable_updates-Phase. Mit der alten all-or-nothing Transaktion gingen 997 existing updates + 803 linked updates durch Rollback verloren — ein einziger bad row hat ~17 Minuten Commit-Arbeit vernichtet. Gleichzeitig hatten sich im Commit-Route mehrere Legacy-Schema-Mismatches angesammelt (`format_group`, `Track.createdAt`, `slug` collisions) die nie getriggert wurden weil vorher immer was anderes crashte.
+
+### 1. Commit Hardening v5.1 (Per-Batch Transaktionen)
+
+**Problem:** Eine einzige riesige Transaktion für alle 5.000+ INSERTs. Ein Fehler bei Release #4.999 wirft alle 4.998 vorherigen weg.
+
+**Fix:** 500er-Batches, jede in eigener `pgConnection.transaction()`. Bei Batch-Fehler: rollback dieser Batch + `continue` mit nächster Batch. `completed_batches_{phase}: number[]` tracked in `commit_progress`. Resume überspringt bereits committed Batches.
+
+**Trade-off:** Verliert all-or-nothing Semantik. Aber gewinnt Partial-Safety — max 500 rows Verlust statt aller 5000 bei einem bad row.
+
+### 2. Pre-Commit Validation Pass
+
+Neue Phase `validating` vor jeder Transaktion:
+- **V1:** Alle `new` rows haben cached API data
+- **V2:** Keine duplicate slugs im new set (verhindert Release.slug unique constraint violations)
+- **V3:** Keine Release IDs die schon in DB existieren (würde auf misklassifizierte "new" hinweisen)
+
+Fehler → `validation_failed` Event + Session zurück auf `analyzed`, **zero DB writes**. Fail-fast ohne Transaktion zu öffnen.
+
+### 3. `import_settings` + `selected_ids` Persistenz
+
+Erster `updateSession` im Commit route schreibt:
+```json
+{
+  "media_condition": "VG+",
+  "sleeve_condition": "VG+",
+  "inventory": 1,
+  "price_markup": 1.2,
+  "selected_discogs_ids": [123, 456, ...]
+}
+```
+
+Frontend `handleResumeBanner` case `importing` lädt diese Settings und restored React-State (condition, inventory, markup, selectedIds). User kann Commit ohne Re-Selecting fortsetzen.
+
+### 4. Schema-Mismatch Fixes
+
+Drei Bugs im Commit-Code die durch die neue Batch-Architektur ans Licht kamen:
+
+| Bug | Fix |
+|---|---|
+| `Release.format_group` column does not exist | → `format` (USER-DEFINED enum `ReleaseFormat`, NOT NULL) mit explizitem Cast `?::"ReleaseFormat"` |
+| `Track.createdAt` column does not exist | Track hat keine Timestamp-Spalten, `createdAt` aus INSERT entfernt |
+| 185 duplicate slugs bei identischen Titeln (z.B. Depeche Mode "Leave In Silence" mit 3 verschiedenen Pressings) | Neue Helper `buildImportSlug(artist, title, discogs_id)` hängt `-{discogs_id}` an den slug — garantiert unique per Definition |
+
+Plus: `legacy_available = false` explizit gesetzt beim INSERT (default ist `true`, semantisch falsch für Discogs-Imports).
+
+### 5. UX-Fix: Resume-Banner auch ohne localStorage
+
+**Problem:** Wenn localStorage leer war (anderer Browser, Cookie clear, nach `completed_with_errors`), zeigte die Upload-Seite keinen Resume-Banner auch wenn es eine active Session in der DB gab. User musste im History-Tab suchen oder localStorage manuell via Browser-Konsole setzen.
+
+**Fix:** Beim Mount ruft die Seite `/history` auf und prüft `active_sessions` (alle Sessions NOT IN `done`, `error`). Wenn vorhanden → Banner sofort angezeigt. localStorage bleibt als "preferred session" hint.
+
+### 6. Echter Resume-Button
+
+**Problem:** Der alte `handleResumeBanner` lud nur UI-State aus der Session, startete aber keine Operation. User klickte "Resume" und sah... nichts.
+
+**Fix:** Status-basierte Auto-Resume-Logic. Nach Laden der Session wird abhängig von `session.status` die richtige Operation getriggert:
+- `uploaded` / `fetching` → `handleFetch()` (Loop skippt cached IDs)
+- `fetched` → `handleAnalyze()` (fast, idempotent)
+- `analyzing` → `handleAnalyze()` (re-run, keine DB-Seiteneffekte)
+- `analyzed` → Lädt analysis_result, navigiert zu Review Tab
+- `importing` → Lädt analysis + warnt dass re-commit nötig ist
+
+### 7. Session Status Bug (Fix in rc16)
+
+**Problem:** Bei `completed_with_errors` wurde session.status auf `done` gesetzt → Resume-Banner versteckt → user musste manuell DB updaten um retry zu können. Plus: Final commit_progress überschrieb die `completed_batches_*` keys, sodass retry keine skipping machen konnte.
+
+**Fix:**
+- `finalStatus = errors > 0 ? 'analyzed' : 'done'` — bei partial success bleibt die Session resumable
+- `completed_batches_*` Keys werden aus dem alten commit_progress in den finalen State gemergt — retry skippt korrekt
+- `error_message` bekommt freundliche Beschreibung: "Commit completed with N errors. M rows committed successfully. Click 'Approve & Import' again to retry failed batches."
+
+### Datenbank-Resultate (Pargmann Import Run ID `cbce39b2`)
+
+| Entity | Count |
+|---|---|
+| Discogs Releases inserted | **3.251** |
+| Legacy Releases linked (fuzzy matched) | **1.398** |
+| Existing Releases updated | **997** |
+| Skipped (404 not found auf Discogs) | **7** |
+| Errors | **0** |
+| **Total committed** | **5.646** |
+| Tracks | 26.464 (~8.1/release) |
+| Images | 11.277 (~3.5/release) |
+| Discogs Artists (inkl. Credits) | 30.776 |
+| Discogs Labels (dedupliziert) | 1.508 |
+| import_log entries | 5.646 |
+
+Mit Cover: 3.190 von 3.251 (**98%**).
+
+### Timeline (chronologisch)
+
+1. **07:17** — Erster Commit-Versuch: `Release_labelId_fkey` bei `legacy-release-1923` (legacy Daten, `labelId = "legacy-label-1"` zeigt auf nicht-existierendes Label). Alle 997 + 803 Operations rolled back. → Trigger für Commit Hardening Plan.
+2. **08:00** — v5.1 Plan approved (per-batch, validation, settings persistence), Implementierung.
+3. **09:00** — v5.1 deployed, aber Fetch läuft noch → Session wartet.
+4. **11:30** — Pargmann Fetch fertig (5.653/5.653 cached). v5.1 deployed (Commit `ebdb98d`).
+5. **12:00** — Erster v5.1 Retry: Pre-Commit Validation fängt 185 duplicate slugs (Pressings collision). Fail-fast ohne DB writes. → `buildImportSlug` mit discogs_id suffix (Commit `d7ce924`).
+6. **12:06** — Zweiter Retry: existing + linkable durch (997 + 1398), new_inserts crasht mit `format_group` column error. Batch-Isolation greift: alle 7 new_insert Batches failen aber linkable bleibt committed. (Commit `7fa8f20` fix format → format).
+7. **12:17** — Dritter Retry: existing + linkable nochmal durch (idempotent), new_inserts crasht mit `Track.createdAt`. (Commit `2df9c3a` fix Track INSERT).
+8. **12:23-12:29** — Vierter Retry: **alles durch**. Batch 1 (65s) → Batch 7 (~25s). Run ID `cbce39b2`. 3.251 inserted, 1.398 linked, 997 updated, **0 errors**.
+
+### Geänderte Dateien (6 commits über den Tag)
+
+| Commit | Was |
+|---|---|
+| `ebdb98d` | v5.1: Batching + Validation + Settings Persistence (commit/route.ts komplett rewritten) |
+| `d7ce924` | `buildImportSlug` mit discogs_id suffix — fixes duplicate slug collisions |
+| `7fa8f20` | `format_group` → `format` column + `legacy_available = false` + enum cast |
+| `2df9c3a` | Track INSERT entfernt nonexistent `createdAt` column |
+| `974db03` | UX Fix: Resume-Banner via /history active_sessions statt nur localStorage |
+| `d022ac1` | Session Status Fix: 'analyzed' statt 'done' bei errors > 0 + preserve completed_batches_* |
+
+### Referenz
+
+- Service Doc: `docs/DISCOGS_IMPORT_SERVICE.md` v5.1
+- Plan: `docs/DISCOGS_IMPORT_LIVE_FEEDBACK_PLAN.md` (rc15) — IMPLEMENTIERT
+- Session Learnings: `docs/architecture/DISCOGS_IMPORT_SESSION_2026-04-10.md` (NEU)
 
 ---
 
