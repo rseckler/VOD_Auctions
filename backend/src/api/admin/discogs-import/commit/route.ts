@@ -753,8 +753,10 @@ function buildPriceEntry(
 ) {
   const community = (cached?.community || {}) as { have?: number; want?: number }
   const vgPlusPrice = (suggestedPrices as Record<string, unknown>)?.["VG+"] as number | null ?? null
+  // Rounded to whole euros — plattform policy (BID_CONFIG.whole_euros_only = true).
+  // All auction prices, estimated values, and direct prices must be integer euros.
   const estimatedValue = vgPlusPrice
-    ? Math.round(vgPlusPrice * priceMarkup * 100) / 100
+    ? Math.round(vgPlusPrice * priceMarkup)
     : null
   return {
     date: now,
