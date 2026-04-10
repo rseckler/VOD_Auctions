@@ -545,27 +545,34 @@ export async function POST(
         const creditsText = buildCreditsText(cached)
         const additionalLabels = getAdditionalLabels(cached)
 
+        // NOTE: These NOT NULL columns have DB defaults and are omitted:
+        //   viewCount (0), ratingCount (0), favoriteCount (0),
+        //   sale_mode ('auction_only'), label_enriched (false),
+        //   product_category ('release' — we set it anyway for clarity)
+        // We explicitly set legacy_available=false because its default is
+        // TRUE (meant for legacy-synced releases), which would be wrong
+        // for Discogs imports.
         await trx.raw(
           `INSERT INTO "Release" (
             id, title, slug, "artistId", "labelId",
-            "catalogNumber", year, country, format_group, legacy_format_detail,
+            "catalogNumber", year, country, format, legacy_format_detail,
             description, credits, genres, styles,
             media_condition, sleeve_condition, inventory,
             estimated_value, discogs_suggested_prices,
             discogs_id, discogs_lowest_price, discogs_num_for_sale,
             discogs_have, discogs_want, discogs_last_synced,
             discogs_price_history, additional_labels, data_source,
-            product_category, "createdAt", "updatedAt"
+            legacy_available, product_category, "createdAt", "updatedAt"
           ) VALUES (
             ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?,
+            ?, ?, ?, ?::"ReleaseFormat", ?,
             ?, ?, ?, ?,
             ?, ?, ?,
             ?, ?::jsonb,
             ?, ?, ?,
             ?, ?, ?,
             ?::jsonb, ?::jsonb, 'discogs_import',
-            'release', NOW(), NOW()
+            false, 'release', NOW(), NOW()
           )
           ON CONFLICT (id) DO NOTHING`,
           [
