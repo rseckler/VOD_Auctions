@@ -50,3 +50,6 @@ __pycache__/
 
 # Test env
 .env.test
+
+# Local pending-deploy markers (Claude Code workflow — state file, not for commits)
+.pending-deploy-*.md
