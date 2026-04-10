@@ -667,11 +667,37 @@ export async function POST(
     }
 
     // ── Step 5: Finalize ─────────────────────────────────────────────────
+    // Session-state logic:
+    //   errors === 0                    → 'done'     (fully committed, no retry needed)
+    //   errors > 0                       → 'analyzed' (partial success, retry possible)
+    //                                                 Resume-Banner shows, completed_batches_*
+    //                                                 keys are preserved so re-running skips
+    //                                                 batches that already succeeded.
     const hasErrors = counters.errors > 0
+    const finalStatus = hasErrors ? "analyzed" : "done"
+
+    // Preserve completed_batches_* keys across the terminal update so a retry
+    // can skip already-committed batches via processInBatches() resume logic.
+    const freshSessionEnd = await getSession(pgConnection, session_id)
+    const existingProgress = (freshSessionEnd?.commit_progress as Record<string, unknown>) || {}
+    const preservedBatches: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(existingProgress)) {
+      if (k.startsWith("completed_batches_")) {
+        preservedBatches[k] = v
+      }
+    }
+
     await updateSession(pgConnection, session_id, {
-      status: "done",
+      status: finalStatus,
       run_id: effectiveRunId,
-      commit_progress: { phase: "done", counters },
+      commit_progress: {
+        phase: hasErrors ? "done_with_errors" : "done",
+        counters,
+        ...preservedBatches,
+      },
+      ...(hasErrors ? {
+        error_message: `Commit completed with ${counters.errors} errors. ${counters.inserted + counters.linked + counters.updated} rows committed successfully. Click 'Approve & Import' again to retry failed batches.`,
+      } : {}),
     })
     await clearControlFlags(pgConnection, session_id)
 
