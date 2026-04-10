@@ -223,21 +223,62 @@ export async function GET(
   }
 
   // Category filter (7 categories: tapes, vinyl, cd, vhs, band_literature, label_literature, press_literature)
+  //
+  // NOTE: Legacy releases classify via Format.kat (a legacy column that groups
+  // vinyl-formats as kat=2 and everything-else as kat=1). Discogs-imported
+  // releases don't have format_id set (only the `format` enum), so we need
+  // an OR-clause that also matches via the enum value when format_id IS NULL.
+  // Otherwise Discogs-imports would be invisible in vinyl/tapes categories.
   if (category && typeof category === "string") {
+    // Tapes = kat 1 minus CD/VHS minus book/poster/magazine/etc.
+    // For Discogs-imports (format_id NULL), map via format enum:
+    //   "CASSETTE" → tapes, "REEL" → tapes
+    const discogsTapeFormats = ["CASSETTE", "REEL"]
+    //   "LP" → vinyl
+    const discogsVinylFormats = ["LP"]
+
     switch (category) {
       case "tapes":
-        query = query.where("Release.product_category", "release").where("Format.kat", 1)
+        query = query.where("Release.product_category", "release")
           .whereNotIn("Release.format", ["CD", "VHS"])
+          .where(function () {
+            this.where("Format.kat", 1)
+              .orWhere(function () {
+                this.whereNull("Release.format_id")
+                  .whereIn("Release.format", discogsTapeFormats)
+              })
+          })
         countQuery = countQuery
           .leftJoin("Format as F", "Release.format_id", "F.id")
-          .where("Release.product_category", "release").where("F.kat", 1)
+          .where("Release.product_category", "release")
           .whereNotIn("Release.format", ["CD", "VHS"])
+          .where(function () {
+            this.where("F.kat", 1)
+              .orWhere(function () {
+                this.whereNull("Release.format_id")
+                  .whereIn("Release.format", discogsTapeFormats)
+              })
+          })
         break
       case "vinyl":
-        query = query.where("Release.product_category", "release").where("Format.kat", 2)
+        query = query.where("Release.product_category", "release")
+          .where(function () {
+            this.where("Format.kat", 2)
+              .orWhere(function () {
+                this.whereNull("Release.format_id")
+                  .whereIn("Release.format", discogsVinylFormats)
+              })
+          })
         countQuery = countQuery
           .leftJoin("Format as F", "Release.format_id", "F.id")
-          .where("Release.product_category", "release").where("F.kat", 2)
+          .where("Release.product_category", "release")
+          .where(function () {
+            this.where("F.kat", 2)
+              .orWhere(function () {
+                this.whereNull("Release.format_id")
+                  .whereIn("Release.format", discogsVinylFormats)
+              })
+          })
         break
       case "cd":
         query = query.where("Release.format", "CD")
