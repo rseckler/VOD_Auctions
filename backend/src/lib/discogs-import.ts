@@ -177,7 +177,8 @@ export async function clearControlFlags(pg: Knex, sessionId: string): Promise<vo
 
 // ─── Error detail buffer ────────────────────────────────────────────────────
 
-/** Append an error to last_error buffer (kept as array of last 10). */
+/** Append an error to last_error buffer (kept as array of last 10 by insertion order).
+ *  Read-modify-write in application code — simple and correct, no fancy SQL. */
 export async function pushLastError(
   pg: Knex,
   sessionId: string,
@@ -189,19 +190,22 @@ export async function pushLastError(
     timestamp: new Date().toISOString(),
     ...error,
   }
-  await pg.raw(
-    `UPDATE import_session
-     SET last_error = COALESCE(
-       (SELECT jsonb_agg(e) FROM (
-         SELECT * FROM jsonb_array_elements(COALESCE(last_error, '[]'::jsonb)) e
-         ORDER BY (e->>'timestamp') DESC
-         LIMIT 9
-       ) t),
-       '[]'::jsonb
-     ) || ?::jsonb
-     WHERE id = ?`,
-    [JSON.stringify([errorEntry]), sessionId]
-  )
+  try {
+    const current = await pg.raw(
+      `SELECT last_error FROM import_session WHERE id = ?`,
+      [sessionId]
+    )
+    const existing = (current.rows?.[0]?.last_error as Array<Record<string, unknown>> | null) || []
+    // Keep last 9 existing + append new = max 10
+    const updated = [...existing.slice(-9), errorEntry]
+    await pg.raw(
+      `UPDATE import_session SET last_error = ?::jsonb, updated_at = NOW(), last_event_at = NOW() WHERE id = ?`,
+      [JSON.stringify(updated), sessionId]
+    )
+  } catch (err) {
+    // Never let error-buffer failures crash the caller
+    console.error("[pushLastError] failed:", err)
+  }
 }
 
 // ─── Compact row helpers (shared between upload + consumers) ────────────────
