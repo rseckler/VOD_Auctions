@@ -14,6 +14,14 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "pub-433520acd4174598939bc51f96e2b8b9.r2.dev",
       },
+      // Discogs CDN — used for Discogs-imported releases. Images are hotlinked
+      // directly from Discogs until we batch-download them to R2 (see
+      // docs/DISCOGS_IMPORT_SERVICE.md "R2 upload deferred to batch process").
+      // Wildcard covers i.discogs.com, img.discogs.com, s.discogs.com etc.
+      {
+        protocol: "https",
+        hostname: "**.discogs.com",
+      },
     ],
   },
 };
