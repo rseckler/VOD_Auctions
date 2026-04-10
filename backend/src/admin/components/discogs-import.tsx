@@ -17,6 +17,8 @@ export interface SessionStatus {
   id: string
   collection_name: string
   filename: string
+  format_detected?: string | null
+  export_type?: string | null
   status: string
   row_count: number
   unique_count: number
@@ -24,6 +26,7 @@ export interface SessionStatus {
   fetch_progress: Record<string, unknown> | null
   analyze_progress: Record<string, unknown> | null
   commit_progress: Record<string, unknown> | null
+  analysis_result: Record<string, unknown> | null
   cancel_requested: boolean
   pause_requested: boolean
   last_error: Array<Record<string, unknown>> | null
@@ -393,6 +396,20 @@ export function SessionResumeBanner({ session, onResume, onAbandon }: ResumeBann
   const ageMin = Math.round((Date.now() - startedAt.getTime()) / 60000)
   const ageStr = ageMin < 1 ? "just now" : ageMin < 60 ? `${ageMin} min ago` : `${Math.round(ageMin / 60)} h ago`
 
+  // Contextual button label based on session status.
+  // Maps the session state to the next action the user would take.
+  const resumeLabel = (() => {
+    switch (session.status) {
+      case "uploaded":  return "Start Fetch"
+      case "fetching":  return "Resume Fetch"
+      case "fetched":   return "Start Analysis"
+      case "analyzing": return "Resume Analysis"
+      case "analyzed":  return "Continue to Review"
+      case "importing": return "Review & Re-Import"
+      default:          return "Resume"
+    }
+  })()
+
   const progressStr = (() => {
     if (session.status === "fetching" && session.fetch_progress) {
       const p = session.fetch_progress as { current?: number; total?: number }
@@ -447,7 +464,7 @@ export function SessionResumeBanner({ session, onResume, onAbandon }: ResumeBann
             cursor: "pointer",
           }}
         >
-          Resume
+          {resumeLabel}
         </button>
         <button
           type="button"

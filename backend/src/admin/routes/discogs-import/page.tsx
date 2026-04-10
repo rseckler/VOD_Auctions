@@ -431,38 +431,129 @@ const DiscogsImportPage = () => {
   }, [uploadResult])
 
   // ── Resume banner actions ──
+  // Real Resume: loads session + events, then auto-triggers the appropriate
+  // next operation based on session status. Replaces the old "just show state"
+  // behavior which didn't actually restart anything.
   const handleResumeBanner = useCallback(async () => {
     if (!resumeCandidate) return
-    // Load existing session as uploadResult
+
+    // 1. Load full session + recent events
+    const resp = await fetch(
+      `/admin/discogs-import/session/${resumeCandidate.id}/status?limit=200`,
+      { credentials: "include" }
+    )
+    if (!resp.ok) {
+      setError("Failed to load session state")
+      setResumeCandidate(null)
+      clearActiveSessionId()
+      return
+    }
+    const data = await resp.json() as {
+      session: SessionStatus
+      events: Array<{ id: number; phase: string; event_type: string; payload: Record<string, unknown>; created_at: string }>
+    }
+    const st = data.session
+    const eventsFromDb: ImportEvent[] = (data.events || []).map((e) => ({
+      type: e.event_type,
+      phase: e.phase,
+      timestamp: e.created_at,
+      ...(e.payload || {}),
+    }))
+
+    // 2. Restore minimal UI state
     setUploadResult({
-      session_id: resumeCandidate.id,
-      row_count: resumeCandidate.row_count,
-      unique_discogs_ids: resumeCandidate.unique_count,
-      format_detected: "",
+      session_id: st.id,
+      row_count: st.row_count,
+      unique_discogs_ids: st.unique_count,
+      format_detected: st.format_detected || "",
+      export_type: st.export_type || undefined,
       sample_rows: [],
     })
-    setCollectionName(resumeCandidate.collection_name)
-    // Load existing events
-    const resp = await fetch(`/admin/discogs-import/session/${resumeCandidate.id}/status?limit=200`, { credentials: "include" })
-    if (resp.ok) {
-      const data = await resp.json() as { events: Array<{ id: number; phase: string; event_type: string; payload: Record<string, unknown>; created_at: string }> }
-      setEvents(data.events.map((e) => ({
-        type: e.event_type,
-        phase: e.phase,
-        timestamp: e.created_at,
-        ...(e.payload || {}),
-      })))
-    }
-    // Enable polling to track status
-    setPollingEnabled(true)
+    setCollectionName(st.collection_name)
+    setEvents(eventsFromDb)
     setResumeCandidate(null)
-    // Map session status to phase
-    const st = resumeCandidate.status
-    if (st === "uploaded") setCurrentPhase("fetch")
-    else if (st === "fetching" || st === "fetched") setCurrentPhase("fetch")
-    else if (st === "analyzing" || st === "analyzed") setCurrentPhase("analyze")
-    else if (st === "importing") setCurrentPhase("import")
-  }, [resumeCandidate])
+    setError(null)
+
+    // 3. Restore fetch_result if fetch has completed (so UI shows post-fetch state)
+    const fp = st.fetch_progress as { current?: number; total?: number; fetched?: number; cached?: number; errors?: number } | null
+    if (fp && (st.status === "fetched" || st.status === "analyzing" || st.status === "analyzed" || st.status === "importing")) {
+      setFetchResult({
+        fetched: fp.fetched ?? 0,
+        cached: fp.cached ?? 0,
+        errors: fp.errors ?? 0,
+        duration_min: 0,
+      })
+    }
+
+    // 4. Restore analysis if present (for analyzed/importing → Review tab navigation)
+    const loadAnalysis = (): boolean => {
+      if (!st.analysis_result) return false
+      const ar = st.analysis_result as unknown as AnalysisResult
+      setAnalysis(ar)
+      const ids = new Set<number>()
+      for (const r of [...(ar.new || []), ...(ar.linkable || []), ...(ar.existing || [])]) {
+        ids.add(r.discogs_id)
+      }
+      setSelectedIds(ids)
+      return true
+    }
+
+    // 5. Status-dependent auto-resume
+    switch (st.status) {
+      case "uploaded":
+      case "fetching":
+        // Restart fetch loop — backend skips cached IDs automatically via discogs_api_cache
+        setCurrentPhase("fetch")
+        handleFetch()
+        break
+
+      case "fetched":
+        // Fetch complete, analyze not yet run — auto-trigger analyze
+        setCurrentPhase("analyze")
+        handleAnalyze()
+        break
+
+      case "analyzing":
+        // Analyze was interrupted — safe to re-run (no DB side effects)
+        setCurrentPhase("analyze")
+        handleAnalyze()
+        break
+
+      case "analyzed":
+        // Analysis complete, navigate to Review tab
+        if (loadAnalysis()) {
+          setTab("Analysis")
+          setCurrentPhase("review")
+        } else {
+          // Fallback: analysis_result missing, re-analyze
+          setCurrentPhase("analyze")
+          handleAnalyze()
+        }
+        break
+
+      case "importing":
+        // Commit was interrupted mid-transaction. Postgres + catch-block rolled
+        // back automatically → DB is consistent. User must manually re-commit
+        // because we don't persist selected_ids / import_settings across runs.
+        if (loadAnalysis()) {
+          setTab("Analysis")
+          setCurrentPhase("review")
+          setError(
+            "The previous import was interrupted mid-transaction and automatically rolled back. " +
+            "Your analysis is preserved. Please confirm the selection below and click 'Approve & Import' again."
+          )
+        } else {
+          setCurrentPhase("analyze")
+          handleAnalyze()
+        }
+        break
+
+      default:
+        // Unknown status — fallback to upload view
+        setCurrentPhase("upload")
+        break
+    }
+  }, [resumeCandidate, handleFetch, handleAnalyze])
 
   const handleAbandon = useCallback(() => {
     clearActiveSessionId()

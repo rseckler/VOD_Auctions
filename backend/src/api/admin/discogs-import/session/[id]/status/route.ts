@@ -27,6 +27,7 @@ export async function GET(
          id, collection_name, filename, row_count, unique_count,
          format_detected, export_type, status,
          parse_progress, fetch_progress, analyze_progress, commit_progress,
+         analysis_result,
          cancel_requested, pause_requested,
          last_event_at, last_error, run_id, error_message,
          created_at, updated_at
