@@ -25,12 +25,13 @@ interface MatchRow {
   discogs_id: number
   condition: number | null
   db_release_id?: string
+  match_score?: number
   skip_reason?: string
   api_data?: Record<string, unknown>
 }
 
 interface AnalysisResult {
-  summary: { total: number; existing: number; linkable: number; new: number; skipped: number; has_api_cache: boolean }
+  summary: { total: number; existing: number; linkable: number; new: number; skipped: number }
   existing: MatchRow[]
   linkable: MatchRow[]
   new: MatchRow[]
@@ -220,6 +221,7 @@ const DiscogsImportPage = () => {
               const evt = JSON.parse(line.slice(6))
               if (evt.type === "progress") setImportProgress({ current: evt.current, total: evt.total, artist: evt.artist, title: evt.title })
               else if (evt.type === "done") { setCommitResult(evt); setHistory(null) }
+              else if (evt.type === "error") { setError(evt.error) }
             } catch { /* skip */ }
           }
         }
@@ -447,9 +449,12 @@ const DiscogsImportPage = () => {
                     {images[0]?.uri && <img src={String(images[0].uri)} alt="" style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 4 }} />}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.artist} — {row.title}</div>
-                      <div style={{ fontSize: 12, color: C.muted, display: "flex", gap: 12 }}>
+                      <div style={{ fontSize: 12, color: C.muted, display: "flex", gap: 12, alignItems: "center" }}>
                         {row.year && <span>{row.year}</span>}
                         <span>{row.format}</span>
+                        {row.match_score != null && row.match_score < 100 && (
+                          <span style={{ fontSize: 11, fontWeight: 700, padding: "1px 6px", borderRadius: 4, background: row.match_score >= 80 ? C.success + "22" : row.match_score >= 60 ? C.gold + "22" : C.error + "22", color: row.match_score >= 80 ? C.success : row.match_score >= 60 ? C.gold : C.error }}>{row.match_score}% match</span>
+                        )}
                         {row.db_release_id && <a href={"https://vod-auctions.com/catalog/" + row.db_release_id} target="_blank" rel="noopener noreferrer" style={{ color: C.gold, textDecoration: "none", fontFamily: "monospace" }} onClick={e => e.stopPropagation()}>{row.db_release_id}</a>}
                         <a href={"https://www.discogs.com/release/" + row.discogs_id} target="_blank" rel="noopener noreferrer" style={{ color: C.blue, textDecoration: "none" }} onClick={e => e.stopPropagation()}>discogs:{row.discogs_id}</a>
                       </div>

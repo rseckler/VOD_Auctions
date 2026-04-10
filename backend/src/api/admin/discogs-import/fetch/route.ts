@@ -1,13 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import * as fs from "fs"
-import * as path from "path"
-import { getScriptsDir } from "../../../../lib/paths"
-import { sessions, touchSession } from "../upload/route"
-
-// Touch session every 5 minutes during long fetch operations
-function startSessionKeepAlive(sessionId: string): NodeJS.Timeout {
-  return setInterval(() => touchSession(sessionId), 5 * 60 * 1000)
-}
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import type { Knex } from "knex"
+import { getSession, updateSession, expandRow } from "../upload/route"
 
 const DISCOGS_BASE = "https://api.discogs.com"
 const MAX_REQUESTS_PER_MIN = 40
@@ -51,9 +45,11 @@ export async function POST(
       return
     }
 
-    const session = sessions.get(session_id)
+    const pgConnection: Knex = req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
+
+    const session = await getSession(pgConnection, session_id)
     if (!session) {
-      res.status(404).json({ error: "Session not found or expired. Please re-upload." })
+      res.status(404).json({ error: "Session not found. Please re-upload." })
       return
     }
 
@@ -78,36 +74,35 @@ export async function POST(
       res.write(`data: ${JSON.stringify(data)}\n\n`)
     }
 
-    // Load existing cache
-    const dataDir = path.join(getScriptsDir(), "data")
-    if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true })
-    const cachePath = path.join(dataDir, "discogs_import_cache.json")
-    let cache: Record<string, Record<string, unknown>> = {}
-    if (fs.existsSync(cachePath)) {
-      cache = JSON.parse(fs.readFileSync(cachePath, "utf-8"))
-    }
+    // Update session status
+    await updateSession(pgConnection, session_id, { status: "fetching" })
 
-    // Keep session alive during long fetch
-    touchSession(session_id)
-    const keepAlive = startSessionKeepAlive(session_id)
+    const compactRows = session.rows as Array<Record<string, unknown>>
+    const rows = compactRows.map(expandRow)
+    const allDiscogsIds = rows.map((r) => r.discogs_id)
 
-    const rows = session.rows
+    // Check which IDs are already cached in DB (valid, non-expired, non-error)
+    const cachedResult = await pgConnection.raw(
+      `SELECT discogs_id FROM discogs_api_cache
+       WHERE discogs_id = ANY(?) AND expires_at > NOW() AND is_error = false`,
+      [allDiscogsIds]
+    )
+    const cachedIds = new Set((cachedResult.rows || []).map((r: { discogs_id: number }) => r.discogs_id))
+
     const total = rows.length
     let fetched = 0
     let skippedCached = 0
     let errors = 0
     const startTime = Date.now()
 
-    send({ type: "start", total, cached: Object.keys(cache).length })
+    send({ type: "start", total, cached: cachedIds.size })
 
     for (let i = 0; i < total; i++) {
       const did = rows[i].discogs_id
-      const didStr = String(did)
 
-      // Skip if already cached (and not an error)
-      if (cache[didStr] && !cache[didStr].error) {
+      // Skip if already cached in DB
+      if (cachedIds.has(did)) {
         skippedCached++
-        // Send progress every 50 cached items to keep connection alive
         if (skippedCached % 50 === 0) {
           send({ type: "progress", current: i + 1, total, artist: rows[i].artist, title: rows[i].title, status: "cached" })
         }
@@ -117,20 +112,24 @@ export async function POST(
       // Fetch /releases/{id}
       await rateLimit()
       try {
-        const releaseResp = await fetch(`${DISCOGS_BASE}/releases/${did}`, { headers, signal: AbortSignal.timeout(30000) })
+        let releaseResp = await fetch(`${DISCOGS_BASE}/releases/${did}`, { headers, signal: AbortSignal.timeout(30000) })
 
         if (releaseResp.status === 429) {
           const retryAfter = parseInt(releaseResp.headers.get("Retry-After") || "60", 10)
           send({ type: "rate_limited", wait: retryAfter })
           await new Promise((r) => setTimeout(r, retryAfter * 1000))
-          // Retry once
           await rateLimit()
-          const retry = await fetch(`${DISCOGS_BASE}/releases/${did}`, { headers, signal: AbortSignal.timeout(30000) })
-          if (!retry.ok) { errors++; continue }
+          releaseResp = await fetch(`${DISCOGS_BASE}/releases/${did}`, { headers, signal: AbortSignal.timeout(30000) })
         }
 
         if (releaseResp.status === 404) {
-          cache[didStr] = { error: "not_found", fetched_at: new Date().toISOString() }
+          // Store error in DB cache (7-day TTL for errors)
+          await pgConnection.raw(
+            `INSERT INTO discogs_api_cache (discogs_id, api_data, is_error, error_message, fetched_at, expires_at)
+             VALUES (?, '{}'::jsonb, true, 'not_found', NOW(), NOW() + INTERVAL '7 days')
+             ON CONFLICT (discogs_id) DO UPDATE SET api_data = '{}'::jsonb, is_error = true, error_message = 'not_found', fetched_at = NOW(), expires_at = NOW() + INTERVAL '7 days'`,
+            [did]
+          )
           errors++
           fetched++
           send({ type: "progress", current: i + 1, total, artist: rows[i].artist, title: rows[i].title, status: "not_found" })
@@ -144,8 +143,8 @@ export async function POST(
 
         const data = await releaseResp.json() as Record<string, unknown>
 
-        // Build cache entry
-        const entry: Record<string, unknown> = {
+        // Build API data entry
+        const apiData: Record<string, unknown> = {
           title: data.title || "",
           year: data.year || 0,
           country: data.country || "",
@@ -177,11 +176,10 @@ export async function POST(
           })),
           notes: data.notes || "",
           data_quality: data.data_quality || "",
-          suggested_prices: null,
-          fetched_at: new Date().toISOString(),
         }
 
         // Fetch /marketplace/price_suggestions/{id}
+        let suggestedPrices: Record<string, unknown> | null = null
         await rateLimit()
         try {
           const psResp = await fetch(`${DISCOGS_BASE}/marketplace/price_suggestions/${did}`, { headers, signal: AbortSignal.timeout(30000) })
@@ -195,17 +193,23 @@ export async function POST(
             if (Object.keys(prices).length > 0) {
               const firstVal = Object.values(psData)[0] as Record<string, unknown> | undefined
               prices.currency = firstVal?.currency || "EUR"
-              entry.suggested_prices = prices
+              suggestedPrices = prices
             }
           }
         } catch {
           // price suggestions failed — continue without them
         }
 
-        cache[didStr] = entry
-        fetched++
+        // Store in DB cache (30-day TTL)
+        await pgConnection.raw(
+          `INSERT INTO discogs_api_cache (discogs_id, api_data, suggested_prices, is_error, fetched_at, expires_at)
+           VALUES (?, ?::jsonb, ?::jsonb, false, NOW(), NOW() + INTERVAL '30 days')
+           ON CONFLICT (discogs_id) DO UPDATE SET api_data = EXCLUDED.api_data, suggested_prices = EXCLUDED.suggested_prices, is_error = false, error_message = NULL, fetched_at = NOW(), expires_at = NOW() + INTERVAL '30 days'`,
+          [did, JSON.stringify(apiData), suggestedPrices ? JSON.stringify(suggestedPrices) : null]
+        )
 
-      } catch (err) {
+        fetched++
+      } catch {
         errors++
       }
 
@@ -223,19 +227,22 @@ export async function POST(
         eta_min: Math.round(((Date.now() - startTime) / Math.max(fetched, 1)) * (total - i - 1) / 60000),
       })
 
-      // Save cache every 25 fetched releases
+      // Update session fetch_progress every 25 fetched releases
       if (fetched % 25 === 0) {
-        fs.writeFileSync(cachePath, JSON.stringify(cache, null, 2))
+        await updateSession(pgConnection, session_id, {
+          fetch_progress: { current: i + 1, total, fetched, cached: skippedCached, errors },
+        })
       }
     }
 
-    // Final save + cleanup
-    fs.writeFileSync(cachePath, JSON.stringify(cache, null, 2))
-    clearInterval(keepAlive)
-    touchSession(session_id)
+    // Final status update
+    await updateSession(pgConnection, session_id, {
+      status: "fetched",
+      fetch_progress: { current: total, total, fetched, cached: skippedCached, errors },
+    })
 
     const durationMin = Math.round((Date.now() - startTime) / 60000)
-    send({ type: "done", fetched, cached: skippedCached, errors, duration_min: durationMin, total_in_cache: Object.keys(cache).length })
+    send({ type: "done", fetched, cached: skippedCached, errors, duration_min: durationMin })
     res.end()
 
   } catch (err: unknown) {

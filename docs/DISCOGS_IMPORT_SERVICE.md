@@ -1,8 +1,8 @@
 # Discogs Collection Import Service
 
-**Version:** 3.0
-**Datum:** 2026-04-09
-**Status:** Live — Kompletter Workflow über Admin UI
+**Version:** 4.0
+**Datum:** 2026-04-10
+**Status:** Live — Refactored: DB-Sessions, DB-Cache, pg_trgm Fuzzy-Matching, Transaktionen
 
 ## Zweck
 
@@ -15,14 +15,12 @@ Genereller, wiederverwendbarer Importer für Discogs Collection Exports. Wird ge
 | Komponente | Pfad | Status | Zweck |
 |-----------|------|--------|-------|
 | Admin UI | `/app/discogs-import` (Operations Hub) | **Live** | Upload, Fetch, Analyse, Review, Import — kompletter Workflow |
-| Upload API | `backend/src/api/admin/discogs-import/upload/` | **Live** | CSV/XLSX Parsing (Collection + Inventory Formate) |
-| Fetch API | `backend/src/api/admin/discogs-import/fetch/` | **Live** | Discogs API Fetch mit SSE Live-Progress |
-| Analyze API | `backend/src/api/admin/discogs-import/analyze/` | **Live** | DB-Matching gegen Snapshots |
-| Commit API | `backend/src/api/admin/discogs-import/commit/` | **Live** | DB-Import mit SSE Live-Progress |
-| History API | `backend/src/api/admin/discogs-import/history/` | **Live** | Import-Übersicht aus `import_log` |
+| Upload API | `backend/src/api/admin/discogs-import/upload/` | **Live** | CSV/XLSX Parsing → Session in `import_session` (DB) |
+| Fetch API | `backend/src/api/admin/discogs-import/fetch/` | **Live** | Discogs API Fetch → `discogs_api_cache` (DB), SSE Progress |
+| Analyze API | `backend/src/api/admin/discogs-import/analyze/` | **Live** | Live-DB-Matching mit pg_trgm Fuzzy + Exact discogs_id |
+| Commit API | `backend/src/api/admin/discogs-import/commit/` | **Live** | Transaktionaler DB-Import (Rollback bei Fehler), SSE Progress |
+| History API | `backend/src/api/admin/discogs-import/history/` | **Live** | Import-Übersicht + aktive Sessions + Drill-Down |
 | Python CLI | `scripts/discogs_collection_import.py` | **Backup** | CLI-Alternative (nicht für Normalbetrieb) |
-| DB Snapshots | `scripts/data/db_discogs_ids.json` + `db_unlinked_releases.json` | **Live** | Offline-Match-Daten |
-| API Cache | `scripts/data/discogs_import_cache.json` | **Live** | Gecachte Discogs-API-Responses |
 
 ## Unterstützte Export-Formate
 
@@ -100,12 +98,13 @@ Neue API Route `POST /admin/discogs-import/fetch` mit SSE:
 
 **"Skip → Use cached only"** für den Fall dass der Cache schon von einem früheren Import existiert.
 
-### Matching-Strategie (3-stufig)
+### Matching-Strategie (3-stufig, Live-DB-Queries)
 
-1. **EXISTING** — `discogs_id` bereits in `Release.discogs_id` vorhanden
-   → Aktion: Preise + Community-Daten updaten
-2. **LINKABLE** — Artist + Title + CatalogNumber matcht einen Release ohne discogs_id
-   → Aktion: `discogs_id` + Preise auf bestehendem Release setzen
+1. **EXISTING** — `discogs_id` Exact-Match via `SELECT FROM "Release" WHERE discogs_id = ANY(?)`
+   → Aktion: Preise + Community-Daten updaten. Match-Score: 100%
+2. **LINKABLE** — pg_trgm `similarity()` auf `Artist.name || Release.title` > 0.4 (40%)
+   → Aktion: `discogs_id` + Preise auf bestehendem Release setzen. Match-Score: 40-99%
+   → UI zeigt Confidence: grün (≥80%), gelb (60-79%), rot (<60%)
 3. **NEW** — Kein Match gefunden
    → Aktion: Voller Import (Release + Artist + Label + Tracks + ReleaseArtist)
 
@@ -157,8 +156,9 @@ Der komplette Workflow läuft über die Admin UI unter `admin.vod-auctions.com/a
 
 ### Performance
 - **API Fetch:** 40 req/min, 2 Calls pro Release → ~20 Releases/min → ~130 min für 2.619
-- **Resumable:** gecachte Releases werden übersprungen
-- **Cache:** `scripts/data/discogs_import_cache.json`
+- **Crash-Resilient:** Sessions in DB → survive Server-Restart/Deploy
+- **Resumable:** gecachte Releases in `discogs_api_cache` (DB) werden übersprungen (TTL 30d, Errors 7d)
+- **Transaktional:** Import ist alles-oder-nichts — Rollback bei Fehler
 
 ## Nutzung: Python CLI (Backup)
 
@@ -170,15 +170,26 @@ python3 discogs_collection_import.py --file ../discogs/export.xlsx --collection 
 python3 discogs_collection_import.py --file ../discogs/export.xlsx --collection "Sammlung Müller" --commit  # Import
 ```
 
-## DB-Snapshots aktualisieren
+## DB-Architektur (v4.0 — Refactored)
 
-Die Matching-Phase nutzt lokale JSON-Snapshots der DB (nicht Live-Queries). Diese müssen aktualisiert werden wenn sich die DB signifikant ändert:
+### Neue Tabellen
+- **`import_session`** — Ersetzt In-Memory Map. Sessions überleben Server-Restart. Status-Tracking: uploaded → fetching → fetched → analyzing → analyzed → importing → done.
+- **`discogs_api_cache`** — Ersetzt JSON-Datei. TTL 30 Tage (Errors: 7 Tage). Per-discogs_id caching über Imports hinweg.
 
-```bash
-# Via Supabase MCP oder SQL:
-# 1. db_discogs_ids.json: SELECT id, discogs_id FROM "Release" WHERE discogs_id IS NOT NULL
-# 2. db_unlinked_releases.json: SELECT r.id, r.title, r."catalogNumber", a.name FROM "Release" r LEFT JOIN "Artist" a ...
-```
+### PostgreSQL Extensions
+- **`pg_trgm`** — Trigram-basiertes Fuzzy-Matching für Artist+Title
+- **`fuzzystrmatch`** — Soundex/Levenshtein (verfügbar, aktuell nicht aktiv genutzt)
+
+### Indexes
+- **`idx_release_title_trgm`** — GIN-Index auf `lower(Release.title)` für Trigram-Matching
+- **`idx_import_session_status`** / **`idx_import_session_created`**
+- **`idx_discogs_cache_expires`**
+
+### Was entfallen ist (v3→v4)
+- `scripts/data/db_discogs_ids.json` — ersetzt durch Live-DB-Query
+- `scripts/data/db_unlinked_releases.json` — ersetzt durch Live-DB-Query + pg_trgm
+- `scripts/data/discogs_import_cache.json` — ersetzt durch `discogs_api_cache` Tabelle
+- In-Memory Session Map + touchSession() — ersetzt durch `import_session` Tabelle
 
 ## IDs für neue Einträge
 
@@ -204,24 +215,22 @@ Konsistent mit bestehendem `legacy-release-{id}` Pattern.
 
 ```
 scripts/
-  discogs_collection_import.py      # Haupt-CLI-Script
+  discogs_collection_import.py      # Haupt-CLI-Script (Backup)
   shared.py                         # DB-Connection, RateLimiter, Discogs-Headers
-  data/
-    discogs_import_cache.json       # API-Response Cache (auto-generiert)
-    discogs_import_progress.json    # Resumable Progress (auto-generiert)
-    db_discogs_ids.json             # DB-Snapshot: discogs_id → release_id
-    db_unlinked_releases.json       # DB-Snapshot: Releases ohne discogs_id
 
 discogs/
   VOD_discogs_export.xlsx           # Eigener Export (Testdaten)
   Waschsalon-Berlin-collection-*.csv # Beispiel: Fremder Export
-  import_test_report.md             # Test-Report (Simulation)
 
 backend/src/
-  admin/routes/discogs-import/page.tsx          # Admin Page (3 Tabs)
+  admin/routes/discogs-import/page.tsx          # Admin Page (3 Tabs + Match-Confidence)
   api/admin/discogs-import/
-    upload/route.ts                              # File Upload + Parse
-    analyze/route.ts                             # DB Matching
-    commit/route.ts                              # DB Import
-    history/route.ts                             # Import History
+    upload/route.ts                              # File Upload + Parse → import_session (DB)
+    fetch/route.ts                               # Discogs API Fetch → discogs_api_cache (DB)
+    analyze/route.ts                             # Live-DB Matching (pg_trgm Fuzzy)
+    commit/route.ts                              # Transaktionaler DB Import
+    history/route.ts                             # Import History + Active Sessions
+
+backend/scripts/migrations/
+  2026-04-10_discogs_import_refactoring.sql      # Migration: import_session, discogs_api_cache, pg_trgm
 ```

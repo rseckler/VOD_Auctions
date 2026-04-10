@@ -1,12 +1,12 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import * as crypto from "crypto"
-import * as fs from "fs"
 import * as XLSX from "xlsx"
-import { getScriptsDir } from "../../../../lib/paths"
+import type { Knex } from "knex"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-interface ParsedRow {
+export interface ParsedRow {
   artist: string
   title: string
   catalog_number: string
@@ -17,38 +17,40 @@ interface ParsedRow {
   discogs_id: number
   collection_folder?: string
   date_added?: string
-  // Inventory export fields
   media_condition?: string
   sleeve_condition?: string
   listing_price?: number | null
   status?: string
 }
 
-interface Session {
-  rows: ParsedRow[]
-  filename: string
-  collection: string
-  created: number
+// ─── DB Session helpers (replaces in-memory Map) ────────────────────────────
+
+export async function getSession(pg: Knex, id: string) {
+  const rows = await pg.raw(
+    `SELECT * FROM import_session WHERE id = ?`,
+    [id]
+  )
+  return rows.rows?.[0] || null
 }
 
-// ─── In-memory session store (24h TTL, touched on every API interaction) ─────
-
-const sessions = new Map<string, Session>()
-
-// Cleanup every 30 minutes
-setInterval(() => {
-  const cutoff = Date.now() - 24 * 60 * 60 * 1000
-  for (const [id, session] of sessions) {
-    if (session.created < cutoff) sessions.delete(id)
+export async function updateSession(
+  pg: Knex,
+  id: string,
+  updates: Record<string, unknown>
+) {
+  const setClauses: string[] = []
+  const values: unknown[] = []
+  for (const [key, val] of Object.entries(updates)) {
+    setClauses.push(`${key} = ?`)
+    values.push(typeof val === "object" && val !== null ? JSON.stringify(val) : val)
   }
-}, 30 * 60 * 1000)
-
-export function touchSession(id: string) {
-  const s = sessions.get(id)
-  if (s) s.created = Date.now()
+  setClauses.push(`updated_at = NOW()`)
+  values.push(id)
+  await pg.raw(
+    `UPDATE import_session SET ${setClauses.join(", ")} WHERE id = ?`,
+    values
+  )
 }
-
-export { sessions }
 
 // ─── POST /admin/discogs-import/upload ───────────────────────────────────────
 
@@ -61,7 +63,7 @@ export async function POST(
       data: string
       filename: string
       collection_name: string
-      encoding?: string  // "text" for CSV (raw text), "base64" for XLSX
+      encoding?: string
     }
 
     if (!data || !filename || !collection_name) {
@@ -69,12 +71,13 @@ export async function POST(
       return
     }
 
+    const pgConnection: Knex = req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
+
     // Parse based on extension
     const ext = filename.toLowerCase().split(".").pop() || ""
     let rows: ParsedRow[]
 
     if (ext === "csv") {
-      // CSV: data is either plain text or base64-encoded
       const content = encoding === "text" ? data : Buffer.from(data.replace(/^data:[^;]+;base64,/, ""), "base64").toString("utf-8")
       rows = parseCsv(content)
     } else if (ext === "xlsx" || ext === "xls") {
@@ -88,30 +91,43 @@ export async function POST(
     // Deduplicate by discogs_id (keep highest condition)
     const deduped = deduplicate(rows)
 
-    // Store in session
-    const sessionId = crypto.randomUUID()
-    sessions.set(sessionId, {
-      rows: deduped,
-      filename,
-      collection: collection_name,
-      created: Date.now(),
-    })
-
-    // Detect if inventory export (has listing prices + conditions)
+    // Detect if inventory export
     const isInventory = deduped.some((r) => r.listing_price != null || r.media_condition)
 
-    // Check how many are already in the API cache
-    let cachedCount = 0
-    try {
-      const cachePath = path.join(getScriptsDir(), "data", "discogs_import_cache.json")
-      if (fs.existsSync(cachePath)) {
-        const cache = JSON.parse(fs.readFileSync(cachePath, "utf-8")) as Record<string, unknown>
-        for (const r of deduped) {
-          const entry = cache[String(r.discogs_id)] as Record<string, unknown> | undefined
-          if (entry && !entry.error) cachedCount++
-        }
-      }
-    } catch { /* cache read failed — no problem */ }
+    // Store session in DB (replaces in-memory Map)
+    const sessionId = crypto.randomUUID()
+
+    // Store only essential fields per row to keep JSONB small
+    const compactRows = deduped.map((r) => ({
+      a: r.artist,
+      t: r.title,
+      cn: r.catalog_number,
+      l: r.label,
+      f: r.format,
+      c: r.condition,
+      y: r.year,
+      d: r.discogs_id,
+      ...(r.media_condition ? { mc: r.media_condition } : {}),
+      ...(r.sleeve_condition ? { sc: r.sleeve_condition } : {}),
+      ...(r.listing_price != null ? { lp: r.listing_price } : {}),
+      ...(r.status ? { s: r.status } : {}),
+      ...(r.collection_folder ? { cf: r.collection_folder } : {}),
+      ...(r.date_added ? { da: r.date_added } : {}),
+    }))
+
+    await pgConnection.raw(
+      `INSERT INTO import_session (id, collection_name, filename, rows, row_count, unique_count, format_detected, export_type, status)
+       VALUES (?, ?, ?, ?::jsonb, ?, ?, ?, ?, 'uploaded')`,
+      [sessionId, collection_name, filename, JSON.stringify(compactRows), rows.length, deduped.length, ext.toUpperCase(), isInventory ? "INVENTORY" : "COLLECTION"]
+    )
+
+    // Check how many are already in the DB cache (replaces JSON file check)
+    const cacheResult = await pgConnection.raw(
+      `SELECT COUNT(*) as cnt FROM discogs_api_cache
+       WHERE discogs_id = ANY(?) AND expires_at > NOW() AND is_error = false`,
+      [deduped.map((r) => r.discogs_id)]
+    )
+    const cachedCount = parseInt(cacheResult.rows?.[0]?.cnt || "0", 10)
 
     res.json({
       session_id: sessionId,
@@ -140,20 +156,38 @@ export async function POST(
   }
 }
 
+// ─── Expand compact row back to ParsedRow ───────────────────────────────────
+
+export function expandRow(compact: Record<string, unknown>): ParsedRow {
+  return {
+    artist: (compact.a as string) || "",
+    title: (compact.t as string) || "",
+    catalog_number: (compact.cn as string) || "",
+    label: (compact.l as string) || "",
+    format: (compact.f as string) || "",
+    condition: compact.c as number | null,
+    year: compact.y as number | null,
+    discogs_id: compact.d as number,
+    ...(compact.mc ? { media_condition: compact.mc as string } : {}),
+    ...(compact.sc ? { sleeve_condition: compact.sc as string } : {}),
+    ...(compact.lp != null ? { listing_price: compact.lp as number } : {}),
+    ...(compact.s ? { status: compact.s as string } : {}),
+    ...(compact.cf ? { collection_folder: compact.cf as string } : {}),
+    ...(compact.da ? { date_added: compact.da as string } : {}),
+  }
+}
+
 // ─── CSV Parser (standard Discogs export with headers) ───────────────────────
 
 function parseCsv(content: string): ParsedRow[] {
   // Clean up: strip ;; line endings and unwrap whole-line quotes (Discogs inventory export quirk)
   const cleanedLines = content.split("\n").map((line) => {
     let l = line.trimEnd()
-    // Strip trailing ;; (inventory export artifact)
     while (l.endsWith(";;")) l = l.slice(0, -2)
-    // Unwrap lines that are entirely quoted: "3472868133,Small Cruel..." → 3472868133,Small Cruel...
     if (l.startsWith('"') && l.endsWith('"') && !l.startsWith('""')) {
       const inner = l.slice(1, -1)
-      // Only unwrap if this looks like a full CSV row wrapped in quotes (has many commas)
       if (inner.split(",").length > 5) {
-        l = inner.replace(/""/g, '"') // unescape inner double-quotes
+        l = inner.replace(/""/g, '"')
       }
     }
     return l
@@ -163,14 +197,11 @@ function parseCsv(content: string): ParsedRow[] {
   const lines = cleaned.split("\n")
   if (lines.length < 2) return []
 
-  // Parse header
   const headers = parseCSVLine(lines[0])
   const colMap: Record<string, number> = {}
   headers.forEach((h, i) => (colMap[h.trim()] = i))
 
-  // Detect format: Collection export vs Inventory export
   const isInventory = "listing_id" in colMap && "price" in colMap
-  const isCollection = "Catalog#" in colMap || "Rating" in colMap
 
   const rows: ParsedRow[] = []
   for (let i = 1; i < lines.length; i++) {
@@ -182,7 +213,6 @@ function parseCsv(content: string): ParsedRow[] {
     if (!discogsId || isNaN(discogsId)) continue
 
     if (isInventory) {
-      // Inventory/Listings export: listing_id, artist, title, label, catno, format, release_id, status, price, ...
       const price = parseFloat(cols[colMap["price"]] || "")
       rows.push({
         artist: (cols[colMap["artist"]] || "").trim(),
@@ -190,8 +220,8 @@ function parseCsv(content: string): ParsedRow[] {
         catalog_number: (cols[colMap["catno"]] || "").trim(),
         label: (cols[colMap["label"]] || "").trim(),
         format: (cols[colMap["format"]] || "").trim(),
-        condition: null, // parsed from media_condition text below
-        year: null, // not in inventory export
+        condition: null,
+        year: null,
         discogs_id: discogsId,
         media_condition: (cols[colMap["media_condition"]] || "").trim(),
         sleeve_condition: (cols[colMap["sleeve_condition"]] || "").trim(),
@@ -199,7 +229,6 @@ function parseCsv(content: string): ParsedRow[] {
         status: (cols[colMap["status"]] || "").trim(),
       })
     } else {
-      // Collection export: Catalog#, Artist, Title, Label, Format, Rating, Released, release_id, ...
       const rating = parseInt(cols[colMap["Rating"]] || "", 10)
       rows.push({
         artist: (cols[colMap["Artist"]] || "").trim(),

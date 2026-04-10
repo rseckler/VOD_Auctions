@@ -2,8 +2,8 @@
 
 **Version:** 1.0
 **Datum:** 2026-04-10
-**Status:** Plan — Implementierung noch NICHT gestartet
-**Voraussetzung:** Kein weiterer Import bis Refactoring abgeschlossen
+**Status:** IMPLEMENTIERT (2026-04-10)
+**Voraussetzung:** Kein weiterer Import bis Refactoring abgeschlossen — ERLEDIGT
 **Referenz:** `docs/DISCOGS_IMPORT_AUDIT.md` (Problembeschreibung)
 
 ---

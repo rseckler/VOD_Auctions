@@ -1,8 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import * as fs from "fs"
-import * as path from "path"
-import { getScriptsDir } from "../../../../lib/paths"
-import { sessions, touchSession } from "../upload/route"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import type { Knex } from "knex"
+import { getSession, updateSession, expandRow } from "../upload/route"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -16,15 +15,9 @@ interface MatchResult {
   discogs_id: number
   condition: number | null
   db_release_id?: string
+  match_score?: number
   skip_reason?: string
-  api_data?: {
-    country?: string
-    genres?: string[]
-    styles?: string[]
-    community?: { have: number; want: number }
-    lowest_price?: number | null
-    num_for_sale?: number
-  }
+  api_data?: Record<string, unknown>
 }
 
 // ─── POST /admin/discogs-import/analyze ──────────────────────────────────────
@@ -40,82 +33,59 @@ export async function POST(
       return
     }
 
-    const session = sessions.get(session_id)
+    const pgConnection: Knex = req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
+
+    const session = await getSession(pgConnection, session_id)
     if (!session) {
-      res.status(404).json({ error: "Session not found or expired. Please re-upload." })
+      res.status(404).json({ error: "Session not found. Please re-upload." })
       return
     }
-    touchSession(session_id)
 
-    const dataDir = path.join(getScriptsDir(), "data")
+    await updateSession(pgConnection, session_id, { status: "analyzing" })
 
-    // Load DB snapshot: discogs_id → release_id
-    const discogsIdsPath = path.join(dataDir, "db_discogs_ids.json")
-    if (!fs.existsSync(discogsIdsPath)) {
-      res.status(500).json({
-        error: "Snapshot file db_discogs_ids.json not found. Run the Python export script first.",
-      })
-      return
-    }
-    const existingByDiscogs: Record<string, string> = JSON.parse(
-      fs.readFileSync(discogsIdsPath, "utf-8")
+    const compactRows = session.rows as Array<Record<string, unknown>>
+    const rows = compactRows.map(expandRow)
+    const allDiscogsIds = rows.map((r) => r.discogs_id)
+
+    // ── Stufe 1: Exact match via discogs_id (Live-DB-Query) ─────────────
+    const exactResult = await pgConnection.raw(
+      `SELECT id, discogs_id FROM "Release" WHERE discogs_id = ANY(?)`,
+      [allDiscogsIds]
     )
-
-    // Load unlinked releases for fuzzy matching
-    const unlinkedPath = path.join(dataDir, "db_unlinked_releases.json")
-    let unlinked: Array<{
-      id: string
-      title: string
-      catalog_number: string
-      artist_name: string
-    }> = []
-    if (fs.existsSync(unlinkedPath)) {
-      unlinked = JSON.parse(fs.readFileSync(unlinkedPath, "utf-8"))
+    const exactMap = new Map<number, string>()
+    for (const r of exactResult.rows || []) {
+      exactMap.set(r.discogs_id, r.id)
     }
 
-    // Build fuzzy index
-    const fuzzyIndex = new Map<string, { id: string; title: string }>()
-    for (const rel of unlinked) {
-      const key = fuzzyKey(
-        rel.artist_name || "",
-        rel.title || "",
-        rel.catalog_number || ""
-      )
-      if (key) fuzzyIndex.set(key, { id: rel.id, title: rel.title })
+    // ── Load API cache from DB ──────────────────────────────────────────
+    const cacheResult = await pgConnection.raw(
+      `SELECT discogs_id, api_data, suggested_prices, is_error, error_message
+       FROM discogs_api_cache WHERE discogs_id = ANY(?)`,
+      [allDiscogsIds]
+    )
+    const cacheMap = new Map<number, { api_data: Record<string, unknown>; suggested_prices: Record<string, unknown> | null; is_error: boolean; error_message: string | null }>()
+    for (const r of cacheResult.rows || []) {
+      cacheMap.set(r.discogs_id, r)
     }
 
-    // Load API cache (optional)
-    const cachePath = path.join(dataDir, "discogs_import_cache.json")
-    let apiCache: Record<string, Record<string, unknown>> = {}
-    if (fs.existsSync(cachePath)) {
-      apiCache = JSON.parse(fs.readFileSync(cachePath, "utf-8"))
-    }
-
-    // Match
+    // ── Match rows ──────────────────────────────────────────────────────
     const existing: MatchResult[] = []
     const linkable: MatchResult[] = []
     const newReleases: MatchResult[] = []
     const skipped: MatchResult[] = []
 
-    for (const row of session.rows) {
+    // Collect unmatched rows for batch fuzzy matching
+    const unmatchedRows: Array<{ idx: number; row: typeof rows[0]; base: MatchResult }> = []
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i]
       const did = row.discogs_id
-      const cached = apiCache[String(did)] as Record<string, unknown> | undefined
-      const apiSummary = cached && !cached.error
+      const cached = cacheMap.get(did)
+
+      const apiSummary = cached && !cached.is_error && cached.api_data
         ? {
-            country: cached.country as string,
-            genres: cached.genres as string[],
-            styles: cached.styles as string[],
-            community: cached.community as { have: number; want: number },
-            lowest_price: cached.lowest_price as number | null,
-            num_for_sale: cached.num_for_sale as number,
-            notes: cached.notes as string,
-            images: (cached.images as Array<{ uri: string; type: string }>) || [],
-            tracklist: (cached.tracklist as Array<{ position: string; title: string; duration: string }>) || [],
-            extraartists: (cached.extraartists as Array<{ name: string; id: number; role: string }>) || [],
-            labels: (cached.labels as Array<{ name: string; catno: string; id: number }>) || [],
-            formats: (cached.formats as Array<{ name: string; descriptions: string[]; qty: string }>) || [],
-            data_quality: cached.data_quality as string,
-            fetched_at: cached.fetched_at as string,
+            ...cached.api_data,
+            suggested_prices: cached.suggested_prices,
           }
         : undefined
 
@@ -131,65 +101,83 @@ export async function POST(
         api_data: apiSummary,
       }
 
-      if (cached && (cached as Record<string, unknown>).error) {
-        skipped.push({ ...base, skip_reason: String((cached as Record<string, unknown>).error) })
+      // Skip if API returned error (404 etc.)
+      if (cached?.is_error) {
+        skipped.push({ ...base, skip_reason: cached.error_message || "api_error" })
         continue
       }
 
       // Match 1: Exact discogs_id
-      if (existingByDiscogs[String(did)]) {
-        existing.push({ ...base, db_release_id: existingByDiscogs[String(did)] })
+      if (exactMap.has(did)) {
+        existing.push({ ...base, db_release_id: exactMap.get(did), match_score: 100 })
         continue
       }
 
-      // Match 2: Fuzzy
-      const key = fuzzyKey(row.artist, row.title, row.catalog_number)
-      if (key && fuzzyIndex.has(key)) {
-        const match = fuzzyIndex.get(key)!
-        linkable.push({ ...base, db_release_id: match.id })
-        continue
-      }
-
-      // Match 3: New
-      newReleases.push(base)
+      // Collect for fuzzy matching
+      unmatchedRows.push({ idx: i, row, base })
     }
 
-    res.json({
+    // ── Stufe 2: Trigram Fuzzy Match (batch, only for unmatched) ────────
+    for (const { row, base } of unmatchedRows) {
+      const searchString = `${row.artist} ${row.title}`.trim()
+      if (!searchString || searchString.length < 3) {
+        newReleases.push(base)
+        continue
+      }
+
+      try {
+        const fuzzyResult = await pgConnection.raw(
+          `SELECT r.id, r.title, a.name as artist_name, r."catalogNumber",
+                  similarity(lower(COALESCE(a.name, '') || ' ' || r.title), lower(?)) as score
+           FROM "Release" r
+           LEFT JOIN "Artist" a ON r."artistId" = a.id
+           WHERE r.discogs_id IS NULL
+             AND similarity(lower(COALESCE(a.name, '') || ' ' || r.title), lower(?)) > 0.4
+           ORDER BY score DESC
+           LIMIT 1`,
+          [searchString, searchString]
+        )
+
+        if (fuzzyResult.rows?.length > 0) {
+          const match = fuzzyResult.rows[0]
+          const score = Math.round(Number(match.score) * 100)
+          linkable.push({
+            ...base,
+            db_release_id: match.id,
+            match_score: score,
+          })
+        } else {
+          newReleases.push(base)
+        }
+      } catch {
+        // Fuzzy match failed for this row — treat as new
+        newReleases.push(base)
+      }
+    }
+
+    // ── Save analysis result in session ─────────────────────────────────
+    const analysisResult = {
       summary: {
-        total: session.rows.length,
+        total: rows.length,
         existing: existing.length,
         linkable: linkable.length,
         new: newReleases.length,
         skipped: skipped.length,
-        has_api_cache: Object.keys(apiCache).length > 0,
-        cached_count: Object.keys(apiCache).length,
       },
       existing,
       linkable,
       new: newReleases,
       skipped,
+    }
+
+    await updateSession(pgConnection, session_id, {
+      status: "analyzed",
+      analysis_result: analysisResult,
     })
+
+    res.json(analysisResult)
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Analysis failed"
     res.status(500).json({ error: msg })
   }
-}
-
-// ─── Fuzzy matching helpers ──────────────────────────────────────────────────
-
-function normalize(s: string): string {
-  if (!s) return ""
-  return s
-    .toLowerCase()
-    .trim()
-    .replace(/['".,]/g, "")
-    .replace(/\s+/g, " ")
-}
-
-function fuzzyKey(artist: string, title: string, catno: string): string | null {
-  const a = normalize(artist)
-  const t = normalize(title)
-  const c = normalize(catno)
-  if (!a || !t) return null
-  return `${a}|${t}|${c}`
 }

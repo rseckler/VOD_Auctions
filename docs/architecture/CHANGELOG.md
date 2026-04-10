@@ -11,6 +11,7 @@ Jeder Git-Tag entspricht einem Snapshot des Gesamtsystems. Feature Flags zeigen 
 | Version | Datum | Platform Mode | Feature Flags aktiv (prod) | Milestone / Inhalt |
 |---------|-------|--------------|---------------------------|-------------------|
 | **v1.0.0** | TBD | `live` | ERP: TBD | RSE-78: Erster öffentlicher Launch |
+| **v1.0.0-rc14** | 2026-04-10 | `beta_test` | — | Discogs Import Refactoring: DB-Sessions, DB-Cache, pg_trgm Fuzzy-Matching, Transaktionen |
 | **v1.0.0-rc13** | 2026-04-10 | `beta_test` | — | Discogs Import: Server-side API Fetch with SSE, complete end-to-end workflow |
 | **v1.0.0-rc12** | 2026-04-10 | `beta_test` | — | Media Detail: Field Contrast, Storage Location, Credits/Tracklist 1:1 Frontend-Logik |
 | **v1.0.0-rc11** | 2026-04-09 | `beta_test` | — | Admin Media Detail: Light-Mode Design System + Tracklist/Notes Parsing |
@@ -51,6 +52,44 @@ Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Rel
 - **Patch Release** (`v1.0.x`): Kritische Bugfixes zwischen geplanten Releases
 - **Tagging-Workflow:** `git tag -a vX.Y.Z -m "Release vX.Y.Z: <Kurzname>"` → `git push origin vX.Y.Z`
 - **Tag-Zeitpunkt:** Direkt nach Deploy + Smoke-Test auf Production — nicht vor dem Deploy
+
+---
+
+## 2026-04-10 — Discogs Import Refactoring: DB-Sessions, DB-Cache, pg_trgm, Transaktionen (rc14)
+
+Komplettes Refactoring des Discogs Import Service nach Architecture Audit (`docs/DISCOGS_IMPORT_AUDIT.md`). Löst alle 3 kritischen und 4 hohen Mängel die beim Pargmann-Import aufgefallen sind (5.653 Releases, nur 982 matched, 0 inserted).
+
+### Architektur-Änderungen
+1. **Sessions → PostgreSQL** (`import_session` Tabelle) — Überlebt Server-Restart/Deploy. Status-Tracking: uploaded → fetching → fetched → analyzing → analyzed → importing → done.
+2. **API-Cache → PostgreSQL** (`discogs_api_cache` Tabelle) — TTL 30d (Errors 7d). Keine 65 MB JSON-Datei mehr.
+3. **Snapshots → Live-DB-Queries** — Matching gegen echte DB, nicht gegen Tage-alte JSON-Snapshots.
+4. **Echtes Fuzzy-Matching** — pg_trgm `similarity()` mit GIN-Index statt exaktem String-Vergleich. Match-Confidence Score (40-100%) in UI.
+5. **Transaktionaler Import** — Alles-oder-nichts. Fehler bei Release #3.500 → Rollback → DB unverändert.
+
+### Migration
+- `backend/scripts/migrations/2026-04-10_discogs_import_refactoring.sql`
+- Extensions: `pg_trgm`, `fuzzystrmatch`
+- Tabellen: `import_session`, `discogs_api_cache`
+- Index: `idx_release_title_trgm` (GIN auf `lower(Release.title)`)
+
+### Geänderte Dateien (Rewrite)
+- `backend/src/api/admin/discogs-import/upload/route.ts` — Session → DB, Cache-Check → DB, exportiert `getSession()`, `updateSession()`, `expandRow()`
+- `backend/src/api/admin/discogs-import/fetch/route.ts` — Cache → DB statt JSON-Datei, Session aus DB
+- `backend/src/api/admin/discogs-import/analyze/route.ts` — Live-DB-Queries + pg_trgm, Ergebnis in `import_session.analysis_result`
+- `backend/src/api/admin/discogs-import/commit/route.ts` — Transaktionaler Import, liest Analysis aus Session, Rollback bei Fehler
+- `backend/src/api/admin/discogs-import/history/route.ts` — Active Sessions + Drill-Down per Run
+- `backend/src/admin/routes/discogs-import/page.tsx` — Match-Confidence Badges (grün/gelb/rot), SSE Error-Handling
+
+### Was entfallen ist
+- In-Memory Session Map + `touchSession()` + `startSessionKeepAlive()`
+- `scripts/data/db_discogs_ids.json` (ersetzt durch Live-Query)
+- `scripts/data/db_unlinked_releases.json` (ersetzt durch Live-Query + pg_trgm)
+- `scripts/data/discogs_import_cache.json` (ersetzt durch `discogs_api_cache` Tabelle)
+- Alle `fs.readFileSync` / `fs.writeFileSync` in den API Routes
+
+### Referenz
+- Audit: `docs/DISCOGS_IMPORT_AUDIT.md`
+- Plan: `docs/DISCOGS_IMPORT_REFACTORING_PLAN.md` (Status: IMPLEMENTIERT)
 
 ---
 
