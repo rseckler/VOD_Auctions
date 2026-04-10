@@ -213,9 +213,14 @@ export async function POST(
 
     // V2: duplicate release slugs in new set would cause Release.slug unique
     // constraint violations. Detect them before we start inserting.
+    //
+    // NOTE: New imports use `{artist}-{title}-{discogs_id}` as the slug, so
+    // different pressings of the same title (e.g. 3 pressings of Depeche Mode
+    // "Leave In Silence") stay distinct by discogs_id. This check remains as
+    // a safety net in case the slug generator is ever simplified.
     const slugMap = new Map<string, number[]>()
     for (const row of newRows) {
-      const slug = slugify(`${row.artist} ${row.title}`)
+      const slug = buildImportSlug(row.artist, row.title, row.discogs_id)
       if (!slug) continue
       if (!slugMap.has(slug)) slugMap.set(slug, [])
       slugMap.get(slug)!.push(row.discogs_id)
@@ -566,7 +571,7 @@ export async function POST(
           [
             releaseId,
             (cached?.title as string) || row.title,
-            slugify(`${row.artist} ${row.title}`),
+            buildImportSlug(row.artist, row.title, did),
             artistId,
             labelId,
             row.catalog_number,
@@ -741,6 +746,17 @@ function slugify(text: string): string {
     .replace(/[^\w\s-]/g, "")
     .replace(/[-\s]+/g, "-")
     .substring(0, 200)
+}
+
+// Slug for new Discogs imports: "{artist}-{title}-{discogs_id}".
+// The discogs_id suffix guarantees uniqueness across different pressings
+// of the same title (e.g. Depeche Mode "Leave In Silence" has 3 distinct
+// pressings with different Discogs IDs). Legacy releases keep their
+// original shorter slugs untouched — only new imports get the suffix.
+function buildImportSlug(artist: string, title: string, discogsId: number): string {
+  // Reserve 12 chars for "-{discogs_id}" suffix, trim base to 188 chars
+  const base = slugify(`${artist} ${title}`).substring(0, 188)
+  return `${base}-${discogsId}`
 }
 
 const FORMAT_MAP: Record<string, string> = {
