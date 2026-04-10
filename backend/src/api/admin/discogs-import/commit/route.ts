@@ -2,54 +2,67 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import * as crypto from "crypto"
-import { getSession, updateSession, expandRow, ParsedRow } from "../upload/route"
+import {
+  SSEStream,
+  getSession,
+  updateSession,
+  expandRow,
+  type ParsedRow,
+  isCancelRequested,
+  awaitPauseClearOrCancel,
+  clearControlFlags,
+  pushLastError,
+} from "../../../../lib/discogs-import"
 
 // ─── POST /admin/discogs-import/commit ───────────────────────────────────────
+// SSE Stream with phase-based progress:
+//   preparing → existing_updates → linkable_updates → new_inserts → committing → done
+// New inserts have sub-phases (release/tracks/images/credits).
+// Transactional: all-or-nothing rollback. Cancel during run triggers rollback.
 
 export async function POST(
   req: MedusaRequest,
   res: MedusaResponse
 ): Promise<void> {
+  const {
+    session_id,
+    selected_discogs_ids,
+    media_condition = "VG+",
+    sleeve_condition = "VG+",
+    inventory = 1,
+    price_markup = 1.2,
+  } = req.body as {
+    session_id: string
+    selected_discogs_ids?: number[]
+    media_condition?: string
+    sleeve_condition?: string
+    inventory?: number
+    price_markup?: number
+  }
+
+  if (!session_id) {
+    res.status(400).json({ error: "Missing session_id" })
+    return
+  }
+
+  const pgConnection: Knex = req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
+
+  const session = await getSession(pgConnection, session_id)
+  if (!session) {
+    res.status(404).json({ error: "Session not found. Please re-upload." })
+    return
+  }
+
+  const stream = new SSEStream(res, pgConnection, session_id)
+  stream.startHeartbeat(5000)
+
   try {
-    const {
-      session_id,
-      selected_discogs_ids,
-      media_condition = "VG+",
-      sleeve_condition = "VG+",
-      inventory = 1,
-      price_markup = 1.2,
-    } = req.body as {
-      session_id: string
-      selected_discogs_ids?: number[]
-      media_condition?: string
-      sleeve_condition?: string
-      inventory?: number
-      price_markup?: number
-    }
-    if (!session_id) {
-      res.status(400).json({ error: "Missing session_id" })
-      return
-    }
-
-    const pgConnection: Knex = req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
-
-    const session = await getSession(pgConnection, session_id)
-    if (!session) {
-      res.status(404).json({ error: "Session not found. Please re-upload." })
-      return
-    }
-
-    // Set up SSE for live progress
-    res.setHeader("Content-Type", "text/event-stream")
-    res.setHeader("Cache-Control", "no-cache")
-    res.setHeader("Connection", "keep-alive")
-    res.flushHeaders()
-
-    const sendEvent = (data: Record<string, unknown>) => {
-      res.write(`data: ${JSON.stringify(data)}\n\n`)
-    }
-
-    await updateSession(pgConnection, session_id, { status: "importing" })
+    await clearControlFlags(pgConnection, session_id)
+    await updateSession(pgConnection, session_id, {
+      status: "importing",
+      commit_progress: { phase: "preparing" },
+    })
+    await stream.emit("commit", "start", { session_id })
 
     // Ensure import_log table
     await pgConnection.raw(`
@@ -70,20 +83,18 @@ export async function POST(
     await pgConnection.raw(`CREATE INDEX IF NOT EXISTS idx_import_log_release ON import_log(release_id)`)
     await pgConnection.raw(`CREATE INDEX IF NOT EXISTS idx_import_log_collection ON import_log(collection_name)`)
 
-    // Load analysis result from session (saved by analyze step)
+    // Load analysis result
     const analysis = session.analysis_result as {
-      existing: Array<{ discogs_id: number; db_release_id?: string; match_score?: number }>
-      linkable: Array<{ discogs_id: number; db_release_id?: string; match_score?: number }>
+      existing: Array<{ discogs_id: number; db_release_id?: string }>
+      linkable: Array<{ discogs_id: number; db_release_id?: string }>
       new: Array<{ discogs_id: number }>
     } | null
 
     if (!analysis) {
-      sendEvent({ type: "error", error: "No analysis result found. Please run analysis first." })
-      res.end()
+      await stream.error("No analysis result found. Please run analysis first.")
       return
     }
 
-    // Build lookup maps from analysis
     const existingMap = new Map<number, string>()
     for (const r of analysis.existing || []) {
       if (r.db_release_id) existingMap.set(r.discogs_id, r.db_release_id)
@@ -94,7 +105,7 @@ export async function POST(
     }
     const newSet = new Set((analysis.new || []).map((r) => r.discogs_id))
 
-    // Load API cache from DB
+    // Load API cache
     const compactRows = session.rows as Array<Record<string, unknown>>
     const rows = compactRows.map(expandRow)
     const allDiscogsIds = rows.map((r) => r.discogs_id)
@@ -113,315 +124,404 @@ export async function POST(
     const now = new Date().toISOString()
     const counters = { inserted: 0, linked: 0, updated: 0, skipped: 0, errors: 0 }
 
-    // Filter by selection if provided
+    // Filter by selection
     const selectedSet = selected_discogs_ids ? new Set(selected_discogs_ids) : null
-    const totalToProcess = selectedSet ? selectedSet.size : rows.length
-    let processedCount = 0
+
+    // Partition rows by action type (so we can emit per-phase progress)
+    const existingRows: ParsedRow[] = []
+    const linkableRows: ParsedRow[] = []
+    const newRows: ParsedRow[] = []
+
+    for (const row of rows) {
+      const did = row.discogs_id
+      if (selectedSet && !selectedSet.has(did)) {
+        counters.skipped++
+        continue
+      }
+      if (existingMap.has(did)) existingRows.push(row)
+      else if (linkableMap.has(did)) linkableRows.push(row)
+      else if (newSet.has(did)) newRows.push(row)
+      else counters.skipped++
+    }
+
+    await stream.emit("commit", "phase_done", {
+      phase: "preparing",
+      plan: {
+        existing: existingRows.length,
+        linkable: linkableRows.length,
+        new: newRows.length,
+        skipped: counters.skipped,
+      },
+    })
+    await updateSession(pgConnection, session_id, {
+      commit_progress: {
+        phase: "preparing_done",
+        plan: { existing: existingRows.length, linkable: linkableRows.length, new: newRows.length },
+      },
+    })
 
     // ── Transactional import ─────────────────────────────────────────────
     const trx = await pgConnection.transaction()
 
     try {
-      for (const row of rows) {
+      // ── Phase: existing updates ─────────────────────────────────────
+      await stream.emit("commit", "phase_start", { phase: "existing_updates", total: existingRows.length })
+      for (let i = 0; i < existingRows.length; i++) {
+        if (await isCancelRequested(pgConnection, session_id)) throw new Error("__CANCEL__")
+
+        const row = existingRows[i]
         const did = row.discogs_id
-
-        // Skip if not in selection
-        if (selectedSet && !selectedSet.has(did)) {
-          counters.skipped++
-          continue
-        }
-
         const cache = cacheMap.get(did)
         const cached = cache?.api_data || null
         const suggestedPrices = cache?.suggested_prices || null
-
-        if (!cached && !existingMap.has(did) && !linkableMap.has(did)) {
-          counters.skipped++
-          continue
-        }
-
-        const community = (cached?.community || {}) as { have?: number; want?: number }
-
-        // Calculate estimated_value: VG+ suggested price × markup
-        const vgPlusPrice = (suggestedPrices as Record<string, unknown>)?.["VG+"] as number | null ?? null
-        const estimatedValue = vgPlusPrice
-          ? Math.round(vgPlusPrice * price_markup * 100) / 100
-          : null
-
-        const priceEntry = {
-          date: now,
-          source: "discogs_collection_import",
-          lowest: (cached?.lowest_price as number) ?? null,
-          median: null,
-          highest: null,
-          suggested_vgplus: vgPlusPrice,
-          estimated_value: estimatedValue,
-          num_for_sale: (cached?.num_for_sale as number) ?? 0,
-          have: community.have ?? 0,
-          want: community.want ?? 0,
-        }
+        const priceEntry = buildPriceEntry(cached, suggestedPrices, price_markup, now)
+        const dbId = existingMap.get(did)!
 
         try {
-          if (existingMap.has(did)) {
-            // ── EXISTING — update prices + suggested + estimated (NEVER direct_price) ──
-            const dbId = existingMap.get(did)!
-            await trx.raw(
-              `UPDATE "Release" SET
-                discogs_lowest_price = ?,
-                discogs_num_for_sale = ?,
-                discogs_have = ?,
-                discogs_want = ?,
-                discogs_last_synced = ?,
-                discogs_suggested_prices = COALESCE(?::jsonb, discogs_suggested_prices),
-                estimated_value = COALESCE(?, estimated_value),
-                genres = COALESCE(?, genres),
-                styles = COALESCE(?, styles),
-                discogs_price_history = COALESCE(discogs_price_history, '[]'::jsonb) || ?::jsonb,
-                "updatedAt" = NOW()
-              WHERE id = ?`,
-              [
-                priceEntry.lowest,
-                priceEntry.num_for_sale,
-                priceEntry.have,
-                priceEntry.want,
-                now,
-                suggestedPrices ? JSON.stringify({ ...suggestedPrices as object, fetched_at: now }) : null,
-                estimatedValue,
-                cached?.genres ? (cached.genres as string[]) : null,
-                cached?.styles ? (cached.styles as string[]) : null,
-                JSON.stringify([priceEntry]),
-                dbId,
-              ]
-            )
-            await logImport(trx, runId, session, dbId, did, "updated", row, cached)
-            counters.updated++
-
-          } else if (linkableMap.has(did)) {
-            // ── LINKABLE — add discogs_id + prices (NEVER direct_price) ──
-            const dbId = linkableMap.get(did)!
-            await trx.raw(
-              `UPDATE "Release" SET
-                discogs_id = ?,
-                discogs_lowest_price = ?,
-                discogs_num_for_sale = ?,
-                discogs_have = ?,
-                discogs_want = ?,
-                discogs_last_synced = ?,
-                discogs_suggested_prices = COALESCE(?::jsonb, discogs_suggested_prices),
-                estimated_value = COALESCE(?, estimated_value),
-                genres = COALESCE(?, genres),
-                styles = COALESCE(?, styles),
-                description = COALESCE(description, ?),
-                discogs_price_history = COALESCE(discogs_price_history, '[]'::jsonb) || ?::jsonb,
-                "updatedAt" = NOW()
-              WHERE id = ?`,
-              [
-                did,
-                priceEntry.lowest,
-                priceEntry.num_for_sale,
-                priceEntry.have,
-                priceEntry.want,
-                now,
-                suggestedPrices ? JSON.stringify({ ...suggestedPrices as object, fetched_at: now }) : null,
-                estimatedValue,
-                cached?.genres ? (cached.genres as string[]) : null,
-                cached?.styles ? (cached.styles as string[]) : null,
-                (cached?.notes as string) || null,
-                JSON.stringify([priceEntry]),
-                dbId,
-              ]
-            )
-            await logImport(trx, runId, session, dbId, did, "linked", row, cached)
-            counters.linked++
-
-          } else if (newSet.has(did)) {
-            // ── NEW — full insert with all enriched data ──
-            const releaseId = `discogs-release-${did}`
-            const artistId = await ensureArtist(trx, row.artist, cached)
-            const labelId = await ensureLabel(trx, row.label, cached)
-            const formatResult = mapDiscogsFormat(cached)
-            const formatDetail = getFormatDetail(cached)
-            const creditsText = buildCreditsText(cached)
-            const additionalLabels = getAdditionalLabels(cached)
-
-            // NOTE: direct_price is NEVER set by the importer (see PRICING_KONZEPT.md)
-            await trx.raw(
-              `INSERT INTO "Release" (
-                id, title, slug, "artistId", "labelId",
-                "catalogNumber", year, country, format_group, legacy_format_detail,
-                description, credits, genres, styles,
-                media_condition, sleeve_condition, inventory,
-                estimated_value, discogs_suggested_prices,
-                discogs_id, discogs_lowest_price, discogs_num_for_sale,
-                discogs_have, discogs_want, discogs_last_synced,
-                discogs_price_history, additional_labels, data_source,
-                product_category, "createdAt", "updatedAt"
-              ) VALUES (
-                ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?,
-                ?, ?, ?, ?,
-                ?, ?, ?,
-                ?, ?::jsonb,
-                ?, ?, ?,
-                ?, ?, ?,
-                ?::jsonb, ?::jsonb, 'discogs_import',
-                'release', NOW(), NOW()
-              )
-              ON CONFLICT (id) DO NOTHING`,
-              [
-                releaseId,
-                (cached?.title as string) || row.title,
-                slugify(`${row.artist} ${row.title}`),
-                artistId,
-                labelId,
-                row.catalog_number,
-                (cached?.year as number) || row.year,
-                (cached?.country as string) || "",
-                formatResult,
-                formatDetail,
-                (cached?.notes as string) || null,
-                creditsText,
-                cached?.genres ? (cached.genres as string[]) : null,
-                cached?.styles ? (cached.styles as string[]) : null,
-                media_condition,
-                sleeve_condition,
-                inventory,
-                estimatedValue,
-                suggestedPrices ? JSON.stringify({ ...suggestedPrices as object, fetched_at: now }) : null,
-                did,
-                priceEntry.lowest,
-                priceEntry.num_for_sale,
-                priceEntry.have,
-                priceEntry.want,
-                now,
-                JSON.stringify([priceEntry]),
-                additionalLabels ? JSON.stringify(additionalLabels) : null,
-              ]
-            )
-
-            // Tracklist
-            const tracks = (cached?.tracklist || []) as Array<{
-              position?: string; title?: string; duration?: string
-            }>
-            for (const track of tracks) {
-              if (!track.title) continue
-              await trx.raw(
-                `INSERT INTO "Track" (id, "releaseId", position, title, duration, "createdAt")
-                VALUES (?, ?, ?, ?, ?, NOW()) ON CONFLICT DO NOTHING`,
-                [
-                  `dt-${did}-${track.position || "0"}`,
-                  releaseId,
-                  track.position || "",
-                  track.title,
-                  track.duration || "",
-                ]
-              )
-            }
-
-            // Credits → ReleaseArtist with roles
-            const extraartists = (cached?.extraartists || []) as Array<{
-              name?: string; id?: number; role?: string
-            }>
-            for (const ea of extraartists) {
-              if (!ea.name || !ea.id) continue
-              const eaId = await ensureArtistByDiscogs(trx, ea)
-              if (eaId) {
-                await trx.raw(
-                  `INSERT INTO "ReleaseArtist" (id, "releaseId", "artistId", role, "createdAt")
-                  VALUES (?, ?, ?, ?, NOW()) ON CONFLICT ("releaseId", "artistId") DO NOTHING`,
-                  [`dra-${did}-${ea.id}`, releaseId, eaId, ea.role || "performer"]
-                )
-              }
-            }
-
-            // Images → Image table + coverImage
-            const images = (cached?.images || []) as Array<{ uri?: string; type?: string }>
-            const maxImages = Math.min(images.length, 5)
-            for (let imgIdx = 0; imgIdx < maxImages; imgIdx++) {
-              const img = images[imgIdx]
-              if (!img.uri) continue
-              const imageId = `discogs-image-${did}-${imgIdx + 1}`
-
-              await trx.raw(
-                `INSERT INTO "Image" (id, url, alt, "releaseId", rang, source, "createdAt")
-                VALUES (?, ?, ?, ?, ?, 'discogs', NOW()) ON CONFLICT (id) DO NOTHING`,
-                [imageId, img.uri, `${row.artist} — ${row.title}`, releaseId, imgIdx + 1]
-              )
-
-              if (imgIdx === 0) {
-                await trx.raw(
-                  `UPDATE "Release" SET "coverImage" = ? WHERE id = ? AND "coverImage" IS NULL`,
-                  [img.uri, releaseId]
-                )
-              }
-            }
-
-            await logImport(trx, runId, session, releaseId, did, "inserted", row, cached)
-            counters.inserted++
-          } else {
-            counters.skipped++
-          }
+          await trx.raw(
+            `UPDATE "Release" SET
+              discogs_lowest_price = ?,
+              discogs_num_for_sale = ?,
+              discogs_have = ?,
+              discogs_want = ?,
+              discogs_last_synced = ?,
+              discogs_suggested_prices = COALESCE(?::jsonb, discogs_suggested_prices),
+              estimated_value = COALESCE(?, estimated_value),
+              genres = COALESCE(?, genres),
+              styles = COALESCE(?, styles),
+              discogs_price_history = COALESCE(discogs_price_history, '[]'::jsonb) || ?::jsonb,
+              "updatedAt" = NOW()
+            WHERE id = ?`,
+            [
+              priceEntry.lowest,
+              priceEntry.num_for_sale,
+              priceEntry.have,
+              priceEntry.want,
+              now,
+              suggestedPrices ? JSON.stringify({ ...suggestedPrices as object, fetched_at: now }) : null,
+              priceEntry.estimated_value,
+              cached?.genres ? (cached.genres as string[]) : null,
+              cached?.styles ? (cached.styles as string[]) : null,
+              JSON.stringify([priceEntry]),
+              dbId,
+            ]
+          )
+          await logImport(trx, runId, session, dbId, did, "updated", row, cached)
+          counters.updated++
         } catch (err) {
-          console.error(`[discogs-import] Error for discogs:${did}:`, err)
           counters.errors++
-          // On error in transaction, we must rollback the whole thing
+          await pushLastError(pgConnection, session_id, "existing_updates", {
+            discogs_id: did, release_id: dbId,
+            message: err instanceof Error ? err.message : "unknown",
+          })
           throw err
         }
 
-        // Send progress event
-        processedCount++
-        sendEvent({
-          type: "progress",
-          current: processedCount,
-          total: totalToProcess,
-          artist: row.artist,
-          title: row.title,
-        })
+        if (i % 20 === 0 || i === existingRows.length - 1) {
+          await stream.emit("commit", "phase_progress", {
+            phase: "existing_updates", current: i + 1, total: existingRows.length,
+            last: `${row.artist} — ${row.title}`,
+          })
+          await updateSession(pgConnection, session_id, {
+            commit_progress: { phase: "existing_updates", current: i + 1, total: existingRows.length, counters },
+          })
+        }
       }
+      await stream.emit("commit", "phase_done", { phase: "existing_updates", updated: counters.updated })
 
-      // Commit transaction — all or nothing
+      // ── Phase: linkable updates ─────────────────────────────────────
+      await stream.emit("commit", "phase_start", { phase: "linkable_updates", total: linkableRows.length })
+      for (let i = 0; i < linkableRows.length; i++) {
+        if (await isCancelRequested(pgConnection, session_id)) throw new Error("__CANCEL__")
+
+        const row = linkableRows[i]
+        const did = row.discogs_id
+        const cache = cacheMap.get(did)
+        const cached = cache?.api_data || null
+        const suggestedPrices = cache?.suggested_prices || null
+        const priceEntry = buildPriceEntry(cached, suggestedPrices, price_markup, now)
+        const dbId = linkableMap.get(did)!
+
+        try {
+          await trx.raw(
+            `UPDATE "Release" SET
+              discogs_id = ?,
+              discogs_lowest_price = ?,
+              discogs_num_for_sale = ?,
+              discogs_have = ?,
+              discogs_want = ?,
+              discogs_last_synced = ?,
+              discogs_suggested_prices = COALESCE(?::jsonb, discogs_suggested_prices),
+              estimated_value = COALESCE(?, estimated_value),
+              genres = COALESCE(?, genres),
+              styles = COALESCE(?, styles),
+              description = COALESCE(description, ?),
+              discogs_price_history = COALESCE(discogs_price_history, '[]'::jsonb) || ?::jsonb,
+              "updatedAt" = NOW()
+            WHERE id = ?`,
+            [
+              did,
+              priceEntry.lowest,
+              priceEntry.num_for_sale,
+              priceEntry.have,
+              priceEntry.want,
+              now,
+              suggestedPrices ? JSON.stringify({ ...suggestedPrices as object, fetched_at: now }) : null,
+              priceEntry.estimated_value,
+              cached?.genres ? (cached.genres as string[]) : null,
+              cached?.styles ? (cached.styles as string[]) : null,
+              (cached?.notes as string) || null,
+              JSON.stringify([priceEntry]),
+              dbId,
+            ]
+          )
+          await logImport(trx, runId, session, dbId, did, "linked", row, cached)
+          counters.linked++
+        } catch (err) {
+          counters.errors++
+          await pushLastError(pgConnection, session_id, "linkable_updates", {
+            discogs_id: did, release_id: dbId,
+            message: err instanceof Error ? err.message : "unknown",
+          })
+          throw err
+        }
+
+        if (i % 20 === 0 || i === linkableRows.length - 1) {
+          await stream.emit("commit", "phase_progress", {
+            phase: "linkable_updates", current: i + 1, total: linkableRows.length,
+            last: `${row.artist} — ${row.title}`,
+          })
+          await updateSession(pgConnection, session_id, {
+            commit_progress: { phase: "linkable_updates", current: i + 1, total: linkableRows.length, counters },
+          })
+        }
+      }
+      await stream.emit("commit", "phase_done", { phase: "linkable_updates", linked: counters.linked })
+
+      // ── Phase: new inserts ──────────────────────────────────────────
+      await stream.emit("commit", "phase_start", { phase: "new_inserts", total: newRows.length })
+      for (let i = 0; i < newRows.length; i++) {
+        if (await isCancelRequested(pgConnection, session_id)) throw new Error("__CANCEL__")
+
+        const row = newRows[i]
+        const did = row.discogs_id
+        const cache = cacheMap.get(did)
+        const cached = cache?.api_data || null
+        const suggestedPrices = cache?.suggested_prices || null
+        const priceEntry = buildPriceEntry(cached, suggestedPrices, price_markup, now)
+        const releaseId = `discogs-release-${did}`
+
+        try {
+          const artistId = await ensureArtist(trx, row.artist, cached)
+          const labelId = await ensureLabel(trx, row.label, cached)
+          const formatResult = mapDiscogsFormat(cached)
+          const formatDetail = getFormatDetail(cached)
+          const creditsText = buildCreditsText(cached)
+          const additionalLabels = getAdditionalLabels(cached)
+
+          await trx.raw(
+            `INSERT INTO "Release" (
+              id, title, slug, "artistId", "labelId",
+              "catalogNumber", year, country, format_group, legacy_format_detail,
+              description, credits, genres, styles,
+              media_condition, sleeve_condition, inventory,
+              estimated_value, discogs_suggested_prices,
+              discogs_id, discogs_lowest_price, discogs_num_for_sale,
+              discogs_have, discogs_want, discogs_last_synced,
+              discogs_price_history, additional_labels, data_source,
+              product_category, "createdAt", "updatedAt"
+            ) VALUES (
+              ?, ?, ?, ?, ?,
+              ?, ?, ?, ?, ?,
+              ?, ?, ?, ?,
+              ?, ?, ?,
+              ?, ?::jsonb,
+              ?, ?, ?,
+              ?, ?, ?,
+              ?::jsonb, ?::jsonb, 'discogs_import',
+              'release', NOW(), NOW()
+            )
+            ON CONFLICT (id) DO NOTHING`,
+            [
+              releaseId,
+              (cached?.title as string) || row.title,
+              slugify(`${row.artist} ${row.title}`),
+              artistId,
+              labelId,
+              row.catalog_number,
+              (cached?.year as number) || row.year,
+              (cached?.country as string) || "",
+              formatResult,
+              formatDetail,
+              (cached?.notes as string) || null,
+              creditsText,
+              cached?.genres ? (cached.genres as string[]) : null,
+              cached?.styles ? (cached.styles as string[]) : null,
+              media_condition,
+              sleeve_condition,
+              inventory,
+              priceEntry.estimated_value,
+              suggestedPrices ? JSON.stringify({ ...suggestedPrices as object, fetched_at: now }) : null,
+              did,
+              priceEntry.lowest,
+              priceEntry.num_for_sale,
+              priceEntry.have,
+              priceEntry.want,
+              now,
+              JSON.stringify([priceEntry]),
+              additionalLabels ? JSON.stringify(additionalLabels) : null,
+            ]
+          )
+
+          // Tracklist
+          const tracks = (cached?.tracklist || []) as Array<{ position?: string; title?: string; duration?: string }>
+          for (const track of tracks) {
+            if (!track.title) continue
+            await trx.raw(
+              `INSERT INTO "Track" (id, "releaseId", position, title, duration, "createdAt")
+              VALUES (?, ?, ?, ?, ?, NOW()) ON CONFLICT DO NOTHING`,
+              [
+                `dt-${did}-${track.position || "0"}`,
+                releaseId,
+                track.position || "",
+                track.title,
+                track.duration || "",
+              ]
+            )
+          }
+
+          // Credits → ReleaseArtist
+          const extraartists = (cached?.extraartists || []) as Array<{ name?: string; id?: number; role?: string }>
+          for (const ea of extraartists) {
+            if (!ea.name || !ea.id) continue
+            const eaId = await ensureArtistByDiscogs(trx, ea)
+            if (eaId) {
+              await trx.raw(
+                `INSERT INTO "ReleaseArtist" (id, "releaseId", "artistId", role, "createdAt")
+                VALUES (?, ?, ?, ?, NOW()) ON CONFLICT ("releaseId", "artistId") DO NOTHING`,
+                [`dra-${did}-${ea.id}`, releaseId, eaId, ea.role || "performer"]
+              )
+            }
+          }
+
+          // Images
+          const images = (cached?.images || []) as Array<{ uri?: string; type?: string }>
+          const maxImages = Math.min(images.length, 5)
+          for (let imgIdx = 0; imgIdx < maxImages; imgIdx++) {
+            const img = images[imgIdx]
+            if (!img.uri) continue
+            const imageId = `discogs-image-${did}-${imgIdx + 1}`
+            await trx.raw(
+              `INSERT INTO "Image" (id, url, alt, "releaseId", rang, source, "createdAt")
+              VALUES (?, ?, ?, ?, ?, 'discogs', NOW()) ON CONFLICT (id) DO NOTHING`,
+              [imageId, img.uri, `${row.artist} — ${row.title}`, releaseId, imgIdx + 1]
+            )
+            if (imgIdx === 0) {
+              await trx.raw(
+                `UPDATE "Release" SET "coverImage" = ? WHERE id = ? AND "coverImage" IS NULL`,
+                [img.uri, releaseId]
+              )
+            }
+          }
+
+          await logImport(trx, runId, session, releaseId, did, "inserted", row, cached)
+          counters.inserted++
+        } catch (err) {
+          counters.errors++
+          await pushLastError(pgConnection, session_id, "new_inserts", {
+            discogs_id: did, release_id: releaseId,
+            message: err instanceof Error ? err.message : "unknown",
+          })
+          throw err
+        }
+
+        if (i % 10 === 0 || i === newRows.length - 1) {
+          await stream.emit("commit", "phase_progress", {
+            phase: "new_inserts", current: i + 1, total: newRows.length,
+            last: `${row.artist} — ${row.title}`,
+            counters: { ...counters },
+          })
+          await updateSession(pgConnection, session_id, {
+            commit_progress: { phase: "new_inserts", current: i + 1, total: newRows.length, counters },
+          })
+        }
+      }
+      await stream.emit("commit", "phase_done", { phase: "new_inserts", inserted: counters.inserted })
+
+      // ── Phase: committing transaction ───────────────────────────────
+      await stream.emit("commit", "phase_start", { phase: "committing", message: "Committing transaction..." })
+      const commitStart = Date.now()
       await trx.commit()
+      await stream.emit("commit", "phase_done", { phase: "committing", duration_ms: Date.now() - commitStart })
 
-      // Update session status
+      // Final session update
       await updateSession(pgConnection, session_id, {
         status: "done",
         run_id: runId,
+        commit_progress: { phase: "done", counters },
         import_settings: { media_condition, sleeve_condition, inventory, price_markup },
       })
+      await clearControlFlags(pgConnection, session_id)
 
-      sendEvent({
-        type: "done",
+      await stream.emit("commit", "done", {
         run_id: runId,
         collection: session.collection_name,
         ...counters,
       })
-      res.end()
-
+      stream.end()
     } catch (err) {
-      // Rollback entire transaction
+      // Rollback transaction
       try { await trx.rollback() } catch { /* already rolled back */ }
+
+      const isCancel = err instanceof Error && err.message === "__CANCEL__"
+      const msg = isCancel ? "Cancelled by user — all changes rolled back" : (err instanceof Error ? err.message : "Import failed")
 
       await updateSession(pgConnection, session_id, {
         status: "analyzed",
-        error_message: err instanceof Error ? err.message : "Import failed — rolled back",
+        error_message: msg,
+        commit_progress: { phase: "rolled_back", counters, reason: msg },
       })
+      await clearControlFlags(pgConnection, session_id)
 
-      const msg = err instanceof Error ? err.message : "Import failed"
-      sendEvent({ type: "error", error: `Import rolled back: ${msg}` })
-      res.end()
+      await stream.emit("commit", "rollback", {
+        reason: msg,
+        cancelled: isCancel,
+        counters,
+      })
+      stream.end()
     }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Commit failed"
-    try {
-      res.write(`data: ${JSON.stringify({ type: "error", error: msg })}\n\n`)
-      res.end()
-    } catch {
-      res.status(500).json({ error: msg })
-    }
+    if (!stream.isClosed) await stream.error(msg)
   }
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function buildPriceEntry(
+  cached: Record<string, unknown> | null,
+  suggestedPrices: Record<string, unknown> | null,
+  priceMarkup: number,
+  now: string
+) {
+  const community = (cached?.community || {}) as { have?: number; want?: number }
+  const vgPlusPrice = (suggestedPrices as Record<string, unknown>)?.["VG+"] as number | null ?? null
+  const estimatedValue = vgPlusPrice
+    ? Math.round(vgPlusPrice * priceMarkup * 100) / 100
+    : null
+  return {
+    date: now,
+    source: "discogs_collection_import",
+    lowest: (cached?.lowest_price as number) ?? null,
+    median: null,
+    highest: null,
+    suggested_vgplus: vgPlusPrice,
+    estimated_value: estimatedValue,
+    num_for_sale: (cached?.num_for_sale as number) ?? 0,
+    have: community.have ?? 0,
+    want: community.want ?? 0,
+  }
+}
 
 function slugify(text: string): string {
   return text
@@ -493,7 +593,7 @@ function getAdditionalLabels(cached: Record<string, unknown> | null): Array<{ na
 }
 
 async function ensureArtist(
-  pg: Knex | Knex.Transaction,
+  pg: Knex.Transaction,
   name: string,
   cached: Record<string, unknown> | null
 ): Promise<string | null> {
@@ -502,10 +602,8 @@ async function ensureArtist(
   const discogsArtist = artists[0]
   const artistName = (discogsArtist?.name || name).replace(/\s*\(\d+\)$/, "")
   const slug = slugify(artistName)
-
   const existing = await pg.raw(`SELECT id FROM "Artist" WHERE slug = ? LIMIT 1`, [slug])
   if (existing.rows.length) return existing.rows[0].id
-
   const artistId = discogsArtist?.id
     ? `discogs-artist-${discogsArtist.id}`
     : `import-artist-${slug}`
@@ -518,21 +616,18 @@ async function ensureArtist(
 }
 
 async function ensureArtistByDiscogs(
-  pg: Knex | Knex.Transaction,
+  pg: Knex.Transaction,
   ea: { name?: string; id?: number }
 ): Promise<string | null> {
   if (!ea.name) return null
   const name = ea.name.replace(/\s*\(\d+\)$/, "")
   const slug = slugify(name)
-
   if (ea.id) {
     const byId = await pg.raw(`SELECT id FROM "Artist" WHERE id = ? LIMIT 1`, [`discogs-artist-${ea.id}`])
     if (byId.rows.length) return byId.rows[0].id
   }
-
   const existing = await pg.raw(`SELECT id FROM "Artist" WHERE slug = ? LIMIT 1`, [slug])
   if (existing.rows.length) return existing.rows[0].id
-
   const artistId = ea.id ? `discogs-artist-${ea.id}` : `import-artist-${slug}`
   await pg.raw(
     `INSERT INTO "Artist" (id, name, slug, "createdAt", "updatedAt")
@@ -543,7 +638,7 @@ async function ensureArtistByDiscogs(
 }
 
 async function ensureLabel(
-  pg: Knex | Knex.Transaction,
+  pg: Knex.Transaction,
   name: string,
   cached: Record<string, unknown> | null
 ): Promise<string | null> {
@@ -552,10 +647,8 @@ async function ensureLabel(
   const discogsLabel = labels[0]
   const labelName = (discogsLabel?.name || name).replace(/\s*\(\d+\)$/, "")
   const slug = slugify(labelName)
-
   const existing = await pg.raw(`SELECT id FROM "Label" WHERE slug = ? LIMIT 1`, [slug])
   if (existing.rows.length) return existing.rows[0].id
-
   const labelId = discogsLabel?.id
     ? `discogs-label-${discogsLabel.id}`
     : `import-label-${slug}`
@@ -568,7 +661,7 @@ async function ensureLabel(
 }
 
 async function logImport(
-  pg: Knex | Knex.Transaction,
+  pg: Knex.Transaction,
   runId: string,
   session: { filename: string; collection_name: string },
   releaseId: string,

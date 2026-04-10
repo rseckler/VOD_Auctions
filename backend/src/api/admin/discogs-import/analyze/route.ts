@@ -1,7 +1,15 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import type { Knex } from "knex"
-import { getSession, updateSession, expandRow } from "../upload/route"
+import {
+  SSEStream,
+  getSession,
+  updateSession,
+  expandRow,
+  isCancelRequested,
+  awaitPauseClearOrCancel,
+  clearControlFlags,
+} from "../../../../lib/discogs-import"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -21,37 +29,48 @@ interface MatchResult {
 }
 
 // ─── POST /admin/discogs-import/analyze ──────────────────────────────────────
+// SSE Stream with phase-based progress:
+//   phase:exact_match → phase:cache_load → phase:fuzzy_match (batched) → phase:aggregating → done
+// Supports heartbeat, cancel, pause.
 
 export async function POST(
   req: MedusaRequest,
   res: MedusaResponse
 ): Promise<void> {
+  const { session_id } = req.body as { session_id: string }
+  if (!session_id) {
+    res.status(400).json({ error: "Missing session_id" })
+    return
+  }
+
+  const pgConnection: Knex = req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
+
+  const session = await getSession(pgConnection, session_id)
+  if (!session) {
+    res.status(404).json({ error: "Session not found. Please re-upload." })
+    return
+  }
+
+  const stream = new SSEStream(res, pgConnection, session_id)
+  stream.startHeartbeat(5000)
+
   try {
-    const { session_id } = req.body as { session_id: string }
-    if (!session_id) {
-      res.status(400).json({ error: "Missing session_id" })
-      return
-    }
+    // Reset control flags + set status
+    await clearControlFlags(pgConnection, session_id)
+    await updateSession(pgConnection, session_id, { status: "analyzing", analyze_progress: null })
+    await stream.emit("analyze", "start", { session_id })
 
-    const pgConnection: Knex = req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
-
-    const session = await getSession(pgConnection, session_id)
-    if (!session) {
-      res.status(404).json({ error: "Session not found. Please re-upload." })
-      return
-    }
-
-    await updateSession(pgConnection, session_id, { status: "analyzing" })
-
-    // Set trigram threshold for `%` operator (pre-filter in fuzzy matching).
-    // 0.3 = generous enough to catch partial title matches via GIN index.
+    // Set trigram threshold for `%` operator (pre-filter in fuzzy matching)
     await pgConnection.raw(`SET pg_trgm.similarity_threshold = 0.3`)
 
     const compactRows = session.rows as Array<Record<string, unknown>>
     const rows = compactRows.map(expandRow)
     const allDiscogsIds = rows.map((r) => r.discogs_id)
 
-    // ── Stufe 1: Exact match via discogs_id (Live-DB-Query) ─────────────
+    // ── Phase 1: Exact discogs_id match ─────────────────────────────────
+    await stream.emit("analyze", "phase_start", { phase: "exact_match" })
+    const phase1Start = Date.now()
+
     const exactResult = await pgConnection.raw(
       `SELECT id, discogs_id FROM "Release" WHERE discogs_id = ANY(?)`,
       [allDiscogsIds]
@@ -61,7 +80,26 @@ export async function POST(
       exactMap.set(r.discogs_id, r.id)
     }
 
-    // ── Load API cache from DB ──────────────────────────────────────────
+    await stream.emit("analyze", "phase_done", {
+      phase: "exact_match",
+      total: rows.length,
+      matched: exactMap.size,
+      duration_ms: Date.now() - phase1Start,
+    })
+    await updateSession(pgConnection, session_id, {
+      analyze_progress: { phase: "exact_match", total: rows.length, matched: exactMap.size },
+    })
+
+    if (await isCancelRequested(pgConnection, session_id)) {
+      await stream.emit("analyze", "cancelled", { at_phase: "exact_match" })
+      stream.end()
+      return
+    }
+
+    // ── Phase 2: API cache load ─────────────────────────────────────────
+    await stream.emit("analyze", "phase_start", { phase: "cache_load" })
+    const phase2Start = Date.now()
+
     const cacheResult = await pgConnection.raw(
       `SELECT discogs_id, api_data, suggested_prices, is_error, error_message
        FROM discogs_api_cache WHERE discogs_id = ANY(?)`,
@@ -72,25 +110,24 @@ export async function POST(
       cacheMap.set(r.discogs_id, r)
     }
 
-    // ── Match rows ──────────────────────────────────────────────────────
+    await stream.emit("analyze", "phase_done", {
+      phase: "cache_load",
+      entries: cacheMap.size,
+      duration_ms: Date.now() - phase2Start,
+    })
+
+    // ── Distribute rows into buckets ────────────────────────────────────
     const existing: MatchResult[] = []
     const linkable: MatchResult[] = []
     const newReleases: MatchResult[] = []
     const skipped: MatchResult[] = []
+    const unmatchedRows: Array<{ row: typeof rows[0]; base: MatchResult }> = []
 
-    // Collect unmatched rows for batch fuzzy matching
-    const unmatchedRows: Array<{ idx: number; row: typeof rows[0]; base: MatchResult }> = []
-
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i]
+    for (const row of rows) {
       const did = row.discogs_id
       const cached = cacheMap.get(did)
-
       const apiSummary = cached && !cached.is_error && cached.api_data
-        ? {
-            ...cached.api_data,
-            suggested_prices: cached.suggested_prices,
-          }
+        ? { ...cached.api_data, suggested_prices: cached.suggested_prices }
         : undefined
 
       const base: MatchResult = {
@@ -105,40 +142,50 @@ export async function POST(
         api_data: apiSummary,
       }
 
-      // Skip if API returned error (404 etc.)
       if (cached?.is_error) {
         skipped.push({ ...base, skip_reason: cached.error_message || "api_error" })
         continue
       }
 
-      // Match 1: Exact discogs_id
       if (exactMap.has(did)) {
         existing.push({ ...base, db_release_id: exactMap.get(did), match_score: 100 })
         continue
       }
 
-      // Collect for fuzzy matching
-      unmatchedRows.push({ idx: i, row, base })
+      unmatchedRows.push({ row, base })
     }
 
-    // ── Stufe 2: Trigram Fuzzy Match (BATCH mit LATERAL JOIN + % Operator) ──
-    // Performance: Statt 5000 sequentieller Queries → ~12 Batches à 500.
-    // Nutzt idx_release_title_trgm (GIN) via `lower(r.title) % lower(q.title)` als
-    // Pre-Filter (Index-Lookup statt Sequential Scan), dann similarity() ranking.
+    // ── Phase 3: Fuzzy matching (batched) ───────────────────────────────
     const BATCH_SIZE = 500
     const MIN_SCORE = 0.4
+    const validUnmatched = unmatchedRows.filter(({ row }) => {
+      return `${row.artist} ${row.title}`.trim().length >= 3
+    })
+    const totalBatches = Math.ceil(validUnmatched.length / BATCH_SIZE)
     const matchedMap = new Map<number, { db_release_id: string; match_score: number }>()
 
-    // Filter valid rows (need artist + title + length >= 3)
-    const validUnmatched = unmatchedRows.filter(({ row }) => {
-      const s = `${row.artist} ${row.title}`.trim()
-      return s.length >= 3
+    await stream.emit("analyze", "phase_start", {
+      phase: "fuzzy_match",
+      total_rows: validUnmatched.length,
+      total_batches: totalBatches,
     })
+    const phase3Start = Date.now()
 
-    for (let batchStart = 0; batchStart < validUnmatched.length; batchStart += BATCH_SIZE) {
+    for (let batchStart = 0, batchIdx = 0; batchStart < validUnmatched.length; batchStart += BATCH_SIZE, batchIdx++) {
+      // Cancel check between batches
+      if (await isCancelRequested(pgConnection, session_id)) {
+        await stream.emit("analyze", "cancelled", { at_phase: "fuzzy_match", batch: batchIdx })
+        stream.end()
+        return
+      }
+      // Pause check between batches
+      if (await awaitPauseClearOrCancel(pgConnection, session_id, stream)) {
+        await stream.emit("analyze", "cancelled", { at_phase: "fuzzy_match", batch: batchIdx })
+        stream.end()
+        return
+      }
+
       const batch = validUnmatched.slice(batchStart, batchStart + BATCH_SIZE)
-
-      // Build VALUES clause for batch
       const valuesParts: string[] = []
       const params: unknown[] = []
       batch.forEach(({ row }, i) => {
@@ -175,12 +222,42 @@ export async function POST(
           }
         }
       } catch (err) {
-        console.error(`[discogs-analyze] Batch fuzzy match failed (batch ${batchStart}):`, err)
-        // continue with other batches — failed rows fall through to "new"
+        console.error(`[discogs-analyze] Batch fuzzy match failed (batch ${batchIdx}):`, err)
+        await stream.emit("analyze", "batch_error", {
+          batch: batchIdx,
+          error: err instanceof Error ? err.message : "unknown",
+        })
       }
+
+      // Emit progress after each batch
+      const rowsProcessed = Math.min(batchStart + BATCH_SIZE, validUnmatched.length)
+      await stream.emit("analyze", "phase_progress", {
+        phase: "fuzzy_match",
+        batch: batchIdx + 1,
+        total_batches: totalBatches,
+        rows_processed: rowsProcessed,
+        total_rows: validUnmatched.length,
+        matches_so_far: matchedMap.size,
+      })
+      await updateSession(pgConnection, session_id, {
+        analyze_progress: {
+          phase: "fuzzy_match",
+          batch: batchIdx + 1,
+          total_batches: totalBatches,
+          rows_processed: rowsProcessed,
+          total_rows: validUnmatched.length,
+          matches_so_far: matchedMap.size,
+        },
+      })
     }
 
-    // Distribute unmatched rows into linkable / new based on batch results
+    await stream.emit("analyze", "phase_done", {
+      phase: "fuzzy_match",
+      total_matches: matchedMap.size,
+      duration_ms: Date.now() - phase3Start,
+    })
+
+    // Distribute into linkable / new
     for (const { row, base } of unmatchedRows) {
       const searchString = `${row.artist} ${row.title}`.trim()
       if (searchString.length < 3) {
@@ -189,17 +266,14 @@ export async function POST(
       }
       const match = matchedMap.get(row.discogs_id)
       if (match) {
-        linkable.push({
-          ...base,
-          db_release_id: match.db_release_id,
-          match_score: match.match_score,
-        })
+        linkable.push({ ...base, db_release_id: match.db_release_id, match_score: match.match_score })
       } else {
         newReleases.push(base)
       }
     }
 
-    // ── Save analysis result in session ─────────────────────────────────
+    // ── Phase 4: Aggregating ────────────────────────────────────────────
+    await stream.emit("analyze", "phase_start", { phase: "aggregating" })
     const analysisResult = {
       summary: {
         total: rows.length,
@@ -217,11 +291,33 @@ export async function POST(
     await updateSession(pgConnection, session_id, {
       status: "analyzed",
       analysis_result: analysisResult,
+      analyze_progress: { phase: "done", ...analysisResult.summary },
     })
 
-    res.json(analysisResult)
+    await stream.emit("analyze", "phase_done", {
+      phase: "aggregating",
+      summary: analysisResult.summary,
+    })
+    await stream.emit("analyze", "done", {
+      summary: analysisResult.summary,
+      existing: existing,
+      linkable: linkable,
+      new: newReleases,
+      skipped: skipped,
+    })
+    stream.end()
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Analysis failed"
-    res.status(500).json({ error: msg })
+    await updateSession(pgConnection, session_id, {
+      status: "fetched",
+      error_message: msg,
+    })
+    if (!stream.isClosed) {
+      await stream.error(msg)
+    } else {
+      try {
+        res.status(500).json({ error: msg })
+      } catch { /* already sent */ }
+    }
   }
 }

@@ -12,14 +12,29 @@ export async function GET(
     const pgConnection: Knex = req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
     const { run_id } = req.query as { run_id?: string }
 
-    // Drill-down: specific run details
+    // Drill-down: specific run details (import_log entries + import_event timeline)
     if (run_id) {
       const details = await pgConnection.raw(
         `SELECT id, release_id, discogs_id, action, data_snapshot, created_at
          FROM import_log WHERE run_id = ? ORDER BY created_at`,
         [run_id]
       )
-      res.json({ entries: details.rows || [] })
+      // Find session for this run and fetch its event timeline
+      const sessionLookup = await pgConnection.raw(
+        `SELECT id FROM import_session WHERE run_id = ? LIMIT 1`,
+        [run_id]
+      )
+      let events: unknown[] = []
+      const sessionId = sessionLookup.rows?.[0]?.id
+      if (sessionId) {
+        const eventsResult = await pgConnection.raw(
+          `SELECT id, phase, event_type, payload, created_at
+           FROM import_event WHERE session_id = ? ORDER BY id ASC LIMIT 1000`,
+          [sessionId]
+        )
+        events = eventsResult.rows || []
+      }
+      res.json({ entries: details.rows || [], events, session_id: sessionId || null })
       return
     }
 

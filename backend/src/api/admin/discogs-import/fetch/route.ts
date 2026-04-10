@@ -1,7 +1,16 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import type { Knex } from "knex"
-import { getSession, updateSession, expandRow } from "../upload/route"
+import {
+  SSEStream,
+  getSession,
+  updateSession,
+  expandRow,
+  isCancelRequested,
+  awaitPauseClearOrCancel,
+  clearControlFlags,
+  pushLastError,
+} from "../../../../lib/discogs-import"
 
 const DISCOGS_BASE = "https://api.discogs.com"
 const MAX_REQUESTS_PER_MIN = 40
@@ -33,55 +42,50 @@ async function rateLimit(): Promise<void> {
 }
 
 // ─── POST /admin/discogs-import/fetch ────────────────────────────────────────
+// SSE stream with heartbeat, cancel/pause support, error-detail buffer.
 
 export async function POST(
   req: MedusaRequest,
   res: MedusaResponse
 ): Promise<void> {
+  const { session_id } = req.body as { session_id: string }
+  if (!session_id) {
+    res.status(400).json({ error: "Missing session_id" })
+    return
+  }
+
+  const pgConnection: Knex = req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
+
+  const session = await getSession(pgConnection, session_id)
+  if (!session) {
+    res.status(404).json({ error: "Session not found. Please re-upload." })
+    return
+  }
+
+  const token = process.env.DISCOGS_TOKEN
+  if (!token) {
+    res.status(500).json({ error: "DISCOGS_TOKEN not configured in backend .env" })
+    return
+  }
+
+  const headers = {
+    Authorization: `Discogs token=${token}`,
+    "User-Agent": "VODAuctions/1.0 +https://vod-auctions.com",
+  }
+
+  const stream = new SSEStream(res, pgConnection, session_id)
+  stream.startHeartbeat(5000)
+
   try {
-    const { session_id } = req.body as { session_id: string }
-    if (!session_id) {
-      res.status(400).json({ error: "Missing session_id" })
-      return
-    }
-
-    const pgConnection: Knex = req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
-
-    const session = await getSession(pgConnection, session_id)
-    if (!session) {
-      res.status(404).json({ error: "Session not found. Please re-upload." })
-      return
-    }
-
-    const token = process.env.DISCOGS_TOKEN
-    if (!token) {
-      res.status(500).json({ error: "DISCOGS_TOKEN not configured in backend .env" })
-      return
-    }
-
-    const headers = {
-      Authorization: `Discogs token=${token}`,
-      "User-Agent": "VODAuctions/1.0 +https://vod-auctions.com",
-    }
-
-    // Set up SSE
-    res.setHeader("Content-Type", "text/event-stream")
-    res.setHeader("Cache-Control", "no-cache")
-    res.setHeader("Connection", "keep-alive")
-    res.flushHeaders()
-
-    const send = (data: Record<string, unknown>) => {
-      res.write(`data: ${JSON.stringify(data)}\n\n`)
-    }
-
-    // Update session status
+    await clearControlFlags(pgConnection, session_id)
     await updateSession(pgConnection, session_id, { status: "fetching" })
+    await stream.emit("fetch", "start", { session_id })
 
     const compactRows = session.rows as Array<Record<string, unknown>>
     const rows = compactRows.map(expandRow)
     const allDiscogsIds = rows.map((r) => r.discogs_id)
 
-    // Check which IDs are already cached in DB (valid, non-expired, non-error)
+    // Check cache
     const cachedResult = await pgConnection.raw(
       `SELECT discogs_id FROM discogs_api_cache
        WHERE discogs_id = ANY(?) AND expires_at > NOW() AND is_error = false`,
@@ -95,16 +99,46 @@ export async function POST(
     let errors = 0
     const startTime = Date.now()
 
-    send({ type: "start", total, cached: cachedIds.size })
+    await stream.emit("fetch", "plan", {
+      total,
+      already_cached: cachedIds.size,
+      to_fetch: total - cachedIds.size,
+    })
 
     for (let i = 0; i < total; i++) {
+      // Cancel check
+      if (await isCancelRequested(pgConnection, session_id)) {
+        await updateSession(pgConnection, session_id, {
+          status: "fetched",
+          fetch_progress: { current: i, total, fetched, cached: skippedCached, errors, cancelled: true },
+        })
+        await stream.emit("fetch", "cancelled", { current: i, total, fetched, cached: skippedCached, errors })
+        stream.end()
+        return
+      }
+      // Pause check
+      if (await awaitPauseClearOrCancel(pgConnection, session_id, stream)) {
+        await updateSession(pgConnection, session_id, {
+          status: "fetched",
+          fetch_progress: { current: i, total, fetched, cached: skippedCached, errors, cancelled: true },
+        })
+        await stream.emit("fetch", "cancelled", { current: i, total, fetched, cached: skippedCached, errors })
+        stream.end()
+        return
+      }
+
       const did = rows[i].discogs_id
 
-      // Skip if already cached in DB
+      // Skip if already cached
       if (cachedIds.has(did)) {
         skippedCached++
         if (skippedCached % 50 === 0) {
-          send({ type: "progress", current: i + 1, total, artist: rows[i].artist, title: rows[i].title, status: "cached" })
+          await stream.emit("fetch", "progress", {
+            current: i + 1, total,
+            fetched, cached: skippedCached, errors,
+            artist: rows[i].artist, title: rows[i].title,
+            status: "cached",
+          })
         }
         continue
       }
@@ -116,14 +150,13 @@ export async function POST(
 
         if (releaseResp.status === 429) {
           const retryAfter = parseInt(releaseResp.headers.get("Retry-After") || "60", 10)
-          send({ type: "rate_limited", wait: retryAfter })
+          await stream.emit("fetch", "rate_limited", { wait_s: retryAfter })
           await new Promise((r) => setTimeout(r, retryAfter * 1000))
           await rateLimit()
           releaseResp = await fetch(`${DISCOGS_BASE}/releases/${did}`, { headers, signal: AbortSignal.timeout(30000) })
         }
 
         if (releaseResp.status === 404) {
-          // Store error in DB cache (7-day TTL for errors)
           await pgConnection.raw(
             `INSERT INTO discogs_api_cache (discogs_id, api_data, is_error, error_message, fetched_at, expires_at)
              VALUES (?, '{}'::jsonb, true, 'not_found', NOW(), NOW() + INTERVAL '7 days')
@@ -132,18 +165,36 @@ export async function POST(
           )
           errors++
           fetched++
-          send({ type: "progress", current: i + 1, total, artist: rows[i].artist, title: rows[i].title, status: "not_found" })
+          await pushLastError(pgConnection, session_id, "fetch", {
+            discogs_id: did, kind: "not_found",
+            artist: rows[i].artist, title: rows[i].title,
+          })
+          await stream.emit("fetch", "error_detail", {
+            discogs_id: did, kind: "not_found",
+            artist: rows[i].artist, title: rows[i].title,
+          })
+          await stream.emit("fetch", "progress", {
+            current: i + 1, total,
+            fetched, cached: skippedCached, errors,
+            artist: rows[i].artist, title: rows[i].title,
+            status: "not_found",
+          })
           continue
         }
 
         if (!releaseResp.ok) {
           errors++
+          await pushLastError(pgConnection, session_id, "fetch", {
+            discogs_id: did, kind: "http_error", status: releaseResp.status,
+          })
+          await stream.emit("fetch", "error_detail", {
+            discogs_id: did, kind: "http_error", status: releaseResp.status,
+          })
           continue
         }
 
         const data = await releaseResp.json() as Record<string, unknown>
 
-        // Build API data entry
         const apiData: Record<string, unknown> = {
           title: data.title || "",
           year: data.year || 0,
@@ -178,7 +229,7 @@ export async function POST(
           data_quality: data.data_quality || "",
         }
 
-        // Fetch /marketplace/price_suggestions/{id}
+        // Fetch price suggestions
         let suggestedPrices: Record<string, unknown> | null = null
         await rateLimit()
         try {
@@ -200,7 +251,6 @@ export async function POST(
           // price suggestions failed — continue without them
         }
 
-        // Store in DB cache (30-day TTL)
         await pgConnection.raw(
           `INSERT INTO discogs_api_cache (discogs_id, api_data, suggested_prices, is_error, fetched_at, expires_at)
            VALUES (?, ?::jsonb, ?::jsonb, false, NOW(), NOW() + INTERVAL '30 days')
@@ -209,25 +259,26 @@ export async function POST(
         )
 
         fetched++
-      } catch {
+      } catch (err) {
         errors++
+        await pushLastError(pgConnection, session_id, "fetch", {
+          discogs_id: did, kind: "exception",
+          message: err instanceof Error ? err.message : "unknown",
+        })
+        await stream.emit("fetch", "error_detail", {
+          discogs_id: did, kind: "exception",
+          message: err instanceof Error ? err.message : "unknown",
+        })
       }
 
-      // Send progress
-      send({
-        type: "progress",
-        current: i + 1,
-        total,
-        fetched,
-        cached: skippedCached,
-        errors,
-        artist: rows[i].artist,
-        title: rows[i].title,
+      await stream.emit("fetch", "progress", {
+        current: i + 1, total,
+        fetched, cached: skippedCached, errors,
+        artist: rows[i].artist, title: rows[i].title,
         status: "fetched",
         eta_min: Math.round(((Date.now() - startTime) / Math.max(fetched, 1)) * (total - i - 1) / 60000),
       })
 
-      // Update session fetch_progress every 25 fetched releases
       if (fetched % 25 === 0) {
         await updateSession(pgConnection, session_id, {
           fetch_progress: { current: i + 1, total, fetched, cached: skippedCached, errors },
@@ -235,23 +286,17 @@ export async function POST(
       }
     }
 
-    // Final status update
     await updateSession(pgConnection, session_id, {
       status: "fetched",
       fetch_progress: { current: total, total, fetched, cached: skippedCached, errors },
     })
+    await clearControlFlags(pgConnection, session_id)
 
     const durationMin = Math.round((Date.now() - startTime) / 60000)
-    send({ type: "done", fetched, cached: skippedCached, errors, duration_min: durationMin })
-    res.end()
-
+    await stream.emit("fetch", "done", { fetched, cached: skippedCached, errors, duration_min: durationMin })
+    stream.end()
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Fetch failed"
-    try {
-      res.write(`data: ${JSON.stringify({ type: "error", error: msg })}\n\n`)
-      res.end()
-    } catch {
-      res.status(500).json({ error: msg })
-    }
+    if (!stream.isClosed) await stream.error(msg)
   }
 }

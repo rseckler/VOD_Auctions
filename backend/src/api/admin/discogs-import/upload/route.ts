@@ -3,125 +3,146 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import * as crypto from "crypto"
 import * as XLSX from "xlsx"
 import type { Knex } from "knex"
+import {
+  SSEStream,
+  compactRow,
+  type ParsedRow,
+} from "../../../../lib/discogs-import"
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-export interface ParsedRow {
-  artist: string
-  title: string
-  catalog_number: string
-  label: string
-  format: string
-  condition: number | null
-  year: number | null
-  discogs_id: number
-  collection_folder?: string
-  date_added?: string
-  media_condition?: string
-  sleeve_condition?: string
-  listing_price?: number | null
-  status?: string
-}
-
-// ─── DB Session helpers (replaces in-memory Map) ────────────────────────────
-
-export async function getSession(pg: Knex, id: string) {
-  const rows = await pg.raw(
-    `SELECT * FROM import_session WHERE id = ?`,
-    [id]
-  )
-  return rows.rows?.[0] || null
-}
-
-export async function updateSession(
-  pg: Knex,
-  id: string,
-  updates: Record<string, unknown>
-) {
-  const setClauses: string[] = []
-  const values: unknown[] = []
-  for (const [key, val] of Object.entries(updates)) {
-    setClauses.push(`${key} = ?`)
-    values.push(typeof val === "object" && val !== null ? JSON.stringify(val) : val)
-  }
-  setClauses.push(`updated_at = NOW()`)
-  values.push(id)
-  await pg.raw(
-    `UPDATE import_session SET ${setClauses.join(", ")} WHERE id = ?`,
-    values
-  )
-}
+// Re-export for legacy callers (other routes still import from here)
+export { getSession, updateSession, expandRow, type ParsedRow } from "../../../../lib/discogs-import"
 
 // ─── POST /admin/discogs-import/upload ───────────────────────────────────────
+// Supports SSE when client sends `Accept: text/event-stream` header,
+// otherwise returns a normal JSON response (backward-compat).
 
 export async function POST(
   req: MedusaRequest,
   res: MedusaResponse
 ): Promise<void> {
+  const { data, filename, collection_name, encoding } = req.body as {
+    data: string
+    filename: string
+    collection_name: string
+    encoding?: string
+  }
+
+  if (!data || !filename || !collection_name) {
+    res.status(400).json({ error: "Missing data, filename, or collection_name" })
+    return
+  }
+
+  const pgConnection: Knex = req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
+  const sessionId = crypto.randomUUID()
+  const wantsSSE = String(req.headers.accept || "").includes("text/event-stream")
+
+  // For SSE we need a stream instance BEFORE we insert the session (so we can
+  // emit parse_start early), but the stream requires a session_id in DB for
+  // event persistence. Strategy: insert a minimal session row up front,
+  // then update it with results.
+  let stream: SSEStream | null = null
+
   try {
-    const { data, filename, collection_name, encoding } = req.body as {
-      data: string
-      filename: string
-      collection_name: string
-      encoding?: string
+    if (wantsSSE) {
+      // Pre-insert a skeleton session so events can be persisted
+      await pgConnection.raw(
+        `INSERT INTO import_session (id, collection_name, filename, rows, row_count, unique_count, status)
+         VALUES (?, ?, ?, '[]'::jsonb, 0, 0, 'uploading')`,
+        [sessionId, collection_name, filename]
+      )
+      stream = new SSEStream(res, pgConnection, sessionId)
+      stream.startHeartbeat(5000)
+      await stream.emit("upload", "parse_start", {
+        session_id: sessionId,
+        filename,
+        size_bytes: data.length,
+      })
     }
 
-    if (!data || !filename || !collection_name) {
-      res.status(400).json({ error: "Missing data, filename, or collection_name" })
-      return
-    }
-
-    const pgConnection: Knex = req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
-
-    // Parse based on extension
     const ext = filename.toLowerCase().split(".").pop() || ""
     let rows: ParsedRow[]
 
     if (ext === "csv") {
-      const content = encoding === "text" ? data : Buffer.from(data.replace(/^data:[^;]+;base64,/, ""), "base64").toString("utf-8")
-      rows = parseCsv(content)
+      const content = encoding === "text"
+        ? data
+        : Buffer.from(data.replace(/^data:[^;]+;base64,/, ""), "base64").toString("utf-8")
+      rows = await parseCsv(content, stream)
     } else if (ext === "xlsx" || ext === "xls") {
       const buffer = Buffer.from(data.replace(/^data:[^;]+;base64,/, ""), "base64")
-      rows = parseXlsx(buffer)
+      rows = await parseXlsx(buffer, stream)
     } else {
-      res.status(400).json({ error: `Unsupported format: .${ext} (expected .csv or .xlsx)` })
+      if (stream) {
+        await stream.error(`Unsupported format: .${ext} (expected .csv or .xlsx)`)
+      } else {
+        res.status(400).json({ error: `Unsupported format: .${ext} (expected .csv or .xlsx)` })
+      }
       return
+    }
+
+    if (stream) {
+      await stream.emit("upload", "parse_done", {
+        rows: rows.length,
+      })
     }
 
     // Deduplicate by discogs_id (keep highest condition)
     const deduped = deduplicate(rows)
+    if (stream) {
+      await stream.emit("upload", "dedup", {
+        before: rows.length,
+        after: deduped.length,
+        duplicates: rows.length - deduped.length,
+      })
+    }
 
-    // Detect if inventory export
     const isInventory = deduped.some((r) => r.listing_price != null || r.media_condition)
+    const compactRows = deduped.map(compactRow)
 
-    // Store session in DB (replaces in-memory Map)
-    const sessionId = crypto.randomUUID()
+    if (wantsSSE) {
+      // Update the existing skeleton session with parsed rows
+      await pgConnection.raw(
+        `UPDATE import_session SET
+          rows = ?::jsonb,
+          row_count = ?,
+          unique_count = ?,
+          format_detected = ?,
+          export_type = ?,
+          status = 'uploaded',
+          updated_at = NOW(),
+          last_event_at = NOW()
+         WHERE id = ?`,
+        [
+          JSON.stringify(compactRows),
+          rows.length,
+          deduped.length,
+          ext.toUpperCase(),
+          isInventory ? "INVENTORY" : "COLLECTION",
+          sessionId,
+        ]
+      )
+    } else {
+      // Plain insert
+      await pgConnection.raw(
+        `INSERT INTO import_session (id, collection_name, filename, rows, row_count, unique_count, format_detected, export_type, status)
+         VALUES (?, ?, ?, ?::jsonb, ?, ?, ?, ?, 'uploaded')`,
+        [
+          sessionId,
+          collection_name,
+          filename,
+          JSON.stringify(compactRows),
+          rows.length,
+          deduped.length,
+          ext.toUpperCase(),
+          isInventory ? "INVENTORY" : "COLLECTION",
+        ]
+      )
+    }
 
-    // Store only essential fields per row to keep JSONB small
-    const compactRows = deduped.map((r) => ({
-      a: r.artist,
-      t: r.title,
-      cn: r.catalog_number,
-      l: r.label,
-      f: r.format,
-      c: r.condition,
-      y: r.year,
-      d: r.discogs_id,
-      ...(r.media_condition ? { mc: r.media_condition } : {}),
-      ...(r.sleeve_condition ? { sc: r.sleeve_condition } : {}),
-      ...(r.listing_price != null ? { lp: r.listing_price } : {}),
-      ...(r.status ? { s: r.status } : {}),
-      ...(r.collection_folder ? { cf: r.collection_folder } : {}),
-      ...(r.date_added ? { da: r.date_added } : {}),
-    }))
+    if (stream) {
+      await stream.emit("upload", "session_saved", { session_id: sessionId })
+    }
 
-    await pgConnection.raw(
-      `INSERT INTO import_session (id, collection_name, filename, rows, row_count, unique_count, format_detected, export_type, status)
-       VALUES (?, ?, ?, ?::jsonb, ?, ?, ?, ?, 'uploaded')`,
-      [sessionId, collection_name, filename, JSON.stringify(compactRows), rows.length, deduped.length, ext.toUpperCase(), isInventory ? "INVENTORY" : "COLLECTION"]
-    )
-
-    // Check how many are already in the DB cache (replaces JSON file check)
+    // Check how many are already in the DB cache
     const cacheResult = await pgConnection.raw(
       `SELECT COUNT(*) as cnt FROM discogs_api_cache
        WHERE discogs_id = ANY(?) AND expires_at > NOW() AND is_error = false`,
@@ -129,7 +150,14 @@ export async function POST(
     )
     const cachedCount = parseInt(cacheResult.rows?.[0]?.cnt || "0", 10)
 
-    res.json({
+    if (stream) {
+      await stream.emit("upload", "cache_check", {
+        cached: cachedCount,
+        to_fetch: deduped.length - cachedCount,
+      })
+    }
+
+    const result = {
       session_id: sessionId,
       row_count: rows.length,
       unique_discogs_ids: deduped.length,
@@ -143,44 +171,35 @@ export async function POST(
         year: r.year,
         format: r.format,
         discogs_id: r.discogs_id,
-        ...(isInventory ? {
-          listing_price: r.listing_price,
-          media_condition: r.media_condition,
-          status: r.status,
-        } : {}),
+        ...(isInventory
+          ? {
+              listing_price: r.listing_price,
+              media_condition: r.media_condition,
+              status: r.status,
+            }
+          : {}),
       })),
-    })
+    }
+
+    if (stream) {
+      await stream.emit("upload", "done", result as unknown as Record<string, unknown>)
+      stream.end()
+    } else {
+      res.json(result)
+    }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Upload failed"
-    res.status(500).json({ error: msg })
-  }
-}
-
-// ─── Expand compact row back to ParsedRow ───────────────────────────────────
-
-export function expandRow(compact: Record<string, unknown>): ParsedRow {
-  return {
-    artist: (compact.a as string) || "",
-    title: (compact.t as string) || "",
-    catalog_number: (compact.cn as string) || "",
-    label: (compact.l as string) || "",
-    format: (compact.f as string) || "",
-    condition: compact.c as number | null,
-    year: compact.y as number | null,
-    discogs_id: compact.d as number,
-    ...(compact.mc ? { media_condition: compact.mc as string } : {}),
-    ...(compact.sc ? { sleeve_condition: compact.sc as string } : {}),
-    ...(compact.lp != null ? { listing_price: compact.lp as number } : {}),
-    ...(compact.s ? { status: compact.s as string } : {}),
-    ...(compact.cf ? { collection_folder: compact.cf as string } : {}),
-    ...(compact.da ? { date_added: compact.da as string } : {}),
+    if (stream && !stream.isClosed) {
+      await stream.error(msg)
+    } else {
+      res.status(500).json({ error: msg })
+    }
   }
 }
 
 // ─── CSV Parser (standard Discogs export with headers) ───────────────────────
 
-function parseCsv(content: string): ParsedRow[] {
-  // Clean up: strip ;; line endings and unwrap whole-line quotes (Discogs inventory export quirk)
+async function parseCsv(content: string, stream: SSEStream | null): Promise<ParsedRow[]> {
   const cleanedLines = content.split("\n").map((line) => {
     let l = line.trimEnd()
     while (l.endsWith(";;")) l = l.slice(0, -2)
@@ -202,6 +221,7 @@ function parseCsv(content: string): ParsedRow[] {
   headers.forEach((h, i) => (colMap[h.trim()] = i))
 
   const isInventory = "listing_id" in colMap && "price" in colMap
+  const estimatedTotal = lines.length - 1
 
   const rows: ParsedRow[] = []
   for (let i = 1; i < lines.length; i++) {
@@ -243,6 +263,16 @@ function parseCsv(content: string): ParsedRow[] {
         date_added: (cols[colMap["Date Added"]] || "").trim(),
       })
     }
+
+    // Emit progress every 1000 rows
+    if (stream && rows.length > 0 && rows.length % 1000 === 0) {
+      await stream.emit("upload", "parse_progress", {
+        rows_parsed: rows.length,
+        estimated_total: estimatedTotal,
+      })
+      // Let the event loop flush
+      await new Promise((r) => setTimeout(r, 0))
+    }
   }
   return rows
 }
@@ -273,10 +303,11 @@ function parseCSVLine(line: string): string[] {
 
 // ─── XLSX Parser (no headers, fixed column order) ────────────────────────────
 
-function parseXlsx(buffer: Buffer): ParsedRow[] {
+async function parseXlsx(buffer: Buffer, stream: SSEStream | null): Promise<ParsedRow[]> {
   const wb = XLSX.read(buffer, { type: "buffer" })
   const sheet = wb.Sheets[wb.SheetNames[0]]
   const rawRows: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 })
+  const estimatedTotal = rawRows.length
 
   const rows: ParsedRow[] = []
   for (const raw of rawRows) {
@@ -296,6 +327,14 @@ function parseXlsx(buffer: Buffer): ParsedRow[] {
       year: parseYear(raw[6]),
       discogs_id: discogsId,
     })
+
+    if (stream && rows.length > 0 && rows.length % 1000 === 0) {
+      await stream.emit("upload", "parse_progress", {
+        rows_parsed: rows.length,
+        estimated_total: estimatedTotal,
+      })
+      await new Promise((r) => setTimeout(r, 0))
+    }
   }
   return rows
 }
