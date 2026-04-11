@@ -186,7 +186,7 @@ const DiscogsImportPage = () => {
         if (!statusResp.ok) return
         const statusData = await statusResp.json() as { session: SessionStatus }
         if (!statusData?.session) return
-        if (!["done", "error"].includes(statusData.session.status)) {
+        if (!["done", "error", "abandoned"].includes(statusData.session.status)) {
           setResumeCandidate(statusData.session)
         }
       } catch {

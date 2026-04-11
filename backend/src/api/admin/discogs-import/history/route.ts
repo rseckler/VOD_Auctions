@@ -91,11 +91,21 @@ export async function GET(
     }
 
     // Active/in-progress sessions
+    //
+    // Filter rules (see DISCOGS_COLLECTIONS_OVERVIEW_PLAN §Stale Sessions):
+    // - Exclude terminal states: done, abandoned, error
+    // - Exclude stale sessions (created > 6h ago) — these are almost
+    //   certainly zombie sessions from a server restart mid-SSE. The live
+    //   SSE connection is dead, the loop is not running; showing them as
+    //   "resumable" is misleading.
+    // - The 6h threshold is generous (normal fetch takes 1-2h for 5k releases)
+    //   but short enough to auto-clean up after crashes without manual DB work.
     const activeSessions = await pgConnection.raw(`
       SELECT id, collection_name, filename, status, row_count, unique_count,
              fetch_progress, created_at, updated_at
       FROM import_session
-      WHERE status NOT IN ('done')
+      WHERE status NOT IN ('done', 'abandoned', 'error')
+        AND created_at > NOW() - INTERVAL '6 hours'
       ORDER BY created_at DESC
       LIMIT 10
     `)

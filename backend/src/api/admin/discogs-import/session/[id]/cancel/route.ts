@@ -17,7 +17,7 @@ export async function POST(
     const result = await pgConnection.raw(
       `UPDATE import_session
        SET cancel_requested = true, pause_requested = false, updated_at = NOW(), last_event_at = NOW()
-       WHERE id = ? AND status NOT IN ('done')
+       WHERE id = ? AND status NOT IN ('done', 'abandoned', 'error')
        RETURNING id, status`,
       [id]
     )

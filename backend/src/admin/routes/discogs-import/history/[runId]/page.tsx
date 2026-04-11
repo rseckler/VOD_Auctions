@@ -172,7 +172,13 @@ const HistoryDetailPage = () => {
   }
 
   const { run, stats, releases, events } = data
-  const importSettings = run.import_settings as { condition?: string; price_markup?: number; inventory_enabled?: boolean } | null
+  const importSettings = run.import_settings as {
+    media_condition?: string
+    sleeve_condition?: string
+    inventory?: number
+    price_markup?: number
+    selected_discogs_ids?: number[] | null
+  } | null
 
   return (
     <PageShell>
@@ -219,11 +225,28 @@ const HistoryDetailPage = () => {
 
       {/* Import settings card */}
       {importSettings && (
-        <div style={{ background: C.card, border: "1px solid " + C.border, borderRadius: 6, padding: "12px 16px", marginBottom: 20, display: "flex", gap: 32, fontSize: 12 }}>
+        <div style={{ background: C.card, border: "1px solid " + C.border, borderRadius: 6, padding: "12px 16px", marginBottom: 20, display: "flex", gap: 28, fontSize: 12, flexWrap: "wrap" }}>
           <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: C.muted, letterSpacing: "0.06em" }}>Import Settings:</div>
-          {importSettings.condition && <div><span style={{ color: C.muted }}>Condition:</span> <strong>{importSettings.condition}</strong></div>}
-          {importSettings.price_markup != null && <div><span style={{ color: C.muted }}>Markup:</span> <strong>{Number(importSettings.price_markup).toFixed(2)}×</strong></div>}
-          {importSettings.inventory_enabled != null && <div><span style={{ color: C.muted }}>Inventory:</span> <strong>{importSettings.inventory_enabled ? "yes" : "no"}</strong></div>}
+          {importSettings.media_condition && (
+            <div><span style={{ color: C.muted }}>Media:</span> <strong>{importSettings.media_condition}</strong></div>
+          )}
+          {importSettings.sleeve_condition && (
+            <div><span style={{ color: C.muted }}>Sleeve:</span> <strong>{importSettings.sleeve_condition}</strong></div>
+          )}
+          {importSettings.price_markup != null && (
+            <div><span style={{ color: C.muted }}>Markup:</span> <strong>{Number(importSettings.price_markup).toFixed(2)}×</strong></div>
+          )}
+          {importSettings.inventory != null && (
+            <div>
+              <span style={{ color: C.muted }}>Inventory:</span>{" "}
+              <strong style={{ color: Number(importSettings.inventory) > 0 ? C.success : C.muted }}>
+                {Number(importSettings.inventory) > 0 ? `yes (${importSettings.inventory})` : "no (0)"}
+              </strong>
+            </div>
+          )}
+          {Array.isArray(importSettings.selected_discogs_ids) && (
+            <div><span style={{ color: C.muted }}>Selected:</span> <strong>{fmtNum(importSettings.selected_discogs_ids.length)} IDs</strong></div>
+          )}
         </div>
       )}
 
