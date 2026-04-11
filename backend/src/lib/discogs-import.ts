@@ -124,6 +124,37 @@ export class SSEStream {
   }
 }
 
+// ─── Detached event emission (no SSE, just DB) ──────────────────────────────
+//
+// Background loops that run independent of any HTTP request use this instead
+// of SSEStream.emit(). Writes the event to import_event; UI polls for changes
+// via /admin/discogs-import/session/:id/status?since_id=X.
+//
+// Failures are logged but never thrown — a failed event insert must not
+// interrupt the main loop.
+export async function emitDbEvent(
+  pg: Knex,
+  sessionId: string,
+  phase: string,
+  eventType: string,
+  payload: Record<string, unknown> = {}
+): Promise<void> {
+  try {
+    await pg.raw(
+      `INSERT INTO import_event (session_id, phase, event_type, payload) VALUES (?, ?, ?, ?::jsonb)`,
+      [sessionId, phase, eventType, JSON.stringify(payload)]
+    )
+    // Also bump last_event_at on the session so stale-detection knows the
+    // loop is alive (without rewriting the whole session row)
+    await pg.raw(
+      `UPDATE import_session SET last_event_at = NOW() WHERE id = ?`,
+      [sessionId]
+    )
+  } catch (err) {
+    console.error("[emitDbEvent] insert failed:", err)
+  }
+}
+
 // ─── Cancel / Pause checks ──────────────────────────────────────────────────
 
 /** Returns true if cancel_requested is set on the session.
@@ -147,11 +178,13 @@ export async function isPauseRequested(pg: Knex, sessionId: string): Promise<boo
 }
 
 /** Await until pause is cleared or cancel is requested.
- *  Returns true if cancelled while waiting, false if resumed normally. */
+ *  Returns true if cancelled while waiting, false if resumed normally.
+ *  When `stream` is null (background loop), pause notice is emitted via
+ *  import_event instead. */
 export async function awaitPauseClearOrCancel(
   pg: Knex,
   sessionId: string,
-  stream?: SSEStream
+  stream?: SSEStream | null
 ): Promise<boolean> {
   let emittedPausedEvent = false
   while (true) {
@@ -159,8 +192,12 @@ export async function awaitPauseClearOrCancel(
     if (cancelled) return true
     const paused = await isPauseRequested(pg, sessionId)
     if (!paused) return false
-    if (stream && !emittedPausedEvent) {
-      await stream.emit("control", "paused", { message: "Paused by user — waiting for resume" })
+    if (!emittedPausedEvent) {
+      if (stream) {
+        await stream.emit("control", "paused", { message: "Paused by user — waiting for resume" })
+      } else {
+        await emitDbEvent(pg, sessionId, "control", "paused", { message: "Paused by user — waiting for resume" })
+      }
       emittedPausedEvent = true
     }
     await new Promise((r) => setTimeout(r, 1000))

@@ -159,6 +159,8 @@ const DiscogsImportPage = () => {
             duration_min: 0,
           })
         }
+        // Polling can stop now — user decides when to proceed to analyze
+        setPollingEnabled(false)
       }
       if (st.status === "analyzed") {
         setAnalyzing(false)
@@ -272,7 +274,7 @@ const DiscogsImportPage = () => {
 
         const ACTIVE_STATES = new Set(["fetching", "analyzing", "importing"])
         if (ACTIVE_STATES.has(st.status)) {
-          // ── AUTO-ATTACH: backend loop is still running, we just reconnect ──
+          // ── AUTO-ATTACH: backend loop is running, we just reconnect ──
           saveActiveSessionId(st.id, st.collection_name)
           if (st.status === "fetching") {
             setCurrentPhase("fetch")
@@ -296,6 +298,26 @@ const DiscogsImportPage = () => {
           }
           setPollingEnabled(true)  // useSessionPolling takes over
           // NO resumeCandidate — we're already attached
+
+          // Stale-loop detection: if last_event_at > 60s ago the backend
+          // loop has likely died (process restart, OOM). Re-trigger the
+          // POST for fetch — the route's idempotency check restarts stale
+          // loops. Analyze/commit use SSE still and need user action.
+          const lastEvent = st.last_event_at
+            ? new Date(st.last_event_at).getTime()
+            : 0
+          const ageSec = (Date.now() - lastEvent) / 1000
+          if (st.status === "fetching" && ageSec > 60) {
+            console.log(`[discogs-import] Stale fetch loop detected (${Math.round(ageSec)}s), restarting`)
+            fetch("/admin/discogs-import/fetch", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({ session_id: st.id }),
+            }).catch((err) => {
+              console.error("[discogs-import] Stale restart failed:", err)
+            })
+          }
         } else {
           // ── DORMANT: user needs to click Resume ──
           setResumeCandidate(st)
@@ -385,6 +407,10 @@ const DiscogsImportPage = () => {
   }, [file, collectionName, uploadSSE, pushEvent])
 
   // ── Fetch handler (SSE-enabled) ──
+  // Fetch handler — DECOUPLED. POSTs to /fetch, which spawns the loop in
+  // the background and returns 200 immediately. The loop writes progress
+  // to import_event + fetch_progress; we consume them via polling (which
+  // also drives the UI state transitions in the polling onStatus callback).
   const handleFetch = useCallback(async () => {
     if (!uploadResult) return
     setFetching(true)
@@ -392,33 +418,29 @@ const DiscogsImportPage = () => {
     setFetchResult(null)
     setError(null)
     setCurrentPhase("fetch")
+    saveActiveSessionId(uploadResult.session_id, collectionName)
 
     try {
-      let done = false
-      await fetchSSE.start("/admin/discogs-import/fetch", { session_id: uploadResult.session_id }, (evt) => {
-        pushEvent(evt)
-        if (evt.type === "progress") {
-          setFetchProgress(evt as unknown as typeof fetchProgress)
-        } else if (evt.type === "done") {
-          setFetchResult(evt as unknown as typeof fetchResult)
-          done = true
-        } else if (evt.type === "error") {
-          setError(String(evt.error || "Fetch failed"))
-        } else if (evt.type === "cancelled") {
-          setError("Fetch cancelled")
-        }
+      const resp = await fetch("/admin/discogs-import/fetch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ session_id: uploadResult.session_id }),
       })
-      if (done) {
-        setCurrentPhase("analyze")
-        // Auto-trigger analyze
-        handleAnalyze()
+      if (!resp.ok) {
+        const errBody = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }))
+        throw new Error(errBody.error || `Failed to start fetch (HTTP ${resp.status})`)
       }
+      // Enable polling — useSessionPolling takes over from here. The
+      // polling onStatus callback will set fetchResult and move to the
+      // analyze phase when status transitions to "fetched".
+      setPollingInitialEventId(0)
+      setPollingEnabled(true)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Fetch failed")
-    } finally {
       setFetching(false)
     }
-  }, [uploadResult, fetchSSE, pushEvent])
+  }, [uploadResult, collectionName])
 
   // ── Analyze handler (SSE-enabled) ──
   const handleAnalyze = useCallback(async () => {
