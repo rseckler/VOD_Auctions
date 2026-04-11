@@ -321,8 +321,9 @@ const HistoryDetailPage = () => {
                   <th style={{ ...th, width: 140 }}>Meta</th>
                   <th style={{ ...th, width: 90 }}>Action</th>
                   <th style={{ ...th, width: 80, textAlign: "right" }}>Price</th>
+                  <th style={{ ...th, width: 70, textAlign: "center" }}>Stock</th>
                   <th style={{ ...th, width: 60, textAlign: "center" }}>Visible</th>
-                  <th style={{ ...th, width: 130 }}>Links</th>
+                  <th style={{ ...th, width: 90 }}>Links</th>
                 </tr>
               </thead>
               <tbody>
@@ -332,19 +333,41 @@ const HistoryDetailPage = () => {
                   const isDeleted = r.release_id && !r.slug && !r.current_title
                   const price = r.legacy_price != null ? Number(r.legacy_price) : null
                   const actionColor = ACTION_COLORS[r.action] || C.muted
+                  const adminUrl = r.release_id ? `/app/media/${encodeURIComponent(r.release_id)}` : null
+                  const inventoryValue = importSettings?.inventory
+                  const hasStock = inventoryValue != null && Number(inventoryValue) > 0
 
                   return (
                     <tr key={r.log_id} style={{ opacity: r.action === "skipped" ? 0.55 : 1 }}>
                       <td style={cell}>
-                        {r.coverImage ? (
-                          <img src={r.coverImage} alt="" style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 4, border: "1px solid " + C.border }} />
+                        {adminUrl ? (
+                          <a href={adminUrl} target="_blank" rel="noopener noreferrer" title="Open in admin">
+                            {r.coverImage ? (
+                              <img src={r.coverImage} alt="" style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 4, border: "1px solid " + C.border, display: "block" }} />
+                            ) : (
+                              <div style={{ width: 48, height: 48, background: C.hover, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: C.muted }}>—</div>
+                            )}
+                          </a>
                         ) : (
-                          <div style={{ width: 48, height: 48, background: C.hover, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: C.muted }}>—</div>
+                          r.coverImage ? (
+                            <img src={r.coverImage} alt="" style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 4, border: "1px solid " + C.border }} />
+                          ) : (
+                            <div style={{ width: 48, height: 48, background: C.hover, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: C.muted }}>—</div>
+                          )
                         )}
                       </td>
                       <td style={cell}>
-                        <div style={{ fontWeight: 600, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 360 }}>{artist}</div>
-                        <div style={{ fontSize: 12, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 360 }}>{title}</div>
+                        {adminUrl ? (
+                          <a href={adminUrl} target="_blank" rel="noopener noreferrer" style={{ display: "block", textDecoration: "none", color: "inherit" }}>
+                            <div style={{ fontWeight: 600, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 360, color: C.text }}>{artist}</div>
+                            <div style={{ fontSize: 12, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 360 }}>{title}</div>
+                          </a>
+                        ) : (
+                          <>
+                            <div style={{ fontWeight: 600, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 360 }}>{artist}</div>
+                            <div style={{ fontSize: 12, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 360 }}>{title}</div>
+                          </>
+                        )}
                         {isDeleted && <div style={{ fontSize: 10, color: C.error, fontWeight: 700, marginTop: 2 }}>DELETED</div>}
                       </td>
                       <td style={cell}>
@@ -360,17 +383,23 @@ const HistoryDetailPage = () => {
                       <td style={{ ...cell, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                         {price != null && price > 0 ? `€${Math.round(price)}` : <span style={{ color: C.muted }}>—</span>}
                       </td>
+                      <td style={{ ...cell, textAlign: "center", fontVariantNumeric: "tabular-nums", fontSize: 12 }}>
+                        {inventoryValue != null ? (
+                          <span style={{ color: hasStock ? C.success : C.muted, fontWeight: 600 }}>
+                            {inventoryValue}
+                          </span>
+                        ) : (
+                          <span style={{ color: C.muted }}>—</span>
+                        )}
+                      </td>
                       <td style={{ ...cell, textAlign: "center" }}>
                         <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: r.coverImage ? C.success : C.muted }} title={r.coverImage ? "Has cover" : "No cover"} />
                       </td>
                       <td style={cell}>
-                        <div style={{ display: "flex", gap: 8, fontSize: 12 }}>
+                        <div style={{ display: "flex", gap: 10, fontSize: 14 }}>
                           {r.slug ? (
                             <a href={`https://vod-auctions.com/catalog/${r.slug}`} target="_blank" rel="noopener noreferrer" title="Storefront" style={{ color: C.gold, textDecoration: "none" }}>🌐</a>
                           ) : <span style={{ color: C.muted }}>🌐</span>}
-                          {r.release_id ? (
-                            <a href={`/app/media/${encodeURIComponent(r.release_id)}`} target="_blank" rel="noopener noreferrer" title="Admin Release Detail" style={{ color: C.blue, textDecoration: "none" }}>⚙</a>
-                          ) : <span style={{ color: C.muted }}>⚙</span>}
                           <a href={`https://www.discogs.com/release/${r.discogs_id}`} target="_blank" rel="noopener noreferrer" title="Discogs" style={{ color: C.muted, textDecoration: "none", fontWeight: 700 }}>D</a>
                         </div>
                       </td>
