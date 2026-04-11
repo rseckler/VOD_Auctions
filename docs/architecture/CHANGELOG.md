@@ -11,6 +11,7 @@ Jeder Git-Tag entspricht einem Snapshot des Gesamtsystems. Feature Flags zeigen 
 | Version | Datum | Platform Mode | Feature Flags aktiv (prod) | Milestone / Inhalt |
 |---------|-------|--------------|---------------------------|-------------------|
 | **v1.0.0** | TBD | `live` | ERP: TBD | RSE-78: Erster öffentlicher Launch |
+| **v1.0.0-rc21** | 2026-04-11 | `beta_test` | — | Stocktake Session: Unified Scanner/Shortcut Handler mit 40ms-Debounce — fixt Race-Condition zwischen USB-HID-Scanner-Input und Single-Key-Shortcuts (V/M/P/N/L/U) im Inventur-Session-Screen. Phase B6 aus INVENTUR_COHORT_A_KONZEPT §14.11 damit abgeschlossen. Plus: POS Walk-in Sale Konzept v1.0 (Draft) als neues Design-Dokument. |
 | **v1.0.0-rc20** | 2026-04-11 | `beta_test` | — | Discogs Import: Analyze + Commit Routes ebenfalls entkoppelt (SSEStream Headless Mode — alle 3 lang laufenden Ops sind jetzt detached), Post-Import Call-to-Action-Card, Import History Section im Media-Detail (zeigt aus welchem Import ein Release stammt) |
 | **v1.0.0-rc19** | 2026-04-11 | `beta_test` | — | Barcode-Label Hardware Validation: Brother QL-820NWBc + DK-22210 + Inateck BCST-70 End-to-End getestet. Production-Code Fix: 29×90mm Layout mit Artist/Title·Label/Meta/Preis-Spalten. Neue Hardware-Doku + Debugging-Kompass. |
 | **v1.0.0-rc18** | 2026-04-11 | `beta_test` | — | Discogs Import: Fetch Loop vom HTTP-Request entkoppelt — Navigation während Fetch killt den Loop nicht mehr, Loop läuft detached im Hintergrund, Idempotenz + Stale-Auto-Restart, UI nur noch Polling |
@@ -58,6 +59,62 @@ Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Rel
 - **Patch Release** (`v1.0.x`): Kritische Bugfixes zwischen geplanten Releases
 - **Tagging-Workflow:** `git tag -a vX.Y.Z -m "Release vX.Y.Z: <Kurzname>"` → `git push origin vX.Y.Z`
 - **Tag-Zeitpunkt:** Direkt nach Deploy + Smoke-Test auf Production — nicht vor dem Deploy
+
+---
+
+## 2026-04-11 — Stocktake Session: Unified Scanner/Shortcut Handler + POS Konzept Draft (rc21)
+
+**Kontext:** Nach der erfolgreichen Barcode-Label Hardware-Validation (rc19) und Franks Scanner-Setup (Inateck BCST-70 auf macOS-Modus + Deutsche Tastatur) fehlte noch die letzte Kernkomponente für den Inventur-Workflow: Der Scanner-Input im Stocktake-Session-Screen. Beim Review des bestehenden Codes in `backend/src/admin/routes/erp/inventory/session/page.tsx` fiel ein kritischer Race-Condition-Bug auf, der den Scanner de facto unbrauchbar machte.
+
+**Der Race-Condition-Bug:**
+
+Der Session-Screen hatte zwei separate Event-Listener auf `keydown`:
+1. **`useScannerDetection`** (Capture-Phase, `true` Flag) — puffert Scanner-Input, fires `onScan` bei Enter
+2. **Shortcut-Handler** (Bubble-Phase, kein Flag) — fires Actions für V/P/M/S/N/L/U und Arrow-Keys
+
+Wenn der USB-HID-Scanner `VOD-000001\n` tippt (10 Zeichen @ ~5ms/char, gesamt ~50ms), erreicht der **erste** `V`-Keystroke BEIDE Handler. Der Shortcut-Handler sieht `V` → feuert sofort `handleVerify()` **bevor** der Scanner-Buffer mit den restlichen 9 Zeichen komplett ist. Ergebnis: Ein Scan würde ungewollt das aktuelle Item mit dem aktuellen Preis verifizieren, und erst danach den Scan-Lookup auslösen → falsches Item verifiziert.
+
+Genauso für andere Scanner-Barcode-Zeichen: Ein hypothetisches Label `VOD-POSITION1` würde durch `P` die Price-Input-Maske öffnen, durch `M` Missing triggern, etc.
+
+**Fix — Unified Handler mit Debounce:**
+
+Beide Handler in einen einzigen `useEffect` konsolidiert mit folgender Logik:
+
+- Jeder printable Keystroke wird **nicht sofort ausgeführt**, sondern in einen 40ms-`setTimeout` geschickt
+- Jeder nachfolgende Keystroke **cancelt den vorherigen Timer**
+- Scanner-Chars kommen alle 5–15ms → vorheriger Timer wird immer gecancelt → **Shortcut-Action feuert nie während eines Scans**
+- Human-Key hat >80ms Abstand zum nächsten User-Input → Timer läuft durch → Shortcut-Action feuert mit 40ms Latenz (imperceptibel)
+
+Der Scanner-Buffer akkumuliert alle Chars wie bisher, `Enter` triggert `handleScanBarcode()` und cancelt gleichzeitig den pendingen Shortcut-Timer explizit (doppelt sicher).
+
+Arrow-Keys und Escape umgehen die Debounce (sofortige Reaktion, weil sie nicht in einem USB-HID-Barcode vorkommen und User-Response-Time kritisch ist).
+
+**Zusätzlich:**
+
+- **Toast-Feedback für unbekannte Barcodes** — `handleScanBarcode` zeigt jetzt explizit „Unknown barcode: XYZ" wenn der gescannte String nicht mit `VOD-` beginnt (vorher silent ignored)
+- **Vollständiger dependency array** im useEffect (`printerStatus`, `handleScanBarcode` ergänzt)
+- **Ausführlicher Doc-Comment** erklärt das Race-Condition-Problem und den Debounce-Trick für zukünftige Entwickler
+
+**Änderungen:**
+- `backend/src/admin/routes/erp/inventory/session/page.tsx` — 110 insertions / 92 deletions (Cleanup + Konsolidierung)
+
+**Type-Check:** 0 neue Errors (nur bestehender unrelated Error in `transactions/page.tsx` unverändert).
+
+Das schließt **Phase B6** aus `INVENTUR_COHORT_A_KONZEPT.md §14.11` ab. Die Inventur-Session ist damit vollständig **scanner-ready** — Frank kann einen Scanner während einer Session nutzen, um zu einem bestimmten Item zu springen (z.B. für Re-Check oder wenn ein Item nicht in der Queue-Reihenfolge auftaucht).
+
+**Offen für Phase B7:** QZ Tray Silent-Print (aktuell Fallback auf Browser-Print-Dialog beim Label-Druck).
+
+---
+
+### POS Walk-in Sale Konzept v1.0 (Draft)
+
+Parallel: Neues Design-Dokument `docs/optimizing/POS_WALK_IN_KONZEPT.md` (Commit `1977744`) nach Franks Frage nach dem Verkaufsprozess im Laden. Das Konzept definiert die Architektur für eine dedizierte POS-Oberfläche (`/app/pos`) mit Cart-Flow, Erweiterung der bestehenden `transaction`-Tabelle (neuer `item_type='walk_in_sale'`, neue `payment_provider` für `sumup`/`cash`, TSE-Spalten), Cloud-TSE-Integration (Empfehlung fiskaly), SumUp-Terminal extern in Phase 1, Bon-Druck auf bestehendem Brother QL-820NWB mit DK-22205 62mm Rolle.
+
+**Franks Antworten festgehalten (§2):** 5+ Walk-ins/Tag → Option B (dedizierte POS-Page), TSE + Quittungen erforderlich, SumUp als Payment-Provider, Customer-Management in 3 Modi (bestehend/neu/anonym).
+
+**Status:** Draft, wartet auf §10-Klärungen (TSE-Anbieter final, Kleinunternehmer-Status beim Steuerberater, Bon-Hardware-Entscheidung). Noch **keine** Implementierung — erst Konzept-Freigabe + offene Fragen klären.
+
+**Implementierungs-Aufwand (wenn freigegeben):** P1 Core POS-UI (~2 Tage) → P2 TSE-Integration (~2 Tage) → P3 Bon-Druck (~1 Tag) → P4 SumUp REST API optional (~2-3 Tage). Gesamt P1-P3 ~5 Arbeitstage.
 
 ---
 
