@@ -163,6 +163,30 @@ function StocktakeSessionPage() {
 
   useEffect(() => { loadQueue() }, [loadQueue])
 
+  // ── Deep-link support: ?item_id=X loads a specific item directly ──
+  // Used by the "Load in Stocktake Session" button on the Media Detail page.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const itemIdParam = params.get("item_id")
+    if (!itemIdParam) return
+    ;(async () => {
+      try {
+        const item = await apiFetch<QueueItem>(`/admin/erp/inventory/items/${itemIdParam}`)
+        setItems((prev) => {
+          const filtered = prev.filter((i) => i.inventory_item_id !== item.inventory_item_id)
+          return [item, ...filtered]
+        })
+        setCurrentIndex(0)
+        setToast({ message: `Loaded: ${item.artist_name || "Unknown"} — ${item.title}`, type: "success" })
+        // Strip the query param from URL so a refresh doesn't re-load forever
+        const cleanUrl = window.location.pathname
+        window.history.replaceState({}, "", cleanUrl)
+      } catch {
+        setToast({ message: `Item ${itemIdParam} not found`, type: "error" })
+      }
+    })()
+  }, [])
+
   // ── Current item ──
 
   const current = items[currentIndex] || null

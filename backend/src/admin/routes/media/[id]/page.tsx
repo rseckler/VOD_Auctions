@@ -72,6 +72,31 @@ type Release = {
   legacy_last_synced: string | null
   createdAt: string | null
   updatedAt: string | null
+  // ERP inventory fields (from erp_inventory_item, left-joined — may be null for non-cohort-A items)
+  inventory_item_id: string | null
+  inventory_barcode: string | null
+  inventory_status: string | null   // in_stock | sold | damaged | written_off
+  inventory_quantity: number | null
+  inventory_source: string | null   // e.g. 'frank_collection'
+  price_locked: boolean | null
+  price_locked_at: string | null
+  last_stocktake_at: string | null
+  last_stocktake_by: string | null
+  barcode_printed_at: string | null
+  inventory_notes: string | null
+  warehouse_location_id: string | null
+  warehouse_location_code: string | null
+  warehouse_location_name: string | null
+}
+
+type InventoryMovement = {
+  id: string
+  type: string           // inbound | outbound | adjustment | write_off | damaged | transfer
+  quantity_change: number
+  reason: string | null
+  reference: Record<string, unknown> | null
+  performed_by: string | null
+  created_at: string
 }
 
 type SyncEntry = {
@@ -510,6 +535,7 @@ const MediaDetailPage = () => {
     session_status: string | null
   }>>([])
   const [images, setImages] = useState<ImageEntry[]>([])
+  const [inventoryMovements, setInventoryMovements] = useState<InventoryMovement[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null)
@@ -555,6 +581,7 @@ const MediaDetailPage = () => {
         setSyncHistory(d.sync_history || [])
         setImportHistory(d.import_history || [])
         setImages(d.images || [])
+        setInventoryMovements(d.inventory_movements || [])
         setShippingTypes(st.item_types || [])
         setLocations((loc.locations || []).filter((l: { is_active: boolean }) => l.is_active))
         if (d.release) {
@@ -814,6 +841,178 @@ const MediaDetailPage = () => {
           <Btn label={saving ? "Saving..." : "Save"} variant="gold" onClick={handleSave} disabled={saving} style={{ padding: "8px 24px", fontSize: 13 }} />
         </div>
       </div>
+
+      {/* Inventory Status — ERP stocktake audit trail + quick actions */}
+      {release.inventory_item_id && (
+        <div style={{ ...cardStyle, marginBottom: S.sectionGap }}>
+          <SectionHeader title="Inventory Status" style={{ marginTop: 0 }} />
+
+          {/* Status badges row */}
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: S.gap.md, marginBottom: S.gap.lg }}>
+            {(() => {
+              // Determine primary status badge
+              if (release.inventory_status === "sold") {
+                return <Badge label="🔴 Verkauft" variant="purple" />
+              }
+              if (release.inventory_status === "written_off" || release.inventory_status === "damaged") {
+                const lbl = release.inventory_status === "damaged" ? "⚫ Beschädigt" : "⚫ Abgeschrieben"
+                return <Badge label={lbl} variant="neutral" />
+              }
+              // Missing per F2 convention: price=0 + price_locked=true + no stocktake means "in stock but not findable"
+              if (release.price_locked && release.direct_price === 0) {
+                return <Badge label="🟠 Als missing markiert (Preis 0 €)" variant="warning" />
+              }
+              if (release.last_stocktake_at) {
+                return <Badge label={`🟢 Verifiziert am ${formatDate(release.last_stocktake_at)}`} variant="success" />
+              }
+              return <Badge label="🟡 Noch nicht verifiziert" variant="warning" />
+            })()}
+            {release.last_stocktake_by && (
+              <Badge label={`durch ${release.last_stocktake_by}`} variant="neutral" />
+            )}
+            {release.price_locked && (
+              <Badge label="🔒 Preis gesperrt (Sync-Schutz aktiv)" variant="info" />
+            )}
+          </div>
+
+          {/* Metadata grid */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: S.gap.lg, marginBottom: S.gap.lg }}>
+            <div>
+              <div style={labelStyle}>Barcode</div>
+              <div style={{ ...valueStyle, fontFamily: "monospace", letterSpacing: "0.05em" }}>
+                {release.inventory_barcode || "\u2014 (wird beim ersten Verify vergeben)"}
+              </div>
+            </div>
+            <div>
+              <div style={labelStyle}>Barcode gedruckt</div>
+              <div style={{ ...valueStyle, ...T.small }}>{formatDate(release.barcode_printed_at)}</div>
+            </div>
+            <div>
+              <div style={labelStyle}>Letzter Stocktake</div>
+              <div style={{ ...valueStyle, ...T.small }}>{formatDate(release.last_stocktake_at)}</div>
+            </div>
+            <div>
+              <div style={labelStyle}>Lagerbestand</div>
+              <div style={valueStyle}>
+                {release.inventory_quantity != null ? `${release.inventory_quantity} Stück` : "\u2014"}
+              </div>
+            </div>
+            <div>
+              <div style={labelStyle}>Status</div>
+              <div style={valueStyle}>{release.inventory_status || "\u2014"}</div>
+            </div>
+            <div>
+              <div style={labelStyle}>Quelle</div>
+              <div style={valueStyle}>{release.inventory_source || "\u2014"}</div>
+            </div>
+            <div>
+              <div style={labelStyle}>Lagerort</div>
+              <div style={{ ...valueStyle, ...T.small }}>
+                {release.warehouse_location_name
+                  ? `${release.warehouse_location_code || ""} · ${release.warehouse_location_name}`
+                  : "Nicht zugeordnet"}
+              </div>
+            </div>
+            <div>
+              <div style={labelStyle}>Preis gesperrt seit</div>
+              <div style={{ ...valueStyle, ...T.small }}>{formatDate(release.price_locked_at)}</div>
+            </div>
+          </div>
+
+          {/* Inventory notes (if any) */}
+          {release.inventory_notes && (
+            <div style={{ marginBottom: S.gap.lg }}>
+              <div style={labelStyle}>Inventur-Notizen</div>
+              <div style={{
+                ...valueStyle,
+                whiteSpace: "pre-wrap",
+                fontStyle: "italic",
+                color: C.muted,
+                minHeight: 40,
+              }}>
+                {release.inventory_notes}
+              </div>
+            </div>
+          )}
+
+          {/* Action buttons */}
+          <div style={{ display: "flex", gap: S.gap.md, marginBottom: S.gap.lg, flexWrap: "wrap" }}>
+            <Btn
+              label="📋 In Stocktake-Session laden"
+              variant="primary"
+              onClick={() => {
+                window.location.href = `/app/erp/inventory/session?item_id=${release.inventory_item_id}`
+              }}
+            />
+            <Btn
+              label="🏷️ Label drucken"
+              variant="gold"
+              onClick={() => {
+                window.open(`/admin/erp/inventory/items/${release.inventory_item_id}/label`, "_blank")
+              }}
+            />
+          </div>
+
+          {/* Movement timeline */}
+          {inventoryMovements.length > 0 && (
+            <div>
+              <div style={{ ...labelStyle, marginBottom: 8, marginTop: S.gap.md }}>
+                Movement-Timeline ({inventoryMovements.length} Einträge)
+              </div>
+              <div style={{ overflow: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ background: C.card }}>
+                      <th style={thStyle}>Datum</th>
+                      <th style={thStyle}>Typ</th>
+                      <th style={thStyle}>Grund</th>
+                      <th style={thStyle}>Menge</th>
+                      <th style={thStyle}>Durch</th>
+                      <th style={thStyle}>Details</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {inventoryMovements.map((m) => {
+                      const typeVariant: "success" | "warning" | "info" | "neutral" | "purple" =
+                        m.type === "inbound" ? "success"
+                          : m.type === "outbound" ? "purple"
+                            : m.type === "write_off" || m.type === "damaged" ? "neutral"
+                              : m.type === "adjustment" ? "info" : "warning"
+                      const refText = m.reference
+                        ? Object.entries(m.reference)
+                            .filter(([k]) => k !== "notes")
+                            .map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : String(v)}`)
+                            .join(", ")
+                        : "\u2014"
+                      return (
+                        <tr key={m.id} style={{ transition: "background 0.1s" }}
+                            onMouseOver={(e) => (e.currentTarget.style.background = C.hover)}
+                            onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}>
+                          <td style={{ ...tdStyle, ...T.small, whiteSpace: "nowrap" }}>{formatDate(m.created_at)}</td>
+                          <td style={tdStyle}>
+                            <Badge label={m.type} variant={typeVariant} />
+                          </td>
+                          <td style={{ ...tdStyle, fontFamily: "monospace", fontSize: 11 }}>
+                            {m.reason || "\u2014"}
+                          </td>
+                          <td style={{ ...tdStyle, textAlign: "right", fontWeight: 600 }}>
+                            {m.quantity_change > 0 ? `+${m.quantity_change}` : m.quantity_change}
+                          </td>
+                          <td style={{ ...tdStyle, ...T.small, color: C.muted }}>{m.performed_by || "system"}</td>
+                          <td style={{ ...tdStyle, ...T.small, color: C.muted, maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                              title={refText}>
+                            {refText}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Discogs Data */}
       <div style={{ ...cardStyle, marginBottom: S.sectionGap }}>

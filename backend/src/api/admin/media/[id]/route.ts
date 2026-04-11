@@ -12,7 +12,7 @@ export async function GET(
   )
   const { id } = req.params
 
-  // Fetch release with artist + label + format + pressorga + erp location
+  // Fetch release with artist + label + format + pressorga + erp inventory + warehouse location
   const release = await pgConnection("Release")
     .select(
       "Release.*",
@@ -21,19 +21,55 @@ export async function GET(
       "Format.name as format_name",
       "Format.format_group",
       "PressOrga.name as pressorga_name",
-      "erp_inventory_item.warehouse_location_id"
+      "erp_inventory_item.id as inventory_item_id",
+      "erp_inventory_item.barcode as inventory_barcode",
+      "erp_inventory_item.status as inventory_status",
+      "erp_inventory_item.quantity as inventory_quantity",
+      "erp_inventory_item.source as inventory_source",
+      "erp_inventory_item.price_locked",
+      "erp_inventory_item.price_locked_at",
+      "erp_inventory_item.last_stocktake_at",
+      "erp_inventory_item.last_stocktake_by",
+      "erp_inventory_item.barcode_printed_at",
+      "erp_inventory_item.notes as inventory_notes",
+      "erp_inventory_item.warehouse_location_id",
+      "warehouse_location.code as warehouse_location_code",
+      "warehouse_location.name as warehouse_location_name"
     )
     .leftJoin("Artist", "Release.artistId", "Artist.id")
     .leftJoin("Label", "Release.labelId", "Label.id")
     .leftJoin("Format", "Release.format_id", "Format.id")
     .leftJoin("PressOrga", "Release.pressOrgaId", "PressOrga.id")
     .leftJoin("erp_inventory_item", "Release.id", "erp_inventory_item.release_id")
+    .leftJoin("warehouse_location", "erp_inventory_item.warehouse_location_id", "warehouse_location.id")
     .where("Release.id", id)
     .first()
 
   if (!release) {
     res.status(404).json({ message: "Release not found" })
     return
+  }
+
+  // Fetch inventory movement history for this item (audit trail)
+  let inventory_movements: unknown[] = []
+  if (release.inventory_item_id) {
+    try {
+      inventory_movements = await pgConnection("erp_inventory_movement")
+        .where("inventory_item_id", release.inventory_item_id)
+        .orderBy("created_at", "desc")
+        .limit(30)
+        .select(
+          "id",
+          "type",
+          "quantity_change",
+          "reason",
+          "reference",
+          "performed_by",
+          "created_at"
+        )
+    } catch {
+      inventory_movements = []
+    }
   }
 
   // Fetch sync history (last 20 entries)
@@ -77,7 +113,7 @@ export async function GET(
     import_history = []
   }
 
-  res.json({ release, sync_history, images, import_history })
+  res.json({ release, sync_history, images, import_history, inventory_movements })
 }
 
 // POST /admin/media/:id — Update editable fields
