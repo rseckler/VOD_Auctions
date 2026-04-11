@@ -26,8 +26,11 @@ const CONDITION_KEYS: Record<string, string> = {
 }
 
 // How long (seconds) a session can be in "fetching" status without activity
-// before we consider the loop dead and allow restart.
-const STALE_THRESHOLD_SEC = 60
+// before we consider the loop dead and allow restart. 180s (raised from 60s
+// in rc25) because a single Discogs API call + rate-limit backoff + cache
+// write can legitimately take >60s on cold caches. See commit/route.ts for
+// the full post-mortem.
+const STALE_THRESHOLD_SEC = 180
 
 // ─── Rate limiter (shared state) ────────────────────────────────────────────
 const callTimestamps: number[] = []

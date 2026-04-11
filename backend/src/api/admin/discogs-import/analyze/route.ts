@@ -35,9 +35,11 @@ interface MatchResult {
 // import_event and analyze_progress; UI polls via /session/:id/status.
 //
 // Idempotent: if session is already in "analyzing" with recent activity
-// (< 60s), returns { already_running: true } without spawning a second loop.
+// (< 180s), returns { already_running: true } without spawning a second loop.
+// Raised from 60s in rc25 to prevent concurrent-loop races during long
+// pg_trgm fuzzy-match phases — see commit/route.ts for the full post-mortem.
 
-const ANALYZE_STALE_THRESHOLD_SEC = 60
+const ANALYZE_STALE_THRESHOLD_SEC = 180
 
 export async function POST(
   req: MedusaRequest,

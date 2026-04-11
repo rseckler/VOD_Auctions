@@ -134,15 +134,22 @@ const DiscogsImportPage = () => {
   // ── Stale-loop auto-restart tracking ──
   // Protects against Backend process kills (pm2 restart, OOM, crash) while
   // the user is on the page. When polling detects that the loop hasn't
-  // written any event for >60s, we trigger a re-POST to the corresponding
+  // written any event for >180s, we trigger a re-POST to the corresponding
   // endpoint. Backend's idempotency check recognizes the stale state
-  // (age > 60s) and starts a fresh loop that picks up where the old one
+  // (age > 180s) and starts a fresh loop that picks up where the old one
   // left off (via discogs_api_cache for fetch, via completed_batches for commit).
   //
-  // Cooldown: at most one restart attempt per 60 seconds to avoid loops.
+  // 180s (raised from 60s in rc25): A single new_inserts batch of 500 rows
+  // can take 90-120s with cold artist/label caches — 60s was producing
+  // false-positive restarts that raced the real loop and caused V3
+  // validation_failed errors. The commit route also emits row_progress +
+  // heartbeat events every 25-100 rows now, so legitimate long batches
+  // never get close to this threshold.
+  //
+  // Cooldown: at most one restart attempt per 180 seconds to avoid loops.
   const lastStaleRestartRef = useRef<number>(0)
-  const STALE_THRESHOLD_MS = 60_000
-  const STALE_COOLDOWN_MS = 60_000
+  const STALE_THRESHOLD_MS = 180_000
+  const STALE_COOLDOWN_MS = 180_000
 
   useSessionPolling(
     activeSessionId,

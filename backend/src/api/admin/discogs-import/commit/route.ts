@@ -52,7 +52,39 @@ type Counters = {
 // Stale-threshold: session in "importing" with last_event_at older than this
 // is treated as a dead loop → the next POST restarts it (Idempotency-check
 // still accepts the request, stale loop data + completed_batches is reused).
-const COMMIT_STALE_THRESHOLD_SEC = 60
+//
+// 180s (not 60s) because a single new_inserts batch (500 rows × ensureArtist
+// + ensureLabel + INSERT Release + tracks + images) can legitimately take
+// 90-120s on cold caches. With the in-batch heartbeats added in rc25, this
+// threshold is effectively a safety net for truly dead processes (pm2
+// restart, OOM kill, node crash), not normal slow batches.
+const COMMIT_STALE_THRESHOLD_SEC = 180
+
+// ─── CAS helper: session ownership ────────────────────────────────────────────
+// A commit loop writes its runToken into commit_progress.run_token at start.
+// Any later loop (auto-restart, manual retry) overwrites with a new token.
+// Before each batch commit + terminal status write, a loop checks whether the
+// session still has its token. If not, another loop has taken ownership —
+// this loop must abort cleanly without stomping on the new owner's state.
+async function isSupersededBy(
+  pg: Knex,
+  sessionId: string,
+  myToken: string
+): Promise<boolean> {
+  try {
+    const res = await pg.raw(
+      `SELECT commit_progress->>'run_token' AS token FROM import_session WHERE id = ?`,
+      [sessionId]
+    )
+    const currentToken = res.rows?.[0]?.token as string | undefined | null
+    return !!currentToken && currentToken !== myToken
+  } catch (err) {
+    // If we can't read session state, bail out conservatively (assume
+    // superseded) — a legitimate loop would have a valid connection.
+    console.error("[isSupersededBy] read failed:", err)
+    return true
+  }
+}
 
 export async function POST(
   req: MedusaRequest,
@@ -125,6 +157,15 @@ export async function POST(
   const stream = new SSEStream(null, pgConnection, session_id)
 
   // Run the commit loop as detached background task
+  //
+  // runToken + preservedBatchesAtStart are hoisted outside the inner try/
+  // catch so the catch handler can reference them for CAS checks. They get
+  // their real values inside Step 1 below — before any work that could
+  // throw, so the catch handler sees consistent state.
+  let runToken = ""
+  let preservedBatchesAtStart: Record<string, unknown> = {}
+  let preservedRunIdAtStart: string | undefined = undefined
+
   void (async () => {
   try {
     await clearControlFlags(pgConnection, session_id)
@@ -139,12 +180,34 @@ export async function POST(
       price_markup,
       selected_discogs_ids: selected_discogs_ids || null,
     }
+
+    // ── Preserve prior progress + claim ownership via run_token ──────────
+    // When a prior run was interrupted (pm2 restart, OOM, auto-restart),
+    // its completed_batches_* + run_id must survive into the new run so
+    // processInBatches() can skip already-committed batches.
+    //
+    // At the same time, we claim ownership by writing a fresh runToken.
+    // Any still-alive prior loop will detect the token mismatch at its
+    // next batch-commit checkpoint and abort cleanly instead of double-
+    // writing data.
+    const startProgress = (session.commit_progress as Record<string, unknown>) || {}
+    for (const [k, v] of Object.entries(startProgress)) {
+      if (k.startsWith("completed_batches_")) preservedBatchesAtStart[k] = v
+    }
+    preservedRunIdAtStart = startProgress.run_id as string | undefined
+    runToken = crypto.randomUUID()
+
     await updateSession(pgConnection, session_id, {
       status: "importing",
-      commit_progress: { phase: "preparing" },
+      commit_progress: {
+        phase: "preparing",
+        run_token: runToken,
+        ...(preservedRunIdAtStart ? { run_id: preservedRunIdAtStart } : {}),
+        ...preservedBatchesAtStart,
+      },
       import_settings: persistedSettingsUpdate,
     })
-    await stream.emit("commit", "start", { session_id })
+    await stream.emit("commit", "start", { session_id, run_token: runToken })
 
     // ── Ensure import_log table (cheap, runs once) ──
     await pgConnection.raw(`
@@ -276,18 +339,39 @@ export async function POST(
     }
 
     // V3: new release IDs that already exist in DB (means the analyze-step
-    // misclassified them as "new" — they should have been "existing")
+    // misclassified them as "new" — they should have been "existing").
+    //
+    // Resume-aware: on a resume run, IDs from already-committed new_inserts
+    // batches MUST be in the DB (that's the whole point of resume). We
+    // compute which IDs they are by replaying the deterministic batch-slice
+    // logic — `newRows` is sorted by discogs_id ascending, so batch-index →
+    // row-slice mapping is stable across runs with identical BATCH_SIZE.
     if (newRows.length > 0) {
-      const newIds = newRows.map((r) => `discogs-release-${r.discogs_id}`)
-      const existsResult = await pgConnection.raw(
-        `SELECT id FROM "Release" WHERE id = ANY(?)`,
-        [newIds]
-      )
-      for (const r of existsResult.rows || []) {
-        validationErrors.push({
-          kind: "id_already_exists",
-          details: String(r.id),
-        })
+      const alreadyCommittedNewIds = new Set<string>()
+      const completedNewBatches = preservedBatchesAtStart.completed_batches_new_inserts
+      if (Array.isArray(completedNewBatches)) {
+        for (const batchIdx of completedNewBatches) {
+          if (typeof batchIdx !== "number") continue
+          const slice = newRows.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE)
+          for (const row of slice) {
+            alreadyCommittedNewIds.add(`discogs-release-${row.discogs_id}`)
+          }
+        }
+      }
+      const newIdsToCheck = newRows
+        .map((r) => `discogs-release-${r.discogs_id}`)
+        .filter((id) => !alreadyCommittedNewIds.has(id))
+      if (newIdsToCheck.length > 0) {
+        const existsResult = await pgConnection.raw(
+          `SELECT id FROM "Release" WHERE id = ANY(?)`,
+          [newIdsToCheck]
+        )
+        for (const r of existsResult.rows || []) {
+          validationErrors.push({
+            kind: "id_already_exists",
+            details: String(r.id),
+          })
+        }
       }
     }
 
@@ -299,21 +383,34 @@ export async function POST(
 
     if (validationErrors.length > 0) {
       const errorMsg = `Pre-commit validation failed: ${validationErrors.length} error(s). First few: ${validationErrors.slice(0, 3).map(e => e.details).join("; ")}`
-      await updateSession(pgConnection, session_id, {
-        status: "analyzed",
-        error_message: errorMsg,
-        commit_progress: {
-          phase: "validation_failed",
+      // CAS: only touch session state if we still own it. Otherwise another
+      // loop has taken ownership and is (likely) successfully committing —
+      // stomping on its state would corrupt the UI view.
+      if (!(await isSupersededBy(pgConnection, session_id, runToken))) {
+        await updateSession(pgConnection, session_id, {
+          status: "analyzed",
+          error_message: errorMsg,
+          commit_progress: {
+            phase: "validation_failed",
+            run_token: runToken,
+            ...(preservedRunIdAtStart ? { run_id: preservedRunIdAtStart } : {}),
+            ...preservedBatchesAtStart,
+            errors: validationErrors.slice(0, 20),
+            total_errors: validationErrors.length,
+          },
+        })
+        await clearControlFlags(pgConnection, session_id)
+        await stream.emit("commit", "validation_failed", {
           errors: validationErrors.slice(0, 20),
           total_errors: validationErrors.length,
-        },
-      })
-      await clearControlFlags(pgConnection, session_id)
-      await stream.emit("commit", "validation_failed", {
-        errors: validationErrors.slice(0, 20),
-        total_errors: validationErrors.length,
-        message: errorMsg,
-      })
+          message: errorMsg,
+        })
+      } else {
+        await stream.emit("commit", "superseded", {
+          phase: "validating",
+          message: "Another loop took ownership during validation — aborting silently without stomping on its state.",
+        })
+      }
       stream.end()
       return
     }
@@ -333,12 +430,15 @@ export async function POST(
     // Helper: run a partition in batches, each batch in its own transaction.
     // On failure of a batch: rollback, log, continue with next batch.
     // On cancel between batches: stop cleanly with "cancelled" event.
+    // On CAS mismatch (another loop took ownership): rollback current batch,
+    // emit "superseded", return with superseded=true so caller skips
+    // finalizeCancel and the owning loop's state is preserved.
     async function processInBatches(
       phase: string,
       partition: ParsedRow[],
       processRow: (trx: Knex.Transaction, row: ParsedRow) => Promise<void>,
       onRowSuccess: () => void
-    ): Promise<{ cancelled: boolean }> {
+    ): Promise<{ cancelled: boolean; superseded?: boolean }> {
       const totalBatches = Math.ceil(partition.length / BATCH_SIZE)
 
       if (totalBatches === 0) {
@@ -390,13 +490,84 @@ export async function POST(
           return { cancelled: true }
         }
 
+        // CAS check BEFORE opening a transaction — if another loop has
+        // already taken ownership, don't even start processing rows.
+        if (await isSupersededBy(pgConnection, session_id, runToken)) {
+          await stream.emit("commit", "superseded", {
+            phase,
+            at_batch: batchIdx + 1,
+            total_batches: totalBatches,
+            committed_batches: completed.length,
+            message: "Another loop took ownership — aborting this run cleanly.",
+          })
+          return { cancelled: true, superseded: true }
+        }
+
         const batch = partition.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE)
         const batchTrx = await pgConnection.transaction()
 
         try {
-          for (const row of batch) {
+          // In-batch heartbeat: update last_event_at every HEARTBEAT_EVERY
+          // rows so stale-detection stays dormant during long batches (a
+          // 500-row new_inserts batch with cold-cache artist/label ensures
+          // can legitimately take 90-120s). The heartbeat write uses
+          // pgConnection (not batchTrx) so it's visible immediately —
+          // otherwise it would only land if the batch commits.
+          //
+          // Row-progress events (every PROGRESS_EVERY rows) also bump
+          // last_event_at via stream.emit() and give the live-log useful
+          // intra-batch visibility.
+          const HEARTBEAT_EVERY = 25
+          const PROGRESS_EVERY = 100
+          let rowsSinceHeartbeat = 0
+          let rowsSinceProgress = 0
+
+          for (let i = 0; i < batch.length; i++) {
+            const row = batch[i]
             await processRow(batchTrx, row)
+            rowsSinceHeartbeat++
+            rowsSinceProgress++
+
+            if (rowsSinceProgress >= PROGRESS_EVERY) {
+              await stream.emit("commit", "row_progress", {
+                phase,
+                batch: batchIdx + 1,
+                total_batches: totalBatches,
+                row_in_batch: i + 1,
+                batch_size: batch.length,
+                current: batchIdx * BATCH_SIZE + i + 1,
+                total: partition.length,
+              })
+              rowsSinceProgress = 0
+              rowsSinceHeartbeat = 0 // emit() also bumped last_event_at
+            } else if (rowsSinceHeartbeat >= HEARTBEAT_EVERY) {
+              try {
+                await pgConnection.raw(
+                  `UPDATE import_session SET last_event_at = NOW() WHERE id = ?`,
+                  [session_id]
+                )
+              } catch { /* best-effort — real heartbeat will come via next emit */ }
+              rowsSinceHeartbeat = 0
+            }
           }
+
+          // CAS check BEFORE committing the transaction. If another loop
+          // took ownership mid-batch, roll back all row work (including
+          // side-effect inserts into Artist/Label/Track) so the new owner
+          // sees a clean DB state. The lost work is recovered by the new
+          // owner when it re-runs this same phase.
+          if (await isSupersededBy(pgConnection, session_id, runToken)) {
+            try { await batchTrx.rollback() } catch { /* already rolled back */ }
+            await stream.emit("commit", "superseded", {
+              phase,
+              at_batch: batchIdx + 1,
+              total_batches: totalBatches,
+              committed_batches: completed.length,
+              message: "Another loop took ownership during batch processing — rolling back and aborting cleanly.",
+            })
+            return { cancelled: true, superseded: true }
+          }
+
           await batchTrx.commit()
 
           // Batch succeeded — record and emit progress
@@ -411,6 +582,7 @@ export async function POST(
             total: partition.length,
             counters: { ...counters },
             run_id: effectiveRunId,
+            run_token: runToken, // CAS anchor — must survive every progress write
             [progressKey]: completed,
           }
           // Merge with all existing completed_batches_* keys so we don't lose prior phases
@@ -511,6 +683,7 @@ export async function POST(
       () => { counters.updated++ }
     )
     if (existingResult.cancelled) {
+      if (existingResult.superseded) { stream.end(); return }
       await finalizeCancel(pgConnection, stream, session_id, counters)
       return
     }
@@ -563,6 +736,7 @@ export async function POST(
       () => { counters.linked++ }
     )
     if (linkableResult.cancelled) {
+      if (linkableResult.superseded) { stream.end(); return }
       await finalizeCancel(pgConnection, stream, session_id, counters)
       return
     }
@@ -703,6 +877,7 @@ export async function POST(
       () => { counters.inserted++ }
     )
     if (newResult.cancelled) {
+      if (newResult.superseded) { stream.end(); return }
       await finalizeCancel(pgConnection, stream, session_id, counters)
       return
     }
@@ -714,6 +889,20 @@ export async function POST(
     //                                                 Resume-Banner shows, completed_batches_*
     //                                                 keys are preserved so re-running skips
     //                                                 batches that already succeeded.
+    //
+    // CAS: if another loop has taken ownership during our commit (e.g. we
+    // were slow, got auto-restarted, but our loop kept going), we MUST NOT
+    // stomp on the new owner's state. Bail silently — the new owner will
+    // write its own terminal status.
+    if (await isSupersededBy(pgConnection, session_id, runToken)) {
+      await stream.emit("commit", "superseded", {
+        phase: "finalizing",
+        message: "Another loop took ownership before finalize — skipping status write.",
+      })
+      stream.end()
+      return
+    }
+
     const hasErrors = counters.errors > 0
     const finalStatus = hasErrors ? "analyzed" : "done"
 
@@ -731,9 +920,11 @@ export async function POST(
     await updateSession(pgConnection, session_id, {
       status: finalStatus,
       run_id: effectiveRunId,
+      error_message: null, // clear any stale error_message from superseded runs
       commit_progress: {
         phase: hasErrors ? "done_with_errors" : "done",
         counters,
+        run_token: runToken,
         ...preservedBatches,
       },
       ...(hasErrors ? {
@@ -751,12 +942,27 @@ export async function POST(
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Commit failed"
     try {
-      await updateSession(pgConnection, session_id, {
-        status: "analyzed",
-        error_message: msg,
-        commit_progress: { phase: "error", reason: msg },
-      })
-      await clearControlFlags(pgConnection, session_id)
+      // CAS: only write error status if we still own the session. If
+      // superseded, our crash is probably related to losing ownership
+      // (e.g. DB connection torn down by another loop's transaction) —
+      // the new owner will write its own terminal status.
+      // Special case: if runToken is still "" (crash before ownership
+      // claim in Step 1), there's no owner yet — write normally.
+      const shouldWrite = !runToken || !(await isSupersededBy(pgConnection, session_id, runToken))
+      if (shouldWrite) {
+        await updateSession(pgConnection, session_id, {
+          status: "analyzed",
+          error_message: msg,
+          commit_progress: {
+            phase: "error",
+            reason: msg,
+            ...(runToken ? { run_token: runToken } : {}),
+            ...(preservedRunIdAtStart ? { run_id: preservedRunIdAtStart } : {}),
+            ...preservedBatchesAtStart,
+          },
+        })
+        await clearControlFlags(pgConnection, session_id)
+      }
     } catch { /* ignore — best effort */ }
     if (!stream.isClosed) await stream.error(msg)
   }
