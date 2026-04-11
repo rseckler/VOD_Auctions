@@ -3,7 +3,7 @@
 **Version:** 1.0 (Draft)
 **Erstellt:** 2026-04-11
 **Autor:** Robin Seckler
-**Status:** 📋 Konzept, wartet auf Freigabe + offene Entscheidungen (§10)
+**Status:** 📋 Konzept, wartet auf Freigabe + offene Entscheidungen (§11)
 **Bezug:** `ERP_WARENWIRTSCHAFT_KONZEPT.md`, `INVENTUR_COHORT_A_KONZEPT.md` §14, `BROTHER_QL_820NWB_SETUP.md`
 
 ---
@@ -65,10 +65,18 @@ Wir bauen bewusst **kein** separates `pos_order` oder `walk_in_sale` Schema. Die
 ```sql
 ALTER TABLE transaction
   ADD COLUMN pos_session_id TEXT,              -- Links zu pos_session (falls wir die noch wollen), NULL für Online
+  -- TSE (KassenSichV)
   ADD COLUMN tse_signature TEXT,               -- TSE-Signatur (Cloud-TSE response), required für payment_provider IN (cash, sumup)
   ADD COLUMN tse_transaction_number INTEGER,   -- fortlaufende TSE-Transaktions-Nr (pro TSE-Gerät)
   ADD COLUMN tse_signed_at TIMESTAMPTZ,        -- Zeitpunkt der TSE-Signierung
-  ADD COLUMN tse_serial_number TEXT;           -- TSE-Seriennummer (aus Cloud-TSE-Setup)
+  ADD COLUMN tse_serial_number TEXT,           -- TSE-Seriennummer (aus Cloud-TSE-Setup)
+  -- Tax / USt (siehe §8 Tax-Handling)
+  ADD COLUMN tax_mode TEXT NOT NULL DEFAULT 'standard',  -- 'standard' (DE/EU, USt enthalten) | 'export_tax_free' (Drittland, §6 UStG)
+  ADD COLUMN tax_rate_percent NUMERIC(5,2),    -- angewandter USt-Satz in Prozent (19.00 oder 0.00)
+  ADD COLUMN tax_amount NUMERIC(10,2),         -- enthaltener Steuerbetrag in EUR (null wenn tax_mode='export_tax_free')
+  ADD COLUMN customer_country_code TEXT,       -- ISO 3166 alpha-2 (z.B. 'US', 'CH', 'JP') — Pflicht wenn tax_mode='export_tax_free'
+  ADD COLUMN export_declaration_issued_at TIMESTAMPTZ,   -- Zeitpunkt an dem die Ausfuhr-/Abnehmerbescheinigung ausgehändigt wurde
+  ADD COLUMN export_declaration_confirmed_at TIMESTAMPTZ; -- Zeitpunkt an dem der Zoll-Stempel eingegangen ist (nachträglich durch Frank)
 ```
 
 ### 4.3 Cart-Session — ephemer oder persistent?
@@ -203,7 +211,7 @@ Jeder Walk-in-Sale erzeugt:
 | **D-Trust / Swissbit** | Hardware-USB-Stick | ~200€ einmalig | ❌ Hardware-lock-in, kein Cloud |
 | **Epson TSE** | Hardware-Drucker-integriert | ~300€ | ❌ Nur mit Epson-POS-Druckern |
 
-**Empfehlung: fiskaly** (eine Entscheidung, die vor Implementierung bestätigt werden muss — siehe §10).
+**Empfehlung: fiskaly** (eine Entscheidung, die vor Implementierung bestätigt werden muss — siehe §11).
 
 ### 7.2 Integration
 
@@ -216,9 +224,106 @@ Jeder Walk-in-Sale erzeugt:
 
 Für die Steuerberater-Übergabe (DSFinV-K-Format) brauchen wir einen täglichen Export aller TSE-signierten Transaktionen. Das ist ein nightly Cron-Job: `SELECT * FROM transaction WHERE tse_signed_at >= yesterday AND item_type='walk_in_sale'` → exportiert als DSFinV-K-konforme CSV ins `./exports/dsfinvk/YYYY-MM-DD.csv`.
 
-## 8. Bon-Druck
+## 8. Tax-Handling: Standard 19% vs. Steuerfreier Export (§6 UStG)
 
-### 8.1 Hardware-Optionen
+**Nach Franks Wunsch (2026-04-11):** Das POS muss eine **steuerfreie Abrechnung für Kunden aus Nicht-EU-Ländern** unterstützen. Ohne diese Option müsste Frank jedem Drittland-Käufer die volle USt (19%) berechnen, obwohl der Kunde bei einer Ausfuhrlieferung eigentlich keine deutsche USt tragen müsste.
+
+### 8.1 Rechtliche Grundlage (in zwei Sätzen)
+
+Ausfuhrlieferungen in Drittländer (= Nicht-EU) sind nach **§4 Nr. 1a + §6 UStG** umsatzsteuerfrei, wenn der Händler den **Ausfuhrnachweis** und den **Abnehmernachweis** erbringen kann. EU-Länder fallen **nicht** darunter (innergemeinschaftliche Lieferungen haben eigene Regeln via OSS/Reverse-Charge), Drittländer schon.
+
+**Praktische Konsequenz:** Frank darf einem Drittland-Käufer im Laden die USt sparen, muss aber beweisen können, dass die Ware Deutschland tatsächlich verlassen hat. Ohne Nachweis droht bei der Betriebsprüfung Nachversteuerung plus Säumniszuschläge.
+
+### 8.2 Zwei Varianten für Walk-in-Kunden
+
+#### Variante A: Steuerfrei direkt ausstellen (Handheld)
+
+- Kunde kommt in den Laden, zahlt **ohne USt** (38€ statt 45,22€ bei 19% USt-Basis)
+- Frank händigt **zwei zusätzliche Dokumente** aus:
+  1. **Ausfuhr- und Abnehmerbescheinigung** (amtliches Formular des BMF, als PDF generiert, 1 Seite, mit vorab ausgefüllten Händler-, Kunden- und Artikel-Daten) — der Kunde nimmt sie mit, lässt sie beim Ausreise-Zoll abstempeln, und sendet sie per Post oder E-Mail zurück
+  2. **Quittung/Rechnung ohne USt** mit explizitem Hinweis „Steuerfreie Ausfuhrlieferung gem. §6 UStG, Nachweis folgt"
+- Frank trackt im POS die offene Nachweis-Verpflichtung (`transaction.export_declaration_issued_at` gesetzt, `export_declaration_confirmed_at` noch NULL)
+- Bei Eingang des Zoll-Stempels (physisch oder per Foto/E-Mail) setzt Frank im Admin manuell `export_declaration_confirmed_at`
+- **Risiko für Frank:** Wenn der Nachweis ausbleibt (Kunde vergisst's, Brief geht verloren), muss Frank nach einer Nachfrist (typisch 3–6 Monate) die USt nachversteuern. Aktuell deutsches Risiko-Modell: Rückstellung in den Büchern bilden, bis Nachweis da ist.
+
+#### Variante B: Zunächst 19% berechnen, nach Nachweis erstatten
+
+- Kunde zahlt die volle Summe inkl. 19% USt
+- Frank händigt die Ausfuhr-/Abnehmerbescheinigung mit aus
+- Kunde schickt den abgestempelten Nachweis zurück
+- Frank überweist die USt-Erstattung (7,22€ bei 45,22€)
+- **Vorteil:** Kein Risiko für Frank (kein Vorschuss ohne Nachweis). **Nachteil:** Aufwändiger Rückerstattungsprozess, weniger kundenfreundlich.
+
+**Empfehlung: Variante A** (direkt steuerfrei) — einfacher für Kunden, in Deutschland seit jeher Standard für Laden-Touristen-Sales. Das Risiko wird über eine Prozess-Regel mitigiert: Nur für **namentlich identifizierte Kunden mit verifizierter Drittland-Anschrift**, und eine Rückstellung in der Buchhaltung für pending Nachweise.
+
+### 8.3 UI-Impact im POS
+
+Im POS-Checkout-Dialog ein neuer **Tax-Mode-Toggle**:
+
+```
+Payment:                    Tax Mode:
+( ) SumUp Karte             ( • ) Standard (19% USt enthalten)
+( ) Bar                     (   ) Steuerfrei Export (§6 UStG — Drittland)
+( ) PayPal
+( ) Überweisung
+
+   [Verkauf abschließen →]
+```
+
+Wenn **„Steuerfrei Export"** aktiv → der Customer-Panel erzwingt **Mode B „Neuer Kunde" oder Mode A „Bestehend"** (niemals „Anonymous"), mit Pflichtfeldern:
+- Vollständiger Name
+- Vollständige Drittland-Anschrift (Straße, PLZ, Stadt, Land)
+- Pass- oder Ausweisnummer (optional, aber empfohlen für Nachweis-Sicherheit)
+- Land-Code (ISO 3166 alpha-2, z.B. `US`, `CH`, `JP`) — wird in `transaction.customer_country_code` gespeichert
+
+**Validierung beim „Verkauf abschließen":**
+- Wenn `tax_mode='export_tax_free'` und `customer_country_code` ist in EU-Liste (`DE`, `AT`, `FR`, `IT`, ... — 27 Länder) → **Fehler**, „§6 UStG gilt nur für Drittländer, nicht EU"
+- Wenn `customer_country_code` ist NULL → **Fehler**, „Kundenland muss erfasst sein"
+- Wenn Customer-Mode = Anonymous → **Fehler**, „Steuerfreier Export erfordert namentlich identifizierten Kunden"
+
+**Preis-Berechnung:**
+- Standard-Mode: Totalsumme enthält 19% USt (z.B. 45,22€ → Netto 38,00€, USt 7,22€). Das `transaction.total` bleibt 45,22€, `tax_rate_percent = 19.00`, `tax_amount = 7.22`.
+- Export-Mode: Totalsumme ist Netto (z.B. 38,00€). `transaction.total = 38.00`, `tax_rate_percent = 0.00`, `tax_amount = 0.00`.
+
+**Wichtig zu entscheiden (§11 Punkt 9):** Werden die in der Inventur erfassten `legacy_price`-Werte als **Netto** oder als **Brutto (USt enthalten)** interpretiert? Das ist eine steuerliche Grundsatzfrage, die Franks Steuerberater beantworten muss, weil sie die gesamte Preis-Logik betrifft (nicht nur POS, auch Online-Shop).
+
+### 8.4 Bon-Layout-Variante für Steuerfrei (siehe §9 Bon-Druck)
+
+Für `tax_mode='export_tax_free'` druckt das POS **zwei Dokumente** statt nur den Standard-Bon:
+
+1. **Kassenbon (62mm Thermo)**, angepasst:
+   - Zwischensumme und Gesamt ohne USt
+   - Kein „MwSt 19% enthalten"-Zeile
+   - Neue Zeile: **„Steuerfreie Ausfuhrlieferung gem. §6 UStG"**
+   - Neue Zeile: **„Kunden-Land: \<Country\>"**
+   - TSE-Signatur bleibt drauf (jeder Bar-/POS-Verkauf muss signiert sein, auch steuerfreie)
+
+2. **Ausfuhr- und Abnehmerbescheinigung (A4 PDF, Standard-Drucker)**:
+   - Vorab ausgefüllt mit Händler-Daten (VOD Records, USt-ID, Adresse), Kunden-Daten (Name, Adresse Drittland), Artikel-Daten (Anzahl, Bezeichnung, Netto-Wert, Bon-Nr)
+   - Leere Felder für Zoll-Stempel + Datum der Ausreise
+   - PDF-Template folgt BMF-Muster (offizielles Formular „Ausfuhr- und Abnehmerbescheinigung für Umsatzsteuerzwecke bei Ausfuhren im nichtkommerziellen Reiseverkehr")
+   - Generiert via `pdfkit` auf A4, 1 Seite, PDF-Download + Auto-Print im Standard-Drucker
+
+### 8.5 Tracking offener Nachweise
+
+Neue Admin-Sub-Page unter `/app/pos/tax-free-pending` (oder als Tab im POS-Reports): Liste aller `transaction` wo `tax_mode='export_tax_free' AND export_declaration_confirmed_at IS NULL`, sortiert nach `created_at DESC`. Frank sieht:
+
+- Bon-Nr, Datum, Kunde, Land, Netto-Betrag, USt-Risiko (19% vom Netto als Rückstellungs-Hinweis)
+- Action-Button „Nachweis bestätigt" (öffnet Datumsauswahl, setzt `export_declaration_confirmed_at`)
+- Action-Button „Nachweis vermisst → USt nachversteuern" (erzeugt eine Korrektur-Transaktion mit positivem USt-Betrag, markiert die ursprüngliche Transaktion als „nicht nachgewiesen")
+- Farb-Warnung: nach 90 Tagen gelb, nach 180 Tagen rot (Nachfrist-Grenze)
+
+### 8.6 Entscheidungs-Offenheit
+
+**Zwei Dinge sind in §11 offen und brauchen Steuerberater-Freigabe:**
+
+1. **Variante A vs. B** — Frank kann Variante A wollen für Kunden-Komfort, Steuerberater kann Variante B empfehlen wegen Risiko. Muss entschieden werden.
+2. **BMF-Formular-Version** — das offizielle Ausfuhrnachweis-Formular muss aktuell sein (die Vorgaben ändern sich gelegentlich). Franks Steuerberater kennt das aktuelle Muster am besten und sollte die PDF-Vorlage liefern.
+3. **Brutto vs. Netto-Preise in `legacy_price`** — die gesamte Preis-Logik (Online + POS) hängt davon ab, wie die bestehenden Preise steuerlich interpretiert werden.
+
+## 9. Bon-Druck
+
+### 9.1 Hardware-Optionen
 
 **Option X — bestehender Brother QL-820NWB + DK-22205 (62mm Rolle)**
 - Gleicher Drucker, andere Rolle (62mm weißes Endlosband, ~€10/Rolle, ~30m)
@@ -243,7 +348,9 @@ Für die Steuerberater-Übergabe (DSFinV-K-Format) brauchen wir einen täglichen
 
 **Empfehlung: Option X (Brother QL-820NWB + DK-22205 62mm Rolle)** in Phase 1, Option Y (dedizierter POS-Thermo) in Phase 2 falls sich die UV-Bleaching-Sorge bestätigt.
 
-### 8.2 Bon-Layout (KassenSichV-konform)
+### 9.2 Bon-Layout (KassenSichV-konform) — Standard-Mode
+
+**Für `tax_mode='standard'`** (DE/EU-Kunden, 19% USt enthalten):
 
 ```
 ┌──────────────────────────────────────────┐  62mm
@@ -290,7 +397,57 @@ Für die Steuerberater-Übergabe (DSFinV-K-Format) brauchen wir einen täglichen
 6. Seriennummer der TSE
 7. QR-Code mit TSE-Signatur (optional aber empfohlen)
 
-## 9. Neue Admin-API-Routes
+### 9.3 Bon-Layout (Steuerfrei-Export-Mode)
+
+**Für `tax_mode='export_tax_free'`** (Drittland-Kunden, §6 UStG):
+
+```
+┌──────────────────────────────────────────┐  62mm
+│          VOD RECORDS                      │
+│       vod-auctions.com                    │
+│       [Adresse aus impressum]             │
+│       USt-ID: [wenn vorhanden]            │
+│ ─────────────────────────────────────    │
+│ Bon-Nr: VOD-POS-000124                    │
+│ Datum: 2026-04-11 14:23                   │
+│ Kasse: VOD-MAIN-001                       │
+│ ─────────────────────────────────────    │
+│ Cabaret Voltaire                          │
+│   Red Mecca · LP               €38,00     │
+│ ─────────────────────────────────────    │
+│ GESAMT (Netto):                €38,00     │
+│                                           │
+│ ★ STEUERFREIE AUSFUHRLIEFERUNG ★          │
+│   gem. §6 UStG                            │
+│                                           │
+│ Kunde: Jane Doe                           │
+│ Land:  United States (US)                 │
+│ Nachweis folgt per Ausfuhrbescheinigung   │
+│                                           │
+│ Zahlung: SumUp Kartenzahlung              │
+│ ─────────────────────────────────────    │
+│ TSE-Signatur:                             │
+│ abc123def456... (gekürzt)                 │
+│ TSE-Seriennummer: F1SK4LY-12345          │
+│ Transaktions-Nr: 43                       │
+│                                           │
+│ ▓▓ QR-Code (TSE-Hash) ▓▓                  │
+│                                           │
+│ Bitte Ausfuhrbescheinigung beim Zoll      │
+│ abstempeln und zurücksenden.              │
+└──────────────────────────────────────────┘
+```
+
+**Unterschiede zum Standard-Bon:**
+- Keine „MwSt 19% (enthalten)"-Zeile
+- Gesamtbetrag ausgewiesen als **„(Netto)"**
+- Neuer Block: „★ STEUERFREIE AUSFUHRLIEFERUNG ★" + „gem. §6 UStG"
+- Kunden-Name + Land explizit auf dem Bon (Pflicht für Nachweis-Kette)
+- Bitte-Text zur Rücksendung der Ausfuhrbescheinigung
+
+**Parallel**: Ein A4-PDF mit der **Ausfuhr- und Abnehmerbescheinigung** wird auf dem Standard-Drucker gedruckt (nicht auf der 62mm Thermo-Rolle — passt nicht). Das PDF folgt dem BMF-Muster und wird vom Kunden mitgenommen.
+
+## 10. Neue Admin-API-Routes
 
 | Method | Path | Body | Effekt |
 |---|---|---|---|
@@ -301,11 +458,14 @@ Für die Steuerberater-Übergabe (DSFinV-K-Format) brauchen wir einen täglichen
 | GET | `/admin/pos/transactions/:id/receipt` | — | Bon-PDF-Download |
 | POST | `/admin/pos/transactions/:id/print-receipt` | `{printer_name?}` | Sendet Bon an QL-820NWB (oder anderen Drucker) |
 | GET | `/admin/pos/customer-search` | `?q=` | Live-Suche in `customer_stats`, returns top 10 matches |
-| POST | `/admin/pos/customers` | `{name, email?, phone?}` | Neuen Customer anlegen (minimal) |
+| POST | `/admin/pos/customers` | `{name, email?, phone?, country_code?}` | Neuen Customer anlegen (minimal — `country_code` optional aber Pflicht bei Tax-Free) |
+| GET | `/admin/pos/transactions/:id/export-declaration` | — | PDF-Download der Ausfuhr- und Abnehmerbescheinigung (A4, BMF-Muster) — nur bei `tax_mode='export_tax_free'` |
+| POST | `/admin/pos/transactions/:id/confirm-export` | `{confirmed_at, notes?}` | Frank markiert den Zoll-Stempel-Nachweis als eingegangen — setzt `export_declaration_confirmed_at` |
+| GET | `/admin/pos/tax-free-pending` | `?days_since=` | Liste aller Tax-Free-Transactions ohne Nachweis-Bestätigung |
 
 Alle Routes unter `requireFeatureFlag('POS_WALK_IN')` (neues Flag, default OFF).
 
-## 10. Offene Entscheidungen
+## 11. Offene Entscheidungen
 
 Vor Implementierungs-Start muss Frank (oder der Steuerberater) folgendes klären:
 
@@ -325,23 +485,30 @@ Vor Implementierungs-Start muss Frank (oder der Steuerberater) folgendes klären
 
 8. **SumUp-Integration-Level**: Phase 1 (extern) ist klar. Phase 2 (REST API) nur wenn Frank das wirklich will — klären, wenn Phase 1 läuft.
 
-## 11. Implementierungs-Phasen
+9. **Tax-Free Export (§6 UStG) — drei Sub-Entscheidungen** (siehe §8):
+   - **Variante A vs. B** — direkte Steuerbefreiung mit Risiko (Variante A, kundenfreundlicher) oder volle USt zahlen + nachträgliche Erstattung (Variante B, risikofrei für Frank)? Steuerberater-Entscheidung.
+   - **Ausfuhr- und Abnehmerbescheinigung Muster** — aktuelles BMF-Formular als PDF-Template vom Steuerberater besorgen
+   - **Brutto vs. Netto in `legacy_price`** — die existierenden Preise in der DB: sind das Brutto-Preise (USt enthalten) oder Netto-Preise? Betrifft die gesamte Preis-Logik (Online + POS). Muss vor POS-Implementierung geklärt sein, weil sonst die USt-Berechnung konsistent falsch ist.
+   - **Nachfrist für Nachweise**: Nach wie vielen Tagen gilt ein fehlender Ausfuhrnachweis als „final missing" und Frank muss die USt nachversteuern? Typisch 3–6 Monate. Steuerberater-Entscheidung.
+
+## 12. Implementierungs-Phasen
 
 **Phase P1 — Core POS-UI (ohne TSE, ohne Bon-Druck, mit Mock)**
-*Ziel: Ein Walk-in-Sale kann end-to-end abgewickelt werden, Transaktion landet in `transaction`-Tabelle, Items werden sold, Customer-Stats aktualisiert. Bon ist ein einfaches A4-PDF ohne TSE-Signatur.*
+*Ziel: Ein Walk-in-Sale kann end-to-end abgewickelt werden, Transaktion landet in `transaction`-Tabelle, Items werden sold, Customer-Stats aktualisiert. Bon ist ein einfaches A4-PDF ohne TSE-Signatur. **Tax-Mode-Toggle schon drin**, damit die Preis-Berechnung von Anfang an korrekt ist.*
 
 | Task | Aufwand |
 |---|---|
-| Migration: `transaction.pos_session_id`, `tse_*` Spalten | 1h |
+| Migration: `transaction.pos_session_id`, `tse_*` + `tax_*` + `customer_country_code` + `export_declaration_*` Spalten | 1.5h |
 | POS-Session-State (Zustand client-side, Cart-Management) | 2h |
-| Admin-Route `/app/pos` mit Layout, Scan-Input, Cart-Sidebar | 4h |
+| Admin-Route `/app/pos` mit Layout, Scan-Input, Cart-Sidebar, **Tax-Mode-Toggle** | 5h |
 | `onScan.js` Integration (baut auf Phase B6 aus Inventur auf) | bereits done |
 | API-Routes `/admin/pos/sessions/*` (+`/items`, `/checkout`, `/customer-search`) | 4h |
 | `transaction`-Erzeugung + `inventory_movement` + `order_event` in einer DB-Transaktion | 3h |
+| **Tax-Logik**: Preis-Berechnung Standard vs. Export, Validation Drittland-Check, Mode-Enforcement | 3h |
 | Mock-Bon-Generierung (A6 PDF via pdfkit, **ohne** TSE-Signatur) | 2h |
 | Feature-Flag `POS_WALK_IN` + Registry-Eintrag | 30min |
 | Operations-Hub-Card „POS / Walk-in Sale" | 30min |
-| **Summe P1** | **~2 Tage** |
+| **Summe P1** | **~2.5 Tage** |
 
 **Phase P2 — TSE-Integration**
 *Ziel: Alle POS-Transaktionen sind KassenSichV-konform signiert.*
@@ -356,17 +523,21 @@ Vor Implementierungs-Start muss Frank (oder der Steuerberater) folgendes klären
 | DSFinV-K Export-Cron (nightly CSV nach `./exports/dsfinvk/`) | 3h |
 | **Summe P2** | **~2 Tage** |
 
-**Phase P3 — Bon-Druck (Brother QL-820NWB + 62mm Rolle)**
-*Ziel: Professioneller Kassenbon auf dem vorhandenen Brother-Drucker, wenn Option X gewählt.*
+**Phase P3 — Bon-Druck (Brother QL-820NWB + 62mm Rolle) + Tax-Free Documents**
+*Ziel: Professioneller Kassenbon auf dem vorhandenen Brother-Drucker + Ausfuhr-/Abnehmerbescheinigung bei Drittland-Verkäufen.*
 
 | Task | Aufwand |
 |---|---|
-| Bon-Layout in `lib/pos-receipt.ts` (pdfkit, 62mm × variable Länge) | 4h |
+| Bon-Layout Standard (`lib/pos-receipt.ts`, pdfkit, 62mm × variable Länge) | 4h |
+| **Bon-Layout Tax-Free-Variante** (§9.3) mit Kundendaten-Block | 1h |
 | KassenSichV-Pflichtfelder vollständig (Kleinunternehmer-Hinweis, TSE, QR) | 2h |
 | QR-Code-Generierung (`bwip-js` qrcode) | 1h |
+| **Ausfuhr-/Abnehmerbescheinigung** (A4-PDF, BMF-Muster, vorab ausgefüllt) | 3h |
+| `GET /admin/pos/transactions/:id/export-declaration` Route | 1h |
+| **Admin-Page `/app/pos/tax-free-pending`** (Liste + Bestätigen-Button) | 3h |
 | CUPS-Print-Option `PageSize=Custom.62x<length>mm` + Rolle-Wechsel-Instruktion | 2h |
 | `POST /admin/pos/transactions/:id/print-receipt` Route | 1h |
-| **Summe P3** | **~1 Tag** |
+| **Summe P3** | **~2 Tage** |
 
 **Phase P4 — SumUp REST API (optional, später)**
 *Ziel: Payment-Terminal wird direkt vom Backend angesprochen, kein manuelles Eintippen.*
@@ -379,27 +550,29 @@ Vor Implementierungs-Start muss Frank (oder der Steuerberater) folgendes klären
 | Fallback auf externe Zahlung bei API-Fehler | 2h |
 | **Summe P4** | **~2-3 Tage** |
 
-**Gesamtaufwand P1-P3 (Mindest-Funktionsumfang produktiv):** ~5 Arbeitstage
-**Gesamtaufwand P1-P4 (vollständig):** ~7-8 Arbeitstage
+**Gesamtaufwand P1-P3 (Mindest-Funktionsumfang produktiv, inkl. Tax-Free):** ~6.5 Arbeitstage
+**Gesamtaufwand P1-P4 (vollständig):** ~9 Arbeitstage
 
-## 12. Abhängigkeiten / Voraussetzungen
+## 13. Abhängigkeiten / Voraussetzungen
 
 - ✅ **ERP_INVENTORY Flag aktiv** (für `erp_inventory_movement` Logging) — aktuell OFF, muss vor POS-Launch ON
 - ✅ **Barcode-Label + Scanner validiert** (Setup-Doku fertig) — ✅ done am 2026-04-11
 - ✅ **Cohort-A Items haben Barcode** (aus Inventur-Session) — erforderlich, damit Scanning funktioniert
-- ⏳ **Steuerberater-Freigabe** für Bon-Pflichtfelder + Kleinunternehmer-Status — **offen**
+- ⏳ **Steuerberater-Freigabe** für Bon-Pflichtfelder + Kleinunternehmer-Status + **Tax-Free-Variante A/B + Brutto/Netto-Interpretation** — **offen**
+- ⏳ **BMF-Musterformular** für Ausfuhr-/Abnehmerbescheinigung vom Steuerberater — **offen**
 - ⏳ **fiskaly-Account** (oder Alternativ-TSE-Anbieter) — **offen**
 - ⏳ **DK-22205 62mm Rolle bestellen** (falls Option X für Bon-Druck) — **offen**
 
-## 13. Referenzen
+## 14. Referenzen
 
 - **ERP-Konzept:** `docs/optimizing/ERP_WARENWIRTSCHAFT_KONZEPT.md` (transaction, inventory_movement, customer Schema)
 - **Inventur-Konzept:** `docs/optimizing/INVENTUR_COHORT_A_KONZEPT.md` (Scanner + Barcode-Workflow)
 - **Hardware-Setup:** `docs/hardware/BROTHER_QL_820NWB_SETUP.md`
 - **KassenSichV:** [§146a AO](https://www.gesetze-im-internet.de/ao_1977/__146a.html), [KassenSichV](https://www.gesetze-im-internet.de/kassensichv/)
+- **USt-Ausfuhrlieferung:** [§4 Nr. 1a UStG](https://www.gesetze-im-internet.de/ustg_1980/__4.html), [§6 UStG](https://www.gesetze-im-internet.de/ustg_1980/__6.html), BMF-Merkblatt „Steuerfreiheit von Ausfuhrlieferungen im nichtkommerziellen Reiseverkehr"
 - **fiskaly-Doku:** https://developer.fiskaly.com/
 - **SumUp-Doku:** https://developer.sumup.com/
 
 ---
 
-**Next Action:** Nach Freigabe dieses Konzepts + Klärung der offenen Entscheidungen aus §10 → Start mit Phase P1 (Core POS-UI).
+**Next Action:** Nach Freigabe dieses Konzepts + Klärung der offenen Entscheidungen aus §11 → Start mit Phase P1 (Core POS-UI).
