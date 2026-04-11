@@ -175,7 +175,8 @@ npm run build && pm2 restart vodauction-storefront
 - `GET /admin/transactions/:id/shipping-label` — Shipping Label PDF (pdfkit)
 - `POST /admin/transactions/bulk-ship` — Bulk Mark-as-Shipped
 - `POST /admin/transactions/export` — CSV Export (BOM, Excel-kompatibel)
-- `GET /admin/media` — 41k Releases (q, category, format, country, label, has_discogs, sort field:dir)
+- `GET /admin/media` — 41k Releases. Filter: q, category, format, country, label, has_discogs, has_price, has_image, visibility, year_from/to, auction_status. **rc23 Filter:** import_collection, import_action, inventory_state (any/none/in_stock/out_of_stock), inventory_status, stocktake (done/pending/stale @90d), price_locked, warehouse_location. Sort: field:dir
+- `GET /admin/media/filter-options` — (rc23) Dropdown-Datenquelle: `import_collections` (mit run_count + release_count + last_import_at), `warehouse_locations` (aktive), `inventory_statuses` (DISTINCT values in use). Defensive gegen fehlende Tabellen.
 - `GET /admin/entity-content/overhaul-status` — Entity Overhaul Status + Budget
 - `GET /admin/sync/discogs-health` | `POST` — Discogs Sync Health + Actions
 - `GET /admin/sync/change-log` — Legacy Sync Change Log (?run_id, ?field, limit, offset) — Runs-Übersicht + paginierte Einträge mit old/new Werten

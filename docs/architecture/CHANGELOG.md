@@ -11,6 +11,7 @@ Jeder Git-Tag entspricht einem Snapshot des Gesamtsystems. Feature Flags zeigen 
 | Version | Datum | Platform Mode | Feature Flags aktiv (prod) | Milestone / Inhalt |
 |---------|-------|--------------|---------------------------|-------------------|
 | **v1.0.0** | TBD | `live` | ERP: TBD | RSE-78: Erster öffentlicher Launch |
+| **v1.0.0-rc23** | 2026-04-11 | `beta_test` | — | Media Catalog: Neue Filter-Dimension Import + Inventory. Dropdown für Discogs-Collection-Herkunft (+counts), Import-Action, Inventory-State, Status, Stocktake (done/pending/stale @90d), Warehouse-Location, Price-Locked. Neuer API-Endpoint `GET /admin/media/filter-options` liefert Dropdown-Daten. |
 | **v1.0.0-rc22** | 2026-04-11 | `beta_test` | — | Media Detail: Neue "Inventory Status" Sektion mit Stocktake-Audit-Trail (Status-Badges, Metadata-Grid, Movement-Timeline) + Deep-Link "In Stocktake-Session laden" und "Label drucken" Buttons. Neuer API-Endpoint GET /admin/erp/inventory/items/:id für Item-Lookup by id (für Items ohne Barcode). |
 | **v1.0.0-rc21** | 2026-04-11 | `beta_test` | — | Stocktake Session: Unified Scanner/Shortcut Handler mit 40ms-Debounce — fixt Race-Condition zwischen USB-HID-Scanner-Input und Single-Key-Shortcuts (V/M/P/N/L/U) im Inventur-Session-Screen. Phase B6 aus INVENTUR_COHORT_A_KONZEPT §14.11 damit abgeschlossen. Plus: POS Walk-in Sale Konzept v1.0 (Draft) als neues Design-Dokument. |
 | **v1.0.0-rc20** | 2026-04-11 | `beta_test` | — | Discogs Import: Analyze + Commit Routes ebenfalls entkoppelt (SSEStream Headless Mode — alle 3 lang laufenden Ops sind jetzt detached), Post-Import Call-to-Action-Card, Import History Section im Media-Detail (zeigt aus welchem Import ein Release stammt) |
@@ -60,6 +61,119 @@ Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Rel
 - **Patch Release** (`v1.0.x`): Kritische Bugfixes zwischen geplanten Releases
 - **Tagging-Workflow:** `git tag -a vX.Y.Z -m "Release vX.Y.Z: <Kurzname>"` → `git push origin vX.Y.Z`
 - **Tag-Zeitpunkt:** Direkt nach Deploy + Smoke-Test auf Production — nicht vor dem Deploy
+
+---
+
+## 2026-04-11 — Media Catalog: Import + Inventory Filter (rc23)
+
+**Kontext:** Der Media Catalog (`/app/media`) hatte solide Standard-Filter (Category, Format, Country, Year, Label, Discogs/Price/Status/Visibility), aber zwei zentrale Workflow-Dimensionen fehlten: **welcher Import** hat einen Release angefasst, und in welchem **Inventory-/Stocktake-Zustand** ist er. Beide Daten existieren in der DB (`import_log`, `erp_inventory_item`), waren aber im Filter nicht exposed.
+
+**User-Feedback:** "hier müssen wir noch neue Filter einbauen, um die Themen Import und Inventory einbinden zu können"
+
+### Entscheidungen vor der Umsetzung
+
+Plan-Doc `docs/architecture/MEDIA_CATALOG_FILTERS_PLAN.md` mit 4 offenen Punkten, die der User entschieden hat:
+1. **Dropdown** statt Chips für Import-Collections (skaliert besser als Chips wenn die Collection-Liste wächst)
+2. **Always-visible** Filter-Zeile (kein "Advanced Filters" Collapse — zentrale Workflow-Dimension)
+3. **Tabellen-Spalten Import + Inv** als Phase 2 Follow-up (nicht in diesem Commit)
+4. **Stocktake-Stale-Threshold = 90 Tage** (Retail-Standard)
+
+### Backend
+
+**Neuer Endpoint: `GET /admin/media/filter-options`**
+
+Liefert Dropdown-Daten in einem einzigen Call, defensive gegen fehlende Tabellen (frische Installationen):
+
+```json
+{
+  "import_collections": [
+    { "collection_name": "Pargmann", "run_count": 1, "release_count": 5646, "last_import_at": "..." },
+    { "collection_name": "Bremer", "run_count": 1, "release_count": 966, "last_import_at": "..." },
+    { "collection_name": "Frank Inventory", "run_count": 1, "release_count": 3762, "last_import_at": "..." }
+  ],
+  "warehouse_locations": [
+    { "id": "loc_01", "code": "A-01", "name": "Regal A-01", "is_active": true }
+  ],
+  "inventory_statuses": ["active", "sold", "reserved"]
+}
+```
+
+Sortiert nach `MAX(created_at) DESC` — jüngster Import zuerst. Counts helfen Frank die Collection-Größe abzuschätzen ohne den Filter erst anzuwenden zu müssen.
+
+**Erweitert: `GET /admin/media`**
+
+7 neue Query-Parameter:
+
+| Param | Typ | Implementation |
+|---|---|---|
+| `import_collection` | text | `whereExists(...)` Subquery auf `import_log` mit `idx_import_log_release` |
+| `import_action` | text | Kombiniert mit `import_collection` oder standalone (any collection) |
+| `inventory_state` | enum | `any` / `none` / `in_stock` / `out_of_stock` — basiert auf LEFT JOIN `erp_inventory_item` |
+| `inventory_status` | text | Exact match auf `erp_inventory_item.status` |
+| `stocktake` | enum | `done` (< 90d) / `pending` (NULL) / `stale` (> 90d) |
+| `price_locked` | true/false | inkl. NULL handling |
+| `warehouse_location` | text | Exact match auf `warehouse_location.code` |
+
+Der existing Query-Chain wurde um 2 LEFT JOINs erweitert:
+```typescript
+.leftJoin("erp_inventory_item", "Release.id", "erp_inventory_item.release_id")
+.leftJoin("warehouse_location", "erp_inventory_item.warehouse_location_id", "warehouse_location.id")
+```
+
+**Response-Shape erweitert:** Release-Objekte bekommen neue Felder (nicht breaking — alle existing clients ignorieren unbekannte Felder):
+- `inventory_item_id`, `inventory_quantity`, `inventory_item_status`, `price_locked`, `last_stocktake_at`
+- `warehouse_code`, `warehouse_name`
+
+Das ermöglicht Phase 2: Tabellen-Spalten die diese Werte inline anzeigen, ohne nochmal zu fetchen.
+
+### Frontend
+
+**State-Erweiterung in `/app/media` page.tsx:**
+- 7 neue `useState` Hooks für die neuen Filter
+- Neuer `filterOptions` State für die Dropdown-Daten
+- `useEffect` auf Mount lädt `/admin/media/filter-options`
+- Fetch-useEffect um 7 neue Query-Params erweitert
+- Reset-Page-Dependency-Array erweitert (Filter-Change → Seite 0)
+
+**Neue Filter-Zeile:**
+- Platziert **unter** der bestehenden Filter-Zeile (Label/Country/Year), getrennt durch **dashed top border** für visuelle Trennung
+- Struktur: `[Import: Collection ▾] [Action ▾]` · vertikaler Separator · `[Inventory: State ▾] [Status ▾ (conditional)] [Stocktake ▾] [Location ▾ (conditional)] [☐ Price locked]`
+- Die "Status" und "Location" Dropdowns werden **nur gerendert** wenn die Daten vom filter-options Endpoint geliefert werden (Defensive bei fresh install ohne Inventory-Daten)
+- **"Clear import/inventory filters"** Link rechts außen — erscheint nur wenn irgendein neuer Filter aktiv ist, resettet alle 7 Params auf einmal
+
+### Praxis-Beispiele
+
+| Anwendungsfall | Filter-Kombination |
+|---|---|
+| "Alle Pargmann-Releases die noch nicht inventarisiert sind" | `import_collection=Pargmann&stocktake=pending` |
+| "Alle Bremer-Neuzugänge (nicht die linked/updated)" | `import_collection=Bremer&import_action=inserted` |
+| "Alle Items in Warehouse A-01 mit Price-Lock" | `warehouse_location=A-01&price_locked=true` |
+| "Items aus irgendeinem Import ohne erp_inventory_item Row" | `inventory_state=none&import_action=inserted` |
+| "Stale Stocktakes > 90 Tage" | `stocktake=stale` |
+
+### Performance
+
+- Import-Filter: `whereExists` Subquery ist O(1) pro Release wegen `idx_import_log_release` Index
+- Inventory-Filter: LEFT JOIN auf `erp_inventory_item` (~13k rows Cohort A, unproblematisch bei 48k Releases Total)
+- Filter-Options-Endpoint: 3 Queries in Serie, insgesamt <100ms bei aktuellen Datenmengen — kein Cache erforderlich (wäre Phase 3 optimization)
+
+### Files
+
+- `backend/src/api/admin/media/filter-options/route.ts` (NEU, 74 Zeilen)
+- `backend/src/api/admin/media/route.ts` (+107 / -3) — 7 neue Filter + SELECT-Erweiterung + JOINs
+- `backend/src/admin/routes/media/page.tsx` (+137 / -0) — State, Fetch, neue Filter-Zeile JSX
+- `docs/architecture/MEDIA_CATALOG_FILTERS_PLAN.md` (NEU, 372 Zeilen) — Plan-Doc mit allen Entscheidungen
+
+### Commit
+
+- `0723439` — Media Catalog: Import + Inventory Filter (Phase 1)
+
+### Phase 2 Follow-up (not in scope)
+
+- **Tabellen-Spalten "Import" + "Inv"** — Kleine Badges in der Release-Tabelle die zeigen aus welcher Collection ein Release kommt und den aktuellen Inventory-Stand. Die Daten sind bereits im Response-Shape enthalten (siehe oben), nur das Rendering fehlt.
+- **Bulk-Operations auf gefilterten Ergebnissen** — "Alle gefilterten Pargmann-Items bulk-priced aktualisieren"
+- **Saved Filter Presets** — "Meine Filter" wie in Linear ("Stocktake Queue", "Neu importiert", etc.)
+- **Server-Side Caching** — Filter-Options Endpoint via Redis cachen falls die Counts über 100+ Collections wachsen
 
 ---
 

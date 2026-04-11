@@ -1,12 +1,17 @@
 # Media Catalog: Import + Inventory Filters
 
-**Status:** In Progress — decisions finalized 2026-04-11
+**Status:** ✅ Phase 1 Implemented & Deployed (commit `0723439`, rc23, 2026-04-11)
 
-**Finalisierte Entscheidungen:**
+**Finalisierte Entscheidungen (vom User bestätigt):**
 1. ✅ Dropdown für Import Collections (nicht Chips)
 2. ✅ Always-visible Filter-Zeilen (kein Collapse)
 3. ✅ Tabellen-Spalten Import + Inv als Phase 2 Follow-up
 4. ✅ Stocktake-Stale-Threshold = **90 Tage**
+
+**Implementation Summary:**
+- Backend: Neuer `/admin/media/filter-options` Endpoint + 7 neue Query-Params in `/admin/media` + 2 LEFT JOINs + erweiterte SELECT-Felder
+- Frontend: 7 neue State-Hooks, filter-options fetch auf Mount, neue Filter-Zeile mit dashed separator, conditional dropdowns, clear-button
+- Response-Shape ist forward-compatible mit Phase 2 (inventory data bereits im JSON, nur Tabellen-Spalten fehlen)
 **Created:** 2026-04-11
 **Author:** Robin Seckler
 **Scope:** Admin `/app/catalog` Seite um zwei neue Filter-Dimensionen erweitern
