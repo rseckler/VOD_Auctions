@@ -11,6 +11,7 @@ Jeder Git-Tag entspricht einem Snapshot des Gesamtsystems. Feature Flags zeigen 
 | Version | Datum | Platform Mode | Feature Flags aktiv (prod) | Milestone / Inhalt |
 |---------|-------|--------------|---------------------------|-------------------|
 | **v1.0.0** | TBD | `live` | ERP: TBD | RSE-78: Erster öffentlicher Launch |
+| **v1.0.0-rc24** | 2026-04-11 | `beta_test` | — | Discogs Import: Stale-Loop Auto-Restart während aktivem Polling (schließt die Lücke zwischen rc18-Decoupling und pm2-Kills). Polling-Callback detected `last_event_at > 60s alt` → auto-POST zum passenden Endpoint mit 60s Cooldown. Commit-Route Fallback auf `session.import_settings` damit Auto-Restart nur mit `session_id` die User-Settings findet. |
 | **v1.0.0-rc23** | 2026-04-11 | `beta_test` | — | Media Catalog: Neue Filter-Dimension Import + Inventory. Dropdown für Discogs-Collection-Herkunft (+counts), Import-Action, Inventory-State, Status, Stocktake (done/pending/stale @90d), Warehouse-Location, Price-Locked. Neuer API-Endpoint `GET /admin/media/filter-options` liefert Dropdown-Daten. |
 | **v1.0.0-rc22** | 2026-04-11 | `beta_test` | — | Media Detail: Neue "Inventory Status" Sektion mit Stocktake-Audit-Trail (Status-Badges, Metadata-Grid, Movement-Timeline) + Deep-Link "In Stocktake-Session laden" und "Label drucken" Buttons. Neuer API-Endpoint GET /admin/erp/inventory/items/:id für Item-Lookup by id (für Items ohne Barcode). |
 | **v1.0.0-rc21** | 2026-04-11 | `beta_test` | — | Stocktake Session: Unified Scanner/Shortcut Handler mit 40ms-Debounce — fixt Race-Condition zwischen USB-HID-Scanner-Input und Single-Key-Shortcuts (V/M/P/N/L/U) im Inventur-Session-Screen. Phase B6 aus INVENTUR_COHORT_A_KONZEPT §14.11 damit abgeschlossen. Plus: POS Walk-in Sale Konzept v1.0 (Draft) als neues Design-Dokument. |
@@ -61,6 +62,141 @@ Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Rel
 - **Patch Release** (`v1.0.x`): Kritische Bugfixes zwischen geplanten Releases
 - **Tagging-Workflow:** `git tag -a vX.Y.Z -m "Release vX.Y.Z: <Kurzname>"` → `git push origin vX.Y.Z`
 - **Tag-Zeitpunkt:** Direkt nach Deploy + Smoke-Test auf Production — nicht vor dem Deploy
+
+---
+
+## 2026-04-11 — Discogs Import: Stale-Loop Auto-Restart während aktivem Polling (rc24)
+
+**Kontext:** rc18/rc20 haben alle 3 Discogs-Import-Loops (Fetch, Analyze, Commit) vom HTTP-Request entkoppelt — Client-Disconnect, Navigation, Tab-Close killen den Backend-Loop nicht mehr. Die Stale-Detection aus rc18 deckte zusätzlich noch Browser-Refresh-Szenarien ab (beim Mount checked `loadResumable()` ob `last_event_at > 60s` alt ist und triggered Re-POST).
+
+**Was fehlte:** Stale-Detection **während der User auf der Seite bleibt und nicht refresht**. Das wurde heute Nachmittag akut als Problem sichtbar.
+
+### Das Szenario das den Bug offenlegte
+
+User startete Fetch für "Frank Collection 2 of 10" (1.005 unique IDs). Loop lief bei `current=620` (61.7%). **Ich habe in der Zeit drei pm2-Restarts gemacht** für rc21/rc22/rc23 Deploys. Jeder `pm2 restart vodauction-backend` killed alle in-process detached Background-Tasks, auch diesen laufenden Fetch-Loop.
+
+Der User's Browser polled fröhlich weiter, sah aber keine neuen Events. Die UI hing **2+ Stunden** auf `620 / 1.005 (61.7%)` — Backend war tot, Frontend ahnungslos. Die Session blieb in `status='fetching'`, `last_event_at = 14:47:35 UTC`.
+
+DB-Diagnose bestätigte das Problem:
+```
+status=fetching, current=620, last_event_at=14:47:35 UTC, age=2h 0m 41s
+```
+
+### Root Cause
+
+Das rc18-Decoupling schützt den Loop vor dem HTTP-Request-Lifecycle, aber **nicht** vor dem Prozess-Lifecycle:
+- Client-Disconnect (Nav, Tab-Close) → Loop läuft weiter ✅ (rc18)
+- Browser-Refresh → loadResumable detected stale, re-POSTs ✅ (rc18)
+- Backend pm2-Restart während offener Seite → Loop tot, UI ahnungslos ❌
+
+Die rc18 Stale-Detection in `loadResumable()` läuft nur im `useEffect(() => {...}, [])` — also einmal beim Page-Mount. Ein User der die Seite nicht verlässt und nicht refresht sieht den toten Loop nie.
+
+### Fix — zwei Teile
+
+**Part 1: Frontend Polling-Callback erkennt Stale (`page.tsx`)**
+
+Neuer `useRef<number>` für Cooldown-Tracking:
+```typescript
+const lastStaleRestartRef = useRef<number>(0)
+const STALE_THRESHOLD_MS = 60_000
+const STALE_COOLDOWN_MS = 60_000
+```
+
+Im existing `useSessionPolling` onStatus Callback wird pro Polling-Tick (alle 2s) geprüft:
+
+```typescript
+const ACTIVE_STATES = ["fetching", "analyzing", "importing"]
+if (ACTIVE_STATES.includes(st.status) && st.last_event_at) {
+  const ageMs = Date.now() - new Date(st.last_event_at).getTime()
+  const sinceLastRestart = Date.now() - lastStaleRestartRef.current
+  if (ageMs > STALE_THRESHOLD_MS && sinceLastRestart > STALE_COOLDOWN_MS) {
+    lastStaleRestartRef.current = Date.now()
+    const endpoint =
+      st.status === "fetching" ? "/admin/discogs-import/fetch"
+      : st.status === "analyzing" ? "/admin/discogs-import/analyze"
+      : "/admin/discogs-import/commit"
+    // Synthetic 'auto_restart' event in live log
+    setEvents((prev) => [...prev, {
+      type: "auto_restart",
+      phase: ...,
+      timestamp: new Date().toISOString(),
+      message: `Backend loop appeared dead (${ageSec}s since last event). Auto-restarting — cached work is preserved.`,
+    }].slice(-500))
+    fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ session_id: st.id }),
+    }).catch(...)
+  }
+}
+// Reset ref when session moves to terminal state
+if (["done", "error", "abandoned", "fetched", "analyzed", "uploaded"].includes(st.status)) {
+  lastStaleRestartRef.current = 0
+}
+```
+
+**60s Cooldown** verhindert Infinite-Restart-Loops falls der neue Backend-Loop auch sofort stirbt (z.B. weil DB down). User würde dann stattdessen einen echten Error sehen.
+
+**Synthetischer Live-Log Event** informiert den User was passiert — statt stiller Magie erscheint eine explizite "Auto-Restarting"-Zeile im Live-Log. Transparenz.
+
+**Part 2: Backend Commit Route — Settings-Fallback (`commit/route.ts`)**
+
+Der Auto-Restart-POST aus Part 1 kennt nur `session_id`. Fetch und Analyze brauchen auch nur das. **Commit** braucht aber zusätzlich `media_condition`, `sleeve_condition`, `inventory`, `price_markup`, `selected_discogs_ids` — die kamen bisher aus dem Body mit Defaults `"VG+"/1/1.2`.
+
+Wenn wir Auto-Restart mit nur `session_id` POSTen, würden die Defaults die ursprünglichen User-Entscheidungen überschreiben. **Fatal** — stell dir vor der User wählte "M/M" Condition und 1.5× Markup, und der Auto-Restart überschreibt das mit "VG+/VG+" und 1.2× auf halbem Weg durch den Commit.
+
+Fix: body values haben Precedence, aber wenn fehlend → Fallback auf `session.import_settings` (wird vom INITIAL commit call persistiert, siehe rc16 Commit Hardening):
+
+```typescript
+const persistedSettings = (session.import_settings || {}) as { ... }
+
+const media_condition = body.media_condition ?? persistedSettings.media_condition ?? "VG+"
+const sleeve_condition = body.sleeve_condition ?? persistedSettings.sleeve_condition ?? "VG+"
+const inventory = body.inventory ?? persistedSettings.inventory ?? 1
+const price_markup = body.price_markup ?? persistedSettings.price_markup ?? 1.2
+const selected_discogs_ids = body.selected_discogs_ids ?? persistedSettings.selected_discogs_ids ?? undefined
+```
+
+So übernimmt der Auto-Restart **transparent** die ursprünglichen User-Settings aus der DB. Der existing Commit-Loop-Code ist unverändert — er sieht die richtigen Werte, egal ob sie aus dem Body oder aus der Session kommen.
+
+Kleinere Umbenennung: das lokale `persistedSettings`-Objekt (welches in `updateSession` geschrieben wird) → `persistedSettingsUpdate`, um Namenskollision mit dem neuen (gelesenen) `persistedSettings` zu vermeiden.
+
+### Gesamter Robustness-Stack
+
+Nach rc24 ist der Discogs Import Service vollständig fault-tolerant gegen die typischen Failure-Modes:
+
+| Scenario | Schutz | Seit |
+|---|---|---|
+| Client navigates away (Tab, Nav, Reload) | Decoupling — Loop läuft detached | rc18 / rc20 |
+| Browser refresh während Loop | loadResumable Mount-check | rc18 |
+| Backend pm2-restart, User bleibt auf Seite | **Polling Stale-Detect** ← rc24 | rc24 |
+| Backend OOM-Kill, User bleibt auf Seite | **Polling Stale-Detect** ← rc24 | rc24 |
+| Loop crasht mit Exception | `.catch()` wrapper markiert Session als 'error' | rc18 |
+| Stale Zombie > 6h nach Crash | active_sessions 6h-Filter | rc17 |
+| Double-POST (race condition, 2 tabs) | 60s Idempotency-Check | rc18 |
+
+**Keine Klasse von Failure mehr** die zu einer hängenden UI führt — entweder Loop läuft durch, oder Error-State wird sichtbar, oder Auto-Restart versucht's innerhalb 60-120s erneut.
+
+### Warum nicht schon in rc18?
+
+Ehrliche Antwort: Ich habe beim rc18-Decoupling nur an Client-seitige Disconnect-Szenarien gedacht (Navigation, Tab-Close). Backend-Prozess-Kills (pm2 restart) sind ein separater Failure-Mode der mir erst durch meinen eigenen Deploy-Storm heute bewusst wurde. Klassisches "I was the load-generator".
+
+Lesson: bei Background-Task-Architekturen immer beide Enden der Ownership-Kette durchdenken — **Client-Process** UND **Backend-Process**. rc18 hat den ersten gelöst, rc24 den zweiten.
+
+### Verifikation
+
+- Frank-Collection-2/10 Session wurde nach rc24-Deploy auf der stehen gebliebenen Seite automatisch wiederbelebt
+- Browser-Polling detectet stale → auto-POST → Backend registriert die 2h alte Session als stale → startet neuen Loop → überspringt via `discogs_api_cache` die 620 bereits gefetchten Einträge → fetcht die restlichen 385 → fertig
+
+### Files
+
+- `backend/src/admin/routes/discogs-import/page.tsx` (+55 / -0) — Ref, Konstanten, Stale-Detection-Logik, synthetic event, reset-on-terminal
+- `backend/src/api/admin/discogs-import/commit/route.ts` (+21 / -10) — body/session-settings merge, persistedSettingsUpdate rename
+
+### Commit
+
+- `b08373a` — Discogs Import: Stale-Loop Auto-Restart während aktivem Polling
 
 ---
 
