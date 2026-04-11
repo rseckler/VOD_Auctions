@@ -11,7 +11,8 @@ Jeder Git-Tag entspricht einem Snapshot des Gesamtsystems. Feature Flags zeigen 
 | Version | Datum | Platform Mode | Feature Flags aktiv (prod) | Milestone / Inhalt |
 |---------|-------|--------------|---------------------------|-------------------|
 | **v1.0.0** | TBD | `live` | ERP: TBD | RSE-78: Erster öffentlicher Launch |
-| **v1.0.0-rc17** | 2026-04-11 | `beta_test` | — | Discogs Import: Collections Overview + Detail Page + CSV Export — Stats-Header, Search, dedicated `/history/:runId` route, 27-column CSV export with live DB state, 3 link types per release (Storefront/Admin/Discogs) |
+| **v1.0.0-rc18** | 2026-04-11 | `beta_test` | — | Discogs Import: Fetch Loop vom HTTP-Request entkoppelt — Navigation während Fetch killt den Loop nicht mehr, Loop läuft detached im Hintergrund, Idempotenz + Stale-Auto-Restart, UI nur noch Polling |
+| **v1.0.0-rc17** | 2026-04-11 | `beta_test` | — | Discogs Import: Collections Overview als eigenständige Route (kein Tab mehr), Detail Page mit 8-Karten Stats, Clickable Cover/Title, Stock-Spalte, 27-column CSV Export, Stale-Session Auto-Cleanup nach 6h, Back-Button Fix (Btn-Component-Bug) |
 | **v1.0.0-rc16** | 2026-04-10 | `beta_test` | — | Discogs Import Commit Hardening + Schema Fixes: Per-Batch Transaktionen, Pre-Commit Validation, Pargmann Import 5.646 releases done |
 | **v1.0.0-rc15** | 2026-04-10 | `beta_test` | — | Discogs Import Live Feedback: SSE für alle 4 Schritte, Heartbeat, Resume, Cancel/Pause, Event-Log |
 | **v1.0.0-rc14** | 2026-04-10 | `beta_test` | — | Discogs Import Refactoring: DB-Sessions, DB-Cache, pg_trgm Fuzzy-Matching, Transaktionen |
@@ -58,6 +59,85 @@ Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Rel
 
 ---
 
+## 2026-04-11 — Discogs Import: Fetch Loop vom HTTP-Request entkoppelt (rc18)
+
+**Kontext:** Nach dem Collections-Overview-Deploy (rc17) fiel ein kritischer UX-Bug auf: Wenn der User während eines laufenden Fetch-Prozesses auf `/app/discogs-import/history` navigierte und zurückkehrte, war der Prozess **unterbrochen**. Session blieb auf `status='fetching'`, kein Fortschritt mehr, kein Resume-Banner. User musste manuell neu starten (was außerdem einen zweiten Loop gespawnt hätte).
+
+**Root-Cause-Analyse:**
+
+Die Fetch-Route nutzte `SSEStream` um Events live ins HTTP-Response zu schreiben (`res.write()`). Das hat den Loop **tight gecoupled** mit der HTTP-Request-Lifetime:
+1. User navigiert weg → Browser schließt fetch → TCP FIN an Backend
+2. Medusa/Node.js teared down request scope
+3. `pgConnection` (aus `req.scope.resolve(...)`) wurde invalid ODER der async handler wurde still terminiert
+4. Loop stoppt ohne Exception im Stderr — einfach nur kein Fortschritt mehr
+5. Session bleibt für immer auf `fetching`
+
+**Diagnostische Evidenz:**
+- `pm2 logs` zeigt keine Errors rund um den Stop-Zeitpunkt
+- Session 9081c145 stoppte bei `fetched=25` von `3763` um 09:00:36 UTC
+- `last_event_at` unverändert 30+ Min später
+- Polling-Endpoint funktionierte normal → Backend war erreichbar, nur der Loop war tot
+
+Meine erste Annahme (rc17 Auto-Reattach via Polling, commit `55e680d`) war falsch: ich dachte der Loop würde weiterlaufen weil `SSEStream.emit()` Write-Errors catched. Das stimmt für den Emit-Call selbst — aber irgendwas anderes killed den Loop ohne Exception.
+
+**Lösung: komplette architektonische Entkopplung**
+
+Die Fetch-Route läuft jetzt als **detached background task**. Der HTTP-Request kehrt sofort zurück, der Loop lebt unabhängig davon.
+
+**Backend `lib/discogs-import.ts`:**
+- Neuer Helper `emitDbEvent(pg, sessionId, phase, eventType, payload)` — schreibt direkt in `import_event` ohne HTTP-Response-Involvement, bumped `last_event_at` auf der Session (für Stale-Detection). Failures werden geloggt aber nie geworfen (fail-soft).
+- `awaitPauseClearOrCancel()` akzeptiert jetzt `null` als stream-Parameter — emittet das `paused`-Event via `emitDbEvent` statt SSEStream wenn kein Stream verfügbar ist.
+
+**Backend `api/admin/discogs-import/fetch/route.ts` (komplett umgeschrieben):**
+- `POST` handler:
+  1. Validiert `session_id`, session existiert, `DISCOGS_TOKEN` gesetzt
+  2. **Idempotenz-Check:** Wenn `session.status === 'fetching'` AND `last_event_at < 60s ago` → returnt `{ ok: true, already_running: true }` ohne Double-Spawn. Wenn stale (>60s), assumes dead loop und erlaubt Restart.
+  3. Setzt `status='fetching'`, clearControlFlags, emittet `start`-Event
+  4. **Returnt 200 JSON sofort** `{ ok: true, session_id, started: true }` — kein SSE-Header mehr
+  5. Spawnt `runFetchLoop(pg, sessionId, session, token)` als detached task via `void ... .catch(...)`. Der catch-Block markiert Session bei Loop-Crash als `status='error'`.
+- `runFetchLoop()` enthält die komplette Loop-Logik (ca. 200 Zeilen), ist eine async function die komplett unabhängig vom HTTP-Request existiert:
+  - Nutzt nur `emitDbEvent` statt `stream.emit`
+  - `fetch_progress` wird jetzt alle 10 Iterationen upgedated (vorher 25), weil Polling (2s) die primäre UI-Update-Quelle ist
+  - Cancel/Pause-Checks funktionieren weiter über die DB-Flags
+  - Error-Handling schreibt `pushLastError` und emittiert `error_detail`-Events
+
+**Frontend `admin/routes/discogs-import/page.tsx`:**
+- `handleFetch` komplett neu: POSTs zu `/fetch`, liest **normale JSON-Response**, enabled Polling. Kein `fetchSSE.start(...)` mehr. Der `fetchSSE`-Reader bleibt im Code (wird von analyze/commit weiterhin genutzt).
+- Polling-Callback erkennt `fetching → fetched` Transition: setzt `fetchResult` aus `fetch_progress`, stoppt Polling (User entscheidet wann Analyze startet).
+- `loadResumable` auf Mount: **Stale-Loop-Detection**. Wenn `status='fetching'` AND `last_event_at > 60s` alt → re-POSTet zu `/fetch`. Backend's Idempotency-Check erkennt das als stale und startet Loop neu. Schützt gegen pm2 restart / OOM / Prozess-Crashes.
+
+**3 Robustness-Layer:**
+1. **Loop unabhängig von HTTP-Request** — `res.write()` ist nicht mehr im Hot-Path, Backend überlebt Client-Disconnect komplett
+2. **Idempotency-Check** — kein Double-Spawn bei schnellem Re-POST
+3. **Stale-Auto-Restart** — tote Loops werden auf Mount erkannt und neugestartet
+
+**DB Cleanup:**
+Session `9081c145-4845-45ba-be32-55c45556fce0` (Frank Inventory, fetched=25/3763) manuell auf `status='abandoned'` gesetzt — der Loop war eh tot von den gestrigen Deploys.
+
+**Not in scope (same pattern gilt aber):**
+- `/analyze` Route nutzt weiter SSE → same kill-on-navigation issue. Analyze ist kürzer (Minuten statt Stunden) daher weniger schmerzhaft. Follow-up wenn es auffällt.
+- `/commit` Route gleich. Commit ist per-batch transactional (rc16), Wiederaufnahme via `completed_batches` möglich — auch Follow-up.
+
+**Was funktioniert jetzt:**
+- Fetch läuft → User navigiert zu `/history` oder schließt den Tab → Backend-Loop läuft weiter und schreibt in DB
+- User kommt zurück → `loadResumable` erkennt aktive Session → enabled Polling → UI zeigt Live-Progress als wäre nie jemand weg gewesen
+- Mehrere Browser-Tabs können denselben laufenden Loop beobachten
+- pm2 restart mitten im Loop: Session bleibt stale → auf Mount wird Idempotency-POST getriggert → Backend erkennt stale → neuer Loop startet (würde ab gecachten IDs weiterlaufen)
+
+**Verifikation:**
+- TypeScript + Build clean
+- Frontend build successful
+- Server ready on port 9000 (11:36:41 UTC)
+
+**Commit:** `ffc1440` — Discogs Import Fetch: decouple loop from HTTP request lifecycle
+
+**Files:**
+- `backend/src/lib/discogs-import.ts` — new `emitDbEvent()` helper, `awaitPauseClearOrCancel()` accepts null stream (+45 / -3)
+- `backend/src/api/admin/discogs-import/fetch/route.ts` — komplette Neu-Struktur, POST + runFetchLoop split (+290 / -228)
+- `backend/src/admin/routes/discogs-import/page.tsx` — handleFetch neu, Stale-Loop-Detection, Polling-Transition (+45 / -17)
+
+---
+
 ## 2026-04-11 — Discogs Import: Collections Overview + Detail Page + CSV Export (rc17)
 
 **Kontext:** Nach dem Pargmann-Import (5.646 Releases, rc16) war der bestehende History-Tab zu schwach: flache Tabelle, Modal-Drill-Down mit nur Event-Timeline, keine Catalog-Deep-Links, keine Export-Möglichkeit. Es fehlte echte Collection-Verwaltung.
@@ -93,13 +173,76 @@ Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Rel
 
 **Commit:** `2a96b3e` — Discogs Import: Collections overview + detail page + CSV export
 
-**Files:**
-- `backend/src/api/admin/discogs-import/history/route.ts` (~+30/-5)
+**Files (initial commit `2a96b3e`):**
+- `backend/src/api/admin/discogs-import/history/route.ts` (+30 / -5)
 - `backend/src/api/admin/discogs-import/history/[runId]/route.ts` (NEU ~130)
 - `backend/src/api/admin/discogs-import/history/[runId]/export/route.ts` (NEU ~180)
-- `backend/src/admin/routes/discogs-import/page.tsx` (History-Tab refactored, Modal entfernt, +80/-65)
+- `backend/src/admin/routes/discogs-import/page.tsx` (+80 / -65)
 - `backend/src/admin/routes/discogs-import/history/[runId]/page.tsx` (NEU ~380)
-- `docs/architecture/DISCOGS_COLLECTIONS_OVERVIEW_PLAN.md` (NEU — Plan für diese Umsetzung)
+- `docs/architecture/DISCOGS_COLLECTIONS_OVERVIEW_PLAN.md` (NEU — Plan doc)
+
+### Follow-up Fixes (gleicher Tag, rc17-polish)
+
+Beim Testen der Collections-Ansicht kamen sechs Bug-Findings die alle noch am gleichen Tag gefixt und deployed wurden:
+
+**Fix 1: History als eigenständige Route statt Wizard-Tab (`d53bb79`)**
+
+Problem: History-Tab innerhalb des Import-Wizards war während laufender Prozesse nicht sauber erreichbar — konzeptionell falsch (Collections sind ein Archiv-Feature, kein Wizard-Step).
+
+Fix:
+- Neue Route `/app/discogs-import/history` (`history/page.tsx`) — standalone Collections-Liste mit Stats-Header, Search, runs-Tabelle
+- Wizard (`/app/discogs-import`) hat nur noch 2 Tabs: Upload + Analysis
+- "View Collections History →" Button im PageHeader des Wizards navigiert zur Liste
+- Detail-Page Back-Button zeigt auf `/discogs-import/history`
+- Alle history-spezifischen State/Effects aus der Wizard-Page entfernt
+
+Neue Route-Struktur:
+```
+/app/discogs-import                  → Wizard (Upload/Analysis)
+/app/discogs-import/history          → Collections list (standalone)
+/app/discogs-import/history/:runId   → Run detail (standalone)
+```
+
+**Fix 2: Stale-Session Cleanup (`5fe89dc`)**
+
+Problem: Nach pm2-Restart mid-SSE blieben Sessions in non-terminal Status hängen. Resume-Detection zeigte dann tote Zombies als "Active import session" Banner. 4 Pargmann-Sessions vom 2026-04-10 blockierten das UI mit "started 26h ago".
+
+Fix:
+- Neues Status-Value `abandoned` (kein Schema-Change — `status` ist `TEXT` ohne Constraint)
+- DB-Cleanup: 4 stale Pargmann-Sessions auf `status='abandoned'` gesetzt
+- `/admin/discogs-import/history` active_sessions Query excludiert jetzt `done/abandoned/error` UND filtert Sessions >6h alt (`created_at > NOW() - INTERVAL '6 hours'`). Großzügig (normale Fetch 1-2h bei 5k releases) aber kurz genug um Crashes automatisch zu bereinigen
+- `/session/:id/cancel` status-Filter ergänzt um `abandoned`/`error`
+- UI Resume-Detection defensiver Check um `abandoned` erweitert
+
+**Fix 3: Import Settings Display Bug (`5fe89dc`)**
+
+Problem: Auf der Detail-Page zeigte nur "Markup" — Condition und Inventory fehlten. Grund: Die DB-Feldnamen sind `media_condition`/`sleeve_condition`/`inventory` (number 0/1), nicht `condition`/`inventory_enabled` wie ich ursprünglich getippt hatte.
+
+Fix: TypeScript-Interface von `importSettings` korrigiert, Render zeigt jetzt Media + Sleeve + Markup + Inventory (yes/no mit Zahl) + Selected IDs count.
+
+**Fix 4: Back-Button unsichtbar (`4b823e5`)**
+
+Problem: Der Back-Button auf der Detail-Page war komplett unsichtbar. Root Cause: Die `admin-ui.tsx` `Btn`-Component nimmt `label` prop (nicht children), und `"secondary"` ist keine gültige Variante (existierend: `primary/gold/danger/ghost`). Meine `<Btn variant="secondary">children</Btn>` Calls haben daher leere Buttons gerendert.
+
+Fix:
+- Alle fehlerhaften Btn-Usages ersetzt durch plain `<button>` mit expliziten Styles
+- Prominenter "← Back to Collections" Link jetzt **links oben über dem PageHeader** (breadcrumb-style), nicht mehr in der Actions-Row
+- Gleicher Fix auf der History-Liste: "← Back to Import Wizard"
+- Auch der "Load more"-Button und Copy Run ID waren betroffen
+
+**Fix 5: Inventory-Info + Admin-Link (`4b823e5`)**
+
+- Subtitle zeigt jetzt zusätzlich `inventory: N (yes|no)` aus import_settings
+- Admin-Link im Links-Column war `/app/catalog?q={release_id}` (Suche mit Filter). Jetzt direkt `/app/media/{release_id}` → Admin Release Detail Page
+
+**Fix 6: Stock-Column + Klickbare Cover/Titel (`fd669a5`)**
+
+- Neue Spalte "Stock" in der Release-Tabelle zeigt den inventory-Wert aus import_settings farbcodiert (grün bei >0, muted bei 0). Schnelle visuelle Bestätigung pro Row.
+- Cover-Bild + Artist/Title sind jetzt klickbare Links zur Admin Release Detail Page (`/app/media/:id`), target=_blank. Das kleine ⚙ Zahnrad-Icon ist raus — die Link-Spalte zeigt nur noch Storefront 🌐 und Discogs D (größer).
+
+### Fehlgeschlagener Reattach-Versuch (`55e680d`)
+
+Zwischen rc17 und rc18 gab es einen ersten Versuch das Navigation-Kill-Problem zu lösen: `loadResumable` sollte active Sessions auto-attachen statt Resume-Banner zu zeigen. Der Teil hat funktioniert — aber die Grundannahme "Backend-Loop läuft nach Client-Disconnect weiter" war **falsch**. Siehe rc18-Eintrag. Der Commit ist technisch noch drin (auto-reattach + polling-callback transitions) und ist ab rc18 auch tatsächlich korrekt, weil der Loop jetzt wirklich detached läuft.
 
 **Nicht Teil dieser Änderung (separate Tickets):** Bulk-Operations (Price Adjustment, Re-analyze, Bulk-Delete), Collection-Renaming, Soft-Delete ganzer Runs, Time-Series-Charts für Imports über Zeit.
 

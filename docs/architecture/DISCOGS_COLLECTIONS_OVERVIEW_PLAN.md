@@ -1,10 +1,17 @@
 # Discogs Collections Overview — Implementation Plan
 
-**Status:** ✅ Implemented & Deployed (commit `2a96b3e`, rc17, 2026-04-11)
+**Status:** ✅ Implemented & Deployed + 6 Follow-up Fixes + Fetch-Decoupling (commits `2a96b3e` → `ffc1440`, rc17 → rc18, 2026-04-11)
 **Created:** 2026-04-11
 **Last Updated:** 2026-04-11
 **Author:** Robin Seckler
-**Related:** `DISCOGS_IMPORT_SERVICE.md` v5.1.1, `DISCOGS_IMPORT_SESSION_2026-04-10.md`, `CHANGELOG.md` rc17
+**Related:** `DISCOGS_IMPORT_SERVICE.md` v5.2, `DISCOGS_IMPORT_SESSION_2026-04-10.md`, `CHANGELOG.md` rc17 + rc18
+
+**Implementation Summary:**
+- Initial scope (rc17): Collections overview endpoint, detail endpoint, CSV export, detail page UI, History tab enhancement
+- Course Correction 1: History als standalone route statt Wizard-Tab (nicht während laufender Prozesse erreichbar gewesen)
+- Course Correction 2: Stale session cleanup + 6h auto-filter in active_sessions query
+- 3 Display-Bugs: Import Settings feld names, Back button (Btn-Component API bug), Stock-Spalte + clickable Cover/Title
+- Architectural (rc18): Fetch Loop entkoppelt vom HTTP-Request — der eigentliche Grund warum "während laufender Prozesse History nicht erreichbar" ein Problem war. Navigation killt den Loop nicht mehr.
 
 ## Motivation
 
