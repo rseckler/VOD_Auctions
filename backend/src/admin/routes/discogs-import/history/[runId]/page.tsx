@@ -165,7 +165,7 @@ const HistoryDetailPage = () => {
         <PageHeader title="Import Run" subtitle={runId} />
         <EmptyState icon="⚠" title="Failed to load run" description={error || "Run not found"} />
         <div style={{ marginTop: 16 }}>
-          <Btn variant="secondary" onClick={() => navigate("/discogs-import")}>← Back to Imports</Btn>
+          <Btn variant="secondary" onClick={() => navigate("/discogs-import/history")}>← Back to Collections</Btn>
         </div>
       </PageShell>
     )
@@ -196,7 +196,7 @@ const HistoryDetailPage = () => {
             >
               ⬇ Export CSV
             </a>
-            <Btn variant="ghost" onClick={() => navigate("/discogs-import")}>← Back</Btn>
+            <Btn variant="ghost" onClick={() => navigate("/discogs-import/history")}>← Back</Btn>
           </div>
         }
       />

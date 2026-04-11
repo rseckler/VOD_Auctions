@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { useAdminNav } from "../../components/admin-nav"
 import { C, fmtDate, fmtNum } from "../../components/admin-tokens"
@@ -66,18 +66,6 @@ interface CommitResult {
   errors: number
 }
 
-interface HistoryRun {
-  run_id: string
-  collection_name: string
-  import_source: string
-  started_at: string
-  total: number
-  inserted: number
-  linked: number
-  updated: number
-  skipped: number
-}
-
 /* ─── Styles ────────────────────────────────────────────────────────────────── */
 
 const cell: React.CSSProperties = { fontSize: 13, padding: "10px 14px", borderBottom: "1px solid " + C.border }
@@ -107,17 +95,6 @@ const DiscogsImportPage = () => {
   const [priceMarkup, setPriceMarkup] = useState(1.2)
   const [committing, setCommitting] = useState(false)
   const [commitResult, setCommitResult] = useState<CommitResult | null>(null)
-  const [history, setHistory] = useState<HistoryRun[] | null>(null)
-  const [historyLoading, setHistoryLoading] = useState(false)
-  const [historyStats, setHistoryStats] = useState<{
-    total_runs: number
-    total_releases: number
-    total_inserted: number
-    total_linked: number
-    total_updated: number
-    last_import_at: string | null
-  } | null>(null)
-  const [historySearch, setHistorySearch] = useState("")
   const [expandedRow, setExpandedRow] = useState<number | null>(null)
 
   // ── Progress state (shared across all phases) ──
@@ -218,32 +195,6 @@ const DiscogsImportPage = () => {
     }
     loadResumable()
   }, [])
-
-  // ── Load history ──
-  useEffect(() => {
-    if (tab === "History" && history === null) {
-      setHistoryLoading(true)
-      fetch("/admin/discogs-import/history", { credentials: "include" })
-        .then((r) => r.json()).then((d) => {
-          setHistory(d.runs || [])
-          setHistoryStats(d.stats || null)
-        })
-        .catch(() => setHistory([]))
-        .finally(() => setHistoryLoading(false))
-    }
-  }, [tab, history])
-
-  // ── History client-side search ──
-  const filteredHistory = useMemo(() => {
-    if (!history) return []
-    if (!historySearch.trim()) return history
-    const q = historySearch.toLowerCase()
-    return history.filter((r) =>
-      (r.collection_name || "").toLowerCase().includes(q) ||
-      (r.import_source || "").toLowerCase().includes(q) ||
-      (r.run_id || "").toLowerCase().includes(q)
-    )
-  }, [history, historySearch])
 
   // ── Helper: push event to log ──
   const pushEvent = useCallback((evt: ImportEvent) => {
@@ -435,7 +386,6 @@ const DiscogsImportPage = () => {
       })
       if (finalResult) {
         setCommitResult(finalResult)
-        setHistory(null)
         clearActiveSessionId()
       }
     } catch (err: unknown) {
@@ -648,6 +598,15 @@ const DiscogsImportPage = () => {
         title="Discogs Collection Import"
         subtitle="Import releases from Discogs collection exports"
         badge={uploadResult ? { label: fmtNum(uploadResult.unique_discogs_ids) + " releases", color: C.gold } : undefined}
+        actions={
+          <button
+            type="button"
+            onClick={() => navigate("/discogs-import/history")}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", fontSize: 13, fontWeight: 600, background: C.card, color: C.text, border: "1px solid " + C.border, borderRadius: 4, cursor: "pointer" }}
+          >
+            View Collections History →
+          </button>
+        }
       />
 
       {/* Resume banner */}
@@ -664,7 +623,7 @@ const DiscogsImportPage = () => {
         <ImportPhaseStepper phases={phaseStates()} />
       )}
 
-      <Tabs tabs={["Upload", "Analysis", "History"]} active={tab} onChange={setTab} />
+      <Tabs tabs={["Upload", "Analysis"]} active={tab} onChange={setTab} />
       <div style={{ marginTop: 16 }}>
         {error && <Alert type="error" onDismiss={() => setError(null)}>{error}</Alert>}
 
@@ -870,72 +829,6 @@ const DiscogsImportPage = () => {
           )
         })()}
 
-        {/* ── History Tab ────────────────────────────────────────────── */}
-        {tab === "History" && (
-          historyLoading ? <div style={{ fontSize: 13 }}>Loading...</div>
-            : !history || history.length === 0 ? <EmptyState icon="📀" title="No imports yet" />
-              : (
-                <>
-                  {/* Stats header */}
-                  {historyStats && (
-                    <div style={{ marginBottom: 16 }}>
-                      <StatsGrid stats={[
-                        { label: "Total Imports", value: fmtNum(historyStats.total_runs) },
-                        { label: "Total Releases", value: fmtNum(historyStats.total_releases) },
-                        { label: "Inserted", value: fmtNum(historyStats.total_inserted), color: C.success },
-                        { label: "Linked", value: fmtNum(historyStats.total_linked), color: C.gold },
-                        { label: "Updated", value: fmtNum(historyStats.total_updated), color: C.blue },
-                        { label: "Last Import", value: historyStats.last_import_at ? fmtDate(historyStats.last_import_at) : "—" },
-                      ]} />
-                    </div>
-                  )}
-
-                  {/* Search bar */}
-                  <div style={{ marginBottom: 12, display: "flex", gap: 8, alignItems: "center" }}>
-                    <input
-                      type="text"
-                      placeholder="Search collection, source file, or run ID..."
-                      value={historySearch}
-                      onChange={(e) => setHistorySearch(e.target.value)}
-                      style={{ flex: 1, padding: "8px 12px", fontSize: 13, border: "1px solid " + C.border, borderRadius: 4, background: C.card }}
-                    />
-                    {historySearch && (
-                      <span style={{ fontSize: 12, color: C.muted }}>
-                        {filteredHistory.length} of {history.length}
-                      </span>
-                    )}
-                  </div>
-
-                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                    <thead><tr>{["Date", "Collection", "Source", "Inserted", "Linked", "Updated", "Skipped", "Run ID", "", ""].map((h, i) => <th key={h + i} style={th}>{h}</th>)}</tr></thead>
-                    <tbody>{filteredHistory.map((r) => (
-                      <tr key={r.run_id} style={{ cursor: "pointer" }} onClick={() => navigate(`/discogs-import/history/${encodeURIComponent(r.run_id)}`)}>
-                        <td style={cell}>{r.started_at ? fmtDate(r.started_at) : "—"}</td>
-                        <td style={{ ...cell, fontWeight: 600 }}>{r.collection_name || "—"}</td>
-                        <td style={cell}>{r.import_source || "—"}</td>
-                        <td style={{ ...cell, color: C.success, fontWeight: 600 }}>{r.inserted}</td>
-                        <td style={{ ...cell, color: C.gold, fontWeight: 600 }}>{r.linked}</td>
-                        <td style={{ ...cell, color: C.blue }}>{r.updated}</td>
-                        <td style={{ ...cell, color: C.muted }}>{r.skipped}</td>
-                        <td style={{ ...cell, fontFamily: "monospace", fontSize: 12 }}>{r.run_id?.substring(0, 8)}...</td>
-                        <td style={{ ...cell, color: C.gold, fontSize: 12 }}>Open →</td>
-                        <td style={cell} onClick={(e) => e.stopPropagation()}>
-                          <a
-                            href={`/admin/discogs-import/history/${encodeURIComponent(r.run_id)}/export`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title="Download CSV"
-                            style={{ color: C.gold, textDecoration: "none", fontSize: 12, fontWeight: 600 }}
-                          >
-                            ⬇ CSV
-                          </a>
-                        </td>
-                      </tr>
-                    ))}</tbody>
-                  </table>
-                </>
-              )
-        )}
       </div>
     </PageShell>
   )
