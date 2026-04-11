@@ -11,6 +11,7 @@ Jeder Git-Tag entspricht einem Snapshot des Gesamtsystems. Feature Flags zeigen 
 | Version | Datum | Platform Mode | Feature Flags aktiv (prod) | Milestone / Inhalt |
 |---------|-------|--------------|---------------------------|-------------------|
 | **v1.0.0** | TBD | `live` | ERP: TBD | RSE-78: Erster öffentlicher Launch |
+| **v1.0.0-rc22** | 2026-04-11 | `beta_test` | — | Media Detail: Neue "Inventory Status" Sektion mit Stocktake-Audit-Trail (Status-Badges, Metadata-Grid, Movement-Timeline) + Deep-Link "In Stocktake-Session laden" und "Label drucken" Buttons. Neuer API-Endpoint GET /admin/erp/inventory/items/:id für Item-Lookup by id (für Items ohne Barcode). |
 | **v1.0.0-rc21** | 2026-04-11 | `beta_test` | — | Stocktake Session: Unified Scanner/Shortcut Handler mit 40ms-Debounce — fixt Race-Condition zwischen USB-HID-Scanner-Input und Single-Key-Shortcuts (V/M/P/N/L/U) im Inventur-Session-Screen. Phase B6 aus INVENTUR_COHORT_A_KONZEPT §14.11 damit abgeschlossen. Plus: POS Walk-in Sale Konzept v1.0 (Draft) als neues Design-Dokument. |
 | **v1.0.0-rc20** | 2026-04-11 | `beta_test` | — | Discogs Import: Analyze + Commit Routes ebenfalls entkoppelt (SSEStream Headless Mode — alle 3 lang laufenden Ops sind jetzt detached), Post-Import Call-to-Action-Card, Import History Section im Media-Detail (zeigt aus welchem Import ein Release stammt) |
 | **v1.0.0-rc19** | 2026-04-11 | `beta_test` | — | Barcode-Label Hardware Validation: Brother QL-820NWBc + DK-22210 + Inateck BCST-70 End-to-End getestet. Production-Code Fix: 29×90mm Layout mit Artist/Title·Label/Meta/Preis-Spalten. Neue Hardware-Doku + Debugging-Kompass. |
@@ -59,6 +60,64 @@ Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Rel
 - **Patch Release** (`v1.0.x`): Kritische Bugfixes zwischen geplanten Releases
 - **Tagging-Workflow:** `git tag -a vX.Y.Z -m "Release vX.Y.Z: <Kurzname>"` → `git push origin vX.Y.Z`
 - **Tag-Zeitpunkt:** Direkt nach Deploy + Smoke-Test auf Production — nicht vor dem Deploy
+
+---
+
+## 2026-04-11 — Media Detail: Inventory Status Section + Deep-Link to Stocktake Session (rc22)
+
+**Kontext:** Nach der Hardware-Validation (rc19) und Scanner-Integration (rc21) fragte Frank nach einer zentralen Stelle im Backend, wo er für ein einzelnes Release den **Inventur-Audit-Trail** sehen kann — also welche Stocktake-Aktionen auf dieses Item ausgeführt wurden, wer das wann gemacht hat, welcher Preis gesetzt wurde, und ob das Item aktuell `price_locked` ist (= vom Sync geschützt). Die Media Detail Page ist der natürliche Ort dafür, weil sie eh der Default-Einstieg für jedes einzelne Release ist.
+
+**Was gerendert wird (neue Sektion zwischen „Edit Valuation" und „Discogs Data"):**
+
+1. **Status-Badges (oben, Overview auf einen Blick):**
+   - 🟢 **Verifiziert** — mit Datum + Uhrzeit, zusätzlich ein Badge `durch <admin-email>` wenn `last_stocktake_by` gesetzt
+   - 🟡 **Noch nicht verifiziert** — wenn `last_stocktake_at IS NULL`
+   - 🟠 **Als missing markiert** — wenn `price_locked=true` und `direct_price=0` (F2-Logik)
+   - 🔴 **Verkauft** — wenn `inventory_status='sold'` (für später, Walk-in-Sale)
+   - ⚫ **Beschädigt / Abgeschrieben** — wenn `inventory_status IN ('damaged','written_off')`
+   - 🔒 **Preis gesperrt (Sync-Schutz aktiv)** — zusätzlicher Info-Badge wenn `price_locked=true`, damit Frank sofort sieht, dass der stündliche Legacy-Sync diesen Preis nicht mehr überschreibt
+
+2. **Metadata-Grid (4 Spalten, 8 Felder):**
+   - Barcode (monospace, mit Fallback „— (wird beim ersten Verify vergeben)"), Barcode gedruckt, Letzter Stocktake, Lagerbestand (`quantity`), Status, Source (z.B. `frank_collection` für Cohort A), Lagerort (JOIN auf `warehouse_location.name`), Preis-Lock-Zeitpunkt
+
+3. **Inventur-Notizen** — Freitext aus `erp_inventory_item.notes`, wenn vorhanden (mit `whiteSpace: pre-wrap`)
+
+4. **Action-Buttons (2):**
+   - **„📋 In Stocktake-Session laden"** — navigiert zu `/app/erp/inventory/session?item_id=<X>`. Die Session-Page parst den Query-Param in einem neuen `useEffect`, ruft den neuen Endpoint `GET /admin/erp/inventory/items/:id` auf (weil der bestehende `/scan/:barcode`-Endpoint voraussetzt, dass das Item bereits einen Barcode hat — was bei noch-nicht-verifizierten Items nicht zutrifft), fügt das Item an Position 0 im Cart-Array ein, und bereinigt den Query-Param via `history.replaceState` damit ein Refresh nicht endlos lädt
+   - **„🏷️ Label drucken"** — öffnet `/admin/erp/inventory/items/:id/label` in neuem Tab, direkt aus der Media Detail Page heraus (umgeht den Session-Workflow komplett, falls Frank nur nachdrucken will)
+
+5. **Movement-Timeline (Audit-Trail-Tabelle):**
+   - Zeigt bis zu 30 Einträge aus `erp_inventory_movement` sortiert nach `created_at DESC`
+   - 6 Spalten: Datum, Typ (mit farbigem Badge: `inbound`=success, `outbound`=purple, `adjustment`=info, `write_off/damaged`=neutral), Grund (`reason`, monospace), Menge (`quantity_change` mit Vorzeichen), Durch (`performed_by` oder „system"), Details (serialisiertes `reference` JSONB)
+   - So sieht Frank z.B.: *„11.04.2026 13:00 · adjustment · bulk_15pct_2026 · +0 · system · old: 38, new: 44"*
+
+**Neue Backend-Route: `GET /admin/erp/inventory/items/:id`**
+
+Die bestehende `/scan/:barcode` Route nutzt `WHERE ii.barcode = ?` und eignet sich nur für Items, die bereits einen Barcode haben. Für den „In Session laden"-Button brauchte es einen zweiten Lookup-Pfad für Items, die noch nie verifiziert wurden (= `barcode IS NULL`). Der neue Endpoint `GET /admin/erp/inventory/items/:id` nimmt die `erp_inventory_item.id` als Pfad-Parameter und returniert **exakt das gleiche QueueItem-Format** wie `/scan/:barcode`, damit die Session-Page denselben State-Handler für beide Pfade nutzen kann.
+
+SQL-Query ist identisch zum scan-Endpoint, nur `WHERE ii.id = ?` statt `WHERE ii.barcode = ?`.
+
+**Änderung an `GET /admin/media/:id`:**
+
+SELECT-Clause um 12 `erp_inventory_item`-Felder erweitert (inventory_item_id, inventory_barcode, inventory_status, inventory_quantity, inventory_source, price_locked, price_locked_at, last_stocktake_at, last_stocktake_by, barcode_printed_at, inventory_notes, warehouse_location_id).
+
+Zusätzlicher LEFT JOIN auf `warehouse_location` um `warehouse_location_code` + `warehouse_location_name` zu holen (damit der Lagerort nicht als UUID angezeigt wird, sondern als lesbarer Code + Name).
+
+Neue Sub-Query für `erp_inventory_movement` (orderBy created_at DESC, limit 30, Select auf relevante Spalten). Die Query läuft nur wenn `release.inventory_item_id` vorhanden ist — Items ohne ERP-Row (Cohort B/C) zeigen keine Movements und keine Inventory-Sektion (Frontend-Guard: `{release.inventory_item_id && (...)}`).
+
+**Keine Schema-Änderung.** Alles basiert auf existierenden Tabellen (`erp_inventory_item`, `erp_inventory_movement`, `warehouse_location`).
+
+**Änderungen:**
+- `backend/src/api/admin/media/[id]/route.ts` (+42, -3) — Query-Erweiterung
+- `backend/src/api/admin/erp/inventory/items/[id]/route.ts` (NEW, 93 Zeilen) — Item-Lookup-Endpoint
+- `backend/src/admin/routes/media/[id]/page.tsx` (+199) — neue Inventory Status Sektion + Types + State
+- `backend/src/admin/routes/erp/inventory/session/page.tsx` (+24) — Query-Param-Handler für Deep-Link
+
+**Gesamt:** 4 Dateien, +355 Zeilen
+
+**Type-Check:** 0 neue Errors (nur bestehender unrelated Error in `transactions/page.tsx` unverändert).
+
+Das ist ein klassischer „sauberer Audit-Trail + Quick-Actions"-Feature-Add: Frank hat jetzt auf der Media Detail Page die vollständige Inventur-Historie eines Releases plus die zwei am häufigsten gebrauchten Actions (Session-Load für Re-Check, Label-Nachdruck) direkt auf einer Seite.
 
 ---
 
