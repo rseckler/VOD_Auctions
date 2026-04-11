@@ -11,6 +11,7 @@ Jeder Git-Tag entspricht einem Snapshot des Gesamtsystems. Feature Flags zeigen 
 | Version | Datum | Platform Mode | Feature Flags aktiv (prod) | Milestone / Inhalt |
 |---------|-------|--------------|---------------------------|-------------------|
 | **v1.0.0** | TBD | `live` | ERP: TBD | RSE-78: Erster öffentlicher Launch |
+| **v1.0.0-rc19** | 2026-04-11 | `beta_test` | — | Barcode-Label Hardware Validation: Brother QL-820NWBc + DK-22210 + Inateck BCST-70 End-to-End getestet. Production-Code Fix: 29×90mm Layout mit Artist/Title·Label/Meta/Preis-Spalten. Neue Hardware-Doku + Debugging-Kompass. |
 | **v1.0.0-rc18** | 2026-04-11 | `beta_test` | — | Discogs Import: Fetch Loop vom HTTP-Request entkoppelt — Navigation während Fetch killt den Loop nicht mehr, Loop läuft detached im Hintergrund, Idempotenz + Stale-Auto-Restart, UI nur noch Polling |
 | **v1.0.0-rc17** | 2026-04-11 | `beta_test` | — | Discogs Import: Collections Overview als eigenständige Route (kein Tab mehr), Detail Page mit 8-Karten Stats, Clickable Cover/Title, Stock-Spalte, 27-column CSV Export, Stale-Session Auto-Cleanup nach 6h, Back-Button Fix (Btn-Component-Bug) |
 | **v1.0.0-rc16** | 2026-04-10 | `beta_test` | — | Discogs Import Commit Hardening + Schema Fixes: Per-Batch Transaktionen, Pre-Commit Validation, Pargmann Import 5.646 releases done |
@@ -56,6 +57,88 @@ Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Rel
 - **Patch Release** (`v1.0.x`): Kritische Bugfixes zwischen geplanten Releases
 - **Tagging-Workflow:** `git tag -a vX.Y.Z -m "Release vX.Y.Z: <Kurzname>"` → `git push origin vX.Y.Z`
 - **Tag-Zeitpunkt:** Direkt nach Deploy + Smoke-Test auf Production — nicht vor dem Deploy
+
+---
+
+## 2026-04-11 — Barcode-Label Hardware Validation + v6 Layout (rc19)
+
+**Kontext:** Die ERP-Inventur-Infrastruktur (Commit `ef27907` vom 2026-04-07, Cohort A mit 13.107 Items backfilled) und der Barcode-Label-Code (rc6, 2026-04-07) waren zwar deployed, aber noch nie auf echter Hardware validiert. Frank hat am 2026-04-11 den Brother QL-820NWBc + Inateck BCST-70 + 5× DK-22210 Rollen angeschlossen, und wir haben den kompletten Print-Stack live getestet. Ergebnis: **drei kritische Bugs** in der ursprünglichen Planungsphase, die nur beim echten Druck sichtbar wurden.
+
+**Die drei Hardware-Bugs (in Debugging-Reihenfolge):**
+
+1. **Drucker im falschen Command Mode**
+   Der Brother QL-820NWBc wird ab Werk im **`P-touch Template`**-Mode ausgeliefert. In diesem Mode interpretiert der Drucker eingehende CUPS-Druckdaten als Template-Füllung und druckt auf eine intern einkodierte Default-Template-Länge (~29mm), **egal** was CUPS oder die PDF-Seitengröße sagen. Fix: Brother Web-Interface (`https://<printer-ip>/`, Login mit Pwd vom Drucker-Aufkleber) → Printer Settings → Device Settings → **Command Mode auf `Raster`**. Aktivierung per POST im EWS mit CSRFToken.
+
+2. **CUPS PageSize ohne `Custom.`-Prefix**
+   Die installierte Brother PPD (`/etc/cups/ppd/Brother_QL_820NWB.ppd`) hat PageSize-Namen wie `29x62mm`, `29x90mm` — aber **alle entsprechen DK-11xxx die-cut Rollen**, nicht der DK-22210 Continuous-Rolle. Wenn man `-o PageSize=29x90mm` setzt, erwartet der Brother-Treiber fest vorgestanzte 90mm-Labels → Konflikt mit der Endlos-Rolle → Fallback auf Default-Cut. **Nur `Custom.29x90mm`** (mit `Custom.`-Prefix) zwingt den Treiber in den Continuous-Tape-Mode. Queue-Default per `lpoptions -p Brother_QL_820NWB -o PageSize=Custom.29x90mm` gesetzt (user-level, kein sudo).
+
+3. **PDF in falscher Orientation**
+   Naive Annahme: Ein Label das „breiter als hoch" ist, baut man als Landscape-PDF (`[90mm, 29mm]`). Falsch — der Brother-Treiber erwartet Portrait (`[29mm, 90mm]`), wobei die erste Dimension = Tape-Breite. Der Content muss **via `doc.rotate(-90, {origin:[0,0]}) + doc.translate(-LABEL_LENGTH, 0)`** in einen virtuellen 90×29 Landscape-Frame gezeichnet werden. Ohne diese Transformation wird der Content entweder auf 29mm skaliert (schrumpft um Faktor 3) oder rechts geclippt.
+
+**Scanner-Bug:**
+
+4. **Inateck BCST-70 Keyboard-Layout**
+   Ab Werk im Windows/Android-Modus mit US-Keyboard. Auf macOS mit deutschem QWERTZ wird der US-Keycode `0x2D` (für `-`) als deutsches `ß` interpretiert. Resultat: `VOD-000001` kommt als `VODß000001` in TextEdit/Admin-Inputs an. Fix via 6 Setup-Barcodes aus BCST-70 Handbuch §1.6 (2 Sessions: „MacOS/iOS Modus" + „Deutsche Tastatur").
+
+**Production-Code Änderungen (Commit-Scope):**
+
+- **`backend/src/lib/barcode-label.ts`** — komplett neu geschrieben mit v6-Layout:
+  - PDF-Size `[29mm × 90mm]` portrait (vorher fälschlich 62×29mm landscape)
+  - Rotation via `rotate(-90) + translate(-LABEL_LENGTH, 0)`
+  - `LabelData`-Interface erweitert um optional `labelName, country, condition, price`
+  - Zwei-Spalten-Layout: Text-Spalte links (Artist 12pt bold / Title·Label 10pt / Format·Country·Condition·Year 8pt), Preis-Spalte rechts (22pt bold, rechtsbündig, vertikal zentriert)
+  - **Hardware-Margin-Fix:** `PRICE_RIGHT_PAD = 3 * MM` Extra-Padding rechts, weil die Brother PPD `HWMargins` ~3mm nicht-druckbaren Rand an den Feed-Richtung-Enden hat
+  - Preis wird nur gerendert wenn `price > 0` (F2-Konvention für Missing-Items: Preis=0 → Label druckt ohne Preis-Spalte)
+  - Ausführlicher Doc-Comment-Header mit den drei kritischen Regeln und Verweis auf `docs/hardware/BROTHER_QL_820NWB_SETUP.md`
+
+- **`backend/src/api/admin/erp/inventory/items/[id]/label/route.ts`** — DB-Query erweitert:
+  - `LEFT JOIN "Label" as l ON l.id = r."labelId"`
+  - Zusätzliche Spalten: `r.country`, `r.legacy_condition`, `r.legacy_price`, `l.name as label_name`
+  - `labelData`-Mapping füttert die neuen optionalen Felder
+
+- **`backend/src/api/admin/erp/inventory/batch-labels/route.ts`** — gleiche Query-Erweiterung für den Batch-Print.
+
+- **CUPS Queue-Default** auf `Custom.29x90mm` via `lpoptions` gesetzt (lokal bei Frank, muss auf jedem neuen Mac wiederholt werden — dokumentiert in `BROTHER_QL_820NWB_SETUP.md` §4).
+
+**Neue Dokumentation:**
+
+- **`docs/hardware/BROTHER_QL_820NWB_SETUP.md`** (neue Datei, ~350 Zeilen) — vollständiges Setup-Handbuch:
+  - §1 Quick Reference (das 3-Zeilen Fix-Rezept)
+  - §2 Hardware-Setup (Drucker, Treiber, WiFi)
+  - §3 Raster-Mode Fix (Web-Interface Walkthrough + curl-Verifikation)
+  - §4 PageSize=Custom.29x90mm (warum der Prefix kritisch ist)
+  - §5 PDF-Layout (Portrait-Orientation + Rotation-Trick + Font-Tabelle)
+  - §6 Scanner-Setup für macOS + Deutsche Tastatur (Setup-Barcode-Sessions)
+  - §7 **Debugging-Kompass** (Symptom→Ursache→Fix-Tabelle mit allen heute-aufgetretenen Bugs)
+  - §8 Standalone-Test-Script (ohne Medusa-Runtime)
+  - §9 Production-Code-Integration
+  - §10 Referenzen
+
+- **`docs/optimizing/INVENTUR_COHORT_A_KONZEPT.md` §14.5 + §14.13 aktualisiert:**
+  - §14.5 (Label-Design) — Layout-Skizze auf v6 umgestellt, neue Felder dokumentiert
+  - §14.13 (Hardware-Test-Ergebnisse) — Findings + Production-Code-Status + Offene Punkte (onScan.js, QZ Tray)
+
+- **`CLAUDE.md`** — Key-Gotchas-Liste um Brother-QL-820NWB-Eintrag erweitert, Link zu Setup-Doku.
+
+**Was NICHT in diesem Release ist (klare Follow-ups):**
+
+- `onScan.js` im Admin-Session-Screen (Phase B6) — Scanner ist hardware-validiert, aber noch nicht in `backend/src/admin/routes/erp/inventory/session/page.tsx` integriert. Für den Livebetrieb kann man den Scanner aktuell nur in externen Inputs (TextEdit o.ä.) nutzen.
+- QZ Tray Silent-Print (Phase B7) — aktuell Fallback auf Browser-Print-Dialog im Admin, kein Ein-Klick-Druck aus der Session heraus.
+- End-to-End-Test via Admin-UI mit `ERP_INVENTORY` Flag ON — bisher nur via `lp` direkt validiert, nicht durch den vollen Medusa-API-Stack.
+
+**Hardware-Test-Log (~25 Fehldrucke bis zur funktionierenden Config):**
+v1 (62×29mm landscape, Custom.62x29mm) → ~29×30mm geclippt
+v2 (29×62mm portrait, Custom.29x62mm) → ~29×30mm geclippt (gleicher Cut-Default)
+v3 (PageSize=29mm, BrTapeLength=62) → ~13mm geclippt (BrTapeLength nicht wirklich durchgreifend)
+v4 ruler 29×100mm → nur 12×12mm Ecke sichtbar (PPD-Default war `12x12mm`)
+v5 (PageSize=29x62mm nach Raster-Mode-Fix) → noch immer ~29mm quadratisch (wegen fehlendem `Custom.`-Prefix)
+v6 (PageSize=Custom.29x62mm, Raster-Mode, Portrait+Rotate) → **erfolgreich**, Font-Tuning folgt
+v6+larger-fonts → 11pt/8pt passt
+v6+new-fields (29×90mm, Label/Country/Condition/Price, Zwei-Spalten) → Frank-Approved
+v6+narrower-barcode (70% statt 95%) → final
+v6+price-right-pad (3mm Hardware-Margin-Reserve) → Preis nicht mehr geclippt
+
+**Credits:** Hardware-Test 2026-04-11 mit Frank (VOD Records), Setup-Details + Debugging-Historie komplett in `docs/hardware/BROTHER_QL_820NWB_SETUP.md` §7.
 
 ---
 

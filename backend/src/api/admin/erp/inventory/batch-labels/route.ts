@@ -8,7 +8,7 @@ import { generateBatchLabelsPdf, type LabelData } from "../../../../../lib/barco
  * GET /admin/erp/inventory/batch-labels
  *
  * Generate a multi-page PDF with barcode labels for multiple items.
- * Each page is one 29mm × 62mm label. The printer cuts between pages.
+ * Each page is one 29mm × 90mm label. The printer cuts between pages.
  *
  * Query params:
  *   item_ids — comma-separated erp_inventory_item IDs (max 200)
@@ -35,6 +35,7 @@ export async function GET(
   const items = await pg("erp_inventory_item as ii")
     .join("Release as r", "r.id", "ii.release_id")
     .leftJoin("Artist as a", "a.id", "r.artistId")
+    .leftJoin("Label as l", "l.id", "r.labelId")
     .whereIn("ii.id", ids)
     .whereNotNull("ii.barcode")
     .select(
@@ -43,7 +44,11 @@ export async function GET(
       "r.title",
       "r.format",
       "r.year",
-      "a.name as artist_name"
+      "r.country",
+      "r.legacy_condition",
+      "r.legacy_price",
+      "a.name as artist_name",
+      "l.name as label_name"
     )
 
   if (items.length === 0) {
@@ -55,8 +60,12 @@ export async function GET(
     barcode: item.barcode,
     artistName: item.artist_name || "Unknown",
     title: item.title || "Untitled",
+    labelName: item.label_name || null,
     format: item.format || "",
+    country: item.country || null,
+    condition: item.legacy_condition || null,
     year: item.year,
+    price: item.legacy_price != null ? Number(item.legacy_price) : null,
   }))
 
   const doc = await generateBatchLabelsPdf(labels)

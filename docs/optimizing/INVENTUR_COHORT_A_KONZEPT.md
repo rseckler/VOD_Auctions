@@ -547,21 +547,30 @@ Der bisherige Session-Flow (§6.3) wird um Barcode-Druck erweitert:
 | `M` | Missing: Preis auf 0, price_locked — **kein Label** (Item ist nicht da) |
 | Scanner-Input | `onScan.js` fängt HID-Input ab → springt zum gescannten Item (für Re-Checks / spätere Inventuren) |
 
-### 14.5 Label-Design
+### 14.5 Label-Design (v6, hardware-validiert 2026-04-11)
 
-**Labelgröße:** 29mm × 62mm (Brother DK-22210 Endlosband, Standardbreite 29mm, Länge variabel)
+**Labelgröße:** 29mm × **90mm** (Brother DK-22210 Endlosband, Standardbreite 29mm, Länge 90mm passend zur nativen DK-11201-Dimension, deshalb lesbar vertraut; CUPS-Option `Custom.29x90mm`)
 
 ```
-┌──────────────────────────────────────┐
-│  |||||||||||||||||||||||||||||||||||  │  ← Code128 Barcode
-│          VOD-003241                  │  ← Klartext unter Barcode
-│  Cabaret Voltaire                    │  ← Artist (gekürzt auf 30 Zeichen)
-│  Red Mecca · LP · 1981              │  ← Title · Format · Year
-│  vod-auctions.com                   │  ← Domain (Branding)
-└──────────────────────────────────────┘
+┌────────────────────────────────────────────────┐  29mm
+│    |||||||||||||||||||||||||  (70% centered)  │  Barcode 9mm hoch
+│           VOD-000001                           │
+│                                                │
+│  Cabaret Voltaire                 │            │  Artist 12pt bold
+│  Red Mecca · Mute Records         │   €45      │  Title · Label 10pt
+│  LP · UK · VG+ · 1981             │            │  Meta 8pt / Preis 22pt
+└────────────────────────────────────────────────┘
+                     90mm
 ```
 
-**Generierung:** `bwip-js` (Barcode) + `pdfkit` (Label-PDF, bereits im Projekt für Invoices/Shipping Labels)
+**Felder:**
+- **Barcode** (Code128) + Klartext `VOD-XXXXXX`
+- **Artist** (fett, 12pt, max 28 Zeichen)
+- **Title · Label** (10pt, jeweils max 18 Zeichen)
+- **Format · Country · Condition · Year** (8pt)
+- **Preis** in € rechts groß (22pt bold), rechtsbündig — wird nur gerendert wenn `legacy_price > 0` (Missing-Status nach F2 druckt ohne Preis)
+
+**Generierung:** `bwip-js` (Barcode) + `pdfkit` (PDF). Production-Code in `backend/src/lib/barcode-label.ts`, hardware-validierte Details in `docs/hardware/BROTHER_QL_820NWB_SETUP.md`.
 
 ### 14.6 Hardware — Einkaufsliste
 
@@ -711,4 +720,32 @@ useEffect(() => {
 - [ ] Phase B1–B8 implementieren (siehe §14.11)
 - [ ] Aktivierungs-Checkliste (§13) um Barcode-Test erweitern
 - [ ] `CLAUDE.md` aktualisieren: Barcode-Endpoints + `bwip-js` Dependency
+
+### 14.13 Hardware-Test Ergebnisse (2026-04-11)
+
+**Status:** ✅ Hardware vollständig validiert — Brother QL-820NWBc + Inateck BCST-70 + DK-22210 funktionieren End-to-End. Production-Code ist gefixt und type-clean.
+
+**Abweichungen vom Einkaufsplan:**
+- Drucker: **QL-820NWBc** (Bundle-Variante der QL-820NWB, ~€220) statt **QL-810W** — die „Upgrade-Option" aus §14.6 wurde gewählt, zusätzliche WiFi/BT + Display haben sich beim Setup und Debug als nützlich erwiesen.
+- Rolle: **DK-22210 29mm × 30,48m Endlosband** wie geplant.
+- Label-Länge: **90mm** (statt ursprünglich geplanter 62mm) — nach Franks Wunsch für mehr Info-Platz, inkl. erweiterter Felder Label/Country/Condition/Preis.
+
+**Kritische Findings (ausführlich in `docs/hardware/BROTHER_QL_820NWB_SETUP.md`):**
+
+1. **Command Mode `P-touch Template`** ist ab Werk aktiv und muss auf **`Raster`** umgestellt werden (via Brother Web-Interface → Printer Settings → Device Settings → Command Mode). Andernfalls ignoriert der Drucker alle CUPS-Längen-Angaben und druckt auf eine interne Template-Default-Länge (~29mm).
+2. **CUPS-Option muss `PageSize=Custom.29x90mm`** sein, **nicht** `PageSize=29x90mm`. Der Name ohne Prefix wird als DK-11201 Die-Cut interpretiert, was mit einer DK-22210 Endlos-Rolle in Konflikt steht → Fallback auf Default-Cut. `Custom.`-Prefix zwingt den Treiber in den Continuous-Tape-Modus.
+3. **PDF-Orientation muss Portrait 29×90mm** sein (Tape-Breite = PDF-Width = 29mm), **nicht** Landscape. Content wird mit `doc.rotate(-90) + doc.translate(-LABEL_LENGTH, 0)` in einen virtuellen 90×29 Landscape-Frame gezeichnet.
+4. **Font-Größen** aus dem ersten Konzept-Entwurf (5.5pt/4.5pt/3.5pt) waren unlesbar. Hardware-validierte Werte (v6): **12pt Artist-Bold / 10pt Title·Label / 8pt Meta / 22pt Preis-Bold**.
+5. **Hardware-Margins:** Brother PPD hat ~3mm nicht-druckbaren Rand an den Feed-Richtung-Enden. Die Preis-Spalte braucht deswegen einen expliziten `PRICE_RIGHT_PAD = 3mm`, sonst wird `€45` rechts geclippt.
+6. **Scanner Inateck BCST-70** ist ab Werk im Windows/Android-Modus mit US-Keyboard → auf macOS mit deutschem QWERTZ wird `-` als `ß` übersetzt (`VOD-000001` → `VODß000001`). Fix: Setup-Barcodes aus BCST-70 Handbuch §1.6 scannen (MacOS/iOS Modus + Deutsche Tastatur).
+
+**Production-Code-Status (2026-04-11, nach Hardware-Test):**
+- ✅ `backend/src/lib/barcode-label.ts` — auf 29×90mm portrait mit v6-Layout gefixt (erweiterte `LabelData` um `labelName`, `country`, `condition`, `price`).
+- ✅ `backend/src/api/admin/erp/inventory/items/[id]/label/route.ts` — DB-Query erweitert um `LEFT JOIN "Label"` und `r.country, r.legacy_condition, r.legacy_price`.
+- ✅ `backend/src/api/admin/erp/inventory/batch-labels/route.ts` — gleiche DB-Erweiterung.
+- ✅ CUPS Queue-Default `PageSize=Custom.29x90mm` via `lpoptions` gesetzt (user-level, kein sudo).
+- ⏳ **Offen**: `onScan.js` im Admin-Session-Screen (Phase B6) für HID-Scanner-Integration im Workflow.
+- ⏳ **Offen**: QZ Tray Silent-Print im Admin-Session (Phase B7) — aktuell Fallback auf Browser-Print-Dialog.
+
+**Hardware-Debug-Historie:** Der Test am 2026-04-11 hat ~25 Test-Drucke und mehrere Stunden Debugging gekostet, bis alle drei kritischen Ebenen (Drucker-Mode, CUPS-Option, PDF-Orientation) zusammenpassten. Die komplette Debug-Historie inkl. Symptom→Ursache→Fix-Tabelle ist in `docs/hardware/BROTHER_QL_820NWB_SETUP.md` §7 dokumentiert, damit der nächste, der an Brother-CUPS-Pipeline stößt, in Minuten statt Stunden fertig ist.
 - [ ] `ERP_WARENWIRTSCHAFT_KONZEPT.md` §10 aktualisieren: `barcode`-Spalte
