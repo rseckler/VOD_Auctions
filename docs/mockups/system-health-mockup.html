@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>System Health — VOD Auctions Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #1c1915;
+      --surface:     #252220;
+      --surface-low: #201e1b;
+      --gold:        #d4a54a;
+      --gold-dim:    rgba(212,165,74,0.12);
+      --gold-border: rgba(212,165,74,0.25);
+      --text:        #f5f0e8;
+      --muted:       #9ca3af;
+      --border:      rgba(255,255,255,0.07);
+      --ok:          #22c55e;
+      --ok-bg:       rgba(34,197,94,0.12);
+      --warn:        #f59e0b;
+      --warn-bg:     rgba(245,158,11,0.12);
+      --err:         #ef4444;
+      --err-bg:      rgba(239,68,68,0.12);
+      --gray:        #6b7280;
+      --gray-bg:     rgba(107,114,128,0.12);
+    }
+
+    html, body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 14px; min-height: 100vh; }
+
+    /* ── Layout ── */
+    .page { max-width: 1200px; margin: 0 auto; padding: 28px; }
+
+    /* ── Sticky banner ── */
+    .status-banner {
+      position: sticky; top: 0; z-index: 50;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 9px 20px; font-size: 12px; font-weight: 600;
+      background: rgba(34,197,94,0.15); border-bottom: 1px solid rgba(34,197,94,0.3);
+      color: var(--ok); backdrop-filter: blur(8px);
+    }
+    .status-banner.has-errors { background: rgba(239,68,68,0.15); border-bottom-color: rgba(239,68,68,0.3); color: var(--err); }
+    .banner-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+
+    /* ── Header ── */
+    .page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+    .page-title { font-family: 'DM Serif Display', serif; font-size: 24px; color: var(--text); line-height: 1.2; }
+    .page-subtitle { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .header-actions { display: flex; align-items: center; gap: 12px; }
+    .toggle-label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); cursor: pointer; user-select: none; }
+    .toggle-input { accent-color: var(--gold); }
+    .btn-refresh {
+      background: var(--gold); color: var(--bg); border: none; border-radius: 6px;
+      padding: 8px 16px; font-weight: 700; font-size: 12px; cursor: pointer;
+      display: flex; align-items: center; gap: 6px; transition: opacity .15s;
+      font-family: 'DM Sans', sans-serif;
+    }
+    .btn-refresh:hover { opacity: .85; }
+
+    /* ── Summary bar ── */
+    .summary-bar {
+      display: flex; align-items: center; gap: 0;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      padding: 16px 22px; margin-bottom: 24px; flex-wrap: wrap; gap: 4px;
+    }
+    .kpi { display: flex; align-items: center; gap: 10px; padding: 0 20px 0 0; border-right: 1px solid var(--border); margin-right: 20px; }
+    .kpi:last-of-type { border-right: none; }
+    .kpi-value { font-size: 28px; font-weight: 700; line-height: 1; font-family: 'DM Serif Display', serif; }
+    .kpi-label { font-size: 11px; color: var(--muted); line-height: 1.4; }
+    .summary-pill {
+      margin-left: auto; display: flex; align-items: center; gap: 6px;
+      background: rgba(34,197,94,0.15); color: var(--ok);
+      padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600;
+      border: 1px solid rgba(34,197,94,0.25);
+    }
+
+    /* ── Card base ── */
+    .card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      overflow: hidden;
+    }
+    .card-pad { padding: 18px 20px; }
+
+    /* ── Architecture diagram ── */
+    .arch-card { margin-bottom: 28px; }
+    .arch-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 20px; border-bottom: 1px solid var(--border); cursor: pointer;
+      user-select: none;
+    }
+    .arch-header-label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; }
+    .arch-toggle { font-size: 11px; color: var(--gold); display: flex; align-items: center; gap: 4px; }
+    .arch-body { padding: 20px; }
+
+    .flow { display: flex; flex-direction: column; align-items: center; gap: 0; }
+    .flow-row { display: flex; justify-content: center; align-items: stretch; gap: 10px; width: 100%; }
+    .flow-arrow { color: #4b5563; font-size: 18px; text-align: center; margin: 6px 0; line-height: 1; }
+    .flow-arrow-row { display: flex; justify-content: space-around; width: 100%; margin: 6px 0; }
+
+    .flow-box {
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 10px 16px; text-align: center;
+      background: rgba(255,255,255,0.02);
+    }
+    .flow-box.gold { border-color: var(--gold-border); background: var(--gold-dim); }
+    .flow-box.wide { flex: 1; }
+    .flow-box-label { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 3px; }
+    .flow-box-name { font-size: 13px; font-weight: 600; color: var(--text); }
+    .flow-box-sub { font-size: 10px; color: var(--muted); margin-top: 2px; }
+    .flow-box-grid { display: flex; flex-wrap: wrap; gap: 12px 20px; justify-content: center; margin-top: 6px; }
+    .flow-service { text-align: center; }
+    .flow-service-icon { font-size: 18px; }
+    .flow-service-name { font-size: 11px; font-weight: 600; color: var(--text); }
+    .flow-service-role { font-size: 10px; color: var(--muted); }
+    .flow-connector { display: flex; align-items: center; justify-content: center; color: #4b5563; font-size: 13px; padding-top: 6px; }
+
+    /* ── Section ── */
+    .section { margin-bottom: 36px; }
+    .section-header {
+      display: flex; align-items: baseline; gap: 12px;
+      border-bottom: 1px solid rgba(212,165,74,0.2); padding-bottom: 10px; margin-bottom: 16px;
+    }
+    .section-title { font-size: 15px; font-weight: 700; color: var(--text); }
+    .section-desc { font-size: 12px; color: var(--muted); }
+    .section-badge {
+      margin-left: auto; font-size: 11px; font-weight: 600;
+      padding: 2px 10px; border-radius: 4px;
+    }
+    .badge-ok    { background: rgba(34,197,94,0.12); color: var(--ok); }
+    .badge-err   { background: rgba(239,68,68,0.12); color: var(--err); }
+    .badge-warn  { background: rgba(107,114,128,0.12); color: var(--gray); }
+
+    .service-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+
+    /* ── Service card ── */
+    .service-card {
+      background: var(--surface); border-radius: 10px; overflow: hidden;
+      border: 1px solid var(--border); display: flex; flex-direction: column;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .service-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+    .service-card.status-ok   { border-color: rgba(34,197,94,0.3); }
+    .service-card.status-err  { border-color: rgba(239,68,68,0.3); }
+    .service-card.status-warn { border-color: rgba(245,158,11,0.3); }
+    .service-card.status-none { border-color: rgba(107,114,128,0.2); }
+
+    .sc-top { padding: 14px 16px; display: flex; flex-direction: column; gap: 9px; }
+    .sc-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .sc-name-row { display: flex; align-items: center; gap: 8px; }
+    .sc-icon { font-size: 18px; }
+    .sc-name { font-weight: 600; font-size: 13px; color: var(--text); }
+    .sc-indicators { display: flex; align-items: center; gap: 8px; }
+    .latency { font-size: 11px; font-family: monospace; padding: 2px 7px; border-radius: 4px; background: rgba(255,255,255,0.06); }
+    .latency.fast { color: var(--ok); }
+    .latency.mid  { color: var(--warn); }
+    .latency.slow { color: var(--err); }
+
+    .status-dot-wrap { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; }
+    .status-dot-ping { position: absolute; width: 20px; height: 20px; border-radius: 50%; opacity: .25; animation: ping 1.8s cubic-bezier(0,0,.2,1) infinite; }
+    .status-dot { width: 11px; height: 11px; border-radius: 50%; position: relative; }
+    .dot-ok   { background: var(--ok); }
+    .dot-err  { background: var(--err); }
+    .dot-warn { background: var(--warn); }
+    .dot-none { background: var(--gray); }
+    .ping-ok   { background: var(--ok); }
+    .ping-err  { background: var(--err); }
+    .ping-warn { background: var(--warn); }
+
+    @keyframes ping { 75%, 100% { transform: scale(2.2); opacity: 0; } }
+
+    .sc-status-row { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; }
+    .status-pill {
+      font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+      padding: 2px 8px; border-radius: 4px; flex-shrink: 0; margin-top: 1px;
+    }
+    .pill-ok   { background: var(--ok-bg);   color: var(--ok);   }
+    .pill-err  { background: var(--err-bg);  color: var(--err);  }
+    .pill-warn { background: var(--warn-bg); color: var(--warn); }
+    .pill-none { background: var(--gray-bg); color: var(--gray); }
+    .sc-message { font-size: 11px; color: var(--muted); line-height: 1.5; }
+    .sc-link { font-size: 11px; color: var(--gold); text-decoration: none; }
+    .sc-link:hover { text-decoration: underline; }
+
+    .sc-info {
+      border-top: 1px solid var(--border); background: var(--surface-low);
+      padding: 12px 16px; display: flex; flex-direction: column; gap: 9px;
+    }
+    .sc-role { font-size: 11px; color: var(--gold); font-style: italic; line-height: 1.4; margin: 0; }
+    .info-section-label { font-size: 10px; font-weight: 700; color: var(--gray); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; }
+    .info-list { margin: 0; padding-left: 14px; display: flex; flex-direction: column; gap: 2px; }
+    .info-list li { font-size: 11px; color: var(--muted); line-height: 1.4; }
+    .metric-tags { display: flex; flex-wrap: wrap; gap: 4px 6px; }
+    .metric-tag {
+      font-size: 10px; color: var(--gray); background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border); padding: 2px 8px; border-radius: 4px;
+    }
+
+    /* ── Quick Links ── */
+    .quick-links { margin-top: 36px; }
+    .ql-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 14px; }
+    .ql-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+    .ql-btn {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 12px; color: var(--gold); text-decoration: none;
+      background: var(--gold-dim); border: 1px solid var(--gold-border);
+      padding: 7px 13px; border-radius: 6px; transition: background .15s, border-color .15s;
+      font-family: 'DM Sans', sans-serif;
+    }
+    .ql-btn:hover { background: rgba(212,165,74,0.2); border-color: rgba(212,165,74,0.45); }
+    .ql-arrow { opacity: .6; font-size: 11px; }
+
+    /* ── Divider ── */
+    hr.section-div { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<!-- Sticky banner -->
+<div class="status-banner">
+  <div class="banner-dot"></div>
+  All 11 monitored services operational — 3 not configured
+</div>
+
+<div class="page">
+
+  <!-- Header -->
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">System Health</h1>
+      <p class="page-subtitle">14 services monitored · Last checked: 14:32:05</p>
+    </div>
+    <div class="header-actions">
+      <label class="toggle-label">
+        <input class="toggle-input" type="checkbox" checked />
+        Auto-refresh (30s)
+      </label>
+      <button class="btn-refresh">↻ Refresh</button>
+    </div>
+  </div>
+
+  <!-- Summary bar -->
+  <div class="summary-bar">
+    <div class="kpi">
+      <div>
+        <div class="kpi-value" style="color:var(--ok)">11</div>
+        <div class="kpi-label">✓ Operational</div>
+      </div>
+    </div>
+    <div class="kpi">
+      <div>
+        <div class="kpi-value" style="color:var(--err); opacity:.4">0</div>
+        <div class="kpi-label">✗ Errors</div>
+      </div>
+    </div>
+    <div class="kpi">
+      <div>
+        <div class="kpi-value" style="color:var(--gray)">3</div>
+        <div class="kpi-label">— Not Configured</div>
+      </div>
+    </div>
+    <div class="kpi" style="border-right:none; margin-right:0;">
+      <div>
+        <div class="kpi-value" style="color:var(--text)">14</div>
+        <div class="kpi-label">All Systems</div>
+      </div>
+    </div>
+    <div class="summary-pill">✓ All systems operational</div>
+  </div>
+
+  <!-- Architecture Flow -->
+  <div class="card arch-card">
+    <div class="arch-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? '' : 'none'; this.querySelector('.arch-toggle').textContent = this.nextElementSibling.style.display === 'none' ? '▶ Show' : '▼ Hide'">
+      <span class="arch-header-label">System Architecture</span>
+      <span class="arch-toggle">▼ Hide</span>
+    </div>
+    <div class="arch-body">
+      <div class="flow">
+
+        <!-- Customer -->
+        <div class="flow-row" style="max-width:200px;">
+          <div class="flow-box gold" style="width:100%;">
+            <div class="flow-box-name" style="color:var(--gold)">👤 Customer Browser</div>
+          </div>
+        </div>
+
+        <div class="flow-arrow">↓</div>
+
+        <!-- Storefront + Analytics -->
+        <div class="flow-row" style="gap:12px;">
+          <div class="flow-box" style="min-width:160px; flex:0 0 auto;">
+            <div class="flow-box-label">Frontend</div>
+            <div class="flow-box-name">🌐 Storefront</div>
+            <div class="flow-box-sub">vod-auctions.com</div>
+            <div class="flow-box-sub" style="color:#9ca3af; margin-top:3px; font-size:10px;">Next.js 16 · React 19</div>
+          </div>
+          <div class="flow-connector">→</div>
+          <div class="flow-box wide">
+            <div class="flow-box-label">Analytics Layer (client-side · consent-gated)</div>
+            <div class="flow-box-grid">
+              <div class="flow-service"><div class="flow-service-icon">📊</div><div class="flow-service-name">GA4</div><div class="flow-service-role">Traffic</div></div>
+              <div class="flow-service"><div class="flow-service-icon">📡</div><div class="flow-service-name">RudderStack</div><div class="flow-service-role">CDP</div></div>
+              <div class="flow-service"><div class="flow-service-icon">🔍</div><div class="flow-service-name">Clarity</div><div class="flow-service-role">UX</div></div>
+              <div class="flow-service"><div class="flow-service-icon">🐛</div><div class="flow-service-name">Sentry</div><div class="flow-service-role">Errors</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flow-arrow" style="text-align:left; padding-left:100px;">↓</div>
+
+        <!-- Backend -->
+        <div class="flow-row">
+          <div class="flow-box wide" style="padding:12px 18px;">
+            <div class="flow-box-label">Backend / API</div>
+            <div class="flow-box-name">🖥️ Medusa.js 2.x — VPS (Hostinger)</div>
+            <div class="flow-box-sub">api.vod-auctions.com · Node.js · PM2 · nginx</div>
+          </div>
+        </div>
+
+        <div class="flow-arrow-row" style="padding: 0 12%;">
+          <span style="color:#4b5563;">↙</span>
+          <span style="color:#4b5563;">↓</span>
+          <span style="color:#4b5563;">↓</span>
+          <span style="color:#4b5563;">↘</span>
+        </div>
+
+        <!-- Layer 4 -->
+        <div class="flow-row" style="gap:8px;">
+          <div class="flow-box wide">
+            <div class="flow-box-label">Data Layer</div>
+            <div style="margin-top:4px;"><div style="font-size:11px; font-weight:600; color:var(--text);">🗄️ PostgreSQL</div><div style="font-size:10px; color:var(--muted);">Primary DB</div></div>
+            <div style="margin-top:4px;"><div style="font-size:11px; font-weight:600; color:var(--text);">⚡ Upstash Redis</div><div style="font-size:10px; color:var(--muted);">Cache</div></div>
+          </div>
+          <div class="flow-box wide">
+            <div class="flow-box-label">Payments</div>
+            <div style="margin-top:4px;"><div style="font-size:11px; font-weight:600; color:var(--text);">💳 Stripe</div><div style="font-size:10px; color:var(--muted);">Cards + BNPL</div></div>
+            <div style="margin-top:4px;"><div style="font-size:11px; font-weight:600; color:var(--text);">🅿️ PayPal</div><div style="font-size:10px; color:var(--muted);">Wallet</div></div>
+          </div>
+          <div class="flow-box wide">
+            <div class="flow-box-label">Communication</div>
+            <div style="margin-top:4px;"><div style="font-size:11px; font-weight:600; color:var(--text);">✉️ Resend</div><div style="font-size:10px; color:var(--muted);">Transactional</div></div>
+            <div style="margin-top:4px;"><div style="font-size:11px; font-weight:600; color:var(--text);">📧 Brevo</div><div style="font-size:10px; color:var(--muted);">CRM + Newsletter</div></div>
+          </div>
+          <div class="flow-box wide">
+            <div class="flow-box-label">AI</div>
+            <div style="margin-top:4px;"><div style="font-size:11px; font-weight:600; color:var(--text);">🤖 Anthropic</div><div style="font-size:10px; color:var(--muted);">Admin Chat</div></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- SECTION 1: Infrastructure -->
+  <!-- ══════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <h2 class="section-title">Infrastructure</h2>
+      <p class="section-desc">Database, API server &amp; storefront hosting</p>
+      <span class="section-badge badge-ok">✓ All OK</span>
+    </div>
+    <div class="service-grid">
+
+      <!-- PostgreSQL -->
+      <div class="service-card status-ok">
+        <div class="sc-top">
+          <div class="sc-header">
+            <div class="sc-name-row"><span class="sc-icon">🗄️</span><span class="sc-name">PostgreSQL / Supabase</span></div>
+            <div class="sc-indicators">
+              <span class="latency fast">42ms</span>
+              <div class="status-dot-wrap"><span class="status-dot-ping ping-ok"></span><span class="status-dot dot-ok"></span></div>
+            </div>
+          </div>
+          <div class="sc-status-row">
+            <span class="status-pill pill-ok">OK</span>
+            <span class="sc-message">Query OK</span>
+          </div>
+          <a href="#" class="sc-link">Open Dashboard →</a>
+        </div>
+        <div class="sc-info">
+          <p class="sc-role">Primary database for all commerce &amp; catalog data</p>
+          <div>
+            <p class="info-section-label">Key Functions</p>
+            <ul class="info-list">
+              <li>Stores products, auctions, bids, orders, customers</li>
+              <li>Legacy tape-mag catalog — 41.5k releases, 12k artists, 3k labels</li>
+              <li>Medusa ORM tables (snake_case) + legacy Knex tables (camelCase)</li>
+            </ul>
+          </div>
+          <div>
+            <p class="info-section-label">Key Metrics</p>
+            <div class="metric-tags">
+              <span class="metric-tag">Target latency: &lt; 100ms</span>
+              <span class="metric-tag">Supabase free tier — 500 MB</span>
+              <span class="metric-tag">Region: eu-central-1 (Frankfurt)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- VPS -->
+      <div class="service-card status-ok">
+        <div class="sc-top">
+          <div class="sc-header">
+            <div class="sc-name-row"><span class="sc-icon">🖥️</span><span class="sc-name">VPS / API Server (Hostinger)</span></div>
+            <div class="sc-indicators">
+              <span class="latency fast">138ms</span>
+              <div class="status-dot-wrap"><span class="status-dot-ping ping-ok"></span><span class="status-dot dot-ok"></span></div>
+            </div>
+          </div>
+          <div class="sc-status-row">
+            <span class="status-pill pill-ok">OK</span>
+            <span class="sc-message">Health OK (https://api.vod-auctions.com)</span>
+          </div>
+          <a href="#" class="sc-link">Open Dashboard →</a>
+        </div>
+        <div class="sc-info">
+          <p class="sc-role">Backend API server &amp; process manager</p>
+          <div>
+            <p class="info-section-label">Key Functions</p>
+            <ul class="info-list">
+              <li>Runs Medusa.js backend on port 9000</li>
+              <li>PM2 manages all Node.js processes (backend + storefront)</li>
+              <li>nginx reverse proxy — routes api., admin., vod-auctions.com</li>
+            </ul>
+          </div>
+          <div>
+            <p class="info-section-label">Key Metrics</p>
+            <div class="metric-tags">
+              <span class="metric-tag">Hostinger VPS — 72.62.148.205</span>
+              <span class="metric-tag">Ubuntu 24.04 LTS</span>
+              <span class="metric-tag">api. / admin.vod-auctions.com</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Storefront internal -->
+      <div class="service-card status-ok">
+        <div class="sc-top">
+          <div class="sc-header">
+            <div class="sc-name-row"><span class="sc-icon">🌐</span><span class="sc-name">Storefront (internal)</span></div>
+            <div class="sc-indicators">
+              <span class="latency fast">84ms</span>
+              <div class="status-dot-wrap"><span class="status-dot-ping ping-ok"></span><span class="status-dot dot-ok"></span></div>
+            </div>
+          </div>
+          <div class="sc-status-row">
+            <span class="status-pill pill-ok">OK</span>
+            <span class="sc-message">HTTP 200 (http://localhost:3006)</span>
+          </div>
+        </div>
+        <div class="sc-info">
+          <p class="sc-role">Internal reachability check (backend → storefront)</p>
+          <div>
+            <p class="info-section-label">Key Functions</p>
+            <ul class="info-list">
+              <li>Backend checks if Next.js storefront is responsive</li>
+              <li>First tries /api/health, then homepage HTTP 200</li>
+              <li>Detects PM2 crashes or out-of-memory restarts</li>
+            </ul>
+          </div>
+          <div>
+            <p class="info-section-label">Key Metrics</p>
+            <div class="metric-tags">
+              <span class="metric-tag">Port 3006 on VPS</span>
+              <span class="metric-tag">Memory limit: 600 MB (PM2)</span>
+              <span class="metric-tag">Max restarts before alert: 5</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Storefront public -->
+      <div class="service-card status-ok">
+        <div class="sc-top">
+          <div class="sc-header">
+            <div class="sc-name-row"><span class="sc-icon">🌍</span><span class="sc-name">Storefront (vod-auctions.com)</span></div>
+            <div class="sc-indicators">
+              <span class="latency fast">217ms</span>
+              <div class="status-dot-wrap"><span class="status-dot-ping ping-ok"></span><span class="status-dot dot-ok"></span></div>
+            </div>
+          </div>
+          <div class="sc-status-row">
+            <span class="status-pill pill-ok">OK</span>
+            <span class="sc-message">Responding (https://vod-auctions.com)</span>
+          </div>
+          <a href="https://vod-auctions.com" class="sc-link">Open Dashboard →</a>
+        </div>
+        <div class="sc-info">
+          <p class="sc-role">Public availability check (external)</p>
+          <div>
+            <p class="info-section-label">Key Functions</p>
+            <ul class="info-list">
+              <li>External HTTP check: VPS → vod-auctions.com</li>
+              <li>Verifies nginx + SSL + Next.js are all working end-to-end</li>
+              <li>Accepts 2xx and 3xx (password gate redirect counts as OK)</li>
+            </ul>
+          </div>
+          <div>
+            <p class="info-section-label">Key Metrics</p>
+            <div class="metric-tags">
+              <span class="metric-tag">vod-auctions.com</span>
+              <span class="metric-tag">SSL: Let's Encrypt (auto-renew)</span>
+              <span class="metric-tag">Target latency: &lt; 500ms</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- SECTION 2: Payments -->
+  <!-- ══════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <h2 class="section-title">Payments</h2>
+      <p class="section-desc">Checkout &amp; payment processing</p>
+      <span class="section-badge badge-ok">✓ All OK</span>
+    </div>
+    <div class="service-grid">
+
+      <!-- Stripe -->
+      <div class="service-card status-ok">
+        <div class="sc-top">
+          <div class="sc-header">
+            <div class="sc-name-row"><span class="sc-icon">💳</span><span class="sc-name">Stripe</span></div>
+            <div class="sc-indicators">
+              <span class="latency fast">312ms</span>
+              <div class="status-dot-wrap"><span class="status-dot-ping ping-ok"></span><span class="status-dot dot-ok"></span></div>
+            </div>
+          </div>
+          <div class="sc-status-row">
+            <span class="status-pill pill-ok">OK</span>
+            <span class="sc-message">Balance: currency=eur, amount=0, object=money</span>
+          </div>
+          <a href="#" class="sc-link">Open Dashboard →</a>
+        </div>
+        <div class="sc-info">
+          <p class="sc-role">Primary payment processor — cards &amp; local methods</p>
+          <div>
+            <p class="info-section-label">Key Functions</p>
+            <ul class="info-list">
+              <li>Cards, Klarna, EPS (AT), Bancontact (BE), Link</li>
+              <li>Webhooks: checkout.session.completed, payment_intent.*</li>
+              <li>Live mode — EUR account (frank@vod-records.com)</li>
+            </ul>
+          </div>
+          <div>
+            <p class="info-section-label">Key Metrics</p>
+            <div class="metric-tags">
+              <span class="metric-tag">Webhook: /webhooks/stripe</span>
+              <span class="metric-tag">acct_1T7WaYEyxqyK4DXF</span>
+              <span class="metric-tag">PaymentElement inline</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PayPal -->
+      <div class="service-card status-ok">
+        <div class="sc-top">
+          <div class="sc-header">
+            <div class="sc-name-row"><span class="sc-icon">🅿️</span><span class="sc-name">PayPal</span></div>
+            <div class="sc-indicators">
+              <span class="latency mid">487ms</span>
+              <div class="status-dot-wrap"><span class="status-dot-ping ping-ok"></span><span class="status-dot dot-ok"></span></div>
+            </div>
+          </div>
+          <div class="sc-status-row">
+            <span class="status-pill pill-ok">OK</span>
+            <span class="sc-message">OAuth OK (live mode)</span>
+          </div>
+          <a href="#" class="sc-link">Open Dashboard →</a>
+        </div>
+        <div class="sc-info">
+          <p class="sc-role">Alternative checkout — PayPal wallet &amp; Pay Later</p>
+          <div>
+            <p class="info-section-label">Key Functions</p>
+            <ul class="info-list">
+              <li>PayPal wallet, Pay Later, card via PayPal</li>
+              <li>Client-side JS SDK order creation (sandbox EUR bug workaround)</li>
+              <li>Webhooks: PAYMENT.CAPTURE.COMPLETED / DENIED / REFUNDED</li>
+            </ul>
+          </div>
+          <div>
+            <p class="info-section-label">Key Metrics</p>
+            <div class="metric-tags">
+              <span class="metric-tag">Live mode — EUR</span>
+              <span class="metric-tag">Webhook ID: 95847304EJ582074L</span>
+              <span class="metric-tag">/webhooks/paypal</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- SECTION 3: Communication -->
+  <!-- ══════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <h2 class="section-title">Communication</h2>
+      <p class="section-desc">Transactional email &amp; CRM</p>
+      <span class="section-badge badge-ok">✓ All OK</span>
+    </div>
+    <div class="service-grid">
+
+      <!-- Resend -->
+      <div class="service-card status-ok">
+        <div class="sc-top">
+          <div class="sc-header">
+            <div class="sc-name-row"><span class="sc-icon">✉️</span><span class="sc-name">Resend (Email)</span></div>
+            <div class="sc-indicators">
+              <span class="latency fast">198ms</span>
+              <div class="status-dot-wrap"><span class="status-dot-ping ping-ok"></span><span class="status-dot dot-ok"></span></div>
+            </div>
+          </div>
+          <div class="sc-status-row">
+            <span class="status-pill pill-ok">OK</span>
+            <span class="sc-message">1 domain configured</span>
+          </div>
+          <a href="#" class="sc-link">Open Dashboard →</a>
+        </div>
+        <div class="sc-info">
+          <p class="sc-role">Transactional email delivery</p>
+          <div>
+            <p class="info-section-label">Key Functions</p>
+            <ul class="info-list">
+              <li>6 templates: welcome, bid-won, outbid, payment, shipped, feedback</li>
+              <li>Admin copy of all order emails to frank@vod-records.com</li>
+              <li>From: noreply@vod-auctions.com</li>
+            </ul>
+          </div>
+          <div>
+            <p class="info-section-label">Key Metrics</p>
+            <div class="metric-tags">
+              <span class="metric-tag">Free tier: 3k emails/month</span>
+              <span class="metric-tag">Domain: vod-auctions.com (verified)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Brevo -->
+      <div class="service-card status-ok">
+        <div class="sc-top">
+          <div class="sc-header">
+            <div class="sc-name-row"><span class="sc-icon">📧</span><span class="sc-name">Brevo (CRM/Newsletter)</span></div>
+            <div class="sc-indicators">
+              <span class="latency fast">244ms</span>
+              <div class="status-dot-wrap"><span class="status-dot-ping ping-ok"></span><span class="status-dot dot-ok"></span></div>
+            </div>
+          </div>
+          <div class="sc-status-row">
+            <span class="status-pill pill-ok">OK</span>
+            <span class="sc-message">Plan: free</span>
+          </div>
+          <a href="#" class="sc-link">Open Dashboard →</a>
+        </div>
+        <div class="sc-info">
+          <p class="sc-role">CRM &amp; newsletter platform</p>
+          <div>
+            <p class="info-section-label">Key Functions</p>
+            <ul class="info-list">
+              <li>Newsletter campaigns — 4 templates (IDs 2–5)</li>
+              <li>3.580 tape-mag contacts imported (List ID 5)</li>
+              <li>Checkout opt-in syncs new subscribers automatically</li>
+            </ul>
+          </div>
+          <div>
+            <p class="info-section-label">Key Metrics</p>
+            <div class="metric-tags">
+              <span class="metric-tag">Free tier: 300 emails/day</span>
+              <span class="metric-tag">From: newsletter@vod-auctions.com</span>
+              <span class="metric-tag">List IDs: 4 (VOD) / 5 (tape-mag)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- SECTION 4: Analytics & Monitoring -->
+  <!-- ══════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <h2 class="section-title">Analytics &amp; Monitoring</h2>
+      <p class="section-desc">Error tracking, UX analytics &amp; user behaviour</p>
+      <span class="section-badge badge-warn">3 not configured</span>
+    </div>
+    <div class="service-grid">
+
+      <!-- Sentry -->
+      <div class="service-card status-ok">
+        <div class="sc-top">
+          <div class="sc-header">
+            <div class="sc-name-row"><span class="sc-icon">🐛</span><span class="sc-name">Sentry (Error Tracking)</span></div>
+            <div class="sc-indicators">
+              <div class="status-dot-wrap"><span class="status-dot-ping ping-ok"></span><span class="status-dot dot-ok"></span></div>
+            </div>
+          </div>
+          <div class="sc-status-row">
+            <span class="status-pill pill-ok">OK</span>
+            <span class="sc-message">Active — org: vod-records, project: vod-auctions-storefront</span>
+          </div>
+          <a href="#" class="sc-link">Open Dashboard →</a>
+        </div>
+        <div class="sc-info">
+          <p class="sc-role">Error tracking &amp; crash reporting</p>
+          <div>
+            <p class="info-section-label">Key Functions</p>
+            <ul class="info-list">
+              <li>Captures unhandled JS exceptions (client) + server errors (Node.js)</li>
+              <li>Session replays on error — text masked, media blocked</li>
+              <li>Global error boundary via global-error.tsx + instrumentation.ts</li>
+            </ul>
+          </div>
+          <div>
+            <p class="info-section-label">Key Metrics</p>
+            <div class="metric-tags">
+              <span class="metric-tag">Org: vod-records</span>
+              <span class="metric-tag">Tunnel: /monitoring</span>
+              <span class="metric-tag">Replay: 10% / 100% on error</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- GA4 -->
+      <div class="service-card status-none">
+        <div class="sc-top">
+          <div class="sc-header">
+            <div class="sc-name-row"><span class="sc-icon">📊</span><span class="sc-name">Google Analytics 4</span></div>
+            <div class="sc-indicators">
+              <div class="status-dot-wrap"><span class="status-dot dot-none"></span></div>
+            </div>
+          </div>
+          <div class="sc-status-row">
+            <span class="status-pill pill-none">Not Set</span>
+            <span class="sc-message">GA_MEASUREMENT_ID not set (add to backend .env)</span>
+          </div>
+          <a href="#" class="sc-link">Open Dashboard →</a>
+        </div>
+        <div class="sc-info">
+          <p class="sc-role">Web analytics — traffic &amp; conversion</p>
+          <div>
+            <p class="info-section-label">Key Functions</p>
+            <ul class="info-list">
+              <li>Page views, sessions, user acquisition</li>
+              <li>E-commerce events: bids placed, purchases, catalog views</li>
+              <li>Loads after analytics cookie consent (consent mode v2)</li>
+            </ul>
+          </div>
+          <div>
+            <p class="info-section-label">Key Metrics</p>
+            <div class="metric-tags">
+              <span class="metric-tag">Measurement ID: G-M9BJGC5D69</span>
+              <span class="metric-tag">Free — unlimited hits</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RudderStack -->
+      <div class="service-card status-none">
+        <div class="sc-top">
+          <div class="sc-header">
+            <div class="sc-name-row"><span class="sc-icon">📡</span><span class="sc-name">RudderStack (Analytics)</span></div>
+            <div class="sc-indicators">
+              <div class="status-dot-wrap"><span class="status-dot dot-none"></span></div>
+            </div>
+          </div>
+          <div class="sc-status-row">
+            <span class="status-pill pill-none">Not Set</span>
+            <span class="sc-message">RUDDERSTACK_WRITE_KEY or DATA_PLANE_URL not set</span>
+          </div>
+          <a href="#" class="sc-link">Open Dashboard →</a>
+        </div>
+        <div class="sc-info">
+          <p class="sc-role">Customer data platform (CDP)</p>
+          <div>
+            <p class="info-section-label">Key Functions</p>
+            <ul class="info-list">
+              <li>Identifies users on login &amp; registration (rudderIdentify)</li>
+              <li>Tracks events: bid placed, item saved/unsaved, purchase</li>
+              <li>Routes event stream to GA4 and other destinations</li>
+            </ul>
+          </div>
+          <div>
+            <p class="info-section-label">Key Metrics</p>
+            <div class="metric-tags">
+              <span class="metric-tag">Free tier — 1k MTUs</span>
+              <span class="metric-tag">app.rudderstack.com</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Clarity -->
+      <div class="service-card status-none">
+        <div class="sc-top">
+          <div class="sc-header">
+            <div class="sc-name-row"><span class="sc-icon">🔍</span><span class="sc-name">Microsoft Clarity (UXA)</span></div>
+            <div class="sc-indicators">
+              <div class="status-dot-wrap"><span class="status-dot dot-none"></span></div>
+            </div>
+          </div>
+          <div class="sc-status-row">
+            <span class="status-pill pill-none">Not Set</span>
+            <span class="sc-message">NEXT_PUBLIC_CLARITY_ID not set — get ID at clarity.microsoft.com</span>
+          </div>
+          <a href="#" class="sc-link">Open Dashboard →</a>
+        </div>
+        <div class="sc-info">
+          <p class="sc-role">UX analytics — session recordings &amp; heatmaps</p>
+          <div>
+            <p class="info-section-label">Key Functions</p>
+            <ul class="info-list">
+              <li>Session recordings — replay user journeys</li>
+              <li>Heatmaps, rage clicks &amp; dead click detection</li>
+              <li>Loads only after marketing cookie consent</li>
+            </ul>
+          </div>
+          <div>
+            <p class="info-section-label">Key Metrics</p>
+            <div class="metric-tags">
+              <span class="metric-tag">Free — no data limits</span>
+              <span class="metric-tag">Replaces ContentSquare</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- SECTION 5: Cache & AI -->
+  <!-- ══════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <h2 class="section-title">Cache &amp; AI</h2>
+      <p class="section-desc">Performance caching &amp; AI admin assistant</p>
+      <span class="section-badge badge-ok">✓ All OK</span>
+    </div>
+    <div class="service-grid">
+
+      <!-- Upstash -->
+      <div class="service-card status-ok">
+        <div class="sc-top">
+          <div class="sc-header">
+            <div class="sc-name-row"><span class="sc-icon">⚡</span><span class="sc-name">Upstash Redis (Cache)</span></div>
+            <div class="sc-indicators">
+              <span class="latency fast">61ms</span>
+              <div class="status-dot-wrap"><span class="status-dot-ping ping-ok"></span><span class="status-dot dot-ok"></span></div>
+            </div>
+          </div>
+          <div class="sc-status-row">
+            <span class="status-pill pill-ok">OK</span>
+            <span class="sc-message">PONG — moving-marlin</span>
+          </div>
+          <a href="#" class="sc-link">Open Dashboard →</a>
+        </div>
+        <div class="sc-info">
+          <p class="sc-role">Serverless Redis cache layer</p>
+          <div>
+            <p class="info-section-label">Key Functions</p>
+            <ul class="info-list">
+              <li>REST API — no persistent connection needed (serverless-friendly)</li>
+              <li>Caches API responses to reduce DB load</li>
+              <li>Planned: rate limiting, real-time session storage</li>
+            </ul>
+          </div>
+          <div>
+            <p class="info-section-label">Key Metrics</p>
+            <div class="metric-tags">
+              <span class="metric-tag">Free tier: 10k commands/day</span>
+              <span class="metric-tag">Region: eu-west-1</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Anthropic -->
+      <div class="service-card status-ok">
+        <div class="sc-top">
+          <div class="sc-header">
+            <div class="sc-name-row"><span class="sc-icon">🤖</span><span class="sc-name">Anthropic (AI Assistant)</span></div>
+            <div class="sc-indicators">
+              <div class="status-dot-wrap"><span class="status-dot-ping ping-ok"></span><span class="status-dot dot-ok"></span></div>
+            </div>
+          </div>
+          <div class="sc-status-row">
+            <span class="status-pill pill-ok">OK</span>
+            <span class="sc-message">API key configured (Claude Haiku — Admin AI Chat)</span>
+          </div>
+          <a href="#" class="sc-link">Open Dashboard →</a>
+        </div>
+        <div class="sc-info">
+          <p class="sc-role">AI assistant powering the Admin AI Chat</p>
+          <div>
+            <p class="info-section-label">Key Functions</p>
+            <ul class="info-list">
+              <li>Admin AI Chat with SSE streaming responses</li>
+              <li>5 read-only tools: catalog, orders, bids, customers, stats</li>
+              <li>Model: Claude Haiku 4.5 (fast, low-cost for admin use)</li>
+            </ul>
+          </div>
+          <div>
+            <p class="info-section-label">Key Metrics</p>
+            <div class="metric-tags">
+              <span class="metric-tag">Pay-as-you-go — est. &lt; €5/month</span>
+              <span class="metric-tag">Endpoint: /admin/ai-chat</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Quick Links -->
+  <div class="card quick-links">
+    <div class="card-pad">
+      <p class="ql-title">Quick Links</p>
+      <div class="ql-grid">
+        <a href="#" class="ql-btn">Supabase Dashboard <span class="ql-arrow">↗</span></a>
+        <a href="#" class="ql-btn">Stripe Dashboard <span class="ql-arrow">↗</span></a>
+        <a href="#" class="ql-btn">PayPal Dashboard <span class="ql-arrow">↗</span></a>
+        <a href="#" class="ql-btn">Resend <span class="ql-arrow">↗</span></a>
+        <a href="#" class="ql-btn">Brevo <span class="ql-arrow">↗</span></a>
+        <a href="#" class="ql-btn">Sentry Issues <span class="ql-arrow">↗</span></a>
+        <a href="#" class="ql-btn">Microsoft Clarity <span class="ql-arrow">↗</span></a>
+        <a href="#" class="ql-btn">GA4 Analytics <span class="ql-arrow">↗</span></a>
+        <a href="#" class="ql-btn">RudderStack <span class="ql-arrow">↗</span></a>
+        <a href="#" class="ql-btn">Upstash Redis <span class="ql-arrow">↗</span></a>
+        <a href="#" class="ql-btn">Anthropic Console <span class="ql-arrow">↗</span></a>
+        <a href="#" class="ql-btn">Hostinger VPS <span class="ql-arrow">↗</span></a>
+      </div>
+    </div>
+  </div>
+
+  <p style="text-align:center; font-size:11px; color:var(--gray); margin-top:28px; padding-bottom:12px;">
+    VOD Auctions Admin · System Health Mockup · Based on Stitch design
+  </p>
+
+</div>
+</body>
+</html>

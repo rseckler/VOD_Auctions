@@ -1,12 +1,19 @@
 # Discogs Collection Import Service
 
-**Version:** 5.2.0
+**Version:** 5.3.0
 **Datum:** 2026-04-11
 **Status:** Live
-**v5.2.0 Highlights:**
-- **Fetch Loop decoupled from HTTP request** — navigation-robust, detached background task, Polling-based UI updates (rc18)
-- **Collections Management** — standalone `/app/discogs-import/history` route, detail page per run, 27-column CSV export (rc17)
-- **Stale-Session Auto-Cleanup** — tote Sessions nach 6h automatisch aus Resume-Detection (rc17)
+**v5.3.0 Highlights (rc20):**
+- **SSEStream Headless Mode** — alle 3 lang laufenden Ops (Fetch, Analyze, Commit) sind jetzt als detached background tasks vom HTTP-Request entkoppelt
+- **Post-Import Call-to-Action** — nach Success-Commit prominente Completion-Card mit "View Collection / All Collections / Start New Import" Buttons
+- **Media Detail Import History** — Release-Detail-Seite zeigt aus welchem Import ein Eintrag stammt (Collection, Source-File, Action, Link zur Run-Detail-Page)
+
+**v5.2.0 (rc18):**
+- **Fetch Loop decoupled** — navigation-robust, Polling-based UI updates
+
+**v5.1 (rc17):**
+- **Collections Management** — standalone `/app/discogs-import/history` route, detail page per run, 27-column CSV export
+- **Stale-Session Auto-Cleanup** — tote Sessions nach 6h automatisch aus Resume-Detection
 
 ## Zweck
 
@@ -21,9 +28,9 @@ Genereller, wiederverwendbarer Importer für Discogs Collection/Inventory Export
 | Route | Typ | Zweck |
 |-------|-----|-------|
 | `POST /admin/discogs-import/upload` | JSON + SSE (via Accept header) | CSV/XLSX parsen, Session anlegen, Cache-Status prüfen |
-| `POST /admin/discogs-import/fetch` | **JSON 200 (background task)** | Validiert + spawnt detached `runFetchLoop()`, returnt `{ started: true }`. Loop schreibt in `import_event` + `fetch_progress`, UI polled. Idempotent via Stale-Detection. |
-| `POST /admin/discogs-import/analyze` | SSE | 4-Phasen Matching (exact → cache → fuzzy batches → aggregate). _Follow-up: auch decoupling_ |
-| `POST /admin/discogs-import/commit` | SSE | 3-Phasen transaktionaler Import (existing → linkable → new). _Follow-up: auch decoupling_ |
+| `POST /admin/discogs-import/fetch` | **JSON 200 (detached)** | Validiert + spawnt detached `runFetchLoop()`. Loop schreibt in `import_event` + `fetch_progress`, UI polled. Idempotent via Stale-Detection. (rc18) |
+| `POST /admin/discogs-import/analyze` | **JSON 200 (detached, rc20)** | Validiert + spawnt detached analyze loop via SSEStream Headless Mode. Idempotent. |
+| `POST /admin/discogs-import/commit` | **JSON 200 (detached, rc20)** | Validiert + spawnt detached commit loop mit per-batch Transactions via SSEStream Headless Mode. Idempotent. Commit-Resume via `completed_batches`. |
 | `GET /admin/discogs-import/history` | JSON | Run-Übersicht + aggregate `stats` + active_sessions (exklusiv non-stale) |
 | `GET /admin/discogs-import/history/:runId` | JSON | Run-Detail: Metadaten + Live-Stats + alle Releases (JOIN Release × Artist × Label) + bis zu 2000 Events |
 | `GET /admin/discogs-import/history/:runId/export` | CSV | 27-Spalten Export mit Live-DB-State, UTF-8 BOM, Excel-kompatibel |
@@ -185,9 +192,9 @@ Browser ←── SSE Stream ──→ Medusa
 - Wenn Session in DORMANT-State (`uploaded`/`fetched`/`analyzed`): Resume-Banner mit kontextabhängigem Label ("Start Fetch" / "Continue to Review" / etc.)
 - Wenn Session stale (`fetching` AND `last_event_at > 60s` alt): Assume Backend-Loop ist tot → re-POST zu `/fetch` → Idempotency-Check erkennt stale → startet Loop neu
 
-### 4. Detached Background Tasks: Fetch Loop unabhängig vom HTTP-Request (rc18)
+### 4. Detached Background Tasks: alle 3 Loops unabhängig vom HTTP-Request (rc18 + rc20)
 
-**Problem (bis rc17):** Der Fetch-Loop lief im HTTP-Handler, schrieb Events via `SSEStream` direkt in `res`. Wenn der Browser-Client disconnectete (Navigation, Tab-Close, Reload), wurde Medusa's Request-Scope disposed und der Loop starb **still** (keine Exception im Stderr, nur kein Fortschritt mehr).
+**Problem (bis rc17):** Die Loops (Fetch, Analyze, Commit) liefen im HTTP-Handler, schrieben Events via `SSEStream` direkt in `res`. Wenn der Browser-Client disconnectete (Navigation, Tab-Close, Reload), wurde Medusa's Request-Scope disposed und der Loop starb **still** (keine Exception im Stderr, nur kein Fortschritt mehr).
 
 **Lösung:** Loop als **detached background task**:
 
@@ -238,7 +245,32 @@ Der Loop nutzt `emitDbEvent(pg, sessionId, phase, type, payload)` statt `stream.
 - `fetch_progress` wird jetzt alle **10 Iterationen** geschrieben (vorher 25) weil Polling die primäre Quelle ist
 - Polling-Callback erkennt `fetching → fetched` Transition, setzt `fetchResult`, stoppt Polling
 
-**Out of scope (Follow-up):** `/analyze` und `/commit` laufen noch im SSE-Handler. Same kill-on-navigation-Problem, aber kürzer laufend (Minuten statt Stunden) daher weniger schmerzhaft.
+**rc20 Update — Analyze + Commit Decoupling via SSEStream Headless Mode:**
+
+Statt den ganzen Loop-Body in eine neue Funktion zu extrahieren (wie bei Fetch), haben wir einen eleganteren Ansatz gewählt: **`SSEStream` akzeptiert jetzt `res: MedusaResponse | null`**.
+
+Bei `res === null` (Headless Mode):
+- `emit()` schreibt nur in `import_event` + bumped `last_event_at`
+- `startHeartbeat()` / `end()` sind no-ops
+
+Dadurch bleiben die commit- (~650 LOC) und analyze-Loops (~200 LOC) **strukturell unverändert**. Nur der POST-Handler ist umgebaut:
+
+```typescript
+export async function POST(req, res) {
+  // ... validate + idempotency ...
+  res.json({ ok: true, started: true })
+
+  // Headless stream — emit() geht direkt in DB statt HTTP
+  const stream = new SSEStream(null, pg, session_id)
+
+  void (async () => {
+    try { /* existing loop body unchanged */ }
+    catch (err) { /* ... */ }
+  })().catch(err => console.error(...))
+}
+```
+
+**Bonus Bugfix in SSEStream.emit():** Das alte `emit()` hat nach dem HTTP-write-Error früher RETURNt und den DB-insert übersprungen. Events nach dem ersten Client-Disconnect gingen verloren. Jetzt wird DB **immer** geschrieben, unabhängig vom HTTP-Status. Das war der stille Grund warum Fetches "manchmal funktionierten".
 
 ### 5. Stale Session Auto-Cleanup (rc17)
 

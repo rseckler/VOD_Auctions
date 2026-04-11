@@ -143,6 +143,100 @@ export async function POST(req, res) {
 ## Referenzen
 
 - Plan: `docs/architecture/DISCOGS_COLLECTIONS_OVERVIEW_PLAN.md`
-- CHANGELOG rc17 + rc18: `docs/architecture/CHANGELOG.md`
-- Service Doc v5.2: `docs/DISCOGS_IMPORT_SERVICE.md`
-- Commits: `2a96b3e`, `10296e4`, `d53bb79`, `5fe89dc`, `4b823e5`, `fd669a5`, `55e680d`, `ffc1440`
+- CHANGELOG rc17 + rc18 + rc20: `docs/architecture/CHANGELOG.md`
+- Service Doc v5.3: `docs/DISCOGS_IMPORT_SERVICE.md`
+- Commits: `2a96b3e`, `10296e4`, `d53bb79`, `5fe89dc`, `4b823e5`, `fd669a5`, `55e680d`, `ffc1440`, `bd5ba74`, `a3e06a0`
+
+---
+
+## Addendum — Part 2 (rc20): Full Decoupling + CTA + Media Import History
+
+Nach rc18 (Fetch Decoupling) kam am gleichen Tag noch eine zweite Welle an Änderungen:
+
+### Problem 8: Commit läuft, UI zeigt 0% — gleiches Pattern wie Fetch
+
+Beim ersten echten Test-Commit (Frank Inventory, 3762 Releases) blieb die UI auf `Importing... (0/2483)` stehen. DB-Check zeigte: Backend-Commit-Loop lief aktiv durch, `current=1500`, `last_event_at` 2 Sekunden alt. Aber die UI sah nichts.
+
+**Diagnose:**
+- `handleCommit` nutzt `commitSSE.start(...)` → SSE-Stream vom Backend
+- SSE ist irgendwann gedropped (Medusa scope teardown oder ähnliches)
+- **Kein Polling als Safety-Net** aktiviert (anders als bei `loadResumable` auf Mount)
+- Backend-Loop ist NICHT gestorben wie bei Fetch — per-batch Transactions mit kleineren DB-Writes scheinen weniger anfällig
+- Commit hat weiter gemacht, completed nach ~6 Min mit `status='done'`, UI hat es nie erfahren
+
+**Fix (`bd5ba74`): Analyze + Commit entkoppeln wie Fetch**
+
+Statt die ganzen Loop-Bodies (commit 650 LOC, analyze 200 LOC) in neue Funktionen zu extrahieren, haben wir **SSEStream um Headless Mode erweitert**:
+- Konstruktor: `res: MedusaResponse | null`
+- Bei `null`: `emit()` schreibt nur in `import_event`, `startHeartbeat/end` no-op
+- **Bonus-Bugfix:** Altes `emit()` hat nach HTTP-write-Error RETURNt und DB-insert ausgelassen. Jetzt wird DB immer geschrieben.
+
+POST-Handler-Wrapper für commit + analyze:
+```typescript
+export async function POST(req, res) {
+  // validate + idempotency
+  res.json({ ok: true, started: true })
+  const stream = new SSEStream(null, pg, session_id)  // ← headless
+  void (async () => {
+    try { /* existing loop unchanged */ }
+    catch (err) { /* ... */ }
+  })().catch(...)
+}
+```
+
+Das Schönste daran: die existing Loop-Bodies sind **komplett unverändert**. Keine Refactorings, keine Parameter-Änderungen. SSEStream leitet alle `stream.emit()` Calls transparent an die DB weiter.
+
+### Problem 9: Kein Call-to-Action nach Success
+
+Nach dem Commit zeigte die Seite nur einen kleinen grünen Alert — "Import complete! Run ID: ...". Keine Action-Buttons, kein Next-Step. User musste raten was als nächstes.
+
+**Fix (`bd5ba74`): Prominente Completion-Card**
+
+Ersetzt den alten Alert durch eine große Gradient-Card mit:
+- Header "✓ Import erfolgreich abgeschlossen"
+- Collection + Run-ID
+- Farbcodierte Stats-Zeile (Inserted/Linked/Updated/Skipped/Errors)
+- 3 CTA-Buttons:
+  - "📂 View Imported Collection →" (Gold) → Detail-Page des Runs
+  - "All Collections" → Collections-Liste
+  - "↻ Start New Import" → Wizard-State Reset für frischen Import
+
+### Problem 10: Im Media-Detail fehlt "aus welchem Import"
+
+User-Feedback: "was noch im Backend fehlt: die Info, aus welchem Import den Eintrag stammt".
+
+Die `import_log` Tabelle hatte alle Daten — sie waren nur nicht im Media-Detail sichtbar.
+
+**Fix (`a3e06a0`):**
+- `GET /admin/media/:id` returnt jetzt zusätzlich `import_history` (LEFT JOIN `import_log × import_session`, ORDER BY created_at DESC, LIMIT 10)
+- Defensive try/catch falls `import_log` Tabelle noch nicht existiert (frische Installationen)
+- Media-Detail-Page: neue Section "Import History" zwischen Notes/Tracklist und Sync History
+- Wird nur gerendert wenn es Einträge gibt (alte Pre-Discogs-Import Releases sehen die Section nicht)
+- Tabelle: Date · Collection · Source File · Action (farbcodierte Badge) · Discogs ID (Link zu discogs.com) · "View Run →" (Link zur Import-Detail-Page)
+
+### Lessons (Part 2)
+
+6. **Polling als Safety-Net auch bei SSE-Hauptpfad.** handleCommit/handleAnalyze hätten von Anfang an `setPollingEnabled(true)` als Fallback haben sollen — dann hätte der SSE-Drop während Commit nur zu einer kurzen Unterbrechung statt "ich sehe nichts" geführt. Für rc20 ersatzlos durch Decoupling gelöst, aber Grundprinzip bleibt: **kein single-path UI-Update für lang laufende Ops**.
+
+7. **SSEStream Headless Mode > Full Extraction.** Statt wie bei Fetch den ganzen Loop-Body in eine neue Funktion zu extrahieren, ist der Headless-Mode-Trick viel sauberer. Die existing Loops bleiben byte-identisch. Der Bonus: bestehende Code-Reviews / Test-Coverage / Dokumentation für die Loop-Bodies gelten weiter. **Lesson:** bei Refactorings zu "run in background" immer erst fragen ob man die Coupling-Schicht abstrahieren kann statt den Business-Code umzuschreiben.
+
+8. **Silent Bugs in Error-Handling-Pfaden.** Das `emit()` hat nach HTTP-write-Error den DB-Insert einfach übersprungen. Das war seit rc14 drin und hat über Wochen unbemerkt Events gefressen wann immer ein Client disconnected. Gefunden nur durch die Decoupling-Arbeit. **Lesson:** error-handling-Paths müssen genauso hart getestet werden wie happy paths, besonders in library code der überall genutzt wird.
+
+9. **Completion UX ist nicht "nice to have".** Ein Call-to-Action nach erfolgreichem Import ist genauso wichtig wie das Fortschritts-UI während des Imports. Wenn der User nicht weiß was als nächstes, fühlt sich "fertig" nicht fertig an. **Lesson:** für jeden Multi-Step-Flow von Anfang an die CTA-Struktur mitdesignen, nicht nachträglich draufschrauben.
+
+### Commits (Part 2)
+
+- `bd5ba74` — Discogs Import: Analyze + Commit Routes entkoppelt + Post-Import CTA
+- `a3e06a0` — Media Detail: Import History Section
+
+### Final Status (Ende 2026-04-11)
+
+| Feature | rc17 | rc18 | rc20 |
+|---|---|---|---|
+| Fetch überlebt Navigation | ❌ | ✅ | ✅ |
+| Analyze überlebt Navigation | ❌ | ❌ | ✅ |
+| Commit überlebt Navigation | ❌ | ❌ | ✅ |
+| Idempotency (no Double-Spawn) | ❌ | ✅ Fetch | ✅ alle 3 |
+| Post-Import CTA | ❌ | ❌ | ✅ |
+| Media Detail zeigt Import-Herkunft | ❌ | ❌ | ✅ |
+| Polling ist primäre UI-Update-Quelle | ❌ | ✅ Fetch | ✅ alle 3 |

@@ -11,6 +11,7 @@ Jeder Git-Tag entspricht einem Snapshot des Gesamtsystems. Feature Flags zeigen 
 | Version | Datum | Platform Mode | Feature Flags aktiv (prod) | Milestone / Inhalt |
 |---------|-------|--------------|---------------------------|-------------------|
 | **v1.0.0** | TBD | `live` | ERP: TBD | RSE-78: Erster öffentlicher Launch |
+| **v1.0.0-rc20** | 2026-04-11 | `beta_test` | — | Discogs Import: Analyze + Commit Routes ebenfalls entkoppelt (SSEStream Headless Mode — alle 3 lang laufenden Ops sind jetzt detached), Post-Import Call-to-Action-Card, Import History Section im Media-Detail (zeigt aus welchem Import ein Release stammt) |
 | **v1.0.0-rc19** | 2026-04-11 | `beta_test` | — | Barcode-Label Hardware Validation: Brother QL-820NWBc + DK-22210 + Inateck BCST-70 End-to-End getestet. Production-Code Fix: 29×90mm Layout mit Artist/Title·Label/Meta/Preis-Spalten. Neue Hardware-Doku + Debugging-Kompass. |
 | **v1.0.0-rc18** | 2026-04-11 | `beta_test` | — | Discogs Import: Fetch Loop vom HTTP-Request entkoppelt — Navigation während Fetch killt den Loop nicht mehr, Loop läuft detached im Hintergrund, Idempotenz + Stale-Auto-Restart, UI nur noch Polling |
 | **v1.0.0-rc17** | 2026-04-11 | `beta_test` | — | Discogs Import: Collections Overview als eigenständige Route (kein Tab mehr), Detail Page mit 8-Karten Stats, Clickable Cover/Title, Stock-Spalte, 27-column CSV Export, Stale-Session Auto-Cleanup nach 6h, Back-Button Fix (Btn-Component-Bug) |
@@ -57,6 +58,120 @@ Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Rel
 - **Patch Release** (`v1.0.x`): Kritische Bugfixes zwischen geplanten Releases
 - **Tagging-Workflow:** `git tag -a vX.Y.Z -m "Release vX.Y.Z: <Kurzname>"` → `git push origin vX.Y.Z`
 - **Tag-Zeitpunkt:** Direkt nach Deploy + Smoke-Test auf Production — nicht vor dem Deploy
+
+---
+
+## 2026-04-11 — Discogs Import: Full Decoupling + Post-Import CTA + Media Import History (rc20)
+
+**Kontext:** rc18 hat den Fetch-Loop vom HTTP-Request entkoppelt und damit den Navigation-Kill gelöst. Analyze + Commit liefen aber noch über SSE-Streams mit demselben latenten Problem. Beim ersten echten Commit-Test (Frank Inventory, 3762 Releases) fiel das auf: die UI blieb auf `0/2483` stehen, obwohl der Backend-Commit-Loop weiter durchlief und erfolgreich completed. Außerdem war nach Success kein Call-to-Action da, und im Media-Detail fehlte die Info aus welchem Import ein Release stammt.
+
+### Part 1 — Analyze + Commit Routes entkoppelt (elegante Lösung)
+
+Statt wie bei Fetch die komplette Loop-Logik in eine neue Funktion zu extrahieren, haben wir einen eleganteren Ansatz gewählt: **`SSEStream` Headless Mode**.
+
+**`backend/src/lib/discogs-import.ts`:**
+- Konstruktor akzeptiert jetzt `res: MedusaResponse | null`
+- Bei `res === null` (Headless):
+  - `emit()` schreibt nur in `import_event` + bumped `last_event_at` (kein HTTP-Write-Versuch)
+  - `startHeartbeat()` ist no-op (kein HTTP-Stream zu halten)
+  - `end()` ist no-op
+- Bei vorhandenem `res`: verhält sich exakt wie vorher (HTTP + DB)
+- **Bonus-Bugfix beim emit():** Das alte `emit()` hat nach dem HTTP-write-Error früher RETURNt und damit den DB-insert ausgelassen. Das heißt: **nach Client-Disconnect gingen alle weiteren Events verloren**, sowohl für SSE-Clients als auch für das Polling-Fallback. Jetzt wird DB **immer** geschrieben, unabhängig vom HTTP-Status. Das war der stille Grund warum Fetches "manchmal funktionierten".
+
+**`backend/src/api/admin/discogs-import/commit/route.ts` + `analyze/route.ts`:**
+Beide POST-Handler strukturell identisch zu Fetch aus rc18:
+1. Validate session + body
+2. **Idempotency-Check:** `status === "importing"/"analyzing"` AND `last_event_at < 60s` → returnt `{ already_running: true }` ohne Double-Spawn. Stale (>60s) → Restart erlaubt (Commit nutzt `completed_batches` für Resume)
+3. `res.json({ ok: true, started: true })` — sofortige 200-Antwort
+4. `void (async () => { try { ... entire existing loop body unchanged ... } catch {...} })().catch(...)`
+5. Der Loop bekommt `new SSEStream(null, pg, session_id)` — alle existierenden `stream.emit()` Calls routen transparent in die DB
+
+**Entscheidender Vorteil dieses Ansatzes:** Die Loop-Bodies von commit (~650 Zeilen) und analyze (~200 Zeilen) sind **unverändert**. Keine Refactorings, keine Umbenennungen, keine neuen Parameter. Nur der POST-Handler-Wrapper ist anders. Das minimiert Regressionsrisiko massiv.
+
+**Frontend `handleCommit` + `handleAnalyze`:**
+- Plain `fetch()` POST, liest 200 JSON-Response (kein `commitSSE.start(...)` mehr)
+- `setPollingEnabled(true)` + `setPollingInitialEventId(0)`
+- Phase-Transitions werden im bestehenden `useSessionPolling` onStatus Callback gehandhabt:
+  - `analyzing → analyzed`: lädt `analysis_result` aus session, setzt `analysis` + `selectedIds`, switcht Tab auf Analysis, setzt `currentPhase` auf review, stoppt Polling
+  - `importing → done`: baut `commitResult` aus `commit_progress.counters` (`inserted`, `linked`, `updated`, `skipped`, `errors`), ruft `clearActiveSessionId()`, stoppt Polling
+
+**Ergebnis:** Alle drei lang laufenden Ops (Fetch, Analyze, Commit) laufen jetzt als detached background tasks. Navigation, Tab-Close, SSE-Drops killen keinen Loop mehr.
+
+### Part 2 — Post-Import Call-to-Action
+
+Nach erfolgreichem Commit zeigte die Seite nur einen kleinen Success-Alert ohne klaren Next-Step. Der User wollte einen richtigen Call-to-Action.
+
+**Neue Completion-Card** (ersetzt den alten Alert):
+- Prominenter Header: **"✓ Import erfolgreich abgeschlossen"** in grün auf Gradient-Background
+- Collection-Name + 8-char Run-ID (monospace)
+- Stats-Zeile farbcodiert: Inserted (grün) · Linked (gold) · Updated (blau) · (Skipped neutral, Errors rot wenn vorhanden)
+- **3 Action-Buttons:**
+  1. **"📂 View Imported Collection →"** (Gold primary) → navigiert auf `/discogs-import/history/{run_id}` (die frisch importierte Collection mit allen Releases)
+  2. **"All Collections"** (neutral) → navigiert auf die Collections-Liste `/discogs-import/history`
+  3. **"↻ Start New Import"** (ghost) → resettet den kompletten Wizard-State (`file`, `collectionName`, `uploadResult`, `analysis`, `commitResult`, alle progress fields, `events`, `currentPhase`, `tab`) und kehrt zum Upload-Tab zurück — bereit für einen frischen Import ohne Page-Reload
+
+### Part 3 — Import History im Media-Detail
+
+**User-Feedback:** "was noch im Backend fehlt: die Info, aus welchem Import den Eintrag stammt"
+
+Die `import_log` Tabelle hat alle nötigen Infos (per-release Zeile mit `run_id`, `collection_name`, `import_source`, `action`, `data_snapshot`), sie waren nur nicht im Media-Detail sichtbar.
+
+**Backend `GET /admin/media/:id`:**
+- Neue Query: LEFT JOIN `import_log` × `import_session` auf `release_id = ?` AND `import_type = 'discogs_collection'`, ORDER BY created_at DESC, LIMIT 10
+- Zusätzliches Response-Feld `import_history` (Array)
+- Defensive try/catch: wenn `import_log` Tabelle noch nicht existiert (frische Installationen), returnt leeres Array statt 500
+
+**Frontend Media Detail Page:**
+- Neuer State `importHistory`
+- **Neue Section "Import History"** zwischen Notes/Tracklist und Sync History
+- **Nur sichtbar wenn Einträge existieren** — alte Releases vor dem Discogs Import Service sehen die Section gar nicht
+- Tabelle mit Columns:
+  - **Date** (wann der Import den Release berührt hat)
+  - **Collection** (fett, z.B. "Pargmann", "Bremer", "Frank Inventory")
+  - **Source File** (z.B. "Bremer loh-fi-inventory-20251208-1124 3.csv", truncated mit ellipsis)
+  - **Action** (farbcodierte Badge: `inserted`=success, `linked`=warning, `updated`=info, `skipped`=neutral)
+  - **Discogs ID** (monospace, Link zu discogs.com/release/{id})
+  - **"View Run →"** (Link zur Import-Run-Detail-Page `/app/discogs-import/history/{runId}`)
+- Ein Release kann mehrfach erscheinen wenn es durch mehrere Imports geht (z.B. `inserted` aus Collection A, später `updated` aus Preis-Sync in Collection B)
+
+**Nutzen für Frank:** Direkt im Release-Detail sieht er ob der Eintrag frisch aus einem Import kommt, welche Collection er war, welche Source-File, und kann per Click zur gesamten Collection springen um den Kontext zu haben.
+
+### Files
+
+**Part 1 (Decoupling):**
+- `backend/src/lib/discogs-import.ts` — SSEStream Headless Mode (+50 / -15)
+- `backend/src/api/admin/discogs-import/commit/route.ts` — POST Handler Wrapper, Idempotency (+50 / -10)
+- `backend/src/api/admin/discogs-import/analyze/route.ts` — POST Handler Wrapper, Idempotency (+54 / -18)
+- `backend/src/admin/routes/discogs-import/page.tsx` — handleCommit/handleAnalyze neu, Polling-Transitions (+62 / -60)
+
+**Part 2 (CTA):**
+- `backend/src/admin/routes/discogs-import/page.tsx` — Completion-Card statt Alert (+74 / -5)
+
+**Part 3 (Import History):**
+- `backend/src/api/admin/media/[id]/route.ts` — import_history Query (+30)
+- `backend/src/admin/routes/media/[id]/page.tsx` — Section + State (+62)
+
+### Commits
+
+- `bd5ba74` — Analyze + Commit Routes entkoppelt + Post-Import CTA
+- `a3e06a0` — Media Detail: Import History Section
+
+### Was jetzt komplett funktioniert
+
+| Feature | rc17 | rc18 | rc20 |
+|---|---|---|---|
+| Fetch überlebt Navigation | ❌ | ✅ | ✅ |
+| Analyze überlebt Navigation | ❌ | ❌ | ✅ |
+| Commit überlebt Navigation | ❌ | ❌ | ✅ |
+| Idempotency (kein Double-Spawn) | ❌ | ✅ Fetch | ✅ alle 3 |
+| Post-Import CTA | ❌ | ❌ | ✅ |
+| Media Detail zeigt Import-Herkunft | ❌ | ❌ | ✅ |
+| Polling ist primäre UI-Update-Quelle | ❌ | ✅ Fetch | ✅ alle 3 |
+
+### Nicht in Scope (separates Follow-up)
+
+- **Stale-Restart für Analyze/Commit auf UI-Mount** — aktuell nur für Fetch implementiert. Analyze+Commit würden denselben Pattern brauchen (bei Mount prüfen ob `analyzing`/`importing` + `last_event_at > 60s` → re-POST). Weniger dringend weil Analyze+Commit kürzer laufen.
+- **CTA nach Analyze-Done** — aktuell nur nach Commit. Könnte analog auf `analyzed` Status eine CTA zum Review anzeigen.
 
 ---
 
