@@ -1,10 +1,10 @@
 # Discogs Collections Overview — Implementation Plan
 
-**Status:** Step 0 ✅ done (CSV Export) — Steps 1-5 pending
+**Status:** ✅ Implemented & Deployed (commit `2a96b3e`, rc17, 2026-04-11)
 **Created:** 2026-04-11
 **Last Updated:** 2026-04-11
 **Author:** Robin Seckler
-**Related:** `DISCOGS_IMPORT_SERVICE.md` v5.1.1, `DISCOGS_IMPORT_SESSION_2026-04-10.md`
+**Related:** `DISCOGS_IMPORT_SERVICE.md` v5.1.1, `DISCOGS_IMPORT_SESSION_2026-04-10.md`, `CHANGELOG.md` rc17
 
 ## Motivation
 
@@ -804,15 +804,15 @@ Alles additiv, keine Migrations, kein Data Loss möglich.
 
 ## Definition of Done
 
-- [x] Schritt 0 committed (rc17 patch)
-- [ ] Schritt 1: `/admin/discogs-import/history` liefert `stats` Objekt
-- [ ] Schritt 2: `/admin/discogs-import/history/:runId` liefert run+stats+releases+events
-- [ ] Schritt 3: History-Tab hat Stats-Header + Search, Pargmann findbar
-- [ ] Schritt 4: Detail-Seite lädt, alle Filter funktionieren, alle 3 Link-Typen öffnen korrekte Ziele
-- [ ] Schritt 5: Auf VPS deployed, Smoke-Tests grün
-- [ ] CHANGELOG aktualisiert
-- [ ] GitHub Release-Info aktualisiert
-- [ ] Dieses Dokument: Status = "Implemented"
+- [x] Schritt 0: CSV Export (GET `/history/:runId/export` + UI-Buttons)
+- [x] Schritt 1: `/admin/discogs-import/history` liefert `stats` Objekt + erweiterte Run-Metadaten
+- [x] Schritt 2: `/admin/discogs-import/history/:runId` liefert run+stats+releases+events
+- [x] Schritt 3: History-Tab hat Stats-Header + Search, Pargmann findbar
+- [x] Schritt 4: Detail-Seite lädt, alle Filter funktionieren, alle 3 Link-Typen öffnen korrekte Ziele
+- [x] Schritt 5: Auf VPS deployed (commit `2a96b3e`), Server ready on port 9000, Routes antworten
+- [x] CHANGELOG aktualisiert (rc17 Eintrag)
+- [ ] GitHub Release-Info aktualisiert (manueller Schritt, TODO)
+- [x] Dieses Dokument: Status = "Implemented & Deployed"
 
 ---
 

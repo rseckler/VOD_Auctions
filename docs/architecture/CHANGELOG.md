@@ -11,6 +11,7 @@ Jeder Git-Tag entspricht einem Snapshot des Gesamtsystems. Feature Flags zeigen 
 | Version | Datum | Platform Mode | Feature Flags aktiv (prod) | Milestone / Inhalt |
 |---------|-------|--------------|---------------------------|-------------------|
 | **v1.0.0** | TBD | `live` | ERP: TBD | RSE-78: Erster öffentlicher Launch |
+| **v1.0.0-rc17** | 2026-04-11 | `beta_test` | — | Discogs Import: Collections Overview + Detail Page + CSV Export — Stats-Header, Search, dedicated `/history/:runId` route, 27-column CSV export with live DB state, 3 link types per release (Storefront/Admin/Discogs) |
 | **v1.0.0-rc16** | 2026-04-10 | `beta_test` | — | Discogs Import Commit Hardening + Schema Fixes: Per-Batch Transaktionen, Pre-Commit Validation, Pargmann Import 5.646 releases done |
 | **v1.0.0-rc15** | 2026-04-10 | `beta_test` | — | Discogs Import Live Feedback: SSE für alle 4 Schritte, Heartbeat, Resume, Cancel/Pause, Event-Log |
 | **v1.0.0-rc14** | 2026-04-10 | `beta_test` | — | Discogs Import Refactoring: DB-Sessions, DB-Cache, pg_trgm Fuzzy-Matching, Transaktionen |
@@ -54,6 +55,53 @@ Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Rel
 - **Patch Release** (`v1.0.x`): Kritische Bugfixes zwischen geplanten Releases
 - **Tagging-Workflow:** `git tag -a vX.Y.Z -m "Release vX.Y.Z: <Kurzname>"` → `git push origin vX.Y.Z`
 - **Tag-Zeitpunkt:** Direkt nach Deploy + Smoke-Test auf Production — nicht vor dem Deploy
+
+---
+
+## 2026-04-11 — Discogs Import: Collections Overview + Detail Page + CSV Export (rc17)
+
+**Kontext:** Nach dem Pargmann-Import (5.646 Releases, rc16) war der bestehende History-Tab zu schwach: flache Tabelle, Modal-Drill-Down mit nur Event-Timeline, keine Catalog-Deep-Links, keine Export-Möglichkeit. Es fehlte echte Collection-Verwaltung.
+
+**Was gebaut wurde (alles additiv, keine Schema-Changes):**
+
+**Backend Routes:**
+- `GET /admin/discogs-import/history` (erweitert): liefert jetzt zusätzlich `stats` (total_runs, total_releases, total_inserted/linked/updated, last_import_at) und pro Run `session_status`, `session_id`, `row_count`, `unique_count`, `import_settings` via LEFT JOIN mit `import_session`.
+- `GET /admin/discogs-import/history/:runId` (NEU): Detail-Endpoint. Drei parallele Queries liefern Run-Metadaten + Session, Releases-Liste mit Live-DB-Zustand (LEFT JOIN `Release` × `Artist` × `Label`), aggregierte Live-Stats (inkl. `visible_now`, `purchasable_now`, `unavailable_now`) und bis zu 2000 Events aus `import_event`.
+- `GET /admin/discogs-import/history/:runId/export` (NEU): CSV-Export mit 27 Spalten: Action/IDs/Links (Discogs URL, Storefront URL), Release-Metadaten (Artist, Title, Original Title aus Excel-Snapshot, Format, Year, Catalog Number, Label, Country), Discogs-API-Daten (Genres, Styles, Lowest Price, For Sale, Have, Want) und VOD-Live-State (Price, Direct Price, Condition, Sale Mode, Available, Has Cover). UTF-8 BOM für Excel-Kompatibilität, Dateiname `{collection-slug}-{runId-8}-{date}.csv`.
+
+**Admin UI:**
+- `/app/discogs-import` History-Tab: Neue **Stats-Header-Karten** (6 Metriken), **Search-Input** (client-side Filter auf Collection/Source/Run-ID), **CSV-Download-Link pro Zeile**, Row-Click navigiert jetzt auf dedizierte Detail-Route statt Modal zu öffnen. Das alte Drill-Down-Modal wurde komplett entfernt.
+- `/app/discogs-import/history/[runId]` (NEU): Detail-Seite mit:
+  - PageHeader mit Collection-Name, Source, Status-Badge, Copy-Run-ID + Export-CSV + Back-Button
+  - StatsGrid mit 8 Karten (Total, Inserted, Linked, Updated, Skipped, Visible now, Purchasable now, Unavailable)
+  - Import-Settings-Card (Condition, Price Markup, Inventory)
+  - Filter-Bar: Search (Artist/Title/Discogs-ID/Release-ID), Action-Dropdown, Visible-Only-Checkbox, Result-Count
+  - Release-Tabelle (initial 200 Rows, "Load more" Button): Cover (aus `coverImage`) · Artist/Title · Meta (Format · Year · Condition) · Action-Badge (farbcodiert) · Price · Visibility-Dot · 3 Link-Icons (🌐 Storefront, ⚙ Admin-Catalog, D Discogs)
+  - Collapsible Event-Timeline (aus `import_event`)
+
+**Edge Cases gehandhabt:**
+- Skipped-Action-Rows werden visuell gedimmt (opacity 0.55)
+- Releases ohne `slug`/`current_title` → "DELETED"-Badge, Storefront-Link inaktiv
+- Runs ohne Session-Link → events leer, UI zeigt "Events not available"
+- Medusa file-routing collision zwischen `history/[runId]/route.ts` und `history/[runId]/export/route.ts` ist **non-existent** — beide Routes werden sauber kompiliert (verifiziert im `.medusa/server/src/api/...` Build-Output).
+
+**Definition of Done:**
+- Backend TypeScript check clean (keine neuen Errors, nur pre-existing `transactions/page.tsx` JSX-Parse-Warning)
+- Medusa build erfolgreich (Frontend build completed)
+- VPS deploy durch (clean build + admin assets + .env symlink + pm2 restart), Server ready on port 9000
+- Smoke-Test: `GET /admin/discogs-import/history` + `/:runId` antworten (401 bei ungültiger Session = Route existiert)
+
+**Commit:** `2a96b3e` — Discogs Import: Collections overview + detail page + CSV export
+
+**Files:**
+- `backend/src/api/admin/discogs-import/history/route.ts` (~+30/-5)
+- `backend/src/api/admin/discogs-import/history/[runId]/route.ts` (NEU ~130)
+- `backend/src/api/admin/discogs-import/history/[runId]/export/route.ts` (NEU ~180)
+- `backend/src/admin/routes/discogs-import/page.tsx` (History-Tab refactored, Modal entfernt, +80/-65)
+- `backend/src/admin/routes/discogs-import/history/[runId]/page.tsx` (NEU ~380)
+- `docs/architecture/DISCOGS_COLLECTIONS_OVERVIEW_PLAN.md` (NEU — Plan für diese Umsetzung)
+
+**Nicht Teil dieser Änderung (separate Tickets):** Bulk-Operations (Price Adjustment, Re-analyze, Bulk-Delete), Collection-Renaming, Soft-Delete ganzer Runs, Time-Series-Charts für Imports über Zeit.
 
 ---
 
