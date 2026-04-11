@@ -46,25 +46,48 @@ export async function GET(
     `)
 
     let runs: unknown[] = []
+    let stats: Record<string, unknown> | null = null
     if (tableCheck.rows[0]?.exists) {
-      const result = await pgConnection.raw(`
-        SELECT
-          run_id,
-          collection_name,
-          import_source,
-          MIN(created_at) as started_at,
-          COUNT(*)::int as total,
-          COUNT(*) FILTER (WHERE action = 'inserted')::int as inserted,
-          COUNT(*) FILTER (WHERE action = 'linked')::int as linked,
-          COUNT(*) FILTER (WHERE action = 'updated')::int as updated,
-          COUNT(*) FILTER (WHERE action = 'skipped')::int as skipped
-        FROM import_log
-        WHERE import_type = 'discogs_collection'
-        GROUP BY run_id, collection_name, import_source
-        ORDER BY MIN(created_at) DESC
-        LIMIT 50
-      `)
+      // Parallel queries: list + aggregate stats
+      const [result, statsResult] = await Promise.all([
+        pgConnection.raw(`
+          SELECT
+            il.run_id,
+            il.collection_name,
+            il.import_source,
+            MIN(il.created_at) as started_at,
+            MAX(il.created_at) as ended_at,
+            COUNT(*)::int as total,
+            COUNT(*) FILTER (WHERE il.action = 'inserted')::int as inserted,
+            COUNT(*) FILTER (WHERE il.action = 'linked')::int as linked,
+            COUNT(*) FILTER (WHERE il.action = 'updated')::int as updated,
+            COUNT(*) FILTER (WHERE il.action = 'skipped')::int as skipped,
+            s.status as session_status,
+            s.id as session_id,
+            s.row_count,
+            s.unique_count,
+            s.import_settings
+          FROM import_log il
+          LEFT JOIN import_session s ON s.run_id = il.run_id
+          WHERE il.import_type = 'discogs_collection'
+          GROUP BY il.run_id, il.collection_name, il.import_source,
+                   s.status, s.id, s.row_count, s.unique_count, s.import_settings
+          ORDER BY MIN(il.created_at) DESC
+          LIMIT 100
+        `),
+        pgConnection.raw(`
+          SELECT
+            COUNT(DISTINCT run_id)::int as total_runs,
+            COUNT(*)::int as total_releases,
+            COUNT(*) FILTER (WHERE action = 'inserted')::int as total_inserted,
+            COUNT(*) FILTER (WHERE action = 'linked')::int as total_linked,
+            COUNT(*) FILTER (WHERE action = 'updated')::int as total_updated,
+            MAX(created_at) as last_import_at
+          FROM import_log WHERE import_type = 'discogs_collection'
+        `),
+      ])
       runs = result.rows
+      stats = statsResult.rows?.[0] || null
     }
 
     // Active/in-progress sessions
@@ -78,6 +101,7 @@ export async function GET(
     `)
 
     res.json({
+      stats,
       runs,
       active_sessions: activeSessions.rows || [],
     })

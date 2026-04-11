@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback, useRef, useMemo } from "react"
+import { useNavigate } from "react-router-dom"
 import { useAdminNav } from "../../components/admin-nav"
 import { C, fmtDate, fmtNum } from "../../components/admin-tokens"
 import { PageHeader, PageShell, Tabs, StatsGrid } from "../../components/admin-layout"
@@ -89,6 +90,7 @@ const CONDITIONS = ["M/M", "NM/NM", "VG+/VG+", "VG+/VG", "VG/VG", "VG/G+", "G+/G
 
 const DiscogsImportPage = () => {
   useAdminNav()
+  const navigate = useNavigate()
 
   const [tab, setTab] = useState("Upload")
   const [error, setError] = useState<string | null>(null)
@@ -107,13 +109,16 @@ const DiscogsImportPage = () => {
   const [commitResult, setCommitResult] = useState<CommitResult | null>(null)
   const [history, setHistory] = useState<HistoryRun[] | null>(null)
   const [historyLoading, setHistoryLoading] = useState(false)
-  const [expandedRow, setExpandedRow] = useState<number | null>(null)
-  const [drillRun, setDrillRun] = useState<{
-    run: HistoryRun
-    entries: Array<Record<string, unknown>>
-    events: Array<{ id: number; phase: string; event_type: string; payload: Record<string, unknown>; created_at: string }>
+  const [historyStats, setHistoryStats] = useState<{
+    total_runs: number
+    total_releases: number
+    total_inserted: number
+    total_linked: number
+    total_updated: number
+    last_import_at: string | null
   } | null>(null)
-  const [drillLoading, setDrillLoading] = useState(false)
+  const [historySearch, setHistorySearch] = useState("")
+  const [expandedRow, setExpandedRow] = useState<number | null>(null)
 
   // ── Progress state (shared across all phases) ──
   const [events, setEvents] = useState<ImportEvent[]>([])
@@ -219,11 +224,26 @@ const DiscogsImportPage = () => {
     if (tab === "History" && history === null) {
       setHistoryLoading(true)
       fetch("/admin/discogs-import/history", { credentials: "include" })
-        .then((r) => r.json()).then((d) => setHistory(d.runs || []))
+        .then((r) => r.json()).then((d) => {
+          setHistory(d.runs || [])
+          setHistoryStats(d.stats || null)
+        })
         .catch(() => setHistory([]))
         .finally(() => setHistoryLoading(false))
     }
   }, [tab, history])
+
+  // ── History client-side search ──
+  const filteredHistory = useMemo(() => {
+    if (!history) return []
+    if (!historySearch.trim()) return history
+    const q = historySearch.toLowerCase()
+    return history.filter((r) =>
+      (r.collection_name || "").toLowerCase().includes(q) ||
+      (r.import_source || "").toLowerCase().includes(q) ||
+      (r.run_id || "").toLowerCase().includes(q)
+    )
+  }, [history, historySearch])
 
   // ── Helper: push event to log ──
   const pushEvent = useCallback((evt: ImportEvent) => {
@@ -856,22 +876,40 @@ const DiscogsImportPage = () => {
             : !history || history.length === 0 ? <EmptyState icon="📀" title="No imports yet" />
               : (
                 <>
+                  {/* Stats header */}
+                  {historyStats && (
+                    <div style={{ marginBottom: 16 }}>
+                      <StatsGrid stats={[
+                        { label: "Total Imports", value: fmtNum(historyStats.total_runs) },
+                        { label: "Total Releases", value: fmtNum(historyStats.total_releases) },
+                        { label: "Inserted", value: fmtNum(historyStats.total_inserted), color: C.success },
+                        { label: "Linked", value: fmtNum(historyStats.total_linked), color: C.gold },
+                        { label: "Updated", value: fmtNum(historyStats.total_updated), color: C.blue },
+                        { label: "Last Import", value: historyStats.last_import_at ? fmtDate(historyStats.last_import_at) : "—" },
+                      ]} />
+                    </div>
+                  )}
+
+                  {/* Search bar */}
+                  <div style={{ marginBottom: 12, display: "flex", gap: 8, alignItems: "center" }}>
+                    <input
+                      type="text"
+                      placeholder="Search collection, source file, or run ID..."
+                      value={historySearch}
+                      onChange={(e) => setHistorySearch(e.target.value)}
+                      style={{ flex: 1, padding: "8px 12px", fontSize: 13, border: "1px solid " + C.border, borderRadius: 4, background: C.card }}
+                    />
+                    {historySearch && (
+                      <span style={{ fontSize: 12, color: C.muted }}>
+                        {filteredHistory.length} of {history.length}
+                      </span>
+                    )}
+                  </div>
+
                   <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                    <thead><tr>{["Date", "Collection", "Source", "Inserted", "Linked", "Updated", "Skipped", "Run ID", ""].map((h) => <th key={h} style={th}>{h}</th>)}</tr></thead>
-                    <tbody>{history.map((r) => (
-                      <tr key={r.run_id} style={{ cursor: "pointer" }} onClick={async () => {
-                        setDrillLoading(true)
-                        try {
-                          const resp = await fetch(`/admin/discogs-import/history?run_id=${encodeURIComponent(r.run_id)}`, { credentials: "include" })
-                          const data = await resp.json() as {
-                            entries: Array<Record<string, unknown>>
-                            events: Array<{ id: number; phase: string; event_type: string; payload: Record<string, unknown>; created_at: string }>
-                          }
-                          setDrillRun({ run: r, entries: data.entries || [], events: data.events || [] })
-                        } finally {
-                          setDrillLoading(false)
-                        }
-                      }}>
+                    <thead><tr>{["Date", "Collection", "Source", "Inserted", "Linked", "Updated", "Skipped", "Run ID", "", ""].map((h, i) => <th key={h + i} style={th}>{h}</th>)}</tr></thead>
+                    <tbody>{filteredHistory.map((r) => (
+                      <tr key={r.run_id} style={{ cursor: "pointer" }} onClick={() => navigate(`/discogs-import/history/${encodeURIComponent(r.run_id)}`)}>
                         <td style={cell}>{r.started_at ? fmtDate(r.started_at) : "—"}</td>
                         <td style={{ ...cell, fontWeight: 600 }}>{r.collection_name || "—"}</td>
                         <td style={cell}>{r.import_source || "—"}</td>
@@ -880,54 +918,21 @@ const DiscogsImportPage = () => {
                         <td style={{ ...cell, color: C.blue }}>{r.updated}</td>
                         <td style={{ ...cell, color: C.muted }}>{r.skipped}</td>
                         <td style={{ ...cell, fontFamily: "monospace", fontSize: 12 }}>{r.run_id?.substring(0, 8)}...</td>
-                        <td style={{ ...cell, color: C.gold, fontSize: 12 }}>View ▶</td>
+                        <td style={{ ...cell, color: C.gold, fontSize: 12 }}>Open →</td>
+                        <td style={cell} onClick={(e) => e.stopPropagation()}>
+                          <a
+                            href={`/admin/discogs-import/history/${encodeURIComponent(r.run_id)}/export`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Download CSV"
+                            style={{ color: C.gold, textDecoration: "none", fontSize: 12, fontWeight: 600 }}
+                          >
+                            ⬇ CSV
+                          </a>
+                        </td>
                       </tr>
                     ))}</tbody>
                   </table>
-
-                  {/* Drill-down modal */}
-                  {(drillRun || drillLoading) && (
-                    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }} onClick={() => setDrillRun(null)}>
-                      <div style={{ background: "#ffffff", border: "1px solid " + C.border, borderRadius: 8, padding: 20, maxWidth: 900, width: "100%", maxHeight: "85vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }} onClick={(e) => e.stopPropagation()}>
-                        {drillLoading && !drillRun ? (
-                          <div style={{ fontSize: 13 }}>Loading...</div>
-                        ) : drillRun ? (
-                          <>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                              <div>
-                                <div style={{ fontSize: 16, fontWeight: 700 }}>{drillRun.run.collection_name}</div>
-                                <div style={{ fontSize: 12, color: C.muted }}>
-                                  {drillRun.run.import_source} · {fmtDate(drillRun.run.started_at)}
-                                </div>
-                              </div>
-                              <button type="button" onClick={() => setDrillRun(null)} style={{ background: "transparent", border: "none", color: C.muted, fontSize: 18, cursor: "pointer" }}>✕</button>
-                            </div>
-                            <StatsGrid stats={[
-                              { label: "Inserted", value: fmtNum(drillRun.run.inserted), color: C.success },
-                              { label: "Linked", value: fmtNum(drillRun.run.linked), color: C.gold },
-                              { label: "Updated", value: fmtNum(drillRun.run.updated), color: C.blue },
-                              { label: "Skipped", value: fmtNum(drillRun.run.skipped), color: C.muted },
-                            ]} />
-                            <div style={{ marginTop: 16 }}>
-                              <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: C.muted, marginBottom: 8 }}>
-                                Event Timeline ({drillRun.events.length} events)
-                              </div>
-                              <ImportLiveLog
-                                events={drillRun.events.map((e) => ({
-                                  type: e.event_type,
-                                  phase: e.phase,
-                                  timestamp: e.created_at,
-                                  ...(e.payload || {}),
-                                }))}
-                                maxHeight={400}
-                                filter="all"
-                              />
-                            </div>
-                          </>
-                        ) : null}
-                      </div>
-                    </div>
-                  )}
                 </>
               )
         )}
