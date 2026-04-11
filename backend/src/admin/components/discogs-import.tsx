@@ -501,9 +501,18 @@ export function useSessionPolling(
   enabled: boolean,
   onEvents: (evts: ImportEvent[]) => void,
   onStatus: (status: SessionStatus) => void,
-  intervalMs = 2000
+  intervalMs = 2000,
+  initialLastEventId: number = 0
 ) {
-  const lastEventIdRef = useRef<number>(0)
+  const lastEventIdRef = useRef<number>(initialLastEventId)
+
+  // Keep ref in sync with prop changes (e.g. when loadResumable provides
+  // the max event id from the pre-loaded batch to avoid duplicates)
+  useEffect(() => {
+    if (initialLastEventId > lastEventIdRef.current) {
+      lastEventIdRef.current = initialLastEventId
+    }
+  }, [initialLastEventId])
 
   useEffect(() => {
     if (!sessionId || !enabled) return

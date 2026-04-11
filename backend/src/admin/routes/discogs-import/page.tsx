@@ -128,6 +128,7 @@ const DiscogsImportPage = () => {
 
   // Polling active when SSE not running but session is active
   const [pollingEnabled, setPollingEnabled] = useState(false)
+  const [pollingInitialEventId, setPollingInitialEventId] = useState(0)
   const activeSessionId = uploadResult?.session_id || null
 
   useSessionPolling(
@@ -142,22 +143,69 @@ const DiscogsImportPage = () => {
       if (st.fetch_progress) setFetchProgress(st.fetch_progress as typeof fetchProgress)
       if (st.analyze_progress) setAnalyzeProgress(st.analyze_progress as typeof analyzeProgress)
       if (st.commit_progress) setCommitProgress(st.commit_progress as typeof commitProgress)
-      // Auto-stop polling when session reaches terminal state
-      if (["uploaded", "fetched", "analyzed", "done", "error"].includes(st.status)) {
-        if (st.status !== "uploaded" && st.status !== "fetched" && st.status !== "analyzed") {
-          setPollingEnabled(false)
+
+      // ── Phase transitions detected via polling ──
+      // When the backend moves from an active state (fetching/analyzing/importing)
+      // to a terminal state, we need to update the UI state that would normally
+      // be set by the SSE "complete" event (fetchResult, analysis, commitResult).
+      if (st.status === "fetched") {
+        setFetching(false)
+        if (st.fetch_progress && !fetchResult) {
+          const fp = st.fetch_progress as { fetched?: number; cached?: number; errors?: number }
+          setFetchResult({
+            fetched: fp.fetched ?? 0,
+            cached: fp.cached ?? 0,
+            errors: fp.errors ?? 0,
+            duration_min: 0,
+          })
         }
       }
-    }, [])
+      if (st.status === "analyzed") {
+        setAnalyzing(false)
+        if (st.analysis_result && !analysis) {
+          const ar = st.analysis_result as AnalysisResult
+          setAnalysis(ar)
+          const ids = new Set<number>()
+          for (const r of [...ar.new, ...ar.linkable, ...ar.existing]) ids.add(r.discogs_id)
+          setSelectedIds(ids)
+          setTab("Analysis")
+          setCurrentPhase("review")
+        }
+      }
+      if (st.status === "done") {
+        setCommitting(false)
+        setPollingEnabled(false)
+      }
+      if (st.status === "error" || st.status === "abandoned") {
+        setFetching(false)
+        setAnalyzing(false)
+        setCommitting(false)
+        setPollingEnabled(false)
+      }
+    }, [fetchResult, analysis]),
+    2000,
+    pollingInitialEventId
   )
 
   // ── Initial mount: check for resumable sessions ──
-  // Strategy: query /history for active_sessions (any session not in terminal
-  // state). This catches sessions that localStorage doesn't know about — e.g.
-  // after a browser cookie clear, a different browser, or after a commit that
-  // finished with errors (where localStorage was cleared).
-  // localStorage is still used as a "preferred session" hint: if the saved id
-  // is in the active list, prioritize it; otherwise fall back to the newest.
+  //
+  // Two cases:
+  //
+  // 1. ACTIVE running session (status in fetching/analyzing/importing):
+  //    The backend loop is still running (SSEStream catches write errors and
+  //    keeps going — see lib/discogs-import.ts SSEStream.emit). We must NOT
+  //    start a new POST (would create a second loop running in parallel).
+  //    Instead we RE-ATTACH via polling: restore UI state from DB, enable
+  //    useSessionPolling, and let the live log + progress bars rebuild from
+  //    import_event + session.*_progress columns. No banner.
+  //
+  // 2. DORMANT session (status in uploaded/fetched/analyzed):
+  //    Nothing is running. User needs to explicitly continue — show the
+  //    resume banner with context-aware label ("Start Fetch", "Continue to
+  //    Review", etc.).
+  //
+  // localStorage is a "preferred session" hint: if saved id is in the active
+  // list, prioritize it; otherwise fall back to the newest non-terminal.
   useEffect(() => {
     const loadResumable = async () => {
       try {
@@ -168,26 +216,89 @@ const DiscogsImportPage = () => {
         }
         const active = data.active_sessions || []
         if (active.length === 0) {
-          // No resumable sessions → clear any stale localStorage reference
           clearActiveSessionId()
           return
         }
 
-        // Prefer the session id from localStorage if it's in the active list
         const saved = loadActiveSessionId()
         const preferred = saved && active.find((s) => s.id === saved.id)
-        const chosen = preferred || active[0]  // active[0] = most recent
+        const chosen = preferred || active[0]
 
-        // Fetch full session state (with progress fields + analysis_result)
+        // Fetch full session state WITH recent events so we can rebuild UI
         const statusResp = await fetch(
-          `/admin/discogs-import/session/${chosen.id}/status`,
+          `/admin/discogs-import/session/${chosen.id}/status?limit=200`,
           { credentials: "include" }
         )
         if (!statusResp.ok) return
-        const statusData = await statusResp.json() as { session: SessionStatus }
-        if (!statusData?.session) return
-        if (!["done", "error", "abandoned"].includes(statusData.session.status)) {
-          setResumeCandidate(statusData.session)
+        const statusData = await statusResp.json() as {
+          session: SessionStatus
+          events?: Array<{ id: number; phase: string; event_type: string; payload: Record<string, unknown>; created_at: string }>
+        }
+        const st = statusData?.session
+        if (!st) return
+        if (["done", "error", "abandoned"].includes(st.status)) return
+
+        // Rebuild core UI state (same regardless of active vs dormant)
+        setUploadResult({
+          session_id: st.id,
+          row_count: st.row_count,
+          unique_discogs_ids: st.unique_count,
+          format_detected: st.format_detected || "",
+          sample_rows: [],
+        })
+        setCollectionName(st.collection_name)
+
+        // Recent events → live log
+        const rawEvents = statusData.events || []
+        const eventsFromDb: ImportEvent[] = rawEvents.map((e) => ({
+          type: e.event_type,
+          phase: e.phase as ImportEvent["phase"],
+          timestamp: e.created_at,
+          ...(e.payload || {}),
+        }))
+        setEvents(eventsFromDb.slice(-500))
+
+        // Set initial event ID so polling picks up where we left off (no duplicates)
+        const maxEventId = rawEvents.length > 0
+          ? Math.max(...rawEvents.map((e) => e.id))
+          : 0
+        setPollingInitialEventId(maxEventId)
+
+        // Restore progress snapshots
+        if (st.fetch_progress) setFetchProgress(st.fetch_progress as typeof fetchProgress)
+        if (st.analyze_progress) setAnalyzeProgress(st.analyze_progress as typeof analyzeProgress)
+        if (st.commit_progress) setCommitProgress(st.commit_progress as typeof commitProgress)
+        setSessionStatus(st)
+
+        const ACTIVE_STATES = new Set(["fetching", "analyzing", "importing"])
+        if (ACTIVE_STATES.has(st.status)) {
+          // ── AUTO-ATTACH: backend loop is still running, we just reconnect ──
+          saveActiveSessionId(st.id, st.collection_name)
+          if (st.status === "fetching") {
+            setCurrentPhase("fetch")
+            setFetching(true)
+          } else if (st.status === "analyzing") {
+            setCurrentPhase("analyze")
+            setAnalyzing(true)
+          } else {
+            // importing → review tab with commit progress
+            setCurrentPhase("review")
+            setCommitting(true)
+            // Restore analysis_result so Review tab has data to render
+            if (st.analysis_result) {
+              const ar = st.analysis_result as AnalysisResult
+              setAnalysis(ar)
+              const ids = new Set<number>()
+              for (const r of [...ar.new, ...ar.linkable, ...ar.existing]) ids.add(r.discogs_id)
+              setSelectedIds(ids)
+              setTab("Analysis")
+            }
+          }
+          setPollingEnabled(true)  // useSessionPolling takes over
+          // NO resumeCandidate — we're already attached
+        } else {
+          // ── DORMANT: user needs to click Resume ──
+          setResumeCandidate(st)
         }
       } catch {
         /* ignore — no blocking */
