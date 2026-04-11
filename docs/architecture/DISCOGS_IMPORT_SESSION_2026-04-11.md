@@ -231,12 +231,110 @@ Die `import_log` Tabelle hatte alle Daten — sie waren nur nicht im Media-Detai
 
 ### Final Status (Ende 2026-04-11)
 
-| Feature | rc17 | rc18 | rc20 |
+| Feature | rc17 | rc18 | rc20 | rc24 |
+|---|---|---|---|---|
+| Fetch überlebt Navigation | ❌ | ✅ | ✅ | ✅ |
+| Analyze überlebt Navigation | ❌ | ❌ | ✅ | ✅ |
+| Commit überlebt Navigation | ❌ | ❌ | ✅ | ✅ |
+| Idempotency (no Double-Spawn) | ❌ | ✅ Fetch | ✅ alle 3 | ✅ alle 3 |
+| Post-Import CTA | ❌ | ❌ | ✅ | ✅ |
+| Media Detail zeigt Import-Herkunft | ❌ | ❌ | ✅ | ✅ |
+| Polling ist primäre UI-Update-Quelle | ❌ | ✅ Fetch | ✅ alle 3 | ✅ alle 3 |
+| **Backend pm2-restart Recovery während User wartet** | ❌ | ❌ | ❌ | ✅ |
+| **Backend OOM-Recovery während User wartet** | ❌ | ❌ | ❌ | ✅ |
+
+---
+
+## Addendum — Part 3 (rc24): Stale-Loop Auto-Restart während aktivem Polling
+
+Nach dem rc23-Deploy (Media Catalog Filter) passierte folgender eye-opener: Mein **eigener Deploy-Storm** war die Load-Generierung, die den nächsten Bug offenlegte.
+
+### Problem 11: pm2-Restart killed den detached Loop, UI merkt nichts
+
+User hat parallel zu meinen rc21/22/23-Deploys einen Fetch für "Frank Collection 2 of 10" gestartet (1.005 unique IDs, 61.7% Fortschritt bei 620/1005). Jeder meiner `pm2 restart vodauction-backend` killed **alle in-process detached Background-Tasks** — auch diesen Fetch-Loop.
+
+Das rc18-Decoupling schützt vor **Client-Disconnect** (Navigation, Tab-Close, Reload), aber NICHT vor **Backend-Process-Kill**. Die Stale-Detection aus rc18 läuft nur in `loadResumable()` beim Mount — d.h. nur wenn der User refresht. Der User hat seine Seite aber nicht refresht, sondern die 2+ Stunden hängend stehen gelassen.
+
+**DB-Diagnose bestätigte:**
+```
+status=fetching, current=620/1005, last_event_at=14:47:35 UTC, age=2h 0m 41s
+```
+
+### Root Cause (schmerzhaft offensichtlich im Nachhinein)
+
+Ich habe beim rc18-Decoupling nur an **Client-Process-lifetime** gedacht (Browser, Tab). Backend-Prozess-Kills waren ein anderer Failure-Mode den ich nicht durchdacht hatte. Klassisches "I was the load-generator" — erst durch meine eigenen Deploys wurde der Bug visible.
+
+### Fix (`b08373a`) — zwei Teile
+
+**Part 1: Polling-Callback Stale-Detection**
+
+Neuer `useRef` für Cooldown-Tracking. Im existing `useSessionPolling` onStatus Callback wird pro Tick geprüft:
+
+```typescript
+const ACTIVE_STATES = ["fetching", "analyzing", "importing"]
+if (ACTIVE_STATES.includes(st.status) && st.last_event_at) {
+  const ageMs = Date.now() - new Date(st.last_event_at).getTime()
+  const sinceLastRestart = Date.now() - lastStaleRestartRef.current
+  if (ageMs > 60_000 && sinceLastRestart > 60_000) {
+    lastStaleRestartRef.current = Date.now()
+    // Re-POST to the matching endpoint
+    fetch(endpoint, { method: "POST", body: JSON.stringify({ session_id: st.id }) })
+    // Add synthetic event to live log for transparency
+    setEvents((prev) => [...prev, { type: "auto_restart", ... }])
+  }
+}
+```
+
+**60s Cooldown** verhindert Infinite-Loops falls der neue Loop auch sofort stirbt.
+
+**Synthetic Event im Live-Log** macht die Recovery transparent — kein stilles "UI plötzlich wieder grün", sondern explizite "Backend loop appeared dead (Xs since last event). Auto-restarting — cached work is preserved." Message.
+
+**Part 2: Commit Body/Session Settings Merge**
+
+Der Auto-Restart-POST kennt nur `session_id` (weil es eine Polling-Response ist, nicht ein Button-Click). Fetch/Analyze brauchen auch nur das. **Commit** braucht aber `media_condition`, `sleeve_condition`, `inventory`, `price_markup`, `selected_discogs_ids` — diese kamen bisher aus dem Body mit Defaults `"VG+"/1/1.2`.
+
+Ohne Fix würde Auto-Restart die User-Wahl **silent überschreiben** — wenn der User "M/M" + 1.5× Markup gewählt hatte, würde Auto-Restart das mit "VG+/VG+" + 1.2× überschreiben mitten im Commit. Fatal-silent.
+
+Fix:
+```typescript
+const media_condition = body.media_condition ?? persistedSettings.media_condition ?? "VG+"
+const sleeve_condition = body.sleeve_condition ?? persistedSettings.sleeve_condition ?? "VG+"
+const inventory = body.inventory ?? persistedSettings.inventory ?? 1
+const price_markup = body.price_markup ?? persistedSettings.price_markup ?? 1.2
+const selected_discogs_ids = body.selected_discogs_ids ?? persistedSettings.selected_discogs_ids ?? undefined
+```
+
+Body values haben Precedence (für normale User-Clicks), aber wenn fehlend → Fallback auf `session.import_settings` (persistiert vom initialen Commit-Call, siehe rc16 Commit Hardening).
+
+### Verifikation
+
+Die Frank-Collection-2/10 Session, die 2h stehengeblieben war, wurde nach rc24-Deploy auf der **bereits offenen Seite** automatisch wiederbelebt — ohne User-Interaktion, ohne Refresh. Der neue Loop sprang innerhalb 60-120s an und übernahm via `discogs_api_cache` die 620 bereits gefetchten, fetcht jetzt die restlichen 385.
+
+### Lessons (Part 3)
+
+10. **Ownership-Kette beide Enden durchdenken.** Bei Background-Tasks gibt es zwei Lifecycles: Client-Process UND Backend-Process. rc18 hat ersten gelöst, aber backend-process-kills brauchen eine separate Lösung. Beim Architektur-Design immer fragen: "Was passiert wenn $X stirbt?" für jede Komponente die den Loop halten könnte.
+
+11. **Deploy-Storms sind versteckte Integration-Tests.** Wenn ich 3× pm2-restart mache während ein User arbeitet, teste ich unbewusst die Failure-Mode-Resilience meines Systems. Hätte ich heute nicht so viele Deploys gehabt, wäre der Bug vielleicht erst beim ersten echten OOM-Kill in Produktion aufgefallen.
+
+12. **Synthetic Events in Live-Logs sind billig und wertvoll.** Statt "UI recovered silently" explizit "Auto-restarting nach Xs stale-detection" loggen. Der User versteht was passiert, Support-Anfragen sinken.
+
+### Commits (Part 3)
+
+- `b08373a` — Discogs Import: Stale-Loop Auto-Restart während aktivem Polling
+- `05830e9` — Docs: rc24 CHANGELOG Eintrag
+
+### Final Final Status (Ende 2026-04-11, rc24 deployed)
+
+**7-Layer Robustness Stack für Discogs Import:**
+
+| Layer | Failure Mode | Protection | Version |
 |---|---|---|---|
-| Fetch überlebt Navigation | ❌ | ✅ | ✅ |
-| Analyze überlebt Navigation | ❌ | ❌ | ✅ |
-| Commit überlebt Navigation | ❌ | ❌ | ✅ |
-| Idempotency (no Double-Spawn) | ❌ | ✅ Fetch | ✅ alle 3 |
-| Post-Import CTA | ❌ | ❌ | ✅ |
-| Media Detail zeigt Import-Herkunft | ❌ | ❌ | ✅ |
-| Polling ist primäre UI-Update-Quelle | ❌ | ✅ Fetch | ✅ alle 3 |
+| 1 | Client navigates away / tab closes | Backend loop runs detached | rc18/rc20 |
+| 2 | Browser refresh mid-loop | loadResumable Mount-check | rc18 |
+| 3 | **Backend pm2-restart während User wartet** | **Polling Stale-Detect (60s)** | **rc24** |
+| 4 | **Backend OOM während User wartet** | **Polling Stale-Detect (60s)** | **rc24** |
+| 5 | Loop crasht mit Exception | `.catch()` markiert Session als 'error' | rc18 |
+| 6 | Stale Zombie > 6h | active_sessions 6h-Filter | rc17 |
+| 7 | Double-POST race condition | 60s Idempotency-Check | rc18 |
+
+**Keine Klasse von Failure** kann mehr zu einer dauerhaft hängenden UI führen.
