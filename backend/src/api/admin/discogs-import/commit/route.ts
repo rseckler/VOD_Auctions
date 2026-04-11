@@ -49,18 +49,16 @@ type Counters = {
   errors: number
 }
 
+// Stale-threshold: session in "importing" with last_event_at older than this
+// is treated as a dead loop → the next POST restarts it (Idempotency-check
+// still accepts the request, stale loop data + completed_batches is reused).
+const COMMIT_STALE_THRESHOLD_SEC = 60
+
 export async function POST(
   req: MedusaRequest,
   res: MedusaResponse
 ): Promise<void> {
-  const {
-    session_id,
-    selected_discogs_ids,
-    media_condition = "VG+",
-    sleeve_condition = "VG+",
-    inventory = 1,
-    price_markup = 1.2,
-  } = req.body as {
+  const body = req.body as {
     session_id: string
     selected_discogs_ids?: number[]
     media_condition?: string
@@ -68,6 +66,14 @@ export async function POST(
     inventory?: number
     price_markup?: number
   }
+  const {
+    session_id,
+    selected_discogs_ids,
+    media_condition = "VG+",
+    sleeve_condition = "VG+",
+    inventory = 1,
+    price_markup = 1.2,
+  } = body
 
   if (!session_id) {
     res.status(400).json({ error: "Missing session_id" })
@@ -82,9 +88,33 @@ export async function POST(
     return
   }
 
-  const stream = new SSEStream(res, pgConnection, session_id)
-  stream.startHeartbeat(5000)
+  // Idempotency: if already importing with recent activity, return early
+  if (session.status === "importing") {
+    const lastEvent = session.last_event_at
+      ? new Date(session.last_event_at).getTime()
+      : 0
+    const ageSec = (Date.now() - lastEvent) / 1000
+    if (ageSec < COMMIT_STALE_THRESHOLD_SEC) {
+      res.json({ ok: true, session_id, already_running: true })
+      return
+    }
+    console.warn(
+      `[discogs-import/commit] Restarting stale loop for session ${session_id} ` +
+      `(last event ${Math.round(ageSec)}s ago) — completed_batches will be reused`
+    )
+  }
 
+  // Return 200 immediately — loop runs detached below
+  res.json({ ok: true, session_id, started: true })
+
+  // Headless stream — writes to import_event table only, no HTTP response.
+  // The existing loop code below is unchanged and continues to call
+  // stream.emit() / stream.error() as before; the stream just routes all
+  // events to DB instead of an HTTP response.
+  const stream = new SSEStream(null, pgConnection, session_id)
+
+  // Run the commit loop as detached background task
+  void (async () => {
   try {
     await clearControlFlags(pgConnection, session_id)
 
@@ -719,6 +749,11 @@ export async function POST(
     } catch { /* ignore — best effort */ }
     if (!stream.isClosed) await stream.error(msg)
   }
+  })().catch((err) => {
+    // Outer safety net — if ANY uncaught error escapes the inner try/catch,
+    // log it loudly (the client is already long gone by this point).
+    console.error(`[discogs-import/commit] Detached loop crashed for session ${session_id}:`, err)
+  })
 }
 
 // Finalize after user cancel: leave session in a resumable state so user

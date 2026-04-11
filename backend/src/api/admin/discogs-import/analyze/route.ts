@@ -29,9 +29,15 @@ interface MatchResult {
 }
 
 // ─── POST /admin/discogs-import/analyze ──────────────────────────────────────
-// SSE Stream with phase-based progress:
-//   phase:exact_match → phase:cache_load → phase:fuzzy_match (batched) → phase:aggregating → done
-// Supports heartbeat, cancel, pause.
+//
+// DECOUPLED (rc19): validates + spawns the analyze loop as a detached
+// background task, returns 200 immediately. Loop writes phase progress to
+// import_event and analyze_progress; UI polls via /session/:id/status.
+//
+// Idempotent: if session is already in "analyzing" with recent activity
+// (< 60s), returns { already_running: true } without spawning a second loop.
+
+const ANALYZE_STALE_THRESHOLD_SEC = 60
 
 export async function POST(
   req: MedusaRequest,
@@ -51,9 +57,30 @@ export async function POST(
     return
   }
 
-  const stream = new SSEStream(res, pgConnection, session_id)
-  stream.startHeartbeat(5000)
+  // Idempotency
+  if (session.status === "analyzing") {
+    const lastEvent = session.last_event_at
+      ? new Date(session.last_event_at).getTime()
+      : 0
+    const ageSec = (Date.now() - lastEvent) / 1000
+    if (ageSec < ANALYZE_STALE_THRESHOLD_SEC) {
+      res.json({ ok: true, session_id, already_running: true })
+      return
+    }
+    console.warn(
+      `[discogs-import/analyze] Restarting stale loop for session ${session_id} ` +
+      `(last event ${Math.round(ageSec)}s ago)`
+    )
+  }
 
+  // Return 200 immediately — loop runs detached below
+  res.json({ ok: true, session_id, started: true })
+
+  // Headless stream — writes to DB only, no HTTP response
+  const stream = new SSEStream(null, pgConnection, session_id)
+
+  // Run the analyze loop as detached background task
+  void (async () => {
   try {
     // Reset control flags + set status
     await clearControlFlags(pgConnection, session_id)
@@ -308,16 +335,17 @@ export async function POST(
     stream.end()
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Analysis failed"
-    await updateSession(pgConnection, session_id, {
-      status: "fetched",
-      error_message: msg,
-    })
+    try {
+      await updateSession(pgConnection, session_id, {
+        status: "fetched",
+        error_message: msg,
+      })
+    } catch { /* best effort */ }
     if (!stream.isClosed) {
       await stream.error(msg)
-    } else {
-      try {
-        res.status(500).json({ error: msg })
-      } catch { /* already sent */ }
     }
   }
+  })().catch((err) => {
+    console.error(`[discogs-import/analyze] Detached loop crashed for session ${session_id}:`, err)
+  })
 }

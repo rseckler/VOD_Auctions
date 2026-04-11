@@ -34,58 +34,87 @@ export async function updateSession(
 // ─── SSE stream wrapper ─────────────────────────────────────────────────────
 
 export class SSEStream {
-  private res: MedusaResponse
+  /**
+   * Dual-mode stream: HTTP SSE + DB event log, OR pure DB event log
+   * (when `res` is null — "headless mode" for detached background loops).
+   *
+   * In headless mode:
+   * - `emit()` writes only to `import_event` (no HTTP write attempts)
+   * - `startHeartbeat()` / `end()` are no-ops
+   * - `error()` persists the event but doesn't try to end any response
+   *
+   * This lets long-running loops (commit, analyze) run as detached tasks
+   * without any HTTP request coupling, while keeping the exact same API
+   * the loop code expects. Polling on `/session/:id/status` is the UI
+   * source of truth.
+   *
+   * Events are persisted to DB even when HTTP writes fail (client
+   * disconnect) — a bug in the old implementation which short-circuited
+   * on the first write error and lost all subsequent events.
+   */
+  private res: MedusaResponse | null
   private pg: Knex
   private sessionId: string
   private heartbeatTimer: NodeJS.Timeout | null = null
   private closed = false
 
-  constructor(res: MedusaResponse, pg: Knex, sessionId: string) {
+  constructor(res: MedusaResponse | null, pg: Knex, sessionId: string) {
     this.res = res
     this.pg = pg
     this.sessionId = sessionId
 
-    res.setHeader("Content-Type", "text/event-stream")
-    res.setHeader("Cache-Control", "no-cache")
-    res.setHeader("Connection", "keep-alive")
-    res.setHeader("X-Accel-Buffering", "no") // disable nginx buffering
-    res.flushHeaders()
+    if (res) {
+      res.setHeader("Content-Type", "text/event-stream")
+      res.setHeader("Cache-Control", "no-cache")
+      res.setHeader("Connection", "keep-alive")
+      res.setHeader("X-Accel-Buffering", "no") // disable nginx buffering
+      res.flushHeaders()
+    }
   }
 
-  /** Emit an SSE event and persist it to import_event table for replay. */
+  /** Emit an event — writes to HTTP SSE stream (if alive) AND always to DB.
+   *  Headless mode (res=null): DB only. */
   async emit(phase: string, eventType: string, payload: Record<string, unknown> = {}): Promise<void> {
-    if (this.closed) return
     const event = {
       type: eventType,
       phase,
       timestamp: new Date().toISOString(),
       ...payload,
     }
-    try {
-      this.res.write(`data: ${JSON.stringify(event)}\n\n`)
-    } catch {
-      // client disconnected
-      this.closed = true
-      return
+
+    // Try HTTP stream write if alive
+    if (this.res && !this.closed) {
+      try {
+        this.res.write(`data: ${JSON.stringify(event)}\n\n`)
+      } catch {
+        // Client disconnected — continue to DB write below (critical: old
+        // code RETURNED here and lost the event to the DB too)
+        this.closed = true
+      }
     }
-    // Persist to event log (fire and forget — don't block progress)
+
+    // ALWAYS persist to import_event (primary source of truth for polling)
     try {
       await this.pg.raw(
         `INSERT INTO import_event (session_id, phase, event_type, payload) VALUES (?, ?, ?, ?::jsonb)`,
         [this.sessionId, phase, eventType, JSON.stringify(payload)]
       )
+      // Bump last_event_at for stale-detection
+      await this.pg.raw(
+        `UPDATE import_session SET last_event_at = NOW() WHERE id = ?`,
+        [this.sessionId]
+      )
     } catch (err) {
-      // Don't fail the stream on event persistence errors
       console.error("[import-event] failed to persist:", err)
     }
   }
 
-  /** Start a heartbeat that emits a "heartbeat" event every interval ms.
-   *  Important: keeps nginx/proxy connection alive during long operations. */
+  /** Heartbeat to keep nginx/proxy connection alive. No-op in headless mode. */
   startHeartbeat(intervalMs = 5000): void {
+    if (!this.res) return  // headless mode — no HTTP connection to keep alive
     if (this.heartbeatTimer) return
     this.heartbeatTimer = setInterval(() => {
-      if (this.closed) return
+      if (this.closed || !this.res) return
       try {
         this.res.write(`: heartbeat ${Date.now()}\n\n`)
       } catch {
@@ -102,18 +131,20 @@ export class SSEStream {
     }
   }
 
-  /** End the stream. */
+  /** End the stream. In headless mode only stops the (non-existent) heartbeat. */
   end(): void {
     this.stopHeartbeat()
     this.closed = true
-    try {
-      this.res.end()
-    } catch {
-      /* already ended */
+    if (this.res) {
+      try {
+        this.res.end()
+      } catch {
+        /* already ended */
+      }
     }
   }
 
-  /** Error-out the stream with an error event. */
+  /** Emit an error event and end. */
   async error(message: string, details?: Record<string, unknown>): Promise<void> {
     await this.emit("error", "error", { error: message, ...details })
     this.end()
@@ -121,6 +152,10 @@ export class SSEStream {
 
   get isClosed(): boolean {
     return this.closed
+  }
+
+  get isHeadless(): boolean {
+    return this.res === null
   }
 }
 

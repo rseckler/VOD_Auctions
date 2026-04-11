@@ -173,9 +173,30 @@ const DiscogsImportPage = () => {
           setTab("Analysis")
           setCurrentPhase("review")
         }
+        // Polling can stop now — user reviews then clicks Import
+        setPollingEnabled(false)
       }
       if (st.status === "done") {
         setCommitting(false)
+        // Build commitResult from commit_progress counters if not already set
+        if (!commitResult && st.commit_progress) {
+          const cp = st.commit_progress as {
+            run_id?: string
+            counters?: { inserted?: number; linked?: number; updated?: number; skipped?: number; errors?: number }
+          }
+          if (cp.counters) {
+            setCommitResult({
+              run_id: cp.run_id || "",
+              collection: st.collection_name,
+              inserted: cp.counters.inserted ?? 0,
+              linked: cp.counters.linked ?? 0,
+              updated: cp.counters.updated ?? 0,
+              skipped: cp.counters.skipped ?? 0,
+              errors: cp.counters.errors ?? 0,
+            })
+          }
+        }
+        clearActiveSessionId()
         setPollingEnabled(false)
       }
       if (st.status === "error" || st.status === "abandoned") {
@@ -184,7 +205,7 @@ const DiscogsImportPage = () => {
         setCommitting(false)
         setPollingEnabled(false)
       }
-    }, [fetchResult, analysis]),
+    }, [fetchResult, analysis, commitResult]),
     2000,
     pollingInitialEventId
   )
@@ -442,51 +463,40 @@ const DiscogsImportPage = () => {
     }
   }, [uploadResult, collectionName])
 
-  // ── Analyze handler (SSE-enabled) ──
+  // ── Analyze handler — DECOUPLED (rc19) ──
+  // POSTs to /analyze, receives 200 JSON, enables polling. Backend runs
+  // loop as detached task — survives client navigation.
   const handleAnalyze = useCallback(async () => {
     if (!uploadResult) return
     setAnalyzing(true)
     setError(null)
     setAnalyzeProgress(null)
     setCurrentPhase("analyze")
+    saveActiveSessionId(uploadResult.session_id, collectionName)
 
     try {
-      let finalResult: AnalysisResult | null = null
-      await analyzeSSE.start("/admin/discogs-import/analyze", { session_id: uploadResult.session_id }, (evt) => {
-        pushEvent(evt)
-        if (evt.type === "phase_start" || evt.type === "phase_progress" || evt.type === "phase_done") {
-          setAnalyzeProgress((prev) => ({ ...(prev || {}), ...evt }))
-        } else if (evt.type === "done") {
-          finalResult = {
-            summary: evt.summary as AnalysisResult["summary"],
-            existing: (evt.existing as MatchRow[]) || [],
-            linkable: (evt.linkable as MatchRow[]) || [],
-            new: (evt.new as MatchRow[]) || [],
-            skipped: (evt.skipped as MatchRow[]) || [],
-          }
-        } else if (evt.type === "error") {
-          setError(String(evt.error || "Analysis failed"))
-        } else if (evt.type === "cancelled") {
-          setError("Analysis cancelled")
-        }
+      const resp = await fetch("/admin/discogs-import/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ session_id: uploadResult.session_id }),
       })
-      if (finalResult) {
-        setAnalysis(finalResult)
-        const ids = new Set<number>()
-        const f = finalResult as AnalysisResult
-        for (const r of [...f.new, ...f.linkable, ...f.existing]) ids.add(r.discogs_id)
-        setSelectedIds(ids)
-        setTab("Analysis")
-        setCurrentPhase("review")
+      if (!resp.ok) {
+        const errBody = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }))
+        throw new Error(errBody.error || `Failed to start analyze (HTTP ${resp.status})`)
       }
+      // Enable polling — transitions handled in the polling onStatus callback
+      setPollingInitialEventId(0)
+      setPollingEnabled(true)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Analysis failed")
-    } finally {
       setAnalyzing(false)
     }
-  }, [uploadResult, analyzeSSE, pushEvent])
+  }, [uploadResult, collectionName])
 
-  // ── Commit handler (SSE-enabled) ──
+  // ── Commit handler — DECOUPLED (rc19) ──
+  // POSTs to /commit, receives 200 JSON, enables polling. Backend runs
+  // the per-batch commit loop as detached task.
   const handleCommit = useCallback(async () => {
     if (!uploadResult) return
     if (!confirm(`Import ${selectedIds.size} releases? This will write to the database.`)) return
@@ -494,39 +504,35 @@ const DiscogsImportPage = () => {
     setCommitProgress(null)
     setError(null)
     setCurrentPhase("import")
+    saveActiveSessionId(uploadResult.session_id, collectionName)
 
     try {
       const [mc, sc] = condition.split("/")
-      let finalResult: CommitResult | null = null
-      await commitSSE.start("/admin/discogs-import/commit", {
-        session_id: uploadResult.session_id,
-        selected_discogs_ids: Array.from(selectedIds),
-        media_condition: mc.trim(),
-        sleeve_condition: sc.trim(),
-        inventory: inventoryOn ? 1 : 0,
-        price_markup: priceMarkup,
-      }, (evt) => {
-        pushEvent(evt)
-        if (evt.type === "phase_start" || evt.type === "phase_progress" || evt.type === "phase_done") {
-          setCommitProgress((prev) => ({ ...(prev || {}), ...evt }))
-        } else if (evt.type === "done") {
-          finalResult = evt as unknown as CommitResult
-        } else if (evt.type === "rollback") {
-          setError(String(evt.reason || "Import rolled back"))
-        } else if (evt.type === "error") {
-          setError(String(evt.error || "Import failed"))
-        }
+      const resp = await fetch("/admin/discogs-import/commit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          session_id: uploadResult.session_id,
+          selected_discogs_ids: Array.from(selectedIds),
+          media_condition: mc.trim(),
+          sleeve_condition: sc.trim(),
+          inventory: inventoryOn ? 1 : 0,
+          price_markup: priceMarkup,
+        }),
       })
-      if (finalResult) {
-        setCommitResult(finalResult)
-        clearActiveSessionId()
+      if (!resp.ok) {
+        const errBody = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }))
+        throw new Error(errBody.error || `Failed to start commit (HTTP ${resp.status})`)
       }
+      // Enable polling — transition to commitResult handled in polling callback
+      setPollingInitialEventId(0)
+      setPollingEnabled(true)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Import failed")
-    } finally {
       setCommitting(false)
     }
-  }, [uploadResult, selectedIds, condition, inventoryOn, priceMarkup, commitSSE, pushEvent])
+  }, [uploadResult, selectedIds, condition, inventoryOn, priceMarkup, collectionName])
 
   // ── Cancel / Pause handlers ──
   const handleCancel = useCallback(async () => {
@@ -887,10 +893,77 @@ const DiscogsImportPage = () => {
               <div style={{ fontSize: 13, color: C.muted }}>{selectedIds.size} of {s.existing + s.linkable + s.new} releases selected for import</div>
 
               {commitResult && (
-                <Alert type="success">
-                  Import complete! Run ID: <b>{commitResult.run_id.substring(0, 8)}...</b> — Inserted: {commitResult.inserted}, Linked: {commitResult.linked}, Updated: {commitResult.updated}
-                  {commitResult.errors > 0 && <span> Errors: <b style={{ color: C.error }}>{commitResult.errors}</b></span>}
-                </Alert>
+                <div style={{
+                  background: "linear-gradient(135deg, " + C.success + "14 0%, " + C.success + "05 100%)",
+                  border: "1px solid " + C.success + "40",
+                  borderRadius: 8,
+                  padding: "20px 22px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 16,
+                }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 20 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 18, fontWeight: 700, color: C.success, marginBottom: 4 }}>
+                        ✓ Import erfolgreich abgeschlossen
+                      </div>
+                      <div style={{ fontSize: 13, color: C.muted }}>
+                        {commitResult.collection} · Run ID: <code style={{ fontFamily: "monospace", fontSize: 11 }}>{commitResult.run_id.substring(0, 8)}</code>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 24, flexWrap: "wrap", fontSize: 13 }}>
+                    <div><span style={{ color: C.muted }}>Inserted:</span> <b style={{ color: C.success }}>{fmtNum(commitResult.inserted)}</b></div>
+                    <div><span style={{ color: C.muted }}>Linked:</span> <b style={{ color: C.gold }}>{fmtNum(commitResult.linked)}</b></div>
+                    <div><span style={{ color: C.muted }}>Updated:</span> <b style={{ color: C.blue }}>{fmtNum(commitResult.updated)}</b></div>
+                    {commitResult.skipped > 0 && <div><span style={{ color: C.muted }}>Skipped:</span> <b style={{ color: C.muted }}>{fmtNum(commitResult.skipped)}</b></div>}
+                    {commitResult.errors > 0 && <div><span style={{ color: C.muted }}>Errors:</span> <b style={{ color: C.error }}>{fmtNum(commitResult.errors)}</b></div>}
+                  </div>
+
+                  {/* Call-to-action buttons */}
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 4 }}>
+                    {commitResult.run_id && (
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/discogs-import/history/${encodeURIComponent(commitResult.run_id)}`)}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "10px 18px", fontSize: 13, fontWeight: 600, background: C.gold, color: "#1c1915", border: "none", borderRadius: 4, cursor: "pointer" }}
+                      >
+                        📂 View Imported Collection →
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => navigate("/discogs-import/history")}
+                      style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "10px 18px", fontSize: 13, fontWeight: 600, background: C.card, color: C.text, border: "1px solid " + C.border, borderRadius: 4, cursor: "pointer" }}
+                    >
+                      All Collections
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // Reset wizard state for a fresh import
+                        setFile(null)
+                        setCollectionName("")
+                        setUploadResult(null)
+                        setAnalysis(null)
+                        setCommitResult(null)
+                        setFetchResult(null)
+                        setFetchProgress(null)
+                        setAnalyzeProgress(null)
+                        setCommitProgress(null)
+                        setSelectedIds(new Set())
+                        setEvents([])
+                        setCurrentPhase("upload")
+                        setTab("Upload")
+                        setError(null)
+                      }}
+                      style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "10px 18px", fontSize: 13, fontWeight: 600, background: "transparent", color: C.muted, border: "1px solid " + C.border, borderRadius: 4, cursor: "pointer" }}
+                    >
+                      ↻ Start New Import
+                    </button>
+                  </div>
+                </div>
               )}
 
               {/* Release sections */}
