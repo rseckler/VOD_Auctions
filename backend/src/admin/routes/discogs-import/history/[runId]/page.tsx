@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom"
 import { useAdminNav } from "../../../../components/admin-nav"
 import { C, fmtDate, fmtNum } from "../../../../components/admin-tokens"
 import { PageHeader, PageShell, StatsGrid } from "../../../../components/admin-layout"
-import { Btn, EmptyState } from "../../../../components/admin-ui"
+import { EmptyState } from "../../../../components/admin-ui"
 import { ImportLiveLog, type ImportEvent } from "../../../../components/discogs-import"
 
 /* ─── Types ─────────────────────────────────────────────────────────────────── */
@@ -159,14 +159,36 @@ const HistoryDetailPage = () => {
     return <PageShell><div style={{ fontSize: 13, padding: 20 }}>Loading...</div></PageShell>
   }
 
+  // Shared button styles — the admin-ui Btn component uses a `label` prop (not children)
+  // and doesn't have a "secondary" variant, so we inline a small helper style here.
+  const btnSecondary: React.CSSProperties = {
+    display: "inline-flex", alignItems: "center", gap: 4,
+    padding: "8px 14px", fontSize: 13, fontWeight: 600,
+    background: C.card, color: C.text,
+    border: "1px solid " + C.border, borderRadius: 4,
+    cursor: "pointer", textDecoration: "none",
+  }
+
+  const backLink = (
+    <button
+      type="button"
+      onClick={() => navigate("/discogs-import/history")}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 4,
+        background: "transparent", border: "none", padding: 0,
+        fontSize: 13, color: C.gold, cursor: "pointer", marginBottom: 12,
+      }}
+    >
+      ← Back to Collections
+    </button>
+  )
+
   if (error || !data) {
     return (
       <PageShell>
+        {backLink}
         <PageHeader title="Import Run" subtitle={runId} />
         <EmptyState icon="⚠" title="Failed to load run" description={error || "Run not found"} />
-        <div style={{ marginTop: 16 }}>
-          <Btn variant="secondary" onClick={() => navigate("/discogs-import/history")}>← Back to Collections</Btn>
-        </div>
       </PageShell>
     )
   }
@@ -180,29 +202,35 @@ const HistoryDetailPage = () => {
     selected_discogs_ids?: number[] | null
   } | null
 
+  // Subtitle mit Source, Date, Status + Inventory-Info
+  const subtitleParts = [
+    run.import_source || run.filename || "—",
+    run.started_at ? fmtDate(run.started_at) : null,
+    run.session_status ? `status: ${run.session_status}` : null,
+    importSettings?.inventory != null
+      ? `inventory: ${Number(importSettings.inventory) > 0 ? `${importSettings.inventory} (yes)` : "0 (no)"}`
+      : null,
+  ].filter(Boolean).join(" · ")
+
   return (
     <PageShell>
+      {backLink}
       <PageHeader
         title={run.collection_name || "Import Run"}
-        subtitle={[
-          run.import_source || run.filename || "—",
-          run.started_at ? fmtDate(run.started_at) : null,
-          run.session_status ? `status: ${run.session_status}` : null,
-        ].filter(Boolean).join(" · ")}
+        subtitle={subtitleParts}
         actions={
           <div style={{ display: "flex", gap: 8 }}>
-            <Btn variant="secondary" onClick={copyRunId}>
+            <button type="button" onClick={copyRunId} style={btnSecondary}>
               {copiedRunId ? "✓ Copied" : "Copy Run ID"}
-            </Btn>
+            </button>
             <a
               href={`/admin/discogs-import/history/${encodeURIComponent(run.run_id)}/export`}
               target="_blank"
               rel="noopener noreferrer"
-              style={{ display: "inline-flex", alignItems: "center", padding: "8px 14px", fontSize: 13, fontWeight: 600, background: C.gold, color: "#1c1915", borderRadius: 4, textDecoration: "none" }}
+              style={{ ...btnSecondary, background: C.gold, color: "#1c1915", border: "1px solid " + C.gold }}
             >
               ⬇ Export CSV
             </a>
-            <Btn variant="ghost" onClick={() => navigate("/discogs-import/history")}>← Back</Btn>
           </div>
         }
       />
@@ -341,7 +369,7 @@ const HistoryDetailPage = () => {
                             <a href={`https://vod-auctions.com/catalog/${r.slug}`} target="_blank" rel="noopener noreferrer" title="Storefront" style={{ color: C.gold, textDecoration: "none" }}>🌐</a>
                           ) : <span style={{ color: C.muted }}>🌐</span>}
                           {r.release_id ? (
-                            <a href={`/app/catalog?q=${encodeURIComponent(r.release_id)}`} target="_blank" rel="noopener noreferrer" title="Admin Catalog" style={{ color: C.blue, textDecoration: "none" }}>⚙</a>
+                            <a href={`/app/media/${encodeURIComponent(r.release_id)}`} target="_blank" rel="noopener noreferrer" title="Admin Release Detail" style={{ color: C.blue, textDecoration: "none" }}>⚙</a>
                           ) : <span style={{ color: C.muted }}>⚙</span>}
                           <a href={`https://www.discogs.com/release/${r.discogs_id}`} target="_blank" rel="noopener noreferrer" title="Discogs" style={{ color: C.muted, textDecoration: "none", fontWeight: 700 }}>D</a>
                         </div>
@@ -354,9 +382,9 @@ const HistoryDetailPage = () => {
           </div>
           {filteredReleases.length > visibleCount && (
             <div style={{ padding: 12, borderTop: "1px solid " + C.border, textAlign: "center", background: C.card }}>
-              <Btn variant="secondary" onClick={() => setVisibleCount(visibleCount + 200)}>
+              <button type="button" onClick={() => setVisibleCount(visibleCount + 200)} style={btnSecondary}>
                 Load more ({fmtNum(filteredReleases.length - visibleCount)} remaining)
-              </Btn>
+              </button>
             </div>
           )}
         </div>

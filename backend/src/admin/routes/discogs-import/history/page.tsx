@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { useAdminNav } from "../../../components/admin-nav"
 import { C, fmtDate, fmtNum } from "../../../components/admin-tokens"
 import { PageHeader, PageShell, StatsGrid } from "../../../components/admin-layout"
-import { Btn, EmptyState } from "../../../components/admin-ui"
+import { EmptyState } from "../../../components/admin-ui"
 
 /* ─── Types ─────────────────────────────────────────────────────────────────── */
 
@@ -76,14 +76,20 @@ const DiscogsHistoryListPage = () => {
 
   return (
     <PageShell>
+      <button
+        type="button"
+        onClick={() => navigate("/discogs-import")}
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 4,
+          background: "transparent", border: "none", padding: 0,
+          fontSize: 13, color: C.gold, cursor: "pointer", marginBottom: 12,
+        }}
+      >
+        ← Back to Import Wizard
+      </button>
       <PageHeader
         title="Imported Collections"
         subtitle="Browse, filter and export all past Discogs collection imports"
-        actions={
-          <Btn variant="secondary" onClick={() => navigate("/discogs-import")}>
-            ← Back to Import Wizard
-          </Btn>
-        }
       />
 
       {error && (
