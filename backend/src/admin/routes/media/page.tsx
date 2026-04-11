@@ -567,6 +567,20 @@ const MediaPage = () => {
   const [sortField, setSortField] = useState("")
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
 
+  // ── rc23: Import + Inventory Filter state ──
+  const [importCollection, setImportCollection] = useState("")
+  const [importAction, setImportAction] = useState("")
+  const [inventoryState, setInventoryState] = useState("")
+  const [inventoryStatusFilter, setInventoryStatusFilter] = useState("")
+  const [stocktakeFilter, setStocktakeFilter] = useState("")
+  const [priceLockedFilter, setPriceLockedFilter] = useState("")
+  const [warehouseLocationFilter, setWarehouseLocationFilter] = useState("")
+  const [filterOptions, setFilterOptions] = useState<{
+    import_collections: Array<{ collection_name: string; release_count: number; last_import_at: string }>
+    warehouse_locations: Array<{ id: string; code: string; name: string }>
+    inventory_statuses: string[]
+  }>({ import_collections: [], warehouse_locations: [], inventory_statuses: [] })
+
   // Pagination
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(25)
@@ -586,7 +600,20 @@ const MediaPage = () => {
   // Reset page on filter change
   useEffect(() => {
     setPage(0)
-  }, [searchQuery, activeFormat, activeCategory, hasDiscogs, hasPrice, auctionStatus, countryFilter, yearFrom, yearTo, labelFilter, visibilityFilter, pageSize])
+  }, [searchQuery, activeFormat, activeCategory, hasDiscogs, hasPrice, auctionStatus, countryFilter, yearFrom, yearTo, labelFilter, visibilityFilter, pageSize,
+      importCollection, importAction, inventoryState, inventoryStatusFilter, stocktakeFilter, priceLockedFilter, warehouseLocationFilter])
+
+  // ── rc23: Load filter options on mount ──
+  useEffect(() => {
+    fetch("/admin/media/filter-options", { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => setFilterOptions({
+        import_collections: d.import_collections || [],
+        warehouse_locations: d.warehouse_locations || [],
+        inventory_statuses: d.inventory_statuses || [],
+      }))
+      .catch((err) => console.error("Filter-options fetch error:", err))
+  }, [])
 
   // Fetch stats
   useEffect(() => {
@@ -644,6 +671,14 @@ const MediaPage = () => {
     if (yearTo) params.set("year_to", yearTo)
     if (labelFilter) params.set("label", labelFilter)
     if (visibilityFilter) params.set("visibility", visibilityFilter)
+    // rc23 new filters
+    if (importCollection) params.set("import_collection", importCollection)
+    if (importAction) params.set("import_action", importAction)
+    if (inventoryState) params.set("inventory_state", inventoryState)
+    if (inventoryStatusFilter) params.set("inventory_status", inventoryStatusFilter)
+    if (stocktakeFilter) params.set("stocktake", stocktakeFilter)
+    if (priceLockedFilter) params.set("price_locked", priceLockedFilter)
+    if (warehouseLocationFilter) params.set("warehouse_location", warehouseLocationFilter)
     if (sortField) params.set("sort", `${sortField}_${sortDir}`)
     params.set("limit", String(pageSize))
     params.set("offset", String(page * pageSize))
@@ -659,7 +694,9 @@ const MediaPage = () => {
         console.error("Fetch error:", err)
         setLoading(false)
       })
-  }, [searchQuery, activeFormat, activeCategory, hasDiscogs, hasPrice, auctionStatus, countryFilter, yearFrom, yearTo, labelFilter, visibilityFilter, sortField, sortDir, page, pageSize, refetchTrigger])
+  }, [searchQuery, activeFormat, activeCategory, hasDiscogs, hasPrice, auctionStatus, countryFilter, yearFrom, yearTo, labelFilter, visibilityFilter,
+      importCollection, importAction, inventoryState, inventoryStatusFilter, stocktakeFilter, priceLockedFilter, warehouseLocationFilter,
+      sortField, sortDir, page, pageSize, refetchTrigger])
 
   const totalPages = Math.ceil(count / pageSize)
 
@@ -938,6 +975,102 @@ const MediaPage = () => {
         <div style={{ marginLeft: "auto", fontSize: "13px", color: C.muted }}>
           {count.toLocaleString("en-US")} result{count !== 1 ? "s" : ""}
         </div>
+      </div>
+
+      {/* ── rc23: Import + Inventory Filter Row ───────────────────────── */}
+      <div style={{ display: "flex", gap: "12px", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", paddingTop: "12px", borderTop: "1px dashed " + C.border }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <label style={{ fontSize: "13px", color: C.muted, fontWeight: 600 }}>Import:</label>
+          <select value={importCollection} onChange={(e) => setImportCollection(e.target.value)} style={{ ...selectStyle, minWidth: "180px" }}>
+            <option value="">All Collections</option>
+            {filterOptions.import_collections.map((c) => (
+              <option key={c.collection_name} value={c.collection_name}>
+                {c.collection_name} ({c.release_count.toLocaleString("en-US")})
+              </option>
+            ))}
+          </select>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <label style={{ fontSize: "13px", color: C.muted }}>Action:</label>
+          <select value={importAction} onChange={(e) => setImportAction(e.target.value)} style={selectStyle}>
+            <option value="">Any action</option>
+            <option value="inserted">Inserted</option>
+            <option value="linked">Linked</option>
+            <option value="updated">Updated</option>
+            <option value="skipped">Skipped</option>
+          </select>
+        </div>
+
+        <div style={{ width: "1px", height: "24px", background: C.border, margin: "0 4px" }} />
+
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <label style={{ fontSize: "13px", color: C.muted, fontWeight: 600 }}>Inventory:</label>
+          <select value={inventoryState} onChange={(e) => setInventoryState(e.target.value)} style={selectStyle}>
+            <option value="">Any state</option>
+            <option value="any">Has inventory row</option>
+            <option value="none">No inventory row</option>
+            <option value="in_stock">In stock (qty &gt; 0)</option>
+            <option value="out_of_stock">Out of stock (qty = 0)</option>
+          </select>
+        </div>
+        {filterOptions.inventory_statuses.length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <label style={{ fontSize: "13px", color: C.muted }}>Status:</label>
+            <select value={inventoryStatusFilter} onChange={(e) => setInventoryStatusFilter(e.target.value)} style={selectStyle}>
+              <option value="">Any</option>
+              {filterOptions.inventory_statuses.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <label style={{ fontSize: "13px", color: C.muted }}>Stocktake:</label>
+          <select value={stocktakeFilter} onChange={(e) => setStocktakeFilter(e.target.value)} style={selectStyle}>
+            <option value="">All</option>
+            <option value="done">Done (&lt; 90d)</option>
+            <option value="pending">Pending (never)</option>
+            <option value="stale">Stale (&gt; 90d)</option>
+          </select>
+        </div>
+        {filterOptions.warehouse_locations.length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <label style={{ fontSize: "13px", color: C.muted }}>Location:</label>
+            <select value={warehouseLocationFilter} onChange={(e) => setWarehouseLocationFilter(e.target.value)} style={selectStyle}>
+              <option value="">All</option>
+              {filterOptions.warehouse_locations.map((l) => (
+                <option key={l.id} value={l.code}>{l.code} · {l.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: C.muted, cursor: "pointer" }}>
+          <input
+            type="checkbox"
+            checked={priceLockedFilter === "true"}
+            onChange={(e) => setPriceLockedFilter(e.target.checked ? "true" : "")}
+          />
+          Price locked
+        </label>
+
+        {/* Clear button when any rc23 filter is active */}
+        {(importCollection || importAction || inventoryState || inventoryStatusFilter || stocktakeFilter || priceLockedFilter || warehouseLocationFilter) && (
+          <button
+            type="button"
+            onClick={() => {
+              setImportCollection("")
+              setImportAction("")
+              setInventoryState("")
+              setInventoryStatusFilter("")
+              setStocktakeFilter("")
+              setPriceLockedFilter("")
+              setWarehouseLocationFilter("")
+            }}
+            style={{ marginLeft: "auto", fontSize: "12px", color: C.muted, background: "transparent", border: "none", cursor: "pointer", textDecoration: "underline" }}
+          >
+            Clear import/inventory filters
+          </button>
+        )}
       </div>
 
       {/* Bulk Actions Toolbar */}

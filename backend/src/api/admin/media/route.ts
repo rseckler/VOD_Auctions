@@ -24,6 +24,16 @@ export async function GET(
     has_price,
     has_image,
     visibility,
+    // ── rc23 new filters: Import ──
+    import_collection,
+    import_action,
+    // ── rc23 new filters: Inventory ──
+    inventory_state,
+    inventory_status,
+    stocktake,
+    price_locked,
+    warehouse_location,
+    // ────────────────────────────
     sort = "title_asc",
     limit = "25",
     offset = "0",
@@ -61,11 +71,22 @@ export async function GET(
       "Label.name as label_name",
       "Format.name as format_name",
       "Format.format_group",
-      "Format.kat as format_kat"
+      "Format.kat as format_kat",
+      // ── rc23: Inventory + warehouse fields for filter-aware display ──
+      "erp_inventory_item.id as inventory_item_id",
+      "erp_inventory_item.quantity as inventory_quantity",
+      "erp_inventory_item.status as inventory_item_status",
+      "erp_inventory_item.price_locked",
+      "erp_inventory_item.last_stocktake_at",
+      "warehouse_location.code as warehouse_code",
+      "warehouse_location.name as warehouse_name"
     )
     .leftJoin("Artist", "Release.artistId", "Artist.id")
     .leftJoin("Label", "Release.labelId", "Label.id")
     .leftJoin("Format", "Release.format_id", "Format.id")
+    // ── rc23: LEFT JOIN für Inventory Filter + Display ──
+    .leftJoin("erp_inventory_item", "Release.id", "erp_inventory_item.release_id")
+    .leftJoin("warehouse_location", "erp_inventory_item.warehouse_location_id", "warehouse_location.id")
 
   // Full-text search on title + artist name + catalog number
   if (q && typeof q === "string" && q.trim()) {
@@ -156,6 +177,90 @@ export async function GET(
       this.whereNull("Release.coverImage")
         .orWhereNull("Release.legacy_price")
     })
+  }
+
+  // ── rc23: Import Filter ─────────────────────────────────────────
+  // Uses whereExists subquery on import_log — release_id index makes this fast.
+  // `whereExists` semantics = "release has been touched by at least one import
+  // that matches the filter criteria" (OR-join across multiple imports).
+  if (import_collection && typeof import_collection === "string" && import_collection.trim()) {
+    const coll = import_collection.trim()
+    const action = typeof import_action === "string" && import_action.trim() ? import_action.trim() : null
+    query = query.whereExists(function () {
+      this.select("*")
+        .from("import_log")
+        .whereRaw('"import_log"."release_id" = "Release"."id"')
+        .where("import_log.import_type", "discogs_collection")
+        .where("import_log.collection_name", coll)
+      if (action) {
+        this.where("import_log.action", action)
+      }
+    })
+  } else if (import_action && typeof import_action === "string" && import_action.trim()) {
+    // Action-only filter (any collection)
+    const action = import_action.trim()
+    query = query.whereExists(function () {
+      this.select("*")
+        .from("import_log")
+        .whereRaw('"import_log"."release_id" = "Release"."id"')
+        .where("import_log.import_type", "discogs_collection")
+        .where("import_log.action", action)
+    })
+  }
+
+  // ── rc23: Inventory Filter ──────────────────────────────────────
+  // All inventory filters rely on the erp_inventory_item LEFT JOIN added above.
+  if (inventory_state === "any") {
+    query = query.whereNotNull("erp_inventory_item.id")
+  }
+  if (inventory_state === "none") {
+    query = query.whereNull("erp_inventory_item.id")
+  }
+  if (inventory_state === "in_stock") {
+    query = query.where("erp_inventory_item.quantity", ">", 0)
+  }
+  if (inventory_state === "out_of_stock") {
+    query = query
+      .whereNotNull("erp_inventory_item.id")
+      .where("erp_inventory_item.quantity", "=", 0)
+  }
+
+  if (inventory_status && typeof inventory_status === "string" && inventory_status.trim()) {
+    query = query.where("erp_inventory_item.status", inventory_status.trim())
+  }
+
+  // Stocktake states:
+  // - done    = last_stocktake_at IS NOT NULL AND >= NOW() - 90 days (recent)
+  // - pending = inventory_item exists but last_stocktake_at IS NULL (never checked)
+  // - stale   = last_stocktake_at < NOW() - 90 days (outdated, needs recheck)
+  if (stocktake === "done") {
+    query = query
+      .whereNotNull("erp_inventory_item.last_stocktake_at")
+      .where("erp_inventory_item.last_stocktake_at", ">=", pgConnection.raw("NOW() - INTERVAL '90 days'"))
+  }
+  if (stocktake === "pending") {
+    query = query
+      .whereNotNull("erp_inventory_item.id")
+      .whereNull("erp_inventory_item.last_stocktake_at")
+  }
+  if (stocktake === "stale") {
+    query = query
+      .whereNotNull("erp_inventory_item.last_stocktake_at")
+      .where("erp_inventory_item.last_stocktake_at", "<", pgConnection.raw("NOW() - INTERVAL '90 days'"))
+  }
+
+  if (price_locked === "true") {
+    query = query.where("erp_inventory_item.price_locked", true)
+  }
+  if (price_locked === "false") {
+    query = query.where(function () {
+      this.where("erp_inventory_item.price_locked", false)
+        .orWhereNull("erp_inventory_item.price_locked")
+    })
+  }
+
+  if (warehouse_location && typeof warehouse_location === "string" && warehouse_location.trim()) {
+    query = query.where("warehouse_location.code", warehouse_location.trim())
   }
 
   // Count before pagination
