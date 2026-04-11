@@ -70,50 +70,6 @@ async function printLabel(inventoryItemId: string, printerStatus: PrinterStatus)
   return inventoryItemId
 }
 
-// ─── Scanner Detection (onScan.js logic inlined) ───────────────────────────
-
-/**
- * Lightweight scanner detection: USB HID scanners type characters faster than
- * humans (~10-30ms per char). We buffer rapid keystrokes and fire onScan
- * when we detect a barcode-length string typed within the time threshold.
- */
-function useScannerDetection(onScan: (barcode: string) => void) {
-  const bufferRef = useRef("")
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      // Ignore if a text input is focused
-      const tag = (document.activeElement as HTMLElement)?.tagName
-      if (tag === "INPUT" || tag === "TEXTAREA") return
-
-      // Enter key = end of scan
-      if (e.key === "Enter" && bufferRef.current.length >= 8) {
-        e.preventDefault()
-        const barcode = bufferRef.current
-        bufferRef.current = ""
-        if (timerRef.current) clearTimeout(timerRef.current)
-        onScan(barcode)
-        return
-      }
-
-      // Single printable character
-      if (e.key.length === 1) {
-        bufferRef.current += e.key
-
-        // Reset buffer after 100ms of no input (human typing speed threshold)
-        if (timerRef.current) clearTimeout(timerRef.current)
-        timerRef.current = setTimeout(() => {
-          bufferRef.current = ""
-        }, 100)
-      }
-    }
-
-    window.addEventListener("keydown", handleKey, true) // capture phase
-    return () => window.removeEventListener("keydown", handleKey, true)
-  }, [onScan])
-}
-
 // ─── API Helper ─────────────────────────────────────────────────────────────
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
@@ -171,7 +127,10 @@ function StocktakeSessionPage() {
   // ── Scanner detection ──
 
   const handleScanBarcode = useCallback(async (barcode: string) => {
-    if (!barcode.startsWith("VOD-")) return
+    if (!barcode.startsWith("VOD-")) {
+      setToast({ message: `Unknown barcode: ${barcode}`, type: "error" })
+      return
+    }
     try {
       const item = await apiFetch<QueueItem>(`/admin/erp/inventory/scan/${barcode}`)
       // Insert scanned item at current position for immediate display
@@ -185,8 +144,6 @@ function StocktakeSessionPage() {
       setToast({ message: `Barcode ${barcode} not found`, type: "error" })
     }
   }, [])
-
-  useScannerDetection(handleScanBarcode)
 
   // ── Load queue ──
 
@@ -298,14 +255,34 @@ function StocktakeSessionPage() {
     }
   }
 
-  // ── Keyboard shortcuts ──
-
+  // ── Unified keyboard handler: Scanner detection + Shortcuts ─────────────
+  //
+  // Single keydown listener that handles BOTH USB HID barcode scanner input
+  // AND single-key shortcuts (V/P/M/S/N/L/U, arrows, Esc).
+  //
+  // The trick that makes both coexist:
+  //   - Scanner chars arrive every 5–15ms (one full VOD-XXXXXX scan in <60ms).
+  //   - Human shortcuts are isolated keypresses with >80ms gaps.
+  //
+  // Every printable key schedules its shortcut action with a 40ms debounce.
+  // If another key arrives within those 40ms (scanner case), the first
+  // timer is cancelled. The scanner buffer absorbs ALL chars and fires
+  // handleScanBarcode on Enter — the shortcut action never runs for
+  // scanner input. For a human "V" press, 40ms pass with no follow-up,
+  // so the shortcut fires (latency is imperceptible).
+  //
+  // Non-printable keys (Arrow, Esc, Enter) are handled immediately without
+  // debounce.
   useEffect(() => {
+    const scannerBuffer = { current: "" }
+    let scannerResetTimer: ReturnType<typeof setTimeout> | null = null
+    let shortcutTimer: ReturnType<typeof setTimeout> | null = null
+
     const handleKey = (e: KeyboardEvent) => {
-      // Ignore shortcuts when an input is focused (except Esc and Enter)
       const tag = (document.activeElement as HTMLElement)?.tagName
       const isInput = tag === "INPUT" || tag === "TEXTAREA"
 
+      // Esc works everywhere — closes modals, cancels price input, or opens exit
       if (e.key === "Escape") {
         if (showNoteModal) { setShowNoteModal(false); return }
         if (priceInputActive) { setPriceInputActive(false); setPriceValue(""); return }
@@ -313,6 +290,10 @@ function StocktakeSessionPage() {
         return
       }
 
+      // When an input field is focused: only handle Enter (price confirm),
+      // all other keys go to the input normally (including the scanner, which
+      // is intentional — if you're in the price input and want to scan a
+      // different item, hit Esc first).
       if (isInput) {
         if (e.key === "Enter" && priceInputActive) {
           e.preventDefault()
@@ -324,54 +305,91 @@ function StocktakeSessionPage() {
         return
       }
 
+      // Modals open → no shortcuts, no scanner
       if (showNoteModal || showExitModal) return
 
-      switch (e.key.toLowerCase()) {
-        case "v":
-          e.preventDefault()
-          handleVerify()
-          break
-        case "p":
-          e.preventDefault()
-          setPriceInputActive(true)
-          setPriceValue(current?.legacy_price != null ? String(current.legacy_price) : "")
-          setTimeout(() => priceInputRef.current?.focus(), 50)
-          break
-        case "m":
-          e.preventDefault()
-          handleMissing()
-          break
-        case "s":
-          e.preventDefault()
-          advanceToNext()
-          break
-        case "n":
-          e.preventDefault()
-          setNoteText("")
-          setShowNoteModal(true)
-          break
-        case "l":
-          e.preventDefault()
-          if (current) printLabel(current.inventory_item_id, printerStatus)
-          break
-        case "u":
-          e.preventDefault()
-          handleUndo()
-          break
-        case "arrowright":
-          e.preventDefault()
-          if (currentIndex < items.length - 1) setCurrentIndex((i) => i + 1)
-          break
-        case "arrowleft":
-          e.preventDefault()
-          if (currentIndex > 0) setCurrentIndex((i) => i - 1)
-          break
+      // ── Scanner: End-of-scan detection ──
+      // Enter with a full buffer = USB HID scanner finished a barcode
+      if (e.key === "Enter" && scannerBuffer.current.length >= 8) {
+        e.preventDefault()
+        const barcode = scannerBuffer.current
+        scannerBuffer.current = ""
+        if (scannerResetTimer) { clearTimeout(scannerResetTimer); scannerResetTimer = null }
+        if (shortcutTimer) { clearTimeout(shortcutTimer); shortcutTimer = null }
+        handleScanBarcode(barcode)
+        return
+      }
+
+      // ── Arrow keys: immediate navigation, no debounce needed ──
+      if (e.key === "ArrowRight") {
+        e.preventDefault()
+        if (currentIndex < items.length - 1) setCurrentIndex((i) => i + 1)
+        return
+      }
+      if (e.key === "ArrowLeft") {
+        e.preventDefault()
+        if (currentIndex > 0) setCurrentIndex((i) => i - 1)
+        return
+      }
+
+      // ── Printable single character: scanner buffer + debounced shortcut ──
+      if (e.key.length === 1) {
+        // Append to scanner buffer, reset after 100ms idle
+        scannerBuffer.current += e.key
+        if (scannerResetTimer) clearTimeout(scannerResetTimer)
+        scannerResetTimer = setTimeout(() => {
+          scannerBuffer.current = ""
+        }, 100)
+
+        // Cancel any pending shortcut (new key arrived — either scan or new action)
+        if (shortcutTimer) {
+          clearTimeout(shortcutTimer)
+          shortcutTimer = null
+        }
+
+        // Schedule shortcut action with 40ms debounce.
+        // Scanner follow-up chars arrive in ≤15ms and will cancel this timer.
+        // Human key-press has no follow-up → timer fires, action runs.
+        const key = e.key.toLowerCase()
+        shortcutTimer = setTimeout(() => {
+          shortcutTimer = null
+          switch (key) {
+            case "v":
+              handleVerify()
+              break
+            case "p":
+              setPriceInputActive(true)
+              setPriceValue(current?.legacy_price != null ? String(current.legacy_price) : "")
+              setTimeout(() => priceInputRef.current?.focus(), 50)
+              break
+            case "m":
+              handleMissing()
+              break
+            case "s":
+              advanceToNext()
+              break
+            case "n":
+              setNoteText("")
+              setShowNoteModal(true)
+              break
+            case "l":
+              if (current) printLabel(current.inventory_item_id, printerStatus)
+              break
+            case "u":
+              handleUndo()
+              break
+          }
+        }, 40)
       }
     }
 
     window.addEventListener("keydown", handleKey)
-    return () => window.removeEventListener("keydown", handleKey)
-  }, [current, priceInputActive, priceValue, showNoteModal, showExitModal, currentIndex, items.length, undoStack])
+    return () => {
+      window.removeEventListener("keydown", handleKey)
+      if (scannerResetTimer) clearTimeout(scannerResetTimer)
+      if (shortcutTimer) clearTimeout(shortcutTimer)
+    }
+  }, [current, priceInputActive, priceValue, showNoteModal, showExitModal, currentIndex, items.length, undoStack, printerStatus, handleScanBarcode])
 
   // ── Render ──
 
