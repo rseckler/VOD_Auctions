@@ -746,9 +746,9 @@ const TransactionsPage = () => {
       {bulkShipDialog && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ background: "var(--bg-component, #1a1714)", borderRadius: 12, padding: 28, width: "100%", maxWidth: 400, boxShadow: "0 8px 32px rgba(0,0,0,0.15)" }}>
-            <Heading level="h2" className="mb-4">
+            <Text size="large" weight="plus" className="mb-4" style={{ display: "block" }}>
               Ship {selected.size} Order{selected.size > 1 ? "s" : ""}
-            </Heading>
+            </Text>
             <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
               <div>
                 <Label size="small">Carrier</Label>
@@ -775,7 +775,7 @@ const TransactionsPage = () => {
           </div>
         </div>
       )}
-    </Container>
+    </PageShell>
   )
 }
 
