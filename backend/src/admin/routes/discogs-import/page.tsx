@@ -131,6 +131,19 @@ const DiscogsImportPage = () => {
   const [pollingInitialEventId, setPollingInitialEventId] = useState(0)
   const activeSessionId = uploadResult?.session_id || null
 
+  // ── Stale-loop auto-restart tracking ──
+  // Protects against Backend process kills (pm2 restart, OOM, crash) while
+  // the user is on the page. When polling detects that the loop hasn't
+  // written any event for >60s, we trigger a re-POST to the corresponding
+  // endpoint. Backend's idempotency check recognizes the stale state
+  // (age > 60s) and starts a fresh loop that picks up where the old one
+  // left off (via discogs_api_cache for fetch, via completed_batches for commit).
+  //
+  // Cooldown: at most one restart attempt per 60 seconds to avoid loops.
+  const lastStaleRestartRef = useRef<number>(0)
+  const STALE_THRESHOLD_MS = 60_000
+  const STALE_COOLDOWN_MS = 60_000
+
   useSessionPolling(
     activeSessionId,
     pollingEnabled,
@@ -143,6 +156,48 @@ const DiscogsImportPage = () => {
       if (st.fetch_progress) setFetchProgress(st.fetch_progress as typeof fetchProgress)
       if (st.analyze_progress) setAnalyzeProgress(st.analyze_progress as typeof analyzeProgress)
       if (st.commit_progress) setCommitProgress(st.commit_progress as typeof commitProgress)
+
+      // ── Stale-loop detection (active polling guard) ──
+      // If session is in a running state but backend hasn't emitted any
+      // event for > STALE_THRESHOLD_MS, assume the loop died (pm2 restart,
+      // OOM, crash) and trigger an auto-restart. Backend idempotency check
+      // treats stale sessions as restartable.
+      const ACTIVE_STATES = ["fetching", "analyzing", "importing"] as const
+      if (ACTIVE_STATES.includes(st.status as (typeof ACTIVE_STATES)[number]) && st.last_event_at) {
+        const ageMs = Date.now() - new Date(st.last_event_at).getTime()
+        const sinceLastRestart = Date.now() - lastStaleRestartRef.current
+        if (ageMs > STALE_THRESHOLD_MS && sinceLastRestart > STALE_COOLDOWN_MS) {
+          lastStaleRestartRef.current = Date.now()
+          const endpoint =
+            st.status === "fetching" ? "/admin/discogs-import/fetch"
+            : st.status === "analyzing" ? "/admin/discogs-import/analyze"
+            : "/admin/discogs-import/commit"
+          const ageSec = Math.round(ageMs / 1000)
+          console.warn(`[stale-restart] ${st.status} loop stale ${ageSec}s, re-POSTing to ${endpoint}`)
+          // Show the user what's happening via a synthetic event in the live log
+          setEvents((prev) => [...prev, {
+            type: "auto_restart",
+            phase: st.status === "fetching" ? "fetch" : st.status === "analyzing" ? "analyze" : "commit",
+            timestamp: new Date().toISOString(),
+            message: `Backend loop appeared dead (${ageSec}s since last event). Auto-restarting — cached work is preserved.`,
+          } as ImportEvent].slice(-500))
+          // Re-POST with just session_id — backend loads settings from
+          // session.import_settings for commit, fetch/analyze only need the id.
+          fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ session_id: st.id }),
+          }).catch((err) => {
+            console.error(`[stale-restart] re-POST failed:`, err)
+          })
+        }
+      }
+      // Reset restart ref when session moves to a terminal state (so a fresh
+      // session later can trigger its own restart cycle)
+      if (["done", "error", "abandoned", "fetched", "analyzed", "uploaded"].includes(st.status)) {
+        lastStaleRestartRef.current = 0
+      }
 
       // ── Phase transitions detected via polling ──
       // When the backend moves from an active state (fetching/analyzing/importing)

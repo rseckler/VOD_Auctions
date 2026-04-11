@@ -66,14 +66,7 @@ export async function POST(
     inventory?: number
     price_markup?: number
   }
-  const {
-    session_id,
-    selected_discogs_ids,
-    media_condition = "VG+",
-    sleeve_condition = "VG+",
-    inventory = 1,
-    price_markup = 1.2,
-  } = body
+  const { session_id } = body
 
   if (!session_id) {
     res.status(400).json({ error: "Missing session_id" })
@@ -104,6 +97,24 @@ export async function POST(
     )
   }
 
+  // ── Resolve settings: body values take precedence, else fall back to
+  // session.import_settings (set by the INITIAL commit call). This enables
+  // auto-restart scenarios where the UI only knows the session_id but the
+  // user's original condition/markup/selection choices are persisted in DB.
+  const persistedSettings = (session.import_settings || {}) as {
+    media_condition?: string
+    sleeve_condition?: string
+    inventory?: number
+    price_markup?: number
+    selected_discogs_ids?: number[] | null
+  }
+
+  const media_condition = body.media_condition ?? persistedSettings.media_condition ?? "VG+"
+  const sleeve_condition = body.sleeve_condition ?? persistedSettings.sleeve_condition ?? "VG+"
+  const inventory = body.inventory ?? persistedSettings.inventory ?? 1
+  const price_markup = body.price_markup ?? persistedSettings.price_markup ?? 1.2
+  const selected_discogs_ids = body.selected_discogs_ids ?? persistedSettings.selected_discogs_ids ?? undefined
+
   // Return 200 immediately — loop runs detached below
   res.json({ ok: true, session_id, started: true })
 
@@ -121,7 +132,7 @@ export async function POST(
     // ── Step 1: Persist selected_ids + settings BEFORE any work starts ──
     // This enables true importing-resume: if commit is interrupted, the
     // frontend can restore all user choices via GET /session/:id/status.
-    const persistedSettings = {
+    const persistedSettingsUpdate = {
       media_condition,
       sleeve_condition,
       inventory,
@@ -131,7 +142,7 @@ export async function POST(
     await updateSession(pgConnection, session_id, {
       status: "importing",
       commit_progress: { phase: "preparing" },
-      import_settings: persistedSettings,
+      import_settings: persistedSettingsUpdate,
     })
     await stream.emit("commit", "start", { session_id })
 
