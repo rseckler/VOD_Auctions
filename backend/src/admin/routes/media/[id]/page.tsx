@@ -498,6 +498,17 @@ const MediaDetailPage = () => {
   const { id } = useParams<{ id: string }>()
   const [release, setRelease] = useState<Release | null>(null)
   const [syncHistory, setSyncHistory] = useState<SyncEntry[]>([])
+  const [importHistory, setImportHistory] = useState<Array<{
+    id: string
+    run_id: string
+    action: "inserted" | "linked" | "updated" | "skipped"
+    discogs_id: number
+    collection_name: string | null
+    import_source: string | null
+    created_at: string
+    session_id: string | null
+    session_status: string | null
+  }>>([])
   const [images, setImages] = useState<ImageEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -542,6 +553,7 @@ const MediaDetailPage = () => {
     ]).then(([d, st, loc]) => {
         setRelease(d.release || null)
         setSyncHistory(d.sync_history || [])
+        setImportHistory(d.import_history || [])
         setImages(d.images || [])
         setShippingTypes(st.item_types || [])
         setLocations((loc.locations || []).filter((l: { is_active: boolean }) => l.is_active))
@@ -850,6 +862,56 @@ const MediaDetailPage = () => {
 
       {/* Notes + Tracklist */}
       <NotesAndTracklist credits={release.credits} tracklist={release.tracklist} description={release.description} />
+
+      {/* Import History — which Discogs imports touched this release */}
+      {importHistory.length > 0 && (
+        <div style={{ ...cardStyle, marginBottom: S.sectionGap }}>
+          <SectionHeader title="Import History" count={importHistory.length} style={{ marginTop: 0 }} />
+          <div style={{ overflow: "auto", marginTop: S.gap.md }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ background: C.card }}>
+                  <th style={thStyle}>Date</th>
+                  <th style={thStyle}>Collection</th>
+                  <th style={thStyle}>Source File</th>
+                  <th style={thStyle}>Action</th>
+                  <th style={thStyle}>Discogs ID</th>
+                  <th style={thStyle}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {importHistory.map((entry) => {
+                  const actionVariant: "success" | "warning" | "info" | "neutral" =
+                    entry.action === "inserted" ? "success"
+                      : entry.action === "linked" ? "warning"
+                        : entry.action === "updated" ? "info"
+                          : "neutral"
+                  return (
+                    <tr key={entry.id} style={{ transition: "background 0.1s" }} onMouseOver={(e) => (e.currentTarget.style.background = C.hover)} onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}>
+                      <td style={tdStyle}>{formatDate(entry.created_at)}</td>
+                      <td style={{ ...tdStyle, fontWeight: 600 }}>{entry.collection_name || "\u2014"}</td>
+                      <td style={{ ...tdStyle, fontSize: 12, color: C.muted, maxWidth: 240, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.import_source || "\u2014"}</td>
+                      <td style={tdStyle}>
+                        <Badge label={entry.action} variant={actionVariant} />
+                      </td>
+                      <td style={{ ...tdStyle, fontFamily: "monospace", fontSize: 12 }}>
+                        <a href={`https://www.discogs.com/release/${entry.discogs_id}`} target="_blank" rel="noopener noreferrer" style={{ color: C.muted, textDecoration: "none" }}>
+                          {entry.discogs_id}
+                        </a>
+                      </td>
+                      <td style={{ ...tdStyle, textAlign: "right" }}>
+                        <a href={`/app/discogs-import/history/${encodeURIComponent(entry.run_id)}`} target="_blank" rel="noopener noreferrer" style={{ color: C.gold, textDecoration: "none", fontSize: 12, fontWeight: 600 }}>
+                          View Run →
+                        </a>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Sync History */}
       <div style={{ ...cardStyle, marginBottom: S.sectionGap }}>

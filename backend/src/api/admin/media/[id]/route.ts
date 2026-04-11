@@ -48,7 +48,36 @@ export async function GET(
     .orderBy("rang", "asc")
     .orderBy("id", "asc")
 
-  res.json({ release, sync_history, images })
+  // Fetch import history — LEFT JOIN with import_session for collection metadata
+  // A release can appear in multiple imports (inserted once, updated by later
+  // runs) — return them ordered newest first.
+  let import_history: unknown[] = []
+  try {
+    const importLogResult = await pgConnection.raw(
+      `SELECT
+         il.id,
+         il.run_id,
+         il.action,
+         il.discogs_id,
+         il.collection_name,
+         il.import_source,
+         il.created_at,
+         s.id as session_id,
+         s.status as session_status
+       FROM import_log il
+       LEFT JOIN import_session s ON s.run_id = il.run_id
+       WHERE il.release_id = ? AND il.import_type = 'discogs_collection'
+       ORDER BY il.created_at DESC
+       LIMIT 10`,
+      [id]
+    )
+    import_history = importLogResult.rows || []
+  } catch {
+    // import_log table doesn't exist yet → empty array (release pre-dates Discogs import service)
+    import_history = []
+  }
+
+  res.json({ release, sync_history, images, import_history })
 }
 
 // POST /admin/media/:id — Update editable fields
