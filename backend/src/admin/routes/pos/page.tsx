@@ -77,13 +77,15 @@ function POSPage() {
   // Cart
   const [cart, setCart] = useState<CartItem[]>([])
   const [discount, setDiscount] = useState("")
+  const [discountMode, setDiscountMode] = useState<"eur" | "percent">("eur")
 
   // Customer
   const [customerMode, setCustomerMode] = useState<CustomerMode>("anonymous")
+  const [showCustomerDetailModal, setShowCustomerDetailModal] = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerResult | null>(null)
   const [customerSearch, setCustomerSearch] = useState("")
   const [customerResults, setCustomerResults] = useState<CustomerResult[]>([])
-  const [newCustomer, setNewCustomer] = useState({ first_name: "", last_name: "", email: "", phone: "" })
+  const [newCustomer, setNewCustomer] = useState({ first_name: "", last_name: "", email: "", phone: "", address_line1: "", postal_code: "", city: "", country: "" })
 
   // Payment
   const [paymentProvider, setPaymentProvider] = useState<PaymentProvider>("sumup")
@@ -97,6 +99,9 @@ function POSPage() {
   // Swipe-to-remove state
   const [swipingItemId, setSwipingItemId] = useState<string | null>(null)
   const swipeStartRef = useRef<{ x: number; id: string } | null>(null)
+
+  // Stats
+  const [stats, setStats] = useState<any>(null)
 
   // UI
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null)
@@ -132,11 +137,12 @@ function POSPage() {
     }
   }, [])
 
-  // ── Initialize session on mount ──
+  // ── Initialize session + load stats on mount ──
   useEffect(() => {
     apiFetch<{ session_id: string }>("/admin/pos/sessions", { method: "POST" })
       .then((data) => setSessionId(data.session_id))
       .catch(() => setToast({ message: "Failed to create POS session", type: "error" }))
+    apiFetch<any>("/admin/pos/stats").then(setStats).catch(() => {})
   }, [])
 
   // ── Focus scan input after mount and after checkout ──
@@ -292,7 +298,7 @@ function POSPage() {
       })
       setSelectedCustomer(data.customer)
       setCustomerMode("search")
-      setNewCustomer({ first_name: "", last_name: "", email: "", phone: "" })
+      setNewCustomer({ first_name: "", last_name: "", email: "", phone: "", address_line1: "", postal_code: "", city: "", country: "" })
       setToast({ message: `Created: ${data.customer.name}`, type: "success" })
     } catch (err: any) {
       if (err.existing_customer_id) {
@@ -305,7 +311,10 @@ function POSPage() {
 
   // ── Calculations ──
   const subtotal = cart.reduce((sum, item) => sum + item.price, 0)
-  const discountEur = Math.max(0, parseFloat(discount.replace(",", ".")) || 0)
+  const discountRaw = Math.max(0, parseFloat(discount.replace(",", ".")) || 0)
+  const discountEur = discountMode === "percent"
+    ? Number((subtotal * discountRaw / 100).toFixed(2))
+    : discountRaw
   const total = Math.max(0, subtotal - discountEur)
   const canCheckout = cart.length > 0 && total > 0
 
@@ -351,6 +360,8 @@ function POSPage() {
 
       setCheckoutResult(result)
       setCheckoutPhase("success")
+      // Refresh stats after successful sale
+      apiFetch<any>("/admin/pos/stats").then(setStats).catch(() => {})
     } catch (err: any) {
       setCheckoutError(err.message || "Checkout failed")
       setCheckoutPhase("error")
@@ -365,7 +376,7 @@ function POSPage() {
     setSelectedCustomer(null)
     setCustomerMode("anonymous")
     setCustomerSearch("")
-    setNewCustomer({ first_name: "", last_name: "", email: "", phone: "" })
+    setNewCustomer({ first_name: "", last_name: "", email: "", phone: "", address_line1: "", postal_code: "", city: "", country: "" })
     setPaymentProvider("sumup")
     setCashReceived("")
     setCheckoutPhase("idle")
@@ -395,6 +406,36 @@ function POSPage() {
           Dry-Run Mode — Transactions without TSE signature. Tax-Free Export disabled (pending Steuerberater).
         </span>
       </div>
+
+      {/* Stats Bar */}
+      {stats && (
+        <div style={{
+          display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10,
+          marginBottom: 16,
+        }}>
+          {([
+            { label: "Today", count: stats.today.count, total: stats.today.total },
+            { label: "Yesterday", count: stats.yesterday.count, total: stats.yesterday.total },
+            { label: "This Week", count: stats.week.count, total: stats.week.total },
+            { label: "All Time", count: stats.all_time.count, total: stats.all_time.total },
+          ]).map((s) => (
+            <div key={s.label} style={{
+              background: C.card, border: `1px solid ${C.border}`, borderRadius: S.radius.md,
+              padding: "10px 14px", textAlign: "center",
+            }}>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: C.muted, letterSpacing: "0.06em", marginBottom: 4 }}>
+                {s.label}
+              </div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: C.gold }}>
+                {fmtMoney(s.total)}
+              </div>
+              <div style={{ fontSize: 11, color: C.muted }}>
+                {s.count} sale{s.count !== 1 ? "s" : ""}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
@@ -638,8 +679,8 @@ function POSPage() {
               </div>
             )}
 
-            {/* Discount */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+            {/* Discount with EUR/% toggle */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
               <label style={{ fontSize: 12, color: C.muted, flexShrink: 0 }}>Discount</label>
               <input
                 type="text"
@@ -649,10 +690,32 @@ function POSPage() {
                 placeholder="0"
                 style={{
                   ...inputStyle, flex: 1, padding: "4px 8px", fontSize: 13,
-                  textAlign: "right", maxWidth: 80,
+                  textAlign: "right", maxWidth: 70,
                 }}
               />
-              <span style={{ fontSize: 12, color: C.muted }}>EUR</span>
+              {/* EUR / % toggle */}
+              <div style={{ display: "flex", border: `1px solid ${C.border}`, borderRadius: S.radius.sm, overflow: "hidden", flexShrink: 0 }}>
+                {(["eur", "percent"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => setDiscountMode(mode)}
+                    style={{
+                      padding: "3px 8px", fontSize: 11, fontWeight: 600,
+                      border: "none", cursor: "pointer",
+                      background: discountMode === mode ? C.gold : "#fff",
+                      color: discountMode === mode ? "#fff" : C.muted,
+                    }}
+                  >
+                    {mode === "eur" ? "EUR" : "%"}
+                  </button>
+                ))}
+              </div>
+              {/* Show calculated EUR value when in % mode */}
+              {discountMode === "percent" && discountRaw > 0 && (
+                <span style={{ fontSize: 11, color: C.muted, flexShrink: 0 }}>
+                  = {fmtMoney(discountEur)}
+                </span>
+              )}
             </div>
 
             {/* Total */}
@@ -768,16 +831,28 @@ function POSPage() {
                 <input type="email" placeholder="Email (optional)" value={newCustomer.email}
                   onChange={(e) => setNewCustomer((p) => ({ ...p, email: e.target.value }))}
                   style={{ ...inputStyle, width: "100%", padding: "6px 8px", fontSize: 12, boxSizing: "border-box" }} />
-                <button
-                  onClick={handleCreateCustomer}
-                  style={{
-                    background: C.gold, color: "#fff", border: "none",
-                    borderRadius: S.radius.sm, padding: "7px 0", fontSize: 12,
-                    fontWeight: 600, cursor: "pointer",
-                  }}
-                >
-                  Create Customer
-                </button>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button
+                    onClick={handleCreateCustomer}
+                    style={{
+                      flex: 1, background: C.gold, color: "#fff", border: "none",
+                      borderRadius: S.radius.sm, padding: "7px 0", fontSize: 12,
+                      fontWeight: 600, cursor: "pointer",
+                    }}
+                  >
+                    Create Customer
+                  </button>
+                  <button
+                    onClick={() => setShowCustomerDetailModal(true)}
+                    style={{
+                      padding: "7px 12px", fontSize: 12, fontWeight: 500,
+                      border: `1px solid ${C.border}`, borderRadius: S.radius.sm,
+                      background: "#fff", color: C.muted, cursor: "pointer",
+                    }}
+                  >
+                    ...more
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -912,6 +987,81 @@ function POSPage() {
       </div>
 
       {/* ─── MODALS ─── */}
+
+      {/* Customer Detail Modal (full address) */}
+      {showCustomerDetailModal && (
+        <Modal title="New Customer — Full Details" onClose={() => setShowCustomerDetailModal(false)} footer={
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+            <Btn label="Cancel" variant="ghost" onClick={() => setShowCustomerDetailModal(false)} />
+            <Btn label="Create Customer" variant="gold" onClick={() => {
+              handleCreateCustomer()
+              setShowCustomerDetailModal(false)
+            }} />
+          </div>
+        }>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 11, color: C.muted, display: "block", marginBottom: 3 }}>First name *</label>
+                <input type="text" value={newCustomer.first_name}
+                  onChange={(e) => setNewCustomer((p) => ({ ...p, first_name: e.target.value }))}
+                  style={{ ...inputStyle, width: "100%", padding: "8px 10px", fontSize: 13, boxSizing: "border-box" }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 11, color: C.muted, display: "block", marginBottom: 3 }}>Last name *</label>
+                <input type="text" value={newCustomer.last_name}
+                  onChange={(e) => setNewCustomer((p) => ({ ...p, last_name: e.target.value }))}
+                  style={{ ...inputStyle, width: "100%", padding: "8px 10px", fontSize: 13, boxSizing: "border-box" }} />
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 11, color: C.muted, display: "block", marginBottom: 3 }}>Email</label>
+                <input type="email" value={newCustomer.email}
+                  onChange={(e) => setNewCustomer((p) => ({ ...p, email: e.target.value }))}
+                  style={{ ...inputStyle, width: "100%", padding: "8px 10px", fontSize: 13, boxSizing: "border-box" }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 11, color: C.muted, display: "block", marginBottom: 3 }}>Phone</label>
+                <input type="tel" value={newCustomer.phone}
+                  onChange={(e) => setNewCustomer((p) => ({ ...p, phone: e.target.value }))}
+                  style={{ ...inputStyle, width: "100%", padding: "8px 10px", fontSize: 13, boxSizing: "border-box" }} />
+              </div>
+            </div>
+            <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 10, marginTop: 4 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: C.muted, marginBottom: 8, letterSpacing: "0.06em" }}>
+                Address
+              </div>
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: C.muted, display: "block", marginBottom: 3 }}>Street</label>
+              <input type="text" value={newCustomer.address_line1}
+                onChange={(e) => setNewCustomer((p) => ({ ...p, address_line1: e.target.value }))}
+                style={{ ...inputStyle, width: "100%", padding: "8px 10px", fontSize: 13, boxSizing: "border-box" }} />
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ flex: "0 0 100px" }}>
+                <label style={{ fontSize: 11, color: C.muted, display: "block", marginBottom: 3 }}>Postal code</label>
+                <input type="text" value={newCustomer.postal_code}
+                  onChange={(e) => setNewCustomer((p) => ({ ...p, postal_code: e.target.value }))}
+                  style={{ ...inputStyle, width: "100%", padding: "8px 10px", fontSize: 13, boxSizing: "border-box" }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 11, color: C.muted, display: "block", marginBottom: 3 }}>City</label>
+                <input type="text" value={newCustomer.city}
+                  onChange={(e) => setNewCustomer((p) => ({ ...p, city: e.target.value }))}
+                  style={{ ...inputStyle, width: "100%", padding: "8px 10px", fontSize: 13, boxSizing: "border-box" }} />
+              </div>
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: C.muted, display: "block", marginBottom: 3 }}>Country</label>
+              <input type="text" placeholder="e.g. DE, US, JP" value={newCustomer.country}
+                onChange={(e) => setNewCustomer((p) => ({ ...p, country: e.target.value }))}
+                style={{ ...inputStyle, width: "100%", padding: "8px 10px", fontSize: 13, boxSizing: "border-box" }} />
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* Confirm Modal */}
       {checkoutPhase === "confirm" && (
