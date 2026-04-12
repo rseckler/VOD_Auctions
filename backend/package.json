@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",
+    "@aws-sdk/client-s3": "^3.1029.0",
     "@medusajs/admin-sdk": "2.13.1",
     "@medusajs/cli": "2.13.1",
     "@medusajs/framework": "2.13.1",
@@ -40,6 +41,7 @@
     "pdfkit": "^0.15.2",
     "react-email": "^5.2.9",
     "resend": "^6.9.3",
+    "sharp": "^0.34.5",
     "stripe": "^20.4.0",
     "xlsx": "^0.18.5",
     "zod": "^3.25.76"

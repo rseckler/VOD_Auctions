@@ -143,7 +143,7 @@ function GradeSelector({ label, value, onChange }: { label: string; value: Grade
               border: `1px solid ${value === g ? C.gold : C.border}`,
               borderRadius: 4,
               background: value === g ? C.gold : "transparent",
-              color: value === g ? "#000" : C.fg,
+              color: value === g ? "#000" : C.text,
               cursor: "pointer",
               fontSize: 13,
               fontWeight: value === g ? 700 : 400,
@@ -185,6 +185,10 @@ function StocktakeSessionPage() {
 
   // Stats
   const [stats, setStats] = useState<{ eligible: number; verified: number } | null>(null)
+
+  // Image upload
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // UI state
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null)
@@ -386,6 +390,41 @@ function StocktakeSessionPage() {
     setTimeout(() => searchInputRef.current?.focus(), 50)
   }
 
+  // ── Image Upload ──
+
+  const handleImageUpload = async (file: File) => {
+    if (!releaseDetail) return
+    setUploading(true)
+    try {
+      const reader = new FileReader()
+      const base64 = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+
+      const result = await apiFetch<{ url: string; optimized_size_kb: number; compression: string }>(
+        "/admin/erp/inventory/upload-image",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            release_id: releaseDetail.id,
+            image_data: base64,
+            filename: file.name,
+          }),
+        }
+      )
+
+      // Update local state with new image
+      setReleaseDetail({ ...releaseDetail, cover_image: result.url })
+      setToast({ message: `Bild hochgeladen (${result.optimized_size_kb} KB, ${result.compression} komprimiert)`, type: "success" })
+    } catch (e: any) {
+      setToast({ message: `Upload fehlgeschlagen: ${e.message}`, type: "error" })
+    } finally {
+      setUploading(false)
+    }
+  }
+
   // ── Discogs Price Override ──
 
   const applyDiscogsMedian = () => {
@@ -570,7 +609,7 @@ function StocktakeSessionPage() {
                 <div style={{ width: 48, height: 48, background: C.border, borderRadius: 4 }} />
               )}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600, color: C.fg, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                <div style={{ fontWeight: 600, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                   {r.artist_name || "Unknown"} — {r.title}
                 </div>
                 <div style={{ ...T.small, color: C.muted }}>
@@ -601,13 +640,49 @@ function StocktakeSessionPage() {
         <div style={{ ...cardStyle, marginBottom: S.gap.lg }}>
           {/* Release header */}
           <div style={{ display: "flex", gap: S.gap.lg, marginBottom: S.gap.lg }}>
-            {releaseDetail.cover_image ? (
-              <img src={releaseDetail.cover_image} alt="" style={{ width: 200, height: 200, objectFit: "cover", borderRadius: S.radius.md }} />
-            ) : (
-              <div style={{ width: 200, height: 200, background: C.border, borderRadius: S.radius.md }} />
-            )}
+            <div style={{ position: "relative", width: 200, height: 200 }}>
+              {releaseDetail.cover_image ? (
+                <img src={releaseDetail.cover_image} alt="" style={{ width: 200, height: 200, objectFit: "cover", borderRadius: S.radius.md }} />
+              ) : (
+                <div style={{
+                  width: 200, height: 200, background: C.border, borderRadius: S.radius.md,
+                  display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column",
+                  cursor: "pointer", border: `2px dashed ${C.muted}`,
+                }}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <div style={{ fontSize: 32, marginBottom: 4 }}>📷</div>
+                  <div style={{ ...T.small, color: C.muted }}>Foto aufnehmen</div>
+                </div>
+              )}
+              {/* Upload button overlay (always visible) */}
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                style={{
+                  position: "absolute", bottom: 6, right: 6,
+                  background: C.gold, color: "#000", border: "none", borderRadius: 4,
+                  padding: "4px 8px", fontSize: 11, fontWeight: 600, cursor: "pointer",
+                  opacity: uploading ? 0.5 : 0.9,
+                }}
+              >
+                {uploading ? "..." : "📷"}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                style={{ display: "none" }}
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) handleImageUpload(file)
+                  e.target.value = ""
+                }}
+              />
+            </div>
             <div style={{ flex: 1 }}>
-              <h2 style={{ margin: 0, fontSize: 22, color: C.fg }}>{releaseDetail.artist_name || "Unknown"}</h2>
+              <h2 style={{ margin: 0, fontSize: 22, color: C.text }}>{releaseDetail.artist_name || "Unknown"}</h2>
               <div style={{ fontSize: 16, color: C.muted, marginTop: 4 }}>{releaseDetail.title}</div>
               <div style={{ ...T.small, color: C.muted, marginTop: 8 }}>
                 {releaseDetail.format}
@@ -640,7 +715,7 @@ function StocktakeSessionPage() {
           {/* Copies list */}
           <div style={{ marginBottom: S.gap.lg }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: S.gap.md }}>
-              <div style={{ fontWeight: 600, color: C.fg }}>Exemplare ({copies.length})</div>
+              <div style={{ fontWeight: 600, color: C.text }}>Exemplare ({copies.length})</div>
               <Btn label="[A] Weiteres Exemplar" variant="gold" onClick={startNewCopy} style={{ fontSize: 12, padding: "6px 12px" }} />
             </div>
             {copies.map((copy) => (
@@ -684,7 +759,7 @@ function StocktakeSessionPage() {
           {/* Evaluation form */}
           {(editingCopy || isNewCopy) && (
             <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: S.gap.lg }}>
-              <div style={{ fontWeight: 600, color: C.fg, marginBottom: S.gap.md }}>
+              <div style={{ fontWeight: 600, color: C.text, marginBottom: S.gap.md }}>
                 {isNewCopy ? `Neues Exemplar #${copies.length + 1}` : `Exemplar #${editingCopy?.copy_number} bewerten`}
               </div>
 
@@ -767,7 +842,7 @@ function StocktakeSessionPage() {
         <Modal
           title="Session beenden?"
           onClose={() => setShowExitModal(false)}
-          actions={
+          footer={
             <>
               <Btn label="Session beenden" variant="gold" onClick={() => window.location.href = "/app/erp/inventory"} />
               <Btn label="Weiterarbeiten" variant="ghost" onClick={() => setShowExitModal(false)} />
@@ -778,7 +853,7 @@ function StocktakeSessionPage() {
         </Modal>
       )}
 
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      {toast && <Toast message={toast.message} type={toast.type} onDone={() => setToast(null)} />}
     </PageShell>
   )
 }
