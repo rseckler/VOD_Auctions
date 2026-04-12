@@ -10,6 +10,10 @@ import {
   clearControlFlags,
   pushLastError,
   emitDbEvent,
+  acquireLock,
+  validateLock,
+  releaseLock,
+  startHeartbeatLoop,
 } from "../../../../lib/discogs-import"
 
 const DISCOGS_BASE = "https://api.discogs.com"
@@ -25,23 +29,23 @@ const CONDITION_KEYS: Record<string, string> = {
   "Poor (P)": "P",
 }
 
-// How long (seconds) a session can be in "fetching" status without activity
-// before we consider the loop dead and allow restart. 180s (raised from 60s
-// in rc25) because a single Discogs API call + rate-limit backoff + cache
-// write can legitimately take >60s on cold caches. See commit/route.ts for
-// the full post-mortem.
-const STALE_THRESHOLD_SEC = 180
-
 // ─── Rate limiter (shared state) ────────────────────────────────────────────
 const callTimestamps: number[] = []
 
-async function rateLimit(): Promise<void> {
+async function rateLimit(pg?: Knex, sessionId?: string): Promise<void> {
   const now = Date.now()
   while (callTimestamps.length && callTimestamps[0] < now - 60000) {
     callTimestamps.shift()
   }
   if (callTimestamps.length >= MAX_REQUESTS_PER_MIN) {
     const waitMs = callTimestamps[0] + 60000 - now + 100
+    // M2 fix: emit event for long waits so they show in live-log
+    if (waitMs > 2000 && pg && sessionId) {
+      await emitDbEvent(pg, sessionId, "fetch", "rate_limit_wait", {
+        wait_seconds: Math.round(waitMs / 1000),
+        next_request_at: new Date(Date.now() + waitMs).toISOString(),
+      })
+    }
     await new Promise((r) => setTimeout(r, waitMs))
   }
   callTimestamps.push(Date.now())
@@ -49,18 +53,9 @@ async function rateLimit(): Promise<void> {
 
 // ─── POST /admin/discogs-import/fetch ────────────────────────────────────────
 //
-// DECOUPLED: This handler validates and kicks off the fetch loop as a
-// DETACHED background task, then returns 200 immediately. The loop writes
-// progress to `import_event` + `fetch_progress`; clients poll via
-// /session/:id/status to see updates. This way, the loop is fully
-// independent of any browser tab — users can navigate freely without
-// killing the work.
-//
-// Idempotency: if the session is already in "fetching" status AND
-// last_event_at is recent (<60s), we return 200 with already_running=true
-// and do NOT spawn a second loop. If the session is "fetching" but
-// last_event_at is stale, we assume the old loop is dead (process restart,
-// OOM, etc.) and restart it.
+// DECOUPLED: Validates, acquires session lock, kicks off the fetch loop as a
+// DETACHED background task, then returns 200 immediately. Lock handles
+// idempotency — concurrent POSTs get already_running=true.
 
 export async function POST(
   req: MedusaRequest,
@@ -80,34 +75,31 @@ export async function POST(
     return
   }
 
+  // Phase-precondition (C2)
+  if (!["uploaded", "fetched"].includes(session.status) && session.status !== "fetching") {
+    res.status(400).json({ error: `Cannot fetch: session is '${session.status}', expected 'uploaded' or 'fetched'` })
+    return
+  }
+
   const token = process.env.DISCOGS_TOKEN
   if (!token) {
     res.status(500).json({ error: "DISCOGS_TOKEN not configured in backend .env" })
     return
   }
 
-  // Idempotency check — don't double-spawn if another loop is healthy
-  if (session.status === "fetching") {
-    const lastEvent = session.last_event_at
-      ? new Date(session.last_event_at).getTime()
-      : 0
-    const ageSec = (Date.now() - lastEvent) / 1000
-    if (ageSec < STALE_THRESHOLD_SEC) {
-      res.json({ ok: true, session_id, already_running: true })
-      return
-    }
-    console.warn(
-      `[discogs-import/fetch] Restarting stale loop for session ${session_id} ` +
-      `(last event ${Math.round(ageSec)}s ago)`
-    )
+  // Acquire exclusive lock (C1)
+  const ownerId = await acquireLock(pgConnection, session_id, "fetching")
+  if (!ownerId) {
+    res.json({ ok: true, session_id, already_running: true })
+    return
   }
 
-  // Pre-flight DB mutations (done inline so the response reflects the state)
+  // Pre-flight DB mutations
   try {
-    await clearControlFlags(pgConnection, session_id)
     await updateSession(pgConnection, session_id, { status: "fetching" })
     await emitDbEvent(pgConnection, session_id, "fetch", "start", { session_id })
   } catch (err: unknown) {
+    await releaseLock(pgConnection, session_id, ownerId)
     const msg = err instanceof Error ? err.message : "Failed to start fetch"
     res.status(500).json({ error: msg })
     return
@@ -116,17 +108,16 @@ export async function POST(
   // Return 200 immediately — the loop continues detached below
   res.json({ ok: true, session_id, started: true })
 
-  // ── Detached background loop ───────────────────────────────────────────
-  // After res.json() above, the HTTP handler has returned from the client's
-  // perspective. This async function runs independent of the request lifetime.
-  void runFetchLoop(pgConnection, session_id, session, token).catch(async (err) => {
+  void runFetchLoop(pgConnection, session_id, session, token, ownerId).catch(async (err) => {
     console.error(`[discogs-import/fetch] Loop crashed for session ${session_id}:`, err)
     try {
       const msg = err instanceof Error ? err.message : "Unknown fetch error"
-      await updateSession(pgConnection, session_id, {
-        status: "error",
-        error_message: msg,
-      })
+      if (await validateLock(pgConnection, session_id, ownerId)) {
+        await updateSession(pgConnection, session_id, {
+          status: "error",
+          error_message: msg,
+        })
+      }
       await emitDbEvent(pgConnection, session_id, "fetch", "error", { error: msg })
     } catch (inner) {
       console.error(`[discogs-import/fetch] Also failed to mark session as error:`, inner)
@@ -140,8 +131,15 @@ async function runFetchLoop(
   pg: Knex,
   sessionId: string,
   session: Record<string, unknown>,
-  token: string
+  token: string,
+  ownerId: string
 ): Promise<void> {
+  let lostOwnership = false
+  const stopHeartbeat = startHeartbeatLoop(pg, sessionId, ownerId, 30_000, () => {
+    lostOwnership = true
+  })
+
+  try {
   const headers = {
     Authorization: `Discogs token=${token}`,
     "User-Agent": "VODAuctions/1.0 +https://vod-auctions.com",
@@ -174,6 +172,14 @@ async function runFetchLoop(
   })
 
   for (let i = 0; i < total; i++) {
+    // Cooperative bail on lost ownership (heartbeat callback)
+    if (lostOwnership) {
+      await emitDbEvent(pg, sessionId, "fetch", "superseded", {
+        message: "Lost ownership — aborting cleanly.", current: i, total,
+      })
+      return
+    }
+
     // Cancel check
     if (await isCancelRequested(pg, sessionId)) {
       await updateSession(pg, sessionId, {
@@ -214,7 +220,7 @@ async function runFetchLoop(
     }
 
     // Fetch /releases/{id}
-    await rateLimit()
+    await rateLimit(pg, sessionId)
     try {
       let releaseResp = await fetch(`${DISCOGS_BASE}/releases/${did}`, {
         headers, signal: AbortSignal.timeout(30000),
@@ -224,7 +230,7 @@ async function runFetchLoop(
         const retryAfter = parseInt(releaseResp.headers.get("Retry-After") || "60", 10)
         await emitDbEvent(pg, sessionId, "fetch", "rate_limited", { wait_s: retryAfter })
         await new Promise((r) => setTimeout(r, retryAfter * 1000))
-        await rateLimit()
+        await rateLimit(pg, sessionId)
         releaseResp = await fetch(`${DISCOGS_BASE}/releases/${did}`, {
           headers, signal: AbortSignal.timeout(30000),
         })
@@ -305,7 +311,7 @@ async function runFetchLoop(
 
       // Fetch price suggestions
       let suggestedPrices: Record<string, unknown> | null = null
-      await rateLimit()
+      await rateLimit(pg, sessionId)
       try {
         const psResp = await fetch(`${DISCOGS_BASE}/marketplace/price_suggestions/${did}`, {
           headers, signal: AbortSignal.timeout(30000),
@@ -364,14 +370,24 @@ async function runFetchLoop(
     }
   }
 
-  await updateSession(pg, sessionId, {
-    status: "fetched",
-    fetch_progress: { current: total, total, fetched, cached: skippedCached, errors },
-  })
-  await clearControlFlags(pg, sessionId)
+  // Terminal-Write guard (C3): only write if we still own the lock
+  if (await validateLock(pg, sessionId, ownerId)) {
+    await updateSession(pg, sessionId, {
+      status: "fetched",
+      fetch_progress: { current: total, total, fetched, cached: skippedCached, errors },
+    })
+    await clearControlFlags(pg, sessionId)
+  }
 
   const durationMin = Math.round((Date.now() - startTime) / 60000)
   await emitDbEvent(pg, sessionId, "fetch", "done", {
     fetched, cached: skippedCached, errors, duration_min: durationMin,
   })
+
+  } finally {
+    stopHeartbeat()
+    if (!lostOwnership) {
+      await releaseLock(pg, sessionId, ownerId)
+    }
+  }
 }

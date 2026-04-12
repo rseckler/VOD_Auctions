@@ -1,7 +1,7 @@
 # Discogs Import — Session Lock Refactoring Plan
 
-**Status:** DRAFT — Review pending
-**Author:** Robin + Claude (rc25 post-mortem analysis)
+**Status:** REVIEWED — Ready for implementation
+**Author:** Robin + Claude (rc25 post-mortem analysis) + Codex Review (2026-04-12)
 **Datum:** 2026-04-11 (geplante Umsetzung: 2026-04-12)
 **Scope:** Ownership + Concurrency-Kontrolle für die drei Discogs-Import Loops (fetch, analyze, commit)
 **Referenzen:**
@@ -252,16 +252,27 @@ export function startHeartbeatLoop(
 
 ### 4.3 Commit-Route Integration
 
-Der Loop-Body in `commit/route.ts` wird wie folgt umgebaut:
+> **Codex-Amendment C1:** Lock wird im POST-Handler acquired und als `ownerId` an den detached Loop übergeben — nicht erst innerhalb des Loops. Sonst können zwei parallele POSTs beide `started: true` returnen bevor einer den Lock bekommt.
+
+Der POST-Handler acquired den Lock **vor** dem Spawn:
 
 ```typescript
-void (async () => {
-  // ── 1. Acquire Lock (ersetzt rc25's run_token generation) ────────────
+export async function POST(req, res) {
+  // ... validate input + session check ...
   const ownerId = await acquireLock(pgConnection, session_id, "importing")
   if (!ownerId) {
-    // Another loop holds a fresh lock — idempotent return (bereits im POST handler handled)
+    res.json({ ok: true, session_id, already_running: true })
     return
   }
+  res.json({ ok: true, session_id, started: true })
+  void runCommitLoop(pgConnection, session_id, ownerId, ...).catch(...)
+}
+```
+
+Der Loop-Body empfängt `ownerId` als Parameter:
+
+```typescript
+async function runCommitLoop(pg, session_id, ownerId, ...) {
 
   // ── 2. Start Heartbeat Interval ──────────────────────────────────────
   let lostOwnership = false
@@ -319,35 +330,89 @@ try {
 
 **Analyze:** identisch, nur phase=`"analyzing"`.
 
+> **Codex-Amendment C3:** Terminal-Writes in fetch/analyze mit `validateLock()` absichern. Die finalen Status-Writes (`fetched`/`analyzed`) sind aktuell unconditional — ein Loop der seinen Lock verloren hat soll nicht mehr den finalen Status schreiben.
+
+```typescript
+// Am Ende von fetch/analyze, VOR dem finalen updateSession():
+if (!(await validateLock(pg, session_id, ownerId))) {
+  // Lost ownership during run — don't write terminal status
+  return
+}
+await updateSession(pg, session_id, { status: "fetched", ... })
+```
+
 ### 4.5 POST Handler Idempotency (alle 3 Routes)
 
-Die existierende Idempotency-Logik wird trivial:
+> **Codex-Amendment C1 (Fortsetzung):** Lock-Acquisition findet im POST-Handler statt, nicht im detached Loop. Der optimistische Pre-Check entfällt — `acquireLock()` selbst ist die Idempotency-Garantie.
 
 ```typescript
 export async function POST(req, res) {
   // ... validate input ...
   const session = await getSession(pgConnection, session_id)
 
-  // Idempotency check via lock table (not last_event_at anymore):
-  const existingLock = await pgConnection.raw(
-    `SELECT owner_id FROM session_locks
-     WHERE session_id = ? AND heartbeat_at > NOW() - INTERVAL '3 minutes'`,
-    [session_id]
-  )
-  if (existingLock.rows.length > 0) {
+  // Acquire lock — atomic, handles concurrent POSTs
+  const ownerId = await acquireLock(pgConnection, session_id, phase)
+  if (!ownerId) {
     res.json({ ok: true, session_id, already_running: true })
     return
   }
 
-  // Spawn loop (will acquire lock inside, which is atomic vs. other POSTs)
+  // Spawn loop with acquired ownerId
   res.json({ ok: true, session_id, started: true })
-  void runCommitLoop(...).catch(...)
+  void runLoop(pgConnection, session_id, ownerId, ...).catch(...)
 }
 ```
 
-**Wichtig:** Der Idempotency-Check hier ist nur eine **optimistische Prüfung** um den häufigen Happy-Path zu beschleunigen. Die harte Sicherheit kommt aus `acquireLock()` im Loop selbst — die atomare INSERT/UPDATE-mit-WHERE Query ist die wirkliche Concurrency-Kontrolle.
+**Kein separater Idempotency-Check mehr nötig.** `acquireLock()` ist atomar und entscheidet in einer einzigen Query ob der Lock vergeben wird oder nicht. Das ist einfacher und sicherer als der ursprüngliche Plan mit optimistischem Pre-Check + Lock im Loop.
 
-### 4.6 Removed Code (rc25 zurückgebaut)
+### 4.6 Phase-Preconditions (Codex-Amendment C2)
+
+> **Codex-Amendment C2:** Lock verhindert Overlap, aber nicht invalide Reihenfolge. Explizite Precondition-Checks in jedem POST-Handler.
+
+Jeder POST-Handler prüft **vor** `acquireLock()` ob die Vorgänger-Phase abgeschlossen ist:
+
+```typescript
+// fetch/route.ts POST:
+if (!["uploaded", "fetched"].includes(session.status)) {
+  res.status(400).json({ error: `Cannot fetch: session is '${session.status}', expected 'uploaded' or 'fetched'` })
+  return
+}
+
+// analyze/route.ts POST:
+if (session.status !== "fetched") {
+  res.status(400).json({ error: `Cannot analyze: session is '${session.status}', expected 'fetched'` })
+  return
+}
+
+// commit/route.ts POST:
+if (!["analyzed"].includes(session.status) && !isResumeFromCancelledCommit(session)) {
+  res.status(400).json({ error: `Cannot commit: session is '${session.status}', expected 'analyzed'` })
+  return
+}
+```
+
+Diese Checks existieren teilweise schon, werden aber konsolidiert und explizit gemacht.
+
+### 4.7 Control-Flag Preservation bei Takeover (Codex Edge Case)
+
+> **Codex Edge Case:** `clearControlFlags()` am Loop-Start löscht einen eventuell schon angeforderten Cancel/Pause. Bei Stale-Lock-Takeover soll ein vorheriger Cancel-Request **erhalten bleiben**.
+
+Lösung: `clearControlFlags()` wird **nicht** am Anfang eines Takeover-Loops aufgerufen. Stattdessen prüft der Loop beim Start ob `cancel_requested = true` und bailed sofort wenn ja:
+
+```typescript
+async function runCommitLoop(pg, sessionId, ownerId, ...) {
+  const session = await getSession(pg, sessionId)
+  if (session.cancel_requested) {
+    await releaseLock(pg, sessionId, ownerId)
+    return  // respect pre-existing cancel request
+  }
+  // ... normal loop body ...
+}
+```
+
+`clearControlFlags()` wird nur noch nach **erfolgreichem Abschluss** oder **bei finalizeCancel** aufgerufen.
+
+### 4.8 Removed Code (rc25 zurückgebaut)
 
 Diese Konstrukte werden komplett entfernt:
 
@@ -405,6 +470,26 @@ async function finalizeCancel(pg, sessionId, counters, preservedBatches, runId) 
 ```
 
 Die `preservedBatches` + `runId` werden vom Caller (dem Haupt-Loop) übergeben — sie stehen dort eh schon zur Verfügung weil K1-Fix sie liest.
+
+### 5.2b K2+ — `run_id` in ALLEN resumable Terminal-States (Codex-Amendment C4)
+
+> **Codex-Amendment C4:** Nicht nur `finalizeCancel`, auch `done_with_errors` und `error` Pfade droppen aktuell `run_id` aus `commit_progress`. Bei Resume nach Partial-Failure wird sonst eine neue `run_id` geminted → History-Gruppierung bricht.
+
+**Soll:** Jeder Terminal-Write der `commit_progress` setzt, muss `run_id` + `completed_batches_*` preserven:
+
+```typescript
+// Hilfsfunktion für alle Terminal-Writes:
+function buildTerminalProgress(phase: string, counters: Record<string, number>, runId: string, preservedBatches: Record<string, unknown>) {
+  return {
+    phase,
+    counters,
+    run_id: runId,
+    ...preservedBatches,
+  }
+}
+```
+
+Betrifft: `finalizeCancel`, `finalizeDone`, `finalizeError`, `done_with_errors` — alle 4 Pfade verwenden `buildTerminalProgress()`.
 
 ### 5.3 M4 — row_progress Event-Flut reduzieren
 
@@ -631,6 +716,10 @@ SELECT commit_progress FROM import_session WHERE id = ?;
 | analyze/route.ts Umbau | 20 min | `backend/src/api/admin/discogs-import/analyze/route.ts` |
 | K1 effectiveRunId Fix | 10 min | `commit/route.ts` |
 | K2 finalizeCancel Fix | 15 min | `commit/route.ts` |
+| K2+ run_id in allen Terminal-States (C4) | 10 min | `commit/route.ts` |
+| Phase-Preconditions in POST-Handlers (C2) | 15 min | `fetch/analyze/commit route.ts` |
+| Terminal-Write validateLock Guard (C3) | 10 min | `fetch/analyze route.ts` |
+| Control-Flag Preservation bei Takeover (C7) | 10 min | `commit/fetch/analyze route.ts` |
 | M4 row_progress entfernen + 5s Progress-Update | 20 min | `commit/route.ts` |
 | M2 rateLimit event emit | 10 min | `fetch/route.ts` |
 | Lokale Tests (alle 7 Szenarien) | 90 min | — |
@@ -638,36 +727,34 @@ SELECT commit_progress FROM import_session WHERE id = ?;
 | CHANGELOG rc26 Eintrag | 10 min | `docs/architecture/CHANGELOG.md` |
 | Session-Doku Update | 15 min | `docs/sessions/...` |
 
-**Total: ~6 Stunden** Focused Work. Realistisch mit kleinen Pausen ein halber Arbeitstag. Nicht abends machen, nicht unter Zeitdruck.
+**Total: ~7 Stunden** Focused Work (inkl. Codex-Amendments C1-C4). Realistisch mit kleinen Pausen ein halber Arbeitstag. Nicht abends machen, nicht unter Zeitdruck.
 
-## 13 Offene Fragen für Robin (Review)
+## 13 Design-Entscheidungen (reviewed 2026-04-12, Codex + Robin)
 
-1. **Lock-Phase Feld:** nötig, oder reicht `owner_id`-Uniqueness alleine? Ich bin für behalten — macht Debugging einfacher (`SELECT phase, COUNT(*) FROM session_locks GROUP BY phase` zeigt sofort wie viele Loops pro Phase laufen).
+1. **Lock-Phase Feld:** ✅ **Behalten.** Observability-Mehrwert bei minimalem Aufwand.
 
-2. **Heartbeat-Interval:** 30s. Alternativen: 15s (doppelte DB-Last aber schnellere Recovery), 60s (halbierte Last aber längere Recovery). 30s fühlt sich richtig an bei 180s stale-threshold (6× Safety Margin).
+2. **Heartbeat-Interval:** ✅ **30s.** 5× Safety bei 150s Threshold. 15s wäre unnötige DB-Last, 60s zu langsam für Recovery.
 
-3. **STALE_THRESHOLD:** 180s aktuell. Der Lock-Refactor entkoppelt das von Event-Frequenz, also könnte auch niedriger gehen (90s? 120s?). Vorschlag: **150s beibehalten** — gibt uns bei 30s heartbeat 5× Safety, bei 45s heartbeat noch 3× Safety für edge cases.
+3. **STALE_THRESHOLD:** ✅ **150s.** Echtes Heartbeat-Signal erlaubt niedrigeren Wert als die bisherigen 180s (die auf indirektem `last_event_at` basierten).
 
-4. **Soll der `row_progress` Event komplett weg (M4) oder nur reduziert (z.B. nur noch 1 pro Batch)?** Mein Vorschlag ist komplett weg — `batch_committed` macht das schon. Alternativ: 1× pro Batch als "heartbeat-visible" Event.
+4. **`row_progress`:** ✅ **Komplett entfernen.** `batch_committed` + 5s `commit_progress` Refresh reichen. Weniger Event-Flut im Live-Log.
 
-5. **`startHeartbeatLoop()` als callback-basiert oder als async-generator?** Ich habe oben callback-basiert vorgeschlagen (`onLost` Callback). Alternative: return einen `AbortController.signal` den der Loop abfragt. Callback ist simpler.
+5. **`startHeartbeatLoop` API:** ✅ **Callback-based** (`onLost`). Loops sind nicht signal-aware, AbortController wäre Over-Engineering.
 
-6. **K2 vs. Scope:** Der finalizeCancel-Fix hat einen subtilen Wert-Trade-off — wenn ein User cancelled, ist es wirklich gewollt dass beim nächsten Resume die schon committeten Batches *überspringt* werden? Oder möchte er vielleicht bewusst "von vorne starten"? → Ich denke "continue where left off" ist die richtige Default-Erwartung. Aber ein **"Reset & Re-run from scratch"** Button in der UI wäre ein nice-to-have für den anderen Fall (out of scope für rc26).
+6. **Cancel-Resume:** ✅ **Continue where left off.** Architektur ist dafür designed (`completed_batches_*`). "Reset & Re-run" als nice-to-have in zukünftigem Release.
 
-7. **Deploy-Timing:** Morgen (2026-04-12) Vormittag wenn Frank nicht aktiv arbeitet? Oder direkt nach dem Commit, auch wenn er daran ist?
+7. **Deploy-Timing:** ✅ **Migration zuerst** (Supabase MCP), dann Backend + Admin Build, dann Smoke-Test. Nie Code vor Migration deployen. Vorher aktive Sessions checken.
 
 ## 14 Review-Checklist
 
-Vor Beginn der Implementierung muss Robin folgende Entscheidungen treffen:
+- [x] Plan-Text gelesen und verstanden
+- [x] §13 Fragen 1-7 beantwortet (Codex-Review + Robin Bestätigung 2026-04-12)
+- [x] Codex-Review eingeholt — 4 Amendments eingearbeitet (C1-C4)
+- [x] Deploy-Zeitpunkt: nach Implementation, wenn keine aktiven Sessions laufen
+- [x] Migration-Text reviewed
+- [x] Happy-Path Tests (§10.1) als Minimum-Verification akzeptiert
 
-- [ ] Plan-Text gelesen und verstanden
-- [ ] §13 Fragen 1-7 beantwortet
-- [ ] Deploy-Zeitpunkt festgelegt
-- [ ] Ggf. Änderungen am Plan eingepflegt (Claude editet dieses Dokument, nicht parallel)
-- [ ] Migration-Text reviewed
-- [ ] Happy-Path Tests (§10.1) als Minimum-Verification akzeptiert
-
-Erst danach: `git checkout -b rc26-session-locks` und loslegen.
+Bereit für: `git checkout -b rc26-session-locks` und loslegen.
 
 ## 15 Erfolgskriterien
 

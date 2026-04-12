@@ -9,6 +9,10 @@ import {
   isCancelRequested,
   awaitPauseClearOrCancel,
   clearControlFlags,
+  acquireLock,
+  validateLock,
+  releaseLock,
+  startHeartbeatLoop,
 } from "../../../../lib/discogs-import"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -30,16 +34,8 @@ interface MatchResult {
 
 // ─── POST /admin/discogs-import/analyze ──────────────────────────────────────
 //
-// DECOUPLED (rc19): validates + spawns the analyze loop as a detached
-// background task, returns 200 immediately. Loop writes phase progress to
-// import_event and analyze_progress; UI polls via /session/:id/status.
-//
-// Idempotent: if session is already in "analyzing" with recent activity
-// (< 180s), returns { already_running: true } without spawning a second loop.
-// Raised from 60s in rc25 to prevent concurrent-loop races during long
-// pg_trgm fuzzy-match phases — see commit/route.ts for the full post-mortem.
-
-const ANALYZE_STALE_THRESHOLD_SEC = 180
+// DECOUPLED: validates, acquires session lock, spawns analyze loop as detached
+// background task, returns 200 immediately. Lock handles idempotency.
 
 export async function POST(
   req: MedusaRequest,
@@ -59,20 +55,17 @@ export async function POST(
     return
   }
 
-  // Idempotency
-  if (session.status === "analyzing") {
-    const lastEvent = session.last_event_at
-      ? new Date(session.last_event_at).getTime()
-      : 0
-    const ageSec = (Date.now() - lastEvent) / 1000
-    if (ageSec < ANALYZE_STALE_THRESHOLD_SEC) {
-      res.json({ ok: true, session_id, already_running: true })
-      return
-    }
-    console.warn(
-      `[discogs-import/analyze] Restarting stale loop for session ${session_id} ` +
-      `(last event ${Math.round(ageSec)}s ago)`
-    )
+  // Phase-precondition (C2)
+  if (session.status !== "fetched" && session.status !== "analyzing") {
+    res.status(400).json({ error: `Cannot analyze: session is '${session.status}', expected 'fetched'` })
+    return
+  }
+
+  // Acquire exclusive lock (C1)
+  const ownerId = await acquireLock(pgConnection, session_id, "analyzing")
+  if (!ownerId) {
+    res.json({ ok: true, session_id, already_running: true })
+    return
   }
 
   // Return 200 immediately — loop runs detached below
@@ -83,9 +76,13 @@ export async function POST(
 
   // Run the analyze loop as detached background task
   void (async () => {
+  let lostOwnership = false
+  const stopHeartbeat = startHeartbeatLoop(pgConnection, session_id, ownerId, 30_000, () => {
+    lostOwnership = true
+  })
+
   try {
-    // Reset control flags + set status
-    await clearControlFlags(pgConnection, session_id)
+    // Set status
     await updateSession(pgConnection, session_id, { status: "analyzing", analyze_progress: null })
     await stream.emit("analyze", "start", { session_id })
 
@@ -317,11 +314,15 @@ export async function POST(
       skipped,
     }
 
-    await updateSession(pgConnection, session_id, {
-      status: "analyzed",
-      analysis_result: analysisResult,
-      analyze_progress: { phase: "done", ...analysisResult.summary },
-    })
+    // Terminal-Write guard (C3): only write if we still own the lock
+    if (await validateLock(pgConnection, session_id, ownerId)) {
+      await updateSession(pgConnection, session_id, {
+        status: "analyzed",
+        analysis_result: analysisResult,
+        analyze_progress: { phase: "done", ...analysisResult.summary },
+      })
+      await clearControlFlags(pgConnection, session_id)
+    }
 
     await stream.emit("analyze", "phase_done", {
       phase: "aggregating",
@@ -338,13 +339,20 @@ export async function POST(
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Analysis failed"
     try {
-      await updateSession(pgConnection, session_id, {
-        status: "fetched",
-        error_message: msg,
-      })
+      if (await validateLock(pgConnection, session_id, ownerId)) {
+        await updateSession(pgConnection, session_id, {
+          status: "fetched",
+          error_message: msg,
+        })
+      }
     } catch { /* best effort */ }
     if (!stream.isClosed) {
       await stream.error(msg)
+    }
+  } finally {
+    stopHeartbeat()
+    if (!lostOwnership) {
+      await releaseLock(pgConnection, session_id, ownerId)
     }
   }
   })().catch((err) => {
