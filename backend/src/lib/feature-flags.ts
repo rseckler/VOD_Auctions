@@ -76,12 +76,21 @@ export const FEATURES = {
     default: false,
     description: "Trial flag — adds a _debug field with server-time to GET /store/site-mode. Used to validate the feature-flag infrastructure end-to-end (registry → DB → backend handler → conditional response).",
     category: "experimental",
+    requires: [],
   },
   EXPERIMENTAL_SKIP_BID_CONFIRMATION: {
     key: "EXPERIMENTAL_SKIP_BID_CONFIRMATION",
     default: false,
     description: "Trial flag — when ON, skips the bid-confirmation modal and submits directly (power-user mode). Default OFF preserves current behavior so enabling this flag is strictly additive. Client-safe: exposed via /store/platform-flags. Used to validate the full client-side feature-flag stack end-to-end.",
     category: "experimental",
+    requires: [],
+  },
+  POS_WALK_IN: {
+    key: "POS_WALK_IN",
+    default: false,
+    description: "POS / Walk-in Sale — Kassen-Oberfläche für den Laden. Barcode-Scan, Cart, Checkout, Quittung. Erzeugt transaction mit item_type='walk_in_sale'.",
+    category: "erp",
+    requires: ["ERP_INVENTORY"],
   },
 } as const satisfies Record<string, FeatureFlagDefinition>
 

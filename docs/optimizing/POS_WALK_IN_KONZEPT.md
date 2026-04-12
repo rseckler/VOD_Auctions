@@ -1,9 +1,10 @@
 # POS Walk-in Sale — Kassen-Oberfläche für den Laden
 
-**Version:** 1.0 (Draft)
+**Version:** 1.1
 **Erstellt:** 2026-04-11
+**Aktualisiert:** 2026-04-12
 **Autor:** Robin Seckler
-**Status:** 📋 Konzept, wartet auf Freigabe + offene Entscheidungen (§11)
+**Status:** 🚧 Phase P0 (Dry-Run) in Implementierung — offene Entscheidungen (§11) blockieren P1-P4, nicht P0
 **Bezug:** `ERP_WARENWIRTSCHAFT_KONZEPT.md`, `INVENTUR_COHORT_A_KONZEPT.md` §14, `BROTHER_QL_820NWB_SETUP.md`
 
 ---
@@ -46,6 +47,33 @@ Frank betreibt einen physischen Laden und verkauft dort regelmäßig Platten **z
 - Cloud-TSE (fiskaly, efsta, D-Trust Sign-me) ist ~10–20€/Monat + Cent-Bruchteile pro Bon, **keine** Hardware-Investition
 - Hardware-TSE (z.B. Epson TSE-USB-Stick ~200€) erfordert physisches Device am POS-Mac und macht zukünftige iPad-Flexibilität kaputt
 - Cloud-TSE ist per REST-API integrierbar, passt zum bestehenden Node-Backend-Stack
+
+### 3.1 UX-Form: PWA statt Browser-Tab oder Native App
+
+**Entscheidung (2026-04-12):** Die POS-Oberfläche wird als **Progressive Web App (PWA)** ausgeliefert — nicht als reiner Browser-Tab und nicht als native Desktop-/Tablet-App (Electron/Tauri).
+
+**Bewertete Optionen:**
+
+| Option | Beschreibung | Urteil |
+|---|---|---|
+| **A — Browser-Tab** | `/app/pos` als normaler Admin-Tab in Chrome/Safari | ❌ Browser-Chrome (Tabs, URL-Leiste) frisst Platz, versehentliches Tab-Schließen, fühlt sich nicht wie Kassen-App an |
+| **B — PWA** | Gleiche Web-App + `manifest.json` + Service Worker → installierbar als App auf Mac/iPad, Fullscreen, eigenes Dock-Icon | ✅ **Gewählt** |
+| **C — Electron/Tauri** | Native Mac-App die das Frontend wrapped | ❌ Massiver Overhead (Build-Pipeline, Auto-Updates, Code-Signing), separates Deployment, kein iPad-Support |
+
+**Warum PWA:**
+- Frank bekommt ein **"VOD POS" Icon** im Mac-Dock und auf dem iPad-Homescreen
+- **Fullscreen ohne Browser-Chrome** — sieht aus und fühlt sich an wie eine native Kassen-App
+- **Kein versehentliches Tab-Schließen** (eigenes Fenster, nicht im Browser-Tab-Kontext)
+- Scanner-Input funktioniert identisch (PWA bekommt Keyboard-Events wie jeder Browser)
+- **Kein separates Deployment** — ein `npx medusa build` updated alles, wie jede andere Admin-Route
+- Minimaler Mehraufwand: `manifest.json` + minimaler Service Worker + iOS-Meta-Tags (~2h)
+- Einzige Einschränkung vs. native App: kein Offline-Mode — aber das brauchen wir nicht (POS braucht Live-DB-Zugriff für Inventory-Checks, ohne Internet kann Frank nicht verkaufen)
+
+**PWA-Implementierung:**
+- `manifest.json` in Admin-Build-Output (`backend/public/`) mit `display: standalone`, `theme_color: #1c1915`, App-Name "VOD POS"
+- Minimaler Service Worker: nur App-Shell-Caching (HTML, CSS, JS), **kein** Offline-Daten-Cache
+- iOS-Unterstützung: `<meta name="apple-mobile-web-app-capable">` + `apple-touch-icon` in Admin-HTML
+- Install-Prompt: Beim ersten Öffnen von `/app/pos` ein Banner "Für beste Erfahrung: App installieren" mit Anleitung (Mac: Chrome → ⋮ → "App installieren" / Safari → Datei → "Zum Dock hinzufügen"; iPad: Safari → Teilen → "Zum Home-Bildschirm")
 
 ## 4. Datenmodell
 
@@ -493,24 +521,116 @@ Vor Implementierungs-Start muss Frank (oder der Steuerberater) folgendes klären
 
 ## 12. Implementierungs-Phasen
 
-**Phase P1 — Core POS-UI (ohne TSE, ohne Bon-Druck, mit Mock)**
-*Ziel: Ein Walk-in-Sale kann end-to-end abgewickelt werden, Transaktion landet in `transaction`-Tabelle, Items werden sold, Customer-Stats aktualisiert. Bon ist ein einfaches A4-PDF ohne TSE-Signatur. **Tax-Mode-Toggle schon drin**, damit die Preis-Berechnung von Anfang an korrekt ist.*
+### Phase P0 — Dry-Run POS (ohne TSE, ohne Tax-Free, ohne Bon-Druck)
+
+**Status:** 🚧 In Implementierung (2026-04-12)
+**Ziel:** Frank kann den kompletten Scan→Cart→Checkout-Workflow am echten Inventar üben, bevor die offenen Entscheidungen aus §11 geklärt sind. Echte Transaktionen werden geschrieben, Items werden als `sold` markiert. Alles was externe Abhängigkeiten hat (TSE-Anbieter, Steuerberater-Freigabe, BMF-Formular) ist bewusst als Stub/Platzhalter implementiert.
+
+**Was funktioniert (echt):**
+- Barcode-Scanning gegen echtes `erp_inventory_item`-Inventar (Scanner + Items existieren aus Inventur)
+- Cart-Management: Add/Remove, Discount-Feld, Summenberechnung
+- Customer-Panel: Bestehenden Kunden suchen / Neuen anlegen / Anonym
+- Payment-Auswahl: SumUp Karte, Bar, PayPal, Überweisung (Radio-Buttons)
+- Checkout: Echte `transaction` mit `item_type='walk_in_sale'`, `erp_inventory_movement` mit `reason='walk_in_sale'`, `order_event`-Audit-Eintrag
+- Customer-Stats-Update (wenn Kunde gesetzt)
+- Simple Quittung als A6-PDF-Download (pdfkit, ohne TSE-Signatur)
+- PWA-Installation auf Mac + iPad (Fullscreen, Dock-Icon)
+- Schutz-Checks: Item bereits sold → roter Block; Item in aktiver Auction → roter Block
+
+**Was als Stub/Platzhalter drin ist:**
+- **TSE-Signierung:** Gelber Banner "TSE nicht konfiguriert — Transaktion ohne Signatur (Dry-Run)". `tse_signature` wird auf `"DRY_RUN"` gesetzt, nicht NULL, damit spätere TSE-Integration die Dry-Run-Transaktionen identifizieren kann.
+- **Tax-Mode-Toggle:** UI-Element vorhanden aber disabled, mit Tooltip "Wartet auf Steuerberater-Freigabe (§11 Punkt 9)". Alle Transaktionen werden mit `tax_mode='standard'` geschrieben.
+- **Bon-Druck:** Nur PDF-Download-Button, kein CUPS/Brother-Print. PDF ist A6, enthält Artikeldaten + Summe + Zahlungsart, aber keine TSE-Felder und keinen QR-Code.
+- **SumUp:** Manueller "Zahlung erhalten"-Bestätigungs-Button (ist ohnehin Phase 1 lt. §6).
+
+**Was NICHT drin ist:**
+- Keine TSE-Integration (fiskaly/efsta) — kein Account nötig
+- Kein Tax-Free-Export (§6 UStG) — keine Steuerberater-Freigabe nötig
+- Keine Ausfuhr-/Abnehmerbescheinigung
+- Kein DSFinV-K-Export
+- Kein Bon-Druck auf Brother (nur PDF-Download)
+- Keine Retouren
+- Keine SumUp-API-Integration
+
+**Warum P0 vor den offenen Entscheidungen sinnvoll ist:**
+- Frank kann die **Grundmethodik im Laden durchdenken**: Scanning-Ergonomie, Cart-Handling bei Mehrfachkäufen, Kunden-Suche, Payment-Workflow-Speed
+- UX-Probleme werden **vor** der TSE/Tax-Integration entdeckt — Layout-Änderungen sind jetzt billig, nach TSE-Integration teuer
+- Frank sieht echte Walk-in-Sale-Transaktionen in `/app/orders` und kann beurteilen ob die Datenstruktur für sein Reporting passt
+- iPad-Tauglichkeit wird am echten Gerät validiert bevor wir den Rest bauen
+- Die offenen §11-Entscheidungen können parallel geklärt werden
+
+**Voraussetzungen (alle erfüllt):**
+- ✅ ERP_INVENTORY Flag existiert in Registry (muss ON sein für Scan-Endpoint)
+- ✅ Barcode-Scanner validiert (2026-04-11)
+- ✅ Inventur-Session-UI existiert (Pattern für Scanner-Input wiederverwendbar)
+- ✅ `erp_inventory_item`-Tabelle mit Cohort-A-Daten befüllt
+
+**Implementierungs-Scope:**
+
+| # | Task | Beschreibung | Aufwand |
+|---|---|---|---|
+| P0.1 | Feature-Flag | `POS_WALK_IN` in Registry (category: `erp`, requires: `["ERP_INVENTORY"]`) | 15min |
+| P0.2 | DB-Migration | `transaction`-Tabelle erweitern: `pos_session_id TEXT`, `tse_signature TEXT`, `tse_transaction_number INTEGER`, `tse_signed_at TIMESTAMPTZ`, `tse_serial_number TEXT`, `tax_mode TEXT DEFAULT 'standard'`, `tax_rate_percent NUMERIC(5,2)`, `tax_amount NUMERIC(10,2)`, `customer_country_code TEXT`, `export_declaration_issued_at TIMESTAMPTZ`, `export_declaration_confirmed_at TIMESTAMPTZ`. Alle nullable, kein Breaking Change für bestehende Online-Transaktionen. | 30min |
+| P0.3 | API: Session + Cart | `POST /admin/pos/sessions` (UUID), `POST /sessions/:id/items` (Barcode → Lookup via bestehenden `/erp/inventory/scan/:barcode`-Pattern), `DELETE /sessions/:id/items/:itemId` | 2h |
+| P0.4 | API: Checkout | `POST /admin/pos/sessions/:id/checkout` — in einer DB-Transaktion: `transaction`-Insert (`item_type='walk_in_sale'`, `payment_provider`, `status='paid'`, `fulfillment_status='picked_up'`, `tse_signature='DRY_RUN'`), pro Item `erp_inventory_movement` (`type='outbound'`, `reason='walk_in_sale'`), `erp_inventory_item.status='sold'`, `order_event` Audit-Eintrag. Optional: `customer_id`, `discount_eur`. Returns `{transaction_id, order_number, receipt_pdf_url}`. | 3h |
+| P0.5 | API: Customer | `GET /admin/pos/customer-search?q=` (Live-Suche in `customer` + `customer_stats`), `POST /admin/pos/customers` (Name pflicht, Email/Phone optional) | 1h |
+| P0.6 | API: Receipt | `GET /admin/pos/transactions/:id/receipt` — A6-PDF via pdfkit. Header: VOD Records + Adresse. Body: Artikel-Liste, Summe, Discount, Zahlungsart. Footer: "Dry-Run — keine TSE-Signatur". | 1.5h |
+| P0.7 | Admin-UI: POS-Page | `/app/pos/page.tsx` mit `defineRouteConfig`. Full-width Layout (§5.2): Links Scan-Input (autofocus) + Item-Preview, Rechts Cart-Sidebar + Discount + Customer-Panel + Payment-Radio + Checkout-Button. Zustand-basierter Cart-State (ephemer). | 5h |
+| P0.8 | Admin-UI: Interaction | Scanner-Input (Keyboard-Event-Listener, `VOD-`-Prefix-Erkennung, debounce). Schutz-Checks: Item already sold → rote Warnung; Item in aktiver Auction → rote Warnung + Block-Name; Item nicht gefunden → gelbe Warnung. Customer-Panel: 3-Modi-Toggle (Anonym / Suchen / Neu). Checkout-Modal mit Bestätigung. Erfolgs-Feedback + PDF-Download-Link + Cart-Reset. | 3h |
+| P0.9 | PWA-Setup | `manifest.json` (name: "VOD POS", short_name: "POS", display: standalone, theme_color: #1c1915, background_color: #1c1915, start_url: /app/pos, scope: /app/pos). Minimaler Service Worker (App-Shell-Cache only). iOS-Meta-Tags. App-Icons (192px + 512px). Install-Banner auf `/app/pos` mit Anleitung. | 2h |
+| P0.10 | Operations-Hub | Neue HubCard "POS / Walk-in Sale" auf Operations-Page. Icon, Beschreibung, Status-Line ("Dry-Run Mode"), Link zu `/app/pos`. | 30min |
+| P0.11 | Orders-Integration | Walk-in-Sale-Transaktionen in `/app/transactions` mit eigenem Badge ("POS") anzeigen. `VOD-POS-XXXXXX` Nummernkreis. Filter `item_type=walk_in_sale`. | 1h |
+| | **Summe P0** | | **~2 Tage** |
+
+**File-Struktur P0:**
+
+```
+backend/
+├── src/
+│   ├── api/admin/pos/
+│   │   ├── sessions/route.ts                    # POST: neue Session
+│   │   ├── sessions/[id]/items/route.ts         # POST: Barcode → Add to Cart
+│   │   ├── sessions/[id]/items/[itemId]/route.ts  # DELETE: Remove from Cart
+│   │   ├── sessions/[id]/checkout/route.ts      # POST: Finalize + Transaction
+│   │   ├── customer-search/route.ts             # GET: Live-Suche
+│   │   ├── customers/route.ts                   # POST: Neuen Kunden anlegen
+│   │   └── transactions/[id]/receipt/route.ts   # GET: A6-PDF Download
+│   ├── lib/pos-receipt.ts                       # pdfkit A6-Quittung
+│   └── admin/routes/pos/page.tsx                # POS-UI (Haupt-Page)
+├── public/
+│   ├── manifest.json                            # PWA Manifest
+│   ├── sw.js                                    # Service Worker (minimal)
+│   └── icons/pos-*.png                          # App-Icons 192px + 512px
+└── scripts/migrations/
+    └── pos_walk_in_columns.sql                  # ALTER TABLE transaction ADD COLUMN ...
+```
+
+**Dry-Run-Regeln:**
+- Alle POS-Transaktionen bekommen `tse_signature='DRY_RUN'` — das erlaubt spätere Identifikation und ggf. Nachsignierung wenn TSE live geht
+- `order_number` nutzt separaten Nummernkreis `VOD-POS-XXXXXX` (eigene Sequenz, ab 000001)
+- Feature-Flag `POS_WALK_IN` muss ON sein UND `ERP_INVENTORY` muss ON sein (Dependency Chain)
+- Dry-Run-Transaktionen sind **echte Transaktionen** — sie erscheinen in Orders, beeinflussen Customer-Stats, und die verkauften Items sind wirklich `sold`. Das ist Absicht: Frank soll den echten Effekt sehen. Zum "Rückgängig machen" eines Test-Verkaufs: manuell Transaction auf `cancelled` setzen + Inventory-Item zurück auf vorherigen Status.
+
+---
+
+### Phase P1 — Production POS (Tax-Logik + Bon-Druck)
+
+**Voraussetzung:** §11 Entscheidungen geklärt (Steuerberater-Freigabe, Brutto/Netto, Kleinunternehmer-Status)
+*Ziel: POS ist produktiv nutzbar mit korrekter USt-Berechnung und gedrucktem Kassenbon. Noch ohne TSE-Signierung.*
 
 | Task | Aufwand |
 |---|---|
-| Migration: `transaction.pos_session_id`, `tse_*` + `tax_*` + `customer_country_code` + `export_declaration_*` Spalten | 1.5h |
-| POS-Session-State (Zustand client-side, Cart-Management) | 2h |
-| Admin-Route `/app/pos` mit Layout, Scan-Input, Cart-Sidebar, **Tax-Mode-Toggle** | 5h |
-| `onScan.js` Integration (baut auf Phase B6 aus Inventur auf) | bereits done |
-| API-Routes `/admin/pos/sessions/*` (+`/items`, `/checkout`, `/customer-search`) | 4h |
-| `transaction`-Erzeugung + `inventory_movement` + `order_event` in einer DB-Transaktion | 3h |
-| **Tax-Logik**: Preis-Berechnung Standard vs. Export, Validation Drittland-Check, Mode-Enforcement | 3h |
-| Mock-Bon-Generierung (A6 PDF via pdfkit, **ohne** TSE-Signatur) | 2h |
-| Feature-Flag `POS_WALK_IN` + Registry-Eintrag | 30min |
-| Operations-Hub-Card „POS / Walk-in Sale" | 30min |
-| **Summe P1** | **~2.5 Tage** |
+| **Tax-Logik aktivieren**: Tax-Mode-Toggle enablen, Preis-Berechnung Standard (19%) vs. Export (§6 UStG), Drittland-Validation | 3h |
+| **Customer-Pflichtfelder bei Tax-Free**: Mode-Enforcement (kein Anonymous), Adress-/Land-Pflichtfelder | 2h |
+| Bon-Layout Standard auf Brother QL-820NWB (`lib/pos-receipt.ts`, pdfkit, 62mm × variable Länge) | 4h |
+| **Bon-Layout Tax-Free-Variante** (§9.3) mit Kundendaten-Block + §6-Hinweis | 1h |
+| `POST /admin/pos/transactions/:id/print-receipt` Route (CUPS-Print) | 1h |
+| CUPS-Pipeline `PageSize=Custom.62x<length>mm` validieren mit DK-22205 Rolle | 1h |
+| **Summe P1** | **~1.5 Tage** |
 
-**Phase P2 — TSE-Integration**
+### Phase P2 — TSE-Integration (KassenSichV)
+
+**Voraussetzung:** TSE-Anbieter entschieden + Account angelegt (§11 Punkt 1)
 *Ziel: Alle POS-Transaktionen sind KassenSichV-konform signiert.*
 
 | Task | Aufwand |
@@ -521,25 +641,25 @@ Vor Implementierungs-Start muss Frank (oder der Steuerberater) folgendes klären
 | Fehlerbehandlung: TSE-down → `tse_signature=PENDING`, Background-Retry | 3h |
 | Bon-Template um TSE-Signatur + QR-Code erweitern | 2h |
 | DSFinV-K Export-Cron (nightly CSV nach `./exports/dsfinvk/`) | 3h |
+| Dry-Run-Transaktionen nachsignieren (einmalig, alle `tse_signature='DRY_RUN'` → echte Signatur) | 1h |
 | **Summe P2** | **~2 Tage** |
 
-**Phase P3 — Bon-Druck (Brother QL-820NWB + 62mm Rolle) + Tax-Free Documents**
-*Ziel: Professioneller Kassenbon auf dem vorhandenen Brother-Drucker + Ausfuhr-/Abnehmerbescheinigung bei Drittland-Verkäufen.*
+### Phase P3 — Tax-Free Documents + Tracking
+
+**Voraussetzung:** Steuerberater-Freigabe Variante A/B + BMF-Formular (§11 Punkt 9)
+*Ziel: Steuerfreie Ausfuhrlieferungen können korrekt abgewickelt und nachverfolgt werden.*
 
 | Task | Aufwand |
 |---|---|
-| Bon-Layout Standard (`lib/pos-receipt.ts`, pdfkit, 62mm × variable Länge) | 4h |
-| **Bon-Layout Tax-Free-Variante** (§9.3) mit Kundendaten-Block | 1h |
-| KassenSichV-Pflichtfelder vollständig (Kleinunternehmer-Hinweis, TSE, QR) | 2h |
-| QR-Code-Generierung (`bwip-js` qrcode) | 1h |
-| **Ausfuhr-/Abnehmerbescheinigung** (A4-PDF, BMF-Muster, vorab ausgefüllt) | 3h |
+| **Ausfuhr-/Abnehmerbescheinigung** (A4-PDF, BMF-Muster, vorab ausgefüllt via pdfkit) | 3h |
 | `GET /admin/pos/transactions/:id/export-declaration` Route | 1h |
-| **Admin-Page `/app/pos/tax-free-pending`** (Liste + Bestätigen-Button) | 3h |
-| CUPS-Print-Option `PageSize=Custom.62x<length>mm` + Rolle-Wechsel-Instruktion | 2h |
-| `POST /admin/pos/transactions/:id/print-receipt` Route | 1h |
-| **Summe P3** | **~2 Tage** |
+| **Admin-Page `/app/pos/tax-free-pending`** (Liste offener Nachweise + Bestätigen-/Nachversteuern-Buttons) | 3h |
+| `POST /admin/pos/transactions/:id/confirm-export` + Korrektur-Transaktion bei "Nachweis vermisst" | 2h |
+| Farb-Warnungen: >90d gelb, >180d rot | 30min |
+| **Summe P3** | **~1.5 Tage** |
 
-**Phase P4 — SumUp REST API (optional, später)**
+### Phase P4 — SumUp REST API (optional, später)
+
 *Ziel: Payment-Terminal wird direkt vom Backend angesprochen, kein manuelles Eintippen.*
 
 | Task | Aufwand |
@@ -550,8 +670,9 @@ Vor Implementierungs-Start muss Frank (oder der Steuerberater) folgendes klären
 | Fallback auf externe Zahlung bei API-Fehler | 2h |
 | **Summe P4** | **~2-3 Tage** |
 
-**Gesamtaufwand P1-P3 (Mindest-Funktionsumfang produktiv, inkl. Tax-Free):** ~6.5 Arbeitstage
-**Gesamtaufwand P1-P4 (vollständig):** ~9 Arbeitstage
+**Gesamtaufwand P0 (Dry-Run, sofort umsetzbar):** ~2 Arbeitstage
+**Gesamtaufwand P0-P3 (Mindest-Funktionsumfang produktiv):** ~7 Arbeitstage
+**Gesamtaufwand P0-P4 (vollständig):** ~9.5 Arbeitstage
 
 ## 13. Abhängigkeiten / Voraussetzungen
 
@@ -575,4 +696,4 @@ Vor Implementierungs-Start muss Frank (oder der Steuerberater) folgendes klären
 
 ---
 
-**Next Action:** Nach Freigabe dieses Konzepts + Klärung der offenen Entscheidungen aus §11 → Start mit Phase P1 (Core POS-UI).
+**Next Action:** Phase P0 (Dry-Run) implementieren — keine offenen Entscheidungen blockieren diese Phase. §11-Entscheidungen parallel klären für P1-P4.

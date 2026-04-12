@@ -502,6 +502,17 @@ function OperationsHub() {
           <TestRunnerContent />
         </HubCard>
 
+        {/* POS / Walk-in Sale */}
+        <HubCard
+          icon="🛒"
+          title="POS / Walk-in Sale"
+          description="Scan barcodes, build cart, process walk-in sales. Prints receipt, updates inventory in real time."
+          statusLine="Dry-Run Mode — no TSE"
+          statusColor={C.warning}
+          href="/app/pos"
+          actionLabel="Open POS Terminal →"
+        />
+
       </div>
 
       {/* Live Monitor card — always visible even if no live auctions */}

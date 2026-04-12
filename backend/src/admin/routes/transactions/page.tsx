@@ -67,6 +67,7 @@ const FULFILLMENT_PILL: Record<string, { bg: string; color: string }> = {
   shipped:     { bg: C.blue + "15",    color: C.blue },
   delivered:   { bg: C.success + "15", color: C.success },
   returned:    { bg: C.warning + "15", color: C.warning },
+  picked_up:   { bg: C.purple + "15",  color: C.purple },
 }
 
 const PAYMENT_STATUSES = [
@@ -539,6 +540,17 @@ const TransactionsPage = () => {
                     <span style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 600, color: C.text }}>
                       {tx.order_number || tx.id.slice(0, 12) + "…"}
                     </span>
+                    {tx.item_type === "walk_in_sale" && (
+                      <span style={{
+                        display: "inline-block", marginLeft: 6,
+                        fontSize: 9, fontWeight: 700, padding: "1px 5px",
+                        borderRadius: 3, background: `${C.purple}15`,
+                        color: C.purple, border: `1px solid ${C.purple}30`,
+                        textTransform: "uppercase", letterSpacing: "0.04em",
+                      }}>
+                        POS
+                      </span>
+                    )}
                   </td>
 
                   {/* Item */}
@@ -612,7 +624,7 @@ const TransactionsPage = () => {
                   {/* Actions */}
                   <td style={{ padding: "12px 14px" }} onClick={e => e.stopPropagation()}>
                     <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }} data-no-nav>
-                      {tx.status === "paid" && (tx.fulfillment_status === "unfulfilled" || tx.shipping_status === "pending") && (
+                      {tx.status === "paid" && tx.item_type !== "walk_in_sale" && (tx.fulfillment_status === "unfulfilled" || tx.shipping_status === "pending") && (
                         <>
                           {shippingDialog === tx.id ? (
                             <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 200 }}>
@@ -642,7 +654,7 @@ const TransactionsPage = () => {
                           )}
                         </>
                       )}
-                      {tx.status === "paid" && (tx.fulfillment_status === "shipped" || tx.shipping_status === "shipped") && (
+                      {tx.status === "paid" && tx.item_type !== "walk_in_sale" && (tx.fulfillment_status === "shipped" || tx.shipping_status === "shipped") && (
                         <span
                           onClick={() => markAsDelivered(tx.id)}
                           style={{ display: "inline-block", padding: "4px 10px", fontSize: 12, background: "var(--bg-component, #1a1714)", border: `1px solid ${C.border}`, borderRadius: 5, cursor: "pointer", color: C.text, whiteSpace: "nowrap", lineHeight: "18px" }}

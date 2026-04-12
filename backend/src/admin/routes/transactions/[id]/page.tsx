@@ -646,7 +646,7 @@ const TransactionDetailPage = () => {
   }
 
   const orderTitle = tx.order_number || tx.id.slice(0, 16)
-  const itemTypeLabel = tx.item_type === "direct_purchase" ? "Direct Purchase" : "Auction Win"
+  const itemTypeLabel = tx.item_type === "walk_in_sale" ? "POS Walk-in" : tx.item_type === "direct_purchase" ? "Direct Purchase" : "Auction Win"
   const providerLabel = tx.payment_provider
     ? tx.payment_provider.charAt(0).toUpperCase() + tx.payment_provider.slice(1)
     : "—"

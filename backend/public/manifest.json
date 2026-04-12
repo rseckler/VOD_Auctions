@@ -1,0 +1,25 @@
+{
+  "name": "VOD POS — Walk-in Sale",
+  "short_name": "VOD POS",
+  "description": "Point of Sale for VOD Records. Scan barcodes, build cart, process walk-in sales.",
+  "start_url": "/app/pos",
+  "scope": "/app/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#1c1915",
+  "background_color": "#1c1915",
+  "icons": [
+    {
+      "src": "/icons/pos-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/pos-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
