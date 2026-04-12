@@ -407,22 +407,29 @@ function POSPage() {
         </span>
       </div>
 
-      {/* Stats Bar */}
+      {/* Stats Bar — clickable cards link to reports */}
       {stats && (
         <div style={{
           display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10,
           marginBottom: 16,
         }}>
           {([
-            { label: "Today", count: stats.today.count, total: stats.today.total },
-            { label: "Yesterday", count: stats.yesterday.count, total: stats.yesterday.total },
-            { label: "This Week", count: stats.week.count, total: stats.week.total },
-            { label: "All Time", count: stats.all_time.count, total: stats.all_time.total },
+            { label: "Today", period: "today", count: stats.today.count, total: stats.today.total },
+            { label: "Yesterday", period: "yesterday", count: stats.yesterday.count, total: stats.yesterday.total },
+            { label: "This Week", period: "week", count: stats.week.count, total: stats.week.total },
+            { label: "All Time", period: "all", count: stats.all_time.count, total: stats.all_time.total },
           ]).map((s) => (
-            <div key={s.label} style={{
-              background: C.card, border: `1px solid ${C.border}`, borderRadius: S.radius.md,
-              padding: "10px 14px", textAlign: "center",
-            }}>
+            <div
+              key={s.label}
+              onClick={() => { window.location.href = `/app/pos/reports?period=${s.period}` }}
+              style={{
+                background: C.card, border: `1px solid ${C.border}`, borderRadius: S.radius.md,
+                padding: "10px 14px", textAlign: "center", cursor: "pointer",
+                transition: "border-color 0.15s, box-shadow 0.15s",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.boxShadow = `0 0 0 1px ${C.gold}40` }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.boxShadow = "none" }}
+            >
               <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: C.muted, letterSpacing: "0.06em", marginBottom: 4 }}>
                 {s.label}
               </div>
@@ -430,7 +437,7 @@ function POSPage() {
                 {fmtMoney(s.total)}
               </div>
               <div style={{ fontSize: 11, color: C.muted }}>
-                {s.count} sale{s.count !== 1 ? "s" : ""}
+                {s.count} sale{s.count !== 1 ? "s" : ""} &rarr;
               </div>
             </div>
           ))}
