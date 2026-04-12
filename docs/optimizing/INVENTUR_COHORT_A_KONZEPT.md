@@ -388,13 +388,20 @@ CLAUDE.md                                          (Medusa-Tabellen-Gotcha + ERP
 | 3b+4 | Hub Page + Session Screen | ✅ Deployed (Flag OFF) | `e996e6c` |
 | Finalisierung | Ops-Hub-Card + CLAUDE.md + CHANGELOG + Release | ✅ Deployed | `92fdcb7` |
 
-### DB-Stand auf Production (2026-04-07)
+### DB-Stand auf Production (2026-04-12)
 
 ```
-erp_inventory_item:        13.107 Zeilen (alle source='frank_collection', status='in_stock', price_locked=false)
-erp_inventory_movement:    13.107 Zeilen (alle type='inbound', reason='Initial backfill Cohort A')
-bulk_price_adjustment_log: 0 Zeilen (Bulk +15% noch nicht ausgeführt)
+erp_inventory_item:        13.107 Zeilen (alle source='frank_collection', status='in_stock', price_locked=true)
+erp_inventory_movement:    26.214 Zeilen (13.107 inbound + 13.107 bulk_15pct_2026)
+bulk_price_adjustment_log: 1 Zeile (bulk_15pct_20260412_060527, status='success', 13.107 affected)
 ```
+
+**Bulk +15% ausgeführt am 2026-04-12 06:05 UTC:**
+- Gesamtwert vorher: €404.929 → nachher: €465.358 (+€60.429, ~14,9% effektiv nach Rundung)
+- Alle Preise auf ganze Euro gerundet (ROUND(x * 1.15, 0))
+- 13.107 Items auf `price_locked=true` gesetzt
+- 13.107 Audit-Movements mit `reason='bulk_15pct_2026'` erstellt
+- V5 Scratch-Test davor bestanden (06:00 UTC Sync-Run, 0 Violations)
 
 ### Verifikationen durchgeführt
 
@@ -411,20 +418,17 @@ bulk_price_adjustment_log: 0 Zeilen (Bulk +15% noch nicht ausgeführt)
 | VPS Deploy (Build + Admin Assets + PM2) | ✅ |
 | Medusa-Tabellen-Kollision entdeckt + behoben | ✅ `erp_*` Prefix |
 
-### Aktivierungs-Checkliste (nächster Schritt)
+### Aktivierungs-Checkliste (abgearbeitet 2026-04-12)
 
-**Voraussetzung:** 24h stabiler Sync mit dem neuen Schutz (V5 darf nie "failed" zeigen).
-
-- [ ] **Sync-Check:** `/app/sync` → Legacy MySQL Sync → alle Runs seit 07.04. abends zeigen `script_version = legacy_sync.py v2.0.0` und `phase = success`
-- [ ] **Flag aktivieren:** `/app/config` → Feature Flags → `ERP_INVENTORY` → ON
-- [ ] **Bulk +15% Preview:** `/app/erp/inventory` → "Preview +15%" → Sample-Tabelle prüfen (ganze Euro)
-- [ ] **Bulk +15% Execute:** Confirmation `RAISE PRICES 15 PERCENT` → Execute
-- [ ] **Spot-Check:** 10 zufällige Releases in Supabase prüfen: `legacy_price = ROUND(alter_preis * 1.15, 0)`
+- [x] **Sync-Check:** 168+ Runs seit 05.04. alle `phase=success`, `script_version=v2.0.0` ✅
+- [x] **Flag aktivieren:** `ERP_INVENTORY` = ON (war bereits aktiv) ✅
+- [x] **V5 Scratch-Test:** Test-Item `legacy-release-28094` (€1.00) mit `price_locked=true` → Sync-Run 06:00 UTC (id=25493) → Preis unverändert, 0 sync_change_log Einträge, V5 keine Violations ✅
+- [x] **Bulk +15% Preview:** 13.107 eligible, Preisverteilung geprüft, alle ganze Euro ✅
+- [x] **Bulk +15% Execute:** `bulk_15pct_20260412_060527`, 13.107 affected_rows, status=success ✅
+- [x] **Spot-Check:** 10 Random-Releases geprüft, alle `cent_remainder=0.00` ✅
 - [ ] **Frank informieren:** Session-URL `/app/erp/inventory/session`, Keyboard-Shortcuts erklären
 - [ ] **Erster Test-Durchlauf:** Frank verifiziert 5-10 Items, markiert 1-2 als Missing, testet Undo
 - [ ] **Sync nach Frank-Test:** Nächster stündlicher Sync darf verifizierte Preise NICHT überschreiben (V5 passed)
-
-**E-Mail-Reminder** für diesen Check liegt als Draft in Gmail (`rseckler@gmail.com`).
 
 ---
 

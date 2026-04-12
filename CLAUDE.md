@@ -404,9 +404,9 @@ VOD_Auctions/
 → Operative Aufgabenliste mit Workstreams, Blockern und nächsten Aktionen: [`docs/TODO.md`](docs/TODO.md)
 
 **Aktuell wichtigste nächste Schritte:**
-1. **E3-E5:** Frank für Inventur briefen — Session-URL + Shortcuts erklären, Test-Durchlauf, V5 nach Frank-Test prüfen
-2. **L1:** AGB-Anwalt beauftragen (Launch-Blocker)
-3. **POS-D1/D2:** Steuerberater-Termin für §10-Entscheidungen (TSE, Kleinunternehmer-Status)
+1. **Inventur v2 Phase 0:** Regression-Fixes für Exemplar-Modell (4 Dateien: media/route, media/[id], media-UI, export) — abwärtskompatibel, sofort deploybar
+2. **Inventur v2 Phase 1:** Schema-Migration + Search-First Session-Screen + Exemplar-Bewertung — Kern-Workflow damit Frank starten kann
+3. **L1:** AGB-Anwalt beauftragen (Launch-Blocker)
 
 **Arbeitsregeln:**
 - Für operative Details immer `docs/TODO.md` nutzen — keine Task-Listen in CLAUDE.md pflegen

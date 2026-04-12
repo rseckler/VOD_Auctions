@@ -89,7 +89,11 @@ export async function POST(
     return
   }
 
-  // Check if in active auction
+  // Check if in active auction.
+  // NOTE (Exemplar-Modell): Auction blocks reference release_id, not
+  // inventory_item_id. If ANY exemplar of this release is in an auction,
+  // ALL exemplars are blocked from POS sale. This is acceptable for MVP —
+  // later, block_item should reference a specific inventory_item_id.
   const auctionCheck = await pg.raw(`
     SELECT bi.id, ab.title AS block_title, ab.slug AS block_slug
     FROM block_item bi

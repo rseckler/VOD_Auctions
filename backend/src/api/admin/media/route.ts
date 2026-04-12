@@ -39,6 +39,24 @@ export async function GET(
     offset = "0",
   } = req.query
 
+  // ── Inventory subquery: aggregate per release_id so multiple exemplars
+  // don't multiply Release rows (Exemplar-Modell, Phase 0 regression fix).
+  // Returns exactly 1 row per release_id with first exemplar's fields + counts.
+  const inventorySub = pgConnection("erp_inventory_item")
+    .select(
+      "release_id",
+      pgConnection.raw("(array_agg(id ORDER BY COALESCE(copy_number,1)))[1] as id"),
+      pgConnection.raw("(array_agg(quantity ORDER BY COALESCE(copy_number,1)))[1] as quantity"),
+      pgConnection.raw("(array_agg(status ORDER BY COALESCE(copy_number,1)))[1] as status"),
+      pgConnection.raw("(array_agg(price_locked ORDER BY COALESCE(copy_number,1)))[1] as price_locked"),
+      pgConnection.raw("(array_agg(last_stocktake_at ORDER BY COALESCE(copy_number,1)))[1] as last_stocktake_at"),
+      pgConnection.raw("(array_agg(warehouse_location_id ORDER BY COALESCE(copy_number,1)))[1] as warehouse_location_id"),
+      pgConnection.raw("COUNT(*)::int as exemplar_count"),
+      pgConnection.raw("COUNT(*) FILTER (WHERE last_stocktake_at IS NOT NULL)::int as verified_count")
+    )
+    .groupBy("release_id")
+    .as("ii")
+
   let query = pgConnection("Release")
     .select(
       "Release.id",
@@ -72,21 +90,23 @@ export async function GET(
       "Format.name as format_name",
       "Format.format_group",
       "Format.kat as format_kat",
-      // ── rc23: Inventory + warehouse fields for filter-aware display ──
-      "erp_inventory_item.id as inventory_item_id",
-      "erp_inventory_item.quantity as inventory_quantity",
-      "erp_inventory_item.status as inventory_item_status",
-      "erp_inventory_item.price_locked",
-      "erp_inventory_item.last_stocktake_at",
+      // ── Inventory: aggregated from subquery (1 row per release) ──
+      "ii.id as inventory_item_id",
+      "ii.quantity as inventory_quantity",
+      "ii.status as inventory_item_status",
+      "ii.price_locked",
+      "ii.last_stocktake_at",
+      "ii.exemplar_count",
+      "ii.verified_count",
       "warehouse_location.code as warehouse_code",
       "warehouse_location.name as warehouse_name"
     )
     .leftJoin("Artist", "Release.artistId", "Artist.id")
     .leftJoin("Label", "Release.labelId", "Label.id")
     .leftJoin("Format", "Release.format_id", "Format.id")
-    // ── rc23: LEFT JOIN für Inventory Filter + Display ──
-    .leftJoin("erp_inventory_item", "Release.id", "erp_inventory_item.release_id")
-    .leftJoin("warehouse_location", "erp_inventory_item.warehouse_location_id", "warehouse_location.id")
+    // ── Inventory subquery: guarantees 1 row per release (no duplication) ──
+    .leftJoin(inventorySub, "Release.id", "ii.release_id")
+    .leftJoin("warehouse_location", "ii.warehouse_location_id", "warehouse_location.id")
 
   // Full-text search on title + artist name + catalog number
   if (q && typeof q === "string" && q.trim()) {
@@ -209,24 +229,26 @@ export async function GET(
   }
 
   // ── rc23: Inventory Filter ──────────────────────────────────────
-  // All inventory filters rely on the erp_inventory_item LEFT JOIN added above.
+  // All inventory filters use the aggregated subquery alias "ii" (1 row per release).
+  // Filter semantics: filters apply to the FIRST exemplar's fields (copy_number=1).
+  // For multi-exemplar releases, this means the filter reflects the primary copy.
   if (inventory_state === "any") {
-    query = query.whereNotNull("erp_inventory_item.id")
+    query = query.whereNotNull("ii.id")
   }
   if (inventory_state === "none") {
-    query = query.whereNull("erp_inventory_item.id")
+    query = query.whereNull("ii.id")
   }
   if (inventory_state === "in_stock") {
-    query = query.where("erp_inventory_item.quantity", ">", 0)
+    query = query.where("ii.quantity", ">", 0)
   }
   if (inventory_state === "out_of_stock") {
     query = query
-      .whereNotNull("erp_inventory_item.id")
-      .where("erp_inventory_item.quantity", "=", 0)
+      .whereNotNull("ii.id")
+      .where("ii.quantity", "=", 0)
   }
 
   if (inventory_status && typeof inventory_status === "string" && inventory_status.trim()) {
-    query = query.where("erp_inventory_item.status", inventory_status.trim())
+    query = query.where("ii.status", inventory_status.trim())
   }
 
   // Stocktake states:
@@ -235,27 +257,27 @@ export async function GET(
   // - stale   = last_stocktake_at < NOW() - 90 days (outdated, needs recheck)
   if (stocktake === "done") {
     query = query
-      .whereNotNull("erp_inventory_item.last_stocktake_at")
-      .where("erp_inventory_item.last_stocktake_at", ">=", pgConnection.raw("NOW() - INTERVAL '90 days'"))
+      .whereNotNull("ii.last_stocktake_at")
+      .where("ii.last_stocktake_at", ">=", pgConnection.raw("NOW() - INTERVAL '90 days'"))
   }
   if (stocktake === "pending") {
     query = query
-      .whereNotNull("erp_inventory_item.id")
-      .whereNull("erp_inventory_item.last_stocktake_at")
+      .whereNotNull("ii.id")
+      .whereNull("ii.last_stocktake_at")
   }
   if (stocktake === "stale") {
     query = query
-      .whereNotNull("erp_inventory_item.last_stocktake_at")
-      .where("erp_inventory_item.last_stocktake_at", "<", pgConnection.raw("NOW() - INTERVAL '90 days'"))
+      .whereNotNull("ii.last_stocktake_at")
+      .where("ii.last_stocktake_at", "<", pgConnection.raw("NOW() - INTERVAL '90 days'"))
   }
 
   if (price_locked === "true") {
-    query = query.where("erp_inventory_item.price_locked", true)
+    query = query.where("ii.price_locked", true)
   }
   if (price_locked === "false") {
     query = query.where(function () {
-      this.where("erp_inventory_item.price_locked", false)
-        .orWhereNull("erp_inventory_item.price_locked")
+      this.where("ii.price_locked", false)
+        .orWhereNull("ii.price_locked")
     })
   }
 

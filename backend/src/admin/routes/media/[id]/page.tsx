@@ -89,8 +89,26 @@ type Release = {
   warehouse_location_name: string | null
 }
 
+type InventoryItem = {
+  inventory_item_id: string
+  inventory_barcode: string | null
+  inventory_status: string | null
+  inventory_quantity: number | null
+  inventory_source: string | null
+  price_locked: boolean | null
+  price_locked_at: string | null
+  last_stocktake_at: string | null
+  last_stocktake_by: string | null
+  barcode_printed_at: string | null
+  inventory_notes: string | null
+  warehouse_location_id: string | null
+  warehouse_location_code: string | null
+  warehouse_location_name: string | null
+}
+
 type InventoryMovement = {
   id: string
+  inventory_item_id?: string
   type: string           // inbound | outbound | adjustment | write_off | damaged | transfer
   quantity_change: number
   reason: string | null
@@ -535,6 +553,7 @@ const MediaDetailPage = () => {
     session_status: string | null
   }>>([])
   const [images, setImages] = useState<ImageEntry[]>([])
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([])
   const [inventoryMovements, setInventoryMovements] = useState<InventoryMovement[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -581,6 +600,7 @@ const MediaDetailPage = () => {
         setSyncHistory(d.sync_history || [])
         setImportHistory(d.import_history || [])
         setImages(d.images || [])
+        setInventoryItems(d.inventory_items || [])
         setInventoryMovements(d.inventory_movements || [])
         setShippingTypes(st.item_types || [])
         setLocations((loc.locations || []).filter((l: { is_active: boolean }) => l.is_active))
@@ -845,7 +865,69 @@ const MediaDetailPage = () => {
       {/* Inventory Status — ERP stocktake audit trail + quick actions */}
       {release.inventory_item_id && (
         <div style={{ ...cardStyle, marginBottom: S.sectionGap }}>
-          <SectionHeader title="Inventory Status" style={{ marginTop: 0 }} />
+          <SectionHeader title={`Inventory Status${inventoryItems.length > 1 ? ` (${inventoryItems.length} Exemplare)` : ""}`} style={{ marginTop: 0 }} />
+
+          {/* Multi-exemplar table — only shown when release has 2+ inventory items */}
+          {inventoryItems.length > 1 && (
+            <div style={{ marginTop: S.gap.md, marginBottom: S.gap.lg }}>
+              <div style={{ overflow: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ background: C.card }}>
+                      <th style={thStyle}>#</th>
+                      <th style={thStyle}>Barcode</th>
+                      <th style={thStyle}>Status</th>
+                      <th style={thStyle}>Stocktake</th>
+                      <th style={thStyle}>Preis gesperrt</th>
+                      <th style={thStyle}>Lagerort</th>
+                      <th style={thStyle}>Aktionen</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {inventoryItems.map((item, idx) => (
+                      <tr key={item.inventory_item_id}
+                          style={{ transition: "background 0.1s" }}
+                          onMouseOver={(e) => (e.currentTarget.style.background = C.hover)}
+                          onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}>
+                        <td style={{ ...tdStyle, fontWeight: 600 }}>{idx + 1}</td>
+                        <td style={{ ...tdStyle, fontFamily: "monospace", letterSpacing: "0.05em" }}>
+                          {item.inventory_barcode || "\u2014"}
+                        </td>
+                        <td style={tdStyle}>
+                          <Badge label={item.inventory_status || "unknown"} variant={
+                            item.inventory_status === "in_stock" ? "success"
+                              : item.inventory_status === "sold" ? "purple"
+                                : "neutral"
+                          } />
+                        </td>
+                        <td style={{ ...tdStyle, ...T.small }}>
+                          {item.last_stocktake_at ? formatDate(item.last_stocktake_at) : "\u2014"}
+                        </td>
+                        <td style={tdStyle}>
+                          {item.price_locked ? <Badge label="Locked" variant="info" /> : "\u2014"}
+                        </td>
+                        <td style={{ ...tdStyle, ...T.small }}>
+                          {item.warehouse_location_code || "\u2014"}
+                        </td>
+                        <td style={tdStyle}>
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <button
+                              style={{ background: "none", border: "none", color: C.gold, cursor: "pointer", fontSize: 12, textDecoration: "underline" }}
+                              onClick={() => window.location.href = `/app/erp/inventory/session?item_id=${item.inventory_item_id}`}
+                            >Session</button>
+                            <button
+                              style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 12, textDecoration: "underline" }}
+                              onClick={() => window.open(`/admin/erp/inventory/items/${item.inventory_item_id}/label`, "_blank")}
+                            >Label</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* Status badges row */}
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: S.gap.md, marginBottom: S.gap.lg }}>

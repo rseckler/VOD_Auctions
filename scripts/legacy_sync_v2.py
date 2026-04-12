@@ -687,7 +687,12 @@ def sync_releases_v2(mysql_conn, pg_conn, run_id, dry_run=False):
                 template="(%s, %s, %s, %s, %s, %s::\"ReleaseFormat\", %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW())",
             )
 
-        # Pre-fetch price-locked release IDs for this batch (sync protection)
+        # Pre-fetch price-locked release IDs for this batch (sync protection).
+        # NOTE (Exemplar-Modell): A release may have multiple erp_inventory_item rows
+        # (one per physical copy). price_locked is a RELEASE-LEVEL policy: if ANY
+        # exemplar is price_locked, the Release.legacy_price is protected from sync
+        # overwrites. This is intentional — once Frank has verified any copy, the
+        # base price should not be changed by the MySQL sync.
         price_locked_ids = set()
         if release_values:
             pl_cur = pg_conn.cursor()

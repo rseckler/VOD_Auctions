@@ -39,6 +39,7 @@ export async function GET(
       "r.legacy_condition",
       "r.discogs_id",
       "r.discogs_lowest_price",
+      "ii.barcode",
       "ii.price_locked",
       "ii.last_stocktake_at",
       "ii.last_stocktake_by",
@@ -48,6 +49,7 @@ export async function GET(
     .where("ii.source", "frank_collection")
     .orderBy("a.name", "asc")
     .orderBy("r.title", "asc")
+    .orderBy("ii.created_at", "asc")
 
   if (statusFilter === "verified") {
     query = query
@@ -67,6 +69,7 @@ export async function GET(
 
   const headers = [
     "Release ID",
+    "Barcode",
     "Artist",
     "Title",
     "Format",
@@ -91,6 +94,7 @@ export async function GET(
 
     return [
       r.release_id,
+      r.barcode || "",
       csvEscape(r.artist || ""),
       csvEscape(r.title || ""),
       r.format || "",

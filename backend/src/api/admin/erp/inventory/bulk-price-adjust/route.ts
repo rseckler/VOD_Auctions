@@ -9,6 +9,12 @@ const CONFIRMATION_STRING = "RAISE PRICES 15 PERCENT"
 /**
  * GET /admin/erp/inventory/bulk-price-adjust
  * Preview: shows how many items would be affected and sample prices.
+ *
+ * NOTE (Exemplar-Modell): This endpoint adjusts Release.legacy_price, which is
+ * the shared base price for all exemplars of a release. Individual exemplar
+ * prices (exemplar_price on erp_inventory_item) are NOT affected by bulk adjust.
+ * This is intentional: bulk +15% was a one-time event before the Inventur started.
+ * Future per-exemplar pricing happens during stocktake verify.
  */
 export async function GET(
   req: MedusaRequest,
