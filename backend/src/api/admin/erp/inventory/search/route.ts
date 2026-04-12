@@ -77,7 +77,9 @@ export async function GET(
     }
   }
 
-  // Step 2: Text search (Release-level, aggregated)
+  // Step 2: Text search — searches ALL releases (not just Cohort A).
+  // LEFT JOIN on erp_inventory_item so releases without inventory show up too.
+  // exemplar_count=0 means the release has no inventory item yet (will be created on verify).
   const search = `%${q}%`
   const result = await pg.raw(`
     SELECT
@@ -88,7 +90,7 @@ export async function GET(
       COUNT(ii.id)::int as exemplar_count,
       COUNT(ii.id) FILTER (WHERE ii.last_stocktake_at IS NOT NULL)::int as verified_count
     FROM "Release" r
-    JOIN erp_inventory_item ii ON ii.release_id = r.id
+    LEFT JOIN erp_inventory_item ii ON ii.release_id = r.id
     LEFT JOIN "Artist" a ON a.id = r."artistId"
     LEFT JOIN "Label" l ON l.id = r."labelId"
     WHERE

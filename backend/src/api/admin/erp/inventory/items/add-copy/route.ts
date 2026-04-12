@@ -40,16 +40,8 @@ export async function POST(
     return
   }
 
-  // Verify at least one exemplar exists (add-copy is for additional copies)
-  const existingCount = await pg("erp_inventory_item")
-    .where("release_id", release_id)
-    .count("id as cnt")
-    .first()
-
-  if (!existingCount || Number(existingCount.cnt) === 0) {
-    res.status(400).json({ message: "No existing inventory item for this release. Use the backfill process first." })
-    return
-  }
+  // Check if exemplars already exist (determines copy_number)
+  // If none exist, this is the first exemplar for a non-Cohort-A release — that's OK.
 
   // Get admin email from auth
   const adminEmail = (req as any).auth_context?.actor_id

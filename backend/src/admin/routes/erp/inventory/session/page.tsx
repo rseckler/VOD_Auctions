@@ -285,10 +285,15 @@ function StocktakeSessionPage() {
 
   // Auto-open first copy for editing if it's unverified
   useEffect(() => {
-    if (activeView === "detail" && copies.length > 0 && !editingCopy && !isNewCopy) {
-      const firstUnverified = copies.find((c) => !c.is_verified)
-      if (firstUnverified) {
-        startEditCopy(firstUnverified)
+    if (activeView === "detail" && !editingCopy && !isNewCopy) {
+      if (copies.length === 0) {
+        // No inventory item yet (non-Cohort-A release) → auto-open new copy form
+        startNewCopy()
+      } else {
+        const firstUnverified = copies.find((c) => !c.is_verified)
+        if (firstUnverified) {
+          startEditCopy(firstUnverified)
+        }
       }
     }
   }, [activeView, copies])
@@ -575,7 +580,9 @@ function StocktakeSessionPage() {
               <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                 <div style={{ fontWeight: 600, color: C.gold }}>{r.legacy_price != null ? `€${r.legacy_price}` : ""}</div>
                 <div style={{ ...T.small, color: C.muted }}>
-                  {r.exemplar_count} Ex. {r.verified_count > 0 && <span style={{ color: C.success }}>· {r.verified_count} done</span>}
+                  {r.exemplar_count > 0
+                    ? <>{r.exemplar_count} Ex. {r.verified_count > 0 && <span style={{ color: C.success }}>· {r.verified_count} done</span>}</>
+                    : <span style={{ color: C.warning }}>NEU</span>}
                 </div>
               </div>
             </div>

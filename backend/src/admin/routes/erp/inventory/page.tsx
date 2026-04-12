@@ -230,7 +230,7 @@ function InventoryHubPage() {
     <PageShell maxWidth={1000}>
       <PageHeader
         title="Inventory Stocktake"
-        subtitle={`Cohort A — ${stats?.distinct_releases.toLocaleString() || "..."} releases · ${stats?.eligible.toLocaleString() || "..."} exemplars`}
+        subtitle={`${stats?.distinct_releases.toLocaleString() || "..."} releases · ${stats?.eligible.toLocaleString() || "..."} exemplars im Inventar`}
         badge={
           progressPercent === 100
             ? { label: "COMPLETE", color: C.success }
