@@ -40,7 +40,7 @@ export async function GET(
   } else if (period === "today") {
     dateFilter = "AND t.created_at::date = CURRENT_DATE"
   } else if (period === "yesterday") {
-    dateFilter = "AND t.created_at::date = CURRENT_DATE - 1"
+    dateFilter = "AND t.created_at::date = (CURRENT_DATE - INTERVAL '1 day')::date"
   } else if (period === "week") {
     dateFilter = "AND t.created_at::date >= date_trunc('week', CURRENT_DATE)"
   }

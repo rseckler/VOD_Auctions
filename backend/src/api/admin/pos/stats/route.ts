@@ -43,16 +43,16 @@ export async function GET(
       COALESCE(SUM(total_amount) FILTER (WHERE sale_date = CURRENT_DATE), 0) AS today_total,
       COALESCE(SUM(item_count) FILTER (WHERE sale_date = CURRENT_DATE), 0) AS today_items,
       -- Yesterday
-      COUNT(*) FILTER (WHERE sale_date = CURRENT_DATE - 1) AS yesterday_count,
-      COALESCE(SUM(total_amount) FILTER (WHERE sale_date = CURRENT_DATE - 1), 0) AS yesterday_total,
-      COALESCE(SUM(item_count) FILTER (WHERE sale_date = CURRENT_DATE - 1), 0) AS yesterday_items,
+      COUNT(*) FILTER (WHERE sale_date = (CURRENT_DATE - INTERVAL '1 day')::date) AS yesterday_count,
+      COALESCE(SUM(total_amount) FILTER (WHERE sale_date = (CURRENT_DATE - INTERVAL '1 day')::date), 0) AS yesterday_total,
+      COALESCE(SUM(item_count) FILTER (WHERE sale_date = (CURRENT_DATE - INTERVAL '1 day')::date), 0) AS yesterday_items,
       -- This week (Monday-based)
       COUNT(*) FILTER (WHERE sale_date >= date_trunc('week', CURRENT_DATE)) AS week_count,
       COALESCE(SUM(total_amount) FILTER (WHERE sale_date >= date_trunc('week', CURRENT_DATE)), 0) AS week_total,
       COALESCE(SUM(item_count) FILTER (WHERE sale_date >= date_trunc('week', CURRENT_DATE)), 0) AS week_items,
       -- Last week (for comparison)
-      COUNT(*) FILTER (WHERE sale_date >= date_trunc('week', CURRENT_DATE) - 7 AND sale_date < date_trunc('week', CURRENT_DATE)) AS last_week_count,
-      COALESCE(SUM(total_amount) FILTER (WHERE sale_date >= date_trunc('week', CURRENT_DATE) - 7 AND sale_date < date_trunc('week', CURRENT_DATE)), 0) AS last_week_total,
+      COUNT(*) FILTER (WHERE sale_date >= date_trunc('week', CURRENT_DATE) - INTERVAL '7 days' AND sale_date < date_trunc('week', CURRENT_DATE)) AS last_week_count,
+      COALESCE(SUM(total_amount) FILTER (WHERE sale_date >= date_trunc('week', CURRENT_DATE) - INTERVAL '7 days' AND sale_date < date_trunc('week', CURRENT_DATE)), 0) AS last_week_total,
       -- All time
       COUNT(*) AS all_count,
       COALESCE(SUM(total_amount), 0) AS all_total,
