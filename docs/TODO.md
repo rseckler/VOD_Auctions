@@ -1,7 +1,7 @@
 # VOD Auctions — TODO
 
 Operative Aufgabenliste. Single Source of Truth für laufende Arbeit.
-**Letzte Aktualisierung:** 2026-04-12 (Inventur Workflow v2 Umbau)
+**Letzte Aktualisierung:** 2026-04-12 (POS P0 Dry-Run deployed)
 
 ## Arbeitslogik
 
@@ -18,13 +18,12 @@ Operative Aufgabenliste. Single Source of Truth für laufende Arbeit.
 Aktuell aktive Workstreams. Maximal 2-3 gleichzeitig.
 
 1. **Inventur Workflow v2 Umbau** — Search-First + Exemplar-Modell (4 Phasen)
-2. **Launch-Vorbereitung** — AGB-Anwalt als kritischer Pfad
+2. **POS Walk-in Sale** — P0 Dry-Run live, Frank testet, P1-P4 warten auf Steuerberater
+3. **Launch-Vorbereitung** — AGB-Anwalt als kritischer Pfad
 
 ## Next
 
 Kommt dran sobald ein Now-Slot frei wird oder ein Blocker sich löst.
-
-3. **POS Walk-in Sale** — wartet auf Steuerberater-Termin
 4. **Sendcloud-Integration** — Voraussetzungen vorhanden, Code pending
 5. **Sync Monitoring** — Dead-Man's-Switch + Alerting
 
@@ -65,12 +64,12 @@ Neuer Workflow: Frank nimmt Artikel → sucht im System → bewertet (Zustand Me
 
 4 Dateien gehen von 1:1 (Release → inventory_item) aus und brechen bei mehreren Exemplaren. Fixes funktionieren auch mit aktuellem 1:1-Modell — können sofort deployed werden.
 
-- [ ] **0.1** `admin/media/route.ts` — LEFT JOIN → DISTINCT ON oder Subquery, Exemplar-Count als Aggregat (Pagination bricht sonst bei N Exemplaren)
-- [ ] **0.2** `admin/media/[id]/route.ts` — Inventory als separate Query (Array statt `.first()`)
-- [ ] **0.3** `admin/routes/media/[id]/page.tsx` — Type + UI-Rendering auf Exemplar-Array umbauen (skalare Felder → `inventory_items[]`)
-- [ ] **0.4** `admin/erp/inventory/export/route.ts` — `copy_number`-Spalte hinzufügen, 1 Row pro Exemplar
-- [ ] **0.5** Dokumentation: Sync-Schutz bleibt Release-Level (H1), Bulk-Adjust Kommentar (H2), POS Auction-Check Kommentar (H3)
-- [ ] **0.6** Phase 0 deployen + verifizieren (Admin Media Liste + Detail testen)
+- [x] **0.1** `admin/media/route.ts` — LEFT JOIN → Aggregat-Subquery, exemplar_count/verified_count (2026-04-12)
+- [x] **0.2** `admin/media/[id]/route.ts` — Inventory als separates Array, Movements für alle Exemplare (2026-04-12)
+- [x] **0.3** `admin/routes/media/[id]/page.tsx` — InventoryItem Type + Multi-Exemplar-Tabelle bei >1 (2026-04-12)
+- [x] **0.4** `admin/erp/inventory/export/route.ts` — Barcode-Spalte, stabile Sortierung (2026-04-12)
+- [x] **0.5** Dokumentation: Sync H1 + Bulk-Adjust H2 + POS H3 Kommentare (2026-04-12)
+- [x] **0.6** Phase 0 deployed + verifiziert — VPS build OK, PM2 online, 0 errors (2026-04-12)
 
 #### Phase 1: Schema-Migration + Search + Exemplar-Bewertung (Kern-Workflow)
 
@@ -158,22 +157,41 @@ Neuer Workflow: Frank nimmt Artikel → sucht im System → bewertet (Zustand Me
 
 ---
 
-### 3. POS Walk-in Sale
+### 2. POS Walk-in Sale
 
-**Ziel:** Frank kann im Laden Platten über eine Admin-Oberfläche verkaufen mit TSE-konformem Bon.
-**Status:** Konzept v1.0 fertig (Draft). Implementierung blockiert.
-**Blocker:** 8 offene §10-Entscheidungen — brauchen Steuerberater-Termin.
-**Nächste Aktion:** Steuerberater-Termin vereinbaren für §19 UStG + TSE-Anbieter.
+**Ziel:** Frank kann im Laden Platten über eine PWA-Oberfläche verkaufen mit TSE-konformem Bon.
+**Status:** Phase P0 (Dry-Run) deployed und live. Frank kann Trockenübungen machen.
+**Blocker:** P1-P4 blockiert durch 8 offene §11-Entscheidungen (Steuerberater-Termin).
+**Nächste Aktion:** Frank testet P0, Feedback sammeln. Parallel Steuerberater-Termin vereinbaren.
 
-#### Entscheidungen (blockieren Implementierung)
+#### Phase P0 — Dry-Run (deployed 2026-04-12)
+
+- [x] Feature-Flag `POS_WALK_IN` (requires ERP_INVENTORY) — ON
+- [x] DB-Migration: 11 neue Spalten auf `transaction` + `pos_order_number_seq`
+- [x] API: Session + Cart (POST sessions, POST items, DELETE items)
+- [x] API: Checkout (transaction + inventory_movement + order_event in DB-Transaktion)
+- [x] API: Customer search + create
+- [x] API: Receipt PDF (A6, pdfkit, Dry-Run-Hinweis)
+- [x] API: Stats (today/yesterday/week/all, payment breakdown, averages)
+- [x] API: Transactions list (period/date/payment/search filter, paginiert)
+- [x] Admin-UI `/app/pos`: Split-Screen (60/40), Scanner-Input, Cart, Customer-Panel (3 Modi + Adress-Modal), Payment-Auswahl, Checkout-Flow, Discount EUR/%
+- [x] Admin-UI `/app/pos/reports`: Period-Tabs, Summary-Cards, Payment-Breakdown-Bars, Transaktionsliste
+- [x] Klickbare Stat-Cards auf POS-Hauptseite → Reports mit vorausgewähltem Period
+- [x] UX: Auto-Add bei Scan, globaler Scanner-Listener, 3-Tap-Regel, Swipe-to-Remove, Cash Quick-Amount-Grid mit Wechselgeld
+- [x] PWA: manifest.json, Service Worker, iOS-Meta-Tags
+- [x] Operations Hub Card
+- [x] Orders-Integration: POS-Badge (lila), picked_up Status, Ship/Deliver ausgeblendet
+- [x] Stubs: TSE = "DRY_RUN", Tax-Free = disabled
+
+#### Offene Entscheidungen (blockieren P1-P4)
 
 - [ ] Kleinunternehmer-Status §19 UStG klären (Steuerberater)
 - [ ] TSE-Anbieter final wählen (fiskaly vs. efsta vs. andere)
 - [ ] Bon-Hardware entscheiden: Brother QL + 62mm Rolle vs. POS-Thermodrucker
+- [ ] Tax-Free Export: Variante A (direkt steuerfrei) vs. B (erst USt, dann erstatten)
+- [ ] Brutto vs. Netto in `legacy_price` — betrifft gesamte Preis-Logik
 - [ ] Retoure-Workflow (TSE-Storno) definieren
 - [ ] Storefront-Conflict bei Live-Auktionen: hard-block oder soft-warning?
-- [ ] Kassensturz-Report-Pflicht klären
-- [ ] iPad vs. Mac-only entscheiden
 - [ ] SumUp-Integration-Level festlegen (extern vs. REST API)
 
 #### Beschaffung (nach Entscheidungen)
@@ -182,16 +200,18 @@ Neuer Workflow: Frank nimmt Artikel → sucht im System → bewertet (Zustand Me
 - [ ] DK-22205 62mm Rolle bestellen (falls Brother gewählt)
 - [ ] BMF-Musterformular für Ausfuhr-/Abnehmerbescheinigung (Steuerberater)
 
-#### Implementierung (nach Entscheidungen + Beschaffung)
+#### Implementierung P1-P4 (nach Entscheidungen + Beschaffung)
 
-- [ ] P1: Core POS-UI mit Cart, ohne TSE, Mock-Bon (~2 Tage)
-- [ ] P2: TSE-Integration (~2 Tage)
-- [ ] P3: Bon-Druck (~1 Tag)
+- [ ] P1: Tax-Logik aktivieren + Bon-Druck auf Brother (~1.5 Tage)
+- [ ] P2: TSE-Integration fiskaly (~2 Tage)
+- [ ] P3: Tax-Free Documents + Tracking (~1.5 Tage)
 - [ ] P4: SumUp REST API (optional, ~2-3 Tage)
 
 #### Referenzen
 
-- Konzept: `docs/optimizing/POS_WALK_IN_KONZEPT.md`
+- Konzept: `docs/optimizing/POS_WALK_IN_KONZEPT.md` v1.1
+- UX-Research: `docs/optimizing/POS_UX_RESEARCH.md`
+- To-Do-Liste: `docs/optimizing/POS_P0_TODO.md`
 - Memory: `project_pos_walk_in.md`
 
 ---
@@ -350,6 +370,8 @@ Diese Themen leben in Linear, nicht hier. Nur zur Referenz:
 
 | Datum | Meilenstein |
 |---|---|
+| 2026-04-12 | POS Walk-in Sale P0 Dry-Run deployed (PWA, Scan, Cart, Checkout, Reports) |
+| 2026-04-12 | POS_WALK_IN Flag ON — Frank kann Trockenübungen machen |
 | 2026-04-12 | ERP_INVENTORY Flag ON + Bulk +15% (13.107 Items, €465.358) |
 | 2026-04-12 | V5 Scratch-Test bestanden (Sync-Schutz unter Last verifiziert) |
 | 2026-04-11 | Hardware validiert (Brother QL-820NWBc + Inateck BCST-70) |

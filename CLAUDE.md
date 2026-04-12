@@ -199,6 +199,15 @@ npm run build && pm2 restart vodauction-storefront
 - `POST /admin/customers/:id/block` + `/unblock` | `/anonymize` | `/gdpr-export` | `/delete`
 - `GET /admin/erp/locations` — Warehouse Locations Liste
 - `POST /admin/erp/locations` — Neuen Lagerort anlegen (code, name required)
+- `POST /admin/pos/sessions` — Neue POS-Session (UUID)
+- `POST /admin/pos/sessions/:id/items` — Barcode-Scan → Item-Lookup + Availability-Check
+- `DELETE /admin/pos/sessions/:id/items/:itemId` — Remove from Cart
+- `POST /admin/pos/sessions/:id/checkout` — Finalize Walk-in Sale (transaction + inventory + audit)
+- `GET /admin/pos/customer-search?q=` — Live-Kundensuche (top 10)
+- `POST /admin/pos/customers` — Neuen Kunden anlegen (minimal)
+- `GET /admin/pos/stats` — Dashboard-Statistiken (today/yesterday/week/all, payment breakdown, averages)
+- `GET /admin/pos/transactions` — Gefilterte POS-Transaktionsliste (period/date/payment/search)
+- `GET /admin/pos/transactions/:id/receipt` — A6-PDF Quittung (pdfkit)
 - `PATCH /admin/erp/locations/:id` — Lagerort bearbeiten (inkl. is_default setzen)
 - `DELETE /admin/erp/locations/:id` — Soft-deactivate (kein Hard-Delete; Default-Location geblockt)
 
@@ -397,6 +406,7 @@ VOD_Auctions/
 - `ERP_INVENTORY` — **Flag ON, Bulk +15% ausgeführt (2026-04-12).** 13.107 Cohort-A Items, alle `price_locked=true`, Gesamtwert €465.358. V5 Sync-Schutz verifiziert. Tabellen: `erp_inventory_item`, `erp_inventory_movement` (26.214 Rows), `bulk_price_adjustment_log`. Admin-UI: `/app/erp/inventory` (Hub) + `/app/erp/inventory/session` (Keyboard-Stocktake). **Nächster Schritt:** Frank startet Inventur-Sessions (4-6 Wochen). Siehe `docs/optimizing/INVENTUR_COHORT_A_KONZEPT.md`.
 - `ERP_INVOICING` — nicht implementiert (wartet auf easybill-Account + StB-Termin)
 - `ERP_SENDCLOUD` — nicht implementiert (Sendcloud-Account erstellt am 07.04., DHL-GK-Nr vorhanden, Code pending)
+- `POS_WALK_IN` — **Code deployed, Flag ON (Dry-Run).** Phase P0: Scan→Cart→Checkout funktional, Transaktionen real (item_type='walk_in_sale'), tse_signature='DRY_RUN'. PWA-fähig. Admin-UI: `/app/pos` (Terminal) + `/app/pos/reports` (Analytics). Stats-Cards, Payment-Auswahl (SumUp/Bar/PayPal/Überweisung), Customer-Panel (Anonym/Suchen/Neu+Adresse), Discount EUR/%, Cash Quick-Amount-Grid mit Wechselgeld. Stubs: TSE (gelber Banner), Tax-Free Export (disabled). Nächste Phase P1 wartet auf Steuerberater-Freigabe. Siehe `docs/optimizing/POS_WALK_IN_KONZEPT.md` v1.1.
 - `ERP_COMMISSION`, `ERP_TAX_25A`, `ERP_MARKETPLACE` — nicht implementiert (wartet auf fachliche Freigaben §14)
 
 ## Current Focus
@@ -404,7 +414,7 @@ VOD_Auctions/
 → Operative Aufgabenliste mit Workstreams, Blockern und nächsten Aktionen: [`docs/TODO.md`](docs/TODO.md)
 
 **Aktuell wichtigste nächste Schritte:**
-1. **Inventur v2 Phase 0:** Regression-Fixes für Exemplar-Modell (4 Dateien: media/route, media/[id], media-UI, export) — abwärtskompatibel, sofort deploybar
+1. **POS P0 Dry-Run live:** Frank testet Scan→Cart→Checkout im Laden. Feedback sammeln, UX-Probleme fixen. Stat-Cards klickbar → `/app/pos/reports` mit Transaktionsliste.
 2. **Inventur v2 Phase 1:** Schema-Migration + Search-First Session-Screen + Exemplar-Bewertung — Kern-Workflow damit Frank starten kann
 3. **L1:** AGB-Anwalt beauftragen (Launch-Blocker)
 

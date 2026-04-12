@@ -3,7 +3,7 @@
 **Bezug:** `POS_WALK_IN_KONZEPT.md` §12, Phase P0
 **UX-Referenz:** `POS_UX_RESEARCH.md` — vor der UI-Implementierung lesen!
 **Erstellt:** 2026-04-12
-**Status:** Offen
+**Status:** Alle 11 Tasks erledigt (2026-04-12). Deployed + live.
 
 ---
 
@@ -26,13 +26,13 @@ Diese Regeln gelten fuer alle UI-Tasks (P0.7, P0.8):
 
 ## Vorbereitung
 
-- [ ] **P0.1 — Feature-Flag `POS_WALK_IN`**
+- [x] **P0.1 — Feature-Flag `POS_WALK_IN`** (2026-04-12)
   - `backend/src/lib/feature-flags.ts`: Neuen Eintrag in `FEATURES` Registry
   - `key: "POS_WALK_IN"`, `category: "erp"`, `requires: ["ERP_INVENTORY"]`
   - `description: "POS / Walk-in Sale — Kassen-Oberfläche für den Laden"`
   - Kein DB-Change nötig (lebt in `site_config.features` JSONB)
 
-- [ ] **P0.2 — DB-Migration**
+- [x] **P0.2 — DB-Migration** (2026-04-12)
   - Datei: `backend/scripts/migrations/pos_walk_in_columns.sql`
   - 11 neue Spalten auf `transaction` (alle nullable, rein additiv):
     ```
@@ -54,7 +54,7 @@ Diese Regeln gelten fuer alle UI-Tasks (P0.7, P0.8):
 
 ## Backend API
 
-- [ ] **P0.3 — Session + Cart API**
+- [x] **P0.3 — Session + Cart API**
   - `POST /admin/pos/sessions` → UUID generieren, in-memory oder lightweight DB-Eintrag, return `{session_id}`
   - `POST /admin/pos/sessions/:id/items` → Body: `{barcode}`. Barcode validieren (`VOD-` Prefix), `erp_inventory_item` + Release + Artist + Label joinen. Prüfen: `status != 'sold'`, nicht in aktivem `block_item`. Return Item-Objekt mit Cover, Titel, Artist, Format, Preis.
   - `DELETE /admin/pos/sessions/:id/items/:itemId` → Item aus Session entfernen
@@ -64,7 +64,7 @@ Diese Regeln gelten fuer alle UI-Tasks (P0.7, P0.8):
     - `backend/src/api/admin/pos/sessions/[id]/items/route.ts`
     - `backend/src/api/admin/pos/sessions/[id]/items/[itemId]/route.ts`
 
-- [ ] **P0.4 — Checkout API**
+- [x] **P0.4 — Checkout API**
   - `POST /admin/pos/sessions/:id/checkout`
   - Body: `{payment_provider, customer_id?, discount_eur?, items: [{inventory_item_id, price}]}`
   - In einer DB-Transaktion (Knex):
@@ -77,14 +77,14 @@ Diese Regeln gelten fuer alle UI-Tasks (P0.7, P0.8):
   - Return: `{transaction_id, order_number, receipt_pdf_url}`
   - Datei: `backend/src/api/admin/pos/sessions/[id]/checkout/route.ts`
 
-- [ ] **P0.5 — Customer API**
+- [x] **P0.5 — Customer API**
   - `GET /admin/pos/customer-search?q=` → Suche in `customer` (first_name, last_name, email) JOIN `customer_stats`. Top 10 Results. Felder: id, name, email, total_spent, total_purchases, is_vip.
   - `POST /admin/pos/customers` → Body: `{first_name, last_name, email?, phone?}`. Medusa Customer erzeugen + `customer_stats`-Row initialisieren.
   - Dateien:
     - `backend/src/api/admin/pos/customer-search/route.ts`
     - `backend/src/api/admin/pos/customers/route.ts`
 
-- [ ] **P0.6 — Receipt PDF API**
+- [x] **P0.6 — Receipt PDF API**
   - `GET /admin/pos/transactions/:id/receipt` → A6-PDF (105x148mm) via pdfkit
   - Inhalt: Header (VOD Records, Adresse), Bon-Nr, Datum, Artikel-Liste (Titel, Format, Preis), Discount (falls), Gesamt, Zahlungsart, Footer ("Dry-Run — keine TSE-Signatur")
   - Content-Type: `application/pdf`, Content-Disposition: `inline; filename="VOD-POS-000001.pdf"`
@@ -94,7 +94,7 @@ Diese Regeln gelten fuer alle UI-Tasks (P0.7, P0.8):
 
 ## Admin-UI
 
-- [ ] **P0.7 — POS-Page Layout**
+- [x] **P0.7 — POS-Page Layout**
   - Datei: `backend/src/admin/routes/pos/page.tsx`
   - `defineRouteConfig({ label: "POS" })` — Top-Level-Route
   - Full-width Layout (kein PageShell max-width-Limit):
@@ -103,7 +103,7 @@ Diese Regeln gelten fuer alle UI-Tasks (P0.7, P0.8):
   - Responsive: Ab <1024px einspaltiges Layout (Cart unter Scan)
   - Design: Admin-Tokens nutzen (C.gold, C.surface, etc.), DM Sans
 
-- [ ] **P0.8 — POS-Page Interaction**
+- [x] **P0.8 — POS-Page Interaction**
   - **Scanner-Input:** Keyboard-Event-Listener auf dem Input-Feld. Barcode-Scanner sendet Zeichen schnell hintereinander + Enter. Erkennung: wenn >4 Zeichen in <100ms getippt werden → Barcode-Scan (nicht manuelle Eingabe). Alternativ: einfach auf Enter reagieren und `VOD-`-Prefix prüfen.
   - **Cart-State:** Zustand Store (ephemer, kein DB-Persist). Actions: addItem, removeItem, setDiscount, setCustomer, setPaymentMethod, clearCart.
   - **Schutz-Checks bei Scan:**
@@ -127,7 +127,7 @@ Diese Regeln gelten fuer alle UI-Tasks (P0.7, P0.8):
 
 ## PWA
 
-- [ ] **P0.9 — PWA-Setup**
+- [x] **P0.9 — PWA-Setup**
   - `backend/public/manifest.json`:
     ```json
     {
@@ -155,7 +155,7 @@ Diese Regeln gelten fuer alle UI-Tasks (P0.7, P0.8):
 
 ## Integration
 
-- [ ] **P0.10 — Operations-Hub-Card**
+- [x] **P0.10 — Operations-Hub-Card**
   - `backend/src/admin/routes/operations/page.tsx`: Neue HubCard im "Platform Tools" Grid
   - Icon: "🛒", Title: "POS / Walk-in Sale"
   - Description: "Scan barcodes, build cart, process walk-in sales. Prints receipt, updates inventory."
@@ -163,7 +163,7 @@ Diese Regeln gelten fuer alle UI-Tasks (P0.7, P0.8):
   - Href: `/app/pos`
   - Action-Label: "Open POS Terminal →"
 
-- [ ] **P0.11 — Orders-Integration**
+- [x] **P0.11 — Orders-Integration**
   - `/app/transactions` (bestehende Orders-Page): Walk-in-Sale-Transaktionen mit Badge "POS" (lila oder gold) anzeigen
   - Filter-Option `item_type=walk_in_sale` hinzufügen
   - Order-Number `VOD-POS-XXXXXX` statt `VOD-ORD-XXXXXX` anzeigen
