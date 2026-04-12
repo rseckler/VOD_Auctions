@@ -534,7 +534,7 @@ function StocktakeSessionPage() {
     <PageShell>
       <PageHeader
         title="Stocktake Session"
-        subtitle={stats ? `${stats.verified.toLocaleString()} / ${stats.eligible.toLocaleString()} verified (${((stats.verified / stats.eligible) * 100).toFixed(1)}%)` : "Loading..."}
+        subtitle={stats ? `${stats.verified.toLocaleString()} verified · ${stats.eligible.toLocaleString()} im Inventar · ${(stats as any).total_releases?.toLocaleString() || "..."} im Katalog` : "Loading..."}
         actions={
           <div style={{ display: "flex", gap: S.gap.md, alignItems: "center" }}>
             <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", ...T.small }}>

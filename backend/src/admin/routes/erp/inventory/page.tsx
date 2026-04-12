@@ -7,6 +7,7 @@ import { Btn, Toast, Modal, Alert, Badge, inputStyle } from "../../../components
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 interface Stats {
+  total_releases: number
   eligible: number
   distinct_releases: number
   verified: number
@@ -230,7 +231,7 @@ function InventoryHubPage() {
     <PageShell maxWidth={1000}>
       <PageHeader
         title="Inventory Stocktake"
-        subtitle={`${stats?.distinct_releases.toLocaleString() || "..."} releases · ${stats?.eligible.toLocaleString() || "..."} exemplars im Inventar`}
+        subtitle={`${(stats as any)?.total_releases?.toLocaleString() || "..."} releases im Katalog · ${stats?.eligible.toLocaleString() || "..."} exemplars im Inventar`}
         badge={
           progressPercent === 100
             ? { label: "COMPLETE", color: C.success }
@@ -245,10 +246,10 @@ function InventoryHubPage() {
         <>
           <StatsGrid
             stats={[
-              { label: "Exemplare", value: stats.eligible.toLocaleString() },
+              { label: "Katalog gesamt", value: stats.total_releases.toLocaleString() },
+              { label: "Im Inventar", value: stats.eligible.toLocaleString(), color: C.gold },
               { label: "Verifiziert", value: stats.verified.toLocaleString(), color: C.success },
-              { label: "Ausstehend", value: stats.remaining.toLocaleString(), color: stats.remaining > 0 ? C.gold : C.success },
-              { label: "Zusätzl. Kopien", value: stats.additional_copies.toLocaleString(), color: stats.additional_copies > 0 ? C.info : C.muted },
+              { label: "Ausstehend", value: stats.remaining.toLocaleString(), color: stats.remaining > 0 ? C.warning : C.success },
             ]}
           />
 

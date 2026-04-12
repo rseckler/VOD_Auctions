@@ -14,8 +14,8 @@ export async function GET(
   const pg: Knex = req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
   await requireFeatureFlag(pg, "ERP_INVENTORY")
 
-  const [counts, todayStats, formatBreakdown, bulkLog] = await Promise.all([
-    // Stocktake progress counts (Exemplar-level)
+  const [counts, totalReleases, todayStats, formatBreakdown, bulkLog] = await Promise.all([
+    // Stocktake progress counts (Exemplar-level, only items IN inventory)
     pg.raw(`
       SELECT
         COUNT(*) AS eligible,
@@ -38,6 +38,9 @@ export async function GET(
       JOIN "Release" r ON r.id = ii.release_id
       WHERE ii.source = 'frank_collection'
     `),
+
+    // Total releases in the entire catalog (not just inventory)
+    pg.raw(`SELECT COUNT(*)::int AS total FROM "Release"`),
 
     // Today's activity
     pg.raw(`
@@ -81,9 +84,11 @@ export async function GET(
   ])
 
   const row = counts.rows[0]
+  const total = totalReleases.rows[0]
   const today = todayStats.rows[0]
 
   res.json({
+    total_releases: Number(total.total),
     eligible: Number(row.eligible),
     distinct_releases: Number(row.distinct_releases),
     verified: Number(row.verified),
