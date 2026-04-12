@@ -1,6 +1,6 @@
 # Discogs Import — Session Lock Refactoring Plan
 
-**Status:** REVIEWED — Ready for implementation
+**Status:** IMPLEMENTED — Deployed 2026-04-12, commit `723ddc0`
 **Author:** Robin + Claude (rc25 post-mortem analysis) + Codex Review (2026-04-12)
 **Datum:** 2026-04-11 (geplante Umsetzung: 2026-04-12)
 **Scope:** Ownership + Concurrency-Kontrolle für die drei Discogs-Import Loops (fetch, analyze, commit)
