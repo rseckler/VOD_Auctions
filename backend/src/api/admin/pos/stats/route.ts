@@ -15,8 +15,16 @@ export async function GET(
   res: MedusaResponse
 ): Promise<void> {
   const pg: Knex = req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
-  await requireFeatureFlag(pg, "POS_WALK_IN")
 
+  try {
+    await requireFeatureFlag(pg, "POS_WALK_IN")
+  } catch (err: any) {
+    console.error("[POS Stats] Feature flag check failed:", err.message, err.statusCode)
+    res.status(err.statusCode || 403).json({ message: err.message || "Feature not enabled" })
+    return
+  }
+
+  try {
   const result = await pg.raw(`
     WITH pos_tx AS (
       SELECT
@@ -93,4 +101,8 @@ export async function GET(
       { method: "bank_transfer", label: "Bank Transfer", count: n(r.transfer_count), total: n(r.transfer_total) },
     ].filter((p) => p.count > 0),
   })
+  } catch (err: any) {
+    console.error("[POS Stats] Query error:", err.message)
+    res.status(500).json({ message: err.message || "Failed to load stats" })
+  }
 }
