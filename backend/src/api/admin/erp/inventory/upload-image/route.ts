@@ -2,43 +2,19 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, generateEntityId } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { requireFeatureFlag } from "../../../../../lib/inventory"
-import sharp from "sharp"
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3"
+import { optimizeImage, uploadToR2 } from "../../../../../lib/image-upload"
 
 /**
  * POST /admin/erp/inventory/upload-image
  *
  * Upload a product image (e.g., from iPhone camera) during stocktake.
- * - Accepts multipart/form-data with `image` file + `release_id`
+ * - Accepts JSON with base64-encoded image + release_id
  * - Optimizes with sharp: resize to max 1200px, WebP 80% quality
  * - Uploads to Cloudflare R2 (vod-images bucket)
  * - Inserts into Image table + updates Release.coverImage
  *
  * Returns: { url, image_id, message }
  */
-
-const R2_ENDPOINT = process.env.R2_ENDPOINT || "https://98bed59e4077ace876d8c5870be1ad39.r2.cloudflarestorage.com"
-const R2_BUCKET = process.env.R2_BUCKET || "vod-images"
-const R2_PREFIX = process.env.R2_PREFIX || "tape-mag/standard/"
-const R2_PUBLIC_URL = "https://pub-433520acd4174598939bc51f96e2b8b9.r2.dev"
-
-let s3Client: S3Client | null = null
-
-function getS3Client(): S3Client {
-  if (!s3Client) {
-    const accessKeyId = process.env.R2_ACCESS_KEY_ID
-    const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY
-    if (!accessKeyId || !secretAccessKey) {
-      throw new Error("R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY must be set")
-    }
-    s3Client = new S3Client({
-      region: "auto",
-      endpoint: R2_ENDPOINT,
-      credentials: { accessKeyId, secretAccessKey },
-    })
-  }
-  return s3Client
-}
 
 export async function POST(
   req: MedusaRequest,
@@ -78,27 +54,12 @@ export async function POST(
       const imageBuffer = Buffer.from(base64Data, "base64")
 
       // Optimize with sharp: resize max 1200px, WebP 80%
-      const optimized = await sharp(imageBuffer)
-        .resize(1200, 1200, { fit: "inside", withoutEnlargement: true })
-        .webp({ quality: 80 })
-        .toBuffer()
+      const optimized = await optimizeImage(imageBuffer)
 
-      // Generate filename
+      // Generate filename + upload to R2
       const releaseSlug = body.release_id.replace(/[^a-zA-Z0-9-]/g, "_")
-      const timestamp = Date.now()
-      const filename = `${releaseSlug}_${timestamp}.webp`
-      const r2Key = `${R2_PREFIX}${filename}`
-
-      // Upload to R2
-      const client = getS3Client()
-      await client.send(new PutObjectCommand({
-        Bucket: R2_BUCKET,
-        Key: r2Key,
-        Body: optimized,
-        ContentType: "image/webp",
-      }))
-
-      const publicUrl = `${R2_PUBLIC_URL}/${r2Key}`
+      const filename = `${releaseSlug}_${Date.now()}.webp`
+      const publicUrl = await uploadToR2(optimized, "tape-mag/uploads/", filename)
 
       // Insert into Image table
       const imageId = generateEntityId()

@@ -17,6 +17,7 @@ import {
   releaseLock,
   startHeartbeatLoop,
 } from "../../../../lib/discogs-import"
+import { isR2Configured, downloadOptimizeUpload } from "../../../../lib/image-upload"
 
 // ─── POST /admin/discogs-import/commit ───────────────────────────────────────
 // SSE Stream with phase-based progress:
@@ -760,22 +761,32 @@ export async function POST(
           }
         }
 
-        // Images
+        // Images — download from Discogs → optimize → upload to R2 (if configured).
+        // Falls back to Discogs hotlink URL if R2 is not configured.
         const images = (cached?.images || []) as Array<{ uri?: string; type?: string }>
         const maxImages = Math.min(images.length, 5)
+        const useR2 = isR2Configured()
         for (let imgIdx = 0; imgIdx < maxImages; imgIdx++) {
           const img = images[imgIdx]
           if (!img.uri) continue
           const imageId = `discogs-image-${did}-${imgIdx + 1}`
+
+          // Try R2 upload; fall back to hotlink on failure
+          let imageUrl = img.uri
+          if (useR2) {
+            const r2Url = await downloadOptimizeUpload(img.uri, releaseId, imageId)
+            if (r2Url) imageUrl = r2Url
+          }
+
           await trx.raw(
             `INSERT INTO "Image" (id, url, alt, "releaseId", rang, source, "createdAt")
             VALUES (?, ?, ?, ?, ?, 'discogs', NOW()) ON CONFLICT (id) DO NOTHING`,
-            [imageId, img.uri, `${row.artist} — ${row.title}`, releaseId, imgIdx + 1]
+            [imageId, imageUrl, `${row.artist} — ${row.title}`, releaseId, imgIdx + 1]
           )
           if (imgIdx === 0) {
             await trx.raw(
               `UPDATE "Release" SET "coverImage" = ? WHERE id = ? AND "coverImage" IS NULL`,
-              [img.uri, releaseId]
+              [imageUrl, releaseId]
             )
           }
         }
