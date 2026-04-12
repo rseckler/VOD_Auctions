@@ -213,8 +213,15 @@ def main():
 
             if args.limit and processed >= args.limit:
                 print(f"\n  Limit reached ({args.limit}), stopping.")
+                if not args.dry_run:
+                    conn.commit()
                 save_progress(progress)
                 conn.close()
+                print()
+                print(f"=== Migration Complete (limit) ===")
+                print(f"  Total migrated: {progress['migrated']}")
+                print(f"  Total failed:   {progress['failed']}")
+                print(f"  Total skipped:  {progress['skipped']}")
                 return
 
             processed += 1
