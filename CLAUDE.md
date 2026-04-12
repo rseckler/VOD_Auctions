@@ -4,7 +4,7 @@
 **Goal:** Eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Beta Test (platform_mode: beta_test) — Pre-Launch Phase als nächster Schritt
 **Language:** Storefront + Admin-UI: Englisch
-**Last Updated:** 2026-04-10
+**Last Updated:** 2026-04-12
 
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
@@ -94,7 +94,7 @@ npm run build && pm2 restart vodauction-storefront
 - **`whole_euros_only: true`:** BID_CONFIG erzwingt ganzzahlige Gebote. Betrifft Validation, Increments, Display. Proxy-Max ebenfalls ganzzahlig validiert.
 - **UI/UX Governance:** Verbindliche Docs in `docs/UI_UX/` — Style Guide (Source of Truth), Gap Analysis, Optimization Plan, Implementation Report, PR Checklist. Jede UI-Änderung muss Shared Components (`Button`, `Input`, `Label`, `Card`) nutzen. Siehe `docs/UI_UX/CLAUDE.md` für Workflow.
 - **Timeouts sind Idle-Detection, keine Job-Dauer-Begrenzung:** Für lang laufende Ops (Discogs Import, Fetch, Analyze) **niemals** `proxy_read_timeout` absurd hochdrehen. Stattdessen: SSE-Heartbeat alle 5s senden (`SSEStream.startHeartbeat(5000)` aus `backend/src/lib/discogs-import.ts`), dann reicht nginx-Default (300s) auch für 4h-Fetches. Per-Op Timeouts (z.B. `AbortSignal.timeout(30000)` pro externem HTTP-Call) sind OK — sie verhindern dass ein kaputter Call den Job blockiert.
-- **Discogs Import Architektur (v5.3, rc20):** Sessions in `import_session`, Events in `import_event`, Cache in `discogs_api_cache`. Shared Lib: `backend/src/lib/discogs-import.ts` (`SSEStream` mit Headless Mode, `emitDbEvent`, `getSession`, `isCancelRequested`, `pushLastError`, `awaitPauseClearOrCancel(pg, id, stream | null)`). **Alle 3 Loops (Fetch/Analyze/Commit) sind detached background tasks** — POST validiert, spawnt Loop via `void (async () => {...})().catch()`, returnt sofort 200 JSON. UI polled (2s) `/session/:id/status?since_id=X`. Idempotent via 60s Stale-Check. **SSEStream Headless Mode:** Konstruktor nimmt `res: MedusaResponse | null` — bei `null` routen `emit()` Calls direkt in `import_event`, `startHeartbeat/end` sind no-ops. Das erlaubt Weiterverwendung der existing Loop-Bodies ohne Refactoring. Siehe `docs/DISCOGS_IMPORT_SERVICE.md` v5.3.
+- **Discogs Import Architektur (v6.0, rc26):** Sessions in `import_session`, Events in `import_event`, Cache in `discogs_api_cache`, **Ownership in `session_locks`**. Shared Lib: `backend/src/lib/discogs-import.ts` (`SSEStream` mit Headless Mode, `emitDbEvent`, `getSession`, `isCancelRequested`, `pushLastError`, `awaitPauseClearOrCancel`, **Lock API: `acquireLock`, `validateLock`, `releaseLock`, `startHeartbeatLoop`**). **Alle 3 Loops (Fetch/Analyze/Commit) sind detached background tasks** — POST acquired Lock via `acquireLock()`, spawnt Loop mit `ownerId`, returnt sofort 200 JSON. UI polled (2s) `/session/:id/status?since_id=X`. Idempotent via Lock-Table (nicht mehr `last_event_at`). Heartbeat alle 30s, Stale-Threshold 150s. **SSEStream Headless Mode:** Konstruktor nimmt `res: MedusaResponse | null` — bei `null` routen `emit()` Calls direkt in `import_event`, `startHeartbeat/end` sind no-ops. Siehe `docs/architecture/DISCOGS_IMPORT_SESSION_LOCK_PLAN.md`.
 - **HTTP-Request-lifetime vs Background-Loop:** Lang laufende Loops dürfen nicht tightly mit `res.write()` gecoupled sein. Wenn Client disconnected (Navigation, Tab-Close, pm2 restart), tear-down des Medusa-Request-Scopes killed den Loop **still** (keine Exception im Stderr). Lösung: Loop als detached task via `void (async () => { try { ... } })().catch(...)`, HTTP-Route returnt 200 sofort, Events in DB schreiben, UI polled. Simpler Pattern (für standalone loops): extract body in separate function + `emitDbEvent()`. Complex Pattern (existing SSE loops unverändert lassen): SSEStream Headless Mode via `new SSEStream(null, pg, id)`. Beide Patterns siehe `backend/src/api/admin/discogs-import/{fetch,analyze,commit}/route.ts`.
 - **Stale Session Auto-Cleanup:** Sessions in non-terminal Status (`fetching`/`analyzing`/`importing`) werden automatisch aus `active_sessions` filtered wenn `created_at < NOW() - 6h`. Neuer terminal state `abandoned` (kein Schema-Change — `status` TEXT ohne Constraint). Manuell cleanen: `UPDATE import_session SET status='abandoned' WHERE status NOT IN ('done','abandoned','error') AND created_at < NOW() - INTERVAL '6 hours';`
 - **Btn Component API:** `backend/src/admin/components/admin-ui.tsx` `Btn` nimmt `label` prop (string, nicht children!), und die einzigen gültigen Variants sind `primary`/`gold`/`danger`/`ghost` (KEIN `secondary`). Falscher Call `<Btn variant="secondary">children</Btn>` rendert einen leeren Button ohne Fehler! Für Custom-Styling plain `<button>` mit inline styles nutzen, nicht versuchen Btn zu hacken.
@@ -134,6 +134,7 @@ npm run build && pm2 restart vodauction-storefront
 - `import_event` — Event-Log pro Session (für Live-Log + Drill-Down). `(id, session_id FK, phase, event_type, payload JSONB, created_at)`. Wächst unbegrenzt — periodisches Cleanup empfohlen (>30d).
 - `discogs_api_cache` — Per-discogs_id API-Response Cache. `(discogs_id PK, api_data JSONB, suggested_prices JSONB, is_error, fetched_at, expires_at)`. TTL 30d (Errors 7d). Ersetzt das alte `scripts/data/discogs_import_cache.json`.
 - `import_log` — Run-Log mit einem Eintrag pro importierter Release: `run_id`, `action` (inserted/linked/updated/skipped), `data_snapshot` (Excel-Row + API-Summary). Drill-Down: `GET /admin/discogs-import/history?run_id=...`.
+- `session_locks` — Exclusive Ownership Lock pro Import-Session (rc26). `(session_id PK → import_session, owner_id UUID, phase CHECK fetching/analyzing/importing, acquired_at, heartbeat_at)`. Heartbeat alle 30s, Stale-Threshold 150s. Atomisches `INSERT ON CONFLICT DO UPDATE WHERE heartbeat stale` für Lock-Acquisition. Lock wird im POST-Handler acquired, im finally-Block released. Ersetzt das alte JSONB run_token CAS-System. Siehe `docs/architecture/DISCOGS_IMPORT_SESSION_LOCK_PLAN.md`.
 
 ### Release sale_mode
 - `auction_only` (default) | `direct_purchase` | `both`
@@ -393,17 +394,38 @@ VOD_Auctions/
 **legacy_available:** Spiegelt MySQL `frei`-Feld — `frei=1` → true (verfügbar), `frei=0` → false (gesperrt), `frei>1` (Unix-Timestamp) → false (auf tape-mag verkauft). Wird stündlich per Legacy-Sync aktualisiert.
 
 **ERP Module Status:**
-- `ERP_INVENTORY` — **Code deployed, Flag OFF.** Tabellen `erp_inventory_item` (13.107 Cohort-A Items backfilled), `erp_inventory_movement`, `bulk_price_adjustment_log`. Sync-Schutz (`price_locked`) in `legacy_sync_v2.py`. Admin-UI: `/app/erp/inventory` (Hub) + `/app/erp/inventory/session` (Keyboard-Stocktake). Aktivierung: Flag ON → Bulk +15% → Frank startet Inventur-Sessions (4-6 Wochen). Siehe `docs/optimizing/INVENTUR_COHORT_A_KONZEPT.md`.
+- `ERP_INVENTORY` — **Flag ON, Bulk +15% ausgeführt (2026-04-12).** 13.107 Cohort-A Items, alle `price_locked=true`, Gesamtwert €465.358. V5 Sync-Schutz verifiziert. Tabellen: `erp_inventory_item`, `erp_inventory_movement` (26.214 Rows), `bulk_price_adjustment_log`. Admin-UI: `/app/erp/inventory` (Hub) + `/app/erp/inventory/session` (Keyboard-Stocktake). **Nächster Schritt:** Frank startet Inventur-Sessions (4-6 Wochen). Siehe `docs/optimizing/INVENTUR_COHORT_A_KONZEPT.md`.
 - `ERP_INVOICING` — nicht implementiert (wartet auf easybill-Account + StB-Termin)
 - `ERP_SENDCLOUD` — nicht implementiert (Sendcloud-Account erstellt am 07.04., DHL-GK-Nr vorhanden, Code pending)
 - `ERP_COMMISSION`, `ERP_TAX_25A`, `ERP_MARKETPLACE` — nicht implementiert (wartet auf fachliche Freigaben §14)
 
+## Current Focus
+
+→ Operative Aufgabenliste mit Workstreams, Blockern und nächsten Aktionen: [`docs/TODO.md`](docs/TODO.md)
+
+**Aktuell wichtigste nächste Schritte:**
+1. **E3-E5:** Frank für Inventur briefen — Session-URL + Shortcuts erklären, Test-Durchlauf, V5 nach Frank-Test prüfen
+2. **L1:** AGB-Anwalt beauftragen (Launch-Blocker)
+3. **POS-D1/D2:** Steuerberater-Termin für §10-Entscheidungen (TSE, Kleinunternehmer-Status)
+
+**Arbeitsregeln:**
+- Für operative Details immer `docs/TODO.md` nutzen — keine Task-Listen in CLAUDE.md pflegen
+- Bei Meilensteinen (Release, Blocker gelöst, Phase abgeschlossen): Current Focus hier aktualisieren
+- Große Themen, externe Blocker und mehrwöchige Epics leben in Linear, nicht hier
+
 ## Linear
 
 **Project:** https://linear.app/rseckler/project/vod-auctions-37f35d4e90be
-**Nächster Schritt:** RSE-78 (Launch, offen: AGB-Anwalt)
-**In Progress:** RSE-227 (Entity Content Overhaul, P2 paused bis 01.04.2026)
-**Backlog:** RSE-78 (Launch, offen: AGB-Anwalt) | RSE-79 (Erste öffentliche Auktionen) | RSE-80 (Marketing)
+
+| Issue | Thema | Status | Blocker |
+|---|---|---|---|
+| RSE-78 | Launch vorbereiten | backlog, **High** | AGB-Anwalt |
+| RSE-227 | Entity Content Overhaul | in progress (paused) | Budget-Freigabe |
+| RSE-288 | Discogs Preisvergleich-UI | backlog | Echte Sale-Daten |
+| RSE-294 | Erste öffentliche Auktionen | backlog | RSE-78 |
+| RSE-295 | Marketing-Strategie | backlog | RSE-294 |
+| RSE-289 | PWA + Push-Notifications | backlog | Later |
+| RSE-291 | Multi-Seller Marketplace | backlog | v2.0.0 |
 
 ## Recent Changes
 
