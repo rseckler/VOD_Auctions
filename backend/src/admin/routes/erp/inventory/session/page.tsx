@@ -1,43 +1,102 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useAdminNav } from "../../../../components/admin-nav"
-import { C, S } from "../../../../components/admin-tokens"
+import { C, T, S, fmtMoney } from "../../../../components/admin-tokens"
 import { PageHeader, PageShell } from "../../../../components/admin-layout"
-import { Btn, Toast, Modal, inputStyle, Alert } from "../../../../components/admin-ui"
+import { Btn, Toast, Modal, inputStyle, Badge } from "../../../../components/admin-ui"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface QueueItem {
-  inventory_item_id: string
-  barcode: string | null
+interface SearchResult {
   release_id: string
+  artist_name: string | null
+  title: string
+  format: string
+  catalog_number: string | null
+  cover_image: string | null
+  legacy_price: number | null
+  label_name: string | null
+  year: number | null
+  country: string | null
+  exemplar_count: number
+  verified_count: number
+  discogs_median: number | null
+  discogs_id: number | null
+  matched_exemplar?: {
+    inventory_item_id: string
+    barcode: string | null
+    copy_number: number
+    condition_media: string | null
+    condition_sleeve: string | null
+    exemplar_price: number | null
+    is_verified: boolean
+  }
+}
+
+interface ReleaseDetail {
+  id: string
   title: string
   artist_name: string | null
   label_name: string | null
   format: string
-  format_group: number
-  format_group_label: string
-  coverImage: string | null
-  catalogNumber: string | null
-  legacy_price: number | null
-  legacy_condition: string | null
-  legacy_format_detail: string | null
   year: number | null
   country: string | null
-  product_category: string
-  discogs_id: number | null
-  discogs_lowest_price: number | null
-  discogs_median_price: number | null
-  discogs_highest_price: number | null
+  cover_image: string | null
+  catalog_number: string | null
+  legacy_price: number | null
+  legacy_condition: string | null
+  discogs_lowest: number | null
+  discogs_median: number | null
+  discogs_highest: number | null
   discogs_num_for_sale: number | null
   discogs_url: string | null
-  inventory_notes: string | null
 }
 
-// ─── Printer Status ────────────────────────────────────────────────────────
+interface CopyItem {
+  id: string
+  barcode: string | null
+  copy_number: number
+  condition_media: string | null
+  condition_sleeve: string | null
+  exemplar_price: number | null
+  effective_price: number | null
+  status: string
+  is_verified: boolean
+  verified_at: string | null
+  verified_by: string | null
+  price_locked: boolean
+  notes: string | null
+  source: string | null
+}
+
+// ─── Constants ──────────────────────────────────────────────────────────────
+
+const GRADES = ["M", "NM", "VG+", "VG", "G+", "G", "F", "P"] as const
+type Grade = (typeof GRADES)[number]
+
+const LEGACY_CONDITION_MAP: Record<string, Grade> = {
+  m: "M", mint: "M",
+  nm: "NM", "near mint": "NM", "n/m": "NM", "m-": "NM",
+  "vg+": "VG+", "very good plus": "VG+", ex: "VG+", excellent: "VG+",
+  vg: "VG", "very good": "VG",
+  "g+": "G+", "good plus": "G+",
+  g: "G", good: "G",
+  f: "F", fair: "F",
+  p: "P", poor: "P",
+}
+
+function parseLegacyCondition(legacy: string | null): { media: Grade | null; sleeve: Grade | null } {
+  if (!legacy) return { media: null, sleeve: null }
+  const parts = legacy.toLowerCase().split("/").map((s) => s.trim())
+  return {
+    media: LEGACY_CONDITION_MAP[parts[0]] || null,
+    sleeve: parts[1] ? LEGACY_CONDITION_MAP[parts[1]] || null : null,
+  }
+}
+
+// ─── Printer ────────────────────────────────────────────────────────────────
 
 type PrinterStatus = "connected" | "browser" | "none"
 
-/** Try to connect to QZ Tray via WebSocket. Returns true if available. */
 async function checkQzTray(): Promise<boolean> {
   try {
     const ws = new WebSocket("wss://localhost:8181")
@@ -46,28 +105,11 @@ async function checkQzTray(): Promise<boolean> {
       ws.onerror = () => resolve(false)
       setTimeout(() => { ws.close(); resolve(false) }, 1000)
     })
-  } catch {
-    return false
-  }
+  } catch { return false }
 }
 
-/**
- * Print a label PDF. Tries QZ Tray first (silent print), falls back to browser print.
- * Returns the barcode string for toast feedback.
- */
-async function printLabel(inventoryItemId: string, printerStatus: PrinterStatus): Promise<string | null> {
-  const labelUrl = `/admin/erp/inventory/items/${inventoryItemId}/label`
-
-  if (printerStatus === "connected") {
-    // QZ Tray silent print: fetch PDF as blob, send to QZ Tray
-    // For now, we open in new tab — full QZ Tray integration in B6
-    window.open(labelUrl, "_blank")
-    return inventoryItemId
-  }
-
-  // Browser fallback: open PDF in new tab for Ctrl+P
-  window.open(labelUrl, "_blank")
-  return inventoryItemId
+async function printLabel(inventoryItemId: string): Promise<void> {
+  window.open(`/admin/erp/inventory/items/${inventoryItemId}/label`, "_blank")
 }
 
 // ─── API Helper ─────────────────────────────────────────────────────────────
@@ -85,600 +127,651 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json()
 }
 
+// ─── Grade Selector Component ──────────────────────────────────────────────
+
+function GradeSelector({ label, value, onChange }: { label: string; value: Grade | null; onChange: (g: Grade) => void }) {
+  return (
+    <div style={{ marginBottom: S.gap.md }}>
+      <div style={{ ...T.small, color: C.muted, marginBottom: 4 }}>{label}</div>
+      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+        {GRADES.map((g) => (
+          <button
+            key={g}
+            onClick={() => onChange(g)}
+            style={{
+              padding: "6px 12px",
+              border: `1px solid ${value === g ? C.gold : C.border}`,
+              borderRadius: 4,
+              background: value === g ? C.gold : "transparent",
+              color: value === g ? "#000" : C.fg,
+              cursor: "pointer",
+              fontSize: 13,
+              fontWeight: value === g ? 700 : 400,
+              transition: "all 0.15s",
+            }}
+          >
+            {g}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─── Main Session Page ──────────────────────────────────────────────────────
 
 function StocktakeSessionPage() {
   useAdminNav()
 
-  const [items, setItems] = useState<QueueItem[]>([])
-  const [currentIndex, setCurrentIndex] = useState(0)
-  const [remaining, setRemaining] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState("")
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null)
-  const [totalProcessed, setTotalProcessed] = useState(0)
+  // Search
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [selectedResultIndex, setSelectedResultIndex] = useState(0)
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
-  // Price input state
-  const [priceInputActive, setPriceInputActive] = useState(false)
+  // Release detail + copies
+  const [releaseDetail, setReleaseDetail] = useState<ReleaseDetail | null>(null)
+  const [copies, setCopies] = useState<CopyItem[]>([])
+  const [activeView, setActiveView] = useState<"search" | "detail">("search")
+
+  // Evaluation form (for verifying or adding a copy)
+  const [editingCopy, setEditingCopy] = useState<CopyItem | null>(null)
+  const [isNewCopy, setIsNewCopy] = useState(false)
+  const [conditionMedia, setConditionMedia] = useState<Grade | null>(null)
+  const [conditionSleeve, setConditionSleeve] = useState<Grade | null>(null)
   const [priceValue, setPriceValue] = useState("")
-  const priceInputRef = useRef<HTMLInputElement>(null)
-
-  // Note modal state
-  const [showNoteModal, setShowNoteModal] = useState(false)
   const [noteText, setNoteText] = useState("")
 
-  // Exit modal state
+  // Stats
+  const [stats, setStats] = useState<{ eligible: number; verified: number } | null>(null)
+
+  // UI state
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null)
   const [showExitModal, setShowExitModal] = useState(false)
-
-  // Undo stack
-  const [undoStack, setUndoStack] = useState<Array<{ itemId: string; action: string }>>([])
-
-  // Printer status
   const [printerStatus, setPrinterStatus] = useState<PrinterStatus>("none")
   const [autoPrint, setAutoPrint] = useState(true)
+  const [recentItems, setRecentItems] = useState<Array<{ artist: string; title: string; copy: number }>>([])
+  const [actionLoading, setActionLoading] = useState(false)
 
-  // Check QZ Tray on mount
+  // Scanner buffer
+  const scanBuffer = useRef("")
+  const scanTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // ── Init ──
+
   useEffect(() => {
-    checkQzTray().then((available) => {
-      setPrinterStatus(available ? "connected" : "browser")
-    })
+    checkQzTray().then((ok) => setPrinterStatus(ok ? "connected" : "browser"))
+    apiFetch<any>("/admin/erp/inventory/stats").then((s) => {
+      setStats({ eligible: s.eligible, verified: s.verified })
+    }).catch(() => {})
+    // Focus search on mount
+    setTimeout(() => searchInputRef.current?.focus(), 100)
   }, [])
 
-  // ── Scanner detection ──
+  // ── Search ──
 
-  const handleScanBarcode = useCallback(async (barcode: string) => {
-    if (!barcode.startsWith("VOD-")) {
-      setToast({ message: `Unknown barcode: ${barcode}`, type: "error" })
+  const doSearch = useCallback(async (q: string) => {
+    if (!q.trim()) {
+      setSearchResults([])
       return
     }
+    setSearchLoading(true)
     try {
-      const item = await apiFetch<QueueItem>(`/admin/erp/inventory/scan/${barcode}`)
-      // Insert scanned item at current position for immediate display
-      setItems((prev) => {
-        const filtered = prev.filter((i) => i.inventory_item_id !== item.inventory_item_id)
-        return [item, ...filtered]
-      })
-      setCurrentIndex(0)
-      setToast({ message: `Scanned: ${barcode}`, type: "success" })
-    } catch {
-      setToast({ message: `Barcode ${barcode} not found`, type: "error" })
-    }
-  }, [])
-
-  // ── Load queue ──
-
-  const loadQueue = useCallback(async () => {
-    setLoading(true)
-    try {
-      const data = await apiFetch<{ items: QueueItem[]; remaining: number }>("/admin/erp/inventory/queue?limit=50")
-      setItems(data.items)
-      setRemaining(data.remaining)
-      setCurrentIndex(0)
-    } catch (e: any) {
-      setError(e.message)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => { loadQueue() }, [loadQueue])
-
-  // ── Deep-link support: ?item_id=X loads a specific item directly ──
-  // Used by the "Load in Stocktake Session" button on the Media Detail page.
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const itemIdParam = params.get("item_id")
-    if (!itemIdParam) return
-    ;(async () => {
-      try {
-        const item = await apiFetch<QueueItem>(`/admin/erp/inventory/items/${itemIdParam}`)
-        setItems((prev) => {
-          const filtered = prev.filter((i) => i.inventory_item_id !== item.inventory_item_id)
-          return [item, ...filtered]
-        })
-        setCurrentIndex(0)
-        setToast({ message: `Loaded: ${item.artist_name || "Unknown"} — ${item.title}`, type: "success" })
-        // Strip the query param from URL so a refresh doesn't re-load forever
-        const cleanUrl = window.location.pathname
-        window.history.replaceState({}, "", cleanUrl)
-      } catch {
-        setToast({ message: `Item ${itemIdParam} not found`, type: "error" })
-      }
-    })()
-  }, [])
-
-  // ── Current item ──
-
-  const current = items[currentIndex] || null
-
-  const advanceToNext = () => {
-    setTotalProcessed((p) => p + 1)
-    setPriceInputActive(false)
-    setPriceValue("")
-    if (currentIndex < items.length - 1) {
-      setCurrentIndex((i) => i + 1)
-    } else {
-      // Reached end of batch — reload queue
-      loadQueue()
-    }
-  }
-
-  // Prefetch when approaching end of batch
-  useEffect(() => {
-    if (currentIndex >= items.length - 10 && items.length > 0 && !loading) {
-      // Will reload when currentIndex reaches end via advanceToNext
-    }
-  }, [currentIndex, items.length, loading])
-
-  // ── Actions ──
-
-  const handleVerify = async (newPrice?: number) => {
-    if (!current) return
-    try {
-      const body: Record<string, unknown> = {}
-      if (newPrice != null) body.new_price = newPrice
-      const result = await apiFetch<{ barcode: string | null; label_url: string }>(
-        `/admin/erp/inventory/items/${current.inventory_item_id}/verify`,
-        { method: "POST", body: JSON.stringify(body) }
+      const data = await apiFetch<{ results: SearchResult[]; match_type: string }>(
+        `/admin/erp/inventory/search?q=${encodeURIComponent(q.trim())}&limit=20`
       )
+      setSearchResults(data.results)
+      setSelectedResultIndex(0)
 
-      // Auto-print label on verify
-      if (autoPrint && printerStatus !== "none") {
-        printLabel(current.inventory_item_id, printerStatus)
+      // Barcode direct hit: auto-open
+      if (data.match_type === "barcode" && data.results.length === 1) {
+        openRelease(data.results[0].release_id)
       }
-
-      setUndoStack((s) => [...s, { itemId: current.inventory_item_id, action: "verify" }])
-      const bc = result.barcode ? ` · ${result.barcode}` : ""
-      setToast({ message: newPrice != null ? `Verified at €${newPrice}${bc}` : `Verified${bc}`, type: "success" })
-      advanceToNext()
-    } catch (e: any) {
-      setToast({ message: e.message, type: "error" })
+    } catch {
+      setSearchResults([])
+    } finally {
+      setSearchLoading(false)
     }
+  }, [])
+
+  // Debounced search
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const handleSearchInput = (val: string) => {
+    setSearchQuery(val)
+    if (searchTimer.current) clearTimeout(searchTimer.current)
+    searchTimer.current = setTimeout(() => doSearch(val), 250)
   }
 
-  const handleMissing = async (notes?: string) => {
-    if (!current) return
+  // ── Open Release Detail ──
+
+  const openRelease = useCallback(async (releaseId: string) => {
     try {
-      await apiFetch(`/admin/erp/inventory/items/${current.inventory_item_id}/missing`, {
-        method: "POST",
-        body: JSON.stringify({ notes }),
-      })
-      setUndoStack((s) => [...s, { itemId: current.inventory_item_id, action: "missing" }])
-      setToast({ message: "Marked missing (price → €0)", type: "success" })
-      advanceToNext()
+      const data = await apiFetch<{ release: ReleaseDetail; copies: CopyItem[] }>(
+        `/admin/erp/inventory/release/${releaseId}/copies`
+      )
+      setReleaseDetail(data.release)
+      setCopies(data.copies)
+      setActiveView("detail")
+      setEditingCopy(null)
+      setIsNewCopy(false)
     } catch (e: any) {
-      setToast({ message: e.message, type: "error" })
+      setToast({ message: `Error: ${e.message}`, type: "error" })
     }
+  }, [])
+
+  // ── Start Editing a Copy ──
+
+  const startEditCopy = (copy: CopyItem) => {
+    setEditingCopy(copy)
+    setIsNewCopy(false)
+    setConditionMedia(copy.condition_media as Grade || null)
+    setConditionSleeve(copy.condition_sleeve as Grade || null)
+    setPriceValue(copy.effective_price != null ? String(copy.effective_price) : "")
+    setNoteText(copy.notes || "")
   }
 
-  const handleUndo = async () => {
-    const last = undoStack[undoStack.length - 1]
-    if (!last) return
-    try {
-      await apiFetch(`/admin/erp/inventory/items/${last.itemId}/reset`, { method: "POST" })
-      setUndoStack((s) => s.slice(0, -1))
-      setToast({ message: "Undo — item returned to queue", type: "success" })
-      loadQueue() // Reload to pick up the reset item
-    } catch (e: any) {
-      setToast({ message: e.message, type: "error" })
-    }
+  const startNewCopy = () => {
+    if (!releaseDetail) return
+    // Pre-fill from legacy condition
+    const parsed = parseLegacyCondition(releaseDetail.legacy_condition)
+    setEditingCopy(null)
+    setIsNewCopy(true)
+    setConditionMedia(parsed.media)
+    setConditionSleeve(parsed.sleeve)
+    setPriceValue(releaseDetail.legacy_price != null ? String(releaseDetail.legacy_price) : "")
+    setNoteText("")
   }
 
-  const handleNote = async () => {
-    if (!current || !noteText.trim()) return
-    try {
-      await apiFetch(`/admin/erp/inventory/items/${current.inventory_item_id}/note`, {
-        method: "POST",
-        body: JSON.stringify({ notes: noteText.trim() }),
-      })
-      setToast({ message: "Note saved", type: "success" })
-      setShowNoteModal(false)
-      setNoteText("")
-    } catch (e: any) {
-      setToast({ message: e.message, type: "error" })
-    }
-  }
-
-  // ── Unified keyboard handler: Scanner detection + Shortcuts ─────────────
-  //
-  // Single keydown listener that handles BOTH USB HID barcode scanner input
-  // AND single-key shortcuts (V/P/M/S/N/L/U, arrows, Esc).
-  //
-  // The trick that makes both coexist:
-  //   - Scanner chars arrive every 5–15ms (one full VOD-XXXXXX scan in <60ms).
-  //   - Human shortcuts are isolated keypresses with >80ms gaps.
-  //
-  // Every printable key schedules its shortcut action with a 40ms debounce.
-  // If another key arrives within those 40ms (scanner case), the first
-  // timer is cancelled. The scanner buffer absorbs ALL chars and fires
-  // handleScanBarcode on Enter — the shortcut action never runs for
-  // scanner input. For a human "V" press, 40ms pass with no follow-up,
-  // so the shortcut fires (latency is imperceptible).
-  //
-  // Non-printable keys (Arrow, Esc, Enter) are handled immediately without
-  // debounce.
+  // Auto-open first copy for editing if it's unverified
   useEffect(() => {
-    const scannerBuffer = { current: "" }
-    let scannerResetTimer: ReturnType<typeof setTimeout> | null = null
-    let shortcutTimer: ReturnType<typeof setTimeout> | null = null
+    if (activeView === "detail" && copies.length > 0 && !editingCopy && !isNewCopy) {
+      const firstUnverified = copies.find((c) => !c.is_verified)
+      if (firstUnverified) {
+        startEditCopy(firstUnverified)
+      }
+    }
+  }, [activeView, copies])
 
-    const handleKey = (e: KeyboardEvent) => {
-      const tag = (document.activeElement as HTMLElement)?.tagName
-      const isInput = tag === "INPUT" || tag === "TEXTAREA"
+  // ── Verify ──
 
-      // Esc works everywhere — closes modals, cancels price input, or opens exit
+  const handleVerify = async () => {
+    if (!releaseDetail) return
+    setActionLoading(true)
+
+    try {
+      if (isNewCopy) {
+        // Add new copy
+        const body: any = {
+          release_id: releaseDetail.id,
+          condition_media: conditionMedia || undefined,
+          condition_sleeve: conditionSleeve || undefined,
+          notes: noteText || undefined,
+        }
+        const price = parseFloat(priceValue.replace(",", "."))
+        if (!isNaN(price) && price >= 0) body.exemplar_price = Math.round(price)
+
+        const result = await apiFetch<{ item: any; label_url: string }>(
+          "/admin/erp/inventory/items/add-copy",
+          { method: "POST", body: JSON.stringify(body) }
+        )
+
+        if (autoPrint) await printLabel(result.item.id)
+
+        setToast({ message: `Copy #${result.item.copy_number} created — ${result.item.barcode}`, type: "success" })
+        setRecentItems((prev) => [
+          { artist: releaseDetail.artist_name || "?", title: releaseDetail.title, copy: result.item.copy_number },
+          ...prev.slice(0, 4),
+        ])
+      } else if (editingCopy) {
+        // Verify existing copy
+        const body: any = {
+          condition_media: conditionMedia || undefined,
+          condition_sleeve: conditionSleeve || undefined,
+          notes: noteText || undefined,
+        }
+        const price = parseFloat(priceValue.replace(",", "."))
+        if (!isNaN(price) && price >= 0) {
+          const rounded = Math.round(price)
+          if (editingCopy.copy_number === 1) {
+            // Copy #1: update Release.legacy_price
+            if (rounded !== releaseDetail.legacy_price) body.new_price = rounded
+          } else {
+            // Copy #2+: update exemplar_price
+            body.exemplar_price = rounded
+          }
+        }
+
+        const result = await apiFetch<{ barcode: string; copy_number: number }>(
+          `/admin/erp/inventory/items/${editingCopy.id}/verify`,
+          { method: "POST", body: JSON.stringify(body) }
+        )
+
+        if (autoPrint) await printLabel(editingCopy.id)
+
+        setToast({ message: `Verified #${result.copy_number} — ${result.barcode}`, type: "success" })
+        setRecentItems((prev) => [
+          { artist: releaseDetail.artist_name || "?", title: releaseDetail.title, copy: result.copy_number },
+          ...prev.slice(0, 4),
+        ])
+      }
+
+      // Update stats
+      if (stats) setStats({ ...stats, verified: stats.verified + 1 })
+
+      // Return to search
+      backToSearch()
+    } catch (e: any) {
+      setToast({ message: `Error: ${e.message}`, type: "error" })
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  // ── Back to Search ──
+
+  const backToSearch = () => {
+    setActiveView("search")
+    setReleaseDetail(null)
+    setCopies([])
+    setEditingCopy(null)
+    setIsNewCopy(false)
+    setSearchQuery("")
+    setSearchResults([])
+    setTimeout(() => searchInputRef.current?.focus(), 50)
+  }
+
+  // ── Discogs Price Override ──
+
+  const applyDiscogsMedian = () => {
+    if (releaseDetail?.discogs_median != null) {
+      setPriceValue(String(Math.round(releaseDetail.discogs_median)))
+    }
+  }
+
+  // ── Keyboard Shortcuts ──
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement
+      const isInput = target.tagName === "INPUT" || target.tagName === "TEXTAREA"
+
+      // Scanner detection: rapid keystrokes (< 40ms apart) = barcode scanner
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && activeView === "search" && !isInput) {
+        scanBuffer.current += e.key
+        if (scanTimeout.current) clearTimeout(scanTimeout.current)
+        scanTimeout.current = setTimeout(() => {
+          const val = scanBuffer.current.trim()
+          scanBuffer.current = ""
+          if (val.length >= 6 && /^VOD-/i.test(val)) {
+            setSearchQuery(val)
+            doSearch(val)
+          }
+        }, 80)
+      }
+
+      // Global shortcuts
       if (e.key === "Escape") {
-        if (showNoteModal) { setShowNoteModal(false); return }
-        if (priceInputActive) { setPriceInputActive(false); setPriceValue(""); return }
-        setShowExitModal(true)
+        if (editingCopy || isNewCopy) {
+          setEditingCopy(null)
+          setIsNewCopy(false)
+        } else if (activeView === "detail") {
+          backToSearch()
+        } else {
+          setShowExitModal(true)
+        }
+        e.preventDefault()
         return
       }
 
-      // When an input field is focused: only handle Enter (price confirm),
-      // all other keys go to the input normally (including the scanner, which
-      // is intentional — if you're in the price input and want to scan a
-      // different item, hit Esc first).
-      if (isInput) {
-        if (e.key === "Enter" && priceInputActive) {
+      if (isInput) return // Don't intercept while typing
+
+      if (e.key === "/" || e.key === "f") {
+        e.preventDefault()
+        if (activeView === "detail") backToSearch()
+        else searchInputRef.current?.focus()
+        return
+      }
+
+      // Search results navigation
+      if (activeView === "search" && searchResults.length > 0) {
+        if (e.key === "ArrowDown") {
           e.preventDefault()
-          const val = parseFloat(priceValue.replace(",", "."))
-          if (!isNaN(val) && val >= 0) {
-            handleVerify(Math.round(val))
-          }
+          setSelectedResultIndex((i) => Math.min(i + 1, searchResults.length - 1))
+          return
         }
-        return
-      }
-
-      // Modals open → no shortcuts, no scanner
-      if (showNoteModal || showExitModal) return
-
-      // ── Scanner: End-of-scan detection ──
-      // Enter with a full buffer = USB HID scanner finished a barcode
-      if (e.key === "Enter" && scannerBuffer.current.length >= 8) {
-        e.preventDefault()
-        const barcode = scannerBuffer.current
-        scannerBuffer.current = ""
-        if (scannerResetTimer) { clearTimeout(scannerResetTimer); scannerResetTimer = null }
-        if (shortcutTimer) { clearTimeout(shortcutTimer); shortcutTimer = null }
-        handleScanBarcode(barcode)
-        return
-      }
-
-      // ── Arrow keys: immediate navigation, no debounce needed ──
-      if (e.key === "ArrowRight") {
-        e.preventDefault()
-        if (currentIndex < items.length - 1) setCurrentIndex((i) => i + 1)
-        return
-      }
-      if (e.key === "ArrowLeft") {
-        e.preventDefault()
-        if (currentIndex > 0) setCurrentIndex((i) => i - 1)
-        return
-      }
-
-      // ── Printable single character: scanner buffer + debounced shortcut ──
-      if (e.key.length === 1) {
-        // Append to scanner buffer, reset after 100ms idle
-        scannerBuffer.current += e.key
-        if (scannerResetTimer) clearTimeout(scannerResetTimer)
-        scannerResetTimer = setTimeout(() => {
-          scannerBuffer.current = ""
-        }, 100)
-
-        // Cancel any pending shortcut (new key arrived — either scan or new action)
-        if (shortcutTimer) {
-          clearTimeout(shortcutTimer)
-          shortcutTimer = null
+        if (e.key === "ArrowUp") {
+          e.preventDefault()
+          setSelectedResultIndex((i) => Math.max(i - 1, 0))
+          return
         }
+        if (e.key === "Enter") {
+          e.preventDefault()
+          openRelease(searchResults[selectedResultIndex].release_id)
+          return
+        }
+      }
 
-        // Schedule shortcut action with 40ms debounce.
-        // Scanner follow-up chars arrive in ≤15ms and will cancel this timer.
-        // Human key-press has no follow-up → timer fires, action runs.
-        const key = e.key.toLowerCase()
-        shortcutTimer = setTimeout(() => {
-          shortcutTimer = null
-          switch (key) {
-            case "v":
-              handleVerify()
-              break
-            case "p":
-              setPriceInputActive(true)
-              setPriceValue(current?.legacy_price != null ? String(current.legacy_price) : "")
-              setTimeout(() => priceInputRef.current?.focus(), 50)
-              break
-            case "m":
-              handleMissing()
-              break
-            case "s":
-              advanceToNext()
-              break
-            case "n":
-              setNoteText("")
-              setShowNoteModal(true)
-              break
-            case "l":
-              if (current) printLabel(current.inventory_item_id, printerStatus)
-              break
-            case "u":
-              handleUndo()
-              break
-          }
-        }, 40)
+      // Detail view shortcuts
+      if (activeView === "detail") {
+        if (e.key === "v" || e.key === "V") {
+          if (editingCopy || isNewCopy) handleVerify()
+          return
+        }
+        if (e.key === "a" || e.key === "A") {
+          startNewCopy()
+          return
+        }
+        if (e.key === "d" || e.key === "D") {
+          applyDiscogsMedian()
+          return
+        }
+        if (e.key === "l" || e.key === "L") {
+          if (editingCopy?.id) printLabel(editingCopy.id)
+          return
+        }
       }
     }
 
-    window.addEventListener("keydown", handleKey)
-    return () => {
-      window.removeEventListener("keydown", handleKey)
-      if (scannerResetTimer) clearTimeout(scannerResetTimer)
-      if (shortcutTimer) clearTimeout(shortcutTimer)
-    }
-  }, [current, priceInputActive, priceValue, showNoteModal, showExitModal, currentIndex, items.length, undoStack, printerStatus, handleScanBarcode])
+    window.addEventListener("keydown", handler)
+    return () => window.removeEventListener("keydown", handler)
+  }, [activeView, searchResults, selectedResultIndex, editingCopy, isNewCopy, releaseDetail, stats, doSearch, conditionMedia, conditionSleeve, priceValue, noteText, autoPrint])
 
-  // ── Render ──
+  // ─── RENDER ──────────────────────────────────────────────────────────────
 
-  if (loading && items.length === 0) {
-    return (
-      <PageShell>
-        <div style={{ color: C.muted, fontSize: 13 }}>Loading stocktake queue...</div>
-      </PageShell>
-    )
-  }
-
-  if (error && items.length === 0) {
-    return (
-      <PageShell>
-        <Alert type="error">{error}</Alert>
-      </PageShell>
-    )
-  }
-
-  if (!current) {
-    return (
-      <PageShell maxWidth={700}>
-        <div style={{ textAlign: "center", padding: "60px 0" }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>🎉</div>
-          <h2 style={{ fontSize: 22, fontWeight: 700, color: C.text, marginBottom: 8 }}>
-            Stocktake Complete
-          </h2>
-          <p style={{ color: C.muted, fontSize: 14 }}>
-            All items have been verified or marked. {totalProcessed} items processed in this session.
-          </p>
-          <Btn
-            label="← Back to Inventory Hub"
-            variant="gold"
-            style={{ marginTop: 24 }}
-            onClick={() => { window.location.href = "/app/erp/inventory" }}
-          />
-        </div>
-      </PageShell>
-    )
+  const cardStyle: React.CSSProperties = {
+    background: C.card,
+    borderRadius: S.radius.md,
+    border: `1px solid ${C.border}`,
+    padding: S.gap.lg,
   }
 
   return (
-    <PageShell maxWidth={900}>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <PageHeader
-          title="Stocktake Session"
-          subtitle={`${current.format_group_label} · Item ${totalProcessed + 1}`}
+    <PageShell>
+      <PageHeader
+        title="Stocktake Session"
+        subtitle={stats ? `${stats.verified.toLocaleString()} / ${stats.eligible.toLocaleString()} verified (${((stats.verified / stats.eligible) * 100).toFixed(1)}%)` : "Loading..."}
+        actions={
+          <div style={{ display: "flex", gap: S.gap.md, alignItems: "center" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", ...T.small }}>
+              <input type="checkbox" checked={autoPrint} onChange={(e) => setAutoPrint(e.target.checked)} />
+              Auto-Print
+            </label>
+            <Badge
+              label={printerStatus === "connected" ? "QZ Tray" : "Browser Print"}
+              variant={printerStatus === "connected" ? "success" : "info"}
+            />
+            <Btn label="Dashboard" variant="ghost" onClick={() => window.location.href = "/app/erp/inventory"} />
+            <Btn label="Exit Session" variant="ghost" onClick={() => setShowExitModal(true)} />
+          </div>
+        }
+      />
+
+      {/* ── SEARCH BAR ── */}
+      <div style={{ marginBottom: S.gap.lg }}>
+        <input
+          ref={searchInputRef}
+          type="text"
+          value={searchQuery}
+          onChange={(e) => handleSearchInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && searchResults.length > 0) {
+              e.preventDefault()
+              openRelease(searchResults[selectedResultIndex].release_id)
+            }
+            if (e.key === "ArrowDown") {
+              e.preventDefault()
+              setSelectedResultIndex((i) => Math.min(i + 1, searchResults.length - 1))
+            }
+            if (e.key === "ArrowUp") {
+              e.preventDefault()
+              setSelectedResultIndex((i) => Math.max(i - 1, 0))
+            }
+          }}
+          placeholder="Artist, Titel oder Katalognummer suchen..."
+          style={{
+            ...inputStyle,
+            width: "100%",
+            padding: "14px 16px",
+            fontSize: 16,
+            borderColor: activeView === "search" ? C.gold : C.border,
+          }}
+          autoFocus
         />
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          {/* Printer status indicator */}
-          <div style={{
-            display: "flex", alignItems: "center", gap: 6,
-            fontSize: 11, color: C.muted,
-            padding: "4px 10px", borderRadius: S.radius.sm,
-            background: printerStatus === "connected" ? "#e8f5e9" :
-                        printerStatus === "browser" ? "#fff8e1" : "#fce4ec",
-          }}>
-            <span style={{
-              width: 7, height: 7, borderRadius: "50%",
-              background: printerStatus === "connected" ? "#4caf50" :
-                          printerStatus === "browser" ? "#ff9800" : "#f44336",
-            }} />
-            {printerStatus === "connected" ? "QZ Tray" :
-             printerStatus === "browser" ? "Browser Print" : "No Printer"}
-          </div>
-          {/* Auto-print toggle */}
-          <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: C.muted, cursor: "pointer" }}>
-            <input
-              type="checkbox"
-              checked={autoPrint}
-              onChange={(e) => setAutoPrint(e.target.checked)}
-              style={{ cursor: "pointer" }}
-            />
-            Auto-Print
-          </label>
-          <span style={{ fontSize: 12, color: C.muted }}>
-            {remaining} remaining
-          </span>
-          <Btn
-            label="Exit Session"
-            variant="ghost"
-            onClick={() => setShowExitModal(true)}
-          />
-        </div>
       </div>
 
-      {/* Main content: image + details */}
-      <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: 24, marginBottom: 24 }}>
-        {/* Cover image */}
-        <div style={{ borderRadius: S.radius.lg, overflow: "hidden", background: "#f0eeec", aspectRatio: "1/1" }}>
-          {current.coverImage ? (
-            <img
-              src={current.coverImage}
-              alt={current.title}
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
-            />
-          ) : (
-            <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: C.muted, fontSize: 13 }}>
-              No image
-            </div>
-          )}
-        </div>
-
-        {/* Details */}
-        <div>
-          <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>
-            {current.format_group_label} · {current.format} {current.legacy_format_detail ? `(${current.legacy_format_detail})` : ""}
-          </div>
-          <h2 style={{ fontSize: 20, fontWeight: 700, color: C.text, marginBottom: 2, fontFamily: "var(--font-dm-serif)" }}>
-            {current.artist_name || "Unknown Artist"}
-          </h2>
-          <h3 style={{ fontSize: 16, fontWeight: 400, color: C.text, marginBottom: 12 }}>
-            {current.title}
-          </h3>
-
-          {/* Barcode badge */}
-          <div style={{ marginBottom: 10 }}>
-            {current.barcode ? (
-              <span style={{
-                display: "inline-block",
-                fontFamily: "monospace", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em",
-                padding: "3px 10px", borderRadius: S.radius.sm,
-                background: "#f0eeec", color: C.text, border: `1px solid ${C.border}`,
-              }}>
-                {current.barcode}
-              </span>
-            ) : (
-              <span style={{
-                display: "inline-block",
-                fontSize: 11, padding: "3px 10px", borderRadius: S.radius.sm,
-                background: "#fff8e1", color: "#e65100",
-              }}>
-                No barcode — assigned on Verify
-              </span>
-            )}
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 13, marginBottom: 16 }}>
-            {current.catalogNumber && <div><span style={{ color: C.muted }}>Cat #:</span> {current.catalogNumber}</div>}
-            {current.label_name && <div><span style={{ color: C.muted }}>Label:</span> {current.label_name}</div>}
-            {current.year && <div><span style={{ color: C.muted }}>Year:</span> {current.year}</div>}
-            {current.country && <div><span style={{ color: C.muted }}>Country:</span> {current.country}</div>}
-            {current.legacy_condition && <div><span style={{ color: C.muted }}>Condition:</span> {current.legacy_condition}</div>}
-          </div>
-
-          {/* Current price */}
-          <div style={{ fontSize: 28, fontWeight: 700, color: C.gold, marginBottom: 16 }}>
-            €{current.legacy_price != null ? current.legacy_price : "—"}
-          </div>
-
-          {/* Discogs panel (F4) */}
-          {current.discogs_id ? (
-            <div style={{ background: "#f8f7f6", borderRadius: S.radius.md, padding: "10px 14px", marginBottom: 16, fontSize: 12 }}>
-              <div style={{ fontWeight: 600, color: C.text, marginBottom: 6 }}>Discogs Market</div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
-                <div><span style={{ color: C.muted }}>Lowest:</span> <span style={{ color: C.success }}>€{current.discogs_lowest_price ?? "—"}</span></div>
-                <div><span style={{ color: C.muted }}>Median:</span> €{current.discogs_median_price ?? "—"}</div>
-                <div><span style={{ color: C.muted }}>Highest:</span> €{current.discogs_highest_price ?? "—"}</div>
-                <div><span style={{ color: C.muted }}>For sale:</span> {current.discogs_num_for_sale ?? "—"}</div>
+      {/* ── SEARCH RESULTS ── */}
+      {activeView === "search" && searchResults.length > 0 && (
+        <div style={{ ...cardStyle, marginBottom: S.gap.lg, padding: 0, overflow: "hidden" }}>
+          {searchResults.map((r, idx) => (
+            <div
+              key={r.release_id}
+              onClick={() => openRelease(r.release_id)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: S.gap.md,
+                padding: "10px 16px",
+                cursor: "pointer",
+                background: idx === selectedResultIndex ? C.hover : "transparent",
+                borderBottom: idx < searchResults.length - 1 ? `1px solid ${C.border}` : "none",
+                transition: "background 0.1s",
+              }}
+              onMouseEnter={() => setSelectedResultIndex(idx)}
+            >
+              {r.cover_image ? (
+                <img src={r.cover_image} alt="" style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 4 }} />
+              ) : (
+                <div style={{ width: 48, height: 48, background: C.border, borderRadius: 4 }} />
+              )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, color: C.fg, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {r.artist_name || "Unknown"} — {r.title}
+                </div>
+                <div style={{ ...T.small, color: C.muted }}>
+                  {r.format} {r.catalog_number ? `· ${r.catalog_number}` : ""} {r.label_name ? `· ${r.label_name}` : ""}
+                </div>
               </div>
-              <a
-                href={current.discogs_url!}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ color: C.blue, fontSize: 11, marginTop: 6, display: "inline-block" }}
+              <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                <div style={{ fontWeight: 600, color: C.gold }}>{r.legacy_price != null ? `€${r.legacy_price}` : ""}</div>
+                <div style={{ ...T.small, color: C.muted }}>
+                  {r.exemplar_count} Ex. {r.verified_count > 0 && <span style={{ color: C.success }}>· {r.verified_count} done</span>}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {activeView === "search" && searchQuery && !searchLoading && searchResults.length === 0 && (
+        <div style={{ ...cardStyle, textAlign: "center", color: C.muted, padding: 40 }}>
+          Kein Treffer für &quot;{searchQuery}&quot;
+        </div>
+      )}
+
+      {/* ── RELEASE DETAIL + COPIES ── */}
+      {activeView === "detail" && releaseDetail && (
+        <div style={{ ...cardStyle, marginBottom: S.gap.lg }}>
+          {/* Release header */}
+          <div style={{ display: "flex", gap: S.gap.lg, marginBottom: S.gap.lg }}>
+            {releaseDetail.cover_image ? (
+              <img src={releaseDetail.cover_image} alt="" style={{ width: 200, height: 200, objectFit: "cover", borderRadius: S.radius.md }} />
+            ) : (
+              <div style={{ width: 200, height: 200, background: C.border, borderRadius: S.radius.md }} />
+            )}
+            <div style={{ flex: 1 }}>
+              <h2 style={{ margin: 0, fontSize: 22, color: C.fg }}>{releaseDetail.artist_name || "Unknown"}</h2>
+              <div style={{ fontSize: 16, color: C.muted, marginTop: 4 }}>{releaseDetail.title}</div>
+              <div style={{ ...T.small, color: C.muted, marginTop: 8 }}>
+                {releaseDetail.format}
+                {releaseDetail.catalog_number ? ` · ${releaseDetail.catalog_number}` : ""}
+                {releaseDetail.label_name ? ` · ${releaseDetail.label_name}` : ""}
+              </div>
+              <div style={{ ...T.small, color: C.muted, marginTop: 4 }}>
+                {releaseDetail.country || ""}{releaseDetail.year ? ` · ${releaseDetail.year}` : ""}
+              </div>
+              <div style={{ marginTop: 12, fontSize: 24, fontWeight: 700, color: C.gold }}>
+                {releaseDetail.legacy_price != null ? `€${releaseDetail.legacy_price}` : "—"}
+              </div>
+              {/* Discogs prices */}
+              {releaseDetail.discogs_lowest != null && (
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ ...T.small, fontWeight: 600, color: C.muted, marginBottom: 4 }}>Discogs Market</div>
+                  <div style={{ ...T.small, color: C.muted }}>
+                    Low €{releaseDetail.discogs_lowest?.toFixed(2)} · Med €{releaseDetail.discogs_median?.toFixed(2)} · High €{releaseDetail.discogs_highest?.toFixed(2)} · {releaseDetail.discogs_num_for_sale} for sale
+                  </div>
+                  {releaseDetail.discogs_url && (
+                    <a href={releaseDetail.discogs_url} target="_blank" rel="noopener noreferrer" style={{ ...T.small, color: C.gold, textDecoration: "underline" }}>
+                      View on Discogs
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Copies list */}
+          <div style={{ marginBottom: S.gap.lg }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: S.gap.md }}>
+              <div style={{ fontWeight: 600, color: C.fg }}>Exemplare ({copies.length})</div>
+              <Btn label="[A] Weiteres Exemplar" variant="gold" onClick={startNewCopy} style={{ fontSize: 12, padding: "6px 12px" }} />
+            </div>
+            {copies.map((copy) => (
+              <div
+                key={copy.id}
+                onClick={() => startEditCopy(copy)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: S.gap.md,
+                  padding: "10px 12px",
+                  borderRadius: S.radius.sm,
+                  cursor: "pointer",
+                  background: editingCopy?.id === copy.id ? `${C.gold}15` : "transparent",
+                  border: editingCopy?.id === copy.id ? `1px solid ${C.gold}40` : `1px solid transparent`,
+                  marginBottom: 4,
+                  transition: "all 0.15s",
+                }}
               >
-                View on Discogs →
-              </a>
-            </div>
-          ) : (
-            <div style={{ fontSize: 11, color: C.muted, marginBottom: 16 }}>No Discogs data</div>
-          )}
+                <div style={{ fontWeight: 700, width: 28, color: C.muted }}>#{copy.copy_number}</div>
+                <div style={{ width: 80, ...T.small }}>
+                  {copy.condition_media && copy.condition_sleeve
+                    ? `${copy.condition_media}/${copy.condition_sleeve}`
+                    : copy.condition_media || "—"}
+                </div>
+                <div style={{ width: 70, fontWeight: 600, color: C.gold }}>
+                  €{copy.effective_price ?? "—"}
+                </div>
+                <div style={{ width: 100, fontFamily: "monospace", ...T.small }}>
+                  {copy.barcode || "—"}
+                </div>
+                <div style={{ flex: 1 }}>
+                  {copy.is_verified
+                    ? <Badge label="Verified" variant="success" />
+                    : <Badge label="Pending" variant="warning" />}
+                </div>
+              </div>
+            ))}
+          </div>
 
-          {/* Price input (activated by P key) */}
-          {priceInputActive && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-              <span style={{ fontSize: 13, color: C.muted }}>New price:</span>
-              <input
-                ref={priceInputRef}
-                style={{ ...inputStyle, maxWidth: 120, fontSize: 18, fontWeight: 700, textAlign: "right" }}
-                value={priceValue}
-                onChange={(e) => setPriceValue(e.target.value)}
-                placeholder="0"
-                autoFocus
-              />
-              <span style={{ fontSize: 18, fontWeight: 700, color: C.text }}>€</span>
-              <span style={{ fontSize: 11, color: C.muted }}>(Enter to confirm, Esc to cancel)</span>
-            </div>
-          )}
+          {/* Evaluation form */}
+          {(editingCopy || isNewCopy) && (
+            <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: S.gap.lg }}>
+              <div style={{ fontWeight: 600, color: C.fg, marginBottom: S.gap.md }}>
+                {isNewCopy ? `Neues Exemplar #${copies.length + 1}` : `Exemplar #${editingCopy?.copy_number} bewerten`}
+              </div>
 
-          {/* Notes (if any) */}
-          {current.inventory_notes && (
-            <div style={{ fontSize: 11, color: C.muted, fontStyle: "italic", marginBottom: 8 }}>
-              Notes: {current.inventory_notes}
+              <GradeSelector label="Zustand Media" value={conditionMedia} onChange={setConditionMedia} />
+              <GradeSelector label="Zustand Sleeve" value={conditionSleeve} onChange={setConditionSleeve} />
+
+              <div style={{ marginBottom: S.gap.md }}>
+                <div style={{ ...T.small, color: C.muted, marginBottom: 4 }}>Preis (EUR)</div>
+                <div style={{ display: "flex", gap: S.gap.sm, alignItems: "center" }}>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={priceValue}
+                    onChange={(e) => setPriceValue(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleVerify() }}
+                    style={{ ...inputStyle, width: 120 }}
+                    placeholder="0"
+                  />
+                  {releaseDetail?.discogs_median != null && (
+                    <button
+                      onClick={applyDiscogsMedian}
+                      style={{
+                        background: "none",
+                        border: `1px solid ${C.border}`,
+                        borderRadius: 4,
+                        padding: "6px 12px",
+                        color: C.gold,
+                        cursor: "pointer",
+                        fontSize: 12,
+                      }}
+                    >
+                      [D] Median €{Math.round(releaseDetail.discogs_median)}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ marginBottom: S.gap.lg }}>
+                <div style={{ ...T.small, color: C.muted, marginBottom: 4 }}>Notiz (optional)</div>
+                <input
+                  type="text"
+                  value={noteText}
+                  onChange={(e) => setNoteText(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleVerify() }}
+                  style={{ ...inputStyle, width: "100%" }}
+                  placeholder="Freitext..."
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: S.gap.md }}>
+                <Btn
+                  label={actionLoading ? "Saving..." : "[V] Bestätigen"}
+                  variant="gold"
+                  onClick={handleVerify}
+                  disabled={actionLoading}
+                />
+                <Btn label="[Esc] Zurück" variant="ghost" onClick={backToSearch} />
+              </div>
             </div>
           )}
         </div>
-      </div>
-
-      {/* Action bar */}
-      <div style={{
-        display: "flex",
-        gap: 10,
-        padding: "14px 0",
-        borderTop: `1px solid ${C.border}`,
-        flexWrap: "wrap",
-      }}>
-        <Btn label={autoPrint ? "[V] Verify + Print" : "[V] Verify"} variant="primary" onClick={() => handleVerify()} />
-        <Btn label="[P] Adjust Price" variant="gold" onClick={() => {
-          setPriceInputActive(true)
-          setPriceValue(current.legacy_price != null ? String(current.legacy_price) : "")
-          setTimeout(() => priceInputRef.current?.focus(), 50)
-        }} />
-        <Btn label="[M] Missing" variant="ghost" onClick={() => handleMissing()} />
-        <Btn label="[S] Skip" variant="ghost" onClick={() => advanceToNext()} />
-        <Btn label="[L] Print Label" variant="ghost" onClick={() => printLabel(current.inventory_item_id, printerStatus)} />
-        <Btn label="[N] Note" variant="ghost" onClick={() => { setNoteText(""); setShowNoteModal(true) }} />
-        {undoStack.length > 0 && (
-          <Btn label="[U] Undo" variant="ghost" onClick={handleUndo} />
-        )}
-      </div>
-
-      {/* Keyboard hint */}
-      <div style={{ fontSize: 10, color: C.muted, marginTop: 8 }}>
-        Keyboard: V=Verify{autoPrint ? "+Print" : ""} · P=Price · M=Missing · S=Skip · L=Print Label · N=Note · U=Undo · ←/→=Nav · Esc=Exit · Scanner: auto-detect
-      </div>
-
-      {/* Note modal */}
-      {showNoteModal && (
-        <Modal title="Add Note" onClose={() => setShowNoteModal(false)} footer={
-          <>
-            <Btn label="Cancel" variant="ghost" onClick={() => setShowNoteModal(false)} />
-            <Btn label="Save Note" variant="primary" onClick={handleNote} disabled={!noteText.trim()} />
-          </>
-        }>
-          <textarea
-            style={{ ...inputStyle, maxWidth: "100%", width: "100%", minHeight: 80, resize: "vertical" }}
-            value={noteText}
-            onChange={(e) => setNoteText(e.target.value)}
-            placeholder="Add a note for this item..."
-            autoFocus
-          />
-        </Modal>
       )}
 
-      {/* Exit confirmation */}
+      {/* ── RECENT ITEMS ── */}
+      {recentItems.length > 0 && (
+        <div style={{ ...T.small, color: C.muted, display: "flex", gap: 16, flexWrap: "wrap" }}>
+          {recentItems.map((r, i) => (
+            <span key={i}>✓ {r.artist} — {r.title} #{r.copy}</span>
+          ))}
+        </div>
+      )}
+
+      {/* ── SHORTCUTS HELP ── */}
+      <div style={{ ...T.small, color: C.muted, marginTop: S.gap.lg, opacity: 0.6, textAlign: "center" }}>
+        / Search · ↑↓ Navigate · Enter Open · V Verify · A Add Copy · D Discogs Median · L Print Label · Esc Back
+      </div>
+
+      {/* ── EXIT MODAL ── */}
       {showExitModal && (
-        <Modal title="Exit Session?" onClose={() => setShowExitModal(false)} footer={
-          <>
-            <Btn label="Continue" variant="primary" onClick={() => setShowExitModal(false)} />
-            <Btn label="Exit" variant="ghost" onClick={() => { window.location.href = "/app/erp/inventory" }} />
-          </>
-        }>
-          <p style={{ fontSize: 13, color: C.text }}>
-            Progress is saved automatically. You can resume from where you left off.
-          </p>
-          <p style={{ fontSize: 12, color: C.muted, marginTop: 8 }}>
-            Processed in this session: {totalProcessed} items
-          </p>
+        <Modal
+          title="Session beenden?"
+          onClose={() => setShowExitModal(false)}
+          actions={
+            <>
+              <Btn label="Session beenden" variant="gold" onClick={() => window.location.href = "/app/erp/inventory"} />
+              <Btn label="Weiterarbeiten" variant="ghost" onClick={() => setShowExitModal(false)} />
+            </>
+          }
+        >
+          <p style={{ color: C.muted }}>Dein Fortschritt ist gespeichert. Du kannst jederzeit zurückkehren.</p>
         </Modal>
       )}
 
-      {/* Toast */}
-      {toast && <Toast message={toast.message} type={toast.type} onDone={() => setToast(null)} />}
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </PageShell>
   )
 }

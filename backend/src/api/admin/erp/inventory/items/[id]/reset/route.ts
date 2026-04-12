@@ -38,7 +38,7 @@ export async function POST(
     // Find the most recent stocktake movement to check if we need to restore price
     const lastMovement = await trx("erp_inventory_movement")
       .where("inventory_item_id", inventoryItemId)
-      .whereIn("reason", ["stocktake_missing", "stocktake_verify_price_change", "stocktake_verify"])
+      .whereIn("reason", ["stocktake_missing", "stocktake_verify_price_change", "stocktake_verify", "stocktake_verify_with_changes"])
       .orderBy("created_at", "desc")
       .first()
 
@@ -76,7 +76,7 @@ export async function POST(
       }
     }
 
-    // Reset stocktake state
+    // Reset stocktake state + condition/exemplar_price (Exemplar-Modell)
     await trx("erp_inventory_item")
       .where("id", inventoryItemId)
       .update({
@@ -84,6 +84,9 @@ export async function POST(
         price_locked_at: null,
         last_stocktake_at: null,
         last_stocktake_by: null,
+        condition_media: null,
+        condition_sleeve: null,
+        exemplar_price: null,
         updated_at: new Date(),
       })
 
