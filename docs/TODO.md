@@ -1,7 +1,7 @@
 # VOD Auctions — TODO
 
 Operative Aufgabenliste. Single Source of Truth für laufende Arbeit.
-**Letzte Aktualisierung:** 2026-04-12 (POS P0 Dry-Run deployed)
+**Letzte Aktualisierung:** 2026-04-12 (Inventur v2 komplett + Discogs R2 Migration)
 
 ## Arbeitslogik
 
@@ -17,7 +17,7 @@ Operative Aufgabenliste. Single Source of Truth für laufende Arbeit.
 
 Aktuell aktive Workstreams. Maximal 2-3 gleichzeitig.
 
-1. **Inventur Workflow v2 Umbau** — Search-First + Exemplar-Modell (4 Phasen)
+1. **Inventur Workflow v2** — Code komplett deployed, Frank muss gebrieft werden + Test-Durchlauf
 2. **POS Walk-in Sale** — P0 Dry-Run live, Frank testet, P1-P4 warten auf Steuerberater
 3. **Launch-Vorbereitung** — AGB-Anwalt als kritischer Pfad
 
@@ -47,9 +47,9 @@ Bewusst geparkt. Wird bei Bedarf nach Next gezogen.
 ### 1. Inventur Workflow v2 Umbau
 
 **Ziel:** Frank kann im Lager Platten in die Hand nehmen, im System suchen, Zustand/Preis bewerten, bestätigen und Label drucken. Jedes physische Exemplar wird ein eigener Datensatz mit eigenem Barcode.
-**Status:** Konzept v2.0 fertig. Alter Queue-Workflow verworfen (System-getrieben → Frank kann nicht damit arbeiten). Neuer Search-First + Exemplar-Modell Ansatz beschlossen.
-**Blocker:** Keiner — Phase 0 kann sofort starten.
-**Nächste Aktion:** Phase 0.1 starten — `admin/media/route.ts` auf Multi-Exemplar vorbereiten.
+**Status:** Alle 4 Phasen implementiert + deployed (2026-04-12). Search auf ALLE 50.958 Releases erweitert. iPhone-Foto-Upload integriert. 43.025 Discogs-Bilder zu R2 migriert. Discogs-Import speichert jetzt direkt R2-URLs.
+**Blocker:** Keiner — rein operativ (Frank briefen).
+**Nächste Aktion:** Frank kontaktieren, neuen Workflow erklären, Test-Durchlauf machen.
 
 #### Kontext (warum Umbau)
 
@@ -73,31 +73,28 @@ Neuer Workflow: Frank nimmt Artikel → sucht im System → bewertet (Zustand Me
 
 #### Phase 1: Schema-Migration + Search + Exemplar-Bewertung (Kern-Workflow)
 
-- [ ] **1.1** Migration SQL: `condition_media`, `condition_sleeve`, `copy_number`, `exemplar_price`, UNIQUE(release_id, copy_number)
-- [ ] **1.2** Migration auf Production anwenden (bestehende 13.107 Rows = copy_number=1 per Default)
-- [ ] **1.3** Such-API: `GET /admin/erp/inventory/search?q=...` (Release-Level, Exemplar-Count aggregiert)
-- [ ] **1.4** Exemplar-Detail-API: `GET /admin/erp/inventory/release/:id/copies`
-- [ ] **1.5** Add-Copy-API: `POST /admin/erp/inventory/items/add-copy` (Exemplar #2+ anlegen)
-- [ ] **1.6** Verify-API erweitern: `condition_media`, `condition_sleeve`, `exemplar_price` akzeptieren
-- [ ] **1.7** Session-Screen Umbau: Suchfeld + Trefferliste + Exemplar-Ansicht + Bewertungsformular
-- [ ] **1.8** Keyboard-Shortcuts anpassen (/, ↑/↓, Enter, V, A, D, L, Esc, Tab)
-- [ ] **1.9** Discogs-Preis "Median übernehmen" Button (ein-Klick, W4)
-- [ ] **1.10** Legacy-Condition Mapping für Pre-Fill (m-/m- → NM/NM etc.)
-- [ ] **1.11** Auto-Print nach Verify (bestehende QZ Tray / Browser-Fallback Logik beibehalten)
-- [ ] **1.12** Test: Lokaler Durchlauf — Suche, Exemplar #1 verifizieren, Exemplar #2 anlegen, Label druckt
-- [ ] **1.13** VPS Deploy + Frank briefen
+- [x] **1.1** Migration SQL: condition_media, condition_sleeve, copy_number, exemplar_price, UNIQUE (2026-04-12)
+- [x] **1.2** Migration auf Production: 13.107 Rows, alle copy_number=1 verifiziert (2026-04-12)
+- [x] **1.3** Such-API: `GET /admin/erp/inventory/search` — Barcode-Exact + ILIKE Text (2026-04-12)
+- [x] **1.4** Exemplar-Detail-API: `GET /admin/erp/inventory/release/:id/copies` (2026-04-12)
+- [x] **1.5** Add-Copy-API: `POST /admin/erp/inventory/items/add-copy` (2026-04-12)
+- [x] **1.6** Verify-API erweitert: condition_media/sleeve, exemplar_price, audit-trail (2026-04-12)
+- [x] **1.7-1.11** Session-Screen komplett neu: Search-First, Exemplar-Liste, Grade-Selector, Discogs-Override, Legacy-Condition-Mapping, Auto-Print, Shortcuts (2026-04-12)
+- [x] **1.12** Reset-API erweitert: setzt condition/exemplar_price zurück (2026-04-12)
+- [x] **1.13** VPS Deploy — PM2 online, 0 neue Errors (2026-04-12)
+- [ ] **1.14** Frank briefen: Session-URL, neuer Workflow erklären, Test-Durchlauf
 
 #### Phase 2: Dashboard + Übersicht
 
-- [ ] **2.1** Browse-API: `GET /admin/erp/inventory/browse` mit Tabs (Alle/Verifiziert/Ausstehend/Mehrere Exemplare), Filter, Pagination
-- [ ] **2.2** Stats-API erweitern: Exemplar-Counts, Tagesstatistiken, Format-Breakdown
-- [ ] **2.3** Hub-Page `/app/erp/inventory` Umbau: Progress-Bar, Browse-Tabelle, Statistiken
+- [x] **2.1** Browse-API: `GET /admin/erp/inventory/browse` — Tabs, Suche, Pagination (2026-04-12)
+- [x] **2.2** Stats-API: Exemplar-Counts, Tages-Stats, Format-Breakdown, avg_price (2026-04-12)
+- [x] **2.3** Hub-Page Umbau: Stats-Grid, Progress, Today-Card, Format-Bars, Browse-Tabelle (2026-04-12)
 
-#### Phase 3: Fehlbestands-Check (nach Inventur-Abschluss, ~6 Wochen)
+#### Phase 3: Fehlbestands-Check
 
-- [ ] **3.1** Fehlbestands-API: `POST /admin/erp/inventory/mark-missing-bulk`
-- [ ] **3.2** Queue-View für Einzel-Durchsicht der unverifizierten Items (bestehende Queue recyclen)
-- [ ] **3.3** UI: Fehlbestands-Check Button + Confirmation-Modal + CSV-Export
+- [x] **3.1** `GET /admin/erp/inventory/missing-candidates` + `POST .../mark-missing-bulk` (2026-04-12)
+- [x] **3.2** Hub-Page: Fehlbestands-Check Card + Modal (Export CSV + Bulk-Mark mit Confirmation) (2026-04-12)
+- [-] **3.3** Queue-View für Einzel-Durchsicht — entfällt, Frank nutzt Session-Suche stattdessen
 
 #### Nice-to-have (nicht blockierend)
 
@@ -106,6 +103,14 @@ Neuer Workflow: Frank nimmt Artikel → sucht im System → bewertet (Zustand Me
 
 #### Erledigt
 
+- [x] **Alle 4 Phasen (0/1/2/3) implementiert + deployed** (2026-04-12)
+- [x] Suche auf ALLE 50.958 Releases ausgeweitet (nicht nur Cohort A) (2026-04-12)
+- [x] iPhone-Foto-Upload im Session-Screen (sharp + R2, capture="environment") (2026-04-12)
+- [x] Discogs-Hotlinks eliminiert: 43.025 Bilder zu R2 migriert (2026-04-12)
+- [x] Discogs-Import-Commit schreibt direkt R2-URLs (kein Hotlink-Zustrom mehr) (2026-04-12)
+- [x] Shared Library `backend/src/lib/image-upload.ts` (optimize/upload/downloadOptimizeUpload) (2026-04-12)
+- [x] Migration-Script `scripts/migrate_discogs_images_to_r2.py` (idempotent, resume-fähig) (2026-04-12)
+- [x] Stats zeigen total_releases (50.958) + eligible (13.107) getrennt (2026-04-12)
 - [x] Inventur Workflow v2 Konzept v2.0 geschrieben (2026-04-12)
 - [x] Impact-Analyse: 33 Dateien geprüft, 4 kritisch, 3 hoch, 10 sicher (2026-04-12)
 - [x] Franks Antworten W1-W4 eingearbeitet (2026-04-12)
@@ -370,6 +375,10 @@ Diese Themen leben in Linear, nicht hier. Nur zur Referenz:
 
 | Datum | Meilenstein |
 |---|---|
+| 2026-04-12 | Discogs-Hotlinks eliminiert: 43.025 Bilder zu R2 migriert + zukünftige Imports direkt zu R2 |
+| 2026-04-12 | iPhone-Foto-Upload im Stocktake (sharp-Optimierung, R2) |
+| 2026-04-12 | Inventur Workflow v2 komplett deployed (Search-First + Exemplar-Modell + Dashboard + Fehlbestand) |
+| 2026-04-12 | Inventur Suche auf ALLE 50.958 Releases ausgeweitet (nicht nur Cohort A) |
 | 2026-04-12 | POS Walk-in Sale P0 Dry-Run deployed (PWA, Scan, Cart, Checkout, Reports) |
 | 2026-04-12 | POS_WALK_IN Flag ON — Frank kann Trockenübungen machen |
 | 2026-04-12 | ERP_INVENTORY Flag ON + Bulk +15% (13.107 Items, €465.358) |

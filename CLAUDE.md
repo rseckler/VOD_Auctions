@@ -265,6 +265,25 @@ Fallback: DE €4.99 / EU €9.99 / World €14.99
 **Admin:** `/admin/entity-content` (Status + Budget Dashboard) + `/admin/musicians`
 **Pipeline starten:** `cd scripts && source venv/bin/activate && python3 entity_overhaul/orchestrator.py`
 
+## Image Storage (Cloudflare R2)
+
+**Bucket:** `vod-images` auf `https://98bed59e4077ace876d8c5870be1ad39.r2.cloudflarestorage.com`
+**Public URL:** `https://pub-433520acd4174598939bc51f96e2b8b9.r2.dev`
+**Credentials:** `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` in `backend/.env` + `scripts/.env`
+
+**Prefixes (drei getrennte Herkünfte):**
+- `tape-mag/standard/` — 83.150 Legacy-Bilder von tape-mag.com, upgeladen via `legacy_sync_v2.py` (boto3)
+- `tape-mag/discogs/` — 43.025 Discogs-Bilder (migriert 2026-04-12 + alle zukünftigen Discogs-Imports, WebP-optimiert)
+- `tape-mag/uploads/` — iPhone-Fotos aus Stocktake-Session
+
+**Shared Library:** `backend/src/lib/image-upload.ts` — `optimizeImage()` (sharp), `uploadToR2()` (S3 SDK), `downloadOptimizeUpload()` (URL → R2), `isR2Configured()` (graceful fallback)
+
+**Migration-Script:** `scripts/migrate_discogs_images_to_r2.py` — idempotent, rate-limited (5/s), resume-fähig. Falls zukünftig doch noch Hotlinks entstehen (z.B. via Fremd-Tool), erneut laufen lassen.
+
+**Upload-Endpoint:** `POST /admin/erp/inventory/upload-image` (base64 JSON body, kein Multipart nötig — einfacher für Mobile)
+
+**Dependencies (backend):** `sharp` + `@aws-sdk/client-s3`. In scripts: `Pillow` + `boto3`.
+
 ## Credentials (in .env / .env.local, git-ignored)
 
 ```
@@ -403,7 +422,7 @@ VOD_Auctions/
 **legacy_available:** Spiegelt MySQL `frei`-Feld — `frei=1` → true (verfügbar), `frei=0` → false (gesperrt), `frei>1` (Unix-Timestamp) → false (auf tape-mag verkauft). Wird stündlich per Legacy-Sync aktualisiert.
 
 **ERP Module Status:**
-- `ERP_INVENTORY` — **Flag ON, Bulk +15% ausgeführt (2026-04-12).** 13.107 Cohort-A Items, alle `price_locked=true`, Gesamtwert €465.358. V5 Sync-Schutz verifiziert. Tabellen: `erp_inventory_item`, `erp_inventory_movement` (26.214 Rows), `bulk_price_adjustment_log`. Admin-UI: `/app/erp/inventory` (Hub) + `/app/erp/inventory/session` (Keyboard-Stocktake). **Nächster Schritt:** Frank startet Inventur-Sessions (4-6 Wochen). Siehe `docs/optimizing/INVENTUR_COHORT_A_KONZEPT.md`.
+- `ERP_INVENTORY` — **Flag ON (2026-04-12).** Bulk +15% ausgeführt: 13.107 Cohort-A Items, alle `price_locked=true`, Gesamtwert €465.358, V5 Sync-Schutz verifiziert. **Inventur Workflow v2 deployed (2026-04-12):** Search-First auf ALLE 50.958 Releases (nicht nur Cohort A), Exemplar-Modell (1 Row pro physisches Stück, eigener Barcode/Zustand/Preis), iPhone-Foto-Upload im Session-Screen, Dashboard mit Browse-Tabelle + Fehlbestands-Check. Tabellen: `erp_inventory_item` (+ `condition_media`, `condition_sleeve`, `copy_number`, `exemplar_price`, UNIQUE(release_id, copy_number)), `erp_inventory_movement`, `bulk_price_adjustment_log`. Admin-UI: `/app/erp/inventory` (Hub mit Stats + Browse) + `/app/erp/inventory/session` (Search + Exemplar-Bewertung mit Goldmine-Grading). **Nächster Schritt:** Frank briefen + Test-Durchlauf. Siehe `docs/optimizing/INVENTUR_WORKFLOW_V2_KONZEPT.md` (Source of Truth) und `INVENTUR_COHORT_A_KONZEPT.md` (v1, Sync-Schutz + Bulk-Adjust weiterhin gültig).
 - `ERP_INVOICING` — nicht implementiert (wartet auf easybill-Account + StB-Termin)
 - `ERP_SENDCLOUD` — nicht implementiert (Sendcloud-Account erstellt am 07.04., DHL-GK-Nr vorhanden, Code pending)
 - `POS_WALK_IN` — **Code deployed, Flag ON (Dry-Run).** Phase P0: Scan→Cart→Checkout funktional, Transaktionen real (item_type='walk_in_sale'), tse_signature='DRY_RUN'. PWA-fähig. Admin-UI: `/app/pos` (Terminal) + `/app/pos/reports` (Analytics). Stats-Cards, Payment-Auswahl (SumUp/Bar/PayPal/Überweisung), Customer-Panel (Anonym/Suchen/Neu+Adresse), Discount EUR/%, Cash Quick-Amount-Grid mit Wechselgeld. Stubs: TSE (gelber Banner), Tax-Free Export (disabled). Nächste Phase P1 wartet auf Steuerberater-Freigabe. Siehe `docs/optimizing/POS_WALK_IN_KONZEPT.md` v1.1.
@@ -414,9 +433,9 @@ VOD_Auctions/
 → Operative Aufgabenliste mit Workstreams, Blockern und nächsten Aktionen: [`docs/TODO.md`](docs/TODO.md)
 
 **Aktuell wichtigste nächste Schritte:**
-1. **POS P0 Dry-Run live:** Frank testet Scan→Cart→Checkout im Laden. Feedback sammeln, UX-Probleme fixen. Stat-Cards klickbar → `/app/pos/reports` mit Transaktionsliste.
-2. **Inventur v2 Phase 1:** Schema-Migration + Search-First Session-Screen + Exemplar-Bewertung — Kern-Workflow damit Frank starten kann
-3. **L1:** AGB-Anwalt beauftragen (Launch-Blocker)
+1. **Frank briefen (Inventur v2):** Search-First Session + Exemplar-Modell + iPhone-Upload deployed. Test-Durchlauf mit 5-10 Artikeln, V5 Sync nach Test prüfen, dann 4-6 Wochen Inventur-Phase starten.
+2. **POS P0 Dry-Run live:** Frank testet Scan→Cart→Checkout im Laden. Feedback sammeln, UX-Probleme fixen.
+3. **L1:** AGB-Anwalt beauftragen (Launch-Blocker, RSE-78)
 
 **Arbeitsregeln:**
 - Für operative Details immer `docs/TODO.md` nutzen — keine Task-Listen in CLAUDE.md pflegen
