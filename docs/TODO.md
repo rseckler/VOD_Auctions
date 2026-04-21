@@ -1,7 +1,7 @@
 # VOD Auctions — TODO
 
 Operative Aufgabenliste. Single Source of Truth für laufende Arbeit.
-**Letzte Aktualisierung:** 2026-04-12 (Inventur v2 komplett + Discogs R2 Migration)
+**Letzte Aktualisierung:** 2026-04-21 (Konsistenz-Audit abgeschlossen, Storefront-Preis-Fix, Multi-Surface Label-Print, INSTALLATION.md geschrieben)
 
 ## Arbeitslogik
 
@@ -24,8 +24,9 @@ Aktuell aktive Workstreams. Maximal 2-3 gleichzeitig.
 ## Next
 
 Kommt dran sobald ein Now-Slot frei wird oder ein Blocker sich löst.
-4. **Sendcloud-Integration** — Voraussetzungen vorhanden, Code pending
-5. **Sync Monitoring** — Dead-Man's-Switch + Alerting
+4. **Redis + Rate-Limiting + Datenschutz-Fix** — Launch-Blocker (Brute-Force-Schutz + DSGVO-Konsistenz)
+5. **Sendcloud-Integration** — Voraussetzungen vorhanden, Code pending
+6. **Sync Monitoring** — Dead-Man's-Switch + Alerting
 
 ## Later
 
@@ -47,9 +48,9 @@ Bewusst geparkt. Wird bei Bedarf nach Next gezogen.
 ### 1. Inventur Workflow v2 Umbau
 
 **Ziel:** Frank kann im Lager Platten in die Hand nehmen, im System suchen, Zustand/Preis bewerten, bestätigen und Label drucken. Jedes physische Exemplar wird ein eigener Datensatz mit eigenem Barcode.
-**Status:** Alle 4 Phasen implementiert + deployed (2026-04-12). Search auf ALLE 50.958 Releases erweitert. iPhone-Foto-Upload integriert. 43.025 Discogs-Bilder zu R2 migriert. Discogs-Import speichert jetzt direkt R2-URLs.
-**Blocker:** Keiner — rein operativ (Frank briefen).
-**Nächste Aktion:** Frank kontaktieren, neuen Workflow erklären, Test-Durchlauf machen.
+**Status:** Alle 4 Phasen implementiert + deployed (2026-04-12). Search auf ALLE 50.958 Releases erweitert. iPhone-Foto-Upload integriert. 43.025 Discogs-Bilder zu R2 migriert. Discogs-Import speichert jetzt direkt R2-URLs. Frank-MacBook-Setup-Kit komplett (`frank-macbook-setup/`, 2026-04-14). **Nach Franks erstem Test-Durchlauf 12 Bugs in einem Zug gefixt (rc31, 2026-04-21) — Silent-Print via QZ Tray live, Label-Wrap-Overlap behoben, Catalog als COALESCE-Source-of-Truth, Discogs-Linking editierbar.**
+**Blocker:** Keiner — rein operativ (Frank briefen + Kit ausrollen).
+**Nächste Aktion:** Kit auf Franks MBP16 A2141 ausrollen + zweiter Test-Durchlauf mit den rc31-Fixes (Asmus-Tietchens-Label sollte jetzt mit korrektem Preis + sauberem Layout drucken).
 
 #### Kontext (warum Umbau)
 
@@ -82,7 +83,10 @@ Neuer Workflow: Frank nimmt Artikel → sucht im System → bewertet (Zustand Me
 - [x] **1.7-1.11** Session-Screen komplett neu: Search-First, Exemplar-Liste, Grade-Selector, Discogs-Override, Legacy-Condition-Mapping, Auto-Print, Shortcuts (2026-04-12)
 - [x] **1.12** Reset-API erweitert: setzt condition/exemplar_price zurück (2026-04-12)
 - [x] **1.13** VPS Deploy — PM2 online, 0 neue Errors (2026-04-12)
-- [ ] **1.14** Frank briefen: Session-URL, neuer Workflow erklären, Test-Durchlauf
+- [x] **1.14** Frank-MacBook-Setup-Kit (`frank-macbook-setup/`, 2026-04-14) — Installations-Kit für MBP16 A2141: install.sh + test-print.sh + verify-setup.sh, Brother QL/Scanner/QZ-Tray-Automatisierung, pure-Python-PDF-Generator, Anleitung Deutsch für Frank, komplette Troubleshooting-Doku
+- [ ] **1.15** Kit auf Franks MacBook ausrollen (Brother-Driver manuell, Raster-Mode via Web-UI, Scanner-Setup-Barcodes)
+- [ ] **1.16** Frank briefen: Session-URL zeigen, neuen Workflow erklären, 5-10 Test-Artikel verifizieren
+- [ ] **1.17** V5 Sync-Check nach Frank-Test — verifizierte Preise dürfen nicht vom stündlichen Legacy-Sync überschrieben werden
 
 #### Phase 2: Dashboard + Übersicht
 
@@ -96,10 +100,40 @@ Neuer Workflow: Frank nimmt Artikel → sucht im System → bewertet (Zustand Me
 - [x] **3.2** Hub-Page: Fehlbestands-Check Card + Modal (Export CSV + Bulk-Mark mit Confirmation) (2026-04-12)
 - [-] **3.3** Queue-View für Einzel-Durchsicht — entfällt, Frank nutzt Session-Suche stattdessen
 
+#### Phase 4: Bug-Fixes nach erstem Test-Durchlauf (rc31, 2026-04-21)
+
+Franks erster End-to-End-Durchlauf mit Asmus Tietchens `legacy-release-23464` förderte 12 Defekte zutage. Alle in einem Commit-Sweep gefixt + deployed.
+
+- [x] **4.1** P0.1 Vorab-Werte aus Release als Fallback — `session/page.tsx` `startEditCopy()` liest `legacy_condition`/`legacy_price` wenn erp-Felder NULL (Cohort-A-Backfill-Rows waren leer) (2026-04-21)
+- [x] **4.2** P0.4 Browser-Print via iframe — Druck-Dialog öffnet automatisch statt nur neuen Tab (2026-04-21)
+- [x] **4.3** P0.5 Re-Print + Re-Edit Buttons auf jeder Copy-Row, auch nach Verify (2026-04-21)
+- [x] **4.4** P0.6 Label-Wrap-Overlap-Fix — `ellipsis:true` + `height`-Clip auf allen 3 Text-Zeilen in `lib/barcode-label.ts` (2026-04-21)
+- [x] **4.5** P0.7 Label-Preis-Fallback-Chain `COALESCE(exemplar_price, direct_price, legacy_price)` + Condition aus erp (2026-04-21)
+- [x] **4.6** P0.2/Q1b Catalog als COALESCE-Source-of-Truth — `GET /admin/media/:id` merged erp-Werte aufs Release-Objekt, POST schreibt in erp+Release parallel (2026-04-21)
+- [x] **4.7** P0.3 JSX em-dash Literal-Bug in Condition-Dropdowns (2026-04-21)
+- [x] **4.8** Q2 Unlock-Price Button + neuer `POST /admin/erp/inventory/items/:id/unlock-price` Endpoint (2026-04-21)
+- [x] **4.9** Q6 „Block ID" → „Active Auction" Link mit UUID↔TEXT Cast (2026-04-21)
+- [x] **4.10** Q8a Discogs-Linking Card editierbar + `POST /admin/media/:id/refetch-discogs` (2026-04-21)
+- [x] **4.11** Q9 Discogs-Preise in 2 semantische Sections aufgeteilt (2026-04-21)
+- [x] **4.12** P1.1 QZ Tray Silent-Print live — `backend/src/admin/lib/qz-tray-client.ts` mit CDN-Load + fuzzy printer match, iframe-Fallback wenn QZ down (2026-04-21)
+- [x] **4.13** Schema-Fix: `Release.genres/styles` sind TEXT[] nicht TEXT — alte UI-Bug der Frank „Genre leer" sehen ließ (2026-04-21)
+- [x] **4.14** Preis-Mirror: Save in Edit-Valuation spiegelt `direct_price` → `exemplar_price` bei Single-Exemplar (2026-04-21)
+- [x] **4.15** Backfill-Script `scripts/backfill_genre_styles.py` geschrieben + gelaufen auf VPS: **137 Releases** mit fehlenden `genres`/`styles` gefüllt (2026-04-21)
+- [x] **4.16** Audit-Script `scripts/audit_discogs_mappings.py` geschrieben + gelaufen: **431 geflaggte Mappings** bei Threshold 0.65 (Export `docs/audit_discogs_flagged_2026-04-21.csv`) (2026-04-21)
+- [x] **4.17** Konsistenz-Audit nach Robins Feedback („Konsistenz ist nicht Dein Ding"): 4 Bereiche quer durchs Repo gegrept — **Storefront-Preis inkonsistent gefunden + gefixt** (`/store/catalog/*` liest jetzt COALESCE(legacy, direct), `is_purchasable` + `for_sale` + Sort erweitert, `effective_price` Feld + legacy_price-Normalisierung für Frontend-Compat) (2026-04-21)
+- [x] **4.18** Multi-Surface Label-Print konsolidiert — `printLabelAuto()` als shared Helper in `backend/src/admin/lib/qz-tray-client.ts`, alle 3 Buttons (Session + Catalog Multi + Catalog Single) nutzen ihn jetzt (2026-04-21)
+- [x] **4.19** Label-PDF 2-Page-Bug gefixt — `autoFirstPage:false` + manueller `addPage()` in `generateLabelPdf` (2026-04-21)
+- [x] **4.20** QZ Tray Install: `brew --cask qz-tray` ist aus Homebrew entfernt — `install.sh` nutzt jetzt direkten .pkg-Download von GitHub (v2.2.6, arm64/x86_64-Detection, `sudo installer`) (2026-04-21)
+- [x] **4.21** `frank-macbook-setup/INSTALLATION.md` geschrieben — Step-by-Step für MacBook Air + Mac Studio, Troubleshooting-Matrix, Zweit-Mac-Ablauf (2026-04-21)
+
+**Nächste Aktion (Frank):** Zweiter Test-Durchlauf — Asmus Tietchens aufrufen, Direct Price ändern + Save, Label neu drucken, prüfen dass neuer Preis erscheint (sollte jetzt im Storefront auch kaufbar sein). Parallel Kit auf Mac Studio + MBA via `INSTALLATION.md` ausrollen.
+
 #### Nice-to-have (nicht blockierend)
 
-- [ ] QZ Tray Silent-Print statt Browser-Print-Dialog (Phase B7)
+- [x] QZ Tray Silent-Print — Client-Code via `wss://localhost:8181`, Installation via Setup-Kit (2026-04-14)
+- [x] QZ Tray Integration im Admin-Session-Screen live (lazy CDN, fuzzy printer match, iframe fallback) (2026-04-21)
 - [ ] onScan.js Integration für HID-Scanner im Session-Screen (Phase B6)
+- [ ] **Discogs-Mapping Manual Review** — `docs/audit_discogs_flagged_2026-04-21.csv` durchgehen, zuerst die 10 Fälle mit Score < 0.3 (trivial falsch), dann 138 mittlere (0.3–0.5). Jeder Fix via Catalog-Detail → Discogs-Linking Card → Discogs-ID korrigieren → „Fetch from Discogs". Beispiel VOD-16530 (`legacy-release-20267`): aktuell `discogs_id=430134`, richtig wäre `1048274`. Low-Priority, Frank-Selbstbedienung.
 
 #### Erledigt
 
@@ -221,7 +255,82 @@ Neuer Workflow: Frank nimmt Artikel → sucht im System → bewertet (Zustand Me
 
 ---
 
-### 4. Sendcloud-Integration (ERP_SENDCLOUD)
+### 4. Redis + Rate-Limiting + Datenschutz-Fix
+
+**Ziel:** Kritische Endpoints vor Brute-Force/Spam schützen und Datenschutzerklärung mit Realität in Einklang bringen — sauberer Zustand vor Launch, danach kein Nacharbeiten nötig.
+**Status:** Upstash Redis wurde 2026-04-17 wegen Inaktivität archiviert (war nur als Health-Check-Ziel provisioniert, nie produktiv im Einsatz). Datenschutz behauptet Upstash-Nutzung, die es faktisch nicht gibt.
+**Blocker:** Keiner — kann jederzeit starten.
+**Nächste Aktion:** Neues Upstash-Projekt in eu-central-1 anlegen, `@upstash/redis` + `@upstash/ratelimit` in Backend einbauen.
+
+#### Kontext (warum jetzt)
+
+Aktuelle Gaps:
+- **Kein Rate-Limiting** auf Login, Gate-Passwort, Apply-Form, Bid-Submit → Brute-Force und Bot-Spam wirtschaftlich möglich
+- **Datenschutz (`storefront/src/app/datenschutz/page.tsx`) nennt Upstash als Auftragsverarbeiter**, obwohl kein Produktions-Code Redis nutzt → DSGVO-Transparenz-Inkonsistenz
+- **Webhook-Idempotenz ist bereits DB-seitig gelöst** (Stripe `backend/src/api/webhooks/stripe/route.ts:90,214`, PayPal `backend/src/api/webhooks/paypal/route.ts:69,76`) — Redis-Layer hier redundant, bewusst NICHT Teil dieses Workstreams
+- **Middleware/Site-Config-Cache via Redis** wäre bei einer PM2-Instanz nur marginal besser als In-Memory → bewusst deferred (siehe Hinweise)
+
+Architektur-Entscheidungen:
+- Upstash REST-Client (`@upstash/redis`), keine persistente Socket-Verbindung → passt zu PM2, später serverless-fähig
+- `@upstash/ratelimit` (Sliding-Window) als Standard-Package, nicht selbst schreiben
+- Fail-open für User-facing Endpoints (Login/Apply/Gate) — lieber verfügbar bleiben als legit User aussperren wenn Upstash down
+- Fail-closed für Admin-Endpoints (strengere Sicherheit OK, interne User)
+- Keys als `vod:ratelimit:<domain>:<id>` mit explizitem TTL, Graceful-Degrade wenn Redis nicht erreichbar
+
+#### Offene Aufgaben
+
+**Setup:**
+- [ ] Neues Upstash-Projekt anlegen (Name `vod-auctions`, Region `eu-central-1`, Free-Plan)
+- [ ] Credentials in 1Password ablegen + `backend/.env` + `backend/.env.staging.example` aktualisieren
+- [ ] Deps: `npm install @upstash/redis @upstash/ratelimit` im Backend
+- [ ] `backend/src/lib/redis.ts` — typisierter Client mit Graceful-Degrade (exportiert `getRedis()` — gibt `null` wenn nicht konfiguriert)
+
+**Rate-Limiting (Backend):**
+- [ ] Helper `backend/src/lib/rate-limit.ts` mit `checkRateLimit(identifier, config)` → `{ success, remaining, reset }`
+- [ ] Login-Endpoints (`/auth/customer/emailpass` etc.): 5 Versuche / 15 Min / IP, fail-open
+- [ ] Gate-Passwort `/api/gate`: 10 Versuche / h / IP, fail-open (Storefront-Route, läuft in Next.js)
+- [ ] Apply-Form `/store/waitlist/apply`: 3 Submissions / h / IP, fail-open
+- [ ] Bid-Submit `/store/account/bids`: 30 Gebote / Min / User, fail-open (toleranter für Last-Second-Bidding in aktiven Auktionen — Wert final bei Tests justieren)
+- [ ] 429-Response mit `Retry-After` Header + `X-RateLimit-*` Headers
+- [ ] Admin-Endpoints: noch zu entscheiden, ob separater Limit mit fail-closed nötig
+
+**Rate-Limiting (Storefront):**
+- [ ] Gate-Route `/api/gate` in Next.js: gleicher Redis-Client client-side via `@upstash/redis` REST
+- [ ] Alternativ: Gate-Check serverseitig im Backend, Storefront delegiert
+
+**Datenschutz-Fix:**
+- [ ] `storefront/src/app/datenschutz/page.tsx` Zeilen 129, 210, 214 — Upstash-Erwähnung aktualisieren (nicht streichen, weil Redis ja jetzt echt genutzt wird — Text präzisieren: "zur Rate-Limiting-Verarbeitung", nicht "Caching von Katalogdaten")
+- [ ] Verarbeitungs-Verzeichnis (AVV) prüfen: haben wir einen AV-Vertrag mit Upstash? Falls nein, abschließen (DSGVO Art. 28)
+
+**System-Health:**
+- [ ] `backend/src/api/admin/system-health/route.ts` — Redis-Check zeigt jetzt sinnvollen Status (connected + latency) statt nur Ping
+
+**Testing:**
+- [ ] Manueller Brute-Force-Test gegen Login (10 Versuche in 1 Min) → sollte auf 429 sperren
+- [ ] Apply-Form-Spam-Test → 429 nach 3 Submissions
+- [ ] Bid-Test in aktiver Auktion → 30 Gebote/Min sollten durchgehen, 31. blockt
+- [ ] Redis-Down-Test: Credentials temporär kaputt setzen → Endpoints funktionieren weiter, keine 500er
+
+#### Bewusst NICHT Teil dieses Workstreams (dokumentiert für später)
+
+- **Webhook-Idempotenz via Redis** — bereits DB-seitig gelöst, redundant
+- **Middleware platform_mode Cache** — bei einer PM2-Instanz marginal, erst bei Skalierung relevant
+- **Backend site-config Cache** — gleich wie oben
+- **Live-Bidding Hot-Path Cache** (`auction:<id>:current_bid`) — erst bei echtem Traffic nötig, aktuell Supabase Realtime + DB-Reads ausreichend
+- **Catalog-Listing Cache** — Next.js ISR reicht aktuell
+
+Diese Punkte werden erst gezogen, wenn konkrete Metriken (Response-Zeit, Last, Fehlerrate) einen Bedarf zeigen.
+
+#### Hinweise
+
+- **Free-Tier-Limit:** 10.000 Commands/Tag. Bei Rate-Limiting ~2-5 Commands pro geschützter Request = ausreichend für Pre-Launch + frühe Launch-Phase. Monitoring via Upstash-Console.
+- **Staging:** Eigene zweite Upstash-DB (Free-Plan erlaubt 2 DBs pro Account) wenn Staging-HTTP-Layer kommt. Bis dahin Prod-only.
+- **Kosten nach Free-Tier:** $0.20 / 100k Commands — überschaubar auch bei 10x Traffic.
+- **Ursprüngliches Archiv:** Alte DB wird NICHT wiederhergestellt (enthielt nur Health-Check-Pings).
+
+---
+
+### 5. Sendcloud-Integration (ERP_SENDCLOUD)
 
 **Ziel:** Shipping-Labels direkt aus Admin generieren statt manuell bei DHL.
 **Status:** Voraussetzungen vorhanden, Code nicht geschrieben.
@@ -230,6 +339,7 @@ Neuer Workflow: Frank nimmt Artikel → sucht im System → bewertet (Zustand Me
 
 #### Offene Aufgaben
 
+- [ ] **Staging-HTTP-Layer bauen BEVOR Sendcloud-Code live geht** (siehe Hinweise)
 - [ ] Sendcloud Client-Wrapper + DHL konfigurieren (DHL-GK: 5115313430)
 - [ ] Admin UI Shipping-Label-Generierung in Orders-Detail
 - [ ] Feature Flag `ERP_SENDCLOUD` aktivieren
@@ -238,10 +348,11 @@ Neuer Workflow: Frank nimmt Artikel → sucht im System → bewertet (Zustand Me
 
 - Sendcloud-Account existiert (erstellt 2026-04-07)
 - Konzept: `docs/optimizing/ERP_WARENWIRTSCHAFT_KONZEPT.md`
+- **Staging-Kopplung:** Sendcloud triggert echte Versandlabels → muss zwingend gegen Sandbox/Staging getestet werden. Staging-DB existiert (`aebcwjjcextzvflrjgei`, aktuell pausiert wegen Inaktivität), aber HTTP-Layer (PM2 + nginx + DNS + SSL für `staging.vod-auctions.com` / `api-staging.` / `admin-staging.`) ist deferred. Siehe `docs/architecture/STAGING_ENVIRONMENT.md` §4+§6. Setup-Aufwand ~1 Tag, $0 Kosten. Als ersten Schritt dieses Workstreams ziehen, bevor Sendcloud-Code auf Prod geht.
 
 ---
 
-### 5. Sync Monitoring
+### 6. Sync Monitoring
 
 **Ziel:** Automatische Warnung wenn der stündliche Legacy-Sync ausfällt oder Fehler hat.
 **Status:** Sync v2.0.0 stabil (168+ Runs, 0 failed). Monitoring fehlt.
@@ -266,14 +377,15 @@ Neuer Workflow: Frank nimmt Artikel → sucht im System → bewertet (Zustand Me
 
 ### 6. Entity Content Overhaul (RSE-227)
 
-**Ziel:** AI-generierte Beschreibungen für alle 19.000+ Entities (Bands, Labels, Press).
-**Status:** P2 paused. 576/3.650 Entities done. Budget $96/$120 verbraucht.
-**Blocker:** Budget-Freigabe für Weiterführung (~$553 für Rest).
-**Nächste Aktion:** Budget freigeben, dann `orchestrator.py --type artist --phase P2` starten.
+**Ziel:** AI-generierte Beschreibungen für alle Entities (Bands, Labels, Press).
+**Status:** P2 paused. Aktuell 26,0% gesamt (19.623 / 75.352). Running-Batch 576/3.650. ~55.729 offen.
+**Blocker:** Provider-Entscheidung + Budget. OpenAI-Kontingent bremst. LLM-Migration evaluiert (siehe Konzept-Doc).
+**Nächste Aktion:** Ollama-Pilot auf MacBook M5 Pro 48GB (100 Entities Test-Run) — Quality + Speed gegen P1-Baseline (Ø 82,3) messen.
 
 #### Referenzen
 
 - Pipeline: `scripts/entity_overhaul/`
+- LLM-Migration Konzept: [`docs/optimizing/ENTITY_OVERHAUL_LLM_MIGRATION.md`](optimizing/ENTITY_OVERHAUL_LLM_MIGRATION.md)
 - Linear: RSE-227
 
 ---
@@ -375,6 +487,12 @@ Diese Themen leben in Linear, nicht hier. Nur zur Referenz:
 
 | Datum | Meilenstein |
 |---|---|
+| 2026-04-21 | Konsistenz-Audit + Storefront-Preis-Fix: `/store/catalog/*` liest jetzt COALESCE(legacy, direct) → Non-Cohort-A Items (via Inventur erfasst) im Shop kaufbar statt als NaN/not-purchasable |
+| 2026-04-21 | Multi-Surface Label-Print konsolidiert: `printLabelAuto()` shared helper, QZ Tray Install via direkten .pkg-Download (brew cask ist weg), Label-PDF 2-Page-Bug gefixt |
+| 2026-04-21 | `INSTALLATION.md` für Franks Macs — Step-by-Step Guide für MacBook Air M5 + Mac Studio mit Troubleshooting |
+| 2026-04-21 | Inventur v2 Bug-Fixes nach erstem echten Test-Durchlauf: 12 Bugs in einem Zug, QZ Tray Silent-Print live, Catalog als COALESCE-Source-of-Truth, Discogs-Linking editierbar, Schema-Fix genres=TEXT[] |
+| 2026-04-21 | Genre/Styles-Backfill auf VPS: 137 Releases aus `discogs_api_cache` befüllt |
+| 2026-04-21 | Discogs-Mapping Audit: 431 geflaggte Mappings identifiziert (`audit_discogs_flagged_2026-04-21.csv`) — manuelles Review durch Frank |
 | 2026-04-12 | Discogs-Hotlinks eliminiert: 43.025 Bilder zu R2 migriert + zukünftige Imports direkt zu R2 |
 | 2026-04-12 | iPhone-Foto-Upload im Stocktake (sharp-Optimierung, R2) |
 | 2026-04-12 | Inventur Workflow v2 komplett deployed (Search-First + Exemplar-Modell + Dashboard + Fehlbestand) |

@@ -349,10 +349,20 @@ export async function GET(
   query = query.whereNotNull("Release.coverImage")
   countQuery = countQuery.whereNotNull("Release.coverImage")
 
-  // For-sale filter: only show purchasable items (with price)
+  // For-sale filter: only show purchasable items (with any price).
+  // Include both legacy_price (Auction-start / shop) and direct_price
+  // (Direct-Purchase only) so Items captured via ERP stocktake session
+  // (Non-Cohort-A) aren't excluded when legacy_price is NULL.
   if (for_sale === "true") {
-    query = query.whereNotNull("Release.legacy_price").where("Release.legacy_price", ">", 0).where("Release.legacy_available", true)
-    countQuery = countQuery.whereNotNull("Release.legacy_price").where("Release.legacy_price", ">", 0).where("Release.legacy_available", true)
+    const salePriceClause = function (this: any) {
+      this.where(function (this: any) {
+        this.whereNotNull("Release.legacy_price").andWhere("Release.legacy_price", ">", 0)
+      }).orWhere(function (this: any) {
+        this.whereNotNull("Release.direct_price").andWhere("Release.direct_price", ">", 0)
+      })
+    }
+    query = query.where(salePriceClause).where("Release.legacy_available", true)
+    countQuery = countQuery.where(salePriceClause).where("Release.legacy_available", true)
   }
 
   // Genre filter: match via entity_content genre_tags on artist
@@ -379,9 +389,10 @@ export async function GET(
   // Count total
   const [{ count: total }] = await countQuery.count("Release.id as count")
 
-  // Sort
+  // Sort. Price sort uses COALESCE so Direct-Purchase items without
+  // legacy_price still sort sensibly by their direct_price.
   const sortField =
-    sort === "price" ? `"Release"."legacy_price"`
+    sort === "price" ? `COALESCE("Release"."legacy_price", "Release"."direct_price")`
     : sort === "year" ? `"Release"."year"`
     : sort === "artist" ? `"Artist"."name"`
     : `"Release"."title"`
@@ -400,11 +411,26 @@ export async function GET(
 
   const releases = await query
 
-  // Add is_purchasable flag to each release
-  const enrichedReleases = releases.map((r: any) => ({
-    ...r,
-    is_purchasable: r.legacy_price != null && Number(r.legacy_price) > 0 && r.legacy_available !== false,
-  }))
+  // Add is_purchasable + effective_price. For direct-purchase-only items
+  // (legacy_price NULL, direct_price set — typical for Non-Cohort-A
+  // releases captured via ERP stocktake), we also normalize legacy_price
+  // to the direct_price so existing frontend code that reads legacy_price
+  // doesn't render NaN.
+  const enrichedReleases = releases.map((r: any) => {
+    const rawLegacy = r.legacy_price != null ? Number(r.legacy_price) : null
+    const rawDirect = r.direct_price != null ? Number(r.direct_price) : null
+    const effective_price = rawLegacy != null && rawLegacy > 0 ? rawLegacy
+      : rawDirect != null && rawDirect > 0 ? rawDirect
+      : null
+    return {
+      ...r,
+      legacy_price: rawLegacy != null && rawLegacy > 0 ? rawLegacy
+        : rawDirect != null && rawDirect > 0 ? rawDirect
+        : r.legacy_price,
+      effective_price,
+      is_purchasable: effective_price != null && r.legacy_available !== false,
+    }
+  })
 
   res.json({
     releases: enrichedReleases,

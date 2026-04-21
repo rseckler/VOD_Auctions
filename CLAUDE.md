@@ -4,7 +4,7 @@
 **Goal:** Eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Beta Test (platform_mode: beta_test) — Pre-Launch Phase als nächster Schritt
 **Language:** Storefront + Admin-UI: Englisch
-**Last Updated:** 2026-04-12
+**Last Updated:** 2026-04-21
 
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
@@ -433,9 +433,11 @@ VOD_Auctions/
 → Operative Aufgabenliste mit Workstreams, Blockern und nächsten Aktionen: [`docs/TODO.md`](docs/TODO.md)
 
 **Aktuell wichtigste nächste Schritte:**
-1. **Frank briefen (Inventur v2):** Search-First Session + Exemplar-Modell + iPhone-Upload deployed. Test-Durchlauf mit 5-10 Artikeln, V5 Sync nach Test prüfen, dann 4-6 Wochen Inventur-Phase starten.
-2. **POS P0 Dry-Run live:** Frank testet Scan→Cart→Checkout im Laden. Feedback sammeln, UX-Probleme fixen.
-3. **L1:** AGB-Anwalt beauftragen (Launch-Blocker, RSE-78)
+1. **Zweiter Frank-Test-Durchlauf (Inventur v2 nach rc31):** Asmus Tietchens aufrufen, Direct Price ändern + Save, Label neu drucken, prüfen dass neuer Preis erscheint + kein Layout-Overlap. 5-10 weitere Artikel. Dann 4-6 Wochen Inventur-Phase starten.
+2. **Frank-MacBook-Kit ausrollen:** `frank-macbook-setup/install.sh` auf MBP16 A2141 ausführen (Brother-Driver manuell, Raster-Mode, Scanner, QZ Tray, Safari-Web-App).
+3. **Discogs-Mapping Manual Review (Low-Priority):** `docs/audit_discogs_flagged_2026-04-21.csv` — 431 geflaggte Mappings, Frank korrigiert via Catalog-Detail → Discogs-Linking Card → neue ID + „Fetch from Discogs". Erst die 10 Fälle mit Score < 0.3.
+4. **POS P0 Dry-Run live:** Frank testet Scan→Cart→Checkout im Laden. Feedback sammeln, UX-Probleme fixen.
+5. **L1:** AGB-Anwalt beauftragen (Launch-Blocker, RSE-78)
 
 **Arbeitsregeln:**
 - Für operative Details immer `docs/TODO.md` nutzen — keine Task-Listen in CLAUDE.md pflegen

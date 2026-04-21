@@ -145,7 +145,22 @@ export async function GET(
         .limit(50)
     : []
 
-  const is_purchasable = release.legacy_price != null && Number(release.legacy_price) > 0 && release.legacy_available !== false
+  // Effective price: for items that Frank captured via the ERP stocktake
+  // session (Non-Cohort-A), legacy_price may be NULL while direct_price is
+  // set. Fall back to direct_price so the Storefront renders + sells them.
+  // Auction-specific prices live on block_item.current_price/start_price —
+  // this Release-level field is the "shop price" regardless of sale_mode.
+  const rawLegacy = release.legacy_price != null ? Number(release.legacy_price) : null
+  const rawDirect = release.direct_price != null ? Number(release.direct_price) : null
+  const effective_price = rawLegacy != null && rawLegacy > 0 ? rawLegacy
+    : rawDirect != null && rawDirect > 0 ? rawDirect
+    : null
+  // Normalize legacy_price for Frontend so existing
+  // `Number(legacy_price).toFixed(2)` calls don't render NaN.
+  if (rawLegacy == null && rawDirect != null && rawDirect > 0) {
+    release.legacy_price = rawDirect
+  }
+  const is_purchasable = effective_price != null && release.legacy_available !== false
 
   // Auction lot link — only for publicly visible blocks (preview/active)
   let auction_lot: { block_slug: string; block_item_id: string } | null = null
@@ -168,6 +183,7 @@ export async function GET(
     release: {
       ...release,
       is_purchasable,
+      effective_price,
       auction_lot,
       images,
       various_artists,
