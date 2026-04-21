@@ -44,6 +44,7 @@ export async function GET(
       "r.country",
       "r.legacy_condition",
       "r.legacy_price",
+      "r.direct_price",
       "a.name as artist_name",
       "l.name as label_name"
     )
@@ -62,9 +63,13 @@ export async function GET(
     })
   }
 
-  const effectivePrice = item.exemplar_price != null
-    ? Number(item.exemplar_price)
-    : (item.legacy_price != null ? Number(item.legacy_price) : null)
+  // Fallback chain: exemplar (stocktake override) → direct (shop price for
+  // sale_mode=direct_purchase/both) → legacy (MySQL auction start price).
+  const effectivePrice =
+    item.exemplar_price != null ? Number(item.exemplar_price)
+    : item.direct_price != null ? Number(item.direct_price)
+    : item.legacy_price != null ? Number(item.legacy_price)
+    : null
 
   const effectiveCondition = item.condition_media
     ? (item.condition_sleeve && item.condition_sleeve !== item.condition_media

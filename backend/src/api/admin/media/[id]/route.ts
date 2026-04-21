@@ -279,6 +279,24 @@ export async function POST(
     if (Object.keys(erpFields).length > 0) Object.assign(erpUpdatePayload, erpFields)
     if (warehouseLocationId !== undefined) erpUpdatePayload.warehouse_location_id = warehouseLocationId || null
 
+    // Single-exemplar price mirror: when Frank changes direct_price in the
+    // Edit-Valuation form AND there is exactly one inventory_item for this
+    // release, mirror the new price onto erp_inventory_item.exemplar_price.
+    // This keeps the label print (COALESCE(exemplar, direct, legacy)) showing
+    // the correct current price without forcing Frank back into the stocktake
+    // session. Multi-exemplar releases are skipped — each copy has its own
+    // price and a release-level change would be ambiguous.
+    const directPriceProvided =
+      releaseUpdates.direct_price !== undefined && releaseUpdates.direct_price !== null
+    if (directPriceProvided) {
+      const existingItems = await trx("erp_inventory_item").where("release_id", id).select("id")
+      if (existingItems.length === 1) {
+        erpUpdatePayload.exemplar_price = Number(releaseUpdates.direct_price)
+        erpUpdatePayload.price_locked = true
+        erpUpdatePayload.price_locked_at = new Date()
+      }
+    }
+
     if (Object.keys(erpUpdatePayload).length > 0) {
       const existing = await trx("erp_inventory_item").where("release_id", id).first()
       if (existing) {
