@@ -12,8 +12,10 @@ export async function GET(
   )
   const { id } = req.params
 
-  // Fetch release with artist + label + format + pressorga (NO inventory join —
-  // inventory is loaded separately as array to support multiple exemplars per release)
+  // Fetch release with artist + label + format + pressorga + auction block
+  // (NO inventory join — inventory is loaded separately as array to support
+  // multiple exemplars per release). Auction block joined for Q6: show Block
+  // Name + Link instead of raw ULID.
   const release = await pgConnection("Release")
     .select(
       "Release.*",
@@ -21,12 +23,15 @@ export async function GET(
       "Label.name as label_name",
       "Format.name as format_name",
       "Format.format_group",
-      "PressOrga.name as pressorga_name"
+      "PressOrga.name as pressorga_name",
+      "auction_block.title as current_block_title",
+      "auction_block.slug as current_block_slug"
     )
     .leftJoin("Artist", "Release.artistId", "Artist.id")
     .leftJoin("Label", "Release.labelId", "Label.id")
     .leftJoin("Format", "Release.format_id", "Format.id")
     .leftJoin("PressOrga", "Release.pressOrgaId", "PressOrga.id")
+    .leftJoin("auction_block", "Release.current_block_id", "auction_block.id")
     .where("Release.id", id)
     .first()
 
@@ -46,6 +51,10 @@ export async function GET(
         "erp_inventory_item.status as inventory_status",
         "erp_inventory_item.quantity as inventory_quantity",
         "erp_inventory_item.source as inventory_source",
+        "erp_inventory_item.copy_number",
+        "erp_inventory_item.condition_media as erp_condition_media",
+        "erp_inventory_item.condition_sleeve as erp_condition_sleeve",
+        "erp_inventory_item.exemplar_price",
         "erp_inventory_item.price_locked",
         "erp_inventory_item.price_locked_at",
         "erp_inventory_item.last_stocktake_at",
@@ -58,16 +67,26 @@ export async function GET(
       )
       .leftJoin("warehouse_location", "erp_inventory_item.warehouse_location_id", "warehouse_location.id")
       .where("erp_inventory_item.release_id", id)
-      .orderBy("erp_inventory_item.created_at", "asc")
+      .orderBy("erp_inventory_item.copy_number", "asc")
   } catch {
     inventory_items = []
   }
 
   // Backward compatibility: flatten first item's fields onto release object
   // so existing UI code that reads release.inventory_item_id etc. still works.
+  // Q1(b) COALESCE: when erp has values, surface them as the canonical
+  // media_condition/sleeve_condition/inventory on the release object, so the
+  // Catalog Edit-Valuation form shows the stocktake values instead of the
+  // stale Release.* columns. Release.legacy_* remain the MySQL-owned fallback.
   const firstItem = inventory_items[0] as Record<string, unknown> | undefined
   if (firstItem) {
     Object.assign(release, firstItem)
+    const relRec = release as Record<string, unknown>
+    if (firstItem.erp_condition_media != null) relRec.media_condition = firstItem.erp_condition_media
+    if (firstItem.erp_condition_sleeve != null) relRec.sleeve_condition = firstItem.erp_condition_sleeve
+    if (firstItem.inventory_quantity != null) relRec.inventory = firstItem.inventory_quantity
+    // Effective price: exemplar_price (Copy #2+) overrides legacy_price in display
+    if (firstItem.exemplar_price != null) relRec.effective_price = firstItem.exemplar_price
   }
 
   // Fetch inventory movement history for ALL exemplars of this release
@@ -147,69 +166,108 @@ export async function POST(
     ContainerRegistrationKeys.PG_CONNECTION
   )
   const { id } = req.params
+  const body = (req.body || {}) as Record<string, any>
 
-  // Only allow editing these fields
-  const allowedFields = [
+  // Allowed Release fields (Q8a: discogs_id / genre / styles newly editable)
+  const allowedReleaseFields = [
     "estimated_value",
-    "media_condition",
-    "sleeve_condition",
     "sale_mode",
     "direct_price",
-    "inventory",
     "shipping_item_type_id",
-    "warehouse_location_id",
+    "discogs_id",
+    "genre",
+    "styles",
   ]
-  const updates: Record<string, any> = {}
+  const releaseUpdates: Record<string, any> = {}
 
-  for (const field of allowedFields) {
-    if (req.body[field] !== undefined) {
-      updates[field] = req.body[field]
+  for (const field of allowedReleaseFields) {
+    if (body[field] !== undefined) {
+      releaseUpdates[field] = body[field]
     }
   }
 
-  if (Object.keys(updates).length === 0) {
-    res.status(400).json({
-      message: "No valid fields to update",
-    })
+  // Q1(b): media_condition, sleeve_condition, inventory are now owned by
+  // erp_inventory_item when one exists. These fields are written to erp first,
+  // then mirrored onto Release.* as fallback for Non-Cohort-A releases.
+  const erpFields: Record<string, any> = {}
+  if (body.media_condition !== undefined) erpFields.condition_media = body.media_condition || null
+  if (body.sleeve_condition !== undefined) erpFields.condition_sleeve = body.sleeve_condition || null
+  if (body.inventory !== undefined) erpFields.quantity = body.inventory !== "" && body.inventory !== null ? Number(body.inventory) : 1
+
+  // warehouse_location_id also lives on erp_inventory_item
+  const warehouseLocationId = body.warehouse_location_id
+
+  const hasAnyUpdate =
+    Object.keys(releaseUpdates).length > 0 ||
+    Object.keys(erpFields).length > 0 ||
+    warehouseLocationId !== undefined ||
+    body.media_condition !== undefined ||
+    body.sleeve_condition !== undefined ||
+    body.inventory !== undefined
+
+  if (!hasAnyUpdate) {
+    res.status(400).json({ message: "No valid fields to update" })
     return
   }
 
   // Validate sale_mode
-  if (updates.sale_mode && !["auction_only", "direct_purchase", "both"].includes(updates.sale_mode)) {
+  if (releaseUpdates.sale_mode && !["auction_only", "direct_purchase", "both"].includes(releaseUpdates.sale_mode)) {
     res.status(400).json({ message: "Invalid sale_mode. Must be: auction_only, direct_purchase, or both" })
     return
   }
 
   // If sale_mode requires direct_price, validate it exists
-  if (updates.sale_mode && updates.sale_mode !== "auction_only") {
+  if (releaseUpdates.sale_mode && releaseUpdates.sale_mode !== "auction_only") {
     const current = await pgConnection("Release").where("id", id).select("direct_price").first()
-    if (!updates.direct_price && (!current?.direct_price || Number(current.direct_price) <= 0)) {
+    if (!releaseUpdates.direct_price && (!current?.direct_price || Number(current.direct_price) <= 0)) {
       res.status(400).json({ message: "direct_price is required when sale_mode is not auction_only" })
       return
     }
   }
 
-  // Handle warehouse_location_id separately (lives on erp_inventory_item, not Release)
-  const warehouseLocationId = req.body.warehouse_location_id
-  delete updates.warehouse_location_id
-
-  updates.updatedAt = new Date()
-
-  await pgConnection("Release").where("id", id).update(updates)
-
-  // Update erp_inventory_item(s) if warehouse_location_id was provided.
-  // Applies to ALL exemplars of this release (warehouse is a physical location
-  // that typically applies to all copies of the same release).
-  if (warehouseLocationId !== undefined) {
-    const existing = await pgConnection("erp_inventory_item").where("release_id", id).first()
-    if (existing) {
-      await pgConnection("erp_inventory_item").where("release_id", id).update({
-        warehouse_location_id: warehouseLocationId || null,
-        updated_at: new Date(),
-      })
+  // Validate discogs_id is a positive integer if provided
+  if (releaseUpdates.discogs_id !== undefined && releaseUpdates.discogs_id !== null && releaseUpdates.discogs_id !== "") {
+    const parsed = parseInt(String(releaseUpdates.discogs_id), 10)
+    if (isNaN(parsed) || parsed <= 0) {
+      res.status(400).json({ message: "discogs_id must be a positive integer" })
+      return
     }
-    // Don't auto-create erp_inventory_item — that's done via ERP inventory session
+    releaseUpdates.discogs_id = parsed
+  } else if (releaseUpdates.discogs_id === "" || releaseUpdates.discogs_id === null) {
+    releaseUpdates.discogs_id = null
   }
+
+  // Q1(b): Also mirror the condition/inventory changes onto Release columns
+  // as fallback for Non-Cohort-A releases (keeps legacy Release reads working).
+  if (body.media_condition !== undefined) releaseUpdates.media_condition = body.media_condition || null
+  if (body.sleeve_condition !== undefined) releaseUpdates.sleeve_condition = body.sleeve_condition || null
+  if (body.inventory !== undefined) releaseUpdates.inventory = body.inventory !== "" && body.inventory !== null ? Number(body.inventory) : null
+
+  releaseUpdates.updatedAt = new Date()
+
+  await pgConnection.transaction(async (trx) => {
+    if (Object.keys(releaseUpdates).length > 1) {
+      // more than just updatedAt
+      await trx("Release").where("id", id).update(releaseUpdates)
+    }
+
+    // Update erp_inventory_item(s) — applies to all exemplars of this release.
+    // Condition/quantity/location are release-level concerns in the legacy
+    // single-exemplar view. For proper per-exemplar edits, use the stocktake
+    // session UI which targets a specific inventory_item_id.
+    const erpUpdatePayload: Record<string, any> = {}
+    if (Object.keys(erpFields).length > 0) Object.assign(erpUpdatePayload, erpFields)
+    if (warehouseLocationId !== undefined) erpUpdatePayload.warehouse_location_id = warehouseLocationId || null
+
+    if (Object.keys(erpUpdatePayload).length > 0) {
+      const existing = await trx("erp_inventory_item").where("release_id", id).first()
+      if (existing) {
+        erpUpdatePayload.updated_at = new Date()
+        await trx("erp_inventory_item").where("release_id", id).update(erpUpdatePayload)
+      }
+      // Don't auto-create erp_inventory_item — that's done via ERP inventory session
+    }
+  })
 
   const release = await pgConnection("Release")
     .where("Release.id", id)

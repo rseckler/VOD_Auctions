@@ -209,4 +209,25 @@ echo "  2) In Admin einloggen: $ADMIN_URL"
 echo "     User: frank@vod-records.com (Passwort mündlich)"
 echo "  3) Franks Anleitung übergeben: $KIT_DIR/ANLEITUNG_FRANK.md"
 echo
+
+# QZ Tray Silent-Print: beim ersten Drucken zeigt QZ Tray ein
+# „Allow this site to print?" Prompt — Frank muss einmal OK klicken.
+# Danach druckt die Inventur-Session ohne Dialog.
+echo "${BOLD}Silent-Print-Hinweis:${RESET}"
+echo "  Beim ersten Verify in der Inventur-Session erscheint QZ-Tray-Popup."
+echo "  → 'Allow' klicken (auch 'Remember' aktivieren) → stilles Drucken ist aktiv."
+echo
+
+# Falls Queue-Name vom Default abweicht: Info für manuelle Einstellung
+if [[ "$PRINTER_QUEUE" != "Brother_QL_820NWB" ]]; then
+  echo "${BOLD}${YELLOW}⚠ Hinweis zum Drucker-Namen:${RESET}"
+  echo "  Deine CUPS-Queue heißt '${BOLD}$PRINTER_QUEUE${RESET}', nicht 'Brother_QL_820NWB'."
+  echo "  Die Silent-Print-Logik versucht zuerst den Default-Namen, dann einen Fuzzy-Match"
+  echo "  auf 'brother ql' — das sollte automatisch klappen."
+  echo "  Falls nicht, in Safari bei VOD Admin: ${BOLD}Cmd+Option+C${RESET} → Konsole öffnen →"
+  echo "    localStorage.setItem('vod.qz.printer', '$PRINTER_QUEUE')"
+  echo "  → [Enter] → Seite neu laden."
+  echo
+fi
+
 echo "Bei Problemen: ${BOLD}$KIT_DIR/docs/TROUBLESHOOTING.md${RESET}"

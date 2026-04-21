@@ -23,7 +23,10 @@ export async function GET(
 
   const inventoryItemId = req.params.id
 
-  // Get item + release + artist + label data
+  // Get item + release + artist + label data.
+  // Price falls back legacy_price → exemplar_price is preferred when set
+  // (Copy #2+ often has its own price, Non-Cohort-A items have no legacy_price).
+  // Condition uses erp values when available, Release.legacy_condition as fallback.
   const item = await pg("erp_inventory_item as ii")
     .join("Release as r", "r.id", "ii.release_id")
     .leftJoin("Artist as a", "a.id", "r.artistId")
@@ -32,6 +35,9 @@ export async function GET(
     .select(
       "ii.id",
       "ii.barcode",
+      "ii.condition_media",
+      "ii.condition_sleeve",
+      "ii.exemplar_price",
       "r.title",
       "r.format",
       "r.year",
@@ -56,6 +62,16 @@ export async function GET(
     })
   }
 
+  const effectivePrice = item.exemplar_price != null
+    ? Number(item.exemplar_price)
+    : (item.legacy_price != null ? Number(item.legacy_price) : null)
+
+  const effectiveCondition = item.condition_media
+    ? (item.condition_sleeve && item.condition_sleeve !== item.condition_media
+        ? `${item.condition_media}/${item.condition_sleeve}`
+        : item.condition_media)
+    : (item.legacy_condition || null)
+
   const labelData: LabelData = {
     barcode,
     artistName: item.artist_name || "Unknown",
@@ -63,9 +79,9 @@ export async function GET(
     labelName: item.label_name || null,
     format: item.format || "",
     country: item.country || null,
-    condition: item.legacy_condition || null,
+    condition: effectiveCondition,
     year: item.year,
-    price: item.legacy_price != null ? Number(item.legacy_price) : null,
+    price: effectivePrice,
   }
 
   const doc = await generateLabelPdf(labelData)

@@ -125,28 +125,35 @@ async function drawLabel(
   const textBlockTop = y
   const textBlockHeight = frameH - y - MARGIN
 
-  // Text column — 3 stacked lines
+  // Text column — 3 stacked lines.
+  // ellipsis:true + height clip together prevent pdfkit from wrapping
+  // long strings into a second visual line (which would overlap the
+  // next line's Y position — the bug from Bild 4).
   let ty = y
 
   // Line 1: Artist (bold)
   doc.fontSize(12).font("Helvetica-Bold").fillColor("#000000")
     .text(truncate(data.artistName || "Unknown", 28), x, ty, {
       width: textColW,
+      height: 13,
       align: "left",
       lineBreak: false,
+      ellipsis: true,
     })
   ty += 13
 
   // Line 2: Title · Label
   const titleLine = [
-    truncate(data.title || "", 18),
-    truncate(data.labelName || "", 18),
+    truncate(data.title || "", 22),
+    truncate(data.labelName || "", 22),
   ].filter(Boolean).join(" · ")
   doc.fontSize(10).font("Helvetica").fillColor("#222222")
     .text(titleLine, x, ty, {
       width: textColW,
+      height: 11,
       align: "left",
       lineBreak: false,
+      ellipsis: true,
     })
   ty += 11
 
@@ -160,8 +167,10 @@ async function drawLabel(
   doc.fontSize(8).font("Helvetica").fillColor("#555555")
     .text(metaParts.join(" · "), x, ty, {
       width: textColW,
+      height: 10,
       align: "left",
       lineBreak: false,
+      ellipsis: true,
     })
 
   // Price column — right-aligned, vertically centered in the text block.

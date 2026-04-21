@@ -3,6 +3,7 @@ import { useAdminNav } from "../../../../components/admin-nav"
 import { C, T, S, fmtMoney } from "../../../../components/admin-tokens"
 import { PageHeader, PageShell } from "../../../../components/admin-layout"
 import { Btn, Toast, Modal, inputStyle, Badge } from "../../../../components/admin-ui"
+import { qzIsAvailable, qzPrintBarcodeLabel } from "../../../../lib/qz-tray-client"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -97,19 +98,40 @@ function parseLegacyCondition(legacy: string | null): { media: Grade | null; sle
 
 type PrinterStatus = "connected" | "browser" | "none"
 
-async function checkQzTray(): Promise<boolean> {
-  try {
-    const ws = new WebSocket("wss://localhost:8181")
-    return new Promise((resolve) => {
-      ws.onopen = () => { ws.close(); resolve(true) }
-      ws.onerror = () => resolve(false)
-      setTimeout(() => { ws.close(); resolve(false) }, 1000)
-    })
-  } catch { return false }
-}
+/**
+ * Silent-print via QZ Tray if available, otherwise fall back to a hidden
+ * iframe that auto-triggers the browser print dialog (one Cmd+Return away
+ * from printing, vs. opening a blank tab and forcing manual Cmd+P).
+ */
+async function printLabel(inventoryItemId: string): Promise<{ silent: boolean }> {
+  // Try QZ Tray first (silent, no prompt after first approval)
+  const silent = await qzPrintBarcodeLabel(inventoryItemId).catch(() => false)
+  if (silent) return { silent: true }
 
-async function printLabel(inventoryItemId: string): Promise<void> {
-  window.open(`/admin/erp/inventory/items/${inventoryItemId}/label`, "_blank")
+  // Fallback: hidden iframe → window.print() auto-opens dialog
+  return new Promise((resolve) => {
+    const existing = document.getElementById("vod-print-frame") as HTMLIFrameElement | null
+    const iframe = existing || document.createElement("iframe")
+    iframe.id = "vod-print-frame"
+    iframe.style.position = "fixed"
+    iframe.style.right = "0"
+    iframe.style.bottom = "0"
+    iframe.style.width = "0"
+    iframe.style.height = "0"
+    iframe.style.border = "0"
+    iframe.onload = () => {
+      try {
+        iframe.contentWindow?.focus()
+        iframe.contentWindow?.print()
+      } catch {
+        // Fallback of last resort — open in new tab
+        window.open(`/admin/erp/inventory/items/${inventoryItemId}/label`, "_blank")
+      }
+      resolve({ silent: false })
+    }
+    iframe.src = `/admin/erp/inventory/items/${inventoryItemId}/label`
+    if (!existing) document.body.appendChild(iframe)
+  })
 }
 
 // ─── API Helper ─────────────────────────────────────────────────────────────
@@ -205,7 +227,7 @@ function StocktakeSessionPage() {
   // ── Init ──
 
   useEffect(() => {
-    checkQzTray().then((ok) => setPrinterStatus(ok ? "connected" : "browser"))
+    qzIsAvailable().then((ok) => setPrinterStatus(ok ? "connected" : "browser"))
     apiFetch<any>("/admin/erp/inventory/stats").then((s) => {
       setStats({ eligible: s.eligible, verified: s.verified })
     }).catch(() => {})
@@ -269,9 +291,16 @@ function StocktakeSessionPage() {
   const startEditCopy = (copy: CopyItem) => {
     setEditingCopy(copy)
     setIsNewCopy(false)
-    setConditionMedia(copy.condition_media as Grade || null)
-    setConditionSleeve(copy.condition_sleeve as Grade || null)
-    setPriceValue(copy.effective_price != null ? String(copy.effective_price) : "")
+    // P0.1: if erp values are NULL (Cohort-A backfill rows), seed from
+    // Release.legacy_condition + Release.legacy_price so Frank sees sensible
+    // defaults instead of empty dropdowns.
+    const legacyParsed = parseLegacyCondition(releaseDetail?.legacy_condition || null)
+    setConditionMedia((copy.condition_media as Grade) || legacyParsed.media)
+    setConditionSleeve((copy.condition_sleeve as Grade) || legacyParsed.sleeve)
+    const effective = copy.effective_price != null
+      ? copy.effective_price
+      : (releaseDetail?.legacy_price != null ? releaseDetail.legacy_price : null)
+    setPriceValue(effective != null ? String(effective) : "")
     setNoteText(copy.notes || "")
   }
 
@@ -325,9 +354,11 @@ function StocktakeSessionPage() {
           { method: "POST", body: JSON.stringify(body) }
         )
 
-        if (autoPrint) await printLabel(result.item.id)
+        let printResult: { silent: boolean } | null = null
+        if (autoPrint) printResult = await printLabel(result.item.id)
+        const printSuffix = printResult ? (printResult.silent ? " · printed" : " · print dialog opened") : ""
 
-        setToast({ message: `Copy #${result.item.copy_number} created — ${result.item.barcode}`, type: "success" })
+        setToast({ message: `Copy #${result.item.copy_number} created — ${result.item.barcode}${printSuffix}`, type: "success" })
         setRecentItems((prev) => [
           { artist: releaseDetail.artist_name || "?", title: releaseDetail.title, copy: result.item.copy_number },
           ...prev.slice(0, 4),
@@ -356,9 +387,11 @@ function StocktakeSessionPage() {
           { method: "POST", body: JSON.stringify(body) }
         )
 
-        if (autoPrint) await printLabel(editingCopy.id)
+        let printResult: { silent: boolean } | null = null
+        if (autoPrint) printResult = await printLabel(editingCopy.id)
+        const printSuffix = printResult ? (printResult.silent ? " · printed" : " · print dialog opened") : ""
 
-        setToast({ message: `Verified #${result.copy_number} — ${result.barcode}`, type: "success" })
+        setToast({ message: `Verified #${result.copy_number} — ${result.barcode}${printSuffix}`, type: "success" })
         setRecentItems((prev) => [
           { artist: releaseDetail.artist_name || "?", title: releaseDetail.title, copy: result.copy_number },
           ...prev.slice(0, 4),
@@ -744,13 +777,57 @@ function StocktakeSessionPage() {
                 <div style={{ width: 70, fontWeight: 600, color: C.gold }}>
                   €{copy.effective_price ?? "—"}
                 </div>
-                <div style={{ width: 100, fontFamily: "monospace", ...T.small }}>
+                <div style={{ width: 120, fontFamily: "monospace", ...T.small }}>
                   {copy.barcode || "—"}
                 </div>
                 <div style={{ flex: 1 }}>
                   {copy.is_verified
                     ? <Badge label="Verified" variant="success" />
                     : <Badge label="Pending" variant="warning" />}
+                </div>
+                {/* P0.5: Re-Edit + Re-Print buttons, always available (even post-verify) */}
+                <div style={{ display: "flex", gap: 6 }} onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); startEditCopy(copy) }}
+                    style={{
+                      background: "none",
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 4,
+                      padding: "4px 10px",
+                      color: C.text,
+                      cursor: "pointer",
+                      fontSize: 11,
+                    }}
+                    title="Edit this copy again"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={async (e) => {
+                      e.stopPropagation()
+                      if (!copy.barcode) {
+                        setToast({ message: "Copy has no barcode yet — verify first", type: "error" })
+                        return
+                      }
+                      const r = await printLabel(copy.id)
+                      setToast({
+                        message: r.silent ? `Printed ${copy.barcode}` : `Print dialog opened for ${copy.barcode}`,
+                        type: "success",
+                      })
+                    }}
+                    style={{
+                      background: "none",
+                      border: `1px solid ${C.gold}`,
+                      borderRadius: 4,
+                      padding: "4px 10px",
+                      color: C.gold,
+                      cursor: "pointer",
+                      fontSize: 11,
+                    }}
+                    title="Re-print label"
+                  >
+                    Print
+                  </button>
                 </div>
               </div>
             ))}

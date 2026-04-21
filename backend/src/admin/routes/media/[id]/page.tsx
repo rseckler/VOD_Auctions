@@ -66,6 +66,10 @@ type Release = {
   inventory: number | null
   shipping_item_type_id: string | null
   current_block_id: string | null
+  current_block_title: string | null
+  current_block_slug: string | null
+  effective_price: number | null
+  copy_number: number | null
   coverImage: string | null
   tape_mag_url: string | null
   discogs_last_synced: string | null
@@ -571,6 +575,16 @@ const MediaDetailPage = () => {
   const [locationId, setLocationId] = useState<string>("")
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
 
+  // Q8a: Discogs linking edit fields
+  const [discogsIdInput, setDiscogsIdInput] = useState<string>("")
+  const [genreInput, setGenreInput] = useState<string>("")
+  const [stylesInput, setStylesInput] = useState<string>("")
+  const [discogsLinkSaving, setDiscogsLinkSaving] = useState(false)
+  const [discogsRefetching, setDiscogsRefetching] = useState(false)
+
+  // Q2: unlock-price loading state (by inventory_item_id)
+  const [unlockingPriceId, setUnlockingPriceId] = useState<string | null>(null)
+
   const goLightbox = useCallback((dir: "prev" | "next") => {
     setLightboxIndex((i) => {
       if (i === null) return null
@@ -613,6 +627,9 @@ const MediaDetailPage = () => {
           setInventory(d.release.inventory != null ? String(d.release.inventory) : "")
           setShippingTypeId(d.release.shipping_item_type_id || "")
           setLocationId(d.release.warehouse_location_id || "")
+          setDiscogsIdInput(d.release.discogs_id != null ? String(d.release.discogs_id) : "")
+          setGenreInput(d.release.genre || "")
+          setStylesInput(d.release.styles || "")
         }
         setLoading(false)
       })
@@ -659,6 +676,93 @@ const MediaDetailPage = () => {
     }
   }
 
+  // Q8a: Save Discogs linking fields (discogs_id, genre, styles)
+  const handleSaveDiscogsLink = async () => {
+    if (!id) return
+    setDiscogsLinkSaving(true)
+    try {
+      const body: Record<string, unknown> = {
+        discogs_id: discogsIdInput === "" ? null : discogsIdInput,
+        genre: genreInput || null,
+        styles: stylesInput || null,
+      }
+      const res = await fetch(`/admin/media/${id}`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+      if (res.ok) {
+        const d = await res.json()
+        setRelease((prev) => prev ? { ...prev, ...d.release } : d.release)
+        setToast({ message: "Discogs linking saved", type: "success" })
+      } else {
+        const err = await res.json().catch(() => ({}))
+        setToast({ message: err.message || "Failed to save Discogs linking", type: "error" })
+      }
+    } catch {
+      setToast({ message: "Network error", type: "error" })
+    } finally {
+      setDiscogsLinkSaving(false)
+    }
+  }
+
+  // Q8a: Fetch fresh metadata + prices from Discogs API
+  const handleRefetchDiscogs = async () => {
+    if (!id) return
+    setDiscogsRefetching(true)
+    try {
+      const res = await fetch(`/admin/media/${id}/refetch-discogs`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      })
+      if (res.ok) {
+        // Reload full release data
+        const d = await fetch(`/admin/media/${id}`, { credentials: "include" }).then((r) => r.json())
+        setRelease(d.release)
+        if (d.release) {
+          setGenreInput(d.release.genre || "")
+          setStylesInput(d.release.styles || "")
+        }
+        setToast({ message: "Refetched from Discogs", type: "success" })
+      } else {
+        const err = await res.json().catch(() => ({}))
+        setToast({ message: err.message || "Discogs refetch failed", type: "error" })
+      }
+    } catch {
+      setToast({ message: "Network error", type: "error" })
+    } finally {
+      setDiscogsRefetching(false)
+    }
+  }
+
+  // Q2: unlock price lock on a specific exemplar
+  const handleUnlockPrice = async (inventoryItemId: string) => {
+    if (!window.confirm("Unlock price? Next legacy sync will overwrite it with the MySQL value.")) return
+    setUnlockingPriceId(inventoryItemId)
+    try {
+      const res = await fetch(`/admin/erp/inventory/items/${inventoryItemId}/unlock-price`, {
+        method: "POST",
+        credentials: "include",
+      })
+      if (res.ok) {
+        setToast({ message: "Price unlocked", type: "success" })
+        // Reload release data
+        const d = await fetch(`/admin/media/${id}`, { credentials: "include" }).then((r) => r.json())
+        setRelease(d.release)
+        setInventoryItems(d.inventory_items || [])
+      } else {
+        const err = await res.json().catch(() => ({}))
+        setToast({ message: err.message || "Unlock failed", type: "error" })
+      }
+    } catch {
+      setToast({ message: "Network error", type: "error" })
+    } finally {
+      setUnlockingPriceId(null)
+    }
+  }
+
   if (loading) {
     return (
       <PageShell>
@@ -679,7 +783,8 @@ const MediaDetailPage = () => {
   const pageTitle = release.artist_name ? `${release.artist_name} \u2014 ${release.title}` : release.title
   const pageSubtitle = [release.format, release.year, release.label_name].filter(Boolean).join(" \u00B7 ")
 
-  const infoFields: [string, string | null | number][] = [
+  type InfoField = [string, ReactNode | string | null | number]
+  const infoFields: InfoField[] = [
     ["Article No.", release.article_number],
     ["Artist", release.artist_name],
     ["Title", release.title],
@@ -692,7 +797,16 @@ const MediaDetailPage = () => {
     ["Genre", release.genre],
     ["Styles", release.styles],
     ["Auction Status", release.auction_status],
-    ["Block ID", release.current_block_id],
+    // Q6: Show Block Name + link when item is in an active auction.
+    // Hidden entirely (not rendered as "—") when no block is set.
+    ...(release.current_block_id ? [[
+      "Active Auction",
+      <a
+        key="block-link"
+        href={`/app/auction-blocks/${release.current_block_id}`}
+        style={{ color: C.gold, textDecoration: "none" }}
+      >{release.current_block_title || release.current_block_id}</a>,
+    ] as InfoField] : []),
     ["Created", formatDate(release.createdAt)],
     ["Updated", formatDate(release.updatedAt)],
   ]
@@ -807,14 +921,14 @@ const MediaDetailPage = () => {
             <div style={labelStyle}>Media Condition</div>
             <select value={mediaCondition} onChange={(e) => setMediaCondition(e.target.value)} style={localSelectStyle}>
               <option value="">-- Select --</option>
-              {CONDITION_OPTIONS.map((c) => (<option key={c.value} value={c.value}>{c.value} \u2014 {c.label}</option>))}
+              {CONDITION_OPTIONS.map((c) => (<option key={c.value} value={c.value}>{`${c.value} — ${c.label}`}</option>))}
             </select>
           </div>
           <div>
             <div style={labelStyle}>Sleeve Condition</div>
             <select value={sleeveCondition} onChange={(e) => setSleeveCondition(e.target.value)} style={localSelectStyle}>
               <option value="">-- Select --</option>
-              {CONDITION_OPTIONS.map((c) => (<option key={c.value} value={c.value}>{c.value} \u2014 {c.label}</option>))}
+              {CONDITION_OPTIONS.map((c) => (<option key={c.value} value={c.value}>{`${c.value} — ${c.label}`}</option>))}
             </select>
           </div>
         </div>
@@ -910,7 +1024,7 @@ const MediaDetailPage = () => {
                           {item.warehouse_location_code || "\u2014"}
                         </td>
                         <td style={tdStyle}>
-                          <div style={{ display: "flex", gap: 6 }}>
+                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                             <button
                               style={{ background: "none", border: "none", color: C.gold, cursor: "pointer", fontSize: 12, textDecoration: "underline" }}
                               onClick={() => window.location.href = `/app/erp/inventory/session?item_id=${item.inventory_item_id}`}
@@ -919,6 +1033,14 @@ const MediaDetailPage = () => {
                               style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 12, textDecoration: "underline" }}
                               onClick={() => window.open(`/admin/erp/inventory/items/${item.inventory_item_id}/label`, "_blank")}
                             >Label</button>
+                            {item.price_locked && (
+                              <button
+                                disabled={unlockingPriceId === item.inventory_item_id}
+                                style={{ background: "none", border: "none", color: C.warning, cursor: "pointer", fontSize: 12, textDecoration: "underline" }}
+                                onClick={() => handleUnlockPrice(item.inventory_item_id)}
+                                title="Allow the next legacy sync to overwrite Release.legacy_price"
+                              >{unlockingPriceId === item.inventory_item_id ? "..." : "Unlock"}</button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -997,7 +1119,25 @@ const MediaDetailPage = () => {
             </div>
             <div>
               <div style={labelStyle}>Preis gesperrt seit</div>
-              <div style={{ ...valueStyle, ...T.small }}>{formatDate(release.price_locked_at)}</div>
+              <div style={{ ...valueStyle, ...T.small, display: "flex", alignItems: "center", gap: 8 }}>
+                {formatDate(release.price_locked_at)}
+                {release.price_locked && release.inventory_item_id && (
+                  <button
+                    disabled={unlockingPriceId === release.inventory_item_id}
+                    onClick={() => release.inventory_item_id && handleUnlockPrice(release.inventory_item_id)}
+                    style={{
+                      background: "none",
+                      border: `1px solid ${C.warning}`,
+                      borderRadius: 4,
+                      padding: "2px 8px",
+                      color: C.warning,
+                      cursor: "pointer",
+                      fontSize: 11,
+                    }}
+                    title="Allow the next legacy sync to overwrite Release.legacy_price"
+                  >{unlockingPriceId === release.inventory_item_id ? "..." : "Unlock Price"}</button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -1096,48 +1236,123 @@ const MediaDetailPage = () => {
         </div>
       )}
 
-      {/* Discogs Data */}
-      <div style={{ ...cardStyle, marginBottom: S.sectionGap }}>
-        <SectionHeader title="Discogs Data" style={{ marginTop: 0 }} />
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr 1fr 1fr", gap: S.gap.lg, marginTop: S.gap.md }}>
+      {/* Q8a: Discogs Linking — edit discogs_id, genre, styles + refetch button */}
+      <div style={{ ...cardStyle, marginBottom: S.sectionGap, border: `1px solid ${C.gold}30` }}>
+        <SectionHeader title="Discogs Linking" style={{ marginTop: 0 }} />
+        <div style={{ ...T.small, color: C.muted, marginBottom: S.gap.md }}>
+          Set the correct Discogs release ID here. Fetch pulls fresh metadata (genre, styles, market prices) from discogs.com.
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "200px 1fr 1fr", gap: S.gap.lg, alignItems: "end" }}>
           <div>
             <div style={labelStyle}>Discogs ID</div>
-            <div style={valueStyle}>
-              {release.discogs_id ? (
-                <a href={`https://www.discogs.com/release/${release.discogs_id}`} target="_blank" rel="noopener noreferrer" style={{ color: C.gold, textDecoration: "none" }}>
-                  {release.discogs_id} &#8599;
-                </a>
-              ) : "\u2014"}
+            <input
+              type="text"
+              value={discogsIdInput}
+              onChange={(e) => setDiscogsIdInput(e.target.value.replace(/[^0-9]/g, ""))}
+              placeholder="e.g. 1048274"
+              style={localInputStyle}
+            />
+            {release.discogs_id && (
+              <a
+                href={`https://www.discogs.com/release/${release.discogs_id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ ...T.small, color: C.gold, textDecoration: "none", marginTop: 4, display: "inline-block" }}
+              >
+                View on Discogs &#8599;
+              </a>
+            )}
+          </div>
+          <div>
+            <div style={labelStyle}>Genre (comma-separated)</div>
+            <input
+              type="text"
+              value={genreInput}
+              onChange={(e) => setGenreInput(e.target.value)}
+              placeholder="e.g. Electronic, Industrial"
+              style={localInputStyle}
+            />
+          </div>
+          <div>
+            <div style={labelStyle}>Styles (comma-separated)</div>
+            <input
+              type="text"
+              value={stylesInput}
+              onChange={(e) => setStylesInput(e.target.value)}
+              placeholder="e.g. Experimental, Drone, Noise"
+              style={localInputStyle}
+            />
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: S.gap.md, marginTop: S.gap.lg }}>
+          <Btn
+            label={discogsLinkSaving ? "Saving..." : "Save Linking"}
+            variant="gold"
+            onClick={handleSaveDiscogsLink}
+            disabled={discogsLinkSaving}
+            style={{ padding: "8px 20px", fontSize: 13 }}
+          />
+          <Btn
+            label={discogsRefetching ? "Fetching..." : "Fetch from Discogs"}
+            variant="ghost"
+            onClick={handleRefetchDiscogs}
+            disabled={discogsRefetching || !release.discogs_id}
+            style={{ padding: "8px 20px", fontSize: 13 }}
+          />
+          <div style={{ ...T.small, color: C.muted, alignSelf: "center" }}>
+            Last sync: {formatDate(release.discogs_last_synced)}
+          </div>
+        </div>
+      </div>
+
+      {/* Q9: Discogs — Marktpreis aktuell */}
+      <div style={{ ...cardStyle, marginBottom: S.sectionGap }}>
+        <SectionHeader title="Marktpreis aktuell" style={{ marginTop: 0 }} />
+        <div style={{ ...T.small, color: C.muted, marginBottom: S.gap.md }}>
+          Live Discogs-Marketplace: niedrigstes aktives Angebot, Anzahl aktiver Listings, Sammler-Statistik.
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: S.gap.lg }}>
+          <div>
+            <div style={labelStyle} title="Niedrigster aktueller Angebotspreis über alle Zustände auf dem Discogs-Marketplace">Niedrigster aktiver Preis</div>
+            <div style={{ ...valueStyle, color: release.discogs_lowest_price ? C.success : C.muted, fontSize: 20, fontWeight: 600 }}>
+              {formatPrice(release.discogs_lowest_price)}
             </div>
           </div>
           <div>
-            <div style={labelStyle}>Low</div>
-            <div style={{ ...valueStyle, color: release.discogs_lowest_price ? C.success : C.muted }}>{formatPrice(release.discogs_lowest_price)}</div>
+            <div style={labelStyle}>For Sale (aktive Listings)</div>
+            <div style={{ ...valueStyle, fontSize: 20, fontWeight: 600 }}>{release.discogs_num_for_sale ?? "—"}</div>
           </div>
           <div>
-            <div style={labelStyle}>Median</div>
-            <div style={{ ...valueStyle, color: release.discogs_median_price ? C.gold : C.muted }}>{formatPrice(release.discogs_median_price)}</div>
+            <div style={labelStyle}>Have (Sammler)</div>
+            <div style={valueStyle}>{release.discogs_have ?? "—"}</div>
           </div>
           <div>
-            <div style={labelStyle}>High</div>
-            <div style={{ ...valueStyle, color: release.discogs_highest_price ? C.error : C.muted }}>{formatPrice(release.discogs_highest_price)}</div>
-          </div>
-          <div>
-            <div style={labelStyle}>For Sale</div>
-            <div style={valueStyle}>{release.discogs_num_for_sale ?? "\u2014"}</div>
-          </div>
-          <div>
-            <div style={labelStyle}>Have</div>
-            <div style={valueStyle}>{release.discogs_have ?? "\u2014"}</div>
-          </div>
-          <div>
-            <div style={labelStyle}>Want</div>
-            <div style={valueStyle}>{release.discogs_want ?? "\u2014"}</div>
+            <div style={labelStyle}>Want (Sammler)</div>
+            <div style={valueStyle}>{release.discogs_want ?? "—"}</div>
           </div>
         </div>
-        <div style={{ marginTop: S.gap.md }}>
-          <div style={labelStyle}>Last Discogs Sync</div>
-          <div style={{ ...valueStyle, ...T.small }}>{formatDate(release.discogs_last_synced)}</div>
+      </div>
+
+      {/* Q9: Discogs — Historische Preis-Suggestions */}
+      <div style={{ ...cardStyle, marginBottom: S.sectionGap }}>
+        <SectionHeader title="Historische Preis-Suggestions" style={{ marginTop: 0 }} />
+        <div style={{ ...T.small, color: C.muted, marginBottom: S.gap.md }}>
+          Discogs price_suggestions: Median und höchste Empfehlung aus historischen Verkäufen je Zustand (G bis Mint).
+          Achtung: nicht direkt vergleichbar mit „Marktpreis aktuell“ — verschiedene Quellen.
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: S.gap.lg }}>
+          <div>
+            <div style={labelStyle} title="Median aller 7 Zustands-Suggestions">Median-Suggestion</div>
+            <div style={{ ...valueStyle, color: release.discogs_median_price ? C.gold : C.muted, fontSize: 20, fontWeight: 600 }}>
+              {formatPrice(release.discogs_median_price)}
+            </div>
+          </div>
+          <div>
+            <div style={labelStyle} title="Höchste Zustands-Suggestion (typisch Mint)">Höchste Suggestion (Mint)</div>
+            <div style={{ ...valueStyle, color: release.discogs_highest_price ? C.blue : C.muted, fontSize: 20, fontWeight: 600 }}>
+              {formatPrice(release.discogs_highest_price)}
+            </div>
+          </div>
         </div>
       </div>
 

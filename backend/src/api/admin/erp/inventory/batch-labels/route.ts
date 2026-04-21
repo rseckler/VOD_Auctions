@@ -41,6 +41,9 @@ export async function GET(
     .select(
       "ii.id",
       "ii.barcode",
+      "ii.condition_media",
+      "ii.condition_sleeve",
+      "ii.exemplar_price",
       "r.title",
       "r.format",
       "r.year",
@@ -56,17 +59,27 @@ export async function GET(
     return
   }
 
-  const labels: LabelData[] = items.map((item: any) => ({
-    barcode: item.barcode,
-    artistName: item.artist_name || "Unknown",
-    title: item.title || "Untitled",
-    labelName: item.label_name || null,
-    format: item.format || "",
-    country: item.country || null,
-    condition: item.legacy_condition || null,
-    year: item.year,
-    price: item.legacy_price != null ? Number(item.legacy_price) : null,
-  }))
+  const labels: LabelData[] = items.map((item: any) => {
+    const effectivePrice = item.exemplar_price != null
+      ? Number(item.exemplar_price)
+      : (item.legacy_price != null ? Number(item.legacy_price) : null)
+    const effectiveCondition = item.condition_media
+      ? (item.condition_sleeve && item.condition_sleeve !== item.condition_media
+          ? `${item.condition_media}/${item.condition_sleeve}`
+          : item.condition_media)
+      : (item.legacy_condition || null)
+    return {
+      barcode: item.barcode,
+      artistName: item.artist_name || "Unknown",
+      title: item.title || "Untitled",
+      labelName: item.label_name || null,
+      format: item.format || "",
+      country: item.country || null,
+      condition: effectiveCondition,
+      year: item.year,
+      price: effectivePrice,
+    }
+  })
 
   const doc = await generateBatchLabelsPdf(labels)
 
