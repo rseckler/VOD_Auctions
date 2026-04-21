@@ -5,6 +5,7 @@ import { useAdminNav } from "../../../components/admin-nav"
 import { C, T, S, fmtDate, fmtMoney, BADGE_VARIANTS } from "../../../components/admin-tokens"
 import { PageHeader, PageShell, SectionHeader } from "../../../components/admin-layout"
 import { Badge, Btn, Toast, EmptyState, inputStyle, selectStyle } from "../../../components/admin-ui"
+import { printLabelAuto } from "../../../lib/qz-tray-client"
 
 class ErrorBoundary extends Component<
   { children: ReactNode },
@@ -1038,7 +1039,13 @@ const MediaDetailPage = () => {
                             >Session</button>
                             <button
                               style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 12, textDecoration: "underline" }}
-                              onClick={() => window.open(`/admin/erp/inventory/items/${item.inventory_item_id}/label`, "_blank")}
+                              onClick={async () => {
+                                const r = await printLabelAuto(item.inventory_item_id)
+                                setToast({
+                                  message: r.silent ? "Gedruckt" : "Druck-Dialog geöffnet",
+                                  type: "success",
+                                })
+                              }}
                             >Label</button>
                             {item.price_locked && (
                               <button
@@ -1176,8 +1183,13 @@ const MediaDetailPage = () => {
             <Btn
               label="🏷️ Label drucken"
               variant="gold"
-              onClick={() => {
-                window.open(`/admin/erp/inventory/items/${release.inventory_item_id}/label`, "_blank")
+              onClick={async () => {
+                if (!release.inventory_item_id) return
+                const r = await printLabelAuto(release.inventory_item_id)
+                setToast({
+                  message: r.silent ? "Gedruckt" : "Druck-Dialog geöffnet",
+                  type: "success",
+                })
               }}
             />
           </div>

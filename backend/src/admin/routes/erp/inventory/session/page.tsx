@@ -3,7 +3,7 @@ import { useAdminNav } from "../../../../components/admin-nav"
 import { C, T, S, fmtMoney } from "../../../../components/admin-tokens"
 import { PageHeader, PageShell } from "../../../../components/admin-layout"
 import { Btn, Toast, Modal, inputStyle, Badge } from "../../../../components/admin-ui"
-import { qzIsAvailable, qzPrintBarcodeLabel } from "../../../../lib/qz-tray-client"
+import { qzIsAvailable, printLabelAuto } from "../../../../lib/qz-tray-client"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -98,41 +98,9 @@ function parseLegacyCondition(legacy: string | null): { media: Grade | null; sle
 
 type PrinterStatus = "connected" | "browser" | "none"
 
-/**
- * Silent-print via QZ Tray if available, otherwise fall back to a hidden
- * iframe that auto-triggers the browser print dialog (one Cmd+Return away
- * from printing, vs. opening a blank tab and forcing manual Cmd+P).
- */
-async function printLabel(inventoryItemId: string): Promise<{ silent: boolean }> {
-  // Try QZ Tray first (silent, no prompt after first approval)
-  const silent = await qzPrintBarcodeLabel(inventoryItemId).catch(() => false)
-  if (silent) return { silent: true }
-
-  // Fallback: hidden iframe → window.print() auto-opens dialog
-  return new Promise((resolve) => {
-    const existing = document.getElementById("vod-print-frame") as HTMLIFrameElement | null
-    const iframe = existing || document.createElement("iframe")
-    iframe.id = "vod-print-frame"
-    iframe.style.position = "fixed"
-    iframe.style.right = "0"
-    iframe.style.bottom = "0"
-    iframe.style.width = "0"
-    iframe.style.height = "0"
-    iframe.style.border = "0"
-    iframe.onload = () => {
-      try {
-        iframe.contentWindow?.focus()
-        iframe.contentWindow?.print()
-      } catch {
-        // Fallback of last resort — open in new tab
-        window.open(`/admin/erp/inventory/items/${inventoryItemId}/label`, "_blank")
-      }
-      resolve({ silent: false })
-    }
-    iframe.src = `/admin/erp/inventory/items/${inventoryItemId}/label`
-    if (!existing) document.body.appendChild(iframe)
-  })
-}
+// Session-local alias — the implementation lives in lib/qz-tray-client so
+// it can be shared with the Catalog Detail Label-Print buttons.
+const printLabel = printLabelAuto
 
 // ─── API Helper ─────────────────────────────────────────────────────────────
 

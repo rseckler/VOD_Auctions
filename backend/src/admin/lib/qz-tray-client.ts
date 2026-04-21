@@ -156,3 +156,48 @@ function arrayBufferToBase64(buf: ArrayBuffer): string {
   }
   return btoa(binary)
 }
+
+// ─── High-level print helper ────────────────────────────────────────────────
+
+/**
+ * Print a label with best-available method: QZ Tray silent print first,
+ * fallback to hidden iframe that auto-triggers the browser print dialog,
+ * last resort opens a new tab. Use this from any admin UI button that needs
+ * to print a barcode label.
+ *
+ * Returns { silent } — silent=true means QZ Tray printed without any dialog,
+ * silent=false means the OS print dialog was opened and user must click Print.
+ */
+export async function printLabelAuto(
+  inventoryItemId: string
+): Promise<{ silent: boolean }> {
+  // Try QZ Tray first
+  const silent = await qzPrintBarcodeLabel(inventoryItemId).catch(() => false)
+  if (silent) return { silent: true }
+
+  if (typeof window === "undefined") return { silent: false }
+
+  // Fallback: hidden iframe → contentWindow.print() opens dialog
+  return new Promise((resolve) => {
+    const existing = document.getElementById("vod-print-frame") as HTMLIFrameElement | null
+    const iframe = existing || document.createElement("iframe")
+    iframe.id = "vod-print-frame"
+    iframe.style.position = "fixed"
+    iframe.style.right = "0"
+    iframe.style.bottom = "0"
+    iframe.style.width = "0"
+    iframe.style.height = "0"
+    iframe.style.border = "0"
+    iframe.onload = () => {
+      try {
+        iframe.contentWindow?.focus()
+        iframe.contentWindow?.print()
+      } catch {
+        window.open(`/admin/erp/inventory/items/${inventoryItemId}/label`, "_blank")
+      }
+      resolve({ silent: false })
+    }
+    iframe.src = `/admin/erp/inventory/items/${inventoryItemId}/label`
+    if (!existing) document.body.appendChild(iframe)
+  })
+}
