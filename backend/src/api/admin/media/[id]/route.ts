@@ -16,6 +16,12 @@ export async function GET(
   // (NO inventory join — inventory is loaded separately as array to support
   // multiple exemplars per release). Auction block joined for Q6: show Block
   // Name + Link instead of raw ULID.
+  //
+  // Type-cast note: Release.current_block_id is uuid, auction_block.id is text
+  // (ULID). Knex's default on() builder emits "r.current_block_id =
+  // auction_block.id" which Postgres refuses with 42883 (uuid = text). Cast
+  // to text on the uuid side so the JOIN resolves as a no-op when types
+  // actually differ but matches for equal string values when compatible.
   const release = await pgConnection("Release")
     .select(
       "Release.*",
@@ -31,7 +37,9 @@ export async function GET(
     .leftJoin("Label", "Release.labelId", "Label.id")
     .leftJoin("Format", "Release.format_id", "Format.id")
     .leftJoin("PressOrga", "Release.pressOrgaId", "PressOrga.id")
-    .leftJoin("auction_block", "Release.current_block_id", "auction_block.id")
+    .leftJoin("auction_block", function () {
+      this.on(pgConnection.raw('"Release"."current_block_id"::text = "auction_block"."id"'))
+    })
     .where("Release.id", id)
     .first()
 
