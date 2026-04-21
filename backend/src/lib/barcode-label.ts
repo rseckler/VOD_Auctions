@@ -203,10 +203,15 @@ async function drawLabel(
  * with 90mm cut length when printed via `PageSize=Custom.29x90mm`).
  */
 export async function generateLabelPdf(data: LabelData): Promise<typeof PDFDocument.prototype> {
+  // autoFirstPage:false + manuelle addPage verhindert, dass pdfkit's
+  // internal cursor-tracking nach den text()-Aufrufen eine zweite leere
+  // Seite triggert (Preview zeigte sonst "Seite 1 von 2").
   const doc = new PDFDocument({
     size: [TAPE_WIDTH, LABEL_LENGTH],
     margin: 0,
+    autoFirstPage: false,
   })
+  doc.addPage({ size: [TAPE_WIDTH, LABEL_LENGTH], margin: 0 })
 
   await drawLabel(doc, data)
   doc.end()
