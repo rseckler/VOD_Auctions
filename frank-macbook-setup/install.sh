@@ -92,12 +92,38 @@ step "3/7  QZ Tray (Silent-Print)"
 if [[ -d "/Applications/QZ Tray.app" ]]; then
   ok "QZ Tray bereits installiert"
 else
-  echo "    Installiere QZ Tray via Homebrew Cask…"
-  if brew install --cask qz-tray; then
-    ok "QZ Tray installiert"
-  else
-    warn "Homebrew-Install fehlgeschlagen. Lade manuell von https://qz.io/download/"
-    warn "Alternativ: Inventur läuft auch mit Browser-Print-Fallback (Cmd+P nach jedem Verify)."
+  # Der alte Weg über `brew install --cask qz-tray` funktioniert nicht mehr
+  # (Cask wurde aus Homebrew entfernt). Wir laden direkt das offizielle
+  # Signed/Notarized .pkg von GitHub Releases und installieren per
+  # `sudo installer -pkg` silent.
+  QZ_VERSION="2.2.6"
+  case "$ARCH" in
+    arm64)  QZ_PKG_NAME="qz-tray-${QZ_VERSION}-arm64.pkg" ;;
+    x86_64) QZ_PKG_NAME="qz-tray-${QZ_VERSION}-x86_64.pkg" ;;
+    *)
+      warn "Unbekannte Architektur '$ARCH' — QZ Tray nicht verfügbar. Browser-Print Fallback bleibt aktiv."
+      QZ_PKG_NAME=""
+      ;;
+  esac
+
+  if [[ -n "$QZ_PKG_NAME" ]]; then
+    QZ_PKG_URL="https://github.com/qzind/tray/releases/download/v${QZ_VERSION}/${QZ_PKG_NAME}"
+    QZ_PKG_PATH="/tmp/${QZ_PKG_NAME}"
+
+    echo "    Lade QZ Tray ${QZ_VERSION} (${ARCH}) — ~95 MB…"
+    if curl -fsSL -o "$QZ_PKG_PATH" "$QZ_PKG_URL"; then
+      echo "    Installiere QZ Tray (sudo-Passwort erforderlich)…"
+      if sudo installer -pkg "$QZ_PKG_PATH" -target /; then
+        ok "QZ Tray installiert"
+        rm -f "$QZ_PKG_PATH"
+      else
+        warn "Installer-Fehler. Manuell öffnen: open $QZ_PKG_PATH"
+        warn "Alternativ: Inventur läuft auch mit Browser-Print-Fallback (Cmd+P nach jedem Verify)."
+      fi
+    else
+      warn "Download fehlgeschlagen. Manuell von https://qz.io/download/ laden."
+      warn "Alternativ: Inventur läuft auch mit Browser-Print-Fallback (Cmd+P nach jedem Verify)."
+    fi
   fi
 fi
 
