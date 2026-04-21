@@ -32,19 +32,19 @@ PG_URL_DEFAULT = os.environ.get("SUPABASE_DB_URL") or os.environ.get("DATABASE_U
 
 
 def fetch_candidates(conn, limit: int | None) -> list[dict]:
-    """Find releases where genre/styles are empty but cache has values."""
+    """Find releases where genres/styles (TEXT[]) are empty but cache has values."""
     sql = """
         SELECT r.id AS release_id,
                r.discogs_id,
-               r.genre,
+               r.genres,
                r.styles,
                c.api_data->'genres' AS cache_genres,
                c.api_data->'styles' AS cache_styles
         FROM "Release" r
         JOIN discogs_api_cache c ON c.discogs_id = r.discogs_id
         WHERE r.discogs_id IS NOT NULL
-          AND ((r.genre IS NULL OR r.genre = '')
-               OR (r.styles IS NULL OR r.styles = ''))
+          AND (COALESCE(array_length(r.genres, 1), 0) = 0
+               OR COALESCE(array_length(r.styles, 1), 0) = 0)
           AND (jsonb_array_length(COALESCE(c.api_data->'genres', '[]'::jsonb)) > 0
                OR jsonb_array_length(COALESCE(c.api_data->'styles', '[]'::jsonb)) > 0)
     """
@@ -56,24 +56,24 @@ def fetch_candidates(conn, limit: int | None) -> list[dict]:
 
 
 def build_update(row: dict) -> dict:
-    """Return {'genre': ..., 'styles': ...} with only fields that should be updated."""
+    """Return {'genres': [...], 'styles': [...]} with only fields that should be updated."""
     updates: dict = {}
 
-    def jsonb_array_to_csv(val) -> str | None:
+    def jsonb_array_to_list(val) -> list[str] | None:
         if not val:
             return None
         if isinstance(val, list):
             items = [str(x).strip() for x in val if x]
-            return ", ".join(items) if items else None
+            return items if items else None
         return None
 
-    if not row["genre"] or row["genre"].strip() == "":
-        g = jsonb_array_to_csv(row["cache_genres"])
+    if not row["genres"] or len(row["genres"]) == 0:
+        g = jsonb_array_to_list(row["cache_genres"])
         if g:
-            updates["genre"] = g
+            updates["genres"] = g
 
-    if not row["styles"] or row["styles"].strip() == "":
-        s = jsonb_array_to_csv(row["cache_styles"])
+    if not row["styles"] or len(row["styles"]) == 0:
+        s = jsonb_array_to_list(row["cache_styles"])
         if s:
             updates["styles"] = s
 
@@ -108,9 +108,9 @@ def main() -> None:
             if not updates:
                 no_change += 1
                 continue
-            if "genre" in updates and "styles" in updates:
+            if "genres" in updates and "styles" in updates:
                 both_updates += 1
-            elif "genre" in updates:
+            elif "genres" in updates:
                 genre_updates += 1
             elif "styles" in updates:
                 styles_updates += 1
@@ -118,9 +118,9 @@ def main() -> None:
             if args.commit:
                 sets = []
                 params = []
-                if "genre" in updates:
-                    sets.append("genre = %s")
-                    params.append(updates["genre"])
+                if "genres" in updates:
+                    sets.append("genres = %s")
+                    params.append(updates["genres"])
                 if "styles" in updates:
                     sets.append("styles = %s")
                     params.append(updates["styles"])
@@ -132,7 +132,7 @@ def main() -> None:
                         params,
                     )
 
-        print(f"  Genre-only updates:  {genre_updates}")
+        print(f"  Genres-only updates: {genre_updates}")
         print(f"  Styles-only updates: {styles_updates}")
         print(f"  Both-field updates:  {both_updates}")
         print(f"  Skipped (no cache):  {no_change}")

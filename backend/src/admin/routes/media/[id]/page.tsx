@@ -45,8 +45,8 @@ type Release = {
   catalogNumber: string | null
   article_number: string | null
   barcode: string | null
-  genre: string | null
-  styles: string | null
+  genres: string[] | null
+  styles: string[] | null
   tracklist: { position?: string; title?: string; duration?: string }[] | string | null
   credits: string | null
   description: string | null
@@ -628,8 +628,8 @@ const MediaDetailPage = () => {
           setShippingTypeId(d.release.shipping_item_type_id || "")
           setLocationId(d.release.warehouse_location_id || "")
           setDiscogsIdInput(d.release.discogs_id != null ? String(d.release.discogs_id) : "")
-          setGenreInput(d.release.genre || "")
-          setStylesInput(d.release.styles || "")
+          setGenreInput(Array.isArray(d.release.genres) ? d.release.genres.join(", ") : "")
+          setStylesInput(Array.isArray(d.release.styles) ? d.release.styles.join(", ") : "")
         }
         setLoading(false)
       })
@@ -681,10 +681,17 @@ const MediaDetailPage = () => {
     if (!id) return
     setDiscogsLinkSaving(true)
     try {
+      // Convert comma-separated UI inputs back to TEXT[] arrays for Postgres
+      const genresArr = genreInput
+        ? genreInput.split(",").map((s) => s.trim()).filter(Boolean)
+        : null
+      const stylesArr = stylesInput
+        ? stylesInput.split(",").map((s) => s.trim()).filter(Boolean)
+        : null
       const body: Record<string, unknown> = {
         discogs_id: discogsIdInput === "" ? null : discogsIdInput,
-        genre: genreInput || null,
-        styles: stylesInput || null,
+        genres: genresArr,
+        styles: stylesArr,
       }
       const res = await fetch(`/admin/media/${id}`, {
         method: "POST",
@@ -722,8 +729,8 @@ const MediaDetailPage = () => {
         const d = await fetch(`/admin/media/${id}`, { credentials: "include" }).then((r) => r.json())
         setRelease(d.release)
         if (d.release) {
-          setGenreInput(d.release.genre || "")
-          setStylesInput(d.release.styles || "")
+          setGenreInput(Array.isArray(d.release.genres) ? d.release.genres.join(", ") : "")
+          setStylesInput(Array.isArray(d.release.styles) ? d.release.styles.join(", ") : "")
         }
         setToast({ message: "Refetched from Discogs", type: "success" })
       } else {
@@ -794,8 +801,8 @@ const MediaDetailPage = () => {
     ["Label", release.label_name],
     ["CatNo", release.catalogNumber],
     ["Barcode", release.barcode],
-    ["Genre", release.genre],
-    ["Styles", release.styles],
+    ["Genre", Array.isArray(release.genres) && release.genres.length > 0 ? release.genres.join(", ") : null],
+    ["Styles", Array.isArray(release.styles) && release.styles.length > 0 ? release.styles.join(", ") : null],
     ["Auction Status", release.auction_status],
     // Q6: Show Block Name + link when item is in an active auction.
     // Hidden entirely (not rendered as "—") when no block is set.

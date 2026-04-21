@@ -168,14 +168,16 @@ export async function POST(
   const { id } = req.params
   const body = (req.body || {}) as Record<string, any>
 
-  // Allowed Release fields (Q8a: discogs_id / genre / styles newly editable)
+  // Allowed Release fields (Q8a: discogs_id / genres / styles newly editable).
+  // Note: Release.genres and Release.styles are TEXT[] in Postgres — accept
+  // arrays (preferred) or comma-separated strings (for backward compat).
   const allowedReleaseFields = [
     "estimated_value",
     "sale_mode",
     "direct_price",
     "shipping_item_type_id",
     "discogs_id",
-    "genre",
+    "genres",
     "styles",
   ]
   const releaseUpdates: Record<string, any> = {}
@@ -185,6 +187,16 @@ export async function POST(
       releaseUpdates[field] = body[field]
     }
   }
+
+  // Normalize genres/styles: accept string[] directly or split "a, b, c" string
+  const normalizeArray = (v: unknown): string[] | null => {
+    if (v == null) return null
+    if (Array.isArray(v)) return v.map((s) => String(s).trim()).filter(Boolean)
+    if (typeof v === "string") return v ? v.split(",").map((s) => s.trim()).filter(Boolean) : null
+    return null
+  }
+  if (body.genres !== undefined) releaseUpdates.genres = normalizeArray(body.genres)
+  if (body.styles !== undefined) releaseUpdates.styles = normalizeArray(body.styles)
 
   // Q1(b): media_condition, sleeve_condition, inventory are now owned by
   // erp_inventory_item when one exists. These fields are written to erp first,

@@ -66,15 +66,16 @@ export async function POST(
     return
   }
 
-  const genre = Array.isArray(apiData.genres) && apiData.genres.length > 0
-    ? apiData.genres.join(", ")
+  // Release.genres and Release.styles are TEXT[] in Postgres — pass arrays.
+  const genres = Array.isArray(apiData.genres) && apiData.genres.length > 0
+    ? apiData.genres.map((g: unknown) => String(g))
     : null
   const styles = Array.isArray(apiData.styles) && apiData.styles.length > 0
-    ? apiData.styles.join(", ")
+    ? apiData.styles.map((s: unknown) => String(s))
     : null
 
   const updates: Record<string, any> = {
-    genre,
+    genres,
     styles,
     discogs_last_synced: new Date(),
     updatedAt: new Date(),
@@ -132,7 +133,7 @@ export async function POST(
     message: "Refetched from Discogs",
     discogs_id: release.discogs_id,
     updated: {
-      genre,
+      genres,
       styles,
       discogs_lowest_price: updates.discogs_lowest_price ?? null,
       discogs_median_price: updates.discogs_median_price ?? null,
