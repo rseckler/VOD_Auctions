@@ -145,13 +145,18 @@ def send_to_cups(pdf_bytes: bytes, printer: str, copies: int) -> dict:
         return {"ok": False, "error": "lp command not found — CUPS not installed?"}
 
     # Use stdin to avoid disk I/O in the hot path.
+    # LC_ALL=C erzwingt US-Englisch für lp-Output, damit unsere Regex greift.
+    # Auf DE-Locale gibt lp "Anfrage-ID ist ..." aus — das matched keine
+    # englische "request id is"-Regex und würde unseren job_id-Extract kaputtmachen.
     cmd = ["lp", "-d", printer, "-o", f"PageSize={PAGE_SIZE}", "-n", str(copies)]
+    env = {**os.environ, "LC_ALL": "C", "LANG": "C"}
     log.info("printing %d bytes → %s", len(pdf_bytes), " ".join(cmd))
     try:
         proc = subprocess.run(
             cmd,
             input=pdf_bytes,
             capture_output=True, timeout=15,
+            env=env,
         )
     except subprocess.TimeoutExpired:
         return {"ok": False, "error": "lp timed out after 15s"}
