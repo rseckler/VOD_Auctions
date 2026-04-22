@@ -823,6 +823,31 @@ function StocktakeSessionPage() {
               <div style={{ ...T.small, color: C.muted, marginTop: 4 }}>
                 {releaseDetail.country || ""}{releaseDetail.year ? ` · ${releaseDetail.year}` : ""}
               </div>
+              {/* Quick-Links zu Catalog (Admin) + Storefront (oeffentlich).
+                  Beide oeffnen in neuem Tab, damit Frank seine Inventur-Session
+                  nicht verlaesst. Storefront-URL ist die Prod-URL — Admin
+                  laeuft praktisch nur auf Prod, lokale Dev-Sessions sind
+                  selten Stocktake-Use-Case. */}
+              <div style={{ ...T.small, marginTop: 8, display: "flex", gap: 12, alignItems: "center" }}>
+                <a
+                  href={`/app/media/${releaseDetail.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: C.gold, textDecoration: "underline" }}
+                  title="Im Catalog (Admin) oeffnen"
+                >
+                  → Catalog
+                </a>
+                <a
+                  href={`https://vod-auctions.com/catalog/${releaseDetail.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: C.gold, textDecoration: "underline" }}
+                  title="Im Storefront (oeffentliche Ansicht) oeffnen"
+                >
+                  → Storefront
+                </a>
+              </div>
               <div style={{ marginTop: 12, fontSize: 24, fontWeight: 700, color: C.gold }}>
                 {releaseDetail.legacy_price != null ? `€${releaseDetail.legacy_price}` : "—"}
               </div>
