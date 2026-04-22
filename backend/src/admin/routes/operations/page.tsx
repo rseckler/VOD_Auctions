@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { useAdminNav } from "../../components/admin-nav"
 import { C } from "../../components/admin-tokens"
 import { PageHeader, PageShell } from "../../components/admin-layout"
+import { getPrinterHealth, type PrinterHealth } from "../../lib/print-client"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -323,6 +324,7 @@ function OperationsHub() {
   const [healthData, setHealthData] = useState<SystemHealthData | null>(null)
   const [discogsData, setDiscogsData] = useState<DiscogsHealthData | null>(null)
   const [legacyData, setLegacyData] = useState<LegacySyncData | null>(null)
+  const [bridgeHealth, setBridgeHealth] = useState<PrinterHealth | null>(null)
   const [dataLoading, setDataLoading] = useState(true)
 
   useEffect(() => {
@@ -340,10 +342,12 @@ function OperationsHub() {
       fetch("/admin/system-health").then((r) => r.json()),
       fetch("/admin/sync/discogs-health").then((r) => r.json()),
       fetch("/admin/sync/legacy").then((r) => r.json()),
-    ]).then(([healthResult, discogsResult, legacyResult]) => {
+      getPrinterHealth(true),
+    ]).then(([healthResult, discogsResult, legacyResult, bridgeResult]) => {
       if (healthResult.status === "fulfilled") setHealthData(healthResult.value as SystemHealthData)
       if (discogsResult.status === "fulfilled") setDiscogsData(discogsResult.value as DiscogsHealthData)
       if (legacyResult.status === "fulfilled") setLegacyData(legacyResult.value as LegacySyncData)
+      if (bridgeResult.status === "fulfilled") setBridgeHealth(bridgeResult.value)
       setDataLoading(false)
     })
   }, [])
@@ -371,6 +375,23 @@ function OperationsHub() {
     : healthData.summary.errors > 0
     ? C.error
     : healthData.summary.degraded > 0
+    ? C.warning
+    : C.success
+
+  // Print Bridge status derivation (used by Print Bridge card below)
+  const bridgeStatusLine = dataLoading
+    ? "checking…"
+    : !bridgeHealth
+    ? "Offline — Bridge nicht erreichbar"
+    : bridgeHealth.dry_run
+    ? `DRY_RUN · v${bridgeHealth.version}`
+    : bridgeHealth.printer_found
+    ? `Silent Print · v${bridgeHealth.version}`
+    : `Bridge läuft, kein Drucker gefunden`
+
+  const bridgeStatusColor = !bridgeHealth
+    ? C.error
+    : bridgeHealth.dry_run || !bridgeHealth.printer_found
     ? C.warning
     : C.success
 
@@ -511,6 +532,17 @@ function OperationsHub() {
           statusColor={C.warning}
           href="/app/pos"
           actionLabel="Open POS Terminal →"
+        />
+
+        {/* Print Bridge Diagnose */}
+        <HubCard
+          icon="🖨️"
+          title="Print Bridge Test"
+          description="Silent-Label-Druck Diagnose: Bridge-Health, CUPS-Queues, Test-Druck von Sample-Label oder echtem Inventory-Item. Ersetzt seit rc35 das alte QZ Tray."
+          statusLine={bridgeStatusLine}
+          statusColor={bridgeStatusColor}
+          href="/app/print-test"
+          actionLabel="Open Print Test →"
         />
 
       </div>
