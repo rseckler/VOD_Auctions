@@ -14,8 +14,26 @@ export async function GET(
   const pg: Knex = req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
   await requireFeatureFlag(pg, "ERP_INVENTORY")
 
-  const [counts, totalReleases, todayStats, formatBreakdown, bulkLog] = await Promise.all([
-    // Stocktake progress counts (Exemplar-level, only items IN inventory)
+  // Performance: Die urspruengliche main-counts-Query mit JOIN auf Release (fuer
+  // legacy_price=0 Missing-Check + avg_verified_price Fallback) triggerte Seq
+  // Scan auf 52k Release-Rows → 6.5s Latenz auf dem Inventory-Hub. Drei Fixes:
+  //   1. Main-Aggregate ohne JOIN, nur erp_inventory_item (103ms statt 6540ms)
+  //   2. Missing-Count separat, nutzt idx_release_legacy_price (~5ms)
+  //   3. Format-Breakdown via MATERIALIZED CTE damit die kleine erp-Seite
+  //      zuerst durchlaeuft und der Release-Lookup per Hash-Join danach
+  //      (~70ms statt 373ms)
+  const [
+    counts,
+    totalReleases,
+    todayStats,
+    formatBreakdown,
+    missingCount,
+    bulkLog,
+  ] = await Promise.all([
+    // Stocktake progress counts (Exemplar-level, NO JOIN auf Release).
+    // avg_verified_price nutzt nur exemplar_price — in der Praxis ist das
+    // nach Verify immer gesetzt. Fuer Edge-Cases (verified ohne exemplar_price)
+    // faellt avg auf 0 zurueck, fuer's Dashboard tolerabel.
     pg.raw(`
       SELECT
         COUNT(*) AS eligible,
@@ -24,25 +42,20 @@ export async function GET(
           WHERE ii.last_stocktake_at IS NOT NULL AND ii.price_locked = true
         ) AS verified,
         COUNT(*) FILTER (
-          WHERE ii.last_stocktake_at IS NOT NULL AND ii.price_locked = true
-            AND r.legacy_price = 0
-        ) AS missing,
-        COUNT(*) FILTER (
           WHERE ii.last_stocktake_at IS NULL
         ) AS remaining,
         COUNT(*) FILTER (WHERE ii.copy_number > 1) AS additional_copies,
-        COALESCE(AVG(COALESCE(ii.exemplar_price, r.legacy_price)) FILTER (
-          WHERE ii.last_stocktake_at IS NOT NULL
+        COALESCE(AVG(ii.exemplar_price) FILTER (
+          WHERE ii.last_stocktake_at IS NOT NULL AND ii.exemplar_price IS NOT NULL
         ), 0) AS avg_verified_price
       FROM erp_inventory_item ii
-      JOIN "Release" r ON r.id = ii.release_id
       WHERE ii.source = 'frank_collection'
     `),
 
     // Total releases in the entire catalog (not just inventory)
     pg.raw(`SELECT COUNT(*)::int AS total FROM "Release"`),
 
-    // Today's activity
+    // Today's activity (no JOIN needed)
     pg.raw(`
       SELECT
         COUNT(*) FILTER (
@@ -58,8 +71,13 @@ export async function GET(
       WHERE ii.source = 'frank_collection'
     `),
 
-    // Format breakdown
+    // Format breakdown — MATERIALIZED CTE zwingt kleine erp-Seite zuerst
     pg.raw(`
+      WITH erp AS MATERIALIZED (
+        SELECT release_id, last_stocktake_at
+        FROM erp_inventory_item
+        WHERE source = 'frank_collection'
+      )
       SELECT
         CASE
           WHEN r.format = 'LP' THEN 'Vinyl'
@@ -68,12 +86,24 @@ export async function GET(
           ELSE 'Other'
         END AS format_group,
         COUNT(*) AS total,
-        COUNT(*) FILTER (WHERE ii.last_stocktake_at IS NOT NULL) AS verified
+        COUNT(*) FILTER (WHERE erp.last_stocktake_at IS NOT NULL) AS verified
+      FROM erp
+      JOIN "Release" r ON r.id = erp.release_id
+      GROUP BY 1
+      ORDER BY 1
+    `),
+
+    // Missing-Count (items mit legacy_price=0 die verified sind — Franks F2
+    // convention). Nutzt idx_release_legacy_price → Index-Nested-Loop statt
+    // Seq Scan. 5ms statt des kompletten Seq-Scan-Anteils der alten Query.
+    pg.raw(`
+      SELECT COUNT(*)::int AS missing
       FROM erp_inventory_item ii
       JOIN "Release" r ON r.id = ii.release_id
       WHERE ii.source = 'frank_collection'
-      GROUP BY 1
-      ORDER BY 1
+        AND ii.last_stocktake_at IS NOT NULL
+        AND ii.price_locked = true
+        AND r.legacy_price = 0
     `),
 
     // Bulk price adjustment status
@@ -86,13 +116,14 @@ export async function GET(
   const row = counts.rows[0]
   const total = totalReleases.rows[0]
   const today = todayStats.rows[0]
+  const missing = missingCount.rows[0]
 
   res.json({
     total_releases: Number(total.total),
     eligible: Number(row.eligible),
     distinct_releases: Number(row.distinct_releases),
     verified: Number(row.verified),
-    missing: Number(row.missing),
+    missing: Number(missing.missing),
     remaining: Number(row.remaining),
     additional_copies: Number(row.additional_copies),
     avg_verified_price: Number(Number(row.avg_verified_price).toFixed(2)),
