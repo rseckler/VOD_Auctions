@@ -7,7 +7,7 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/bin/python3</string>
+        <string>__PYTHON_BIN__</string>
         <string>__BRIDGE_SCRIPT__</string>
     </array>
 
@@ -15,8 +15,16 @@
     <dict>
         <key>VOD_PRINT_BRIDGE_PORT</key>
         <string>17891</string>
+        <key>VOD_PRINT_BRIDGE_BACKEND</key>
+        <string>__BACKEND__</string>
         <key>VOD_PRINT_BRIDGE_PRINTER</key>
         <string>__PRINTER_QUEUE__</string>
+        <key>VOD_PRINT_BRIDGE_PRINTER_IP</key>
+        <string>__PRINTER_IP__</string>
+        <key>VOD_PRINT_BRIDGE_MODEL</key>
+        <string>__PRINTER_MODEL__</string>
+        <key>VOD_PRINT_BRIDGE_LABEL</key>
+        <string>__LABEL_TYPE__</string>
         <key>VOD_PRINT_BRIDGE_PAGESIZE</key>
         <string>Custom.29x90mm</string>
         <key>VOD_PRINT_BRIDGE_DRY_RUN</key>

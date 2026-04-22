@@ -32,20 +32,29 @@ err()  { echo "${RED}✗${RESET} $*" >&2; }
 
 BRIDGE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="$HOME/.local/lib/vod-print-bridge"
+VENV_DIR="$INSTALL_DIR/venv"
 PLIST_PATH="$HOME/Library/LaunchAgents/com.vod-auctions.print-bridge.plist"
 LOG_DIR="$HOME/Library/Logs"
 LOG_PATH="$LOG_DIR/vod-print-bridge.log"
 LABEL="com.vod-auctions.print-bridge"
 
 PRINTER_QUEUE="${VOD_PRINT_BRIDGE_PRINTER:-Brother_QL_820NWB}"
+PRINTER_IP="${VOD_PRINT_BRIDGE_PRINTER_IP:-}"
+PRINTER_MODEL="${VOD_PRINT_BRIDGE_MODEL:-QL-820NWB}"
+LABEL_TYPE="${VOD_PRINT_BRIDGE_LABEL:-29}"
+BACKEND="${VOD_PRINT_BRIDGE_BACKEND:-brother_ql}"   # NEW: default brother_ql
 DRY_RUN="0"
 MODE="install"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --printer)   PRINTER_QUEUE="$2"; shift 2 ;;
-    --dry-run)   DRY_RUN="1"; shift ;;
-    --uninstall) MODE="uninstall"; shift ;;
+    --printer)      PRINTER_QUEUE="$2"; shift 2 ;;
+    --printer-ip)   PRINTER_IP="$2"; shift 2 ;;
+    --backend)      BACKEND="$2"; shift 2 ;;
+    --label)        LABEL_TYPE="$2"; shift 2 ;;
+    --model)        PRINTER_MODEL="$2"; shift 2 ;;
+    --dry-run)      DRY_RUN="1"; shift ;;
+    --uninstall)    MODE="uninstall"; shift ;;
     -h|--help)
       sed -n '1,20p' "$0"
       exit 0
@@ -101,6 +110,43 @@ ok "Bridge-Script installiert: $INSTALL_DIR/vod_print_bridge.py"
 
 # 3. Log-Verzeichnis
 mkdir -p "$LOG_DIR"
+
+# 3-venv. Python venv + pip install brother_ql Pillow pypdfium2 (für brother_ql-Backend)
+#
+# Diese Libraries sind der Grund warum wir CUPS umgehen können:
+#   - pypdfium2: pure-Python PDF-Renderer (MIT, keine Poppler-System-Dep)
+#   - Pillow:    Image-Manipulation (crop/resize vor Brother-Raster)
+#   - brother_ql: Brother Raster-Protokoll + TCP-Send (Community-Standard
+#                 für Brother QL-Serie, ~2500 GitHub-Stars)
+#
+# venv lokal im Install-Dir — macht pip install safe (kein sudo, keine
+# System-Python-Pollution). LaunchAgent nutzt dann das venv-python.
+PYTHON_BIN="/usr/bin/python3"    # default bei cups-backend
+if [[ "$BACKEND" == "brother_ql" ]]; then
+  step "Python venv + brother_ql installieren"
+  if [[ ! -x "$VENV_DIR/bin/python" ]]; then
+    /usr/bin/python3 -m venv "$VENV_DIR" || { err "venv-Erzeugung fehlgeschlagen"; exit 1; }
+    ok "venv erstellt: $VENV_DIR"
+  else
+    ok "venv existiert bereits"
+  fi
+
+  # pip update + install. --quiet hält die Ausgabe lesbar.
+  # Versionen gepinnt auf bekannt-gute Stände (Stand 2026-04-22):
+  #   brother_ql 0.9.4 ist die letzte stabile 0.9-Reihe mit QL-820NWB-Support
+  #   Pillow 10.x ist Python-3.9-kompatibel
+  #   pypdfium2 4.x rendert PDF-1.4 (unsere Labels)
+  echo "    pip upgrade + brother_ql Pillow pypdfium2 installieren..."
+  "$VENV_DIR/bin/pip" install --quiet --upgrade pip 2>&1 | tail -3
+  if "$VENV_DIR/bin/pip" install --quiet "brother_ql==0.9.4" "Pillow>=10.0" "pypdfium2>=4.0"; then
+    ok "brother_ql + Pillow + pypdfium2 installiert"
+  else
+    warn "pip install teilweise fehlgeschlagen — Bridge läuft trotzdem, brother_ql-Backend aber ggf. defekt"
+  fi
+  PYTHON_BIN="$VENV_DIR/bin/python"
+else
+  warn "Backend=cups (legacy) — brother_ql venv wird übersprungen"
+fi
 
 # 3a. mkcert installieren (via Homebrew) + local CA ins System-Keychain setzen.
 # Safari blockiert fetch() von https://admin.vod-auctions.com nach http://127.0.0.1
@@ -170,11 +216,43 @@ if [[ "$MKCERT_OK" != "1" ]]; then
   KEY_PATH=""
 fi
 
+# 3c. Drucker-IP für brother_ql-Backend (TCP-Direct-Send).
+#     Autodetect via Bonjour mdns, falls nicht via Flag/ENV gesetzt.
+if [[ "$BACKEND" == "brother_ql" && -z "$PRINTER_IP" && "$DRY_RUN" != "1" ]]; then
+  step "Drucker-IP via Bonjour suchen"
+  # dns-sd läuft timeout-frei → mit timeout wrapper
+  PRINTER_IP=$(timeout 4 dns-sd -B _pdl-datastream._tcp local. 2>/dev/null | awk '/Brother/ {print $NF; exit}' || echo "")
+  if [[ -z "$PRINTER_IP" ]]; then
+    # Alternativ: Brother QL hostname auflösen
+    PRINTER_IP=$(timeout 3 dns-sd -G v4 Brother.local 2>/dev/null | awk '/Brother\.local\./ && /[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/ {print $(NF-1); exit}' || echo "")
+  fi
+  if [[ -n "$PRINTER_IP" ]]; then
+    ok "Drucker-IP gefunden (Bonjour): $PRINTER_IP"
+  else
+    warn "Bonjour-Autodetect fehlgeschlagen. Bitte IP vom Drucker-LCD ablesen:"
+    warn "  Menü → WLAN → Info → IP-Adresse"
+    # zsh-sichere Prompt-Syntax (nicht read -p)
+    printf "%s" "${BOLD}? Drucker-IP (z.B. 10.1.1.136): ${RESET}"
+    read -r PRINTER_IP
+  fi
+fi
+
+if [[ "$BACKEND" == "brother_ql" && -n "$PRINTER_IP" ]]; then
+  ok "brother_ql-Config: model=$PRINTER_MODEL ip=$PRINTER_IP label=$LABEL_TYPE"
+elif [[ "$BACKEND" == "brother_ql" && -z "$PRINTER_IP" && "$DRY_RUN" == "1" ]]; then
+  warn "DRY_RUN ohne Drucker-IP — ok für Dev-Tests"
+fi
+
 # 4. plist rendern (Substitutionen — sed statt heredoc, damit Pfade mit Leerzeichen
 #    sauber escaped werden können)
 tmp_plist="$(mktemp)"
-sed -e "s|__BRIDGE_SCRIPT__|$INSTALL_DIR/vod_print_bridge.py|g" \
+sed -e "s|__PYTHON_BIN__|$PYTHON_BIN|g" \
+    -e "s|__BRIDGE_SCRIPT__|$INSTALL_DIR/vod_print_bridge.py|g" \
+    -e "s|__BACKEND__|$BACKEND|g" \
     -e "s|__PRINTER_QUEUE__|$PRINTER_QUEUE|g" \
+    -e "s|__PRINTER_IP__|$PRINTER_IP|g" \
+    -e "s|__PRINTER_MODEL__|$PRINTER_MODEL|g" \
+    -e "s|__LABEL_TYPE__|$LABEL_TYPE|g" \
     -e "s|__DRY_RUN__|$DRY_RUN|g" \
     -e "s|__LOG_PATH__|$LOG_PATH|g" \
     -e "s|__CERT_PATH__|$CERT_PATH|g" \
@@ -191,7 +269,12 @@ fi
 
 mv "$tmp_plist" "$PLIST_PATH"
 ok "LaunchAgent plist: $PLIST_PATH"
-ok "Drucker-Queue: $PRINTER_QUEUE"
+ok "Backend: $BACKEND"
+if [[ "$BACKEND" == "brother_ql" ]]; then
+  ok "Drucker: $PRINTER_MODEL @ ${PRINTER_IP:-<DRY_RUN>}"
+else
+  ok "Drucker-Queue: $PRINTER_QUEUE"
+fi
 [[ "$DRY_RUN" == "1" ]] && warn "DRY_RUN aktiv — kein echter Druck (Test-Modus)"
 
 # 5. LaunchAgent (neu)laden

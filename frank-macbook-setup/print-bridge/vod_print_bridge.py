@@ -37,7 +37,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
 from urllib.parse import urlparse
 
-VERSION = "1.1.0"
+VERSION = "2.0.0"
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("VOD_PRINT_BRIDGE_PORT", "17891"))
 DEFAULT_PRINTER = os.environ.get("VOD_PRINT_BRIDGE_PRINTER", "Brother_QL_820NWB")
@@ -45,6 +45,20 @@ PAGE_SIZE = os.environ.get("VOD_PRINT_BRIDGE_PAGESIZE", "Custom.29x90mm")
 DRY_RUN = os.environ.get("VOD_PRINT_BRIDGE_DRY_RUN", "").lower() in ("1", "true", "yes")
 CERT_PATH = os.environ.get("VOD_PRINT_BRIDGE_CERT", "")
 KEY_PATH = os.environ.get("VOD_PRINT_BRIDGE_KEY", "")
+# Backend-Wahl:
+#   "brother_ql" (default) — nutzt die brother_ql Python-Library, sendet
+#     direkt via TCP an den Drucker. Umgeht CUPS komplett. Robust, gleich
+#     auf allen Macs, keine Drucker-Einrichtung in Systemeinstellungen nötig.
+#   "cups" — nutzt `lp` via lokale CUPS-Queue (legacy). Braucht korrekt
+#     eingerichteten Brother-Treiber + socket://-Queue. Anfällig für
+#     AirPrint-Auto-Discovery-Probleme. Als Fallback erhalten.
+BACKEND = os.environ.get("VOD_PRINT_BRIDGE_BACKEND", "brother_ql").lower()
+# Drucker-IP für brother_ql Backend (TCP-Direct-Send)
+PRINTER_IP = os.environ.get("VOD_PRINT_BRIDGE_PRINTER_IP", "")
+# Brother-Modell für brother_ql (bestimmt Raster-Format + Label-Specs)
+PRINTER_MODEL = os.environ.get("VOD_PRINT_BRIDGE_MODEL", "QL-820NWB")
+# Label-Spec: "29" = DK-22210 continuous 29mm, "29x90" = DK-11201 die-cut
+LABEL_TYPE = os.environ.get("VOD_PRINT_BRIDGE_LABEL", "29")
 MAX_BODY_BYTES = 10 * 1024 * 1024  # 10 MB hard cap pro Job
 
 ADMIN_ORIGINS = {
@@ -131,6 +145,134 @@ def resolve_printer(preferred: str | None) -> str | None:
     return None
 
 
+def _check_brother_ql_deps() -> tuple[bool, str]:
+    """Prüft ob pypdfium2 + Pillow + brother_ql importierbar sind.
+    Returns (ok, error_message). Für Health-Endpoint."""
+    missing = []
+    try:
+        import pypdfium2  # noqa: F401
+    except ImportError:
+        missing.append("pypdfium2")
+    try:
+        from PIL import Image  # noqa: F401
+    except ImportError:
+        missing.append("Pillow")
+    try:
+        from brother_ql.raster import BrotherQLRaster  # noqa: F401
+    except ImportError:
+        missing.append("brother_ql")
+    if missing:
+        return False, f"pip install fehlt: {', '.join(missing)}"
+    return True, ""
+
+
+def send_to_brother_ql(pdf_bytes: bytes, copies: int) -> dict:
+    """Brother QL backend — PDF → PNG → Raster → TCP direct.
+
+    Nutzt pypdfium2 für PDF-Rendering (pure Python, MIT-lizenziert) und
+    brother_ql für Raster-Protokoll + TCP-Send. Keine CUPS-Abhängigkeit,
+    keine Drucker-Einrichtung in macOS Systemeinstellungen nötig.
+
+    Erwartet PRINTER_IP + PRINTER_MODEL (defaults: env-var gesteuert).
+    """
+    if not PRINTER_IP and not DRY_RUN:
+        return {"ok": False, "error": "VOD_PRINT_BRIDGE_PRINTER_IP nicht gesetzt (brother_ql braucht direkte TCP-IP, z.B. 10.1.1.136)"}
+
+    # Deferred imports: nur laden wenn dieses Backend aktiv ist, damit die
+    # stdlib-Bridge (cups-backend-only) keine pip-deps braucht.
+    try:
+        import pypdfium2 as pdfium
+        from PIL import Image
+        from brother_ql.conversion import convert as brother_convert
+        from brother_ql.backends.helpers import send as brother_send
+        from brother_ql.raster import BrotherQLRaster
+    except ImportError as e:
+        return {"ok": False, "error": f"brother_ql-Backend benötigt pip install brother_ql Pillow pypdfium2: {e}"}
+
+    # 1) PDF → PIL Image. Scale wählen damit die Bildhöhe ungefähr der
+    #    Drucker-Auflösung entspricht. Brother QL-820NWB druckt 300 dpi
+    #    (11.8 dots/mm). Für 29×90mm Portrait-PDF wollen wir ca.
+    #    342×1063 px. Scale-Faktor relativ zum PDF (72dpi): 300/72 ≈ 4.17.
+    try:
+        pdf = pdfium.PdfDocument(pdf_bytes)
+        if len(pdf) == 0:
+            return {"ok": False, "error": "PDF has no pages"}
+        page = pdf[0]
+        pil_image = page.render(scale=4.17).to_pil()
+        pdf.close()
+    except Exception as e:
+        return {"ok": False, "error": f"PDF-Render fehlgeschlagen: {e}"}
+
+    # 2) brother_ql erwartet für label '29' (continuous 29mm) ein Bild mit
+    #    exakt 306 px Breite. Wir haben Portrait-PDF (29mm breit × 90mm hoch)
+    #    → Bild ist ~342×1063. Resize auf 306px breit, Höhe proportional.
+    target_width = 306
+    w, h = pil_image.size
+    if w != target_width:
+        new_h = int(h * target_width / w)
+        pil_image = pil_image.resize((target_width, new_h), Image.LANCZOS)
+
+    if DRY_RUN:
+        tmp = tempfile.NamedTemporaryFile(prefix="vod-label-", suffix=".png", delete=False)
+        pil_image.save(tmp.name)
+        log.info("DRY_RUN (brother_ql): would have sent %d×%d PNG to %s:%s (saved: %s)",
+                 pil_image.size[0], pil_image.size[1], PRINTER_MODEL, PRINTER_IP or "?", tmp.name)
+        return {
+            "ok": True, "job_id": "dry-run", "backend": "brother_ql",
+            "printer": f"{PRINTER_MODEL}@{PRINTER_IP}", "bytes": len(pdf_bytes),
+            "dry_run": True, "saved_to": tmp.name,
+        }
+
+    # 3) brother_ql Raster-Instructions generieren
+    try:
+        qlr = BrotherQLRaster(PRINTER_MODEL)
+        qlr.exception_on_warning = True
+        instructions = brother_convert(
+            qlr=qlr,
+            images=[pil_image] * copies,
+            label=LABEL_TYPE,
+            rotate="auto",
+            threshold=70.0,
+            dither=False,
+            compress=False,
+            red=False,
+            dpi_600=False,
+            hq=True,
+            cut=True,
+        )
+    except Exception as e:
+        return {"ok": False, "error": f"brother_ql convert fehlgeschlagen: {e}"}
+
+    # 4) TCP-Send an Drucker
+    target = f"tcp://{PRINTER_IP}"
+    log.info("brother_ql: sending %d raster bytes to %s (model=%s label=%s)",
+             len(instructions), target, PRINTER_MODEL, LABEL_TYPE)
+    try:
+        status = brother_send(
+            instructions=instructions,
+            printer_identifier=target,
+            backend_identifier="network",
+            blocking=True,
+        )
+    except Exception as e:
+        return {"ok": False, "error": f"brother_ql send fehlgeschlagen ({target}): {e}"}
+
+    # status ist ein dict mit 'outcome' ('sent' | 'error') etc.
+    outcome = status.get("outcome") if isinstance(status, dict) else None
+    if outcome and outcome != "sent":
+        return {"ok": False, "error": f"brother_ql outcome: {outcome}", "status": status}
+
+    return {
+        "ok": True,
+        "backend": "brother_ql",
+        "printer": f"{PRINTER_MODEL}@{PRINTER_IP}",
+        "bytes": len(pdf_bytes),
+        "raster_bytes": len(instructions),
+        "copies": copies,
+        "status": status if isinstance(status, dict) else {"raw": str(status)},
+    }
+
+
 def send_to_cups(pdf_bytes: bytes, printer: str, copies: int) -> dict:
     """Write PDF to temp file, run `lp` with correct options. Returns {ok, job_id, ...}."""
     if DRY_RUN:
@@ -215,10 +357,29 @@ class BridgeHandler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
 
         if path == "/health":
+            if BACKEND == "brother_ql":
+                # brother_ql nutzt Direct-TCP zum Drucker. Wir checken ob PRINTER_IP
+                # gesetzt ist + ob brother_ql überhaupt importierbar ist (pip deps).
+                deps_ok, dep_error = _check_brother_ql_deps()
+                return self._send_json(200, {
+                    "ok": True,
+                    "version": VERSION,
+                    "backend": "brother_ql",
+                    "printer": f"{PRINTER_MODEL}@{PRINTER_IP}" if PRINTER_IP else PRINTER_MODEL,
+                    "printer_found": bool(PRINTER_IP) and deps_ok,
+                    "printer_ip": PRINTER_IP,
+                    "printer_model": PRINTER_MODEL,
+                    "label_type": LABEL_TYPE,
+                    "dry_run": DRY_RUN,
+                    "deps_ok": deps_ok,
+                    "dep_error": dep_error,
+                })
+            # Default: cups-Backend
             printer = resolve_printer(DEFAULT_PRINTER)
             return self._send_json(200, {
                 "ok": True,
                 "version": VERSION,
+                "backend": "cups",
                 "printer": printer or DEFAULT_PRINTER,
                 "printer_found": printer is not None,
                 "dry_run": DRY_RUN,
@@ -226,6 +387,13 @@ class BridgeHandler(BaseHTTPRequestHandler):
             })
 
         if path == "/printers":
+            if BACKEND == "brother_ql":
+                # brother_ql kennt keine CUPS-Queues. Für UI-Kompat returnen wir
+                # unseren konfigurierten Ziel-Drucker als einzigen Eintrag.
+                entries = []
+                if PRINTER_IP:
+                    entries.append({"name": f"{PRINTER_MODEL}@{PRINTER_IP}", "status": "configured"})
+                return self._send_json(200, {"printers": entries})
             return self._send_json(200, {"printers": list_cups_printers()})
 
         return self._send_json(404, {"ok": False, "error": "not found"})
@@ -272,15 +440,18 @@ class BridgeHandler(BaseHTTPRequestHandler):
         if not pdf_bytes or pdf_bytes[:4] != b"%PDF":
             return self._send_json(400, {"ok": False, "error": "payload is not a PDF"})
 
-        printer = resolve_printer(printer_pref)
-        if not printer and not DRY_RUN:
-            return self._send_json(503, {
-                "ok": False,
-                "error": f"no matching CUPS printer (wanted '{printer_pref}')",
-                "available": [p["name"] for p in list_cups_printers()],
-            })
-
-        result = send_to_cups(pdf_bytes, printer or printer_pref, copies)
+        # Backend-Auswahl: brother_ql (direct-TCP) vs cups (lp-Queue)
+        if BACKEND == "brother_ql":
+            result = send_to_brother_ql(pdf_bytes, copies)
+        else:
+            printer = resolve_printer(printer_pref)
+            if not printer and not DRY_RUN:
+                return self._send_json(503, {
+                    "ok": False,
+                    "error": f"no matching CUPS printer (wanted '{printer_pref}')",
+                    "available": [p["name"] for p in list_cups_printers()],
+                })
+            result = send_to_cups(pdf_bytes, printer or printer_pref, copies)
         return self._send_json(200 if result.get("ok") else 500, result)
 
     # Keep default log to stderr so LaunchAgent captures it.
@@ -299,18 +470,28 @@ def main() -> None:
         and os.path.isfile(CERT_PATH) and os.path.isfile(KEY_PATH)
     )
     scheme = "https" if tls_enabled else "http"
-    log.info("VOD Print Bridge %s starting on %s://%s:%d (tls=%s, dry_run=%s, default_printer=%s)",
-             VERSION, scheme, HOST, PORT, tls_enabled, DRY_RUN, DEFAULT_PRINTER)
+    log.info("VOD Print Bridge %s starting on %s://%s:%d (backend=%s, tls=%s, dry_run=%s)",
+             VERSION, scheme, HOST, PORT, BACKEND, tls_enabled, DRY_RUN)
     if not tls_enabled:
         log.warning("TLS is OFF — Safari will block fetch() from https://admin.vod-auctions.com. "
                     "Install cert+key and set VOD_PRINT_BRIDGE_CERT / _KEY env vars. "
                     "Run frank-macbook-setup/print-bridge/install-bridge.sh to provision mkcert certs.")
 
-    printer = resolve_printer(DEFAULT_PRINTER)
-    if printer:
-        log.info("CUPS printer resolved: %s", printer)
+    if BACKEND == "brother_ql":
+        deps_ok, dep_err = _check_brother_ql_deps()
+        if deps_ok:
+            log.info("brother_ql backend: model=%s ip=%s label=%s",
+                     PRINTER_MODEL, PRINTER_IP or "<NOT SET>", LABEL_TYPE)
+        else:
+            log.warning("brother_ql backend enabled but deps fehlen: %s", dep_err)
+        if not PRINTER_IP and not DRY_RUN:
+            log.warning("VOD_PRINT_BRIDGE_PRINTER_IP ist nicht gesetzt — Druckjobs schlagen fehl")
     else:
-        log.warning("No matching CUPS printer found — set up Brother QL or run with DRY_RUN=1")
+        printer = resolve_printer(DEFAULT_PRINTER)
+        if printer:
+            log.info("CUPS printer resolved: %s", printer)
+        else:
+            log.warning("No matching CUPS printer found — set up Brother QL or run with DRY_RUN=1")
 
     try:
         server = ThreadingHTTPServer((HOST, PORT), BridgeHandler)
