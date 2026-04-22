@@ -67,23 +67,40 @@ function configurePromisers(qz: any): void {
   if (promisersInitialized) return
   promisersInitialized = true
 
-  qz.security.setCertificatePromiser(() =>
+  // Certificate: simple Promise<string>
+  qz.security.setCertificatePromiser((resolve: (cert: string) => void, reject: (err: Error) => void) => {
     fetch("/admin/qz-tray/cert", { credentials: "include" })
-      .then((r) => (r.ok ? r.text() : ""))
-      .catch(() => "")
-  )
+      .then((r) => {
+        if (!r.ok) throw new Error(`cert fetch: ${r.status}`)
+        return r.text()
+      })
+      .then((cert) => {
+        if (!cert || !cert.includes("BEGIN CERTIFICATE")) {
+          throw new Error("cert payload empty or malformed")
+        }
+        resolve(cert)
+      })
+      .catch(reject)
+  })
 
   qz.security.setSignatureAlgorithm("SHA512")
 
-  qz.security.setSignaturePromiser((toSign: string) => () =>
-    fetch("/admin/qz-tray/sign", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "text/plain" },
-      body: toSign,
-    })
-      .then((r) => (r.ok ? r.text() : ""))
-      .catch(() => "")
+  // Signature: QZ API expects factory (toSign) => (resolve, reject) => void
+  qz.security.setSignaturePromiser((toSign: string) =>
+    (resolve: (sig: string) => void, reject: (err: Error) => void) => {
+      fetch("/admin/qz-tray/sign", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "text/plain" },
+        body: toSign,
+      })
+        .then((r) => {
+          if (!r.ok) throw new Error(`sign fetch: ${r.status}`)
+          return r.text()
+        })
+        .then(resolve)
+        .catch(reject)
+    }
   )
 }
 
