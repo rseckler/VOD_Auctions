@@ -258,6 +258,13 @@ def send_to_brother_ql(pdf_bytes: bytes, copies: int) -> dict:
         return {"ok": False, "error": f"brother_ql send fehlgeschlagen ({target}): {e}"}
 
     # status ist ein dict mit 'outcome' ('sent' | 'error') etc.
+    # WICHTIG: brother_ql liest nach dem Send eine Status-Response vom Drucker
+    # zurück. Dabei timeoutet es manchmal (auch bei erfolgreichem Druck), und
+    # setzt dann 'did_print=false' obwohl das Label physisch rauskommt. Der
+    # AUTHORITATIVE Success-Indikator ist 'outcome=="sent"' — das bedeutet
+    # der Raster-Stream wurde sauber an den Drucker übergeben. 'did_print'
+    # und 'ready_for_next_job' sind zusätzliche Status-Reads und können
+    # false-negatives liefern.
     outcome = status.get("outcome") if isinstance(status, dict) else None
     if outcome and outcome != "sent":
         return {"ok": False, "error": f"brother_ql outcome: {outcome}", "status": status}
@@ -269,7 +276,8 @@ def send_to_brother_ql(pdf_bytes: bytes, copies: int) -> dict:
         "bytes": len(pdf_bytes),
         "raster_bytes": len(instructions),
         "copies": copies,
-        "status": status if isinstance(status, dict) else {"raw": str(status)},
+        "outcome": outcome,   # "sent" = success (authoritative)
+        "note": "outcome=sent ist der authoritative Erfolgs-Check. did_print/ready_for_next_job können false-negatives liefern (brother_ql status-read timing).",
     }
 
 
