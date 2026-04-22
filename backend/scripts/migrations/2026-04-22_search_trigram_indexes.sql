@@ -39,10 +39,17 @@ CREATE INDEX IF NOT EXISTS idx_release_article_trgm
   ON "Release" USING gin (lower(article_number) gin_trgm_ops)
   WHERE article_number IS NOT NULL;
 
+-- Label.name (3k Rows) — fuer /store/catalog UNION Search + Autocomplete.
+-- Nachtraeglich hinzugefuegt damit die Storefront-Search vollstaendig
+-- indizierbar ist (Admin-Search nutzt kein Label).
+CREATE INDEX IF NOT EXISTS idx_label_name_trgm
+  ON "Label" USING gin (lower(name) gin_trgm_ops);
+
 -- Verifikation (kommt als separate Query, hier als Dokumentation):
---   SELECT indexname FROM pg_indexes WHERE tablename IN ('Release','Artist')
+--   SELECT indexname FROM pg_indexes WHERE tablename IN ('Release','Artist','Label')
 --     AND indexname LIKE '%trgm%';
 --   → idx_artist_name_trgm
+--   → idx_label_name_trgm
 --   → idx_release_article_trgm
 --   → idx_release_catno_trgm
 --   → idx_release_title_trgm (bestand schon)

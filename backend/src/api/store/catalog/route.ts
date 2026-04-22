@@ -195,25 +195,29 @@ export async function GET(
 
   let countQuery = pgConnection("Release")
 
-  // Search filter
+  // Search filter — uses UNION over 5 index-backed sub-queries instead of
+  // ILIKE-OR-across-tables. Each sub-query hits its own GIN trgm index
+  // (lower(col) gin_trgm_ops) so Postgres builds a BitmapOr plan with ~100ms
+  // execution instead of ~6s Seq-Scan. Same semantic as the old query,
+  // verified via count-match for 5 test terms. See migration
+  // 2026-04-22_search_trigram_indexes.sql for the index layout.
   if (search && typeof search === "string" && search.trim()) {
-    const term = `%${search.trim()}%`
-    query = query.where(function () {
-      this.whereILike("Release.title", term)
-        .orWhereILike("Release.catalogNumber", term)
-        .orWhereILike("Release.article_number", term)
-        .orWhereILike("Artist.name", term)
-        .orWhereILike("Label.name", term)
-    })
-    countQuery = countQuery
-      .leftJoin("Artist", "Release.artistId", "Artist.id")
-      .leftJoin("Label", "Release.labelId", "Label.id")
-      .where(function () {
-        this.whereILike("Release.title", term)
-          .orWhereILike("Release.catalogNumber", term)
-          .orWhereILike("Artist.name", term)
-          .orWhereILike("Label.name", term)
-      })
+    const lowerTerm = `%${search.trim().toLowerCase()}%`
+    const matchSubquery = pgConnection.raw(`(
+      SELECT r.id FROM "Release" r WHERE lower(r.title) LIKE ?
+      UNION
+      SELECT r.id FROM "Release" r WHERE lower(r."catalogNumber") LIKE ?
+      UNION
+      SELECT r.id FROM "Release" r WHERE lower(r.article_number) LIKE ?
+      UNION
+      SELECT r.id FROM "Release" r JOIN "Artist" a ON a.id = r."artistId"
+        WHERE lower(a.name) LIKE ?
+      UNION
+      SELECT r.id FROM "Release" r JOIN "Label" l ON l.id = r."labelId"
+        WHERE lower(l.name) LIKE ?
+    )`, [lowerTerm, lowerTerm, lowerTerm, lowerTerm, lowerTerm])
+    query = query.whereIn("Release.id", matchSubquery)
+    countQuery = countQuery.whereIn("Release.id", matchSubquery)
   }
 
   // Format filter

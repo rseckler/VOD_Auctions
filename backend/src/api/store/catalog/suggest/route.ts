@@ -12,11 +12,19 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     return res.json({ releases: [], artists: [], labels: [] })
   }
 
+  // lower(col) LIKE lower(?) engages the gin_trgm indexes. whereILike alone
+  // would not use them because the indexes are on lower(col), not col. See
+  // migration 2026-04-22_search_trigram_indexes.sql and
+  // feedback_grep_all_callers.md.
   const searchPattern = `%${q}%`
+  const lowerPattern = `%${q.toLowerCase()}%`
+  const prefixPattern = `${q}%`
+  const prefixLower = `${q.toLowerCase()}%`
 
   try {
     const [releases, artists, labels] = await Promise.all([
-      // Releases: title, artist match
+      // Releases: UNION sub-query over title / catalogNumber / artist.name,
+      // each hits its own GIN trgm index — avoids a Seq Scan on 52k rows.
       pgConnection
         .select(
           "Release.id",
@@ -29,11 +37,14 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
         )
         .from("Release")
         .leftJoin("Artist", "Release.artistId", "Artist.id")
-        .where(function () {
-          this.whereILike("Release.title", searchPattern)
-            .orWhereILike("Release.catalogNumber", searchPattern)
-            .orWhereILike("Artist.name", searchPattern)
-        })
+        .whereIn("Release.id", pgConnection.raw(`(
+          SELECT r.id FROM "Release" r WHERE lower(r.title) LIKE ?
+          UNION
+          SELECT r.id FROM "Release" r WHERE lower(r."catalogNumber") LIKE ?
+          UNION
+          SELECT r.id FROM "Release" r JOIN "Artist" a ON a.id = r."artistId"
+            WHERE lower(a.name) LIKE ?
+        )`, [lowerPattern, lowerPattern, lowerPattern]))
         .andWhereNot("Release.coverImage", null)
         .orderByRaw(
           `CASE WHEN "Release"."title" ILIKE ? THEN 0 WHEN "Artist"."name" ILIKE ? THEN 1 ELSE 2 END`,
@@ -41,25 +52,25 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
         )
         .limit(Math.ceil(limit * 0.6)),
 
-      // Artists: distinct matches
+      // Artists: single-column lower() LIKE uses idx_artist_name_trgm.
       pgConnection
         .select("Artist.name", "Artist.slug")
         .from("Artist")
-        .whereILike("Artist.name", searchPattern)
+        .whereRaw(`lower("Artist".name) LIKE ?`, [lowerPattern])
         .orderByRaw(
-          `CASE WHEN "Artist"."name" ILIKE ? THEN 0 ELSE 1 END`,
-          [`${q}%`]
+          `CASE WHEN lower("Artist"."name") LIKE ? THEN 0 ELSE 1 END`,
+          [prefixLower]
         )
         .limit(Math.ceil(limit * 0.2)),
 
-      // Labels: distinct matches
+      // Labels: same pattern with idx_label_name_trgm.
       pgConnection
         .select("Label.name", "Label.slug")
         .from("Label")
-        .whereILike("Label.name", searchPattern)
+        .whereRaw(`lower("Label".name) LIKE ?`, [lowerPattern])
         .orderByRaw(
-          `CASE WHEN "Label"."name" ILIKE ? THEN 0 ELSE 1 END`,
-          [`${q}%`]
+          `CASE WHEN lower("Label"."name") LIKE ? THEN 0 ELSE 1 END`,
+          [prefixLower]
         )
         .limit(Math.ceil(limit * 0.2)),
     ])
