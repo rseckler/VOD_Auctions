@@ -108,14 +108,25 @@ export async function GET(
     .leftJoin(inventorySub, "Release.id", "ii.release_id")
     .leftJoin("warehouse_location", "ii.warehouse_location_id", "warehouse_location.id")
 
-  // Full-text search on title + artist name + catalog number
+  // Full-text search on title + artist name + catalog number + article_number +
+  // inventory-item-barcode (Franks Stocktake-Barcode wie "VOD-000002" — liegt
+  // in erp_inventory_item.barcode, nicht in Release.*). Scanner-Scan füttert
+  // genau diese Werte in den Search-Bar, daher müssen wir sie hier finden.
   if (q && typeof q === "string" && q.trim()) {
-    const search = `%${q.trim()}%`
+    const trimmed = q.trim()
+    const search = `%${trimmed}%`
     query = query.where(function () {
       this.whereILike("Release.title", search)
         .orWhereILike("Artist.name", search)
         .orWhereILike("Release.catalogNumber", search)
         .orWhereILike("Release.article_number", search)
+        // Inventory-Barcode: exakter Match weil "VOD-000002" präzise ist
+        .orWhereIn(
+          "Release.id",
+          pgConnection("erp_inventory_item")
+            .select("release_id")
+            .whereILike("barcode", trimmed)
+        )
     })
   }
 
