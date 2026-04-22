@@ -90,7 +90,7 @@ function PrintTestPage() {
   const handleSampleBridgeTest = async () => {
     setBusy(true)
     try {
-      const pdfResp = await fetch("/admin/print-test/sample-label", { credentials: "include" })
+      const pdfResp = await fetch("/admin/print-bridge/sample-label", { credentials: "include" })
       if (!pdfResp.ok) throw new Error(`Sample-PDF fetch ${pdfResp.status}`)
       const pdfBlob = await pdfResp.blob()
 
@@ -281,7 +281,7 @@ function PrintTestPage() {
         <div style={{ marginBottom: S.gap.lg }}>
           <h4 style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: "0 0 8px" }}>1. Bridge-Only (Sample-PDF)</h4>
           <p style={{ ...T.small, color: C.muted, marginBottom: S.gap.sm }}>
-            Lädt Sample-Label (<code>/admin/print-test/sample-label</code> — „Cabaret Voltaire · Red Mecca ·
+            Lädt Sample-Label (<code>/admin/print-bridge/sample-label</code> — „Cabaret Voltaire · Red Mecca ·
             €42") und POSTet direkt an die Bridge. Testet: PDF-Pipeline + Bridge + <code>lp</code>-Call.
           </p>
           <Btn label="Sample-Label drucken" variant="primary" onClick={handleSampleBridgeTest} disabled={busy || !health} />
