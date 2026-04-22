@@ -1,15 +1,57 @@
 // ─── VOD Auctions Admin Design Tokens ──────────────────────────────────────
 // Single source of truth for all colors, typography, and spacing.
 // Every admin page MUST import from here. No hardcoded values in pages.
+//
+// Dark-Mode: Neutral colors (card/text/muted/border/hover) are CSS variables
+// that flip with Medusa's `.dark` root class. Accent colors (gold, success,
+// error, blue, purple, warning) are constant because they read well on both
+// light and dark backgrounds.
+//
+// The theme-var CSS is injected exactly once on module load (browser only,
+// idempotent via the #vod-theme-vars id guard).
+
+// ─── Theme-var injection (side-effect, module-init) ────────────────────────
+
+const THEME_VAR_CSS = `
+  :root {
+    --vod-card: #f8f7f6;
+    --vod-text: #1a1714;
+    --vod-muted: #78716c;
+    --vod-border: #e7e5e4;
+    --vod-hover: #f5f4f3;
+    --vod-subtle: rgba(0, 0, 0, 0.04);
+  }
+  html.dark, html[data-theme="dark"], .dark {
+    --vod-card: #1c1b1a;
+    --vod-text: #f5f4f2;
+    --vod-muted: #a8a29e;
+    --vod-border: #3a3734;
+    --vod-hover: #262422;
+    --vod-subtle: rgba(255, 255, 255, 0.04);
+  }
+`
+
+if (typeof document !== "undefined" && !document.getElementById("vod-theme-vars")) {
+  const style = document.createElement("style")
+  style.id = "vod-theme-vars"
+  style.textContent = THEME_VAR_CSS
+  document.head.appendChild(style)
+}
+
+// ─── Color Tokens ──────────────────────────────────────────────────────────
 
 export const C = {
+  // Theme-aware (flip with dark mode)
   bg: "transparent",
-  card: "#f8f7f6",
-  text: "#1a1714",
-  muted: "#78716c",
+  card: "var(--vod-card)",
+  text: "var(--vod-text)",
+  muted: "var(--vod-muted)",
+  border: "var(--vod-border)",
+  hover: "var(--vod-hover)",
+  subtle: "var(--vod-subtle)",
+
+  // Constant accents — readable on both light and dark
   gold: "#b8860b",
-  border: "#e7e5e4",
-  hover: "#f5f4f3",
   success: "#16a34a",
   error: "#dc2626",
   blue: "#2563eb",
@@ -41,6 +83,9 @@ export const S = {
 // ─── Status color maps ─────────────────────────────────────────────────────
 
 export function badgeStyle(color: string) {
+  // Expect `color` to be a constant accent (#hex). Theme-var values like
+  // var(--vod-...) cannot be concatenated with "12" for opacity — use the
+  // neutral badge variant below for those.
   return {
     display: "inline-block" as const,
     fontSize: 11,
@@ -61,7 +106,20 @@ export const BADGE_VARIANTS = {
   warning: badgeStyle(C.warning),
   info: badgeStyle(C.blue),
   purple: badgeStyle(C.purple),
-  neutral: { ...badgeStyle(C.muted), background: C.border, border: `1px solid ${C.border}` },
+  // Neutral uses theme-vars directly — no opacity concat since CSS vars
+  // can't be combined with hex alpha suffixes.
+  neutral: {
+    display: "inline-block" as const,
+    fontSize: 11,
+    fontWeight: 600 as const,
+    padding: "2px 8px",
+    borderRadius: S.radius.sm,
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.03em",
+    background: C.subtle,
+    color: C.muted,
+    border: `1px solid ${C.border}`,
+  },
 } as const
 
 // ─── Formatters ────────────────────────────────────────────────────────────
