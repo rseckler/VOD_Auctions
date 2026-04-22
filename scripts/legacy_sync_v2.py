@@ -252,6 +252,21 @@ def compute_diff(old_row, new_values, fields):
     return deltas
 
 
+def bump_search_indexed_at(pg_cur, release_ids, dry_run=False):
+    """Mark releases as 'needs reindex' for the Meilisearch delta-sync.
+    Defense-in-depth: Trigger A on Release bumps the same column on UPDATE
+    with whitelisted field changes, but does NOT fire on INSERT. This
+    explicit bump covers both cases (and bulk-UPSERT paths where triggers
+    may be disabled for performance).
+    """
+    if dry_run or not release_ids:
+        return
+    pg_cur.execute(
+        'UPDATE "Release" SET search_indexed_at = NULL WHERE id = ANY(%s)',
+        (list(release_ids),),
+    )
+
+
 def get_pg_connection(pg_url_override=None):
     """Create PostgreSQL connection to Supabase, optionally overriding
     the URL from environment. Used by --pg-url flag."""
@@ -686,6 +701,10 @@ def sync_releases_v2(mysql_conn, pg_conn, run_id, dry_run=False):
                 release_values,
                 template="(%s, %s, %s, %s, %s, %s::\"ReleaseFormat\", %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW())",
             )
+            # Mark as 'needs reindex' for Meilisearch delta-sync (defense-in-depth
+            # for Trigger A which only fires on UPDATE, not on the INSERT branch
+            # of the UPSERT).
+            bump_search_indexed_at(pg_cur, [rv[0] for rv in release_values], dry_run)
 
         # Pre-fetch price-locked release IDs for this batch (sync protection).
         # NOTE (Exemplar-Modell): A release may have multiple erp_inventory_item rows
@@ -973,6 +992,8 @@ def sync_literature_v2(mysql_conn, pg_conn, run_id, table, category,
                 release_values,
                 template="(%s, %s, %s, %s, %s, %s::\"ReleaseFormat\", %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW())",
             )
+            # Mark as 'needs reindex' for Meilisearch delta-sync.
+            bump_search_indexed_at(pg_cur, [rv[0] for rv in release_values], dry_run)
 
         # Pre-fetch price-locked release IDs for this literature batch
         price_locked_ids = set()

@@ -1,11 +1,8 @@
 # VOD_Auctions — CLAUDE.md
 
-**Purpose:** Auktionsplattform für ~41.500 Produkte (Industrial Music Tonträger + Literatur/Merchandise)
-**Goal:** Eigene Plattform statt 8-13% eBay/Discogs-Gebühren
-**Status:** Beta Test (platform_mode: beta_test) — Pre-Launch Phase als nächster Schritt
-**Language:** Storefront + Admin-UI: Englisch
-**Last Updated:** 2026-04-22 (rc39 — Catalog/Inventur Search-Sweep + Mirror-Fix, Meilisearch-Konzept v1 reviewed)
-
+**Purpose:** Auktionsplattform für ~41.500 Produkte (Industrial Music Tonträger + Literatur/Merch) — eigene Plattform statt 8-13% eBay/Discogs-Gebühren
+**Status:** Beta Test (`platform_mode: beta_test`) · Storefront+Admin-UI: Englisch
+**Last Updated:** 2026-04-22 (rc39)
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
 
@@ -14,462 +11,283 @@
 | Component | Technology |
 |-----------|------------|
 | Commerce | Medusa.js 2.x (Port 9000) |
-| Frontend | Next.js 16.2, React 19, TypeScript 5 |
-| Styling | Tailwind CSS 4, shadcn/ui, Framer Motion |
+| Frontend | Next.js 16.2, React 19, TS 5, Tailwind 4, shadcn/ui, Framer Motion |
 | Design | "Vinyl Culture" — DM Serif Display + DM Sans, Gold #d4a54a, dark #1c1915 |
-| Database | Supabase PostgreSQL (proj: `bofblwqieuvmqybzxapx`, eu-central-1) |
-| Realtime | Supabase Realtime (Live-Bidding) |
-| Cache | Upstash Redis |
+| DB | Supabase PostgreSQL (`bofblwqieuvmqybzxapx`, eu-central-1) |
+| Realtime/Cache | Supabase Realtime (Live-Bidding) + Upstash Redis |
 | Payments | Stripe + PayPal Direct |
-| Hosting | VPS 72.62.148.205 (PM2 + nginx), Medusa Admin |
-| State | Zustand (global) + React Query (server) |
+| Hosting | VPS 72.62.148.205 (PM2 + nginx) |
+| State | Zustand + React Query |
 
-## Dev Commands
+## Dev & Deploy
 
 ```bash
-# Backend (port 9000)
-cd backend && npx medusa develop
-
-# Storefront (port 3000 local, 3006 VPS)
-cd storefront && npm run dev
-
-# Admin: http://localhost:9000/app — admin@vod.de / admin123
-# Clickdummy (port 3005): cd clickdummy && npm run dev -- -p 3005
-
-# Migrations
+# Dev
+cd backend && npx medusa develop            # Port 9000 (Admin: /app, admin@vod.de / admin123)
+cd storefront && npm run dev                # Port 3000 local / 3006 VPS
+cd clickdummy && npm run dev -- -p 3005
 cd backend && npx medusa db:generate auction && npx medusa db:migrate
+
+# Prod URLs: vod-auctions.com (3006) | api.vod-auctions.com (9000) | admin.vod-auctions.com
+# PM2: vodauction-backend | vodauction-storefront
 ```
 
-## VPS Deploy
-
-**URLs:** https://vod-auctions.com (port 3006) | https://api.vod-auctions.com (port 9000) | https://admin.vod-auctions.com
-**PM2:** `vodauction-backend` | `vodauction-storefront`
-
-**SSH Rate-Limiting:** Hostinger sperrt IP nach 2-3 schnellen Verbindungen (~10-15 Min). SSH ControlMaster in `~/.ssh/config` (ControlPersist 30m) nutzen. Nie parallele SSH-Calls.
+**VPS Deploy** — IMMER zuerst `git push` auf Mac, dann pull auf VPS. Sonst sagt VPS "Already up to date".
 
 ```bash
-# Backend + Admin deployen — KOMPLETTE Sequenz, alle Schritte PFLICHT
 ssh root@72.62.148.205
 cd /root/VOD_Auctions && git pull && cd backend
-rm -rf node_modules/.vite .medusa    # clean build (bei neuen Admin-Routes PFLICHT)
+rm -rf node_modules/.vite .medusa                                              # Vite-Cache (PFLICHT für neue Admin-Routes)
 npx medusa build
-rm -rf public/admin && cp -r .medusa/server/public/admin public/admin   # Admin-Assets PFLICHT
-ln -sf /root/VOD_Auctions/backend/.env /root/VOD_Auctions/backend/.medusa/server/.env   # .env PFLICHT
+rm -rf public/admin && cp -r .medusa/server/public/admin public/admin          # sonst 502 auf admin.vod-auctions.com
+ln -sf /root/VOD_Auctions/backend/.env /root/VOD_Auctions/backend/.medusa/server/.env  # PM2 cwd=.medusa/server/, medusa build löscht Symlink
 pm2 restart vodauction-backend
 
-# Storefront deployen
-cd /root/VOD_Auctions/storefront
-npm run build && pm2 restart vodauction-storefront
+cd /root/VOD_Auctions/storefront && npm run build && pm2 restart vodauction-storefront
 ```
 
-**Warum jede Zeile in der Deploy-Sequenz Pflicht ist:**
-- `rm -rf node_modules/.vite .medusa` → neue Admin-Routes werden sonst nicht vom Vite-Plugin registriert (404 / silent crash)
-- `cp .medusa/server/public/admin public/admin` → sonst 502 Bad Gateway auf admin.vod-auctions.com
-- `ln -sf .env .medusa/server/.env` → PM2 cwd ist `.medusa/server/`, dotenv sucht `.env` im cwd. Jeder `medusa build` löscht `.medusa/` inkl. Symlink neu. Ohne Symlink bootet Medusa mit `JWT_SECRET must be set in production`. **PM2-cwd MUSS `.medusa/server/` sein** (nicht `backend/`) — sonst `Cannot find module '/root/VOD_Auctions/backend/medusa-config'`, weil dort nur die `.ts`-Source liegt und der Prod-Runtime keine TypeScript-Transpilation macht. Siehe `backend/ecosystem.config.js`.
-
-**Git Workflow:** NIE `git pull` auf VPS machen wenn VPS-Code nicht vorher auf GitHub gepusht wurde. Deploy-Reihenfolge IMMER: `git push origin main` auf Mac → dann `git pull` auf VPS. Sonst sagt VPS "Already up to date" obwohl neue Commits fehlen.
+**SSH Rate-Limiting:** Hostinger sperrt IP nach 2-3 schnellen Connects (~10-15 Min). ControlMaster/ControlPersist 30m in `~/.ssh/config`. Nie parallele SSH-Calls.
 
 ## Key Gotchas
 
-- **Knex DECIMAL als String:** `.toFixed()` direkt auf Knex-Ergebnis crasht → immer `Number(value).toFixed()`
-- **Knex Subquery:** `.where("col", pgConnection.raw('(SELECT ...)'))` funktioniert nicht → Wert erst abfragen, dann direkt einsetzen
-- **Medusa ULID IDs:** Bei Knex-Insert immer `id: generateEntityId()` aus `@medusajs/framework/utils` mitgeben — sonst `NOT NULL violation`
-- **Stripe Webhook Raw Body:** `rawBodyMiddleware` in `middlewares.ts` NICHT entfernen — ohne es scheitern ALLE Webhooks mit "No webhook payload"
-- **Admin Routes:** `defineRouteConfig()` NUR auf Top-Level `page.tsx`, NICHT auf `[id]/page.tsx` (Routing-Konflikte)
-- **Admin Route Pfade:** Niemals native Medusa-Pfade verwenden (`customers`, `orders`, `products`, `settings`, `feature-flags` etc.) → native Route gewinnt immer. Stattdessen eigene Pfade: `crm`, `auction-blocks`, `catalog`, `platform-flags` etc. Verifizieren via `find backend/node_modules/@medusajs/medusa/dist/api/admin -maxdepth 2 -type d` bevor neue Route-Verzeichnisse angelegt werden.
-- **Vite Cache bei neuen Admin-Routen:** Neues `src/admin/routes/X/`-Verzeichnis → VPS Vite-Cache MUSS gecleart werden: `rm -rf node_modules/.vite .medusa && npx medusa build`. Sonst findet der Vite-Plugin die neue Route nicht → 404 oder korrupter Bundle → silent crash.
-- **CamelCase vs snake_case:** Legacy-Tabellen (`Release`, `Artist`) → camelCase; Auction-Tabellen → snake_case
-- **SSL Supabase:** `rejectUnauthorized: false` in `medusa-config.ts` nötig
-- **Supabase Admin-Ops nur via Session Pooler:** Direct-Connection `db.<ref>.supabase.co:5432` ist auf Free unzuverlässig (IPv4 disabled, IPv6 slot-limited). Immer Session Pooler nutzen: `aws-0-<REGION>.pooler.supabase.com:5432`, User = `postgres.<project-ref>`, Region muss zum Projekt passen (Prod = eu-central-1, Staging = eu-west-1). Transaction Pooler (Port 6543) unterstützt kein `pg_dump`. Volle Post-Mortem siehe CHANGELOG 2026-04-05.
-- **`pg_dump` Version Mismatch + Docker IPv6:** VPS hat `pg_dump 16`, Supabase läuft auf PG17 → Dump refused. Workaround: `docker run --rm --network=host postgres:17 pg_dump ...`. `--network=host` ist Pflicht, sonst hat Container kein IPv6 und erreicht Supabase-Direct-Hosts nicht.
-- **Supabase DB-Passwörter alphanumerisch halten:** Sonderzeichen (`*`/`#`/`$`/`&`) machen beim Shell-Paste und URL-Parsing Ärger. Immer Supabase's "Generate password" nutzen oder manuell nur `[a-zA-Z0-9]`.
-- **Medusa-native Tabellennamen:** Niemals Medusa-native Tabellennamen verwenden (`inventory_item`, `inventory_level`, `stock_location` etc.) → Medusa's eigene ORM-Tabellen gewinnen. ERP-Tabellen stattdessen mit `erp_` Prefix: `erp_inventory_item`, `erp_inventory_movement`. Verifizieren via `\dt` auf Supabase bevor neue Tabellen angelegt werden.
-- **Brother QL-820NWB Label-Druck:** Drei Dinge müssen zusammenpassen, sonst kommt nur ein quadratisches ~29×30mm Label raus: (1) Drucker-Command-Mode auf **`Raster`** (nicht P-touch Template — Fix via Web-Interface `https://<printer-ip>/` → Printer Settings → Device Settings → Command Mode), (2) CUPS-Option **`PageSize=Custom.29x90mm`** (mit `Custom.`-Prefix — ohne Prefix wird's als DK-11201 Die-Cut statt DK-22210 Endlos interpretiert), (3) PDF **29×90mm portrait** mit `doc.rotate(-90, {origin:[0,0]}) + doc.translate(-LABEL_LENGTH, 0)` für Content-Rotation. **Inateck BCST-70 Scanner** muss außerdem per Setup-Barcode auf „MacOS/iOS Modus" + „Deutsche Tastatur" umgestellt werden (sonst kommt `-` als `ß` an). Hardware validiert 2026-04-11 nach ~25 Fehldrucken. Komplette Doku inkl. Debugging-Kompass: [`docs/hardware/BROTHER_QL_820NWB_SETUP.md`](docs/hardware/BROTHER_QL_820NWB_SETUP.md).
-- **Silent-Label-Druck via Print Bridge (rc34+, 2026-04-22):** Ersetzt QZ Tray komplett (alle `qz-tray-client.ts`, `/admin/qz-tray/cert`, `/admin/qz-tray/sign`, `QZ_SIGN_PRIVATE_KEY`, `QZ_SIGN_CERT` sind gelöscht — bei `install.sh`-Run auf alten Maschinen wird QZ auto-gepurged). Lokaler Python-stdlib HTTP(S)-Server auf `127.0.0.1:17891` als LaunchAgent (`~/Library/LaunchAgents/com.vod-auctions.print-bridge.plist`), Code in `frank-macbook-setup/print-bridge/vod_print_bridge.py`, installiert via `bash print-bridge/install-bridge.sh [--printer X] [--dry-run] [--uninstall]`. Seit rc37 brother_ql-Backend (Direct-TCP-Raster, kein CUPS mehr). Admin-Client: `backend/src/admin/lib/print-client.ts` (`printLabelAuto()`). Bridge hört auf `GET /health`, `GET /printers`, `POST /print` (raw PDF oder JSON+base64). CORS whitelisted für `admin.vod-auctions.com` + localhost, PNA-Header für Chrome ≥123. **Seit rc36 HTTPS Pflicht** mit mkcert-signiertem Cert (Safari blockiert sonst fetch() von HTTPS-Origin nach HTTP-Loopback als Mixed Content — Chrome + Firefox wären nachsichtiger, aber Safari-Strict ist der Maßstab). `install-bridge.sh` provisioniert Cert via `brew install mkcert` + `mkcert -install` (einmal sudo fürs System-Keychain) + `mkcert 127.0.0.1 localhost`. HTTP-Fallback bleibt für Dev-Tests ohne mkcert. **`lpstat -e`** statt `-p` (macOS-DE-Locale lokalisiert "Drucker …" und LC_ALL=C beeinflusst das nicht). **Robins Mac ohne Brother:** Bridge läuft im DRY_RUN (speichert PDF nach /tmp). Rollout auf alle 3 Macs via `frank-macbook-setup/install.sh`.
-- **Medusa/Vite Build:** IIFE `(() => {...})()` in JSX-Ternary → silent build failure → Blank Page. Separate Komponenten verwenden.
-- **Neue Native-Dependencies:** Wenn `package.json` eine neue Native-Dep bekommt (pdfkit, sharp, bcrypt etc.), nach Deploy `npm install` auf VPS ausführen — sonst `Cannot find module` → PM2 restart-loop. **Niemals `npm install --omit=optional`** — das strippt platform-specific Binaries wie `@swc/core-linux-x64-gnu` und kaputtmacht `medusa build`.
-- **Search auf Release: FTS via `search_text` ist Standard, ILIKE/trgm nur Legacy-Fallback (rc39, 2026-04-22):** Für jede neue Search-Query auf Release/Artist/Label-Daten **immer** `buildReleaseSearchSubquery(pg, q)` aus `backend/src/lib/release-search.ts` verwenden — nutzt den GIN-tsvector-Index `idx_release_search_fts` auf der denormalisierten `Release.search_text` Spalte (~20-30ms bei 52k Rows, auch Multi-Word). Nicht selber `whereILike`/`col ILIKE`/Multi-Column-OR-ILIKE schreiben — das macht Seq Scan (6s+) weil Multi-Column-OR-ILIKE keine GIN-Indizes kombinieren kann. Referenz-Implementierungen: `/admin/erp/inventory/search`, `/admin/media`, `/store/catalog`, `/store/catalog/suggest`. Trgm-Indizes (`idx_release_title_trgm`, `idx_artist_name_trgm`, `idx_label_name_trgm`, `idx_release_catno_trgm`, `idx_release_article_trgm`) bleiben für Single-Column-LIKE-Queries (z.B. `lower(name) LIKE lower(?)` auf Artist) verfügbar, aber für jede neue Multi-Field-Query → FTS. Limitation: Artist/Label-Renames triggern keinen search_text-Bump — bei VOD nicht vorkommend, sonst Reindex-Script.
-- **PM2 + pnpm-Symlinks:** `pnpm install` erzeugt `node_modules/.bin/<pkg>` als Shell-Wrapper statt Symlink. PM2 ProcessContainerFork versucht den Wrapper als JS zu require() → `SyntaxError: missing ) after argument list`. Fix: in `ecosystem.config.js` den direkten JS-Entry-Pfad nutzen (`node_modules/<pkg>/dist/bin/<pkg>` oder gleichwertig), nicht `.bin/<pkg>`.
-- **Storefront Hidden Sections:** `{/* HIDDEN: ... */}` Marker — aktuell Discogs-Preise in 5 Storefront-Dateien (wiederherstellen wenn echte Sale-Daten verfügbar). Bei jeder neuen "vorerst ausblenden"-Anforderung dasselbe Marker-Pattern verwenden, nicht löschen + git-rückrollen.
-- **LEFT JOIN in Transaction APIs:** Direktkäufe haben kein `block_item_id` → immer LEFT JOIN, nie INNER JOIN
-- **COALESCE:** `COALESCE(block_item.release_id, transaction.release_id)` in Transaction-Queries
-- **Bid-Input `type="text"`:** Bid-Inputs nutzen `type="text" inputMode="decimal"` (nicht `type="number"`). Parsing IMMER über `parseAmount()` (normalisiert `,` → `.`). Nie `parseFloat()` direkt auf User-Input — EU-Nutzer tippen Komma-Dezimale.
-- **`whole_euros_only: true`:** BID_CONFIG erzwingt ganzzahlige Gebote. Betrifft Validation, Increments, Display. Proxy-Max ebenfalls ganzzahlig validiert.
-- **UI/UX Governance:** Verbindliche Docs in `docs/UI_UX/` — Style Guide (Source of Truth), Gap Analysis, Optimization Plan, Implementation Report, PR Checklist. Jede UI-Änderung muss Shared Components (`Button`, `Input`, `Label`, `Card`) nutzen. Siehe `docs/UI_UX/CLAUDE.md` für Workflow.
-- **Timeouts sind Idle-Detection, keine Job-Dauer-Begrenzung:** Für lang laufende Ops (Discogs Import, Fetch, Analyze) **niemals** `proxy_read_timeout` absurd hochdrehen. Stattdessen: SSE-Heartbeat alle 5s senden (`SSEStream.startHeartbeat(5000)` aus `backend/src/lib/discogs-import.ts`), dann reicht nginx-Default (300s) auch für 4h-Fetches. Per-Op Timeouts (z.B. `AbortSignal.timeout(30000)` pro externem HTTP-Call) sind OK — sie verhindern dass ein kaputter Call den Job blockiert.
-- **Discogs Import Architektur (v6.0, rc26):** Sessions in `import_session`, Events in `import_event`, Cache in `discogs_api_cache`, **Ownership in `session_locks`**. Shared Lib: `backend/src/lib/discogs-import.ts` (`SSEStream` mit Headless Mode, `emitDbEvent`, `getSession`, `isCancelRequested`, `pushLastError`, `awaitPauseClearOrCancel`, **Lock API: `acquireLock`, `validateLock`, `releaseLock`, `startHeartbeatLoop`**). **Alle 3 Loops (Fetch/Analyze/Commit) sind detached background tasks** — POST acquired Lock via `acquireLock()`, spawnt Loop mit `ownerId`, returnt sofort 200 JSON. UI polled (2s) `/session/:id/status?since_id=X`. Idempotent via Lock-Table (nicht mehr `last_event_at`). Heartbeat alle 30s, Stale-Threshold 150s. **SSEStream Headless Mode:** Konstruktor nimmt `res: MedusaResponse | null` — bei `null` routen `emit()` Calls direkt in `import_event`, `startHeartbeat/end` sind no-ops. Siehe `docs/architecture/DISCOGS_IMPORT_SESSION_LOCK_PLAN.md`.
-- **HTTP-Request-lifetime vs Background-Loop:** Lang laufende Loops dürfen nicht tightly mit `res.write()` gecoupled sein. Wenn Client disconnected (Navigation, Tab-Close, pm2 restart), tear-down des Medusa-Request-Scopes killed den Loop **still** (keine Exception im Stderr). Lösung: Loop als detached task via `void (async () => { try { ... } })().catch(...)`, HTTP-Route returnt 200 sofort, Events in DB schreiben, UI polled. Simpler Pattern (für standalone loops): extract body in separate function + `emitDbEvent()`. Complex Pattern (existing SSE loops unverändert lassen): SSEStream Headless Mode via `new SSEStream(null, pg, id)`. Beide Patterns siehe `backend/src/api/admin/discogs-import/{fetch,analyze,commit}/route.ts`.
-- **Stale Session Auto-Cleanup:** Sessions in non-terminal Status (`fetching`/`analyzing`/`importing`) werden automatisch aus `active_sessions` filtered wenn `created_at < NOW() - 6h`. Neuer terminal state `abandoned` (kein Schema-Change — `status` TEXT ohne Constraint). Manuell cleanen: `UPDATE import_session SET status='abandoned' WHERE status NOT IN ('done','abandoned','error') AND created_at < NOW() - INTERVAL '6 hours';`
-- **Btn Component API:** `backend/src/admin/components/admin-ui.tsx` `Btn` nimmt `label` prop (string, nicht children!), und die einzigen gültigen Variants sind `primary`/`gold`/`danger`/`ghost` (KEIN `secondary`). Falscher Call `<Btn variant="secondary">children</Btn>` rendert einen leeren Button ohne Fehler! Für Custom-Styling plain `<button>` mit inline styles nutzen, nicht versuchen Btn zu hacken.
+**Medusa/Knex:**
+- Knex DECIMAL kommt als String → immer `Number(v).toFixed()`
+- Knex Subquery in `.where()` — Wert vorher abfragen, nicht inline
+- Knex-Insert: immer `id: generateEntityId()` aus `@medusajs/framework/utils`
+- `rawBodyMiddleware` in `middlewares.ts` NICHT entfernen (Stripe/PayPal Webhooks)
+- `defineRouteConfig()` NUR auf Top-Level `page.tsx`, nicht auf `[id]/page.tsx`
+- Native Medusa-Route-Pfade (`customers`, `orders`, `products`, `settings`, `feature-flags`) nie selber verwenden — native gewinnt. Eigene Prefixes: `crm`, `auction-blocks`, `catalog`, `platform-flags`, `erp/`
+- Medusa-native Tabellennamen nie verwenden (`inventory_item`, `stock_location`). ERP-Tabellen mit `erp_` Prefix
+- Medusa API-Route-Scanner filtert Verzeichnisse mit "test" im Namen — nie `print-test/`, `test-runner/` für Backend-Routes
+- JSX-IIFE `(() => {...})()` in Ternary → silent build failure. Separate Komponenten nutzen
+- Admin-UI `Btn` aus `admin-ui.tsx` nimmt `label` prop (nicht children), Variants: `primary`/`gold`/`danger`/`ghost` (kein `secondary`)
+
+**Build/Deploy:**
+- Neue Admin-Route → VPS Vite-Cache clearen (`rm -rf node_modules/.vite .medusa`) sonst 404 / silent crash
+- Neue Native-Dep (pdfkit, sharp, bcrypt) → `npm install` auf VPS. Nie `--omit=optional` (strippt `@swc/core-linux-x64-gnu`)
+- PM2 + pnpm: Shell-Wrapper in `.bin/` crasht Fork mit SyntaxError → in `ecosystem.config.js` direkten JS-Entry nutzen (`node_modules/<pkg>/dist/bin/<pkg>`)
+
+**DB:**
+- CamelCase (`Release`, `Artist`) vs snake_case (Auction-Tabellen)
+- `rejectUnauthorized: false` in medusa-config SSL
+- Supabase Admin-Ops nur via Session Pooler (`aws-0-<REGION>.pooler.supabase.com:5432`, User `postgres.<ref>`). Transaction Pooler Port 6543 kann kein `pg_dump`
+- `pg_dump` Version Mismatch: VPS hat v16, Supabase PG17 → `docker run --rm --network=host postgres:17 pg_dump ...`
+- Supabase DB-Passwörter alphanumerisch halten — Sonderzeichen killen Shell-Paste
+
+**Query-Patterns:**
+- **Search auf Release/Artist/Label (rc39):** IMMER `buildReleaseSearchSubquery()` aus `backend/src/lib/release-search.ts` — nutzt GIN-FTS auf `Release.search_text` (~20-30ms auf 52k Rows). Niemals Multi-Column-OR-ILIKE schreiben → Seq Scan 6s+. Referenz: `/admin/erp/inventory/search`, `/admin/media`, `/store/catalog`, `/store/catalog/suggest`
+- Transaction-Queries: LEFT JOIN (nicht INNER) — Direktkäufe haben kein `block_item_id`. `COALESCE(block_item.release_id, transaction.release_id)`
+- Release.current_block_id (uuid) ↔ auction_block.id (text) brauchen Type-Cast beim JOIN
+
+**Runtime:**
+- Timeouts = Idle-Detection, nicht Job-Dauer. Für lang laufende Ops SSE-Heartbeat alle 5s (`SSEStream.startHeartbeat(5000)`), nicht `proxy_read_timeout` hochdrehen
+- Long-running Loops müssen von `res.write()` entkoppelt sein. HTTP-Teardown killt tightly-coupled Handler STILL. Pattern: `void (async () => {...})().catch(...)`, Route returnt 200, Events in DB, UI polled. Siehe `discogs-import/{fetch,analyze,commit}/route.ts`
+- Stale Import-Sessions (>6h in non-terminal status) auto-filtered aus `active_sessions`. Manuell: `UPDATE import_session SET status='abandoned' WHERE status NOT IN ('done','abandoned','error') AND created_at < NOW() - INTERVAL '6 hours'`
+
+**UI:**
+- Bid-Inputs: `type="text" inputMode="decimal"` + `parseAmount()` (Komma→Punkt). Nie `parseFloat()` direkt — EU tippt Komma
+- `BID_CONFIG.whole_euros_only: true` erzwingt ganzzahlige Gebote (auch Proxy-Max)
+- Hidden Storefront-Sections: `{/* HIDDEN: ... */}` Marker (aktuell Discogs-Preise, 5 Dateien) — wiederherstellen nicht löschen
+- UI/UX Governance: `docs/UI_UX/` — Shared Components (`Button`, `Input`, `Label`, `Card`) sind Pflicht
+
+**Cwd-independente Pfade:** Backend nutzt NIE `process.cwd()`/relative `__dirname`. Immer `getProjectRoot()` etc. aus `backend/src/lib/paths.ts`. PM2 cwd ist `.medusa/server/`, nicht Source-Tree.
+
+**Hardware:** Brother QL-820NWB + Print Bridge — Details in [`docs/hardware/BROTHER_QL_820NWB_SETUP.md`](docs/hardware/BROTHER_QL_820NWB_SETUP.md). Print Bridge (Python stdlib LaunchAgent auf `127.0.0.1:17891` HTTPS via mkcert, brother_ql-Backend) ersetzt QZ Tray komplett seit rc34. Rollout: `frank-macbook-setup/install.sh`. Robins Mac ohne Brother → DRY_RUN.
 
 ## Database Schema
 
-### Legacy Tabellen (camelCase, Knex-Only)
-- `Release` — ~41.500 Produkte (product_category: release/band_literature/label_literature/press_literature). Visibility: `coverImage IS NOT NULL`. Kaufbar: `legacy_price > 0 AND legacy_available = true`. **Search-Spalte `search_text`** (denormalisiert title + catalogNumber + article_number + Artist.name + Label.name, lowercase) mit GIN tsvector Index `idx_release_search_fts` und Trigger `release_update_search_text` für automatische Pflege bei Release-INSERT/UPDATE OF title/catalogNumber/article_number/artistId/labelId. Migration: `2026-04-22_release_search_text_fts.sql`.
-- `sync_change_log` — Change-Log des Legacy-Sync (sync_run_id, release_id, change_type: inserted/updated, changes JSONB mit old/new je Feld). Befüllt stündlich durch `legacy_sync_v2.py`, trackt alle 14 gesyncten Felder (v2 seit 2026-04-05; v1 trackte nur 4). Admin: `/app/sync` → Tab "Change Log".
-- `sync_log` — Run-Summary pro Sync-Lauf. v2-Erweiterung (2026-04-05): zusätzliche Spalten `run_id, script_version, phase, started_at, ended_at, duration_ms, rows_source, rows_written, rows_changed, rows_inserted, images_inserted, validation_status, validation_errors`. Alte Spalten (`sync_type, sync_date, status, changes, error_message`) bleiben für Backward-Compat.
-- `Artist`, `Label`, `PressOrga`, `Format` (39 Einträge), `Image` (+`rang` für Ordering), `Track`, `ReleaseArtist`
-- `entity_content` — CMS für Band/Label/Press Seiten (description, short_description, genre_tags TEXT[], external_links JSONB, is_published, ai_generated)
-- `gallery_media` — Gallery CMS (section, position, is_active). 9 Sektionen.
-- `content_block` — CMS für Homepage/About/Auctions (JSONB, page+section unique)
-- `shipping_method`, `shipping_rate`, `shipping_zone`, `shipping_item_type`, `shipping_config`
-- `site_config` — catalog_visibility (all/visible)
-- `musician`, `musician_role`, `musician_project` — Musikerdatenbank (897 Musiker, 189 Bands)
-- `promo_code` — Rabatt-Codes (code UNIQUE, discount_type, discount_value, max_uses, used_count, valid_from/to)
-- `order_event` — Audit Trail (order_group_id, event_type, title, details JSONB, actor)
-- `LabelPerson` + `LabelPersonLink` — Backend-Referenzdaten (nicht public, 458 Personen)
+**Legacy (camelCase, Knex-Only):**
+- `Release` (~41.5k) — `product_category`: release/band_literature/label_literature/press_literature. Visibility: `coverImage IS NOT NULL`. Kaufbar: `legacy_price > 0 AND legacy_available = true`. **`search_text`** denormalisiert (title + catalogNumber + article_number + Artist.name + Label.name) mit GIN-tsvector `idx_release_search_fts` + Trigger für Auto-Pflege. `sale_mode`: `auction_only`|`direct_purchase`|`both`
+- `Artist` (12.451), `Label` (3.077), `PressOrga` (1.983), `Format` (39), `Image` (+`rang`), `Track`, `ReleaseArtist`
+- `sync_change_log` (14-Field Diff, v2 seit 2026-04-05) + `sync_log` (Run-Summary mit run_id/phase/rows_*/validation_status)
+- `entity_content` (CMS Band/Label/Press), `gallery_media` (9 Sektionen), `content_block`, `shipping_*` (5 Tabellen)
+- `site_config`, `musician`/`musician_role`/`musician_project` (897 Musiker, 189 Bands), `promo_code`, `order_event`, `LabelPerson`/`LabelPersonLink` (458)
+- **legacy_available:** MySQL `frei`-Feld — `frei=1`→true, `frei=0`→false, `frei>1` (Unix-TS) → false (auf tape-mag verkauft)
 
-### Medusa Auction Tabellen (snake_case, ORM+Knex)
-- `auction_block` — Themen-Auktionsblöcke (status: draft/scheduled/preview/active/ended/archived)
-- `block_item` — Release → Block (lot_number, start_price, current_price, bid_count, lot_end_time)
-- `bid` — Gebote (amount, max_amount, is_winning, is_outbid, user_id)
-- `transaction` — Zahlungen (status: pending/paid/refunded/failed, fulfillment_status, order_number VOD-ORD-XXXXXX, payment_provider: stripe/paypal, order_group_id, block_item_id NULLABLE, release_id, item_type: auction/direct_purchase)
-- `cart_item` — Direktkauf-Warenkorb (user_id, release_id, price)
-- `saved_item` — Merkliste (user_id, release_id, soft-delete via deleted_at)
+**Auction/CRM/Import (snake_case, Medusa ORM+Knex):**
+- Auction: `auction_block`, `block_item`, `bid`, `transaction`, `cart_item`, `saved_item`
+- CRM: `customer_stats` (stündlicher Recalc), `customer_note`, `customer_audit_log`
+- Discogs Import (v6.0, rc26): `import_session`, `import_event`, `discogs_api_cache`, `import_log`, `session_locks` (Lock-Heartbeat 30s, Stale 150s). Siehe `docs/architecture/DISCOGS_IMPORT_SESSION_LOCK_PLAN.md`
+- ERP: `erp_inventory_item` (mit `copy_number`, `condition_media/sleeve`, `exemplar_price`, UNIQUE(release_id, copy_number)), `erp_inventory_movement`, `bulk_price_adjustment_log`
 
-### CRM Tabellen (snake_case)
-- `customer_stats` — Aggregierte Kundendaten (total_spent, total_purchases, total_bids, total_wins, last_purchase_at, last_bid_at, tags TEXT[], is_vip ≥€500, is_dormant >90 Tage kein Kauf). Stündlicher Recalc via Cron-Job. Manueller Refresh: `POST /admin/customers/recalc-stats`.
-- `customer_note` — Interne Admin-Notizen (customer_id, body, author_email, soft-delete)
-- `customer_audit_log` — DSGVO-Audit-Trail (customer_id, action, details JSONB, admin_email)
+**bilder_typ Mapping (Regression-Schutz):** 10=releases, 13=band_literature, 14=labels_literature, 12=pressorga_literature
 
-### Discogs Import Tabellen (snake_case)
-- `import_session` — Session-State für laufende/abgeschlossene Imports. Status: uploading → uploaded → fetching → fetched → analyzing → analyzed → importing → done. Progress-Felder: `parse_progress`, `fetch_progress`, `analyze_progress`, `commit_progress` (JSONB). Control: `cancel_requested`, `pause_requested` (BOOLEAN). Events-Buffer: `last_error` (rolling 10), `last_event_at`. Überlebt Server-Restart (früher In-Memory Map). Siehe `docs/DISCOGS_IMPORT_SERVICE.md`.
-- `import_event` — Event-Log pro Session (für Live-Log + Drill-Down). `(id, session_id FK, phase, event_type, payload JSONB, created_at)`. Wächst unbegrenzt — periodisches Cleanup empfohlen (>30d).
-- `discogs_api_cache` — Per-discogs_id API-Response Cache. `(discogs_id PK, api_data JSONB, suggested_prices JSONB, is_error, fetched_at, expires_at)`. TTL 30d (Errors 7d). Ersetzt das alte `scripts/data/discogs_import_cache.json`.
-- `import_log` — Run-Log mit einem Eintrag pro importierter Release: `run_id`, `action` (inserted/linked/updated/skipped), `data_snapshot` (Excel-Row + API-Summary). Drill-Down: `GET /admin/discogs-import/history?run_id=...`.
-- `session_locks` — Exclusive Ownership Lock pro Import-Session (rc26). `(session_id PK → import_session, owner_id UUID, phase CHECK fetching/analyzing/importing, acquired_at, heartbeat_at)`. Heartbeat alle 30s, Stale-Threshold 150s. Atomisches `INSERT ON CONFLICT DO UPDATE WHERE heartbeat stale` für Lock-Acquisition. Lock wird im POST-Handler acquired, im finally-Block released. Ersetzt das alte JSONB run_token CAS-System. Siehe `docs/architecture/DISCOGS_IMPORT_SESSION_LOCK_PLAN.md`.
-
-### Release sale_mode
-- `auction_only` (default) | `direct_purchase` | `both`
-
-### Migrierte Daten
-- 12.451 Artists, 3.077 Labels, ~41.529 Releases, ~75.124 Images, 1.983 PressOrga
-- Releases: 30.159 release + 3.915 band_literature + 1.129 label_literature + 6.326 press_literature
-- CoverImage: release 97%+, band_lit 93.5%, label_lit 95.7%, press_lit 94.2%
-- IDs: `legacy-artist-{id}`, `legacy-label-{id}`, `legacy-release-{id}`, etc.
+**Migrierte Daten:** 12.451 Artists · 3.077 Labels · ~41.529 Releases (30.159 release + 3.915 band_lit + 1.129 label_lit + 6.326 press_lit) · ~75.124 Images · CoverImage-Coverage 93-97%. IDs: `legacy-{entity}-{id}`
 
 ## API Quickref
 
-### Store (x-publishable-api-key required)
-- `GET /store/auction-blocks` — Öffentliche Blöcke
-- `GET /store/auction-blocks/:slug` — Block + Items
-- `GET /store/catalog` — 41k Releases (q, category, format, country, year_from/to, label, for_sale, sort, order, limit, offset)
-- `GET /store/catalog/:id` — Release-Detail + Images + Related
-- `GET /store/band/:slug` | `/store/label/:slug` | `/store/press/:slug` — Entity-Seiten
-- `GET /store/gallery` — Gallery Media + Content (?absolute_urls=true für Newsletter)
-- `POST /store/account/bids` — Gebot abgeben (auth)
-- `POST /store/account/create-payment-intent` — Stripe Checkout
-- `POST /store/account/create-paypal-order` / `capture-paypal-order` — PayPal
-- `GET /store/account/cart` | `POST` | `DELETE /store/account/cart/:id` — Warenkorb
-- `GET /store/account/orders` — Order History (grouped by order_group_id)
-- `GET /store/account/orders/:groupId/invoice` — PDF-Rechnung (pdfkit)
-- `GET /store/account/saved` — Merkliste (inkl. block_item_id + block_slug wenn Lot aktiv → Link direkt zu Auktion)
-- `GET /store/account/status` — cart_count + saved_count + wins_count
-- `GET /store/account/gdpr-export` — DSGVO Datenexport (auth)
+**Store (x-publishable-api-key):** `/store/auction-blocks[/:slug]`, `/store/catalog[/:id]`, `/store/band|label|press/:slug`, `/store/gallery`, `/store/account/{bids,cart,orders,saved,status,gdpr-export}`, Payment: `/create-payment-intent`, `/create-paypal-order`, `/capture-paypal-order`, Invoice: `/orders/:groupId/invoice`
 
-### Admin (credentials required)
-- `GET /admin/print-bridge/sample-label` — Sample-Label-PDF (29×90mm, Test-Daten „Cabaret Voltaire") für Print-Bridge-Diagnose, genutzt von `/app/print-test`. Ordner heißt `print-bridge` statt `print-test` weil Medusa API-Route-Scanner `*test*`-Dirs filtert
-- `POST /admin/ai-chat` — AI Assistant Chat (SSE Streaming, Claude Haiku, 5 read-only Tools)
-- `POST /admin/ai-create-auction` — AI Auction Creator (SSE, Claude Sonnet, 3 write Tools: search_catalog, create_auction_draft, add_items_to_block)
-- `GET/POST /admin/auction-blocks` — Blocks CRUD
-- `DELETE /admin/auction-blocks/:id` — Löschen (nur draft/ended/archived, Releases → available)
-- `GET /admin/auction-blocks/:id/live-bids` — Live Bid Monitor (volle Namen)
-- `GET /admin/auction-blocks/:id/bids-log` — Chronologischer Bid-Log (?limit=300)
-- `GET /admin/transactions` — Orders (?q, status, fulfillment_status, payment_provider, shipping_country, date_from, date_to, sort, limit, offset)
-- `POST /admin/transactions/:id` — Ship/Refund/Note/Cancel/mark_refunded
-- `GET /admin/transactions/:id/shipping-label` — Shipping Label PDF (pdfkit)
-- `POST /admin/transactions/bulk-ship` — Bulk Mark-as-Shipped
-- `POST /admin/transactions/export` — CSV Export (BOM, Excel-kompatibel)
-- `GET /admin/media` — 41k Releases. Filter: q, category, format, country, label, has_discogs, has_price, has_image, visibility, year_from/to, auction_status. **rc23 Filter:** import_collection, import_action, inventory_state (any/none/in_stock/out_of_stock), inventory_status, stocktake (done/pending/stale @90d), price_locked, warehouse_location. Sort: field:dir
-- `GET /admin/media/filter-options` — (rc23) Dropdown-Datenquelle: `import_collections` (mit run_count + release_count + last_import_at), `warehouse_locations` (aktive), `inventory_statuses` (DISTINCT values in use). Defensive gegen fehlende Tabellen.
-- `GET /admin/entity-content/overhaul-status` — Entity Overhaul Status + Budget
-- `GET /admin/sync/discogs-health` | `POST` — Discogs Sync Health + Actions
-- `GET /admin/sync/change-log` — Legacy Sync Change Log (?run_id, ?field, limit, offset) — Runs-Übersicht + paginierte Einträge mit old/new Werten
-- `POST /admin/discogs-import/upload` — CSV/XLSX Parsing → `import_session` (SSE wenn `Accept: text/event-stream`)
-- `POST /admin/discogs-import/fetch` — **Detached background task** (rc18): validiert + spawnt `runFetchLoop()` + returnt sofort 200 JSON. Loop schreibt in `import_event` + `fetch_progress`, UI polled. Idempotent via 60s Stale-Detection.
-- `POST /admin/discogs-import/analyze` — SSE Stream: 4-phasiges pg_trgm-Matching (exact → cache → fuzzy batches → aggregate)
-- `POST /admin/discogs-import/commit` — SSE Stream: 3-phasiger transaktionaler Import (existing → linkable → new → commit/rollback)
-- `GET /admin/discogs-import/history` — Runs-Übersicht + aggregate `stats` + `active_sessions` (exkl. stale >6h)
-- `GET /admin/discogs-import/history/:runId` — Run-Detail: Metadata + Live-Stats + Releases (JOIN Release×Artist×Label) + bis zu 2000 Events
-- `GET /admin/discogs-import/history/:runId/export` — CSV Export (27 Spalten, UTF-8 BOM)
-- `GET /admin/discogs-import/session/:id/status` — Session-State + letzte N Events (für Polling, `?since_id=X` für incremental)
-- `POST /admin/discogs-import/session/:id/cancel` | `/pause` | `/resume` — Operator Control-Flags (cancel triggert Commit-Rollback)
-- `GET /admin/customers/list` — Paginated Customer-Liste mit Stats (?q, sort, limit, offset)
-- `GET|PATCH /admin/customers/:id` — Customer-Detail + Edit (name/email/phone/tags/is_vip)
-- `POST /admin/customers/recalc-stats` — Force-Recalc aller customer_stats aus live Daten
-- `GET /admin/customers/export` — CSV aller Kunden (BOM, 13 Spalten)
-- `GET|POST /admin/customers/:id/notes` + `DELETE .../notes/:noteId` — Interne Notizen
-- `GET /admin/customers/:id/timeline` — Unified Event-Feed (bid/order/note)
-- `POST /admin/customers/:id/block` + `/unblock` | `/anonymize` | `/gdpr-export` | `/delete`
-- `GET /admin/erp/locations` — Warehouse Locations Liste
-- `POST /admin/erp/locations` — Neuen Lagerort anlegen (code, name required)
-- `POST /admin/pos/sessions` — Neue POS-Session (UUID)
-- `POST /admin/pos/sessions/:id/items` — Barcode-Scan → Item-Lookup + Availability-Check
-- `DELETE /admin/pos/sessions/:id/items/:itemId` — Remove from Cart
-- `POST /admin/pos/sessions/:id/checkout` — Finalize Walk-in Sale (transaction + inventory + audit)
-- `GET /admin/pos/customer-search?q=` — Live-Kundensuche (top 10)
-- `POST /admin/pos/customers` — Neuen Kunden anlegen (minimal)
-- `GET /admin/pos/stats` — Dashboard-Statistiken (today/yesterday/week/all, payment breakdown, averages)
-- `GET /admin/pos/transactions` — Gefilterte POS-Transaktionsliste (period/date/payment/search)
-- `GET /admin/pos/transactions/:id/receipt` — A6-PDF Quittung (pdfkit)
-- `PATCH /admin/erp/locations/:id` — Lagerort bearbeiten (inkl. is_default setzen)
-- `DELETE /admin/erp/locations/:id` — Soft-deactivate (kein Hard-Delete; Default-Location geblockt)
+**Admin:** Groups:
+- Auction: `/auction-blocks` (CRUD, delete, live-bids, bids-log)
+- Transactions: `/transactions` (list/ship/refund/note/cancel/export/bulk-ship/shipping-label)
+- Catalog: `/media` (41k Releases mit 15+ Filtern inkl. rc23 Inventur-Filter), `/media/filter-options`
+- Customers: `/customers/{list,:id,recalc-stats,export,:id/{notes,timeline,block,anonymize,gdpr-export,delete}}`
+- Discogs Import: `/discogs-import/{upload,fetch,analyze,commit,history[/:runId[/export]],session/:id/{status,cancel,pause,resume}}`
+- ERP: `/erp/locations` (CRUD, default-setzen), `/erp/inventory/{search,upload-image,...}`
+- POS: `/pos/{sessions[/:id/{items,checkout}],customer-search,customers,stats,transactions[/:id/receipt]}`
+- AI: `/ai-chat` (SSE, Haiku, 5 read-only Tools), `/ai-create-auction` (SSE, Sonnet, 3 write Tools)
+- Print: `/print-bridge/sample-label` (Test-Label — Ordner `print-bridge` weil `*test*` gefiltert wird)
+- Entity/Sync: `/entity-content/overhaul-status`, `/sync/discogs-health`, `/sync/change-log`
 
 ## Payment
 
-**Stripe:** `acct_1T7WaYEyxqyK4DXF`, frank@vod-records.com, Live-Mode
-**Webhook:** `https://api.vod-auctions.com/webhooks/stripe` (Events: checkout.session.completed/expired + payment_intent.succeeded/payment_failed)
-**Methoden:** Card, Klarna, Bancontact (BE), EPS (AT), Link
-
-**PayPal:** frank@vod-records.com, Live-Mode
-**Webhook:** `https://api.vod-auctions.com/webhooks/paypal` (ID: `95847304EJ582074L`)
-**Events:** PAYMENT.CAPTURE.COMPLETED/DENIED/REFUNDED
-**Architektur:** JS SDK client-side Order-Erstellung (`actions.order.create()`) wegen Sandbox-Bug mit EUR/DE-Accounts
-
-**Transaction Status:**
-- `status`: pending → paid → refunded/partially_refunded/cancelled/failed
-- `fulfillment_status`: unfulfilled → packing → shipped → delivered/returned
-- `order_number`: VOD-ORD-XXXXXX (generiert bei Payment-Success)
-
-## Checkout Flow (One-Page, Two-Column)
-
-Shipping Address → Shipping Method → Stripe PaymentElement inline → "Pay Now" → `stripe.confirmPayment()`
-- Kein Redirect für Cards, Redirect für Klarna/EPS/Bancontact → `?redirect_status=succeeded`
-- PayPal: separater Radio-Selector + `PayPalButton.tsx`
-- Checkout Phase C offen: Apple Pay/Google Pay, Google Places, gespeicherte Adressen
+- **Stripe** (`acct_1T7WaYEyxqyK4DXF`, frank@vod-records.com, Live). Webhook: `api.vod-auctions.com/webhooks/stripe`. Events: `checkout.session.{completed,expired}`, `payment_intent.{succeeded,payment_failed}`. Methoden: Card/Klarna/Bancontact/EPS/Link
+- **PayPal** (Live, Webhook ID `95847304EJ582074L`). Events: `PAYMENT.CAPTURE.{COMPLETED,DENIED,REFUNDED}`. Client-side Order via JS SDK (Sandbox-Bug mit EUR/DE)
+- **Transaction Status:** `status`: pending→paid→refunded/partially_refunded/cancelled/failed · `fulfillment_status`: unfulfilled→packing→shipped→delivered/returned · `order_number`: VOD-ORD-XXXXXX
+- **Checkout:** One-Page Two-Column (Address → Method → Stripe PaymentElement inline → `stripe.confirmPayment()`). Phase C offen: Apple/Google Pay, Google Places, gespeicherte Adressen
 
 ## Shipping
 
-Gewichtsbasiert, 3 Zonen (DE/EU/World), 13 Artikeltypen, 15 Gewichtsstufen.
-Admin: `/admin/shipping` (5 Tabs: Settings, Item Types, Zones & Rates, Methods, Calculator)
-Fallback: DE €4.99 / EU €9.99 / World €14.99
+Gewichtsbasiert · 3 Zonen (DE/EU/World) · 13 Artikeltypen · 15 Gewichtsstufen · Fallback DE €4.99 / EU €9.99 / World €14.99 · Admin: `/admin/shipping` (5 Tabs)
 
 ## Email
 
-**Sender (Technical, Reply-To: support@vod-auctions.com bei allen customer-relevant Mails):**
-- **Resend** (`noreply@vod-auctions.com`, Account-Owner: frank@vod-records.com) — Transaktionale Mails (welcome, bid-placed, bid-won, outbid, payment, shipping, feedback-request, payment-reminder, waitlist, invite, password-reset etc.). Zukunfts-Target: `notifications@vod-auctions.com` (deferred).
-- **Brevo** (`newsletter@vod-auctions.com`) — 4 Newsletter-Templates (block-teaser/tomorrow/live/ending), CRM (3.580 tape-mag Kontakte, List ID 5). Reply-To auf support@.
-
-**Public Mailboxes (all-inkl):**
-- **`support@vod-auctions.com`** (Postfach) — Zentrale Kunden-Anlaufstelle. Footer-Kontakt, Reply-To aller Resend/Brevo-Sends.
-- **`privacy@vod-auctions.com`** (Postfach) — DSGVO / Account-Löschung (Account-Settings-Seite).
-
-**Aliase → support@:** `info@`, `billing@`, `orders@`, `abuse@`, `postmaster@` (RFC 2142 + Impressum).
-**Aliase → Frank:** `frank@vod-auctions.com`, `press@vod-auctions.com`.
-
-**ENV:** `SUPPORT_EMAIL`, `PRIVACY_EMAIL`, `EMAIL_FROM` in `backend/.env`. Single Source of Truth: `backend/src/lib/email.ts` exportiert `SUPPORT_EMAIL` + `PRIVACY_EMAIL`, Brevo wrapper importiert von dort.
-
-## Entity Content Overhaul (RSE-227)
-
-**Status:** P2 PAUSED — 576/3.650 Entities (Budget $96/$120 verbraucht). Resume wartet auf Budget-Freigabe (Linear RSE-227).
-**Pipeline:** `scripts/entity_overhaul/` — 10 Python-Module, GPT-4o Writer + GPT-4o-mini
-**Kosten:** ~$0.035/Entity. Restliche ~15.574 Entities (P2+P3) = ~$553 geschätzt.
-**P1 Done:** 1.013 accepted, Score Ø 82.3
-**Budget-Zeitplan:** Apr $100 → Mai $100 → ... (~6 Monate bis fertig)
-**Admin:** `/admin/entity-content` (Status + Budget Dashboard) + `/admin/musicians`
-**Pipeline starten:** `cd scripts && source venv/bin/activate && python3 entity_overhaul/orchestrator.py`
+- **Resend** (`noreply@vod-auctions.com`) — Transaktional (welcome, bid-placed/won, outbid, payment, shipping, feedback, payment-reminder, waitlist, invite, password-reset)
+- **Brevo** (`newsletter@vod-auctions.com`) — 4 Newsletter-Templates + CRM (3.580 tape-mag-Kontakte, List ID 5)
+- **Mailboxes (all-inkl):** `support@` (zentral, alle Reply-To), `privacy@` (DSGVO). Aliase → support@: `info@`, `billing@`, `orders@`, `abuse@`, `postmaster@`. Aliase → Frank: `frank@`, `press@`
+- **Single Source of Truth:** `backend/src/lib/email.ts` exportiert `SUPPORT_EMAIL`, `PRIVACY_EMAIL`
 
 ## Image Storage (Cloudflare R2)
 
-**Bucket:** `vod-images` auf `https://98bed59e4077ace876d8c5870be1ad39.r2.cloudflarestorage.com`
-**Public URL:** `https://pub-433520acd4174598939bc51f96e2b8b9.r2.dev`
-**Credentials:** `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` in `backend/.env` + `scripts/.env`
+Bucket `vod-images` · Public: `https://pub-433520acd4174598939bc51f96e2b8b9.r2.dev`
 
-**Prefixes (drei getrennte Herkünfte):**
-- `tape-mag/standard/` — 83.150 Legacy-Bilder von tape-mag.com, upgeladen via `legacy_sync_v2.py` (boto3)
-- `tape-mag/discogs/` — 43.025 Discogs-Bilder (migriert 2026-04-12 + alle zukünftigen Discogs-Imports, WebP-optimiert)
-- `tape-mag/uploads/` — iPhone-Fotos aus Stocktake-Session
+Prefixes: `tape-mag/standard/` (83.150 Legacy), `tape-mag/discogs/` (43.025 WebP, seit 2026-04-12), `tape-mag/uploads/` (iPhone-Fotos Stocktake)
 
-**Shared Library:** `backend/src/lib/image-upload.ts` — `optimizeImage()` (sharp), `uploadToR2()` (S3 SDK), `downloadOptimizeUpload()` (URL → R2), `isR2Configured()` (graceful fallback)
+Shared Lib: `backend/src/lib/image-upload.ts` — `optimizeImage()`, `uploadToR2()`, `downloadOptimizeUpload()`, `isR2Configured()`. Upload-Endpoint: `POST /admin/erp/inventory/upload-image` (base64). Deps: backend `sharp` + `@aws-sdk/client-s3`, scripts `Pillow` + `boto3`
 
-**Migration-Script:** `scripts/migrate_discogs_images_to_r2.py` — idempotent, rate-limited (5/s), resume-fähig. Falls zukünftig doch noch Hotlinks entstehen (z.B. via Fremd-Tool), erneut laufen lassen.
-
-**Upload-Endpoint:** `POST /admin/erp/inventory/upload-image` (base64 JSON body, kein Multipart nötig — einfacher für Mobile)
-
-**Dependencies (backend):** `sharp` + `@aws-sdk/client-s3`. In scripts: `Pillow` + `boto3`.
-
-## Credentials (in .env / .env.local, git-ignored)
+## Credentials (ENV)
 
 ```
-# Backend .env
+# backend/.env
 DATABASE_URL, MEDUSA_ADMIN_ONBOARDING_TYPE
 STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
 PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, PAYPAL_MODE=live, PAYPAL_WEBHOOK_ID
-RESEND_API_KEY
-BREVO_API_KEY, BREVO_LIST_VOD_AUCTIONS=4, BREVO_LIST_TAPE_MAG=5
-SUPABASE_SERVICE_ROLE_KEY  # Für Anti-Sniping Realtime Broadcast
+RESEND_API_KEY, BREVO_API_KEY, BREVO_LIST_VOD_AUCTIONS=4, BREVO_LIST_TAPE_MAG=5
+SUPABASE_SERVICE_ROLE_KEY    # Anti-Sniping Realtime Broadcast
 REVALIDATE_SECRET, STOREFRONT_URL=https://vod-auctions.com
-RUDDERSTACK_WRITE_KEY, RUDDERSTACK_DATA_PLANE_URL=secklerrovofrz.dataplane.rudderstack.com
-ANTHROPIC_API_KEY  # AI Assistant (Claude Haiku)
-
-# Storefront .env.local
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-NEXT_PUBLIC_PAYPAL_CLIENT_ID
-NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY
-NEXT_PUBLIC_BREVO_CLIENT_KEY
-NEXT_PUBLIC_GA_MEASUREMENT_ID=G-M9BJGC5D69
 RUDDERSTACK_WRITE_KEY, RUDDERSTACK_DATA_PLANE_URL
+ANTHROPIC_API_KEY            # AI Assistant
+R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY
+SUPPORT_EMAIL, PRIVACY_EMAIL, EMAIL_FROM
+
+# storefront/.env.local
+NEXT_PUBLIC_{STRIPE_PUBLISHABLE_KEY,PAYPAL_CLIENT_ID,SUPABASE_URL,SUPABASE_ANON_KEY,BREVO_CLIENT_KEY,GA_MEASUREMENT_ID}
 UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN
-GATE_PASSWORD=vod2026, REVALIDATE_SECRET
+GATE_PASSWORD=vod2026, REVALIDATE_SECRET, RUDDERSTACK_*
 
 # scripts/.env
-OPENAI_API_KEY, LASTFM_API_KEY, YOUTUBE_API_KEY, BRAVE_API_KEY
-SUPABASE_DB_URL, LEGACY_DB_*
+OPENAI_API_KEY, LASTFM_API_KEY, YOUTUBE_API_KEY, BRAVE_API_KEY, SUPABASE_DB_URL, LEGACY_DB_*, R2_*
 ```
 
 ## Test Accounts
 
-- `bidder1@test.de` / `test1234` (Customer: `cus_01KJPXG37THC2MRPPA3JQSABJ1`)
-- `bidder2@test.de` / `test1234` (Customer: `cus_01KJPXRK22VAAK3ZPHHXRYMYQT`) — winning bid Lot #1
-- `testuser@vod-auctions.com` / `TestPass123!` (Customer: `cus_01KJZ9AKFPNQ82QCNB3Q6ZX92T`) — Direktkauf-Tests
-- Test Block: "Industrial Classics 1980-1985" (`01KJPSH37MYWW9MSJZDG58FT1G`, status: ended)
-- Lot #1: Cabaret Voltaire (`01KJPSJ04Z7CW37FY4E8KZ1SVJ`) — bidder2
-- Lot #2: release-4104 (`01KJPSJ0BP5K9JH4EKARB6T3S3`) — testuser
-- Stripe Test-Karte: `4242 4242 4242 4242`
-- Stripe Webhook lokal: `stripe listen --forward-to localhost:9000/webhooks/stripe`
+- `bidder1@test.de` / `test1234` (`cus_01KJPXG37THC2MRPPA3JQSABJ1`)
+- `bidder2@test.de` / `test1234` (`cus_01KJPXRK22VAAK3ZPHHXRYMYQT`) — winning Lot #1
+- `testuser@vod-auctions.com` / `TestPass123!` (`cus_01KJZ9AKFPNQ82QCNB3Q6ZX92T`) — Direktkauf
+- Test Block "Industrial Classics 1980-1985" (`01KJPSH37MYWW9MSJZDG58FT1G`, ended)
+- Stripe Test-Karte: `4242 4242 4242 4242`. Webhook lokal: `stripe listen --forward-to localhost:9000/webhooks/stripe`
 
-## Cronjobs (VPS)
+## Cronjobs (VPS) & Scripts
 
 ```bash
-# Legacy MySQL → Supabase (stündlich)
+# Crontab
 0 * * * * cd ~/VOD_Auctions/scripts && venv/bin/python3 legacy_sync_v2.py >> legacy_sync.log 2>&1
-# Discogs Daily (Mo-Fr 02:00 UTC, 5 Chunks rotating)
 0 2 * * 1-5 cd ~/VOD_Auctions/scripts && venv/bin/python3 discogs_daily_sync.py >> discogs_daily.log 2>&1
-```
 
-**Python venv:** `scripts/venv/` — psycopg2-binary, python-dotenv, requests, mysql-connector-python, openai, musicbrainzngs
-
-## Data Sync Scripts
-
-```bash
-cd VOD_Auctions/scripts && source venv/bin/activate
-
-python3 legacy_sync_v2.py        # Incremental sync (hourly via cron; v1 legacy_sync.py bleibt als Rollback-Backup)
-python3 legacy_sync_v2.py --dry-run                   # Simulate, no writes
-python3 legacy_sync_v2.py --pg-url "$STAGING_URL"     # Target staging Supabase
-python3 discogs_daily_sync.py    # Daily Discogs price update (Mon-Fri chunks)
-python3 discogs_daily_sync.py --chunk 2 --rate 25  # Specific chunk
-
-# Entity Content Overhaul
+# Scripts (scripts/venv aktivieren)
+python3 legacy_sync_v2.py [--dry-run] [--pg-url "$STAGING_URL"]
+python3 discogs_daily_sync.py [--chunk 2 --rate 25]
 python3 entity_overhaul/orchestrator.py --type artist --phase P2
-python3 entity_overhaul/orchestrator.py --dry-run --limit 5
-
-# Label Enrichment (3-Phase Pipeline)
-python3 validate_labels.py       # All 3 phases → review CSV
-python3 validate_labels.py --commit data/label_validation_review.csv
-
-# CRM Import
-python3 crm_import.py --phase 2  # tape-mag contacts
+python3 validate_labels.py [--commit data/label_validation_review.csv]
+python3 crm_import.py --phase 2
 ```
-
-## Project Structure (Key Files)
-
-```
-VOD_Auctions/
-├── backend/src/
-│   ├── modules/auction/models/    # auction-block, block-item, bid, transaction, cart-item, saved-item
-│   ├── api/admin/                 # auction-blocks/, media/, transactions/, entity-content/, gallery/, sync/, site-config/, dashboard/, waitlist/, invite-tokens/
-│   ├── api/store/                 # auction-blocks/, catalog/, band/, label/, press/, gallery/, account/, waitlist/, invite/, site-mode/
-│   ├── api/webhooks/              # stripe/, paypal/, brevo/
-│   ├── api/middlewares.ts         # Auth + rawBodyMiddleware (DON'T REMOVE rawBody!)
-│   ├── lib/                       # stripe.ts, paypal.ts, checkout-helpers.ts, shipping.ts, brevo.ts, crm-sync.ts, site-config.ts, invite.ts, feature-flags.ts, paths.ts
-│   ├── scripts/migrations/         # Raw SQL migrations für non-ORM Tabellen (site_config, sync_log etc.), idempotent, manuell angewendet
-│   ├── admin/components/          # admin-nav.tsx, admin-tokens.ts, admin-layout.tsx, admin-ui.tsx (Shared Component Library)
-│   └── admin/routes/              # auction-blocks/, media/, transactions/, entity-content/, gallery/, sync/, config/, waitlist/, dashboard/
-├── storefront/src/
-│   ├── app/                       # catalog/, auctions/, band/, label/, press/, gallery/, about/, account/, apply/, invite/
-│   ├── components/                # AuthProvider, Header, Footer, ItemBidSection, BlockItemsGrid, ImageGallery, CollapsibleDescription
-│   └── middleware.ts              # Platform mode gate — reads from backend API, supports password + invite cookies
-├── scripts/
-│   ├── legacy_sync_v2.py          # Hourly MySQL→Supabase sync, active cron target (bilder_typ: release=10, band=13, label=14, press=12). Full 14-field diff, RETURNING-verified image counts, post-run validation, --dry-run / --pg-url flags.
-│   ├── legacy_sync.py             # v1 backup, replaced by v2 on 2026-04-05, will be removed after 7 days stable v2 operation
-│   ├── discogs_daily_sync.py      # Daily Discogs (5 chunks, exponential backoff)
-│   └── entity_overhaul/           # 10-Module Pipeline (orchestrator, enricher, writer, quality_agent, ...)
-├── nginx/                         # vodauction-api.conf, vodauction-store.conf, vodauction-admin.conf
-└── docs/
-    ├── architecture/CHANGELOG.md        # Vollständiger Changelog
-    ├── architecture/DEPLOYMENT_METHODOLOGY.md  # Deploy early, activate when ready — verbindlich
-    ├── architecture/SYNC_ROBUSTNESS_PLAN.md    # Sync-Architektur v2.3 mit Field-Contract und Phase-Plan
-    ├── architecture/STAGING_ENVIRONMENT.md     # Staging DB Setup + Runbook (aebcwjjcextzvflrjgei, eu-west-1)
-    ├── UI_UX/                     # UI/UX Governance (Style Guide, Gap Analysis, Plan, Report, PR Checklist)
-    ├── DESIGN_GUIDE_BACKEND.md    # Admin Design System v2.0 (verbindlich)
-    ├── PRE_LAUNCH_KONZEPT.md      # Waitlist + Invite Flow
-    ├── ADMIN_CONFIG_KONZEPT.md    # Config Panel + Platform Modes
-    ├── DASHBOARD_KONZEPT.md       # Phase-adaptive Dashboard
-    └── mockups/                   # HTML Mockups (pre-launch-flow, admin-config, design-guide)
-```
-
-**bilder_typ Mapping (WICHTIG — Regression-Schutz):**
-- typ=10: releases | typ=13: band_literature | typ=14: labels_literature | typ=12: pressorga_literature
 
 ## Core Concepts
 
-**Themen-Block-Modell:** Alle Auktionen in kuratierten Blöcken (1-500 Items). Redaktioneller Content pro Block. Produkt-Reservierung: available → reserved → in_auction → sold/unsold.
+- **Themen-Block-Modell:** Alle Auktionen in kuratierten Blöcken (1-500 Items). Block-Typen: Themen/Highlight/Clearance/Flash. Reservierung: available → reserved → in_auction → sold/unsold
+- **Platform Modes:** `beta_test` (Passwort-Gate) → `pre_launch` (Invite-System) → `preview` → `live` (Gate entfernt) → `maintenance`. Admin: `/admin/config` → Access/Launch. Middleware Cache 5min
+- **Pre-Launch:** `/apply` → Admin approves → Token `VOD-XXXXX-XXXXX` → `/invite/[token]`. Tabellen: `waitlist_applications`, `invite_tokens`, `invite_token_attempts`
+- **Admin Design System:** `admin/components/` — `admin-tokens.ts`, `admin-layout.tsx` (PageHeader/Tabs/StatsGrid), `admin-ui.tsx` (Badge/Toggle/Toast/Modal). Verbindlicher Guide: `docs/DESIGN_GUIDE_BACKEND.md` v2.0
+- **Admin Navigation:** 8 Sidebar-Items (Dashboard, Auction Blocks, Orders, Catalog, Marketing, Operations, ERP, AI Assistant). Sub-Pages nur über Hub-Karten
+- **Deployment Methodology:** "Deploy early, activate when ready" — Feature Flags in `backend/src/lib/feature-flags.ts` + `site_config.features` JSONB. Additive-only Migrationen. Siehe [`docs/architecture/DEPLOYMENT_METHODOLOGY.md`](docs/architecture/DEPLOYMENT_METHODOLOGY.md)
+- **Sync-Architektur:** `legacy_sync_v2.py` stündlich, 14-Field Diff + V1-V4 Post-Run-Validation. Staging DB `aebcwjjcextzvflrjgei` (eu-west-1). A5/A6 (Dead-Man-Switch + Alerting) pending. Siehe `docs/architecture/SYNC_ROBUSTNESS_PLAN.md`
+- **Catalog Visibility:** `coverImage IS NOT NULL` = sichtbar · `legacy_price > 0 AND legacy_available = true` = kaufbar
+- **Search-Architektur (rc39):** 4 Endpoints (`/admin/erp/inventory/search`, `/admin/media`, `/store/catalog`, `/store/catalog/suggest`) nutzen alle Postgres-FTS via `Release.search_text` + Shared Helper in `backend/src/lib/release-search.ts`. Latenz ~20-30ms (vorher 6-13s). Stufe-3 geplant: Meilisearch (`docs/optimizing/SEARCH_MEILISEARCH_PLAN.md`)
 
-**Block-Typen:** Themen-Block (Genre/Künstler/Epoche) | Highlight-Block (High-Value, lang) | Clearance-Block (200-500 Items, 1€) | Flash-Block (24h, 1-10 Items)
+## ERP Module Status
 
-**Platform Modes:** `beta_test` (aktuell) → `pre_launch` → `preview` → `live` → `maintenance`. Gesteuert über `/admin/config` (Access/Launch Tab). Middleware liest `platform_mode` aus Backend API (5-min Cache). `beta_test` = nur Passwort-Gate. `pre_launch` = Invite-System aktiv. `live` = Gate entfernt.
+| Modul | Status |
+|---|---|
+| `ERP_INVENTORY` | **Flag ON, Frank arbeitet aktiv.** Bulk +15% ausgeführt (13.107 Items, `price_locked=true`, Gesamt €465k). Inventur v2: Exemplar-Modell (1 Row/Stück), Goldmine-Grading, iPhone-Foto-Upload. Admin: `/app/erp/inventory[/session]`. Konzepte: `docs/optimizing/INVENTUR_WORKFLOW_V2_KONZEPT.md` |
+| `POS_WALK_IN` | **Flag ON (Dry-Run).** P0: Scan→Cart→Checkout real, TSE='DRY_RUN'. Admin: `/app/pos[/reports]`. P1 wartet auf Steuerberater |
+| `ERP_INVOICING` | nicht impl. (wartet easybill + StB) |
+| `ERP_SENDCLOUD` | nicht impl. (Account da, DHL-GK-Nr vorhanden) |
+| `ERP_COMMISSION`, `ERP_TAX_25A`, `ERP_MARKETPLACE` | nicht impl. (wartet §14-Freigaben) |
 
-**Pre-Launch System:** `/apply` (Bewerbungsformular) → Admin approves → Invite-Token `VOD-XXXXX-XXXXX` → `/invite/[token]` (Account-Erstellung). Tabellen: `waitlist_applications`, `invite_tokens`, `invite_token_attempts`.
+## Entity Content Overhaul (RSE-227)
 
-**Admin Design System:** Shared Component Library in `admin/components/` — `admin-tokens.ts` (Farben, Typo), `admin-layout.tsx` (PageHeader, Tabs, StatsGrid), `admin-ui.tsx` (Badge, Toggle, Toast, Modal). Verbindlicher Design Guide: `docs/DESIGN_GUIDE_BACKEND.md` v2.0.
+**P2 PAUSED** — 576/3.650 Entities (Budget $96/$120 verbraucht). Pipeline `scripts/entity_overhaul/` (10 Module, GPT-4o + GPT-4o-mini). Restliche ~15.574 Entities ≈ $553. Budget-Plan Apr $100/Mai $100/... (~6 Monate). P1 Done: 1.013 accepted, Score Ø 82.3. Admin: `/admin/entity-content` + `/admin/musicians`
 
-**Admin Navigation:** 8 Sidebar-Items (Dashboard, Auction Blocks, Orders, Catalog, Marketing, Operations, ERP, AI Assistant). Sub-Pages nur über Hub-Karten erreichbar. Kein `defineRouteConfig` auf Sub-Pages.
+## Project Structure
 
-**Deployment Methodology:** "Deploy early, activate when ready" ist verbindlich für alle nicht-trivialen Features. Feature Flags in `backend/src/lib/feature-flags.ts` (Registry, inkl. `requires`-Dependency-Chain) und `site_config.features` JSONB (State). Admin Toggle unter `/app/config` → Feature Flags (Toggles deaktiviert wenn Deps fehlen). Additive-only Migrationen auf Live-Tabellen, keine `DROP`/`RENAME`/`TYPE`-Änderungen. Prefix `/admin/erp/*` wird aktiv genutzt (Locations live). Siehe [`docs/architecture/DEPLOYMENT_METHODOLOGY.md`](docs/architecture/DEPLOYMENT_METHODOLOGY.md).
+```
+backend/src/
+├── modules/auction/models/  # auction-block, block-item, bid, transaction, cart-item, saved-item
+├── api/{admin,store,webhooks}/
+├── api/middlewares.ts       # Auth + rawBodyMiddleware (DON'T REMOVE!)
+├── lib/                     # stripe/paypal/shipping/brevo/crm-sync/site-config/invite/feature-flags/paths/release-search/image-upload/email.ts
+├── scripts/migrations/      # Raw SQL (idempotent, manuell angewendet)
+└── admin/{components,routes}/
 
-**Sync-Architektur:** Legacy-MySQL→Supabase-Sync läuft stündlich via `legacy_sync_v2.py`, schreibt alle 14 gesyncten Felder in `sync_change_log` und strukturierte Run-Summary nach `sync_log` (mit `run_id`, `phase`, `rows_*`, `validation_status`). Feld-Contract und Ownership-Matrix in `SYNC_ROBUSTNESS_PLAN.md` §6. Post-Run-Validation läuft nach jedem Run (V1 Row-Count, V2 NOT-NULL, V3 Referential, V4 Freshness). Staging-DB für Dry-Runs: `aebcwjjcextzvflrjgei` (eu-west-1, backfire account — 1Password: "Supabase 2. Account"). Phase A5/A6 (Dead-Man's-Switch + E-Mail-Alerting) pending.
+storefront/src/{app,components,middleware.ts}
 
-**Cwd-independente Pfade:** Backend-Code nutzt NIE `process.cwd()` oder relative `__dirname`-Pfade zur Auflösung von Projekt-Files. Immer `getProjectRoot()`, `getScriptsDir()`, `getDataDir()`, `getStorefrontPublicDir()`, `getTestsDir()` aus `backend/src/lib/paths.ts`. Python-Scripts nutzen `Path(__file__).parent.parent` o.ä. Grund: PM2 cwd ist `backend/.medusa/server/`, nicht das Source-Tree (siehe Gotcha-Liste oben). Walk-up-Helper macht's cwd-unabhängig.
+scripts/
+├── legacy_sync_v2.py        # Cron target (14-Field Diff, RETURNING-verified images, V1-V4 Validation)
+├── discogs_daily_sync.py    # 5 Chunks, exponential backoff
+└── entity_overhaul/         # 10-Module Pipeline
 
-**Catalog Visibility:** Artikel mit `coverImage IS NOT NULL` = sichtbar. `legacy_price > 0 AND legacy_available = true` = kaufbar (`is_purchasable`).
-**legacy_available:** Spiegelt MySQL `frei`-Feld — `frei=1` → true (verfügbar), `frei=0` → false (gesperrt), `frei>1` (Unix-Timestamp) → false (auf tape-mag verkauft). Wird stündlich per Legacy-Sync aktualisiert.
-
-**Search-Architektur (Stand rc39, 2026-04-22):** Vier produktive Search-Endpoints — `/admin/erp/inventory/search` (Stocktake), `/admin/media` (Catalog-Liste), `/store/catalog` (Storefront), `/store/catalog/suggest` (Autocomplete) — nutzen alle Postgres-FTS via `Release.search_text` + GIN-tsvector-Index. Shared Helper: `backend/src/lib/release-search.ts` (`buildReleaseSearchSubquery`, `buildReleaseSearchWhereRawAliased`, `getSearchTokens`). Tokens werden whitespace-gesplittet, Prefix-Match `:*` + AND `&` kombiniert. Latenz ~20-30ms bei allen ~52k Releases (vorher 6-13s mit ILIKE-OR Seq Scan). Plus Inventory-Barcode-Subquery (`erp_inventory_item.barcode` für Scanner-Hits wie `000001VODe`). **Limitation:** Artist/Label-Renames triggern kein search_text-Update — bei VOD praktisch nicht vorkommend, sonst periodischer Reindex. **Stufe-3 (geplant nach Pre-Launch):** Migration auf Meilisearch self-hosted mit Typo-Tolerance, Facetten, Synonymen, Instant-Search-UX. Konzept: `docs/optimizing/SEARCH_MEILISEARCH_PLAN.md`.
-
-**ERP Module Status:**
-- `ERP_INVENTORY` — **Flag ON (2026-04-12), Frank arbeitet aktiv (Stand 2026-04-22).** Bulk +15% ausgeführt: 13.107 Cohort-A Items, alle `price_locked=true`, Gesamtwert €465.358, V5 Sync-Schutz verifiziert. **Inventur Workflow v2 deployed (2026-04-12):** Search-First auf ALLE 50.958 Releases (nicht nur Cohort A), Exemplar-Modell (1 Row pro physisches Stück, eigener Barcode/Zustand/Preis), iPhone-Foto-Upload, Dashboard + Fehlbestands-Check. Tabellen: `erp_inventory_item` (+ `condition_media`, `condition_sleeve`, `copy_number`, `exemplar_price`, UNIQUE(release_id, copy_number)), `erp_inventory_movement`, `bulk_price_adjustment_log`. **rc39 (2026-04-22):** Catalog/Inventur Mirror-Fix — `add-copy` + `verify` mirrorn jetzt bei Copy #1 die Stocktake-Werte (`exemplar_price`, `condition_media/sleeve`, Inventory-Barcode) auf `Release.legacy_price`/`media_condition`/`sleeve_condition` damit der Catalog die Daten zeigt. `/admin/media` Liste rendert Inventory-Barcode + €Preis + Conditions in der INV.-Cell statt nur Stückzahl. Admin-UI: `/app/erp/inventory` (Hub) + `/app/erp/inventory/session` (Search + Exemplar-Bewertung mit Goldmine-Grading). Konzepte: `docs/optimizing/INVENTUR_WORKFLOW_V2_KONZEPT.md` (Source of Truth), `INVENTUR_COHORT_A_KONZEPT.md` (v1 Sync-Schutz + Bulk-Adjust weiterhin gültig), `CATALOG_SEARCH_FIXES_2026-04-22.md` (rc39 Mirror-Fix Detail).
-- `ERP_INVOICING` — nicht implementiert (wartet auf easybill-Account + StB-Termin)
-- `ERP_SENDCLOUD` — nicht implementiert (Sendcloud-Account erstellt am 07.04., DHL-GK-Nr vorhanden, Code pending)
-- `POS_WALK_IN` — **Code deployed, Flag ON (Dry-Run).** Phase P0: Scan→Cart→Checkout funktional, Transaktionen real (item_type='walk_in_sale'), tse_signature='DRY_RUN'. PWA-fähig. Admin-UI: `/app/pos` (Terminal) + `/app/pos/reports` (Analytics). Stats-Cards, Payment-Auswahl (SumUp/Bar/PayPal/Überweisung), Customer-Panel (Anonym/Suchen/Neu+Adresse), Discount EUR/%, Cash Quick-Amount-Grid mit Wechselgeld. Stubs: TSE (gelber Banner), Tax-Free Export (disabled). Nächste Phase P1 wartet auf Steuerberater-Freigabe. Siehe `docs/optimizing/POS_WALK_IN_KONZEPT.md` v1.1.
-- `ERP_COMMISSION`, `ERP_TAX_25A`, `ERP_MARKETPLACE` — nicht implementiert (wartet auf fachliche Freigaben §14)
+docs/
+├── architecture/{CHANGELOG,DEPLOYMENT_METHODOLOGY,SYNC_ROBUSTNESS_PLAN,STAGING_ENVIRONMENT,DISCOGS_IMPORT_SESSION_LOCK_PLAN}.md
+├── optimizing/{SEARCH_MEILISEARCH_PLAN,INVENTUR_WORKFLOW_V2_KONZEPT,POS_WALK_IN_KONZEPT,CATALOG_SEARCH_FIXES_2026-04-22}.md
+├── hardware/BROTHER_QL_820NWB_SETUP.md
+├── UI_UX/                   # Style Guide, Gap Analysis, Plan, Report, PR Checklist
+├── DESIGN_GUIDE_BACKEND.md  # Admin v2.0 (verbindlich)
+└── TODO.md                  # Operative Arbeitsliste (Now/Next/Later + Workstreams)
+```
 
 ## Current Focus
 
-→ Operative Aufgabenliste mit Workstreams, Blockern und nächsten Aktionen: [`docs/TODO.md`](docs/TODO.md)
+→ Operative Liste: [`docs/TODO.md`](docs/TODO.md)
 
-**Aktuell wichtigste nächste Schritte:**
-1. **Frank arbeitet aktiv an Inventur — rc39 live:** Catalog/Inventur Search-Sweep + Mirror-Fix gerade deployed (6 Punkte). `/admin/media` Suche von 6s auf 30ms via FTS, Stocktake-Daten landen jetzt im Catalog (Notturno-Bug + 5 weitere Altlasten backfilled), Stocktake-Suche unlimited, Recent-Items-Cap weg, Sale-Mode-Default `direct_purchase`, Label-Spalte vor Artist. Doku: [`docs/optimizing/CATALOG_SEARCH_FIXES_2026-04-22.md`](docs/optimizing/CATALOG_SEARCH_FIXES_2026-04-22.md).
-2. **Meilisearch-Konzept im Review (v2 in Arbeit):** [`docs/optimizing/SEARCH_MEILISEARCH_PLAN.md`](docs/optimizing/SEARCH_MEILISEARCH_PLAN.md) — Stufe-3-Search-Engine-Migration nach Pre-Launch. v1 von Robin gereviewed (Architektur 8/10, Operability 6/10), 10 Korrekturen werden gerade integriert (Runtime-Fallback, Tasks-API, Compose-mem_limit, Delta-Sync-Trigger, Ranking-Profiles, konservative Synonyme, Genre searchable, Facet-Cap, ID-Konsistenz, Operational Acceptance Tests). Nicht in Phase 1.
-3. **Franks MacBook Air-Rollout:** Zweites Gerät gleicher Flow: `cd ~/VOD_Auctions && git pull && bash frank-macbook-setup/install.sh`. install.sh erkennt IPP-Everywhere-Drucker + schickt zu Systemeinstellungen → Brother-PPD. Einmaliger sudo-Prompt (mkcert).
-4. **Discogs-Mapping Manual Review (Low-Priority):** `docs/audit_discogs_flagged_2026-04-21.csv` — 431 geflaggte Mappings, Frank korrigiert via Catalog-Detail → Discogs-Linking Card → neue ID + „Fetch from Discogs". Erst die 10 Fälle mit Score < 0.3.
-5. **POS P0 Dry-Run live:** Frank testet Scan→Cart→Checkout im Laden. Feedback sammeln, UX-Probleme fixen.
+1. **Frank arbeitet aktiv an Inventur — rc39 live.** Catalog/Inventur Search-Sweep + Mirror-Fix: `/admin/media` 6s→30ms via FTS, Stocktake-Daten landen jetzt im Catalog (Mirror bei Copy #1 auf Release.legacy_price/conditions/barcode). Doku: [`docs/optimizing/CATALOG_SEARCH_FIXES_2026-04-22.md`](docs/optimizing/CATALOG_SEARCH_FIXES_2026-04-22.md)
+2. **Meilisearch-Konzept v2 im Review** — Stufe-3 nach Pre-Launch, 10 Korrekturen nach Robin-Review werden integriert (Operability 6→8/10). [`docs/optimizing/SEARCH_MEILISEARCH_PLAN.md`](docs/optimizing/SEARCH_MEILISEARCH_PLAN.md)
+3. **Franks MacBook Air-Rollout:** `cd ~/VOD_Auctions && git pull && bash frank-macbook-setup/install.sh` — erkennt IPP-Drucker + schickt zu Brother-PPD, einmaliger sudo (mkcert)
+4. **Discogs-Mapping Manual Review (Low-Prio):** `docs/audit_discogs_flagged_2026-04-21.csv` — 431 geflagt, erst 10 Fälle mit Score < 0.3
+5. **POS P0 Dry-Run live** — Frank testet Scan→Cart→Checkout, Feedback sammeln
 6. **L1:** AGB-Anwalt beauftragen (Launch-Blocker, RSE-78)
 
 **Arbeitsregeln:**
-- Für operative Details immer `docs/TODO.md` nutzen — keine Task-Listen in CLAUDE.md pflegen
-- Bei Meilensteinen (Release, Blocker gelöst, Phase abgeschlossen): Current Focus hier aktualisieren
-- Große Themen, externe Blocker und mehrwöchige Epics leben in Linear, nicht hier
-- **Nach jedem Deploy auf Prod mit Tag-würdiger Änderung:** `docs/architecture/CHANGELOG.md` UND GitHub Release (`gh release create vX.X.X-rcXX --target <commit>`) pflegen. Release-Notes kompakter als CHANGELOG, aber Key-Messungen + Breaking Changes drin. Wenn GitHub Releases älter als CHANGELOG ist → nachziehen. Siehe 3-Ebenen-Modell in `PROJECTS/CLAUDE.md` (erweitert um Release-Kommunikation 2026-04-22).
+- Keine Task-Listen hier pflegen — `docs/TODO.md` nutzen
+- Bei Meilensteinen Current Focus aktualisieren
+- Epics + externe Blocker in Linear
+- **Nach jedem Deploy mit Tag-würdiger Änderung:** `docs/architecture/CHANGELOG.md` UND `gh release create vX.X.X-rcXX` pflegen. Release-Notes kompakter als CHANGELOG, aber Key-Messungen + Breaking Changes drin
 
 ## Linear
 
-**Project:** https://linear.app/rseckler/project/vod-auctions-37f35d4e90be
+Project: https://linear.app/rseckler/project/vod-auctions-37f35d4e90be
 
 | Issue | Thema | Status | Blocker |
 |---|---|---|---|
 | RSE-78 | Launch vorbereiten | backlog, **High** | AGB-Anwalt |
-| RSE-227 | Entity Content Overhaul | in progress (paused) | Budget-Freigabe |
+| RSE-227 | Entity Content Overhaul | in progress (paused) | Budget |
 | RSE-288 | Discogs Preisvergleich-UI | backlog | Echte Sale-Daten |
 | RSE-294 | Erste öffentliche Auktionen | backlog | RSE-78 |
 | RSE-295 | Marketing-Strategie | backlog | RSE-294 |
 | RSE-289 | PWA + Push-Notifications | backlog | Later |
 | RSE-291 | Multi-Seller Marketplace | backlog | v2.0.0 |
 
-## Recent Changes
-
 → Vollständiger Changelog: [`docs/architecture/CHANGELOG.md`](docs/architecture/CHANGELOG.md)
 
 ---
-
 **Author:** Robin Seckler (rseckler@gmail.com)

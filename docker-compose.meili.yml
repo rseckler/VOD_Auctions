@@ -1,0 +1,27 @@
+services:
+  meilisearch:
+    image: getmeili/meilisearch:v1.20
+    container_name: vod-meilisearch
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:7700:7700"
+    volumes:
+      - /root/meilisearch/data:/meili_data
+      - /root/meilisearch/dumps:/dumps
+    environment:
+      MEILI_MASTER_KEY: "${MEILI_MASTER_KEY}"
+      MEILI_ENV: "production"
+      MEILI_DB_PATH: "/meili_data"
+      MEILI_DUMP_DIR: "/dumps"
+      MEILI_NO_ANALYTICS: "true"
+      MEILI_MAX_INDEXING_MEMORY: "1Gb"
+      MEILI_HTTP_PAYLOAD_SIZE_LIMIT: "200MB"
+      MEILI_LOG_LEVEL: "INFO"
+    # Hard limits wirken OHNE Docker Swarm — deploy.resources.limits greift nur im Swarm.
+    mem_limit: 1500m
+    memswap_limit: 1500m
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

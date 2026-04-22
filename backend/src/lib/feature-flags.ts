@@ -22,7 +22,7 @@ export interface FeatureFlagDefinition {
   key: string
   default: boolean
   description: string
-  category: "erp" | "platform" | "experimental"
+  category: "erp" | "platform" | "experimental" | "search"
   requires?: string[]  // Keys of flags that must be enabled before this flag can be activated
 }
 
@@ -91,6 +91,14 @@ export const FEATURES = {
     description: "POS / Walk-in Sale — Kassen-Oberfläche für den Laden. Barcode-Scan, Cart, Checkout, Quittung. Erzeugt transaction mit item_type='walk_in_sale'.",
     category: "erp",
     requires: ["ERP_INVENTORY"],
+  },
+  // ─── Search flags — Meilisearch migration gate (see SEARCH_MEILISEARCH_PLAN.md) ─
+  SEARCH_MEILI_CATALOG: {
+    key: "SEARCH_MEILI_CATALOG",
+    default: false,
+    description: "Meilisearch für /store/catalog + /store/catalog/suggest aktivieren. Bei false: Postgres-FTS-Fallback. Runtime-Health-Probe fällt automatisch auf Postgres zurück falls Meili down — diese Flag ist der Operator-Wille.",
+    category: "search",
+    requires: [],
   },
 } as const satisfies Record<string, FeatureFlagDefinition>
 

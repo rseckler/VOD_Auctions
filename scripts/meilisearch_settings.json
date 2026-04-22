@@ -1,0 +1,113 @@
+{
+  "primaryKey": "id",
+  "searchableAttributes": [
+    "artist_name",
+    "title",
+    "label_name",
+    "genres",
+    "styles",
+    "catalog_number",
+    "article_number",
+    "press_orga_name",
+    "format_name",
+    "country"
+  ],
+  "filterableAttributes": [
+    "release_id",
+    "format",
+    "format_group",
+    "format_id",
+    "product_category",
+    "country",
+    "country_code",
+    "year",
+    "decade",
+    "genres",
+    "styles",
+    "has_cover",
+    "has_price",
+    "is_purchasable",
+    "in_stock",
+    "cohort_a",
+    "sale_mode",
+    "auction_status",
+    "label_slug",
+    "artist_slug",
+    "press_orga_slug"
+  ],
+  "sortableAttributes": [
+    "year",
+    "title",
+    "artist_name",
+    "effective_price",
+    "discogs_median_price",
+    "discogs_last_synced",
+    "updated_at",
+    "popularity_score"
+  ],
+  "displayedAttributes": [
+    "id",
+    "release_id",
+    "title",
+    "artist_name",
+    "artist_slug",
+    "label_name",
+    "label_slug",
+    "press_orga_name",
+    "press_orga_slug",
+    "format",
+    "format_name",
+    "format_group",
+    "format_id",
+    "product_category",
+    "year",
+    "country",
+    "country_code",
+    "catalog_number",
+    "article_number",
+    "cover_image",
+    "legacy_price",
+    "direct_price",
+    "effective_price",
+    "is_purchasable",
+    "legacy_available",
+    "auction_status",
+    "sale_mode",
+    "discogs_median_price",
+    "discogs_lowest_price",
+    "exemplar_count",
+    "verified_count",
+    "in_stock",
+    "cohort_a"
+  ],
+  "stopWords": [
+    "the", "a", "an", "and", "of", "for", "with",
+    "der", "die", "das", "und", "oder", "fuer", "für", "mit", "von"
+  ],
+  "synonyms": {
+    "industrial": ["industrial music"],
+    "noise": ["japanoise"],
+    "power electronics": ["pe"],
+    "dark ambient": ["drone", "isolationism"],
+    "ebm": ["electronic body music"]
+  },
+  "typoTolerance": {
+    "enabled": true,
+    "minWordSizeForTypos": {
+      "oneTypo": 4,
+      "twoTypos": 8
+    },
+    "disableOnAttributes": ["catalog_number", "article_number"]
+  },
+  "faceting": {
+    "maxValuesPerFacet": 100,
+    "sortFacetValuesBy": {
+      "*": "count",
+      "country": "alpha",
+      "year": "alpha"
+    }
+  },
+  "pagination": {
+    "maxTotalHits": 5000
+  }
+}

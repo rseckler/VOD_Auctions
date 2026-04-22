@@ -6,6 +6,7 @@ node_modules/
 .env
 .env.local
 .env.production
+.env.meili
 
 # Build
 .next/
@@ -13,7 +14,8 @@ out/
 dist/
 build/
 
-# Data (local only)
+# Data (local only — scratch JSONs, CSV dumps, etc.)
+# Code files in data/ must be force-added via `git add -f`.
 data/
 
 # OS

@@ -208,7 +208,8 @@ def update_release_prices(pg_conn, release_id, lowest_price, num_for_sale,
             discogs_num_for_sale = %s,
             discogs_have = COALESCE(%s, discogs_have),
             discogs_want = COALESCE(%s, discogs_want),
-            discogs_last_synced = NOW()
+            discogs_last_synced = NOW(),
+            search_indexed_at = NULL
         WHERE id = %s
         """,
         (lowest_price, median_price, highest_price, num_for_sale, have, want,
