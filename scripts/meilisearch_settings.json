@@ -1,5 +1,4 @@
 {
-  "primaryKey": "id",
   "searchableAttributes": [
     "artist_name",
     "title",

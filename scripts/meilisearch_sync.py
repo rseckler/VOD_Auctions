@@ -398,6 +398,8 @@ def apply_settings(dry_run=False):
     Idempotent; safe to re-run after settings.json edits."""
     settings_path = Path(__file__).parent / "meilisearch_settings.json"
     base_settings = json.loads(settings_path.read_text())
+    # primaryKey belongs to POST /indexes, not PATCH /settings. Strip if present.
+    base_settings.pop("primaryKey", None)
 
     for profile in PROFILES:
         index = INDEX_NAME.format(profile=profile)
