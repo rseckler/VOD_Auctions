@@ -21,6 +21,10 @@
         <string>Custom.29x90mm</string>
         <key>VOD_PRINT_BRIDGE_DRY_RUN</key>
         <string>__DRY_RUN__</string>
+        <key>VOD_PRINT_BRIDGE_CERT</key>
+        <string>__CERT_PATH__</string>
+        <key>VOD_PRINT_BRIDGE_KEY</key>
+        <string>__KEY_PATH__</string>
         <key>PATH</key>
         <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     </dict>

@@ -18,7 +18,12 @@
  *     Access-Control-Allow-Private-Network: true auf preflight
  */
 
-const BRIDGE_URL = "http://127.0.0.1:17891"
+// HTTPS zwingend: Safari blockiert fetch() von https://admin.vod-auctions.com
+// nach http://127.0.0.1 als Mixed Content — selbst für Loopback. Die Bridge
+// serviert seit rc36 HTTPS mit mkcert-signiertem Cert (lokale CA im System-
+// Keychain, vom Installer eingerichtet). Chrome/Firefox waren nachsichtiger,
+// aber Safari-Strict ist der Maßstab für Franks Admin-Webapp.
+const BRIDGE_URL = "https://127.0.0.1:17891"
 const BRIDGE_TIMEOUT_MS = 2000
 const PRINT_TIMEOUT_MS = 15000
 const DEFAULT_PRINTER = "Brother_QL_820NWB"

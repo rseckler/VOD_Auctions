@@ -29,6 +29,7 @@ import logging
 import os
 import re
 import shutil
+import ssl
 import subprocess
 import sys
 import tempfile
@@ -36,12 +37,14 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
 from urllib.parse import urlparse
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("VOD_PRINT_BRIDGE_PORT", "17891"))
 DEFAULT_PRINTER = os.environ.get("VOD_PRINT_BRIDGE_PRINTER", "Brother_QL_820NWB")
 PAGE_SIZE = os.environ.get("VOD_PRINT_BRIDGE_PAGESIZE", "Custom.29x90mm")
 DRY_RUN = os.environ.get("VOD_PRINT_BRIDGE_DRY_RUN", "").lower() in ("1", "true", "yes")
+CERT_PATH = os.environ.get("VOD_PRINT_BRIDGE_CERT", "")
+KEY_PATH = os.environ.get("VOD_PRINT_BRIDGE_KEY", "")
 MAX_BODY_BYTES = 10 * 1024 * 1024  # 10 MB hard cap pro Job
 
 ADMIN_ORIGINS = {
@@ -286,8 +289,18 @@ class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
 
 
 def main() -> None:
-    log.info("VOD Print Bridge %s starting on %s:%d (dry_run=%s, default_printer=%s)",
-             VERSION, HOST, PORT, DRY_RUN, DEFAULT_PRINTER)
+    tls_enabled = bool(
+        CERT_PATH and KEY_PATH
+        and os.path.isfile(CERT_PATH) and os.path.isfile(KEY_PATH)
+    )
+    scheme = "https" if tls_enabled else "http"
+    log.info("VOD Print Bridge %s starting on %s://%s:%d (tls=%s, dry_run=%s, default_printer=%s)",
+             VERSION, scheme, HOST, PORT, tls_enabled, DRY_RUN, DEFAULT_PRINTER)
+    if not tls_enabled:
+        log.warning("TLS is OFF — Safari will block fetch() from https://admin.vod-auctions.com. "
+                    "Install cert+key and set VOD_PRINT_BRIDGE_CERT / _KEY env vars. "
+                    "Run frank-macbook-setup/print-bridge/install-bridge.sh to provision mkcert certs.")
+
     printer = resolve_printer(DEFAULT_PRINTER)
     if printer:
         log.info("CUPS printer resolved: %s", printer)
@@ -299,6 +312,15 @@ def main() -> None:
     except OSError as e:
         log.error("bind %s:%d failed: %s", HOST, PORT, e)
         sys.exit(1)
+
+    if tls_enabled:
+        try:
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            context.load_cert_chain(certfile=CERT_PATH, keyfile=KEY_PATH)
+            server.socket = context.wrap_socket(server.socket, server_side=True)
+            log.info("TLS aktiviert (cert=%s)", CERT_PATH)
+        except (ssl.SSLError, OSError, ValueError) as e:
+            log.error("TLS-Setup fehlgeschlagen: %s — falle auf HTTP zurück", e)
 
     try:
         server.serve_forever()

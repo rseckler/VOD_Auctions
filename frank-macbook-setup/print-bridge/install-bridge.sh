@@ -102,6 +102,74 @@ ok "Bridge-Script installiert: $INSTALL_DIR/vod_print_bridge.py"
 # 3. Log-Verzeichnis
 mkdir -p "$LOG_DIR"
 
+# 3a. mkcert installieren (via Homebrew) + local CA ins System-Keychain setzen.
+# Safari blockiert fetch() von https://admin.vod-auctions.com nach http://127.0.0.1
+# als Mixed Content — selbst für Loopback. Wir brauchen also HTTPS auf der Bridge
+# mit einem Cert, dem der Browser vertraut. mkcert macht genau das: eine private
+# Root-CA ins System-Keychain, und davon signierte Certs für 127.0.0.1 / localhost.
+CERT_PATH="$INSTALL_DIR/cert.pem"
+KEY_PATH="$INSTALL_DIR/key.pem"
+MKCERT_OK=0
+
+step "HTTPS-Cert provisionieren (mkcert)"
+if command -v mkcert >/dev/null 2>&1; then
+  ok "mkcert vorhanden ($(mkcert -version 2>/dev/null || echo '?'))"
+else
+  if ! command -v brew >/dev/null 2>&1; then
+    warn "Homebrew fehlt — mkcert kann nicht installiert werden. Bridge läuft auf HTTP."
+    warn "Safari kann Bridge dann nicht aus Admin-UI erreichen (Mixed Content)."
+    warn "Fix: brew installieren → dieses Script neu starten."
+  else
+    echo "    brew install mkcert (dauert ~30s beim ersten Mal)..."
+    if brew install mkcert >/dev/null 2>&1; then
+      ok "mkcert via brew installiert"
+    else
+      warn "brew install mkcert fehlgeschlagen — bitte manuell: brew install mkcert"
+    fi
+  fi
+fi
+
+if command -v mkcert >/dev/null 2>&1; then
+  # Root-CA ins System-Keychain. Einmalig sudo-Prompt, idempotent.
+  # Wenn das hier fehlschlägt (z.B. non-interactive TTY), generieren wir
+  # trotzdem ein Cert — Bridge läuft dann HTTPS, nur der Browser vertraut
+  # dem Cert noch nicht. Für Frank muss -install klappen (sudo-GUI-Prompt
+  # erscheint interaktiv), sonst zeigt Safari "Ungültiges Zertifikat".
+  CA_TRUSTED=0
+  if security find-certificate -c "mkcert" /Library/Keychains/System.keychain >/dev/null 2>&1; then
+    ok "Lokale Root-CA bereits im System-Keychain"
+    CA_TRUSTED=1
+  else
+    echo "    Installiere lokale Root-CA ins System-Keychain (einmalig, sudo-Passwort gleich)..."
+    if mkcert -install 2>&1 | sed 's/^/    /'; then
+      ok "Lokale Root-CA installiert (System + Browser vertrauen jetzt den Bridge-Certs)"
+      CA_TRUSTED=1
+    else
+      warn "mkcert -install fehlgeschlagen (evtl. kein TTY für sudo-Prompt)."
+      warn "Bridge läuft trotzdem HTTPS, aber Safari sieht 'Ungültiges Zertifikat' bis CA trusted ist."
+      warn "Manuell nachholen: mkcert -install  (dann Admin-Passwort)"
+    fi
+  fi
+
+  # Cert für Bridge generieren. Regeneriert jedes Mal (billig, keine Ablauf-Probleme).
+  # SANs: 127.0.0.1 + localhost damit Client fetch zu beiden Hostnamen klappt.
+  if mkcert -cert-file "$CERT_PATH" -key-file "$KEY_PATH" 127.0.0.1 localhost >/dev/null 2>&1; then
+    chmod 600 "$KEY_PATH"
+    ok "Bridge-Cert: $CERT_PATH (SAN: 127.0.0.1, localhost)"
+    MKCERT_OK=1
+    [[ "$CA_TRUSTED" == "1" ]] && ok "Cert ist vom System vertraut — Admin-UI wird grün" \
+      || warn "Cert noch nicht vom System vertraut — mkcert -install nachholen"
+  else
+    warn "mkcert Cert-Generierung fehlgeschlagen — HTTP-Fallback"
+  fi
+fi
+
+if [[ "$MKCERT_OK" != "1" ]]; then
+  # HTTP-Fallback: Env-Vars leer, Python bridge merkt's und serviert HTTP
+  CERT_PATH=""
+  KEY_PATH=""
+fi
+
 # 4. plist rendern (Substitutionen — sed statt heredoc, damit Pfade mit Leerzeichen
 #    sauber escaped werden können)
 tmp_plist="$(mktemp)"
@@ -109,6 +177,8 @@ sed -e "s|__BRIDGE_SCRIPT__|$INSTALL_DIR/vod_print_bridge.py|g" \
     -e "s|__PRINTER_QUEUE__|$PRINTER_QUEUE|g" \
     -e "s|__DRY_RUN__|$DRY_RUN|g" \
     -e "s|__LOG_PATH__|$LOG_PATH|g" \
+    -e "s|__CERT_PATH__|$CERT_PATH|g" \
+    -e "s|__KEY_PATH__|$KEY_PATH|g" \
     "$BRIDGE_DIR/com.vod-auctions.print-bridge.plist.template" > "$tmp_plist"
 
 # Validieren bevor wir schreiben
@@ -139,22 +209,34 @@ launchctl enable "${domain}/${LABEL}" 2>/dev/null || true
 launchctl kickstart -k "${domain}/${LABEL}" 2>/dev/null || true
 sleep 1
 
-# 7. Health-Check — wartet bis zu 15s auf ersten Start
+# 7. Health-Check — wartet bis zu 15s auf ersten Start.
+#    Protokoll-Wahl: bei aktiviertem TLS https://, sonst http://. Probiert beides
+#    für Robustheit (mkcert könnte mid-install fehlschlagen). -k skipt Cert-Check,
+#    ist OK weil wir nur gegen localhost sprechen.
 step "Health-Check (bis zu 15s)"
 health=""
+protocol=""
 for i in $(seq 1 30); do
-  if response=$(curl -s --max-time 1 "http://127.0.0.1:17891/health" 2>/dev/null); then
-    if echo "$response" | grep -qE '"ok"[[:space:]]*:[[:space:]]*true'; then
-      health="$response"
-      break
+  for scheme in https http; do
+    if response=$(curl -sk --max-time 1 "${scheme}://127.0.0.1:17891/health" 2>/dev/null); then
+      if echo "$response" | grep -qE '"ok"[[:space:]]*:[[:space:]]*true'; then
+        health="$response"
+        protocol="$scheme"
+        break 2
+      fi
     fi
-  fi
+  done
   sleep 0.5
 done
 if [[ -n "$health" ]]; then
-  ok "Bridge antwortet: $health"
+  ok "Bridge antwortet ($protocol): $health"
+  if [[ "$protocol" != "https" ]]; then
+    warn "Bridge läuft auf HTTP — Safari-Admin wird OFFLINE zeigen wegen Mixed-Content-Block."
+    warn "Prüfe ob mkcert installiert ist: command -v mkcert"
+    warn "Dann Script neu starten."
+  fi
 else
-  err "Bridge antwortet nicht auf http://127.0.0.1:17891/health nach 15s"
+  err "Bridge antwortet weder auf https:// noch http://127.0.0.1:17891/health nach 15s"
   err "Logs: tail -f $LOG_PATH"
   err "Status: launchctl print ${domain}/${LABEL}"
   exit 1
@@ -164,14 +246,18 @@ fi
 echo
 ok "VOD Print Bridge läuft."
 echo
-echo "  Port:         17891 (nur 127.0.0.1)"
+echo "  Protokoll:    ${protocol}:// (nur 127.0.0.1)"
+echo "  Port:         17891"
 echo "  Drucker:      $PRINTER_QUEUE"
 echo "  Script:       $INSTALL_DIR/vod_print_bridge.py"
 echo "  LaunchAgent:  $PLIST_PATH"
 echo "  Logs:         tail -f $LOG_PATH"
+if [[ -n "$CERT_PATH" ]]; then
+  echo "  Cert:         $CERT_PATH"
+fi
 echo
 echo "Test-Druck (liest PDF von stdin):"
-echo "  curl -s -X POST http://127.0.0.1:17891/print \\"
+echo "  curl -sk -X POST ${protocol}://127.0.0.1:17891/print \\"
 echo "    -H 'Content-Type: application/pdf' \\"
 echo "    --data-binary @/pfad/zum/label.pdf"
 echo

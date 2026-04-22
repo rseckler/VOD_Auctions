@@ -13,7 +13,7 @@ import {
   type PrinterEntry,
 } from "../../lib/print-client"
 
-const BRIDGE_URL = "http://127.0.0.1:17891"
+const BRIDGE_URL = "https://127.0.0.1:17891"
 const HEALTH_POLL_MS = 5000
 
 type LogEntry = { at: string; ok: boolean; message: string; detail?: string }
@@ -347,11 +347,13 @@ function PrintTestPage() {
           Technische Details (für Entwickler)
         </summary>
         <div style={{ ...T.small, fontFamily: "ui-monospace, monospace", whiteSpace: "pre-wrap", color: C.muted, marginTop: S.gap.md }}>
-{`# Health
-curl -s http://127.0.0.1:17891/health
+{`# Health (HTTPS, mkcert-Cert)
+curl -s https://127.0.0.1:17891/health
+# oder (wenn mkcert local CA noch nicht trusted):
+curl -sk https://127.0.0.1:17891/health
 
 # Printers
-curl -s http://127.0.0.1:17891/printers
+curl -sk https://127.0.0.1:17891/printers
 
 # LaunchAgent-Status
 launchctl print gui/$(id -u)/com.vod-auctions.print-bridge
@@ -362,7 +364,7 @@ tail -f ~/Library/Logs/vod-print-bridge.log
 # Neu starten
 launchctl kickstart -k gui/$(id -u)/com.vod-auctions.print-bridge
 
-# Re-Install
+# Re-Install (inkl. mkcert-Setup)
 bash frank-macbook-setup/print-bridge/install-bridge.sh [--dry-run] [--uninstall]`}
         </div>
       </details>
