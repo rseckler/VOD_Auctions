@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
+import { buildReleaseSearchSubquery } from "../../../../lib/release-search"
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const pgConnection = req.scope.resolve<Knex>(ContainerRegistrationKeys.PG_CONNECTION)
@@ -21,36 +22,33 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const prefixPattern = `${q}%`
   const prefixLower = `${q.toLowerCase()}%`
 
+  // Releases: FTS-basierte Multi-Word-Suche gegen `Release.search_text`.
+  // Ranking via CASE auf erstem Token (feinere Heuristik als FTS ranking).
+  const releasesSubquery = buildReleaseSearchSubquery(pgConnection, q)
+
   try {
     const [releases, artists, labels] = await Promise.all([
-      // Releases: UNION sub-query over title / catalogNumber / artist.name,
-      // each hits its own GIN trgm index — avoids a Seq Scan on 52k rows.
-      pgConnection
-        .select(
-          "Release.id",
-          "Release.title",
-          "Release.coverImage",
-          "Release.format",
-          "Release.year",
-          "Artist.name as artist_name",
-          "Artist.slug as artist_slug",
-        )
-        .from("Release")
-        .leftJoin("Artist", "Release.artistId", "Artist.id")
-        .whereIn("Release.id", pgConnection.raw(`(
-          SELECT r.id FROM "Release" r WHERE lower(r.title) LIKE ?
-          UNION
-          SELECT r.id FROM "Release" r WHERE lower(r."catalogNumber") LIKE ?
-          UNION
-          SELECT r.id FROM "Release" r JOIN "Artist" a ON a.id = r."artistId"
-            WHERE lower(a.name) LIKE ?
-        )`, [lowerPattern, lowerPattern, lowerPattern]))
-        .andWhereNot("Release.coverImage", null)
-        .orderByRaw(
-          `CASE WHEN "Release"."title" ILIKE ? THEN 0 WHEN "Artist"."name" ILIKE ? THEN 1 ELSE 2 END`,
-          [searchPattern, searchPattern]
-        )
-        .limit(Math.ceil(limit * 0.6)),
+      releasesSubquery
+        ? pgConnection
+            .select(
+              "Release.id",
+              "Release.title",
+              "Release.coverImage",
+              "Release.format",
+              "Release.year",
+              "Artist.name as artist_name",
+              "Artist.slug as artist_slug",
+            )
+            .from("Release")
+            .leftJoin("Artist", "Release.artistId", "Artist.id")
+            .whereIn("Release.id", releasesSubquery)
+            .andWhereNot("Release.coverImage", null)
+            .orderByRaw(
+              `CASE WHEN "Release"."title" ILIKE ? THEN 0 WHEN "Artist"."name" ILIKE ? THEN 1 ELSE 2 END`,
+              [searchPattern, searchPattern]
+            )
+            .limit(Math.ceil(limit * 0.6))
+        : Promise.resolve([]),
 
       // Artists: single-column lower() LIKE uses idx_artist_name_trgm.
       pgConnection

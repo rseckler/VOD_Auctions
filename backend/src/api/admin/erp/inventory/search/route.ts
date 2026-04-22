@@ -2,6 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { requireFeatureFlag } from "../../../../../lib/inventory"
+import { buildReleaseSearchWhereRawAliased, getSearchTokens } from "../../../../../lib/release-search"
 
 /**
  * GET /admin/erp/inventory/search?q=<query>&limit=20
@@ -124,27 +125,30 @@ export async function GET(
   }
 
   // Step 2: Text search — searches ALL releases (not just Cohort A).
-  // Performance: Multi-column OR with leading-wildcard ILIKE would trigger a
-  // full-table scan across 52k+ releases (~6s). We instead materialize the
-  // matching release IDs via a UNION over 4 separate index-backed queries —
-  // each hits a dedicated GIN trgm index (idx_release_title_trgm,
-  // idx_artist_name_trgm, idx_release_catno_trgm, idx_release_article_trgm)
-  // with lower() LIKE lower() so the index actually engages. Then join the
-  // deduplicated IDs back to Release for the final projection.
-  // Result: ~128ms instead of ~6000ms for 52k rows, 20 limit.
-  const search = `%${q.toLowerCase()}%`
-  const prefixLower = q.toLowerCase() + '%'
+  // Performance: Nutzt Postgres FTS mit tsvector-GIN-Index auf denormalisierter
+  // `Release.search_text` Spalte (title + catalogNumber + article_number +
+  // artist.name + label.name). Multi-Word Search via AND-Semantik: alle
+  // Tokens muessen in search_text vorkommen. Siehe
+  // `backend/src/lib/release-search.ts` und Migration
+  // `2026-04-22_release_search_text_fts.sql`.
+  // Ergebnis: ~20ms statt 6s fuer 52k Rows, auch bei Multi-Word-Queries
+  // wie "music various" die in der alten ILIKE-Substring-Match keinen Treffer
+  // fanden (weil "music various" als exakte Zeichenkette nirgends steht).
+  const ftsClause = buildReleaseSearchWhereRawAliased(q, "r")
+  if (!ftsClause) {
+    res.json({ results: [], total: 0, match_type: "text" })
+    return
+  }
+
+  // Ranking: bei vorhandenem ersten Token bevorzugen wir artist/title-Matches
+  // (feinere Sortierung als FTS ranking). Das ist ein subjektiver Schliff,
+  // nicht performance-relevant.
+  const tokens = getSearchTokens(q)
+  const primaryToken = tokens[0]
+  const primaryLike = `%${primaryToken}%`
+  const primaryPrefix = `${primaryToken}%`
+
   const result = await pg.raw(`
-    WITH matches AS (
-      SELECT r.id FROM "Release" r WHERE lower(r.title) LIKE ?
-      UNION
-      SELECT r.id FROM "Release" r JOIN "Artist" a ON a.id = r."artistId"
-        WHERE lower(a.name) LIKE ?
-      UNION
-      SELECT r.id FROM "Release" r WHERE lower(r."catalogNumber") LIKE ?
-      UNION
-      SELECT r.id FROM "Release" r WHERE lower(r.article_number) LIKE ?
-    )
     SELECT
       r.id as release_id, r.title, r."coverImage", r.legacy_price, r.format,
       r."catalogNumber", r.article_number, r.year, r.country,
@@ -152,11 +156,11 @@ export async function GET(
       a.name as artist_name, l.name as label_name,
       COUNT(ii.id)::int as exemplar_count,
       COUNT(ii.id) FILTER (WHERE ii.last_stocktake_at IS NOT NULL)::int as verified_count
-    FROM matches m
-    JOIN "Release" r ON r.id = m.id
+    FROM "Release" r
     LEFT JOIN erp_inventory_item ii ON ii.release_id = r.id
     LEFT JOIN "Artist" a ON a.id = r."artistId"
     LEFT JOIN "Label" l ON l.id = r."labelId"
+    WHERE ${ftsClause.sql}
     GROUP BY r.id, a.name, l.name
     ORDER BY
       CASE
@@ -169,7 +173,7 @@ export async function GET(
       END,
       a.name ASC NULLS LAST, r.title ASC
     LIMIT ?
-  `, [search, search, search, search, q, q.toLowerCase(), q.toLowerCase(), prefixLower, prefixLower, limit])
+  `, [...ftsClause.bindings, q, primaryLike, primaryLike, primaryPrefix, primaryPrefix, limit])
 
   const results = result.rows.map((r: any) => ({
     release_id: r.release_id,

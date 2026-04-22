@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
+import { buildReleaseSearchSubquery } from "../../../lib/release-search"
 
 // Map German (and other common) country names to English DB values
 const COUNTRY_ALIASES: Record<string, string> = {
@@ -195,29 +196,18 @@ export async function GET(
 
   let countQuery = pgConnection("Release")
 
-  // Search filter — uses UNION over 5 index-backed sub-queries instead of
-  // ILIKE-OR-across-tables. Each sub-query hits its own GIN trgm index
-  // (lower(col) gin_trgm_ops) so Postgres builds a BitmapOr plan with ~100ms
-  // execution instead of ~6s Seq-Scan. Same semantic as the old query,
-  // verified via count-match for 5 test terms. See migration
-  // 2026-04-22_search_trigram_indexes.sql for the index layout.
+  // Search filter — Postgres FTS gegen denormalisierte `Release.search_text`
+  // (title + catalogNumber + article_number + artist.name + label.name).
+  // Tokens werden AND-verknuepft (alle Tokens muessen matchen), jedes Token
+  // als Prefix-Match. Nutzt GIN tsvector-Index `idx_release_search_fts`.
+  // Result: ~20ms + behebt Multi-Word-Bug ("music various" findet jetzt
+  // den Vanity-Various-Release). Siehe lib/release-search.ts.
   if (search && typeof search === "string" && search.trim()) {
-    const lowerTerm = `%${search.trim().toLowerCase()}%`
-    const matchSubquery = pgConnection.raw(`(
-      SELECT r.id FROM "Release" r WHERE lower(r.title) LIKE ?
-      UNION
-      SELECT r.id FROM "Release" r WHERE lower(r."catalogNumber") LIKE ?
-      UNION
-      SELECT r.id FROM "Release" r WHERE lower(r.article_number) LIKE ?
-      UNION
-      SELECT r.id FROM "Release" r JOIN "Artist" a ON a.id = r."artistId"
-        WHERE lower(a.name) LIKE ?
-      UNION
-      SELECT r.id FROM "Release" r JOIN "Label" l ON l.id = r."labelId"
-        WHERE lower(l.name) LIKE ?
-    )`, [lowerTerm, lowerTerm, lowerTerm, lowerTerm, lowerTerm])
-    query = query.whereIn("Release.id", matchSubquery)
-    countQuery = countQuery.whereIn("Release.id", matchSubquery)
+    const matchSubquery = buildReleaseSearchSubquery(pgConnection, search)
+    if (matchSubquery) {
+      query = query.whereIn("Release.id", matchSubquery)
+      countQuery = countQuery.whereIn("Release.id", matchSubquery)
+    }
   }
 
   // Format filter
