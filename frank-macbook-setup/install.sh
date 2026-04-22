@@ -128,10 +128,28 @@ else
 fi
 
 if [[ -d "/Applications/QZ Tray.app" ]]; then
-  if ! pgrep -f "QZ Tray" >/dev/null 2>&1; then
-    open "/Applications/QZ Tray.app" 2>/dev/null || true
+  # VOD Signing-Cert als "Trusted Root" bei QZ Tray registrieren — dadurch
+  # entfallen alle "Allow/Remember"-Dialoge beim Drucken. Ohne diesen Step
+  # muss der User bei JEDEM Print 4 Dialoge bestätigen (connect/getVersion/
+  # printers.find/print), alle mit ausgegrauter "Remember"-Checkbox weil
+  # das Cert für QZ Tray unsigned/untrusted ist.
+  QZ_CONFIG_DIR="$HOME/Library/Application Support/qz"
+  mkdir -p "$QZ_CONFIG_DIR"
+  if [[ -f "$KIT_DIR/qz-signing/override.crt" ]]; then
+    cp "$KIT_DIR/qz-signing/override.crt" "$QZ_CONFIG_DIR/override.crt"
+    ok "VOD-Signing-Cert als trusted root installiert ($QZ_CONFIG_DIR/override.crt)"
+  else
+    warn "override.crt nicht im Kit-Verzeichnis gefunden — Silent-Print ohne Dialog nicht möglich"
+  fi
+
+  # QZ Tray neustarten damit override.crt geladen wird
+  if pgrep -f "QZ Tray" >/dev/null 2>&1; then
+    pkill -f "QZ Tray" 2>/dev/null || true
     sleep 2
   fi
+  open "/Applications/QZ Tray.app" 2>/dev/null || true
+  sleep 2
+
   # Autostart: macOS Login Item setzen
   osascript -e 'tell application "System Events" to if not (exists (login item "QZ Tray")) then make login item at end with properties {path:"/Applications/QZ Tray.app", hidden:true}' 2>/dev/null \
     && ok "QZ Tray Autostart eingerichtet" || warn "Autostart konnte nicht gesetzt werden (kein Showstopper)"
