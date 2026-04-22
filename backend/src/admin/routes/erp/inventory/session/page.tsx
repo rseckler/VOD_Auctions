@@ -186,7 +186,6 @@ function StocktakeSessionPage() {
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null)
   const [showExitModal, setShowExitModal] = useState(false)
   const [printerStatus, setPrinterStatus] = useState<PrinterStatus>("none")
-  const [autoPrint, setAutoPrint] = useState(true)
   // Recent Items: zuletzt bearbeitete Platten (letzte 10), werden prominent
   // im Search-View angezeigt damit Frank den Kontext behält wenn er zwischen
   // Artikeln springt. Erweitert um Barcode, Preis, Condition für sinnvolle
@@ -214,6 +213,33 @@ function StocktakeSessionPage() {
     apiFetch<any>("/admin/erp/inventory/stats").then((s) => {
       setStats({ eligible: s.eligible, verified: s.verified })
     }).catch(() => {})
+    // Recent Activity aus DB laden — damit Frank auch nach Page-Reload die
+    // letzten bearbeiteten Platten sieht (war vorher nur in-memory State).
+    apiFetch<{ items: Array<{
+      release_id: string
+      artist: string
+      title: string
+      copy: number
+      barcode: string | null
+      price: number | null
+      condition: string | null
+      at: string
+    }> }>("/admin/erp/inventory/recent-activity?limit=10")
+      .then((r) => {
+        setRecentItems(
+          r.items.map((it) => ({
+            release_id: it.release_id,
+            artist: it.artist,
+            title: it.title,
+            copy: it.copy,
+            barcode: it.barcode,
+            price: it.price,
+            condition: it.condition,
+            at: new Date(it.at).getTime(),
+          }))
+        )
+      })
+      .catch(() => {})
     // Focus search on mount
     setTimeout(() => searchInputRef.current?.focus(), 100)
   }, [])
@@ -315,8 +341,13 @@ function StocktakeSessionPage() {
   }, [activeView, copies])
 
   // ── Verify ──
+  //
+  // Zwei-Button-Flow seit 2026-04-22: Frank braucht eine bewusste Trennung
+  // zwischen "Änderungen speichern" und "Label drucken". doPrint=true druckt
+  // zusätzlich nach dem Save, false speichert nur. Shortcut 'S' = Save,
+  // 'V' = Save+Print.
 
-  const handleVerify = async () => {
+  const handleVerify = async (doPrint: boolean = false) => {
     if (!releaseDetail) return
     setActionLoading(true)
 
@@ -338,10 +369,13 @@ function StocktakeSessionPage() {
         )
 
         let printResult: { silent: boolean } | null = null
-        if (autoPrint) printResult = await printLabel(result.item.id)
-        const printSuffix = printResult ? (printResult.silent ? " · printed" : " · print dialog opened") : ""
+        if (doPrint) printResult = await printLabel(result.item.id)
+        const printSuffix = printResult ? (printResult.silent ? " · gedruckt" : " · Druck-Dialog") : ""
 
-        setToast({ message: `Copy #${result.item.copy_number} created — ${result.item.barcode}${printSuffix}`, type: "success" })
+        setToast({
+          message: `Copy #${result.item.copy_number} gespeichert — ${result.item.barcode}${printSuffix}`,
+          type: "success",
+        })
         {
           const pr = parseFloat(priceValue.replace(",", "."))
           const condition = conditionMedia && conditionSleeve && conditionMedia !== conditionSleeve
@@ -389,10 +423,13 @@ function StocktakeSessionPage() {
         )
 
         let printResult: { silent: boolean } | null = null
-        if (autoPrint) printResult = await printLabel(editingCopy.id)
-        const printSuffix = printResult ? (printResult.silent ? " · printed" : " · print dialog opened") : ""
+        if (doPrint) printResult = await printLabel(editingCopy.id)
+        const printSuffix = printResult ? (printResult.silent ? " · gedruckt" : " · Druck-Dialog") : ""
 
-        setToast({ message: `Verified #${result.copy_number} — ${result.barcode}${printSuffix}`, type: "success" })
+        setToast({
+          message: `Exemplar #${result.copy_number} gespeichert — ${result.barcode}${printSuffix}`,
+          type: "success",
+        })
         {
           const pr = parseFloat(priceValue.replace(",", "."))
           const condition = conditionMedia && conditionSleeve && conditionMedia !== conditionSleeve
@@ -551,7 +588,10 @@ function StocktakeSessionPage() {
       // Detail view shortcuts
       if (activeView === "detail") {
         if (e.key === "v" || e.key === "V") {
-          if (editingCopy || isNewCopy) handleVerify()
+          if (editingCopy || isNewCopy) handleVerify(true)
+        }
+        if (e.key === "s" || e.key === "S") {
+          if (editingCopy || isNewCopy) handleVerify(false)
           return
         }
         if (e.key === "a" || e.key === "A") {
@@ -571,7 +611,7 @@ function StocktakeSessionPage() {
 
     window.addEventListener("keydown", handler)
     return () => window.removeEventListener("keydown", handler)
-  }, [activeView, searchResults, selectedResultIndex, editingCopy, isNewCopy, releaseDetail, stats, doSearch, conditionMedia, conditionSleeve, priceValue, noteText, autoPrint])
+  }, [activeView, searchResults, selectedResultIndex, editingCopy, isNewCopy, releaseDetail, stats, doSearch, conditionMedia, conditionSleeve, priceValue, noteText])
 
   // ─── RENDER ──────────────────────────────────────────────────────────────
 
@@ -586,13 +626,9 @@ function StocktakeSessionPage() {
     <PageShell>
       <PageHeader
         title="Stocktake Session"
-        subtitle={stats ? `${stats.verified.toLocaleString()} verified · ${stats.eligible.toLocaleString()} im Inventar · ${(stats as any).total_releases?.toLocaleString() || "..."} im Katalog` : "Loading..."}
+        subtitle={stats ? `${stats.verified.toLocaleString()} verified · ${stats.eligible.toLocaleString()} im Inventar · ${(stats as any).total_releases?.toLocaleString() || "..."} im Katalog` : "Startet..."}
         actions={
           <div style={{ display: "flex", gap: S.gap.md, alignItems: "center" }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", ...T.small }}>
-              <input type="checkbox" checked={autoPrint} onChange={(e) => setAutoPrint(e.target.checked)} />
-              Auto-Print
-            </label>
             <Badge
               label={printerStatus === "connected" ? "Silent Print" : "Browser Print"}
               variant={printerStatus === "connected" ? "success" : "info"}
@@ -892,7 +928,7 @@ function StocktakeSessionPage() {
                     inputMode="decimal"
                     value={priceValue}
                     onChange={(e) => setPriceValue(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") handleVerify() }}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleVerify(true) }}
                     style={{ ...inputStyle, width: 120 }}
                     placeholder="0"
                   />
@@ -964,20 +1000,31 @@ function StocktakeSessionPage() {
                   type="text"
                   value={noteText}
                   onChange={(e) => setNoteText(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") handleVerify() }}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleVerify(true) }}
                   style={{ ...inputStyle, width: "100%" }}
                   placeholder="Freitext..."
                 />
               </div>
 
-              <div style={{ display: "flex", gap: S.gap.md }}>
+              <div style={{ display: "flex", gap: S.gap.md, flexWrap: "wrap" }}>
                 <Btn
-                  label={actionLoading ? "Saving..." : "[V] Bestätigen"}
+                  label={actionLoading ? "Speichert..." : "[S] Nur Speichern"}
+                  variant="ghost"
+                  onClick={() => handleVerify(false)}
+                  disabled={actionLoading}
+                />
+                <Btn
+                  label={actionLoading ? "Speichert..." : "[V] Speichern & Drucken"}
                   variant="gold"
-                  onClick={handleVerify}
+                  onClick={() => handleVerify(true)}
                   disabled={actionLoading}
                 />
                 <Btn label="[Esc] Zurück" variant="ghost" onClick={backToSearch} />
+              </div>
+              <div style={{ ...T.small, color: C.muted, marginTop: S.gap.sm }}>
+                "Nur Speichern" persistiert Zustand + Preis ohne Druck.
+                "Speichern & Drucken" macht beides. Preis-Änderungen werden
+                immer ins Label übernommen.
               </div>
             </div>
           )}

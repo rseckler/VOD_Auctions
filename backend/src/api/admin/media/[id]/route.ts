@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
+import { createMovement } from "../../../../lib/inventory"
 
 // GET /admin/media/:id — Single release detail with sync history
 export async function GET(
@@ -286,14 +287,41 @@ export async function POST(
     // the correct current price without forcing Frank back into the stocktake
     // session. Multi-exemplar releases are skipped — each copy has its own
     // price and a release-level change would be ambiguous.
+    //
+    // Audit-Trail: wenn Preis-Mirror passiert, legen wir ein Movement an
+    // damit die Item-History im Catalog-Detail den Preis-Change zeigt
+    // (Franks Request 2026-04-22 — auch Non-Session-Änderungen müssen in
+    // der Item-History sichtbar sein).
+    let priceChangeAudit: {
+      itemId: string
+      oldPrice: number | null
+      newPrice: number
+    } | null = null
+
     const directPriceProvided =
       releaseUpdates.direct_price !== undefined && releaseUpdates.direct_price !== null
     if (directPriceProvided) {
-      const existingItems = await trx("erp_inventory_item").where("release_id", id).select("id")
+      const existingItems = await trx("erp_inventory_item")
+        .where("release_id", id)
+        .select("id", "exemplar_price")
       if (existingItems.length === 1) {
-        erpUpdatePayload.exemplar_price = Number(releaseUpdates.direct_price)
+        const newPrice = Number(releaseUpdates.direct_price)
+        const oldPrice =
+          existingItems[0].exemplar_price != null
+            ? Number(existingItems[0].exemplar_price)
+            : null
+        erpUpdatePayload.exemplar_price = newPrice
         erpUpdatePayload.price_locked = true
         erpUpdatePayload.price_locked_at = new Date()
+
+        // Nur als Audit markieren wenn der Preis sich tatsächlich ändert
+        if (oldPrice !== newPrice) {
+          priceChangeAudit = {
+            itemId: existingItems[0].id as string,
+            oldPrice,
+            newPrice,
+          }
+        }
       }
     }
 
@@ -304,6 +332,25 @@ export async function POST(
         await trx("erp_inventory_item").where("release_id", id).update(erpUpdatePayload)
       }
       // Don't auto-create erp_inventory_item — that's done via ERP inventory session
+    }
+
+    // Preis-Change-Movement anlegen damit die Item-History im Catalog-Detail
+    // (und im Session-Recent-Activity, sobald reasons auf "catalog_%" ebenfalls
+    // aufgenommen werden) die Catalog-basierte Preisänderung zeigt.
+    if (priceChangeAudit) {
+      const actor = (req as any).auth_context?.actor_id || "admin"
+      await createMovement(trx, {
+        inventoryItemId: priceChangeAudit.itemId,
+        type: "adjustment",
+        quantityChange: 0,
+        reason: "catalog_price_update",
+        performedBy: actor,
+        reference: JSON.stringify({
+          old_price: priceChangeAudit.oldPrice,
+          new_price: priceChangeAudit.newPrice,
+          source: "catalog_detail",
+        }),
+      })
     }
   })
 

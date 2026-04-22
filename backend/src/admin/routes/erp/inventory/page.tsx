@@ -188,10 +188,13 @@ function InventoryHubPage() {
   }
 
   // ── Render ──
-
-  if (loading) {
-    return <PageShell><div style={{ color: C.muted, fontSize: 13 }}>Loading inventory stats...</div></PageShell>
-  }
+  //
+  // Kein Full-Page-Loading-Block mehr (Frank hat "5-10s Ladezeit bevor
+  // überhaupt etwas erscheint" gemeldet). Page rendert Struktur sofort,
+  // Stats-Zellen zeigen "—" als Placeholder bis stats gefetcht sind.
+  // Backend-Endpoint /stats ist zwar seit rc34 optimiert (150ms) aber
+  // die gefühlte Performance wird durch Skeleton-Rendering besser weil
+  // der User sofort den Kontext der Seite sieht.
 
   if (error && !stats) {
     return <PageShell><Alert type="error">{error}</Alert></PageShell>
@@ -200,6 +203,7 @@ function InventoryHubPage() {
   const progressPercent = stats
     ? Math.round(((stats.verified + stats.missing) / Math.max(stats.eligible, 1)) * 100)
     : 0
+  const statPlaceholder = "—"
 
   const totalPages = Math.ceil(browseTotal / BROWSE_LIMIT)
   const currentPage = Math.floor(browseOffset / BROWSE_LIMIT) + 1
@@ -241,17 +245,21 @@ function InventoryHubPage() {
         }
       />
 
-      {/* ── Stats Grid ── */}
+      {/* ── Stats Grid ── Skeleton-Rendering: Zellen immer da, Werte
+          ersetzen sich sobald der /stats-Fetch zurückkommt. Kein Full-Page-
+          Loading-Block mehr. */}
+      <>
+        <StatsGrid
+          stats={[
+            { label: "Katalog gesamt", value: stats?.total_releases?.toLocaleString() ?? statPlaceholder },
+            { label: "Im Inventar", value: stats?.eligible?.toLocaleString() ?? statPlaceholder, color: C.gold },
+            { label: "Verifiziert", value: stats?.verified?.toLocaleString() ?? statPlaceholder, color: C.success },
+            { label: "Ausstehend", value: stats?.remaining?.toLocaleString() ?? statPlaceholder, color: stats && stats.remaining > 0 ? C.warning : C.success },
+          ]}
+        />
+      </>
       {stats && (
         <>
-          <StatsGrid
-            stats={[
-              { label: "Katalog gesamt", value: stats.total_releases.toLocaleString() },
-              { label: "Im Inventar", value: stats.eligible.toLocaleString(), color: C.gold },
-              { label: "Verifiziert", value: stats.verified.toLocaleString(), color: C.success },
-              { label: "Ausstehend", value: stats.remaining.toLocaleString(), color: stats.remaining > 0 ? C.warning : C.success },
-            ]}
-          />
 
           {/* Progress bar */}
           <div style={{ marginTop: 16, marginBottom: 8 }}>
