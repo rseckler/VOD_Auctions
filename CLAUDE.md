@@ -169,6 +169,7 @@ npm run build && pm2 restart vodauction-storefront
 - `GET /store/account/gdpr-export` — DSGVO Datenexport (auth)
 
 ### Admin (credentials required)
+- `GET /admin/print-test/sample-label` — Sample-Label-PDF (29×90mm, Test-Daten „Cabaret Voltaire") für Print-Bridge-Diagnose, genutzt von `/app/print-test`
 - `POST /admin/ai-chat` — AI Assistant Chat (SSE Streaming, Claude Haiku, 5 read-only Tools)
 - `POST /admin/ai-create-auction` — AI Auction Creator (SSE, Claude Sonnet, 3 write Tools: search_catalog, create_auction_draft, add_items_to_block)
 - `GET/POST /admin/auction-blocks` — Blocks CRUD
