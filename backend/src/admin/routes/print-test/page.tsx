@@ -156,47 +156,79 @@ function PrintTestPage() {
   return (
     <PageShell>
       <PageHeader
-        title="Print Bridge Diagnostik"
-        subtitle="Lokaler Silent-Print-Daemon auf 127.0.0.1:17891 (ersetzt QZ Tray seit rc35)"
+        title="Drucker-Test"
+        subtitle="Hier kannst Du prüfen, ob der Etikettendruck funktioniert, und ein Test-Etikett drucken."
         badge={healthBadge}
       />
 
       {toast && <Toast message={toast.message} type={toast.type} onDone={() => setToast(null)} />}
 
-      {/* Health-Card */}
+      {/* Status-Card — große Ampel + klare Handlung */}
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: S.gap.lg, marginBottom: S.gap.lg }}>
-        <SectionHeader title="Bridge-Status" />
         {!health ? (
-          <div style={{ ...T.body, color: C.muted }}>
-            <p>Bridge antwortet nicht auf <code>{BRIDGE_URL}/health</code>.</p>
-            <div style={{ marginTop: S.gap.sm }}>Mögliche Ursachen:</div>
-            <ul style={{ marginTop: 4, marginLeft: 20 }}>
-              <li>LaunchAgent nicht installiert → <code>bash frank-macbook-setup/print-bridge/install-bridge.sh</code></li>
-              <li>Bridge crashed → <code>tail -f ~/Library/Logs/vod-print-bridge.log</code></li>
-              <li>Browser blockiert Localhost (Chrome PNA) → DevTools Konsole checken</li>
-            </ul>
+          <div style={{ ...T.body }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: C.error, marginBottom: S.gap.md }}>
+              🔴 Der Drucker-Dienst läuft gerade nicht
+            </div>
+            <p style={{ marginBottom: S.gap.md }}>
+              Das Admin-Backend kann die Druck-Brücke auf diesem Mac nicht erreichen. Etiketten können
+              aktuell nicht im Hintergrund gedruckt werden — der Browser öffnet stattdessen den
+              normalen Druck-Dialog (Cmd+P).
+            </p>
+            <div style={{ background: "#fff", border: `1px solid ${C.border}`, borderRadius: 6, padding: S.gap.md, marginBottom: S.gap.md }}>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>Was jetzt?</div>
+              <p style={{ margin: 0 }}>
+                Bitte bei <strong>Robin</strong> melden (<a href="mailto:rseckler@gmail.com">rseckler@gmail.com</a>).
+                Er startet den Druck-Dienst per Fernwartung in ein paar Minuten. Bis dahin funktioniert
+                der normale Druck-Dialog weiter.
+              </p>
+            </div>
+            <div style={{ ...T.small, color: C.muted }}>
+              Status wird alle 5 Sekunden automatisch geprüft — sobald der Dienst wieder läuft,
+              verschwindet diese Meldung ohne Neuladen.
+            </div>
           </div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: S.gap.md, ...T.body }}>
-            <KV k="Version" v={health.version || "?"} />
-            <KV k="Konfigurierter Drucker" v={health.printer || "—"} />
-            <KV k="CUPS verfügbar" v={health.cups_available ? "ja" : "nein"} good={!!health.cups_available} />
-            <KV k="Drucker gefunden" v={health.printer_found ? "ja" : "nein"} good={!!health.printer_found} />
-            <KV k="Dry-Run-Mode" v={health.dry_run ? "AN (Test)" : "AUS (Prod)"} good={!health.dry_run} warn={!!health.dry_run} />
-            <KV k="Letzter Ping" v={lastAt ? new Date(lastAt).toLocaleTimeString() : "—"} />
-          </div>
+          <>
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: S.gap.md, color: health.dry_run ? C.warning : health.printer_found ? C.success : C.warning }}>
+              {health.dry_run
+                ? "🟡 Drucker-Dienst läuft im Test-Modus"
+                : health.printer_found
+                ? "🟢 Drucker-Dienst bereit"
+                : "🟡 Drucker-Dienst läuft, aber kein Etiketten-Drucker gefunden"}
+            </div>
+            <div style={{ ...T.body, marginBottom: S.gap.md }}>
+              {health.dry_run ? (
+                <p style={{ margin: 0 }}>
+                  Der Dienst nimmt Druck-Aufträge an, druckt aber nichts aus. Das ist nur für Tests
+                  auf einem Mac ohne angeschlossenen Etiketten-Drucker (z.B. Robins Dev-Rechner).
+                </p>
+              ) : health.printer_found ? (
+                <p style={{ margin: 0 }}>
+                  Etiketten werden ab sofort im Hintergrund gedruckt, ohne Druck-Dialog. Du kannst
+                  unten ein Test-Etikett drucken um es zu prüfen.
+                </p>
+              ) : (
+                <p style={{ margin: 0 }}>
+                  Der Dienst läuft, aber <strong>{health.printer || "der erwartete Drucker"}</strong>{" "}
+                  ist gerade nicht im System. Prüfe ob der Brother-Drucker eingeschaltet und im WLAN ist.
+                </p>
+              )}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: S.gap.md, ...T.body, fontSize: 12 }}>
+              <KV k="Drucker" v={health.printer || "—"} />
+              <KV k="Drucker erkannt" v={health.printer_found ? "Ja" : "Nein"} good={!!health.printer_found} />
+              <KV k="Letzter Ping" v={lastAt ? new Date(lastAt).toLocaleTimeString() : "—"} />
+            </div>
+          </>
         )}
-        <div style={{ marginTop: S.gap.md, display: "flex", gap: S.gap.sm }}>
-          <Btn label="Health refresh" variant="ghost" onClick={handleHealthPing} disabled={busy} />
-          <Btn label="Printers neu laden" variant="ghost" onClick={runPrinters} disabled={busy} />
-        </div>
       </div>
 
       {/* Printers-Card */}
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: S.gap.lg, marginBottom: S.gap.lg }}>
         <SectionHeader title={`CUPS-Queues (${printers.length})`} />
         {printers.length === 0 ? (
-          <p style={{ ...T.small, color: C.muted }}>Keine Queues gefunden. Bridge offline oder <code>lpstat -e</code> leer.</p>
+          <p style={{ ...T.small, color: C.muted }}>Keine Drucker gefunden. Sobald der Drucker-Dienst läuft, erscheinen hier alle installierten Drucker.</p>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse", ...T.body }}>
             <thead>
@@ -309,10 +341,12 @@ function PrintTestPage() {
         )}
       </div>
 
-      {/* CLI-Hinweise */}
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: S.gap.lg, marginTop: S.gap.lg }}>
-        <SectionHeader title="CLI-Diagnose (Terminal)" />
-        <div style={{ ...T.small, fontFamily: "ui-monospace, monospace", whiteSpace: "pre-wrap", color: C.muted }}>
+      {/* CLI-Hinweise — nur aufklappbar (für Robin/Entwickler) */}
+      <details style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: S.gap.lg, marginTop: S.gap.lg }}>
+        <summary style={{ ...T.small, color: C.muted, cursor: "pointer", fontWeight: 600 }}>
+          Technische Details (für Entwickler)
+        </summary>
+        <div style={{ ...T.small, fontFamily: "ui-monospace, monospace", whiteSpace: "pre-wrap", color: C.muted, marginTop: S.gap.md }}>
 {`# Health
 curl -s http://127.0.0.1:17891/health
 
@@ -331,7 +365,7 @@ launchctl kickstart -k gui/$(id -u)/com.vod-auctions.print-bridge
 # Re-Install
 bash frank-macbook-setup/print-bridge/install-bridge.sh [--dry-run] [--uninstall]`}
         </div>
-      </div>
+      </details>
     </PageShell>
   )
 }
