@@ -44,7 +44,10 @@ def main():
     pg = psycopg2.connect(db_url)
     try:
         cur = pg.cursor()
-        cur.execute('SELECT COUNT(*) FROM "Release" WHERE "coverImage" IS NOT NULL')
+        # Must match what meilisearch_sync.py actually pushes to Meili
+        # (all Release rows, no coverImage filter — visibility is handled
+        # by Meili filter `has_cover: true` at query time, not at index time).
+        cur.execute('SELECT COUNT(*) FROM "Release"')
         db_count = cur.fetchone()[0]
 
         for profile in PROFILES:
