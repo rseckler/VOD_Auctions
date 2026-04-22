@@ -445,6 +445,7 @@ VOD_Auctions/
 - Für operative Details immer `docs/TODO.md` nutzen — keine Task-Listen in CLAUDE.md pflegen
 - Bei Meilensteinen (Release, Blocker gelöst, Phase abgeschlossen): Current Focus hier aktualisieren
 - Große Themen, externe Blocker und mehrwöchige Epics leben in Linear, nicht hier
+- **Nach jedem Deploy auf Prod mit Tag-würdiger Änderung:** `docs/architecture/CHANGELOG.md` UND GitHub Release (`gh release create vX.X.X-rcXX --target <commit>`) pflegen. Release-Notes kompakter als CHANGELOG, aber Key-Messungen + Breaking Changes drin. Wenn GitHub Releases älter als CHANGELOG ist → nachziehen. Siehe 3-Ebenen-Modell in `PROJECTS/CLAUDE.md` (erweitert um Release-Kommunikation 2026-04-22).
 
 ## Linear
 
