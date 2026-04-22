@@ -1,7 +1,7 @@
 # VOD Auctions — TODO
 
 Operative Aufgabenliste. Single Source of Truth für laufende Arbeit.
-**Letzte Aktualisierung:** 2026-04-22 (rc39 — Catalog/Inventur Search-Sweep + Mirror-Fix: 6 Punkte aus Frank-Bug-Report. Meilisearch-Konzept v1 reviewed, v2 in Arbeit.)
+**Letzte Aktualisierung:** 2026-04-22 (rc40 — Meilisearch Phase 1 live. `SEARCH_MEILI_CATALOG` ON, Storefront-Catalog + Suggest via Meili, Typo-Tolerance + Facets. Admin-Endpoints weiterhin Postgres-FTS. Dark-Mode-Fix in Admin-Tokens.)
 
 ## Arbeitslogik
 
@@ -27,7 +27,7 @@ Kommt dran sobald ein Now-Slot frei wird oder ein Blocker sich löst.
 4. **Redis + Rate-Limiting + Datenschutz-Fix** — Launch-Blocker (Brute-Force-Schutz + DSGVO-Konsistenz)
 5. **Sendcloud-Integration** — Voraussetzungen vorhanden, Code pending
 6. **Sync Monitoring** — Dead-Man's-Switch + Alerting
-7. **Meilisearch Search-Engine Phase 1** — Stufe-3-Migration (`docs/optimizing/SEARCH_MEILISEARCH_PLAN.md`). Konzept v2 nach Robin-Review im Background-Agent in Arbeit. ~3.5 Manntage Aufwand. Frühestens nach Pre-Launch ziehen, nicht in Phase 1 vom Soft-Launch.
+7. **[x] Meilisearch Search-Engine Phase 1** — **done 2026-04-22 (rc40).** Live auf VPS (Docker, localhost:7700), Two-Profile-Index (`releases-commerce` + `releases-discovery`, je 52.777 docs), Flag `SEARCH_MEILI_CATALOG` ON, 3-Gate-Runtime-Fallback (flag → health-probe → try/catch). p95 Latency /store/catalog 48-58ms (vorher 6+s), Typo-Tolerance wirkt ("cabarte voltarie" findet Cabaret Voltaire). 4 Cronjobs (delta 5min, cleanup täglich, drift 30min, dump täglich). Admin-Endpoints bleiben Postgres-FTS. Siehe [`docs/optimizing/SEARCH_MEILISEARCH_PLAN.md`](optimizing/SEARCH_MEILISEARCH_PLAN.md) + [`docs/optimizing/MEILI_PHASE1_DEPLOYMENT_STEPS.md`](optimizing/MEILI_PHASE1_DEPLOYMENT_STEPS.md).
 
 ## Later
 

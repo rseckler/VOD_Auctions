@@ -2,7 +2,7 @@
 
 **Purpose:** Auktionsplattform für ~41.500 Produkte (Industrial Music Tonträger + Literatur/Merch) — eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Beta Test (`platform_mode: beta_test`) · Storefront+Admin-UI: Englisch
-**Last Updated:** 2026-04-22 (rc39)
+**Last Updated:** 2026-04-22 (rc40 — Meilisearch Phase 1 live)
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
 
@@ -70,7 +70,8 @@ cd /root/VOD_Auctions/storefront && npm run build && pm2 restart vodauction-stor
 **DB:**
 - CamelCase (`Release`, `Artist`) vs snake_case (Auction-Tabellen)
 - `rejectUnauthorized: false` in medusa-config SSL
-- Supabase Admin-Ops nur via Session Pooler (`aws-0-<REGION>.pooler.supabase.com:5432`, User `postgres.<ref>`). Transaction Pooler Port 6543 kann kein `pg_dump`
+- Supabase Admin-Ops nur via Session Pooler (`aws-0-<REGION>.pooler.supabase.com:5432`, User `postgres.<ref>`). Transaction Pooler Port 6543 kann kein `pg_dump`. **Schema-Migrations bevorzugt über Supabase MCP** (`apply_migration`) — wrappt Transaction, idempotent, kein psql/libpq nötig
+- **Staging-DB ist nicht mehr verfügbar:** Die in alten Commits erwähnte Staging-DB `aebcwjjcextzvflrjgei` (eu-west-1) existiert nicht mehr (DNS löst nicht mehr auf). Für Dry-Runs aktuell kein Staging — Option A: temporärer Supabase-Branch (~$0.01/h via MCP `create_branch`), Option B: lokales `docker run postgres:17` mit Dump-Restore, Option C: idempotente Migrations direkt auf Prod wenn additiv + rollback-script parat (Bevorzugt für additive Changes wie Meili-Sync-Tables rc40)
 - `pg_dump` Version Mismatch: VPS hat v16, Supabase PG17 → `docker run --rm --network=host postgres:17 pg_dump ...`
 - Supabase DB-Passwörter alphanumerisch halten — Sonderzeichen killen Shell-Paste
 
@@ -89,6 +90,16 @@ cd /root/VOD_Auctions/storefront && npm run build && pm2 restart vodauction-stor
 - `BID_CONFIG.whole_euros_only: true` erzwingt ganzzahlige Gebote (auch Proxy-Max)
 - Hidden Storefront-Sections: `{/* HIDDEN: ... */}` Marker (aktuell Discogs-Preise, 5 Dateien) — wiederherstellen nicht löschen
 - UI/UX Governance: `docs/UI_UX/` — Shared Components (`Button`, `Input`, `Label`, `Card`) sind Pflicht
+- **Admin Dark-Mode (rc40):** Keine hardcoded `background: "#fff"` oder `"white"` in neuen Admin-Komponenten. Immer `C.card` aus `admin-tokens.ts` nutzen. Neutral-Tokens (`C.card/text/muted/border/hover/subtle`) sind CSS-Variables die auf Medusa's `.dark` Root-Class flippen. Accent-Colors (`C.gold/success/error/blue/purple/warning`) sind konstant (in beiden Modes lesbar). Einzige erlaubte Ausnahme: Toggle-Knob auf farbigem Slider (Kontrast-Requirement) und Email-Preview-iframe. Badge-Opacity-Concat (`color + "12"`) funktioniert nur mit Accent-Hex, nicht mit CSS-Var-Tokens — `BADGE_VARIANTS.neutral` nutzt explizite Werte
+
+**Meilisearch (rc40+):**
+- Single Source of Truth für Docs: `meilisearch_sync.py` pusht ALLE `Release`-Rows (auch ohne coverImage). Visibility wird zur Query-Zeit via Meili-Filter `has_cover: true` gesteuert, nicht beim Indexing. `meilisearch_drift_check.py` muss entsprechend `COUNT(*)` zählen, nicht `WHERE coverImage IS NOT NULL`
+- Settings-API: `primaryKey` gehört zu `POST /indexes`, nicht zu `PATCH /indexes/:uid/settings` — 400 bad_request. `apply_settings()` strippt `primaryKey` defensiv
+- Tasks-API-Race: `taskUid` ist synchron in der POST-Response, aber `/tasks/:uid` kann bis zu 5 Sek 404 returnen (swap-indexes nach heavy batch-push). `wait_for_task()` retried 404 in den ersten 5s
+- Long-running Loops wie `--full-rebuild` dürfen mitten im Build crashen ohne Prod-Impact: Staging-Indexes werden über atomic swap erst aktiv, Prod-Index bleibt intakt. Orphan-Staging-Indexes manuell cleanen via DELETE `/indexes/:staging`
+- ENV-Loading auf VPS über `scripts/meili-cron-env.sh` Wrapper (sourced beide .env-Files + aliased `DATABASE_URL` → `SUPABASE_DB_URL` für das Sync-Script)
+- Meili SDK `meilisearch@^0.45.0` (CJS-kompatibel). `0.57+` ist ESM-only und funktioniert NICHT im Medusa 2.x CJS-Runtime — `TS1479: CommonJS module whose imports will produce 'require' calls`
+- Flag-Kill-Switch: `/app/config` OFF → Postgres-FTS sofort live, kein Deploy nötig. Auch via SQL-UPDATE auf `site_config.features`
 
 **Cwd-independente Pfade:** Backend nutzt NIE `process.cwd()`/relative `__dirname`. Immer `getProjectRoot()` etc. aus `backend/src/lib/paths.ts`. PM2 cwd ist `.medusa/server/`, nicht Source-Tree.
 
@@ -97,7 +108,7 @@ cd /root/VOD_Auctions/storefront && npm run build && pm2 restart vodauction-stor
 ## Database Schema
 
 **Legacy (camelCase, Knex-Only):**
-- `Release` (~41.5k) — `product_category`: release/band_literature/label_literature/press_literature. Visibility: `coverImage IS NOT NULL`. Kaufbar: `legacy_price > 0 AND legacy_available = true`. **`search_text`** denormalisiert (title + catalogNumber + article_number + Artist.name + Label.name) mit GIN-tsvector `idx_release_search_fts` + Trigger für Auto-Pflege. `sale_mode`: `auction_only`|`direct_purchase`|`both`
+- `Release` (~52.8k total, ~44k mit coverImage) — `product_category`: release/band_literature/label_literature/press_literature. Visibility: `coverImage IS NOT NULL`. Kaufbar: `legacy_price > 0 AND legacy_available = true`. **`search_text`** denormalisiert (title + catalogNumber + article_number + Artist.name + Label.name) mit GIN-tsvector `idx_release_search_fts` + Trigger für Auto-Pflege. **`search_indexed_at`** (rc40): `TIMESTAMPTZ NULL`, NULL = "needs Meili-reindex", gesetzt via 3 Trigger (Release self mit 22-Feld-Whitelist, entity_content, erp_inventory_item) + explicit bumps in legacy_sync_v2.py + discogs_daily_sync.py. Partial Index `idx_release_search_indexed_at_null`. `sale_mode`: `auction_only`|`direct_purchase`|`both`
 - `Artist` (12.451), `Label` (3.077), `PressOrga` (1.983), `Format` (39), `Image` (+`rang`), `Track`, `ReleaseArtist`
 - `sync_change_log` (14-Field Diff, v2 seit 2026-04-05) + `sync_log` (Run-Summary mit run_id/phase/rows_*/validation_status)
 - `entity_content` (CMS Band/Label/Press), `gallery_media` (9 Sektionen), `content_block`, `shipping_*` (5 Tabellen)
@@ -109,6 +120,7 @@ cd /root/VOD_Auctions/storefront && npm run build && pm2 restart vodauction-stor
 - CRM: `customer_stats` (stündlicher Recalc), `customer_note`, `customer_audit_log`
 - Discogs Import (v6.0, rc26): `import_session`, `import_event`, `discogs_api_cache`, `import_log`, `session_locks` (Lock-Heartbeat 30s, Stale 150s). Siehe `docs/architecture/DISCOGS_IMPORT_SESSION_LOCK_PLAN.md`
 - ERP: `erp_inventory_item` (mit `copy_number`, `condition_media/sleeve`, `exemplar_price`, UNIQUE(release_id, copy_number)), `erp_inventory_movement`, `bulk_price_adjustment_log`
+- Meilisearch Sync (rc40): `meilisearch_index_state` (release_id PK, indexed_at, doc_hash — defense-in-depth für Delta-Sync), `meilisearch_drift_log` (30-min cron, severity ok/warning/critical)
 
 **bilder_typ Mapping (Regression-Schutz):** 10=releases, 13=band_literature, 14=labels_literature, 12=pressorga_literature
 
@@ -116,7 +128,7 @@ cd /root/VOD_Auctions/storefront && npm run build && pm2 restart vodauction-stor
 
 ## API Quickref
 
-**Store (x-publishable-api-key):** `/store/auction-blocks[/:slug]`, `/store/catalog[/:id]`, `/store/band|label|press/:slug`, `/store/gallery`, `/store/account/{bids,cart,orders,saved,status,gdpr-export}`, Payment: `/create-payment-intent`, `/create-paypal-order`, `/capture-paypal-order`, Invoice: `/orders/:groupId/invoice`
+**Store (x-publishable-api-key):** `/store/auction-blocks[/:slug]`, `/store/catalog[/:id]`, `/store/catalog/suggest` (rc40: Meili discovery-profile, highlight), `/store/labels/suggest` (rc40: Postgres trgm, Label-Picker), `/store/band|label|press/:slug`, `/store/gallery`, `/store/account/{bids,cart,orders,saved,status,gdpr-export}`, Payment: `/create-payment-intent`, `/create-paypal-order`, `/capture-paypal-order`, Invoice: `/orders/:groupId/invoice`
 
 **Admin:** Groups:
 - Auction: `/auction-blocks` (CRUD, delete, live-bids, bids-log)
@@ -170,6 +182,8 @@ RUDDERSTACK_WRITE_KEY, RUDDERSTACK_DATA_PLANE_URL
 ANTHROPIC_API_KEY            # AI Assistant
 R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY
 SUPPORT_EMAIL, PRIVACY_EMAIL, EMAIL_FROM
+MEILI_URL=http://127.0.0.1:7700        # rc40: localhost Meili (Docker)
+MEILI_ADMIN_API_KEY                    # rc40: 1Password "VOD Meilisearch Master Key" (Work)
 
 # storefront/.env.local
 NEXT_PUBLIC_{STRIPE_PUBLISHABLE_KEY,PAYPAL_CLIENT_ID,SUPABASE_URL,SUPABASE_ANON_KEY,BREVO_CLIENT_KEY,GA_MEASUREMENT_ID}
@@ -191,13 +205,21 @@ OPENAI_API_KEY, LASTFM_API_KEY, YOUTUBE_API_KEY, BRAVE_API_KEY, SUPABASE_DB_URL,
 ## Cronjobs (VPS) & Scripts
 
 ```bash
-# Crontab
+# Crontab (VPS)
 0 * * * * cd ~/VOD_Auctions/scripts && venv/bin/python3 legacy_sync_v2.py >> legacy_sync.log 2>&1
 0 2 * * 1-5 cd ~/VOD_Auctions/scripts && venv/bin/python3 discogs_daily_sync.py >> discogs_daily.log 2>&1
+
+# Meili cron (rc40, via meili-cron-env.sh Wrapper)
+*/5 * * * *  . ~/VOD_Auctions/scripts/meili-cron-env.sh && cd ~/VOD_Auctions/scripts && venv/bin/python3 meilisearch_sync.py >> meilisearch_sync.log 2>&1
+0 3 * * *    . ~/VOD_Auctions/scripts/meili-cron-env.sh && cd ~/VOD_Auctions/scripts && venv/bin/python3 meilisearch_sync.py --cleanup >> meilisearch_sync.log 2>&1
+*/30 * * * * . ~/VOD_Auctions/scripts/meili-cron-env.sh && cd ~/VOD_Auctions/scripts && venv/bin/python3 meilisearch_drift_check.py >> meilisearch_drift.log 2>&1
+0 4 * * *    . ~/VOD_Auctions/scripts/meili-cron-env.sh && curl -fsS -X POST -H "Authorization: Bearer $MEILI_MASTER_KEY" http://127.0.0.1:7700/dumps >> ~/VOD_Auctions/scripts/meili_dumps.log 2>&1 && find /root/meilisearch/dumps -mtime +7 -delete
 
 # Scripts (scripts/venv aktivieren)
 python3 legacy_sync_v2.py [--dry-run] [--pg-url "$STAGING_URL"]
 python3 discogs_daily_sync.py [--chunk 2 --rate 25]
+python3 meilisearch_sync.py [--apply-settings|--full-rebuild|--cleanup|--dry-run]
+python3 meilisearch_drift_check.py
 python3 entity_overhaul/orchestrator.py --type artist --phase P2
 python3 validate_labels.py [--commit data/label_validation_review.csv]
 python3 crm_import.py --phase 2
@@ -211,9 +233,13 @@ python3 crm_import.py --phase 2
 - **Admin Design System:** `admin/components/` — `admin-tokens.ts`, `admin-layout.tsx` (PageHeader/Tabs/StatsGrid), `admin-ui.tsx` (Badge/Toggle/Toast/Modal). Verbindlicher Guide: `docs/DESIGN_GUIDE_BACKEND.md` v2.0
 - **Admin Navigation:** 8 Sidebar-Items (Dashboard, Auction Blocks, Orders, Catalog, Marketing, Operations, ERP, AI Assistant). Sub-Pages nur über Hub-Karten
 - **Deployment Methodology:** "Deploy early, activate when ready" — Feature Flags in `backend/src/lib/feature-flags.ts` + `site_config.features` JSONB. Additive-only Migrationen. Siehe [`docs/architecture/DEPLOYMENT_METHODOLOGY.md`](docs/architecture/DEPLOYMENT_METHODOLOGY.md)
-- **Sync-Architektur:** `legacy_sync_v2.py` stündlich, 14-Field Diff + V1-V4 Post-Run-Validation. Staging DB `aebcwjjcextzvflrjgei` (eu-west-1). A5/A6 (Dead-Man-Switch + Alerting) pending. Siehe `docs/architecture/SYNC_ROBUSTNESS_PLAN.md`
+- **Sync-Architektur:** `legacy_sync_v2.py` stündlich, 14-Field Diff + V1-V4 Post-Run-Validation. A5/A6 (Dead-Man-Switch + Alerting) pending. Plus seit rc40: explicit bumps `search_indexed_at=NULL` nach jedem Release-Write (defense-in-depth für Meili-Delta-Sync, weil Trigger A nur auf UPDATE feuert, nicht INSERT-Branch des UPSERT). Siehe `docs/architecture/SYNC_ROBUSTNESS_PLAN.md`
 - **Catalog Visibility:** `coverImage IS NOT NULL` = sichtbar · `legacy_price > 0 AND legacy_available = true` = kaufbar
-- **Search-Architektur (rc39):** 4 Endpoints (`/admin/erp/inventory/search`, `/admin/media`, `/store/catalog`, `/store/catalog/suggest`) nutzen alle Postgres-FTS via `Release.search_text` + Shared Helper in `backend/src/lib/release-search.ts`. Latenz ~20-30ms (vorher 6-13s). Stufe-3 geplant: Meilisearch (`docs/optimizing/SEARCH_MEILISEARCH_PLAN.md`)
+- **Search-Architektur (rc40):** Gesplittet zwischen Storefront (Meili) und Admin (Postgres-FTS):
+  - **Storefront** — `/store/catalog` + `/store/catalog/suggest` gehen über Meilisearch 1.20 (self-hosted, VPS `127.0.0.1:7700`, two-profile `releases-commerce`/`releases-discovery`). Flag `SEARCH_MEILI_CATALOG`, 3-Gate-Fallback: Flag OFF → Postgres · Health-Probe tripped → Postgres · try-catch → Postgres. Runtime-Code: `backend/src/lib/meilisearch.ts` + `release-search-meili.ts`. Typo-Tolerance + Facets + Synonyme. Latenz p95 48-58ms.
+  - **Admin** — `/admin/erp/inventory/search`, `/admin/media` nutzen weiterhin Postgres-FTS via `Release.search_text` + Shared Helper `backend/src/lib/release-search.ts`. Latenz ~20-30ms, keine Typo-Tolerance, keine Facetten. Phase-2-Backlog.
+  - **Label-Suche neu:** `/store/labels/suggest` (Postgres trgm `idx_label_name_trgm`, 3k Rows) ersetzt nicht-praktikable Label-Facette bei 3k distinct values
+  - Siehe `docs/optimizing/SEARCH_MEILISEARCH_PLAN.md` + `MEILI_PHASE1_DEPLOYMENT_STEPS.md`
 
 ## ERP Module Status
 
@@ -236,15 +262,20 @@ backend/src/
 ├── modules/auction/models/  # auction-block, block-item, bid, transaction, cart-item, saved-item
 ├── api/{admin,store,webhooks}/
 ├── api/middlewares.ts       # Auth + rawBodyMiddleware (DON'T REMOVE!)
-├── lib/                     # stripe/paypal/shipping/brevo/crm-sync/site-config/invite/feature-flags/paths/release-search/image-upload/email.ts
+├── lib/                     # stripe/paypal/shipping/brevo/crm-sync/site-config/invite/feature-flags/paths/release-search/release-search-meili/meilisearch/image-upload/email.ts
 ├── scripts/migrations/      # Raw SQL (idempotent, manuell angewendet)
 └── admin/{components,routes}/
 
 storefront/src/{app,components,middleware.ts}
 
 scripts/
-├── legacy_sync_v2.py        # Cron target (14-Field Diff, RETURNING-verified images, V1-V4 Validation)
-├── discogs_daily_sync.py    # 5 Chunks, exponential backoff
+├── legacy_sync_v2.py        # Cron target (14-Field Diff, RETURNING-verified images, V1-V4 Validation, search_indexed_at bumps)
+├── discogs_daily_sync.py    # 5 Chunks, exponential backoff, search_indexed_at bump
+├── meilisearch_sync.py      # rc40: delta/full-rebuild/apply-settings/cleanup, two-profile atomic swap
+├── meilisearch_drift_check.py  # rc40: 30-min drift cron (ok/warning/critical)
+├── meilisearch_settings.json   # rc40: searchable/filterable/sortable/stopwords/synonyms/typoTolerance
+├── meili-cron-env.sh        # rc40: env-loader für Cron (sources .env + .env.meili, aliased SUPABASE_DB_URL)
+├── data/country_iso.py      # rc40: country-name → ISO-2 für Meili country_code
 └── entity_overhaul/         # 10-Module Pipeline
 
 docs/
@@ -260,12 +291,12 @@ docs/
 
 → Operative Liste: [`docs/TODO.md`](docs/TODO.md)
 
-1. **Frank arbeitet aktiv an Inventur — rc39 live.** Catalog/Inventur Search-Sweep + Mirror-Fix: `/admin/media` 6s→30ms via FTS, Stocktake-Daten landen jetzt im Catalog (Mirror bei Copy #1 auf Release.legacy_price/conditions/barcode). Doku: [`docs/optimizing/CATALOG_SEARCH_FIXES_2026-04-22.md`](docs/optimizing/CATALOG_SEARCH_FIXES_2026-04-22.md)
-2. **Meilisearch-Konzept v2 im Review** — Stufe-3 nach Pre-Launch, 10 Korrekturen nach Robin-Review werden integriert (Operability 6→8/10). [`docs/optimizing/SEARCH_MEILISEARCH_PLAN.md`](docs/optimizing/SEARCH_MEILISEARCH_PLAN.md)
-3. **Franks MacBook Air-Rollout:** `cd ~/VOD_Auctions && git pull && bash frank-macbook-setup/install.sh` — erkennt IPP-Drucker + schickt zu Brother-PPD, einmaliger sudo (mkcert)
-4. **Discogs-Mapping Manual Review (Low-Prio):** `docs/audit_discogs_flagged_2026-04-21.csv` — 431 geflagt, erst 10 Fälle mit Score < 0.3
-5. **POS P0 Dry-Run live** — Frank testet Scan→Cart→Checkout, Feedback sammeln
-6. **L1:** AGB-Anwalt beauftragen (Launch-Blocker, RSE-78)
+1. **Meilisearch Phase 1 live (rc40, 2026-04-22).** `SEARCH_MEILI_CATALOG` ON, Storefront /store/catalog + /suggest über Meili 1.20 (two-profile, localhost-only). p95 48-58ms (vorher 6+s), Typo "cabarte voltarie" findet Cabaret Voltaire, Facets in jedem Response. Rollback trivial via Flag OFF. Doku: [`docs/optimizing/MEILI_PHASE1_DEPLOYMENT_STEPS.md`](docs/optimizing/MEILI_PHASE1_DEPLOYMENT_STEPS.md)
+2. **Frank arbeitet aktiv an Inventur.** rc39 Catalog/Inventur Mirror-Fix weiterhin im Einsatz. Franks MacBook Air-Rollout ausstehend: `cd ~/VOD_Auctions && git pull && bash frank-macbook-setup/install.sh` (erkennt IPP-Drucker + schickt zu Brother-PPD, einmaliger sudo für mkcert)
+3. **Discogs-Mapping Manual Review (Low-Prio):** `docs/audit_discogs_flagged_2026-04-21.csv` — 431 geflagt, erst 10 Fälle mit Score < 0.3
+4. **POS P0 Dry-Run live** — Frank testet Scan→Cart→Checkout, Feedback sammeln
+5. **L1:** AGB-Anwalt beauftragen (Launch-Blocker, RSE-78)
+6. **Meilisearch Phase 2 (Backlog):** Admin-Endpoints (`/admin/media`, `/admin/erp/inventory/search`) auf Meili-discovery-Profil umstellen. Postgres-FTS bleibt als Fallback. ~1 Tag Effort. Konzept: `SEARCH_MEILISEARCH_PLAN.md §8 Phase 2`
 
 **Arbeitsregeln:**
 - Keine Task-Listen hier pflegen — `docs/TODO.md` nutzen
