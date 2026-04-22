@@ -25,6 +25,7 @@ declare global {
 }
 
 let loadPromise: Promise<any> | null = null
+let promisersInitialized = false
 
 async function loadQZLibrary(): Promise<any> {
   if (typeof window === "undefined") throw new Error("QZ Tray requires browser")
@@ -48,8 +49,46 @@ async function loadQZLibrary(): Promise<any> {
   return loadPromise
 }
 
+/**
+ * Configure QZ Tray security-promisers so that connect requests are signed
+ * by our backend. Without this, QZ Tray shows "Untrusted website" on every
+ * connect and the "Remember this decision" checkbox is disabled.
+ *
+ * Flow:
+ *   1. QZ Tray challenges client on connect with a random string to sign
+ *   2. Our setSignaturePromiser POSTs the challenge to /admin/qz-tray/sign
+ *   3. Backend signs it with private key (SHA512withRSA) and returns base64
+ *   4. QZ Tray verifies the signature against our cert (from
+ *      /admin/qz-tray/cert) — trusts us, allows "Remember"
+ *
+ * The cert is fetched once and cached for the lifetime of the page.
+ */
+function configurePromisers(qz: any): void {
+  if (promisersInitialized) return
+  promisersInitialized = true
+
+  qz.security.setCertificatePromiser(() =>
+    fetch("/admin/qz-tray/cert", { credentials: "include" })
+      .then((r) => (r.ok ? r.text() : ""))
+      .catch(() => "")
+  )
+
+  qz.security.setSignatureAlgorithm("SHA512")
+
+  qz.security.setSignaturePromiser((toSign: string) => () =>
+    fetch("/admin/qz-tray/sign", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "text/plain" },
+      body: toSign,
+    })
+      .then((r) => (r.ok ? r.text() : ""))
+      .catch(() => "")
+  )
+}
+
 async function ensureConnected(qz: any): Promise<void> {
-  // Unsigned mode: no certificate promiser set → user sees one-time prompt.
+  configurePromisers(qz)
   if (qz.websocket.isActive()) return
   await qz.websocket.connect({ retries: 2, delay: 1 })
 }
