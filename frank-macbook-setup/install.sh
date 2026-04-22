@@ -120,14 +120,18 @@ if [[ ! -x "$BRIDGE_INSTALLER" ]]; then
   exit 1
 fi
 
-BRIDGE_DRY_RUN_FLAG=()
+# String statt Array, damit's unter macOS bash 3.2 + `set -u` sauber bleibt
+# (leeres Array + "${arr[@]}" triggert "unbound variable" auf bash <4.4).
+BRIDGE_DRY_RUN_FLAG=""
 if ! lpstat -p 2>/dev/null | grep -qi "brother"; then
   warn "Kein Brother-Drucker im System — Bridge startet im DRY_RUN (Test-Modus)."
   warn "Sobald Drucker angeschlossen ist, Bridge mit: bash $BRIDGE_INSTALLER --printer $PRINTER_QUEUE neu installieren."
-  BRIDGE_DRY_RUN_FLAG=(--dry-run)
+  BRIDGE_DRY_RUN_FLAG="--dry-run"
 fi
 
-bash "$BRIDGE_INSTALLER" --printer "$PRINTER_QUEUE" "${BRIDGE_DRY_RUN_FLAG[@]}" || {
+# Absichtlich unquoted damit "" zu nichts expandiert und "--dry-run" als
+# einzelnes Argument ankommt. Kein Word-Splitting-Risiko weil Inhalt fest.
+bash "$BRIDGE_INSTALLER" --printer "$PRINTER_QUEUE" $BRIDGE_DRY_RUN_FLAG || {
   err "Bridge-Installation fehlgeschlagen — siehe Ausgabe oben"
   exit 1
 }
