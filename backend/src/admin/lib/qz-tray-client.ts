@@ -201,7 +201,16 @@ export async function qzPrintBarcodeLabel(inventoryItemId: string): Promise<bool
     margins: 0,
     copies: 1,
   })
-  await qz.print(config, [{ type: "pixel", format: "pdf", data: `data:application/pdf;base64,${pdfBase64}` }])
+  // QZ Tray 2.2.x akzeptiert keine data:-URIs für PDF. Richtige Syntax:
+  // type=pixel, format=pdf, flavor=base64, data=<reiner base64 string>.
+  // Frühere Versuche mit data:application/pdf;base64,... werfen
+  // "unknown protocol: data" — siehe Franks Test 6 Log.
+  await qz.print(config, [{
+    type: "pixel",
+    format: "pdf",
+    flavor: "base64",
+    data: pdfBase64,
+  }])
   return true
 }
 
