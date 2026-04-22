@@ -1,7 +1,7 @@
 # VOD Auctions — TODO
 
 Operative Aufgabenliste. Single Source of Truth für laufende Arbeit.
-**Letzte Aktualisierung:** 2026-04-21 (Konsistenz-Audit abgeschlossen, Storefront-Preis-Fix, Multi-Surface Label-Print, INSTALLATION.md geschrieben)
+**Letzte Aktualisierung:** 2026-04-22 (Search-Performance 47× schneller, article_number-Search, Discogs-UI-Semantik, PM2-Config-Fix, Asmus-Reset)
 
 ## Arbeitslogik
 
@@ -126,7 +126,17 @@ Franks erster End-to-End-Durchlauf mit Asmus Tietchens `legacy-release-23464` f�
 - [x] **4.20** QZ Tray Install: `brew --cask qz-tray` ist aus Homebrew entfernt — `install.sh` nutzt jetzt direkten .pkg-Download von GitHub (v2.2.6, arm64/x86_64-Detection, `sudo installer`) (2026-04-21)
 - [x] **4.21** `frank-macbook-setup/INSTALLATION.md` geschrieben — Step-by-Step für MacBook Air + Mac Studio, Troubleshooting-Matrix, Zweit-Mac-Ablauf (2026-04-21)
 
-**Nächste Aktion (Frank):** Zweiter Test-Durchlauf — Asmus Tietchens aufrufen, Direct Price ändern + Save, Label neu drucken, prüfen dass neuer Preis erscheint (sollte jetzt im Storefront auch kaufbar sein). Parallel Kit auf Mac Studio + MBA via `INSTALLATION.md` ausrollen.
+#### Phase 5: Performance + UX-Feinschliff nach zweitem Test-Durchlauf (rc33, 2026-04-22)
+
+- [x] **5.1** Asmus Tietchens (`VOD-19586` / `legacy-release-23464`) zurückgesetzt via Supabase-SQL — Barcode `VOD-000001` bleibt erhalten, condition/price/stocktake → NULL, Audit-Movement erstellt (2026-04-22)
+- [x] **5.2** Inventur-Search um `article_number` erweitert (VOD-19586 und variable-length VOD-Nummern) — Step 1b „Article-Number Exact-Match" vor Text-Search, article_number in ILIKE-OR + Ranking, Scanner-Regex gelockert auf `^VOD-\d+$`, Treffer-Zeile zeigt article_number monospace/gold, Release-Detail-Header gleich (2026-04-22)
+- [x] **5.3** Discogs-Preis-Semantik in Inventur-Session auf 2 Zeilen aufgeteilt: „Markt aktuell" (stats.lowest_price + num_for_sale) vs „Discogs-Suggestion" (price_suggestions median/mint) + Link zur Sales-History auf discogs.com. Drei Quick-Fill-Buttons (`[D] Sugg`, `Mint`, `Markt`) statt nur Median (2026-04-22)
+- [x] **5.4** Search-Performance-Fix Admin **(47×)**: `EXPLAIN ANALYZE` zeigte 6s Seq-Scan, Ursache war fehlende trgm-Indizes + ILIKE ohne lower(). Migration `2026-04-22_search_trigram_indexes.sql` mit 4 neuen GIN trgm Indizes (`idx_artist_name_trgm`, `idx_release_catno_trgm`, `idx_release_article_trgm`, `idx_label_name_trgm`). Admin-Search-Query umgebaut auf CTE mit UNION-über-4-Subqueries. Gemessen: 6071ms → 128ms (2026-04-22)
+- [x] **5.5** Search-Performance-Fix Storefront (`/store/catalog?search=` + `/store/catalog/suggest`): gleiche UNION-Logik wie Admin, zusätzlich `lower(name) LIKE` für Artists + Labels einzeln (Autocomplete). Live-gemessen: `/catalog?search=cabaret` 5000ms → 148ms, `/catalog/suggest?q=cabaret` ~2s → 57ms (2026-04-22)
+- [x] **5.6** Count-Match-Verifikation: 5 Test-Queries (cabaret/tietchens/industrial/mute/vod) liefern identische Treffer-Zahlen alt vs neu — keine Änderung am Suchraum oder der Semantik (2026-04-22)
+- [x] **5.7** PM2-Config Storefront: nach `pnpm install` war `.bin/next` ein Shell-Wrapper statt Symlink → PM2 ProcessContainerFork crashte beim require(). Fix: `storefront/ecosystem.config.js` nutzt direkten `node_modules/next/dist/bin/next` Entry. Dauerhaft gefixt + committed (2026-04-22)
+
+**Nächste Aktion (Frank):** Zweiter Test-Durchlauf unter realen Bedingungen — Asmus Tietchens aufrufen, verifizieren, Label drucken (QZ Tray silent), Direct Price ändern + Save, Label nochmal drucken. Parallel Kit auf Mac Studio + MBA via `INSTALLATION.md` ausrollen. Mittelfristig: Discogs-Mapping Manual Review (`docs/audit_discogs_flagged_2026-04-21.csv`, 431 Items).
 
 #### Nice-to-have (nicht blockierend)
 
@@ -487,6 +497,10 @@ Diese Themen leben in Linear, nicht hier. Nur zur Referenz:
 
 | Datum | Meilenstein |
 |---|---|
+| 2026-04-22 | Search-Performance 47× schneller: 4 neue GIN-trgm-Indizes + UNION-Pattern in Admin + Storefront. 6s → 130ms Admin, 5s → 148ms Storefront (live gemessen) |
+| 2026-04-22 | Article-Number-Search (VOD-19586 tape-mag Katalog-Nummer) im Inventur-Session-Screen verfügbar — als Exact-Match + Text-Search + Scanner-Regex |
+| 2026-04-22 | Discogs-Preis-Semantik in Inventur-Session klarer (Markt vs Suggestion als 2 Zeilen + Link zur Sales-History auf discogs.com) + 3 Quick-Fill-Buttons statt 1 |
+| 2026-04-22 | PM2-Config Storefront gefixt: direkter Next-Bin-Pfad statt pnpm-Shell-Wrapper in `.bin/next` |
 | 2026-04-21 | Konsistenz-Audit + Storefront-Preis-Fix: `/store/catalog/*` liest jetzt COALESCE(legacy, direct) → Non-Cohort-A Items (via Inventur erfasst) im Shop kaufbar statt als NaN/not-purchasable |
 | 2026-04-21 | Multi-Surface Label-Print konsolidiert: `printLabelAuto()` shared helper, QZ Tray Install via direkten .pkg-Download (brew cask ist weg), Label-PDF 2-Page-Bug gefixt |
 | 2026-04-21 | `INSTALLATION.md` für Franks Macs — Step-by-Step Guide für MacBook Air M5 + Mac Studio mit Troubleshooting |

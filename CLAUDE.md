@@ -4,7 +4,7 @@
 **Goal:** Eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Beta Test (platform_mode: beta_test) — Pre-Launch Phase als nächster Schritt
 **Language:** Storefront + Admin-UI: Englisch
-**Last Updated:** 2026-04-21
+**Last Updated:** 2026-04-22
 
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
@@ -87,6 +87,8 @@ npm run build && pm2 restart vodauction-storefront
 - **Brother QL-820NWB Label-Druck:** Drei Dinge müssen zusammenpassen, sonst kommt nur ein quadratisches ~29×30mm Label raus: (1) Drucker-Command-Mode auf **`Raster`** (nicht P-touch Template — Fix via Web-Interface `https://<printer-ip>/` → Printer Settings → Device Settings → Command Mode), (2) CUPS-Option **`PageSize=Custom.29x90mm`** (mit `Custom.`-Prefix — ohne Prefix wird's als DK-11201 Die-Cut statt DK-22210 Endlos interpretiert), (3) PDF **29×90mm portrait** mit `doc.rotate(-90, {origin:[0,0]}) + doc.translate(-LABEL_LENGTH, 0)` für Content-Rotation. **Inateck BCST-70 Scanner** muss außerdem per Setup-Barcode auf „MacOS/iOS Modus" + „Deutsche Tastatur" umgestellt werden (sonst kommt `-` als `ß` an). Hardware validiert 2026-04-11 nach ~25 Fehldrucken. Komplette Doku inkl. Debugging-Kompass: [`docs/hardware/BROTHER_QL_820NWB_SETUP.md`](docs/hardware/BROTHER_QL_820NWB_SETUP.md).
 - **Medusa/Vite Build:** IIFE `(() => {...})()` in JSX-Ternary → silent build failure → Blank Page. Separate Komponenten verwenden.
 - **Neue Native-Dependencies:** Wenn `package.json` eine neue Native-Dep bekommt (pdfkit, sharp, bcrypt etc.), nach Deploy `npm install` auf VPS ausführen — sonst `Cannot find module` → PM2 restart-loop. **Niemals `npm install --omit=optional`** — das strippt platform-specific Binaries wie `@swc/core-linux-x64-gnu` und kaputtmacht `medusa build`.
+- **ILIKE-Suche + GIN-trgm-Indizes:** Ein `ILIKE '%query%'` ohne `lower()` nutzt den `gin (lower(col) gin_trgm_ops)` Index **nicht** — Postgres macht Seq Scan. Fuer jede neue Such-Query auf Release/Artist/Label: SQL als `lower(col) LIKE lower(?)` schreiben (nicht `whereILike` oder `col ILIKE`). Multi-Column-OR-ILIKE kombiniert **nie** mehrere GIN-Indizes über verschiedene Tabellen in einem Plan — stattdessen UNION-Subquery pro Spalte + final `whereIn(id, union_subquery)`. Siehe `/admin/erp/inventory/search/route.ts` und `/store/catalog/route.ts` als Referenz-Implementierung. Aktive trgm-Indizes: `idx_release_title_trgm`, `idx_artist_name_trgm`, `idx_label_name_trgm`, `idx_release_catno_trgm` (partial), `idx_release_article_trgm` (partial). Messung: ohne diese Optimierung 6s Seq Scan bei 52k Releases; mit ~130ms.
+- **PM2 + pnpm-Symlinks:** `pnpm install` erzeugt `node_modules/.bin/<pkg>` als Shell-Wrapper statt Symlink. PM2 ProcessContainerFork versucht den Wrapper als JS zu require() → `SyntaxError: missing ) after argument list`. Fix: in `ecosystem.config.js` den direkten JS-Entry-Pfad nutzen (`node_modules/<pkg>/dist/bin/<pkg>` oder gleichwertig), nicht `.bin/<pkg>`.
 - **Discogs Prices ausgeblendet:** `{/* HIDDEN: ... */}` Marker in 5 Storefront-Dateien. Wiederherstellen wenn echte Sale-Daten verfügbar.
 - **LEFT JOIN in Transaction APIs:** Direktkäufe haben kein `block_item_id` → immer LEFT JOIN, nie INNER JOIN
 - **COALESCE:** `COALESCE(block_item.release_id, transaction.release_id)` in Transaction-Queries
@@ -433,8 +435,8 @@ VOD_Auctions/
 → Operative Aufgabenliste mit Workstreams, Blockern und nächsten Aktionen: [`docs/TODO.md`](docs/TODO.md)
 
 **Aktuell wichtigste nächste Schritte:**
-1. **Zweiter Frank-Test-Durchlauf (Inventur v2 nach rc31):** Asmus Tietchens aufrufen, Direct Price ändern + Save, Label neu drucken, prüfen dass neuer Preis erscheint + kein Layout-Overlap. 5-10 weitere Artikel. Dann 4-6 Wochen Inventur-Phase starten.
-2. **Frank-MacBook-Kit ausrollen:** `frank-macbook-setup/install.sh` auf MBP16 A2141 ausführen (Brother-Driver manuell, Raster-Mode, Scanner, QZ Tray, Safari-Web-App).
+1. **Zweiter Frank-Test-Durchlauf (Inventur v2 nach rc33):** Asmus Tietchens wurde gestern getestet, heute zurückgesetzt — Frank kann das Item + weitere 5-10 Artikel nochmal durchgehen. Search ist 47× schneller (130ms statt 6s), VOD-19586 direkt suchbar, Discogs-Preise klarer (Markt vs Suggestion mit 3 Quick-Fill-Buttons), Label-Preis aktualisiert sich nach Direct-Price-Save + Save (Single-Exemplar-Mirror).
+2. **Frank-MacBook-Kit ausrollen:** `frank-macbook-setup/install.sh` via Anleitung `frank-macbook-setup/INSTALLATION.md` auf MacBook Air + Mac Studio ausführen. QZ Tray installiert automatisch (direkter .pkg-Download, nicht mehr brew cask).
 3. **Discogs-Mapping Manual Review (Low-Priority):** `docs/audit_discogs_flagged_2026-04-21.csv` — 431 geflaggte Mappings, Frank korrigiert via Catalog-Detail → Discogs-Linking Card → neue ID + „Fetch from Discogs". Erst die 10 Fälle mit Score < 0.3.
 4. **POS P0 Dry-Run live:** Frank testet Scan→Cart→Checkout im Laden. Feedback sammeln, UX-Probleme fixen.
 5. **L1:** AGB-Anwalt beauftragen (Launch-Blocker, RSE-78)
