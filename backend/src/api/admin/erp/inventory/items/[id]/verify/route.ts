@@ -45,8 +45,13 @@ export async function POST(
     // Build reference for movement audit trail
     const reference: Record<string, unknown> = {}
 
-    // Price handling: new_price updates Release.legacy_price,
-    // exemplar_price updates the individual copy's price
+    // Price handling: new_price updates Release.legacy_price (Copy #1 convention)
+    // AND exemplar_price (so the label print pipeline reads the fresh value —
+    // barcode-label.ts order is exemplar_price → direct_price → legacy_price).
+    // Historically we only wrote legacy_price here, which made the label show
+    // a stale exemplar_price from earlier stocktakes. Frank hit this 2026-04-22:
+    // Preis geändert → Label zeigt alten Wert, DB hat auch alten Wert beim
+    // Label-Pipeline-Read (COALESCE greift exemplar zuerst).
     if (body?.new_price != null && body.new_price >= 0) {
       const release = await trx("Release")
         .where("id", item.release_id)
@@ -62,6 +67,15 @@ export async function POST(
 
       reference.old_price = release ? Number(release.legacy_price) : null
       reference.new_price = body.new_price
+
+      // Mirror: bei Copy #1 spiegeln wir new_price auch auf exemplar_price,
+      // damit das Label den frischen Wert zeigt. Multi-Exemplar (copy_number>1)
+      // bleibt unverändert — jeder Copy hat dort seinen eigenen Preis-Kontext.
+      if (item.copy_number === 1 && body.exemplar_price == null) {
+        reference.old_exemplar_price = item.exemplar_price != null ? Number(item.exemplar_price) : null
+        reference.exemplar_price_mirror = body.new_price
+        // Wird unten in updateFields gesetzt (gemeinsam mit Copy-Row-Update)
+      }
     }
 
     if (body?.exemplar_price != null) {
@@ -101,7 +115,17 @@ export async function POST(
 
     if (body?.condition_media) updateFields.condition_media = body.condition_media
     if (body?.condition_sleeve) updateFields.condition_sleeve = body.condition_sleeve
-    if (body?.exemplar_price != null) updateFields.exemplar_price = body.exemplar_price
+    if (body?.exemplar_price != null) {
+      updateFields.exemplar_price = body.exemplar_price
+    } else if (
+      item.copy_number === 1 &&
+      body?.new_price != null &&
+      body.new_price >= 0
+    ) {
+      // Copy #1 Mirror: new_price auch auf exemplar_price schreiben (siehe
+      // Reason-Kommentar oben — Label-Pipeline liest exemplar_price zuerst)
+      updateFields.exemplar_price = body.new_price
+    }
     if (body?.notes != null) updateFields.notes = body.notes || item.notes
 
     await trx("erp_inventory_item")

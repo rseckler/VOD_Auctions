@@ -187,7 +187,20 @@ function StocktakeSessionPage() {
   const [showExitModal, setShowExitModal] = useState(false)
   const [printerStatus, setPrinterStatus] = useState<PrinterStatus>("none")
   const [autoPrint, setAutoPrint] = useState(true)
-  const [recentItems, setRecentItems] = useState<Array<{ artist: string; title: string; copy: number }>>([])
+  // Recent Items: zuletzt bearbeitete Platten (letzte 10), werden prominent
+  // im Search-View angezeigt damit Frank den Kontext behält wenn er zwischen
+  // Artikeln springt. Erweitert um Barcode, Preis, Condition für sinnvolle
+  // Inline-Info + release_id zum Wiederaufrufen per Klick.
+  const [recentItems, setRecentItems] = useState<Array<{
+    release_id: string
+    artist: string
+    title: string
+    copy: number
+    barcode?: string | null
+    price?: number | null
+    condition?: string | null
+    at: number
+  }>>([])
   const [actionLoading, setActionLoading] = useState(false)
 
   // Scanner buffer
@@ -329,10 +342,25 @@ function StocktakeSessionPage() {
         const printSuffix = printResult ? (printResult.silent ? " · printed" : " · print dialog opened") : ""
 
         setToast({ message: `Copy #${result.item.copy_number} created — ${result.item.barcode}${printSuffix}`, type: "success" })
-        setRecentItems((prev) => [
-          { artist: releaseDetail.artist_name || "?", title: releaseDetail.title, copy: result.item.copy_number },
-          ...prev.slice(0, 4),
-        ])
+        {
+          const pr = parseFloat(priceValue.replace(",", "."))
+          const condition = conditionMedia && conditionSleeve && conditionMedia !== conditionSleeve
+            ? `${conditionMedia}/${conditionSleeve}`
+            : (conditionMedia || conditionSleeve || null)
+          setRecentItems((prev) => [
+            {
+              release_id: releaseDetail.id,
+              artist: releaseDetail.artist_name || "?",
+              title: releaseDetail.title,
+              copy: result.item.copy_number,
+              barcode: result.item.barcode || null,
+              price: !isNaN(pr) && pr >= 0 ? Math.round(pr) : null,
+              condition,
+              at: Date.now(),
+            },
+            ...prev.slice(0, 9),
+          ])
+        }
       } else if (editingCopy) {
         // Verify existing copy
         const body: any = {
@@ -340,14 +368,17 @@ function StocktakeSessionPage() {
           condition_sleeve: conditionSleeve || undefined,
           notes: noteText || undefined,
         }
+        // Preis immer senden wenn valid — Backend ist idempotent + mirror'd
+        // auch exemplar_price für Copy #1 damit das Label den Wert zeigt.
+        // Früherer Delta-Check (rounded !== releaseDetail.legacy_price) hat
+        // Frank gefressen: Type-Mismatch zwischen parseFloat-Number und
+        // DB-String-Number führte zu silent-skip, Preis landete nicht in DB.
         const price = parseFloat(priceValue.replace(",", "."))
         if (!isNaN(price) && price >= 0) {
           const rounded = Math.round(price)
           if (editingCopy.copy_number === 1) {
-            // Copy #1: update Release.legacy_price
-            if (rounded !== releaseDetail.legacy_price) body.new_price = rounded
+            body.new_price = rounded
           } else {
-            // Copy #2+: update exemplar_price
             body.exemplar_price = rounded
           }
         }
@@ -362,10 +393,25 @@ function StocktakeSessionPage() {
         const printSuffix = printResult ? (printResult.silent ? " · printed" : " · print dialog opened") : ""
 
         setToast({ message: `Verified #${result.copy_number} — ${result.barcode}${printSuffix}`, type: "success" })
-        setRecentItems((prev) => [
-          { artist: releaseDetail.artist_name || "?", title: releaseDetail.title, copy: result.copy_number },
-          ...prev.slice(0, 4),
-        ])
+        {
+          const pr = parseFloat(priceValue.replace(",", "."))
+          const condition = conditionMedia && conditionSleeve && conditionMedia !== conditionSleeve
+            ? `${conditionMedia}/${conditionSleeve}`
+            : (conditionMedia || conditionSleeve || null)
+          setRecentItems((prev) => [
+            {
+              release_id: releaseDetail.id,
+              artist: releaseDetail.artist_name || "?",
+              title: releaseDetail.title,
+              copy: result.copy_number,
+              barcode: result.barcode || null,
+              price: !isNaN(pr) && pr >= 0 ? Math.round(pr) : null,
+              condition,
+              at: Date.now(),
+            },
+            ...prev.slice(0, 9),
+          ])
+        }
       }
 
       // Update stats
@@ -938,12 +984,66 @@ function StocktakeSessionPage() {
         </div>
       )}
 
-      {/* ── RECENT ITEMS ── */}
-      {recentItems.length > 0 && (
-        <div style={{ ...T.small, color: C.muted, display: "flex", gap: 16, flexWrap: "wrap" }}>
-          {recentItems.map((r, i) => (
-            <span key={i}>✓ {r.artist} — {r.title} #{r.copy}</span>
-          ))}
+      {/* ── RECENT ITEMS ── prominente Sektion im Search-View (letzte 10
+          bearbeitete Platten), damit Frank den Kontext behält wenn er zwischen
+          Artikeln springt. Klick auf Eintrag öffnet das Release wieder. */}
+      {activeView === "search" && recentItems.length > 0 && (
+        <div style={{ ...cardStyle, marginTop: S.gap.lg, padding: 0, overflow: "hidden" }}>
+          <div style={{
+            padding: "8px 16px",
+            background: C.hover,
+            borderBottom: `1px solid ${C.border}`,
+            ...T.small,
+            color: C.muted,
+            fontWeight: 600,
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+          }}>
+            Zuletzt bearbeitet · {recentItems.length}
+          </div>
+          {recentItems.map((r, i) => {
+            const ageSec = Math.floor((Date.now() - r.at) / 1000)
+            const ageLabel = ageSec < 60
+              ? `${ageSec}s`
+              : ageSec < 3600
+              ? `${Math.floor(ageSec / 60)}m`
+              : `${Math.floor(ageSec / 3600)}h`
+            return (
+              <div
+                key={`${r.release_id}-${r.copy}-${r.at}`}
+                onClick={() => openRelease(r.release_id)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: S.gap.md,
+                  padding: "10px 16px",
+                  cursor: "pointer",
+                  borderBottom: i < recentItems.length - 1 ? `1px solid ${C.border}` : "none",
+                  transition: "background 0.1s",
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = C.hover }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = "transparent" }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    <span style={{ color: C.success, marginRight: 6 }}>✓</span>
+                    {r.artist} — {r.title}
+                    <span style={{ color: C.muted, fontWeight: 400, marginLeft: 6 }}>#{r.copy}</span>
+                  </div>
+                  <div style={{ ...T.small, color: C.muted }}>
+                    {r.barcode ? <span style={{ fontFamily: "monospace", marginRight: 6 }}>{r.barcode}</span> : null}
+                    {r.condition ? <span style={{ marginRight: 6 }}>· {r.condition}</span> : null}
+                  </div>
+                </div>
+                <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                  {r.price != null && (
+                    <div style={{ fontWeight: 600, color: C.gold }}>€{r.price}</div>
+                  )}
+                  <div style={{ ...T.small, color: C.muted }}>vor {ageLabel}</div>
+                </div>
+              </div>
+            )
+          })}
         </div>
       )}
 

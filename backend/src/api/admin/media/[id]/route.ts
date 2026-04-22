@@ -307,8 +307,48 @@ export async function POST(
     }
   })
 
+  // Response-Shape muss identisch zum GET sein — das Frontend (media/[id]/page.tsx)
+  // setzt setRelease(d.release) direkt und Properties wie release.price_locked
+  // und release.inventory_item_id sind conditional-gerendert (z.B. Label-
+  // drucken-Button). Vorher gab POST nur das plain Release-Row zurück ohne
+  // erp_inventory_item-Merge → price_locked=undefined → Button verschwand
+  // nach Preis-Save. Frank hit this 2026-04-22.
   const release = await pgConnection("Release")
     .where("Release.id", id)
     .first()
+
+  if (release) {
+    const firstItem = await pgConnection("erp_inventory_item")
+      .select(
+        "id as inventory_item_id",
+        "barcode as inventory_barcode",
+        "status as inventory_status",
+        "quantity as inventory_quantity",
+        "source as inventory_source",
+        "copy_number",
+        "condition_media as erp_condition_media",
+        "condition_sleeve as erp_condition_sleeve",
+        "exemplar_price",
+        "price_locked",
+        "price_locked_at",
+        "last_stocktake_at",
+        "last_stocktake_by",
+        "barcode_printed_at",
+        "warehouse_location_id",
+      )
+      .where("release_id", id)
+      .orderBy("copy_number", "asc")
+      .first()
+
+    if (firstItem) {
+      Object.assign(release, firstItem)
+      const relRec = release as Record<string, unknown>
+      if (firstItem.erp_condition_media != null) relRec.media_condition = firstItem.erp_condition_media
+      if (firstItem.erp_condition_sleeve != null) relRec.sleeve_condition = firstItem.erp_condition_sleeve
+      if (firstItem.inventory_quantity != null) relRec.inventory = firstItem.inventory_quantity
+      if (firstItem.exemplar_price != null) relRec.effective_price = firstItem.exemplar_price
+    }
+  }
+
   res.json({ release })
 }
