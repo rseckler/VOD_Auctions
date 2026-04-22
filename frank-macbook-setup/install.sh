@@ -60,12 +60,13 @@ ok "Homebrew: $(brew --version | head -1)"
 # ---------------------------------------------------------------------------
 step "2/7  Brother-Treiber"
 
-if [[ -f "/Library/Printers/PPDs/Contents/Resources/Brother QL-820NWB CUPS.gz" ]] || \
-   [[ -f "/etc/cups/ppd/${PRINTER_QUEUE}.ppd" ]] || \
-   lpstat -p 2>/dev/null | grep -qi brother; then
-  ok "Brother-Treiber / Druckqueue gefunden"
-else
-  warn "Brother-Treiber fehlt. Bitte manuell installieren:"
+BROTHER_PPD_PKG="/Library/Printers/PPDs/Contents/Resources/Brother QL-820NWB CUPS.gz"
+
+if [[ ! -f "$BROTHER_PPD_PKG" ]]; then
+  err "Brother Full-Driver-Paket ist NICHT installiert."
+  err "Ohne Brother-eigenen Treiber verwirft der QL-820NWB unsere 29×90mm Raster-Labels lautlos"
+  err "(IPP Everywhere / AirPrint können das Brother-Raster-Protokoll nicht)."
+  echo
   echo "    1) https://support.brother.com/ öffnet jetzt im Safari"
   echo "    2) QL-820NWB → Downloads → macOS → Full Driver & Software Package"
   echo "    3) .pkg ausführen, Admin-Passwort, durchklicken"
@@ -74,14 +75,55 @@ else
   open "https://support.brother.com/g/b/downloadlist.aspx?c=eu_ot&lang=en&prod=lpql820nwbeas&os=10064"
   exit 0
 fi
+ok "Brother Full-Driver-Paket installiert"
 
 # Druckqueue-Name normalisieren (Brother installiert manchmal mit Leerzeichen)
-ACTUAL_QUEUE=$(LC_ALL=C lpstat -p 2>/dev/null | awk '/[Bb]rother/ && /820/ {print $2; exit}' | tr -d '„"“”')
+# lpstat -e ist locale-independent (nur Namen), /p liefert auf DE "Drucker..."
+ACTUAL_QUEUE=$(lpstat -e 2>/dev/null | awk '/[Bb]rother/ && /820/ {print; exit}')
 if [[ -n "${ACTUAL_QUEUE:-}" && "$ACTUAL_QUEUE" != "$PRINTER_QUEUE" ]]; then
   warn "Druckqueue heißt '$ACTUAL_QUEUE' (nicht '$PRINTER_QUEUE')."
   warn "Das Setup klappt trotzdem — aber in Scripts überall '$ACTUAL_QUEUE' verwenden."
   PRINTER_QUEUE="$ACTUAL_QUEUE"
 fi
+
+# KRITISCH: Check ob die Queue mit dem Brother-Treiber aufgesetzt wurde oder
+# per IPP Everywhere / AirPrint. IPP Everywhere nutzt einen generic driver
+# der kein Brother-Raster spricht → Jobs kommen durch die CUPS-Pipeline aber
+# werden vom Drucker lautlos verworfen ("Dokument kann nicht zu Druckauftrag
+# hinzugefügt werden" in lpstat -p -l, keine Papier-Ausgabe).
+#
+# Signatur der kaputten Config: Device-URI enthält "dnssd://...ipps" oder
+# "airprint". Fix: Drucker in Systemeinstellungen entfernen + mit Brother-
+# spezifischem Treiber neu hinzufügen (Dropdown "Verwenden" → "Software
+# auswählen" → "Brother QL-820NWB CUPS").
+if [[ -n "${ACTUAL_QUEUE:-}" ]]; then
+  DEVICE_URI=$(lpstat -v "$ACTUAL_QUEUE" 2>/dev/null | awk -F'Gerät für |device for ' '{print $2}' | awk -F': ' '{print $2}' | tr -d '\n')
+  # Fallback: alternatives Locale-Parsing
+  [[ -z "$DEVICE_URI" ]] && DEVICE_URI=$(lpstat -v "$ACTUAL_QUEUE" 2>/dev/null | grep -oE '(dnssd|ipp|ipps|http|https|lpd|socket|usb)://[^[:space:]]+' | head -1)
+
+  if echo "$DEVICE_URI" | grep -qE 'dnssd://.*_ipps\._tcp|airprint'; then
+    err "Drucker '$ACTUAL_QUEUE' ist via IPP Everywhere / AirPrint eingerichtet:"
+    err "  URI: $DEVICE_URI"
+    err "Das ist der Grund warum Labels im Hintergrund verworfen werden."
+    echo
+    echo "  Fix (macOS Systemeinstellungen):"
+    echo "  1) Apple-Menü → Systemeinstellungen → Drucker & Scanner"
+    echo "  2) '$ACTUAL_QUEUE' auswählen → Entfernen (Minus-Button)"
+    echo "  3) '+' oder 'Drucker hinzufügen'"
+    echo "  4) Brother QL-820NWB in der Liste auswählen"
+    echo "  5) ${BOLD}WICHTIG:${RESET} Feld 'Verwenden' (nicht AirPrint!) → 'Software auswählen…'"
+    echo "     → 'Brother QL-820NWB CUPS' wählen → Hinzufügen"
+    echo
+    ask "[Enter] öffnet Systemeinstellungen und beendet dann das Script..." _
+    open "/System/Library/PreferencePanes/PrintAndFax.prefPane" 2>/dev/null \
+      || open "x-apple.systempreferences:com.apple.preference.printfax" 2>/dev/null \
+      || open "x-apple.systempreferences:com.apple.Print-Scan-Settings" 2>/dev/null
+    exit 0
+  elif [[ -n "$DEVICE_URI" ]]; then
+    ok "Drucker-Treiber-Check: $DEVICE_URI"
+  fi
+fi
+
 ok "Drucker-Queue: $PRINTER_QUEUE"
 
 # ---------------------------------------------------------------------------
