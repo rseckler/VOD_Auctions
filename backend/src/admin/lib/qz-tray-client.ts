@@ -152,8 +152,9 @@ export async function qzListPrinters(): Promise<string[]> {
 
 /**
  * Silently print a barcode label for an inventory_item.
- * Returns true on successful queue submit, false if QZ Tray is unavailable
- * (caller should then fall back to browser/iframe print).
+ * Returns true on successful queue submit, false if QZ Tray is unavailable.
+ * Throws if QZ is available but something else went wrong (printer not found,
+ * print payload rejected, etc.) so caller can expose the error in UI.
  */
 export async function qzPrintBarcodeLabel(inventoryItemId: string): Promise<boolean> {
   let qz: any
@@ -161,58 +162,47 @@ export async function qzPrintBarcodeLabel(inventoryItemId: string): Promise<bool
     qz = await loadQZLibrary()
     await ensureConnected(qz)
   } catch {
-    return false
+    return false  // QZ Tray not reachable → caller falls back to iframe
   }
 
   const printerName = getPreferredPrinter()
 
   // Fetch PDF as base64 from admin label endpoint
-  let pdfBase64: string
-  try {
-    const resp = await fetch(`/admin/erp/inventory/items/${inventoryItemId}/label`, {
-      credentials: "include",
-    })
-    if (!resp.ok) {
-      console.error(`Label fetch failed: ${resp.status}`)
-      return false
+  const resp = await fetch(`/admin/erp/inventory/items/${inventoryItemId}/label`, {
+    credentials: "include",
+  })
+  if (!resp.ok) {
+    throw new Error(`Label-PDF fetch ${resp.status}: ${resp.statusText}`)
+  }
+  const buf = await resp.arrayBuffer()
+  const pdfBase64 = arrayBufferToBase64(buf)
+
+  // Try exact name first; fall back to fuzzy Brother match so Franks
+  // MacBook Air + Mac Studio both work even if CUPS renames the queue.
+  let printer: string | null = await qz.printers.find(printerName).catch(() => null)
+  if (!printer) {
+    const all = await qz.printers.find().catch(() => [])
+    const list: string[] = Array.isArray(all) ? all : (all ? [all] : [])
+    console.log("QZ printers available:", list)
+    const brother = list.find((p) => /brother.*ql/i.test(p) || /ql[_-]?82/i.test(p))
+    if (brother) {
+      console.warn(`QZ printer '${printerName}' not found — using '${brother}' instead`)
+      printer = brother
     }
-    const buf = await resp.arrayBuffer()
-    pdfBase64 = arrayBufferToBase64(buf)
-  } catch (e) {
-    console.error("Label fetch error", e)
-    return false
+  }
+  if (!printer) {
+    throw new Error(`QZ: Kein Drucker '${printerName}' und kein Brother QL im System`)
   }
 
-  try {
-    // Try exact name first; fall back to fuzzy Brother match so Franks
-    // MacBook Air + Mac Studio both work even if CUPS renames the queue.
-    let printer: string | null = await qz.printers.find(printerName).catch(() => null)
-    if (!printer) {
-      const all = await qz.printers.find().catch(() => [])
-      const list: string[] = Array.isArray(all) ? all : (all ? [all] : [])
-      const brother = list.find((p) => /brother.*ql/i.test(p) || /ql[_-]?82/i.test(p))
-      if (brother) {
-        console.warn(`QZ printer '${printerName}' not found — using '${brother}' instead`)
-        printer = brother
-      }
-    }
-    if (!printer) {
-      console.error(`QZ printer not found: ${printerName}`)
-      return false
-    }
-    const config = qz.configs.create(printer, {
-      size: { width: 29, height: 90, units: "mm" },
-      units: "mm",
-      orientation: "portrait",
-      margins: 0,
-      copies: 1,
-    })
-    await qz.print(config, [{ type: "pixel", format: "pdf", data: `data:application/pdf;base64,${pdfBase64}` }])
-    return true
-  } catch (e) {
-    console.error("QZ print error", e)
-    return false
-  }
+  const config = qz.configs.create(printer, {
+    size: { width: 29, height: 90, units: "mm" },
+    units: "mm",
+    orientation: "portrait",
+    margins: 0,
+    copies: 1,
+  })
+  await qz.print(config, [{ type: "pixel", format: "pdf", data: `data:application/pdf;base64,${pdfBase64}` }])
+  return true
 }
 
 function arrayBufferToBase64(buf: ArrayBuffer): string {

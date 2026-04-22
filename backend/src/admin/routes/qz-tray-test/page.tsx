@@ -115,9 +115,10 @@ function QZTrayTestPage() {
     try {
       const ok = await qzPrintBarcodeLabel(testItemId)
       if (ok) log("ok", "QZ Tray: Druckjob an Queue übergeben (silent)")
-      else log("error", "QZ Tray returnte false — check console für Details.")
+      else log("error", "QZ Tray nicht erreichbar — fällt auf iframe zurück (Test 7).")
     } catch (e: any) {
-      log("error", `Exception: ${e.message}`)
+      log("error", `QZ Print Exception: ${e.message || e}`)
+      if (e?.stack) console.error(e.stack)
     }
   }
 
