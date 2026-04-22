@@ -1,7 +1,7 @@
 # VOD Auctions — TODO
 
 Operative Aufgabenliste. Single Source of Truth für laufende Arbeit.
-**Letzte Aktualisierung:** 2026-04-22 (Search-Performance 47× schneller, article_number-Search, Discogs-UI-Semantik, PM2-Config-Fix, Asmus-Reset)
+**Letzte Aktualisierung:** 2026-04-22 (rc39 — Catalog/Inventur Search-Sweep + Mirror-Fix: 6 Punkte aus Frank-Bug-Report. Meilisearch-Konzept v1 reviewed, v2 in Arbeit.)
 
 ## Arbeitslogik
 
@@ -17,7 +17,7 @@ Operative Aufgabenliste. Single Source of Truth für laufende Arbeit.
 
 Aktuell aktive Workstreams. Maximal 2-3 gleichzeitig.
 
-1. **Inventur Workflow v2** — Code komplett deployed, Frank muss gebrieft werden + Test-Durchlauf
+1. **Inventur Workflow v2 — Frank arbeitet aktiv** — rc39 (2026-04-22) Search-Sweep + Mirror-Fix live, 6 Altlasten backfilled (Notturno + 5 weitere). Catalog zeigt jetzt Stocktake-Daten (Barcode/Preis/Conditions). Frank macht weitere Platten.
 2. **POS Walk-in Sale** — P0 Dry-Run live, Frank testet, P1-P4 warten auf Steuerberater
 3. **Launch-Vorbereitung** — AGB-Anwalt als kritischer Pfad
 
@@ -27,17 +27,19 @@ Kommt dran sobald ein Now-Slot frei wird oder ein Blocker sich löst.
 4. **Redis + Rate-Limiting + Datenschutz-Fix** — Launch-Blocker (Brute-Force-Schutz + DSGVO-Konsistenz)
 5. **Sendcloud-Integration** — Voraussetzungen vorhanden, Code pending
 6. **Sync Monitoring** — Dead-Man's-Switch + Alerting
+7. **Meilisearch Search-Engine Phase 1** — Stufe-3-Migration (`docs/optimizing/SEARCH_MEILISEARCH_PLAN.md`). Konzept v2 nach Robin-Review im Background-Agent in Arbeit. ~3.5 Manntage Aufwand. Frühestens nach Pre-Launch ziehen, nicht in Phase 1 vom Soft-Launch.
 
 ## Later
 
 Bewusst geparkt. Wird bei Bedarf nach Next gezogen.
 
-6. Entity Content Overhaul (Budget-Freigabe nötig)
-7. CRM Rudderstack-Integration
-8. Admin UI Hub-Refactoring
-9. ERP Invoicing (easybill + StB)
-10. Checkout Phase C (Apple Pay, Google Pay)
-11. ERP Marketplace (v2.0.0)
+8. Entity Content Overhaul (Budget-Freigabe nötig)
+9. CRM Rudderstack-Integration
+10. Admin UI Hub-Refactoring
+11. ERP Invoicing (easybill + StB)
+12. Checkout Phase C (Apple Pay, Google Pay)
+13. ERP Marketplace (v2.0.0)
+14. Meilisearch Phase 2 (Admin-Endpoints + Vector-Search + LLM-Re-Rank — separate Konzepte später)
 
 ---
 
@@ -48,9 +50,9 @@ Bewusst geparkt. Wird bei Bedarf nach Next gezogen.
 ### 1. Inventur Workflow v2 Umbau
 
 **Ziel:** Frank kann im Lager Platten in die Hand nehmen, im System suchen, Zustand/Preis bewerten, bestätigen und Label drucken. Jedes physische Exemplar wird ein eigener Datensatz mit eigenem Barcode.
-**Status:** Alle 4 Phasen implementiert + deployed (2026-04-12). Search auf ALLE 50.958 Releases erweitert. iPhone-Foto-Upload integriert. 43.025 Discogs-Bilder zu R2 migriert. Discogs-Import speichert jetzt direkt R2-URLs. Frank-MacBook-Setup-Kit komplett (`frank-macbook-setup/`, 2026-04-14). **Nach Franks erstem Test-Durchlauf 12 Bugs in einem Zug gefixt (rc31, 2026-04-21) — Silent-Print via QZ Tray live, Label-Wrap-Overlap behoben, Catalog als COALESCE-Source-of-Truth, Discogs-Linking editierbar.**
-**Blocker:** Keiner — rein operativ (Frank briefen + Kit ausrollen).
-**Nächste Aktion:** Kit auf Franks MBP16 A2141 ausrollen + zweiter Test-Durchlauf mit den rc31-Fixes (Asmus-Tietchens-Label sollte jetzt mit korrektem Preis + sauberem Layout drucken).
+**Status:** **Frank arbeitet aktiv (Stand 2026-04-22).** Alle 4 Phasen implementiert + deployed (2026-04-12). Search auf ALLE 50.958 Releases. iPhone-Foto-Upload + R2-Migration komplett. Print Bridge mit brother_ql-Backend live (rc37, kein CUPS mehr). Inventur-UX rc38 (2-Button Save/Print, DB-Recent-Items, Label mit beiden Identifiern, neues Barcode-Format `000001VODe`, Back-to-Session-Banner). **rc39 (2026-04-22) Catalog/Inventur Mirror-Fix:** `add-copy` + `verify` mirrorn jetzt bei Copy #1 die Stocktake-Werte auf Release-Felder (Notturno-Bug + 5 weitere Altlasten backfilled). `/admin/media` Liste rendert Inventory-Daten in INV.-Cell. Stocktake-Suche unlimited (war 20). Catalog-Suche von 6s auf 30ms via FTS.
+**Blocker:** Keiner — Workstream läuft im Live-Betrieb.
+**Nächste Aktion:** Frank macht weitere Platten. MacBook Air-Rollout als Zweit-Gerät.
 
 #### Kontext (warum Umbau)
 
@@ -84,9 +86,10 @@ Neuer Workflow: Frank nimmt Artikel → sucht im System → bewertet (Zustand Me
 - [x] **1.12** Reset-API erweitert: setzt condition/exemplar_price zurück (2026-04-12)
 - [x] **1.13** VPS Deploy — PM2 online, 0 neue Errors (2026-04-12)
 - [x] **1.14** Frank-MacBook-Setup-Kit (`frank-macbook-setup/`, 2026-04-14) — Installations-Kit für MBP16 A2141: install.sh + test-print.sh + verify-setup.sh, Brother QL/Scanner/QZ-Tray-Automatisierung, pure-Python-PDF-Generator, Anleitung Deutsch für Frank, komplette Troubleshooting-Doku
-- [ ] **1.15** Kit auf Franks MacBook ausrollen (Brother-Driver manuell, Raster-Mode via Web-UI, Scanner-Setup-Barcodes)
-- [ ] **1.16** Frank briefen: Session-URL zeigen, neuen Workflow erklären, 5-10 Test-Artikel verifizieren
-- [ ] **1.17** V5 Sync-Check nach Frank-Test — verifizierte Preise dürfen nicht vom stündlichen Legacy-Sync überschrieben werden
+- [x] **1.15** Kit auf Franks Mac Studio ausgerollt + Print Bridge brother_ql-Backend (rc37, 2026-04-22)
+- [x] **1.16** Frank briefen + verifiziert: Workflow läuft, Frank arbeitet aktiv (rc38+rc39, 2026-04-22)
+- [x] **1.17** V5 Sync-Check verifiziert: `price_locked=true` in beiden Endpoints (`add-copy` + `verify`) gesetzt, Mirror auf Release.legacy_price funktioniert, kein Sync-Overwrite (rc39)
+- [ ] **1.18** MacBook Air als Zweit-Gerät ausrollen (`bash frank-macbook-setup/install.sh`)
 
 #### Phase 2: Dashboard + Übersicht
 
