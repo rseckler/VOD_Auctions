@@ -107,18 +107,25 @@ function configurePromisers(qz: any): void {
 async function ensureConnected(qz: any): Promise<void> {
   configurePromisers(qz)
   if (qz.websocket.isActive()) return
-  await qz.websocket.connect({ retries: 2, delay: 1 })
-  // Trigger signed-handshake direkt nach Connect. Ohne diesen no-op API-Call
-  // zeigt der QZ Tray Permission-Dialog "anonymous request / Untrusted website"
-  // (weil der Connect-Prompt nicht zwingend den signaturePromiser triggert).
-  // Mit getVersion() wird die Challenge-Signierung sofort gemacht und der
-  // Dialog zeigt das VOD-Cert — "Remember this decision" wird klickbar.
   try {
-    await qz.api.getVersion()
-  } catch {
-    // getVersion wirft wenn User "Block" klickt oder QZ Tray das Cert
-    // nicht verifizieren kann — Aufrufer behandelt das als "unavailable".
-    throw new Error("QZ Tray connected but API-call rejected")
+    await qz.websocket.connect({ retries: 2, delay: 1 })
+  } catch (e: any) {
+    const msg = e?.message || String(e)
+    throw new Error(`QZ-Connect fehlgeschlagen: ${msg}`)
+  }
+  // Trigger signed-handshake direkt nach Connect. Falls getVersion nicht
+  // existiert (aeltere QZ-Versionen) oder das Signing fehlschlaegt, reichen
+  // wir den tatsaechlichen Error durch — besser als generisches
+  // "not reachable".
+  try {
+    if (qz.api && typeof qz.api.getVersion === "function") {
+      await qz.api.getVersion()
+    } else if (typeof qz.websocket.getVersion === "function") {
+      await qz.websocket.getVersion()
+    }
+  } catch (e: any) {
+    const msg = e?.message || String(e)
+    throw new Error(`QZ signed-handshake rejected: ${msg}`)
   }
 }
 
