@@ -108,6 +108,18 @@ async function ensureConnected(qz: any): Promise<void> {
   configurePromisers(qz)
   if (qz.websocket.isActive()) return
   await qz.websocket.connect({ retries: 2, delay: 1 })
+  // Trigger signed-handshake direkt nach Connect. Ohne diesen no-op API-Call
+  // zeigt der QZ Tray Permission-Dialog "anonymous request / Untrusted website"
+  // (weil der Connect-Prompt nicht zwingend den signaturePromiser triggert).
+  // Mit getVersion() wird die Challenge-Signierung sofort gemacht und der
+  // Dialog zeigt das VOD-Cert — "Remember this decision" wird klickbar.
+  try {
+    await qz.api.getVersion()
+  } catch {
+    // getVersion wirft wenn User "Block" klickt oder QZ Tray das Cert
+    // nicht verifizieren kann — Aufrufer behandelt das als "unavailable".
+    throw new Error("QZ Tray connected but API-call rejected")
+  }
 }
 
 export async function qzIsAvailable(): Promise<boolean> {
