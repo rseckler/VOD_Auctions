@@ -233,7 +233,7 @@ function StocktakeSessionPage() {
       price: number | null
       condition: string | null
       at: string
-    }> }>("/admin/erp/inventory/recent-activity?limit=10")
+    }> }>("/admin/erp/inventory/recent-activity?limit=500")
       .then((r) => {
         setRecentItems(
           r.items.map((it) => ({
@@ -263,7 +263,7 @@ function StocktakeSessionPage() {
     setSearchLoading(true)
     try {
       const data = await apiFetch<{ results: SearchResult[]; match_type: string }>(
-        `/admin/erp/inventory/search?q=${encodeURIComponent(q.trim())}&limit=20`
+        `/admin/erp/inventory/search?q=${encodeURIComponent(q.trim())}&limit=500`
       )
       setSearchResults(data.results)
       setSelectedResultIndex(0)
@@ -401,7 +401,9 @@ function StocktakeSessionPage() {
               condition,
               at: Date.now(),
             },
-            ...prev.slice(0, 9),
+            // Dedupe: bei Mehrfach-Verify desselben Exemplars in einer Session
+            // nur der neueste Eintrag bleibt (key = release_id + copy_number).
+            ...prev.filter((p) => !(p.release_id === releaseDetail.id && p.copy === (isNewCopy ? result.item?.copy_number : result.copy_number))),
           ])
         }
       } else if (editingCopy) {
@@ -455,7 +457,9 @@ function StocktakeSessionPage() {
               condition,
               at: Date.now(),
             },
-            ...prev.slice(0, 9),
+            // Dedupe: bei Mehrfach-Verify desselben Exemplars in einer Session
+            // nur der neueste Eintrag bleibt (key = release_id + copy_number).
+            ...prev.filter((p) => !(p.release_id === releaseDetail.id && p.copy === (isNewCopy ? result.item?.copy_number : result.copy_number))),
           ])
         }
       }
@@ -686,9 +690,25 @@ function StocktakeSessionPage() {
         />
       </div>
 
-      {/* ── SEARCH RESULTS ── */}
+      {/* ── SEARCH RESULTS ──
+          Scrollbarer Container: bei generischen Tokens ("vanity", "music")
+          kommen 50-500 Treffer. Ohne maxHeight wird die Page lang und Frank
+          verliert die Recent-Items + Search-Bar aus dem Viewport. */}
       {activeView === "search" && searchResults.length > 0 && (
         <div style={{ ...cardStyle, marginBottom: S.gap.lg, padding: 0, overflow: "hidden" }}>
+          <div style={{
+            padding: "8px 16px",
+            background: C.hover,
+            borderBottom: `1px solid ${C.border}`,
+            ...T.small,
+            color: C.muted,
+            fontWeight: 600,
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+          }}>
+            Treffer · {searchResults.length}
+          </div>
+          <div style={{ maxHeight: 600, overflowY: "auto" }}>
           {searchResults.map((r, idx) => (
             <div
               key={r.release_id}
@@ -731,6 +751,7 @@ function StocktakeSessionPage() {
               </div>
             </div>
           ))}
+          </div>
         </div>
       )}
 
@@ -1045,9 +1066,10 @@ function StocktakeSessionPage() {
         </div>
       )}
 
-      {/* ── RECENT ITEMS ── prominente Sektion im Search-View (letzte 10
-          bearbeitete Platten), damit Frank den Kontext behält wenn er zwischen
-          Artikeln springt. Klick auf Eintrag öffnet das Release wieder. */}
+      {/* ── RECENT ITEMS ── prominente Sektion im Search-View (alle bearbeiteten
+          Platten der laufenden + vorherigen Sessions, scrollbar). Klick auf
+          Eintrag öffnet das Release wieder. Cap 2026-04-22 entfernt — Backend
+          liefert bis 1000 Eintraege, In-Memory unbegrenzt akkumuliert. */}
       {activeView === "search" && recentItems.length > 0 && (
         <div style={{ ...cardStyle, marginTop: S.gap.lg, padding: 0, overflow: "hidden" }}>
           <div style={{
@@ -1062,6 +1084,7 @@ function StocktakeSessionPage() {
           }}>
             Zuletzt bearbeitet · {recentItems.length}
           </div>
+          <div style={{ maxHeight: 600, overflowY: "auto" }}>
           {recentItems.map((r, i) => {
             const ageSec = Math.floor((Date.now() - r.at) / 1000)
             const ageLabel = ageSec < 60
@@ -1105,6 +1128,7 @@ function StocktakeSessionPage() {
               </div>
             )
           })}
+          </div>
         </div>
       )}
 

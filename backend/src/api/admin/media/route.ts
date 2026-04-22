@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
+import { buildReleaseSearchSubquery } from "../../../lib/release-search"
 
 // GET /admin/media — Enhanced release list with Discogs data
 export async function GET(
@@ -42,15 +43,22 @@ export async function GET(
   // ── Inventory subquery: aggregate per release_id so multiple exemplars
   // don't multiply Release rows (Exemplar-Modell, Phase 0 regression fix).
   // Returns exactly 1 row per release_id with first exemplar's fields + counts.
+  // Erweitert 2026-04-22: barcode, exemplar_price, condition_media,
+  // condition_sleeve mit aufnehmen damit die Catalog-Liste die im Stocktake
+  // erfassten Werte zeigen kann (COALESCE im SELECT unten).
   const inventorySub = pgConnection("erp_inventory_item")
     .select(
       "release_id",
       pgConnection.raw("(array_agg(id ORDER BY COALESCE(copy_number,1)))[1] as id"),
+      pgConnection.raw("(array_agg(barcode ORDER BY COALESCE(copy_number,1)))[1] as barcode"),
       pgConnection.raw("(array_agg(quantity ORDER BY COALESCE(copy_number,1)))[1] as quantity"),
       pgConnection.raw("(array_agg(status ORDER BY COALESCE(copy_number,1)))[1] as status"),
       pgConnection.raw("(array_agg(price_locked ORDER BY COALESCE(copy_number,1)))[1] as price_locked"),
       pgConnection.raw("(array_agg(last_stocktake_at ORDER BY COALESCE(copy_number,1)))[1] as last_stocktake_at"),
       pgConnection.raw("(array_agg(warehouse_location_id ORDER BY COALESCE(copy_number,1)))[1] as warehouse_location_id"),
+      pgConnection.raw("(array_agg(exemplar_price ORDER BY COALESCE(copy_number,1)))[1] as exemplar_price"),
+      pgConnection.raw("(array_agg(condition_media ORDER BY COALESCE(copy_number,1)))[1] as condition_media"),
+      pgConnection.raw("(array_agg(condition_sleeve ORDER BY COALESCE(copy_number,1)))[1] as condition_sleeve"),
       pgConnection.raw("COUNT(*)::int as exemplar_count"),
       pgConnection.raw("COUNT(*) FILTER (WHERE last_stocktake_at IS NOT NULL)::int as verified_count")
     )
@@ -92,12 +100,23 @@ export async function GET(
       "Format.kat as format_kat",
       // ── Inventory: aggregated from subquery (1 row per release) ──
       "ii.id as inventory_item_id",
+      "ii.barcode as inventory_barcode",
       "ii.quantity as inventory_quantity",
       "ii.status as inventory_item_status",
       "ii.price_locked",
       "ii.last_stocktake_at",
       "ii.exemplar_count",
       "ii.verified_count",
+      "ii.exemplar_price",
+      "ii.condition_media as erp_condition_media",
+      "ii.condition_sleeve as erp_condition_sleeve",
+      // ── COALESCE: ERP-Werte gewinnen über Release-Werte. Falls in der
+      // Vergangenheit Stocktake-Daten erfasst wurden ohne Mirror auf Release
+      // (vor dem Fix 2026-04-22), zeigt die Catalog-Liste trotzdem die
+      // korrekten Werte. Effective: bevorzugt exemplar_price, dann legacy_price.
+      pgConnection.raw('COALESCE(ii.exemplar_price, "Release".legacy_price) as effective_price'),
+      pgConnection.raw('COALESCE(ii.condition_media, "Release".media_condition) as effective_media_condition'),
+      pgConnection.raw('COALESCE(ii.condition_sleeve, "Release".sleeve_condition) as effective_sleeve_condition'),
       "warehouse_location.code as warehouse_code",
       "warehouse_location.name as warehouse_name"
     )
@@ -108,26 +127,28 @@ export async function GET(
     .leftJoin(inventorySub, "Release.id", "ii.release_id")
     .leftJoin("warehouse_location", "ii.warehouse_location_id", "warehouse_location.id")
 
-  // Full-text search on title + artist name + catalog number + article_number +
-  // inventory-item-barcode (Franks Stocktake-Barcode wie "VOD-000002" — liegt
-  // in erp_inventory_item.barcode, nicht in Release.*). Scanner-Scan füttert
-  // genau diese Werte in den Search-Bar, daher müssen wir sie hier finden.
+  // Search: Postgres FTS via Release.search_text (denormalisiert title +
+  // catalogNumber + article_number + Artist.name + Label.name). Ersetzt 2026-04-22
+  // die alte Multi-Column-OR-ILIKE die Seq Scan ueber 52k Rows machte (~6s).
+  // FTS ueber idx_release_search_fts: ~30ms. Plus Inventory-Barcode-Subquery
+  // (erp_inventory_item.barcode wie "VOD-000002") als zusaetzliche Treffer-
+  // quelle, weil Barcodes Exemplar-Level sind und nicht in Release.search_text
+  // landen koennen.
   if (q && typeof q === "string" && q.trim()) {
     const trimmed = q.trim()
-    const search = `%${trimmed}%`
-    query = query.where(function () {
-      this.whereILike("Release.title", search)
-        .orWhereILike("Artist.name", search)
-        .orWhereILike("Release.catalogNumber", search)
-        .orWhereILike("Release.article_number", search)
-        // Inventory-Barcode: exakter Match weil "VOD-000002" präzise ist
-        .orWhereIn(
-          "Release.id",
-          pgConnection("erp_inventory_item")
-            .select("release_id")
-            .whereILike("barcode", trimmed)
-        )
-    })
+    const ftsSubquery = buildReleaseSearchSubquery(pgConnection, trimmed)
+    const barcodeSubquery = pgConnection("erp_inventory_item")
+      .select("release_id")
+      .whereRaw("UPPER(barcode) = UPPER(?)", [trimmed])
+
+    if (ftsSubquery) {
+      query = query.where(function () {
+        this.whereIn("Release.id", ftsSubquery).orWhereIn("Release.id", barcodeSubquery)
+      })
+    } else {
+      // Fallback: Tokens leer (z.B. nur Sonderzeichen) → nur Barcode-Lookup
+      query = query.whereIn("Release.id", barcodeSubquery)
+    }
   }
 
   if (format && typeof format === "string") {

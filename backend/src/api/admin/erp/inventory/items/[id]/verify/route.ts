@@ -52,30 +52,76 @@ export async function POST(
     // a stale exemplar_price from earlier stocktakes. Frank hit this 2026-04-22:
     // Preis geändert → Label zeigt alten Wert, DB hat auch alten Wert beim
     // Label-Pipeline-Read (COALESCE greift exemplar zuerst).
-    if (body?.new_price != null && body.new_price >= 0) {
+    // Release-Mirror fuer Copy #1: Preis + Conditions spiegeln auf
+    // Release.legacy_price/media_condition/sleeve_condition, damit Catalog-
+    // Listing + Storefront die Werte sehen (lesen Release-Felder, nicht
+    // erp_inventory_item). price_locked=true (unten gesetzt) schuetzt vor
+    // legacy_sync_v2 Overwrite. Wird nur fuer Copy #1 gemacht — Multi-Exemplar
+    // hat eigene Preise/Conditions pro Stueck und ein Release-Mirror waere
+    // ambig welche Copy gewinnt.
+    if (item.copy_number === 1) {
+      const releaseUpdate: Record<string, unknown> = {}
+
+      if (body?.new_price != null && body.new_price >= 0) {
+        const release = await trx("Release")
+          .where("id", item.release_id)
+          .select("legacy_price")
+          .first()
+
+        releaseUpdate.legacy_price = body.new_price
+        reference.old_price = release ? Number(release.legacy_price) : null
+        reference.new_price = body.new_price
+      }
+
+      if (body?.condition_media) {
+        const current = await trx("Release")
+          .where("id", item.release_id)
+          .select("media_condition")
+          .first()
+        releaseUpdate.media_condition = body.condition_media
+        reference.old_media_condition = current?.media_condition || null
+        reference.new_media_condition = body.condition_media
+      }
+
+      if (body?.condition_sleeve) {
+        const current = await trx("Release")
+          .where("id", item.release_id)
+          .select("sleeve_condition")
+          .first()
+        releaseUpdate.sleeve_condition = body.condition_sleeve
+        reference.old_sleeve_condition = current?.sleeve_condition || null
+        reference.new_sleeve_condition = body.condition_sleeve
+      }
+
+      if (Object.keys(releaseUpdate).length > 0) {
+        releaseUpdate.updatedAt = new Date()
+        await trx("Release").where("id", item.release_id).update(releaseUpdate)
+      }
+
+      // Mirror: new_price auch auf exemplar_price (Label-Pipeline liest
+      // exemplar_price zuerst, COALESCE-Reihenfolge in barcode-label.ts).
+      if (body?.new_price != null && body.new_price >= 0 && body.exemplar_price == null) {
+        reference.old_exemplar_price = item.exemplar_price != null ? Number(item.exemplar_price) : null
+        reference.exemplar_price_mirror = body.new_price
+        // Wird unten in updateFields gesetzt (gemeinsam mit Copy-Row-Update)
+      }
+    } else if (body?.new_price != null && body.new_price >= 0) {
+      // Copy #2+: kein Release-Mirror, aber legacy_price-Update bleibt fuer
+      // Backwards-Compat (frueher hat verify das immer gemacht). Falls in
+      // Zukunft Multi-Exemplar-Pricing haerter durchgezogen wird, kann das
+      // hier weg.
       const release = await trx("Release")
         .where("id", item.release_id)
         .select("legacy_price")
         .first()
-
       await trx("Release")
         .where("id", item.release_id)
         .update({
           legacy_price: body.new_price,
           updatedAt: new Date(),
         })
-
       reference.old_price = release ? Number(release.legacy_price) : null
       reference.new_price = body.new_price
-
-      // Mirror: bei Copy #1 spiegeln wir new_price auch auf exemplar_price,
-      // damit das Label den frischen Wert zeigt. Multi-Exemplar (copy_number>1)
-      // bleibt unverändert — jeder Copy hat dort seinen eigenen Preis-Kontext.
-      if (item.copy_number === 1 && body.exemplar_price == null) {
-        reference.old_exemplar_price = item.exemplar_price != null ? Number(item.exemplar_price) : null
-        reference.exemplar_price_mirror = body.new_price
-        // Wird unten in updateFields gesetzt (gemeinsam mit Copy-Row-Update)
-      }
     }
 
     if (body?.exemplar_price != null) {

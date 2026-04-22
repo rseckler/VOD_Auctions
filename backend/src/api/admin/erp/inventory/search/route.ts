@@ -19,7 +19,10 @@ export async function GET(
   await requireFeatureFlag(pg, "ERP_INVENTORY")
 
   const q = ((req.query.q as string) || "").trim()
-  const limit = Math.min(parseInt((req.query.limit as string) || "20"), 50)
+  // Cap auf 500: FTS via idx_release_search_fts bleibt index-backed, auch
+  // bei generischen Tokens wie "vanity" (~80+ Treffer). Frank's UI hat einen
+  // scrollbaren Container, deshalb ist 500 ein praktischer Plafond statt 20.
+  const limit = Math.min(parseInt((req.query.limit as string) || "500"), 500)
 
   if (!q) {
     res.json({ results: [], total: 0 })

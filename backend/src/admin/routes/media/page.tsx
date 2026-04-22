@@ -54,6 +54,14 @@ type Release = {
   legacy_price: number | null
   inventory: number | null
   last_discogs_sync: string | null
+  // ── Inventory Fields (aus erp_inventory_item Subquery) ──
+  inventory_barcode: string | null
+  exemplar_price: number | null
+  effective_price: number | null
+  effective_media_condition: string | null
+  effective_sleeve_condition: string | null
+  exemplar_count: number | null
+  verified_count: number | null
 }
 
 type Stats = {
@@ -1245,13 +1253,13 @@ const MediaPage = () => {
               </th>
               <th style={{ ...thStyle, width: "32px", cursor: "default", textAlign: "center" }} title="Visible to customers (has image + price)">Vis.</th>
               <th style={{ ...thStyle, width: "44px", cursor: "default" }}>Cover</th>
-              <th style={{ ...thStyle, width: "40px", cursor: "default", textAlign: "center" }} title="Inventory (pieces in stock)">Inv.</th>
+              <th style={{ ...thStyle, width: "120px", cursor: "default" }} title="Inventory: barcode, exemplar price, conditions (when stocktake done)">Inv.</th>
+              <th style={thStyle} onClick={() => handleSort("label")}>Label{sortIndicator("label")}</th>
               <th style={thStyle} onClick={() => handleSort("artist_name")}>Artist{sortIndicator("artist_name")}</th>
               <th style={thStyle} onClick={() => handleSort("title")}>Title{sortIndicator("title")}</th>
               <th style={thStyle} onClick={() => handleSort("format")}>Format{sortIndicator("format")}</th>
               <th style={thStyle} onClick={() => handleSort("year")}>Year{sortIndicator("year")}</th>
               <th style={thStyle} onClick={() => handleSort("country")}>Country{sortIndicator("country")}</th>
-              <th style={thStyle} onClick={() => handleSort("label")}>Label{sortIndicator("label")}</th>
               <th style={{ ...thStyle, cursor: "default" }}>Art. No.</th>
               <th style={{ ...thStyle, cursor: "default" }}>CatNo</th>
               <th style={thStyle} onClick={() => handleSort("lowest_price")}>Discogs Price{sortIndicator("lowest_price")}</th>
@@ -1290,9 +1298,17 @@ const MediaPage = () => {
                       style={{ cursor: "pointer", accentColor: C.gold }}
                     />
                   </td>
-                  <td style={{ ...tdStyle, textAlign: "center", width: "32px" }} title={r.coverImage && r.legacy_price != null ? "Visible to customers" : `Hidden: ${!r.coverImage ? "no image" : ""}${!r.coverImage && r.legacy_price == null ? " + " : ""}${r.legacy_price == null ? "no price" : ""}`}>
-                    <span style={{ fontSize: "16px", color: r.coverImage && r.legacy_price != null ? C.success : C.error }}>●</span>
-                  </td>
+                  {(() => {
+                    // Visibility nutzt effective_price (COALESCE exemplar_price -> legacy_price)
+                    // damit Stocktake-Items ohne Release-Mirror auch als sichtbar gewertet werden.
+                    const price = r.effective_price ?? r.legacy_price
+                    const visible = !!r.coverImage && price != null
+                    return (
+                      <td style={{ ...tdStyle, textAlign: "center", width: "32px" }} title={visible ? "Visible to customers" : `Hidden: ${!r.coverImage ? "no image" : ""}${!r.coverImage && price == null ? " + " : ""}${price == null ? "no price" : ""}`}>
+                        <span style={{ fontSize: "16px", color: visible ? C.success : C.error }}>●</span>
+                      </td>
+                    )
+                  })()}
                   <td style={tdStyle}>
                     {r.coverImage ? (
                       <img src={r.coverImage} alt="" style={{ width: "32px", height: "32px", objectFit: "cover", borderRadius: "4px", border: `1px solid ${C.border}` }} />
@@ -1300,7 +1316,25 @@ const MediaPage = () => {
                       <div style={{ width: "32px", height: "32px", borderRadius: "4px", background: C.border, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", color: C.muted }}>&#9835;</div>
                     )}
                   </td>
-                  <td style={{ ...tdStyle, textAlign: "center", fontFamily: "monospace", fontSize: "13px", color: r.inventory != null ? C.text : C.muted }}>{r.inventory ?? "\u2014"}</td>
+                  {/* INV. Cell: zeigt Inventory-Barcode + exemplar_price + Conditions wenn Stocktake stattfand. */}
+                  <td style={{ ...tdStyle, fontFamily: "monospace", fontSize: "11px", lineHeight: 1.3 }}>
+                    {r.inventory_barcode ? (
+                      <div>
+                        <div style={{ color: C.gold, fontWeight: 600 }}>{r.inventory_barcode}</div>
+                        {r.exemplar_price != null && <div style={{ color: C.success, fontSize: "10px" }}>&euro;{r.exemplar_price}</div>}
+                        {(r.effective_media_condition || r.effective_sleeve_condition) && (
+                          <div style={{ color: C.muted, fontSize: "10px" }}>
+                            {r.effective_media_condition && r.effective_sleeve_condition && r.effective_media_condition !== r.effective_sleeve_condition
+                              ? `${r.effective_media_condition}/${r.effective_sleeve_condition}`
+                              : (r.effective_media_condition || r.effective_sleeve_condition)}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <span style={{ color: r.inventory != null ? C.text : C.muted, fontSize: "13px", textAlign: "center", display: "block" }}>{r.inventory ?? "\u2014"}</span>
+                    )}
+                  </td>
+                  <td style={tdStyle}>{r.label_name || "\u2014"}</td>
                   <td style={tdStyle}>{r.artist_name || "\u2014"}</td>
                   <td style={{ ...tdStyle, fontWeight: 500 }}>{r.title || "\u2014"}</td>
                   <td style={tdStyle}>
@@ -1316,7 +1350,6 @@ const MediaPage = () => {
                   </td>
                   <td style={tdStyle}>{r.year || "\u2014"}</td>
                   <td style={{ ...tdStyle, fontSize: "13px" }}>{r.country || "\u2014"}</td>
-                  <td style={tdStyle}>{r.label_name || "\u2014"}</td>
                   <td style={{ ...tdStyle, fontSize: "12px", fontFamily: "monospace", color: C.gold }}>{r.article_number || "\u2014"}</td>
                   <td style={{ ...tdStyle, fontSize: "12px", color: C.muted }}>{r.cat_no || "\u2014"}</td>
                   <td style={{ ...tdStyle, color: r.lowest_price ? C.gold : C.muted }}>{formatPrice(r.lowest_price)}</td>

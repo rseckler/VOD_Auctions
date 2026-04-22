@@ -24,7 +24,10 @@ export async function GET(
   const pg: Knex = req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
   await requireFeatureFlag(pg, "ERP_INVENTORY")
 
-  const limit = Math.min(50, Math.max(1, Number((req.query as any)?.limit) || 10))
+  // Cap auf 1000: Frank's UI hat einen scrollbaren Container, deshalb ist 1000
+  // ein praktischer Plafond. Ohne Virtualization rendert React 1000 Rows
+  // problemlos (~50ms initial). Default 500 wenn Frontend nichts anders sagt.
+  const limit = Math.min(1000, Math.max(1, Number((req.query as any)?.limit) || 500))
 
   // Nur die neuesten N Movements mit stocktake-Reason. Andere Reasons
   // (bulk_price_adjust, catalog_price_update etc.) blenden wir aus —

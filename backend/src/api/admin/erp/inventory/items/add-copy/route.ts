@@ -80,6 +80,24 @@ export async function POST(
       updated_at: new Date(),
     })
 
+    // Copy #1 Mirror auf Release: bei der ersten Erfassung dieses Releases
+    // (Non-Cohort-A Workflow) muessen Preis + Conditions auch in die
+    // Release-Felder, damit der Catalog-Listing (`/admin/media`) und die
+    // Storefront (Release.legacy_price/media_condition/sleeve_condition lesen)
+    // die Werte sehen. Ohne Mirror landet der Preis nur in
+    // erp_inventory_item.exemplar_price und im Catalog steht weiter "—".
+    // price_locked=true (oben gesetzt) schuetzt vor dem stuendlichen
+    // legacy_sync_v2 Overwrite.
+    if (nextCopyNumber === 1) {
+      const releaseUpdate: Record<string, unknown> = { updatedAt: new Date() }
+      if (exemplar_price != null) releaseUpdate.legacy_price = exemplar_price
+      if (condition_media) releaseUpdate.media_condition = condition_media
+      if (condition_sleeve) releaseUpdate.sleeve_condition = condition_sleeve
+      if (Object.keys(releaseUpdate).length > 1) {
+        await trx("Release").where("id", release_id).update(releaseUpdate)
+      }
+    }
+
     // Create inbound movement
     await createMovement(trx, {
       inventoryItemId: itemId,
@@ -92,6 +110,7 @@ export async function POST(
         condition_media: condition_media || null,
         condition_sleeve: condition_sleeve || null,
         exemplar_price: exemplar_price != null ? exemplar_price : null,
+        mirrored_to_release: nextCopyNumber === 1,
       }),
     })
 

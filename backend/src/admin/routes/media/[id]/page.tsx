@@ -581,7 +581,9 @@ const MediaDetailPage = () => {
   const [estimatedValue, setEstimatedValue] = useState<string>("")
   const [mediaCondition, setMediaCondition] = useState<string>("")
   const [sleeveCondition, setSleeveCondition] = useState<string>("")
-  const [saleMode, setSaleMode] = useState<string>("auction_only")
+  // Default 2026-04-22: direct_purchase passt zum Walk-in-First-Workflow.
+  // Frank's Standard ist Direkt-Verkauf; Auktionen sind die Ausnahme.
+  const [saleMode, setSaleMode] = useState<string>("direct_purchase")
   const [directPrice, setDirectPrice] = useState<string>("")
   const [inventory, setInventory] = useState<string>("")
   const [shippingTypeId, setShippingTypeId] = useState<string>("")
@@ -637,7 +639,7 @@ const MediaDetailPage = () => {
           setEstimatedValue(d.release.estimated_value != null ? String(d.release.estimated_value) : "")
           setMediaCondition(d.release.media_condition || "")
           setSleeveCondition(d.release.sleeve_condition || "")
-          setSaleMode(d.release.sale_mode || "auction_only")
+          setSaleMode(d.release.sale_mode || "direct_purchase")
           setDirectPrice(d.release.direct_price != null ? String(d.release.direct_price) : "")
           setInventory(d.release.inventory != null ? String(d.release.inventory) : "")
           setShippingTypeId(d.release.shipping_item_type_id || "")
