@@ -402,7 +402,7 @@ const AUCTION_STATUS_VARIANT: Record<string, keyof typeof BADGE_VARIANTS> = {
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
 const cardStyle: React.CSSProperties = {
-  background: "#fff",
+  background: C.card,
   borderRadius: S.radius.lg,
   padding: S.cardPadding,
   border: `1px solid ${C.border}`,

@@ -175,7 +175,7 @@ function PrintTestPage() {
               aktuell nicht im Hintergrund gedruckt werden — der Browser öffnet stattdessen den
               normalen Druck-Dialog (Cmd+P).
             </p>
-            <div style={{ background: "#fff", border: `1px solid ${C.border}`, borderRadius: 6, padding: S.gap.md, marginBottom: S.gap.md }}>
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, padding: S.gap.md, marginBottom: S.gap.md }}>
               <div style={{ fontWeight: 600, marginBottom: 6 }}>Was jetzt?</div>
               <p style={{ margin: 0 }}>
                 Bitte bei <strong>Robin</strong> melden (<a href="mailto:rseckler@gmail.com">rseckler@gmail.com</a>).

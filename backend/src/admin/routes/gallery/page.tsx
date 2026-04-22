@@ -380,7 +380,7 @@ const styles = {
       width: 18,
       height: 18,
       borderRadius: "50%",
-      background: "#fff",
+      background: C.card,
       transition: "left 0.2s",
     }) as React.CSSProperties,
   contentSection: {

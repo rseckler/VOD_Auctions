@@ -102,7 +102,7 @@ function modeBadgeColor(mode: string): string {
 
 function SkeletonCard() {
   return (
-    <div style={{ background: "#fff", padding: "14px 16px" }}>
+    <div style={{ background: C.card, padding: "14px 16px" }}>
       <div
         style={{
           width: 60,
@@ -172,7 +172,7 @@ function SmallBtn({
   const styles: React.CSSProperties =
     variant === "primary"
       ? { ...base, backgroundColor: C.text, borderColor: C.text, color: "#fff" }
-      : { ...base, backgroundColor: "#fff", borderColor: C.border, color: C.text }
+      : { ...base, backgroundColor: C.card, borderColor: C.border, color: C.text }
   return (
     <a href={href} style={styles}>
       {label}
@@ -459,7 +459,7 @@ function DashboardPage() {
                   if (action.link) window.location.href = action.link
                 }}
                 style={{
-                  background: "#fff",
+                  background: C.card,
                   borderRadius: 6,
                   padding: "10px 14px",
                   marginBottom: 6,
@@ -568,7 +568,7 @@ function DashboardPage() {
             <div
               key={auction.id}
               style={{
-                background: "#fff",
+                background: C.card,
                 border: `1px solid ${C.border}`,
                 borderRadius: 8,
                 padding: "14px 18px",

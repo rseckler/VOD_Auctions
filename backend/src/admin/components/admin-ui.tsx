@@ -76,7 +76,7 @@ export function Toast({ message, type = "success", onDone }: ToastProps) {
   return (
     <div style={{
       position: "fixed", bottom: 24, right: 24, zIndex: 9999,
-      background: "#fff", border: `1px solid ${color}`, color,
+      background: C.card, border: `1px solid ${color}`, color,
       padding: "10px 18px", borderRadius: S.radius.lg,
       fontSize: 12, fontWeight: 600,
       boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
@@ -209,7 +209,7 @@ export function ConfigRow({ label, hint, children }: ConfigRowProps) {
 
 export const inputStyle: CSSProperties = {
   width: "100%", maxWidth: 240, padding: "7px 11px", borderRadius: S.radius.md,
-  border: `1px solid ${C.border}`, background: "#fff", color: C.text,
+  border: `1px solid ${C.border}`, background: C.card, color: C.text,
   fontSize: 13, outline: "none",
 }
 
@@ -233,7 +233,7 @@ export function Modal({ title, subtitle, children, footer, onClose }: ModalProps
       <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 10000 }} />
       <div style={{
         position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
-        background: "#fff", border: `1px solid ${C.border}`, borderRadius: 12,
+        background: C.card, border: `1px solid ${C.border}`, borderRadius: 12,
         width: "100%", maxWidth: 540, maxHeight: "80vh", overflow: "auto",
         boxShadow: "0 24px 80px rgba(0,0,0,0.15)", zIndex: 10001,
       }}>

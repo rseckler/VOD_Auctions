@@ -486,7 +486,7 @@ function POSPage() {
                 width: "100%", padding: "14px 18px", fontSize: 18,
                 fontFamily: "monospace", border: `2px solid ${C.gold}`,
                 borderRadius: S.radius.md, outline: "none",
-                background: "#fff", color: C.text, boxSizing: "border-box",
+                background: C.card, color: C.text, boxSizing: "border-box",
               }}
             />
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 12, color: C.muted }}>
@@ -801,7 +801,7 @@ function POSPage() {
                 {customerResults.length > 0 && (
                   <div style={{
                     border: `1px solid ${C.border}`, borderRadius: S.radius.sm,
-                    maxHeight: 150, overflowY: "auto", background: "#fff",
+                    maxHeight: 150, overflowY: "auto", background: C.card,
                   }}>
                     {customerResults.map((c) => (
                       <button
@@ -854,7 +854,7 @@ function POSPage() {
                     style={{
                       padding: "7px 12px", fontSize: 12, fontWeight: 500,
                       border: `1px solid ${C.border}`, borderRadius: S.radius.sm,
-                      background: "#fff", color: C.muted, cursor: "pointer",
+                      background: C.card, color: C.muted, cursor: "pointer",
                     }}
                   >
                     ...more
@@ -918,7 +918,7 @@ function POSPage() {
                     style={{
                       padding: "6px 10px", fontSize: 11, fontWeight: 600,
                       border: `1px solid ${C.border}`, borderRadius: S.radius.sm,
-                      cursor: "pointer", background: "#fff", color: C.muted,
+                      cursor: "pointer", background: C.card, color: C.muted,
                     }}
                   >
                     Exact
@@ -1135,7 +1135,7 @@ function POSPage() {
               style={{
                 padding: "8px 16px", fontSize: 13, fontWeight: 600,
                 border: `1px solid ${C.border}`, borderRadius: S.radius.md,
-                color: C.text, textDecoration: "none", background: "#fff",
+                color: C.text, textDecoration: "none", background: C.card,
               }}
             >
               Download Receipt PDF

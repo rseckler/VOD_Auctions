@@ -121,7 +121,7 @@ export function StatsGrid({ stats }: StatsGridProps) {
       gap: 1, background: C.border, borderRadius: S.radius.lg, overflow: "hidden", marginBottom: 20,
     }}>
       {stats.map((s, i) => (
-        <div key={i} style={{ background: "#fff", padding: "14px 16px" }}>
+        <div key={i} style={{ background: C.card, padding: "14px 16px" }}>
           <div style={T.micro}>{s.label}</div>
           <div style={{ ...T.stat, color: s.color || C.text, marginTop: 2 }}>{s.value}</div>
           {s.subtitle && <div style={{ ...T.small, marginTop: 2 }}>{s.subtitle}</div>}
