@@ -542,10 +542,15 @@ function StocktakeSessionPage() {
         scanTimeout.current = setTimeout(() => {
           const val = scanBuffer.current.trim()
           scanBuffer.current = ""
-          // Accept both: VOD-XXXXXX (6-digit inventory barcode) and
-          // VOD-XXX...X (variable-length tape-mag article_number like VOD-19586).
-          // Backend handles both — tries barcode first, then article_number.
-          if (val.length >= 5 && /^VOD-\d+$/i.test(val)) {
+          // Drei Scanner-Formate werden erkannt:
+          //   1. <digits>VODe   — neues Exemplar-Format (2026-04-22+), z.B. 000001VODe
+          //   2. VOD-<digits>   — tape-mag article_number (VOD-19586) UND
+          //                       altes Exemplar-Format (VOD-000001) aus der Übergangsphase
+          // Backend-Search handled all drei — probiert erst exact Exemplar-Barcode
+          // (erp_inventory_item.barcode), dann article_number (Release.article_number).
+          const newBarcodePattern = /^\d+VODe$/i
+          const oldBarcodeOrArticle = /^VOD-\d+$/i
+          if (val.length >= 5 && (newBarcodePattern.test(val) || oldBarcodeOrArticle.test(val))) {
             setSearchQuery(val)
             doSearch(val)
           }

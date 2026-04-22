@@ -45,6 +45,7 @@ export async function GET(
       "r.legacy_condition",
       "r.legacy_price",
       "r.direct_price",
+      "r.article_number",
       "a.name as artist_name",
       "l.name as label_name"
     )
@@ -81,6 +82,7 @@ export async function GET(
 
   const labelData: LabelData = {
     barcode,
+    articleNumber: item.article_number || null,
     artistName: item.artist_name || "Unknown",
     title: item.title || "Untitled",
     labelName: item.label_name || null,

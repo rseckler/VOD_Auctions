@@ -80,7 +80,19 @@ export async function createMovement(
 /**
  * Assign a barcode to an inventory item if it doesn't have one yet.
  * Uses the erp_barcode_seq sequence for sequential numbering.
- * Format: VOD-000001 through VOD-041500+
+ *
+ * Format seit 2026-04-22: `<6-digit>VODe` (z.B. `000001VODe`).
+ * Das `VODe`-Suffix unterscheidet Exemplar-Barcodes von Artikel-Nummern
+ * (Release.article_number hat Form `VOD-19586` mit Präfix-Bindestrich).
+ * Dadurch kann man auf einen Blick unterscheiden:
+ *   - Artikel (Release-Level):  VOD-19586       — 1 pro Platten-Titel
+ *   - Exemplar (Item-Level):    000001VODe      — 1 pro physischer Kopie
+ *
+ * Historie: Altes Format `VOD-000001` (Präfix-Bindestrich + 6 Ziffern)
+ * wurde am 2026-04-22 aufgegeben weil es mit article_number kollidierte.
+ * Bestehende Barcodes im alten Format bleiben gültig (die Catalog- und
+ * Session-Suche findet beide) — eine Migration kann via Admin-Script
+ * durchgeführt werden wenn alle alten Labels neu gedruckt werden sollen.
  *
  * Returns the barcode string (existing or newly assigned).
  */
@@ -99,7 +111,7 @@ export async function assignBarcode(
   // Get next sequence value
   const seqResult = await trx.raw("SELECT nextval('erp_barcode_seq') AS seq")
   const seq = seqResult.rows[0].seq
-  const barcode = `VOD-${String(seq).padStart(6, "0")}`
+  const barcode = `${String(seq).padStart(6, "0")}VODe`
 
   await trx("erp_inventory_item")
     .where("id", inventoryItemId)

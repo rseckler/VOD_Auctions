@@ -71,7 +71,8 @@ export async function generateBarcodePng(barcode: string): Promise<Buffer> {
 // ─── Label Data ────────────────────────────────────────────────────────────
 
 export interface LabelData {
-  barcode: string                  // e.g. "VOD-000001"
+  barcode: string                  // Exemplar-Barcode, z.B. "000001VODe"
+  articleNumber?: string | null    // Release-Level Artikel-Nummer, z.B. "VOD-19586"
   artistName: string               // truncated to fit
   title: string                    // truncated to fit
   labelName?: string | null        // record label (e.g. "Mute Records")
@@ -109,6 +110,23 @@ async function drawLabel(
   const contentW = frameW - 2 * MARGIN
   const x = MARGIN
   let y = MARGIN
+
+  // ─── Row 0 (optional): Article-Number Header ────────────────────────
+  // Frank's Artikel-Nummer (z.B. "VOD-19586") als klarer Release-Kontext
+  // oberhalb des Barcodes. Kein Scan-Code — nur zum visuellen Abgleich mit
+  // dem Catalog. Format seit rc38: Article-Number ist Release-Level (ein
+  // pro Platten-Titel), Barcode unten ist Exemplar-Level (pro physischer
+  // Kopie). Beide sichtbar → Frank kann zweifelsfrei identifizieren.
+  if (data.articleNumber) {
+    doc.fontSize(8).font("Helvetica-Bold").fillColor("#555555")
+      .text(data.articleNumber, x, y, {
+        width: contentW,
+        height: 10,
+        align: "center",
+        lineBreak: false,
+      })
+    y += 2.5 * MM
+  }
 
   // ─── Row 1: Barcode, narrower and centered ───────────────────────────
   const barcodeWidth = contentW * 0.70

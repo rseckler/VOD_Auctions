@@ -18,7 +18,8 @@ export async function GET(
   res: MedusaResponse
 ): Promise<void> {
   const sample: LabelData = {
-    barcode: "VOD-TEST01",
+    barcode: "000099VODe",
+    articleNumber: "VOD-00042",
     artistName: "Cabaret Voltaire",
     title: "Red Mecca",
     labelName: "Rough Trade",
