@@ -128,16 +128,26 @@ else
 fi
 
 if [[ -d "/Applications/QZ Tray.app" ]]; then
-  # VOD Signing-Cert als "Trusted Root" bei QZ Tray registrieren — dadurch
-  # entfallen alle "Allow/Remember"-Dialoge beim Drucken. Ohne diesen Step
-  # muss der User bei JEDEM Print 4 Dialoge bestätigen (connect/getVersion/
-  # printers.find/print), alle mit ausgegrauter "Remember"-Checkbox weil
-  # das Cert für QZ Tray unsigned/untrusted ist.
-  QZ_CONFIG_DIR="$HOME/Library/Application Support/qz"
-  mkdir -p "$QZ_CONFIG_DIR"
+  # VOD Signing-Cert als "Trusted Root" bei QZ Tray registrieren.
+  # QZ Tray 2.2.6 liest override.crt in INTERNAL CertProvider mode NUR
+  # aus dem App-Bundle (/Applications/QZ Tray.app/Contents/Resources/
+  # override.crt) — nicht aus user- oder shared-dir. Das ist root-owned,
+  # braucht sudo für den Copy. Ohne diesen Step muss Frank bei JEDEM
+  # Druck 4 Dialoge bestätigen mit ausgegrauter "Remember"-Checkbox.
+  APP_OVERRIDE_PATH="/Applications/QZ Tray.app/Contents/Resources/override.crt"
   if [[ -f "$KIT_DIR/qz-signing/override.crt" ]]; then
-    cp "$KIT_DIR/qz-signing/override.crt" "$QZ_CONFIG_DIR/override.crt"
-    ok "VOD-Signing-Cert als trusted root installiert ($QZ_CONFIG_DIR/override.crt)"
+    if [[ -f "$APP_OVERRIDE_PATH" ]] && cmp -s "$KIT_DIR/qz-signing/override.crt" "$APP_OVERRIDE_PATH"; then
+      ok "VOD-Signing-Cert bereits im App-Bundle installiert"
+    else
+      echo "    Cert ins QZ Tray App-Bundle kopieren (sudo-Passwort gleich)..."
+      if sudo cp "$KIT_DIR/qz-signing/override.crt" "$APP_OVERRIDE_PATH" 2>/dev/null; then
+        ok "VOD-Signing-Cert als trusted root installiert ($APP_OVERRIDE_PATH)"
+      else
+        warn "sudo cp fehlgeschlagen — fallback auf user-dir (keine Silent-Garantie)"
+        mkdir -p "$HOME/Library/Application Support/qz"
+        cp "$KIT_DIR/qz-signing/override.crt" "$HOME/Library/Application Support/qz/override.crt"
+      fi
+    fi
   else
     warn "override.crt nicht im Kit-Verzeichnis gefunden — Silent-Print ohne Dialog nicht möglich"
   fi
