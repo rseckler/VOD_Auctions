@@ -116,12 +116,25 @@ def meili_request(method, path, json_body=None, url_override=None,
 
 
 def wait_for_task(task_uid, timeout_ms=TASK_TIMEOUT_MS):
-    """Poll /tasks/:uid until succeeded/failed. Raises on failure/timeout."""
+    """Poll /tasks/:uid until succeeded/failed. Raises on failure/timeout.
+
+    Tolerates transient 404s on the very first polls — Meili enqueues a
+    taskUid synchronously but the task row in /tasks may take a moment to
+    become queryable (observed on swap-indexes right after heavy document
+    batch pushes). 404 counts as 'not yet visible', we retry up to 5s."""
     if task_uid is None:
         return None
     deadline = time.time() + (timeout_ms / 1000.0)
+    not_found_deadline = time.time() + 5.0
     while time.time() < deadline:
-        task = meili_request("GET", f"/tasks/{task_uid}")
+        try:
+            task = meili_request("GET", f"/tasks/{task_uid}")
+        except RuntimeError as e:
+            # 404 during the first ~5s: task not yet indexed in /tasks — retry.
+            if "404" in str(e) and time.time() < not_found_deadline:
+                time.sleep(0.5)
+                continue
+            raise
         status = task.get("status")
         if status == "succeeded":
             return task
