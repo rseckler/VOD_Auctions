@@ -696,16 +696,30 @@ function StocktakeSessionPage() {
               <div style={{ marginTop: 12, fontSize: 24, fontWeight: 700, color: C.gold }}>
                 {releaseDetail.legacy_price != null ? `€${releaseDetail.legacy_price}` : "—"}
               </div>
-              {/* Discogs prices */}
-              {releaseDetail.discogs_lowest != null && (
-                <div style={{ marginTop: 8 }}>
-                  <div style={{ ...T.small, fontWeight: 600, color: C.muted, marginBottom: 4 }}>Discogs Market</div>
-                  <div style={{ ...T.small, color: C.muted }}>
-                    Low €{releaseDetail.discogs_lowest?.toFixed(2)} · Med €{releaseDetail.discogs_median?.toFixed(2)} · High €{releaseDetail.discogs_highest?.toFixed(2)} · {releaseDetail.discogs_num_for_sale} for sale
-                  </div>
+              {/* Discogs prices — 2 semantic sources, not a Low/Med/High triple:
+                  1) Market: lowest active listing + count (from /marketplace/stats)
+                  2) Suggestion range across 7 grades (from /marketplace/price_suggestions,
+                     Median=middle grade, High=Mint). NOT sales-history — that data is
+                     only on the Discogs website, link through for it. */}
+              {(releaseDetail.discogs_lowest != null || releaseDetail.discogs_median != null) && (
+                <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 2 }}>
+                  {releaseDetail.discogs_lowest != null && (
+                    <div style={{ ...T.small, color: C.muted }}>
+                      <strong style={{ color: C.text }}>Markt aktuell:</strong>{" "}
+                      ab €{releaseDetail.discogs_lowest.toFixed(2)}
+                      {releaseDetail.discogs_num_for_sale != null && ` · ${releaseDetail.discogs_num_for_sale} im Angebot`}
+                    </div>
+                  )}
+                  {releaseDetail.discogs_median != null && releaseDetail.discogs_highest != null && (
+                    <div style={{ ...T.small, color: C.muted }}>
+                      <strong style={{ color: C.text }}>Discogs-Suggestion:</strong>{" "}
+                      Median €{releaseDetail.discogs_median.toFixed(2)} · Mint €{releaseDetail.discogs_highest.toFixed(2)}
+                      <span style={{ color: C.muted, opacity: 0.7 }}> (je Zustand)</span>
+                    </div>
+                  )}
                   {releaseDetail.discogs_url && (
-                    <a href={releaseDetail.discogs_url} target="_blank" rel="noopener noreferrer" style={{ ...T.small, color: C.gold, textDecoration: "underline" }}>
-                      View on Discogs
+                    <a href={releaseDetail.discogs_url} target="_blank" rel="noopener noreferrer" style={{ ...T.small, color: C.gold, textDecoration: "underline", marginTop: 2 }}>
+                      Sales-History auf Discogs ansehen →
                     </a>
                   )}
                 </div>
@@ -835,8 +849,51 @@ function StocktakeSessionPage() {
                         cursor: "pointer",
                         fontSize: 12,
                       }}
+                      title="Discogs Median-Suggestion übernehmen (über alle 7 Zustände gemittelt — für Mint eher Mint-Suggestion nehmen)"
                     >
-                      [D] Median €{Math.round(releaseDetail.discogs_median)}
+                      [D] Sugg €{Math.round(releaseDetail.discogs_median)}
+                    </button>
+                  )}
+                  {releaseDetail?.discogs_highest != null && releaseDetail.discogs_highest !== releaseDetail.discogs_median && (
+                    <button
+                      onClick={() => {
+                        if (releaseDetail?.discogs_highest != null) {
+                          setPriceValue(String(Math.round(releaseDetail.discogs_highest)))
+                        }
+                      }}
+                      style={{
+                        background: "none",
+                        border: `1px solid ${C.border}`,
+                        borderRadius: 4,
+                        padding: "6px 12px",
+                        color: C.gold,
+                        cursor: "pointer",
+                        fontSize: 12,
+                      }}
+                      title="Discogs Mint-Suggestion übernehmen (höchste Zustands-Empfehlung)"
+                    >
+                      Mint €{Math.round(releaseDetail.discogs_highest)}
+                    </button>
+                  )}
+                  {releaseDetail?.discogs_lowest != null && (
+                    <button
+                      onClick={() => {
+                        if (releaseDetail?.discogs_lowest != null) {
+                          setPriceValue(String(Math.round(releaseDetail.discogs_lowest)))
+                        }
+                      }}
+                      style={{
+                        background: "none",
+                        border: `1px solid ${C.border}`,
+                        borderRadius: 4,
+                        padding: "6px 12px",
+                        color: C.gold,
+                        cursor: "pointer",
+                        fontSize: 12,
+                      }}
+                      title="Niedrigster aktiver Marktpreis (alle Zustände)"
+                    >
+                      Markt €{Math.round(releaseDetail.discogs_lowest)}
                     </button>
                   )}
                 </div>
