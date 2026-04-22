@@ -25,7 +25,7 @@ export async function GET(
     return
   }
 
-  // Step 1: Barcode exact match (scanner input pattern VOD-XXXXXX)
+  // Step 1a: Barcode exact match (scanner input pattern VOD-XXXXXX, 6 digits)
   if (/^VOD-\d{6}$/i.test(q)) {
     const barcodeResult = await pg.raw(`
       SELECT
@@ -77,14 +77,61 @@ export async function GET(
     }
   }
 
+  // Step 1b: Article-Number exact match — tape-mag-Katalognummer VOD-<Ziffern>,
+  // variable Länge (VOD-123, VOD-19586, VOD-100000 ...). Unser Inventar-Barcode
+  // (Step 1a, 6-stellig sequentiell VOD-000001..) und Franks article_number sind
+  // beide VOD-<Ziffern> — in der Praxis gibt es selten Kollisionen, aber der
+  // exakte Barcode-Lookup läuft zuerst. Wenn nichts gefunden → article_number.
+  if (/^VOD-\d+$/i.test(q)) {
+    const articleResult = await pg.raw(`
+      SELECT
+        r.id as release_id, r.title, r."coverImage", r.legacy_price, r.format,
+        r."catalogNumber", r.article_number, r.year, r.country,
+        r.discogs_median_price, r.discogs_id,
+        a.name as artist_name, l.name as label_name,
+        COUNT(ii.id)::int as exemplar_count,
+        COUNT(ii.id) FILTER (WHERE ii.last_stocktake_at IS NOT NULL)::int as verified_count
+      FROM "Release" r
+      LEFT JOIN erp_inventory_item ii ON ii.release_id = r.id
+      LEFT JOIN "Artist" a ON a.id = r."artistId"
+      LEFT JOIN "Label" l ON l.id = r."labelId"
+      WHERE UPPER(r.article_number) = UPPER(?)
+      GROUP BY r.id, a.name, l.name
+      LIMIT 5
+    `, [q])
+
+    if (articleResult.rows.length > 0) {
+      const rows = articleResult.rows.map((r: any) => ({
+        release_id: r.release_id,
+        artist_name: r.artist_name,
+        title: r.title,
+        format: r.format,
+        catalog_number: r.catalogNumber,
+        article_number: r.article_number,
+        cover_image: r.coverImage,
+        legacy_price: r.legacy_price != null ? Number(r.legacy_price) : null,
+        label_name: r.label_name,
+        year: r.year,
+        country: r.country,
+        exemplar_count: r.exemplar_count,
+        verified_count: r.verified_count,
+        discogs_median: r.discogs_median_price != null ? Number(r.discogs_median_price) : null,
+        discogs_id: r.discogs_id,
+      }))
+      res.json({ results: rows, total: rows.length, match_type: "article_number" })
+      return
+    }
+  }
+
   // Step 2: Text search — searches ALL releases (not just Cohort A).
   // LEFT JOIN on erp_inventory_item so releases without inventory show up too.
   // exemplar_count=0 means the release has no inventory item yet (will be created on verify).
+  // Durchsucht zusätzlich article_number (tape-mag Katalognummer VOD-XXXXX).
   const search = `%${q}%`
   const result = await pg.raw(`
     SELECT
       r.id as release_id, r.title, r."coverImage", r.legacy_price, r.format,
-      r."catalogNumber", r.year, r.country,
+      r."catalogNumber", r.article_number, r.year, r.country,
       r.discogs_median_price, r.discogs_id,
       a.name as artist_name, l.name as label_name,
       COUNT(ii.id)::int as exemplar_count,
@@ -94,19 +141,20 @@ export async function GET(
     LEFT JOIN "Artist" a ON a.id = r."artistId"
     LEFT JOIN "Label" l ON l.id = r."labelId"
     WHERE
-      a.name ILIKE ? OR r.title ILIKE ? OR r."catalogNumber" ILIKE ?
+      a.name ILIKE ? OR r.title ILIKE ? OR r."catalogNumber" ILIKE ? OR r.article_number ILIKE ?
     GROUP BY r.id, a.name, l.name
     ORDER BY
       CASE
-        WHEN a.name ILIKE ? THEN 0
-        WHEN r.title ILIKE ? THEN 1
-        WHEN a.name ILIKE ? THEN 2
-        WHEN r.title ILIKE ? THEN 3
-        ELSE 4
+        WHEN UPPER(r.article_number) = UPPER(?) THEN 0
+        WHEN a.name ILIKE ? THEN 1
+        WHEN r.title ILIKE ? THEN 2
+        WHEN a.name ILIKE ? THEN 3
+        WHEN r.title ILIKE ? THEN 4
+        ELSE 5
       END,
       a.name ASC NULLS LAST, r.title ASC
     LIMIT ?
-  `, [search, search, search, q, q, q + '%', q + '%', limit])
+  `, [search, search, search, search, q, q, q, q + '%', q + '%', limit])
 
   const results = result.rows.map((r: any) => ({
     release_id: r.release_id,
@@ -114,6 +162,7 @@ export async function GET(
     title: r.title,
     format: r.format,
     catalog_number: r.catalogNumber,
+    article_number: r.article_number,
     cover_image: r.coverImage,
     legacy_price: r.legacy_price != null ? Number(r.legacy_price) : null,
     label_name: r.label_name,

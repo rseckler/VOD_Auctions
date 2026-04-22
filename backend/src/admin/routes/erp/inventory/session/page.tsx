@@ -13,6 +13,7 @@ interface SearchResult {
   title: string
   format: string
   catalog_number: string | null
+  article_number: string | null
   cover_image: string | null
   legacy_price: number | null
   label_name: string | null
@@ -43,6 +44,7 @@ interface ReleaseDetail {
   country: string | null
   cover_image: string | null
   catalog_number: string | null
+  article_number: string | null
   legacy_price: number | null
   legacy_condition: string | null
   discogs_lowest: number | null
@@ -448,7 +450,10 @@ function StocktakeSessionPage() {
         scanTimeout.current = setTimeout(() => {
           const val = scanBuffer.current.trim()
           scanBuffer.current = ""
-          if (val.length >= 6 && /^VOD-/i.test(val)) {
+          // Accept both: VOD-XXXXXX (6-digit inventory barcode) and
+          // VOD-XXX...X (variable-length tape-mag article_number like VOD-19586).
+          // Backend handles both — tries barcode first, then article_number.
+          if (val.length >= 5 && /^VOD-\d+$/i.test(val)) {
             setSearchQuery(val)
             doSearch(val)
           }
@@ -573,7 +578,7 @@ function StocktakeSessionPage() {
               setSelectedResultIndex((i) => Math.max(i - 1, 0))
             }
           }}
-          placeholder="Artist, Titel oder Katalognummer suchen..."
+          placeholder="Artist, Titel, Katalognummer oder VOD-Nummer (z.B. VOD-19586) suchen..."
           style={{
             ...inputStyle,
             width: "100%",
@@ -614,7 +619,10 @@ function StocktakeSessionPage() {
                   {r.artist_name || "Unknown"} — {r.title}
                 </div>
                 <div style={{ ...T.small, color: C.muted }}>
-                  {r.format} {r.catalog_number ? `· ${r.catalog_number}` : ""} {r.label_name ? `· ${r.label_name}` : ""}
+                  {r.article_number ? <span style={{ fontFamily: "monospace", fontWeight: 600, marginRight: 6 }}>{r.article_number}</span> : null}
+                  {r.format}
+                  {r.catalog_number ? ` · ${r.catalog_number}` : ""}
+                  {r.label_name ? ` · ${r.label_name}` : ""}
                 </div>
               </div>
               <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
@@ -685,6 +693,11 @@ function StocktakeSessionPage() {
             <div style={{ flex: 1 }}>
               <h2 style={{ margin: 0, fontSize: 22, color: C.text }}>{releaseDetail.artist_name || "Unknown"}</h2>
               <div style={{ fontSize: 16, color: C.muted, marginTop: 4 }}>{releaseDetail.title}</div>
+              {releaseDetail.article_number && (
+                <div style={{ ...T.small, fontFamily: "monospace", color: C.gold, marginTop: 4, fontWeight: 600 }}>
+                  {releaseDetail.article_number}
+                </div>
+              )}
               <div style={{ ...T.small, color: C.muted, marginTop: 8 }}>
                 {releaseDetail.format}
                 {releaseDetail.catalog_number ? ` · ${releaseDetail.catalog_number}` : ""}
