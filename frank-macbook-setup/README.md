@@ -11,7 +11,7 @@
 |---|---|---|
 | **Brother QL-820NWBc** (Label-Drucker, 29×90mm) | Barcode-Labels für Exemplare | `install.sh` → CUPS-Queue + Raster-Mode-Guide |
 | **Inateck BCST-70** (Barcode-Scanner, USB) | Barcode-Scan in Inventur + POS | `scanner/SCANNER_SETUP.md` → Setup-Barcodes scannen |
-| **QZ Tray** (Silent-Print-Daemon) | Auto-Print ohne Browser-Dialog | `install.sh` → Homebrew Cask |
+| **VOD Print Bridge** (lokaler Silent-Print-Daemon) | Auto-Print ohne Browser-Dialog | `install.sh` → `print-bridge/install-bridge.sh` (Python stdlib, LaunchAgent, kein sudo) |
 | **Safari Web-App** für Admin | Direkt-Launcher `admin.vod-auctions.com` | `install.sh` → Safari "Zum Dock hinzufügen" |
 | **Test-Label** | Verifikation der Print-Pipeline | `test-print.sh` |
 
@@ -74,12 +74,14 @@ Das Script ist **idempotent**: es kann bei Fehlern mehrfach gestartet werden.
 **Schritte im Script:**
 
 1. **System-Check** (macOS-Version, Homebrew, Brother-Treiber)
-2. **QZ Tray installieren** (`brew install --cask qz-tray`)
-3. **CUPS-PageSize setzen** (`Custom.29x90mm` als User-Default)
-4. **Drucker Raster-Mode** — öffnet das Web-Interface im Browser (manuell, siehe `docs/PRINTER_WEB_CONFIG.md`)
-5. **Raster-Mode verifizieren** (curl-Check gegen Drucker)
+2. **Brother-Treiber verifizieren** + Queue-Name normalisieren
+3. **Print Bridge installieren** (löscht altes QZ Tray falls vorhanden, legt Python-LaunchAgent an auf `127.0.0.1:17891`)
+4. **CUPS-PageSize setzen** (`Custom.29x90mm` als User-Default)
+5. **Drucker Raster-Mode** — öffnet das Web-Interface im Browser (manuell, siehe `docs/PRINTER_WEB_CONFIG.md`)
 6. **Safari Web-App** für `https://admin.vod-auctions.com` erstellen
 7. **Test-Label drucken** (optional, empfohlen)
+
+Die Bridge selbst ist in [`print-bridge/`](print-bridge/) dokumentiert.
 
 ---
 
@@ -121,7 +123,7 @@ Siehe `docs/TROUBLESHOOTING.md`.
 Wichtigste Stolperfallen aus dem Hardware-Test vom 2026-04-11:
 - **Label kommt ~29×30mm quadratisch:** Drucker ist im P-touch-Template-Mode → `docs/PRINTER_WEB_CONFIG.md` → Command-Mode auf `Raster`
 - **Scanner tippt `ß` statt `-`:** Scanner ist im US-Keyboard-Mode → `scanner/SCANNER_SETUP.md` neu durchgehen
-- **Auto-Print öffnet immer Browser-Dialog:** QZ Tray läuft nicht → `brew services start qz-tray` oder aus dem Launchpad starten
+- **Auto-Print öffnet immer Browser-Dialog:** Print Bridge down → `curl -s http://127.0.0.1:17891/health` — wenn leer: `bash print-bridge/install-bridge.sh`
 
 ---
 

@@ -3,7 +3,7 @@ import { useAdminNav } from "../../../../components/admin-nav"
 import { C, T, S, fmtMoney } from "../../../../components/admin-tokens"
 import { PageHeader, PageShell } from "../../../../components/admin-layout"
 import { Btn, Toast, Modal, inputStyle, Badge } from "../../../../components/admin-ui"
-import { qzIsAvailable, printLabelAuto } from "../../../../lib/qz-tray-client"
+import { printerAvailable, printLabelAuto } from "../../../../lib/print-client"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -100,7 +100,7 @@ function parseLegacyCondition(legacy: string | null): { media: Grade | null; sle
 
 type PrinterStatus = "connected" | "browser" | "none"
 
-// Session-local alias — the implementation lives in lib/qz-tray-client so
+// Session-local alias — the implementation lives in lib/print-client so
 // it can be shared with the Catalog Detail Label-Print buttons.
 const printLabel = printLabelAuto
 
@@ -197,7 +197,7 @@ function StocktakeSessionPage() {
   // ── Init ──
 
   useEffect(() => {
-    qzIsAvailable().then((ok) => setPrinterStatus(ok ? "connected" : "browser"))
+    printerAvailable().then((ok) => setPrinterStatus(ok ? "connected" : "browser"))
     apiFetch<any>("/admin/erp/inventory/stats").then((s) => {
       setStats({ eligible: s.eligible, verified: s.verified })
     }).catch(() => {})
@@ -548,7 +548,7 @@ function StocktakeSessionPage() {
               Auto-Print
             </label>
             <Badge
-              label={printerStatus === "connected" ? "QZ Tray" : "Browser Print"}
+              label={printerStatus === "connected" ? "Silent Print" : "Browser Print"}
               variant={printerStatus === "connected" ? "success" : "info"}
             />
             <Btn label="Dashboard" variant="ghost" onClick={() => window.location.href = "/app/erp/inventory"} />

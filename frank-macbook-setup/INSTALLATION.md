@@ -1,8 +1,10 @@
 # Installations-Anleitung — MacBook Air M5 + Mac Studio
 
-Schritt-für-Schritt-Anleitung zum Ausrollen des Setup-Kits auf Franks beiden Macs. Läuft **einmal pro Gerät** (MacBook Air zuerst, dann Mac Studio oder umgekehrt). Dauer ca. **20 Minuten pro Gerät** — davon ~10 Minuten Hardware-Konfiguration (Brother Web-UI + Scanner-Setup-Barcodes).
+Schritt-für-Schritt-Anleitung zum Ausrollen des Setup-Kits auf Franks beiden Macs. Läuft **einmal pro Gerät** (MacBook Air zuerst, dann Mac Studio oder umgekehrt). Dauer ca. **15 Minuten pro Gerät** — davon ~10 Minuten Hardware-Konfiguration (Brother Web-UI + Scanner-Setup-Barcodes).
 
-> **Wichtig:** Beide Macs (MacBook Air M5 Apple Silicon + Mac Studio) laufen auf arm64. Das Script erkennt die Architektur automatisch und zieht die passende QZ-Tray-Version. Falls Intel-Mac dabei ist (z.B. MBP16 A2141), geht genauso.
+> **Wichtig:** Beide Macs (MacBook Air M5 Apple Silicon + Mac Studio) laufen auf arm64. Das Script erkennt die Architektur automatisch. Falls Intel-Mac dabei ist (z.B. MBP16 A2141), geht genauso.
+
+> **Seit rc34 (2026-04-22):** QZ Tray ist komplett raus. Silent-Print läuft jetzt über die **VOD Print Bridge** — ein kleiner Python-Dienst (Pure stdlib, ~250 Zeilen) der als LaunchAgent lokal auf dem Mac läuft. Kein Java, kein Zertifikate-Gedöns, keine Dialoge beim ersten Druck. Siehe [`print-bridge/README.md`](print-bridge/README.md) für Details.
 
 ---
 
@@ -17,7 +19,7 @@ Schritt-für-Schritt-Anleitung zum Ausrollen des Setup-Kits auf Franks beiden Ma
 5. **Inateck BCST-70 Barcode-Scanner** entpackt + USB-Kabel bereit
 6. **Brother-Handbuch / Scanner-Handbuch** als Setup-Barcodes: `frank-macbook-setup/scanner/BCST-70_Complete_Manual-V3_DE.pdf`
 
-**Pro-Tipp:** MacBook ans Netzteil hängen. Der Installer lädt ~100 MB (QZ Tray) herunter + installiert Brother-Treiber.
+**Pro-Tipp:** MacBook ans Netzteil hängen. Der Installer braucht nur noch den Brother-Treiber (~60 MB manuell), ansonsten ist alles local/Python stdlib.
 
 ---
 
@@ -89,7 +91,7 @@ Das Script läuft **7 Schritte durch**:
 |---|---|---|
 | 1/7 | System-Check (macOS-Version, Architektur, Homebrew) | nein |
 | 2/7 | Brother-Treiber verifizieren + Queue-Name normalisieren | nein |
-| 3/7 | **QZ Tray installieren** (lädt ~100 MB von GitHub, installiert via `sudo installer`) | **ja** — Admin-Passwort eingeben |
+| 3/7 | **Print Bridge installieren** (entfernt altes QZ Tray falls vorhanden, legt LaunchAgent an) | nur falls QZ Tray vorher drauf war — sudo für `/Applications/QZ Tray.app` löschen |
 | 4/7 | **CUPS `PageSize=Custom.29x90mm`** setzen | nein |
 | 5/7 | **Drucker-Raster-Mode umstellen** (Web-Interface) | **ja** — Drucker-IP + Drucker-Admin-Pwd eingeben |
 | 6/7 | Safari Web-App für `admin.vod-auctions.com` | **ja** — Enter drücken |
@@ -131,20 +133,23 @@ Detaillierte Anleitung: `frank-macbook-setup/scanner/SCANNER_SETUP.md`.
 
 ---
 
-## Schritt 6 — QZ Tray bestätigen (einmalig beim ersten Druck)
+## Schritt 6 — Print Bridge prüfen (normalerweise keine Aktion nötig)
 
-Beim **ersten Klick auf „Label drucken" im Admin** erscheint ein Popup von QZ Tray:
+Die Print Bridge wurde in Step 3 als LaunchAgent installiert und läuft seither im Hintergrund. Beim ersten Klick auf „Label drucken" im Admin **erscheint kein Popup** — das Label kommt direkt aus dem Drucker.
 
+Wenn im Admin-Header oben rechts als Badge **„Silent Print"** steht (statt „Browser Print"), ist alles gut. Falls „Browser Print":
+
+```sh
+# Status-Check
+curl -s http://127.0.0.1:17891/health
+
+# Erwartet: {"ok":true,"printer_found":true,...}
+
+# Wenn leer oder Fehler → Bridge neu installieren
+bash frank-macbook-setup/print-bridge/install-bridge.sh
 ```
-Allow admin.vod-auctions.com to print?
-[☐] Remember this decision
-[Deny] [Allow]
-```
 
-1. **„Remember this decision"** anhaken
-2. **„Allow"** klicken
-
-Ab jetzt druckt der Admin Labels **ohne weiteren Dialog** im Hintergrund. Falls Du die Frage nochmal beantworten willst: QZ-Tray-Menübar-Icon → Preferences → Sites → Entries löschen.
+Details: [`print-bridge/README.md`](print-bridge/README.md)
 
 ---
 
@@ -172,8 +177,9 @@ Tägliche Bedienungs-Anleitung auf Deutsch: `frank-macbook-setup/ANLEITUNG_FRANK
 | Test-Druck kommt als 29×30 mm Quadrat | Step 5 nicht durchgeführt — Raster-Mode fehlt |
 | Test-Druck ist um 90° gedreht / geclippt | CUPS-Option fehlt — `lpoptions -p Brother_QL_820NWB -o PageSize=Custom.29x90mm` manuell nachziehen |
 | Scanner schickt `ß` statt `-` | Schritt 5 nicht durchgeführt — Setup-Barcodes scannen |
-| „QZ Tray not running" im Admin-Header | QZ Tray App starten: `open "/Applications/QZ Tray.app"` |
-| „Label drucken" öffnet nur Tab/Dialog | QZ Tray wurde nicht mit „Allow + Remember" bestätigt — nochmal klicken |
+| Admin-Header zeigt „Browser Print" statt „Silent Print" | Print Bridge down. `curl -s http://127.0.0.1:17891/health` — wenn leer, `bash print-bridge/install-bridge.sh` neu laufen |
+| „Label drucken" öffnet Druckdialog | Bridge offline (siehe oben) — Fallback auf Browser-Druck ist absichtlich, bis Bridge wieder läuft |
+| Bridge installiert, aber findet Drucker nicht | `lpstat -e` zeigt Queue-Namen. Wenn Name anders als `Brother_QL_820NWB`: `bash print-bridge/install-bridge.sh --printer "DeinName"` |
 | Drucker-IP nicht erreichbar | Drucker + Mac im gleichen WLAN? Bonjour prüfen: `dns-sd -B _http._tcp local` |
 
 Alle weiteren Fehler: `docs/TROUBLESHOOTING.md` — Vollständige Debugging-Matrix.
@@ -182,24 +188,26 @@ Alle weiteren Fehler: `docs/TROUBLESHOOTING.md` — Vollständige Debugging-Matr
 
 ## Re-Runs — Script nochmal laufen lassen
 
-**Sicher, das Script ist idempotent.** Wenn QZ Tray schon installiert ist, sagt es „bereits installiert" und überspringt. Gleiches gilt für CUPS-Optionen, Safari-Web-App, Login-Item.
+**Sicher, das Script ist idempotent.** Bridge-Installer erkennt existierende LaunchAgent, cleanes Re-Bootstrap. CUPS-Optionen, Safari-Web-App, Login-Item: alle idempotent. Altes QZ Tray wird bei Re-Run entfernt (einmalige sudo-Prompt).
 
 **Nicht idempotent:** Step 5 (Drucker-Raster-Mode) — wird bei jedem Run abgefragt, einfach Enter drücken wenn schon umgestellt.
 
 ---
 
-## Zweiter Mac (Mac Studio)
+## Zweiter Mac (Mac Studio) — und dritter (Robins Dev-Mac)
 
 **Komplett identischer Ablauf:** Schritte 1–7 noch einmal durchlaufen. Das Kit-Verzeichnis kann vom ersten Mac auf den zweiten kopiert werden (via AirDrop / iCloud / USB-Stick) — dann entfällt Schritt 2 Option B.
 
 **Was pro Mac separat nötig ist:**
 - Brother-Treiber installieren (ist Mac-lokal)
-- QZ Tray installieren (ist Mac-lokal)
+- Print Bridge LaunchAgent anlegen (ist Mac-lokal, `install.sh` macht es automatisch)
 - CUPS-Queue anlegen (ist Mac-lokal)
 - Scanner einmal konfigurieren (ist Scanner-lokal, per Setup-Barcode)
 
 **Was NICHT pro Mac nötig ist:**
-- Drucker-Raster-Mode — der Mode ist im Drucker selbst gespeichert, gilt für beide Macs
+- Drucker-Raster-Mode — der Mode ist im Drucker selbst gespeichert, gilt für alle Macs
+
+**Für Dev-Macs ohne angeschlossenen Brother-Drucker** (z.B. Robins MacBook zum Entwickeln): `install.sh` erkennt den fehlenden Brother und installiert die Bridge im **DRY_RUN**-Mode. Bridge antwortet korrekt auf alle Endpoints, ruft aber `lp` nicht auf. Später wenn Brother dran ist: `bash print-bridge/install-bridge.sh` (ohne `--dry-run`) neu laufen lassen.
 
 ---
 

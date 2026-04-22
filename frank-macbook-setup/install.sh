@@ -85,85 +85,52 @@ fi
 ok "Drucker-Queue: $PRINTER_QUEUE"
 
 # ---------------------------------------------------------------------------
-# 3. QZ Tray installieren (Silent-Print-Daemon)
+# 3. Altes QZ Tray (falls vorhanden) entfernen + VOD Print Bridge installieren
 # ---------------------------------------------------------------------------
-step "3/7  QZ Tray (Silent-Print)"
+step "3/7  VOD Print Bridge (ersetzt QZ Tray)"
 
-if [[ -d "/Applications/QZ Tray.app" ]]; then
-  ok "QZ Tray bereits installiert"
+# 3a) Altes QZ Tray komplett entfernen (bei Bestandsmaschinen von rc30-rc33).
+if [[ -d "/Applications/QZ Tray.app" ]] \
+   || [[ -f "$HOME/Library/LaunchAgents/io.qz.tray.plist" ]] \
+   || pgrep -qx "QZ Tray" 2>/dev/null \
+   || osascript -e 'tell application "System Events" to (exists (login item "QZ Tray"))' 2>/dev/null | grep -q true; then
+  echo "    Altes QZ Tray gefunden — entferne komplett..."
+  # Prozess killen
+  pkill -f "QZ Tray" 2>/dev/null || true
+  # Login-Item entfernen
+  osascript -e 'tell application "System Events" to if (exists (login item "QZ Tray")) then delete login item "QZ Tray"' 2>/dev/null || true
+  # LaunchAgents
+  rm -f "$HOME/Library/LaunchAgents/io.qz.tray.plist" 2>/dev/null || true
+  # User-Daten + Cert
+  rm -rf "$HOME/Library/Application Support/qz" 2>/dev/null || true
+  # App-Bundle (braucht sudo)
+  if [[ -d "/Applications/QZ Tray.app" ]]; then
+    echo "    Lösche /Applications/QZ Tray.app (sudo-Passwort erforderlich)..."
+    sudo rm -rf "/Applications/QZ Tray.app" && ok "QZ Tray entfernt" || warn "sudo rm fehlgeschlagen — /Applications/QZ Tray.app manuell in den Papierkorb ziehen"
+  fi
 else
-  # Der alte Weg über `brew install --cask qz-tray` funktioniert nicht mehr
-  # (Cask wurde aus Homebrew entfernt). Wir laden direkt das offizielle
-  # Signed/Notarized .pkg von GitHub Releases und installieren per
-  # `sudo installer -pkg` silent.
-  QZ_VERSION="2.2.6"
-  case "$ARCH" in
-    arm64)  QZ_PKG_NAME="qz-tray-${QZ_VERSION}-arm64.pkg" ;;
-    x86_64) QZ_PKG_NAME="qz-tray-${QZ_VERSION}-x86_64.pkg" ;;
-    *)
-      warn "Unbekannte Architektur '$ARCH' — QZ Tray nicht verfügbar. Browser-Print Fallback bleibt aktiv."
-      QZ_PKG_NAME=""
-      ;;
-  esac
-
-  if [[ -n "$QZ_PKG_NAME" ]]; then
-    QZ_PKG_URL="https://github.com/qzind/tray/releases/download/v${QZ_VERSION}/${QZ_PKG_NAME}"
-    QZ_PKG_PATH="/tmp/${QZ_PKG_NAME}"
-
-    echo "    Lade QZ Tray ${QZ_VERSION} (${ARCH}) — ~95 MB…"
-    if curl -fsSL -o "$QZ_PKG_PATH" "$QZ_PKG_URL"; then
-      echo "    Installiere QZ Tray (sudo-Passwort erforderlich)…"
-      if sudo installer -pkg "$QZ_PKG_PATH" -target /; then
-        ok "QZ Tray installiert"
-        rm -f "$QZ_PKG_PATH"
-      else
-        warn "Installer-Fehler. Manuell öffnen: open $QZ_PKG_PATH"
-        warn "Alternativ: Inventur läuft auch mit Browser-Print-Fallback (Cmd+P nach jedem Verify)."
-      fi
-    else
-      warn "Download fehlgeschlagen. Manuell von https://qz.io/download/ laden."
-      warn "Alternativ: Inventur läuft auch mit Browser-Print-Fallback (Cmd+P nach jedem Verify)."
-    fi
-  fi
+  ok "Kein altes QZ Tray vorhanden"
 fi
 
-if [[ -d "/Applications/QZ Tray.app" ]]; then
-  # VOD Signing-Cert als "Trusted Root" bei QZ Tray registrieren.
-  # QZ Tray 2.2.6 liest override.crt in INTERNAL CertProvider mode NUR
-  # aus dem App-Bundle (/Applications/QZ Tray.app/Contents/Resources/
-  # override.crt) — nicht aus user- oder shared-dir. Das ist root-owned,
-  # braucht sudo für den Copy. Ohne diesen Step muss Frank bei JEDEM
-  # Druck 4 Dialoge bestätigen mit ausgegrauter "Remember"-Checkbox.
-  APP_OVERRIDE_PATH="/Applications/QZ Tray.app/Contents/Resources/override.crt"
-  if [[ -f "$KIT_DIR/qz-signing/override.crt" ]]; then
-    if [[ -f "$APP_OVERRIDE_PATH" ]] && cmp -s "$KIT_DIR/qz-signing/override.crt" "$APP_OVERRIDE_PATH"; then
-      ok "VOD-Signing-Cert bereits im App-Bundle installiert"
-    else
-      echo "    Cert ins QZ Tray App-Bundle kopieren (sudo-Passwort gleich)..."
-      if sudo cp "$KIT_DIR/qz-signing/override.crt" "$APP_OVERRIDE_PATH" 2>/dev/null; then
-        ok "VOD-Signing-Cert als trusted root installiert ($APP_OVERRIDE_PATH)"
-      else
-        warn "sudo cp fehlgeschlagen — fallback auf user-dir (keine Silent-Garantie)"
-        mkdir -p "$HOME/Library/Application Support/qz"
-        cp "$KIT_DIR/qz-signing/override.crt" "$HOME/Library/Application Support/qz/override.crt"
-      fi
-    fi
-  else
-    warn "override.crt nicht im Kit-Verzeichnis gefunden — Silent-Print ohne Dialog nicht möglich"
-  fi
-
-  # QZ Tray neustarten damit override.crt geladen wird
-  if pgrep -f "QZ Tray" >/dev/null 2>&1; then
-    pkill -f "QZ Tray" 2>/dev/null || true
-    sleep 2
-  fi
-  open "/Applications/QZ Tray.app" 2>/dev/null || true
-  sleep 2
-
-  # Autostart: macOS Login Item setzen
-  osascript -e 'tell application "System Events" to if not (exists (login item "QZ Tray")) then make login item at end with properties {path:"/Applications/QZ Tray.app", hidden:true}' 2>/dev/null \
-    && ok "QZ Tray Autostart eingerichtet" || warn "Autostart konnte nicht gesetzt werden (kein Showstopper)"
+# 3b) VOD Print Bridge installieren (LaunchAgent, User-Scope, kein sudo nötig).
+BRIDGE_INSTALLER="$KIT_DIR/print-bridge/install-bridge.sh"
+if [[ ! -x "$BRIDGE_INSTALLER" ]]; then
+  err "Print-Bridge-Installer fehlt: $BRIDGE_INSTALLER"
+  err "Ist das Kit vollständig geclont? Siehe $KIT_DIR/README.md"
+  exit 1
 fi
+
+BRIDGE_DRY_RUN_FLAG=()
+if ! lpstat -p 2>/dev/null | grep -qi "brother"; then
+  warn "Kein Brother-Drucker im System — Bridge startet im DRY_RUN (Test-Modus)."
+  warn "Sobald Drucker angeschlossen ist, Bridge mit: bash $BRIDGE_INSTALLER --printer $PRINTER_QUEUE neu installieren."
+  BRIDGE_DRY_RUN_FLAG=(--dry-run)
+fi
+
+bash "$BRIDGE_INSTALLER" --printer "$PRINTER_QUEUE" "${BRIDGE_DRY_RUN_FLAG[@]}" || {
+  err "Bridge-Installation fehlgeschlagen — siehe Ausgabe oben"
+  exit 1
+}
 
 # ---------------------------------------------------------------------------
 # 4. CUPS PageSize setzen (Custom.29x90mm)
@@ -264,22 +231,27 @@ echo "     User: frank@vod-records.com (Passwort mündlich)"
 echo "  3) Franks Anleitung übergeben: $KIT_DIR/ANLEITUNG_FRANK.md"
 echo
 
-# QZ Tray Silent-Print: beim ersten Drucken zeigt QZ Tray ein
-# „Allow this site to print?" Prompt — Frank muss einmal OK klicken.
-# Danach druckt die Inventur-Session ohne Dialog.
-echo "${BOLD}Silent-Print-Hinweis:${RESET}"
-echo "  Beim ersten Verify in der Inventur-Session erscheint QZ-Tray-Popup."
-echo "  → 'Allow' klicken (auch 'Remember' aktivieren) → stilles Drucken ist aktiv."
+# VOD Print Bridge: läuft als LaunchAgent auf 127.0.0.1:17891 — kein Popup,
+# kein Cert-Dialog, kein Signing. Admin-UI pollt /health und druckt via POST.
+echo "${BOLD}Silent-Print-Status:${RESET}"
+if curl -s --max-time 2 http://127.0.0.1:17891/health 2>/dev/null | grep -qE '"ok"[[:space:]]*:[[:space:]]*true'; then
+  echo "  ${GREEN}✓${RESET} Print Bridge läuft — Silent-Druck ist sofort aktiv."
+  echo "  Logs beobachten: ${BOLD}tail -f ~/Library/Logs/vod-print-bridge.log${RESET}"
+else
+  echo "  ${YELLOW}⚠${RESET} Bridge nicht erreichbar — Admin fällt auf Browser-Druck zurück."
+  echo "  Debug: ${BOLD}bash $KIT_DIR/print-bridge/install-bridge.sh${RESET}  (neu starten)"
+fi
 echo
 
 # Falls Queue-Name vom Default abweicht: Info für manuelle Einstellung
 if [[ "$PRINTER_QUEUE" != "Brother_QL_820NWB" ]]; then
   echo "${BOLD}${YELLOW}⚠ Hinweis zum Drucker-Namen:${RESET}"
   echo "  Deine CUPS-Queue heißt '${BOLD}$PRINTER_QUEUE${RESET}', nicht 'Brother_QL_820NWB'."
-  echo "  Die Silent-Print-Logik versucht zuerst den Default-Namen, dann einen Fuzzy-Match"
-  echo "  auf 'brother ql' — das sollte automatisch klappen."
-  echo "  Falls nicht, in Safari bei VOD Admin: ${BOLD}Cmd+Option+C${RESET} → Konsole öffnen →"
-  echo "    localStorage.setItem('vod.qz.printer', '$PRINTER_QUEUE')"
+  echo "  Die Bridge wurde bereits auf '${BOLD}$PRINTER_QUEUE${RESET}' konfiguriert (fuzzy-match"
+  echo "  auf 'brother ql' greift zusätzlich als Sicherheitsnetz)."
+  echo "  Falls Du Drucker im Admin-UI überschreiben möchtest, in Safari bei VOD Admin:"
+  echo "  ${BOLD}Cmd+Option+C${RESET} → Konsole → "
+  echo "    localStorage.setItem('vod.print.printer', '$PRINTER_QUEUE')"
   echo "  → [Enter] → Seite neu laden."
   echo
 fi

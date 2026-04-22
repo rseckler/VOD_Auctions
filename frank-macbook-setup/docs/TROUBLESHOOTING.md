@@ -75,29 +75,64 @@ Auto-Off ist aktiv (Default 2 min). Im Handbuch §4 Barcode „Energiesparmodus 
 
 ---
 
-## QZ Tray
+## VOD Print Bridge (Silent-Print-Daemon)
 
-### Auto-Print öffnet immer Browser-Dialog
-**Ursache:** QZ Tray läuft nicht, oder Port 8181 blockiert.
-**Fix:**
+> Ersetzt seit rc34 (2026-04-22) das alte QZ Tray. Läuft als LaunchAgent im User-Scope auf `127.0.0.1:17891`. Kein Java, keine Zertifikate, keine Dialoge.
+
+### Admin-Header zeigt „Browser Print" statt „Silent Print"
+**Ursache:** Bridge ist offline oder findet keinen CUPS-Drucker.
+**Schnell-Check:**
 ```bash
-# Starten
-open -a "QZ Tray"
-# Check
-nc -zv 127.0.0.1 8181
-# Wenn "refused": App neu installieren
-brew uninstall --cask qz-tray
-brew install --cask qz-tray
+curl -s http://127.0.0.1:17891/health
+# Erwartet: {"ok":true,"printer_found":true,"dry_run":false,...}
 ```
 
-### QZ Tray fragt nach Zertifikat-Genehmigung pro Site
-Beim ersten Verify im Admin-UI erscheint ein QZ-Tray-Popup. Klicke **„Allow"** und Häkchen **„Remember this decision"**. Beim zweiten Run ist der Dialog weg.
-
-### QZ Tray startet nicht automatisch nach Reboot
+**Wenn kein Output / Connection refused:**
 ```bash
-osascript -e 'tell application "System Events" to make login item at end with properties {path:"/Applications/QZ Tray.app", hidden:true}'
+# Bridge-Agent-Status
+launchctl print gui/$(id -u)/com.vod-auctions.print-bridge 2>&1 | head -20
+
+# Log anschauen
+tail -30 ~/Library/Logs/vod-print-bridge.log
+
+# Reinstall (idempotent)
+bash ~/VOD_Auctions/frank-macbook-setup/print-bridge/install-bridge.sh
 ```
-Alternativ: Systemeinstellungen → Benutzer & Gruppen → Anmeldeobjekte → QZ Tray hinzufügen.
+
+**Wenn `printer_found:false`:**
+```bash
+# Welche Queues gibt's?
+lpstat -e
+
+# Wenn Brother-Name anders ist:
+bash ~/VOD_Auctions/frank-macbook-setup/print-bridge/install-bridge.sh --printer "QueueName"
+```
+
+### Bridge crashed in Loop
+`launchctl print` zeigt `runs = N` mit N hoch. Log prüfen:
+```bash
+tail -50 ~/Library/Logs/vod-print-bridge.log
+```
+Häufigste Ursache: Port 17891 schon belegt. Check via `lsof -i :17891`.
+
+### Bridge reagiert, aber Druck kommt nicht
+Im Log schauen: wird `lp` aufgerufen? Exit-Code? Normalerweise sollte stdout zeigen:
+```
+[INFO] printing 2614 bytes → lp -d Brother_QL_820NWB -o PageSize=Custom.29x90mm -n 1
+```
+
+Wenn ja aber kein Papier: CUPS-Queue oder Drucker-Hardware-Problem, siehe Drucker-Sektion oben.
+
+### Altes QZ Tray noch vorhanden nach Update
+```bash
+# Komplett-Purge
+pkill -f "QZ Tray" 2>/dev/null
+sudo rm -rf "/Applications/QZ Tray.app"
+rm -rf ~/Library/Application\ Support/qz
+osascript -e 'tell application "System Events" to delete login item "QZ Tray"' 2>/dev/null
+# Dann install.sh neu laufen
+bash ~/VOD_Auctions/frank-macbook-setup/install.sh
+```
 
 ---
 
@@ -179,7 +214,7 @@ Wenn nichts mehr geht:
 2. Drucker aus/an
 3. Scanner-Empfänger raus + rein
 4. Scanner aus/an
-5. QZ Tray beenden + neu starten (`killall "QZ Tray" && open -a "QZ Tray"`)
+5. Print Bridge neu starten: `launchctl kickstart -k gui/$(id -u)/com.vod-auctions.print-bridge`
 6. Safari Tab schließen + Admin neu öffnen
 7. MacBook Reboot
 8. `bash scripts/verify-setup.sh` — alle ✓?

@@ -63,25 +63,44 @@ if [[ -n "${QUEUE:-}" ]]; then
   fi
 fi
 
-# 6. QZ Tray
+# 6. VOD Print Bridge (ersetzt QZ Tray)
 echo
-echo "${BOLD}QZ Tray:${RESET}"
-if [[ -d "/Applications/QZ Tray.app" ]]; then
-  pass "QZ Tray installiert"
-  if pgrep -f "QZ Tray" >/dev/null; then
-    pass "QZ Tray läuft"
+echo "${BOLD}VOD Print Bridge:${RESET}"
+PLIST="$HOME/Library/LaunchAgents/com.vod-auctions.print-bridge.plist"
+if [[ -f "$PLIST" ]]; then
+  pass "LaunchAgent plist vorhanden"
+  if launchctl print "gui/$(id -u)/com.vod-auctions.print-bridge" >/dev/null 2>&1; then
+    pass "LaunchAgent geladen"
   else
-    warn "QZ Tray installiert, aber nicht aktiv. Starten: open -a 'QZ Tray'"
-  fi
-  # Prüfe lokalen Socket
-  if nc -zv -w 2 127.0.0.1 8181 >/dev/null 2>&1; then
-    pass "QZ Tray Port 8181 erreichbar"
-  else
-    warn "Port 8181 nicht erreichbar (QZ Tray noch nicht gestartet?)"
+    warn "plist liegt, aber Agent nicht geladen. Fix: launchctl bootstrap gui/\$(id -u) \"$PLIST\""
   fi
 else
-  fail "QZ Tray nicht installiert"
-  echo "    Fix: brew install --cask qz-tray"
+  fail "LaunchAgent nicht installiert"
+  echo "    Fix: bash frank-macbook-setup/print-bridge/install-bridge.sh"
+fi
+
+# Health-Endpoint
+HEALTH=$(curl -s --max-time 2 http://127.0.0.1:17891/health 2>/dev/null || echo "")
+if [[ -n "$HEALTH" ]] && echo "$HEALTH" | grep -qE '"ok"[[:space:]]*:[[:space:]]*true'; then
+  pass "Bridge antwortet auf 127.0.0.1:17891"
+  PRINTER_FOUND=$(echo "$HEALTH" | grep -o '"printer_found":[^,}]*' | cut -d: -f2)
+  DRY=$(echo "$HEALTH" | grep -o '"dry_run":[^,}]*' | cut -d: -f2)
+  if [[ "$PRINTER_FOUND" == "true" ]]; then
+    pass "Bridge hat CUPS-Drucker gefunden"
+  else
+    warn "Bridge läuft, aber kein passender Drucker (fuzzy-match 'brother ql' leer)"
+  fi
+  if [[ "$DRY" == "true" ]]; then
+    warn "Bridge im DRY_RUN — echter Druck deaktiviert. Re-Install ohne --dry-run wenn Drucker da ist."
+  fi
+else
+  fail "Bridge antwortet nicht auf 127.0.0.1:17891"
+  echo "    Logs: tail -f ~/Library/Logs/vod-print-bridge.log"
+fi
+
+# Alte QZ Tray Reste?
+if [[ -d "/Applications/QZ Tray.app" ]] || pgrep -qx "QZ Tray" 2>/dev/null; then
+  warn "Altes QZ Tray noch installiert — sollte beim nächsten install.sh-Lauf entfernt werden"
 fi
 
 # 7. Admin erreichbar

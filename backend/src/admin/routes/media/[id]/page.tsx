@@ -5,7 +5,7 @@ import { useAdminNav } from "../../../components/admin-nav"
 import { C, T, S, fmtDate, fmtMoney, BADGE_VARIANTS } from "../../../components/admin-tokens"
 import { PageHeader, PageShell, SectionHeader } from "../../../components/admin-layout"
 import { Badge, Btn, Toast, EmptyState, inputStyle, selectStyle } from "../../../components/admin-ui"
-import { printLabelAuto } from "../../../lib/qz-tray-client"
+import { printLabelAuto } from "../../../lib/print-client"
 
 class ErrorBoundary extends Component<
   { children: ReactNode },
