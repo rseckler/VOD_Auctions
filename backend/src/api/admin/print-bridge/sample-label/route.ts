@@ -24,7 +24,8 @@ export async function GET(
     labelName: "Rough Trade",
     format: "LP",
     country: "UK",
-    condition: "VG+",
+    conditionMedia: "NM",
+    conditionSleeve: "VG+",
     year: 1981,
     price: 42,
   }

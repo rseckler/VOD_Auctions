@@ -209,6 +209,15 @@ function StocktakeSessionPage() {
   // ── Init ──
 
   useEffect(() => {
+    // sessionStorage-Flag: markiert dass eine Inventur-Session gestartet wurde.
+    // Catalog-Detail (media/[id]/page.tsx) checkt das Flag und zeigt dann einen
+    // "← Zurück zur Inventur-Session"-Button oben an. Flag wird erst beim
+    // expliziten "Session beenden" gelöscht — damit Frank zum Catalog springen,
+    // recherchieren, und wieder zurückkommen kann.
+    try {
+      sessionStorage.setItem("vod.inventory_session_active", String(Date.now()))
+    } catch { /* storage quota / private browsing — best-effort */ }
+
     printerAvailable().then((ok) => setPrinterStatus(ok ? "connected" : "browser"))
     apiFetch<any>("/admin/erp/inventory/stats").then((s) => {
       setStats({ eligible: s.eligible, verified: s.verified })
@@ -1106,7 +1115,14 @@ function StocktakeSessionPage() {
           onClose={() => setShowExitModal(false)}
           footer={
             <>
-              <Btn label="Session beenden" variant="gold" onClick={() => window.location.href = "/app/erp/inventory"} />
+              <Btn
+                label="Session beenden"
+                variant="gold"
+                onClick={() => {
+                  try { sessionStorage.removeItem("vod.inventory_session_active") } catch { /* ignore */ }
+                  window.location.href = "/app/erp/inventory"
+                }}
+              />
               <Btn label="Weiterarbeiten" variant="ghost" onClick={() => setShowExitModal(false)} />
             </>
           }

@@ -398,6 +398,7 @@ function InventoryHubPage() {
                   <th style={thStyle}>Format</th>
                   <th style={thStyle}>Preis</th>
                   <th style={thStyle}>Ex.</th>
+                  <th style={thStyle}>Verifiziert</th>
                   <th style={thStyle}>Status</th>
                 </tr>
               </thead>
@@ -426,6 +427,17 @@ function InventoryHubPage() {
                       {item.legacy_price != null ? `€${item.legacy_price}` : "—"}
                     </td>
                     <td style={{ ...tdStyle, textAlign: "center" }}>{item.exemplar_count}</td>
+                    <td style={{ ...tdStyle, ...T.small, color: C.muted, whiteSpace: "nowrap" }}>
+                      {item.last_verified_at
+                        ? new Date(item.last_verified_at).toLocaleString("de-DE", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "2-digit",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "—"}
+                    </td>
                     <td style={tdStyle}>
                       {item.verified_count >= item.exemplar_count
                         ? <Badge label="Done" variant="success" />

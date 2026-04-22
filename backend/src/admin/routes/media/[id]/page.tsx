@@ -563,6 +563,20 @@ const MediaDetailPage = () => {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null)
+  // Back-to-Inventur-Session: wenn Frank aus der Session hier her gesprungen ist,
+  // zeigt die Session-Page setzt beim Mount sessionStorage["vod.inventory_session_active"].
+  // Solange das Flag da ist, zeigen wir oben einen Back-Button.
+  const [hasActiveSession, setHasActiveSession] = useState<boolean>(false)
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("vod.inventory_session_active")
+      if (raw) {
+        const ts = Number(raw)
+        // max 6h alt, sonst als stale ignorieren
+        if (!isNaN(ts) && Date.now() - ts < 6 * 3600_000) setHasActiveSession(true)
+      }
+    } catch { /* ignore */ }
+  }, [])
 
   const [estimatedValue, setEstimatedValue] = useState<string>("")
   const [mediaCondition, setMediaCondition] = useState<string>("")
@@ -821,6 +835,36 @@ const MediaDetailPage = () => {
 
   return (
     <PageShell maxWidth={1100}>
+      {/* Back-to-Inventur-Session-Banner — erscheint nur wenn der User
+          gerade in einer laufenden Inventur-Session ist. sessionStorage-Flag
+          wird von /app/erp/inventory/session beim Mount gesetzt und erst beim
+          expliziten "Session beenden" wieder gelöscht. */}
+      {hasActiveSession && (
+        <div
+          style={{
+            background: C.gold + "15",
+            border: `1px solid ${C.gold}40`,
+            borderRadius: S.radius.md,
+            padding: "10px 14px",
+            marginBottom: S.gap.lg,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: S.gap.md,
+          }}
+        >
+          <div style={{ ...T.small, color: C.text }}>
+            Inventur-Session läuft — Änderungen an dieser Platte fließen auch
+            zurück in die Session.
+          </div>
+          <Btn
+            label="← Zurück zur Inventur-Session"
+            variant="gold"
+            onClick={() => (window.location.href = "/app/erp/inventory/session")}
+          />
+        </div>
+      )}
+
       <PageHeader
         title={pageTitle}
         subtitle={pageSubtitle}

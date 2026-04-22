@@ -77,7 +77,9 @@ export interface LabelData {
   labelName?: string | null        // record label (e.g. "Mute Records")
   format?: string | null           // e.g. "LP", "7\""
   country?: string | null          // e.g. "UK", "Germany"
-  condition?: string | null        // e.g. "VG+", "NM"
+  condition?: string | null        // Fallback: kombinierter Condition-String (legacy Callers)
+  conditionMedia?: string | null   // Media-Zustand (Platte) — z.B. "NM"
+  conditionSleeve?: string | null  // Sleeve-Zustand (Cover) — z.B. "VG+"
   year: number | null
   price?: number | null            // euros, whole numbers (Franks F1 decision)
 }
@@ -157,11 +159,25 @@ async function drawLabel(
     })
   ty += 11
 
-  // Line 3: Format · Country · Condition · Year
+  // Line 3: Format · Country · Condition(s) · Year
+  // Condition-Präferenz: wenn conditionMedia + conditionSleeve da sind,
+  // rendern wir BEIDE mit M:/S:-Prefix damit Frank auf einen Blick sieht
+  // welcher Zustand was ist. Fallback auf combined `condition`-String wenn
+  // die Separat-Felder fehlen (legacy-Aufrufe).
+  let conditionDisplay: string | null = null
+  if (data.conditionMedia || data.conditionSleeve) {
+    const parts: string[] = []
+    if (data.conditionMedia) parts.push(`M:${data.conditionMedia}`)
+    if (data.conditionSleeve) parts.push(`S:${data.conditionSleeve}`)
+    conditionDisplay = parts.join(" ")
+  } else if (data.condition) {
+    conditionDisplay = data.condition
+  }
+
   const metaParts = [
     data.format,
     data.country,
-    data.condition,
+    conditionDisplay,
     data.year != null ? String(data.year) : "",
   ].filter(Boolean)
   doc.fontSize(8).font("Helvetica").fillColor("#555555")

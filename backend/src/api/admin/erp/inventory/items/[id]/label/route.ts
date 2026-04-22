@@ -71,11 +71,13 @@ export async function GET(
     : item.legacy_price != null ? Number(item.legacy_price)
     : null
 
-  const effectiveCondition = item.condition_media
-    ? (item.condition_sleeve && item.condition_sleeve !== item.condition_media
-        ? `${item.condition_media}/${item.condition_sleeve}`
-        : item.condition_media)
-    : (item.legacy_condition || null)
+  // Separate Felder für Media + Sleeve — Label rendert "M:NM S:VG+" im
+  // Meta-String damit Frank beide Zustände auf einen Blick sieht. Fallback
+  // auf legacy_condition wenn erp-Felder leer (pre-Stocktake-Items).
+  const conditionMedia = item.condition_media || null
+  const conditionSleeve = item.condition_sleeve || null
+  const legacyFallback =
+    !conditionMedia && !conditionSleeve ? item.legacy_condition || null : null
 
   const labelData: LabelData = {
     barcode,
@@ -84,7 +86,9 @@ export async function GET(
     labelName: item.label_name || null,
     format: item.format || "",
     country: item.country || null,
-    condition: effectiveCondition,
+    conditionMedia,
+    conditionSleeve,
+    condition: legacyFallback, // nur als Fallback für pre-Stocktake-Items
     year: item.year,
     price: effectivePrice,
   }
