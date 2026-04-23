@@ -22,6 +22,29 @@ type AlertsData = {
   checked_at: string
 }
 
+// P4-A: Alert-Dispatch-History
+type AlertDispatchEntry = {
+  id: number
+  dispatched_at: string
+  service_name: string
+  severity: "warning" | "error" | "critical"
+  message: string | null
+  metadata: Record<string, unknown> | null
+  channels_attempted: Record<string, { ok: boolean; error?: string }> | null
+  status: "fired" | "acknowledged" | "auto_resolved" | "resolved" | "suppressed_by_silence"
+  acknowledged_at: string | null
+  acknowledged_by: string | null
+  acknowledge_reason: string | null
+  resolved_at: string | null
+}
+
+type AlertHistoryData = {
+  window_days: number
+  total_in_window: number
+  counts: Record<string, number>
+  rows: AlertDispatchEntry[]
+}
+
 type ServiceStatus =
   | "ok"
   | "degraded"
@@ -747,6 +770,7 @@ export default function SystemHealthPage() {
   const [error, setError] = useState<string | null>(null)
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [alerts, setAlerts] = useState<AlertsData | null>(null)
+  const [alertHistory, setAlertHistory] = useState<AlertHistoryData | null>(null)
 
   const fetchAlerts = useCallback(async () => {
     try {
@@ -754,6 +778,34 @@ export default function SystemHealthPage() {
       if (r.ok) setAlerts(await r.json())
     } catch { /* silent */ }
   }, [])
+
+  const fetchAlertHistory = useCallback(async () => {
+    try {
+      const r = await fetch("/admin/system-health/alerts/history?days=7&limit=50", { credentials: "include" })
+      if (r.ok) setAlertHistory(await r.json())
+    } catch { /* silent */ }
+  }, [])
+
+  const acknowledgeAlert = useCallback(async (id: number) => {
+    const reason = window.prompt("Acknowledge reason (min 3 chars):")
+    if (!reason || reason.trim().length < 3) return
+    try {
+      const r = await fetch(`/admin/system-health/alerts/${id}/acknowledge`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: reason.trim() }),
+      })
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}))
+        window.alert(`Acknowledge failed: ${body.error || r.status}`)
+        return
+      }
+      await fetchAlertHistory()
+    } catch (e: any) {
+      window.alert(`Acknowledge error: ${e?.message}`)
+    }
+  }, [fetchAlertHistory])
 
   const fetchHealth = useCallback(async () => {
     setLoading(true)
@@ -773,13 +825,16 @@ export default function SystemHealthPage() {
     }
   }, [])
 
-  useEffect(() => { fetchHealth(); fetchAlerts() }, [fetchHealth, fetchAlerts])
+  useEffect(() => { fetchHealth(); fetchAlerts(); fetchAlertHistory() }, [fetchHealth, fetchAlerts, fetchAlertHistory])
 
   useEffect(() => {
     if (!autoRefresh) return
-    const interval = setInterval(fetchHealth, 30_000)
+    const interval = setInterval(() => { fetchHealth(); fetchAlertHistory() }, 30_000)
     return () => clearInterval(interval)
-  }, [autoRefresh, fetchHealth])
+  }, [autoRefresh, fetchHealth, fetchAlertHistory])
+
+  const alertHistoryFlagOn = data?.feature_flags?.some((f) => f.key === "SYSTEM_HEALTH_ALERT_HISTORY" && f.enabled) ?? false
+  const unresolvedAlerts = alertHistory?.rows.filter((r) => r.status === "fired") ?? []
 
   const checkedAt = data?.checked_at
     ? new Date(data.checked_at).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
@@ -804,6 +859,34 @@ export default function SystemHealthPage() {
         subtitle={checkedAt ? `Last checked: ${checkedAt}` : "Checking all services…"}
         actions={
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {alertHistoryFlagOn && unresolvedAlerts.length > 0 && (
+              <button
+                onClick={() => {
+                  const el = document.getElementById("alert-history-panel")
+                  el?.scrollIntoView({ behavior: "smooth", block: "start" })
+                }}
+                style={{
+                  background: C.error + "1f",
+                  border: `1px solid ${C.error}55`,
+                  color: C.error,
+                  borderRadius: 20,
+                  padding: "4px 12px",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+                title="Scroll to Alert-History"
+              >
+                <span style={{
+                  width: 8, height: 8, borderRadius: "50%", background: C.error, display: "inline-block",
+                  animation: "ping 1.5s cubic-bezier(0,0,0.2,1) infinite",
+                }} />
+                {unresolvedAlerts.length} unresolved
+              </button>
+            )}
             <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.muted, cursor: "pointer" }}>
               <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} style={{ accentColor: C.gold }} />
               Auto-refresh (30s)
@@ -945,6 +1028,114 @@ export default function SystemHealthPage() {
               return <span style={{ background: C.success + "26", color: C.success, padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600 }}>✓ All systems operational</span>
             })()}
           </div>
+        </div>
+      )}
+
+      {/* ── P4-A: Alert-History Panel ─────────────────────────────────── */}
+      {alertHistoryFlagOn && alertHistory && (alertHistory.total_in_window > 0) && (
+        <div
+          id="alert-history-panel"
+          style={{
+            marginBottom: 20,
+            padding: "14px 18px",
+            background: C.card,
+            border: `1px solid ${unresolvedAlerts.length > 0 ? C.error + "59" : C.border}`,
+            borderRadius: 10,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 15 }}>🚨</span>
+              <span style={{ fontWeight: 700, fontSize: 14, color: C.text }}>Alert History</span>
+              <span style={{ fontSize: 11, color: C.muted }}>
+                last {alertHistory.window_days}d · {alertHistory.total_in_window} total
+              </span>
+            </div>
+            <div style={{ display: "flex", gap: 10, fontSize: 11 }}>
+              {unresolvedAlerts.length > 0 && (
+                <span style={{ color: C.error, fontWeight: 700 }}>
+                  {unresolvedAlerts.length} unresolved
+                </span>
+              )}
+              <span style={{ color: C.muted }}>{alertHistory.counts.acknowledged ?? 0} ack</span>
+              <span style={{ color: C.muted }}>{alertHistory.counts.auto_resolved ?? 0} auto-res</span>
+            </div>
+          </div>
+
+          {alertHistory.rows.length === 0 ? (
+            <div style={{ fontSize: 12, color: C.muted, fontStyle: "italic", padding: "8px 0" }}>
+              No alerts in the last {alertHistory.window_days} days.
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 360, overflowY: "auto" }}>
+              {alertHistory.rows.slice(0, 20).map((a) => {
+                const sevColor = a.severity === "critical" ? C.error : a.severity === "error" ? C.error : C.warning
+                const statusColor =
+                  a.status === "fired" ? C.error :
+                  a.status === "acknowledged" ? C.blue :
+                  a.status === "auto_resolved" ? C.success :
+                  a.status === "suppressed_by_silence" ? C.muted :
+                  C.muted
+                const dispatchedAt = new Date(a.dispatched_at)
+                const ageMin = Math.round((Date.now() - dispatchedAt.getTime()) / 60_000)
+                const ageText = ageMin < 60 ? `${ageMin}min` : ageMin < 1440 ? `${Math.floor(ageMin / 60)}h` : `${Math.floor(ageMin / 1440)}d`
+                return (
+                  <div
+                    key={a.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      padding: "8px 10px",
+                      background: a.status === "fired" ? C.error + "0d" : "rgba(0,0,0,0.02)",
+                      border: `1px solid ${a.status === "fired" ? C.error + "33" : C.border}`,
+                      borderRadius: 6,
+                      fontSize: 12,
+                    }}
+                  >
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, color: sevColor, background: sevColor + "1e",
+                      padding: "2px 6px", borderRadius: 3, textTransform: "uppercase", letterSpacing: "0.05em",
+                      minWidth: 52, textAlign: "center" as const,
+                    }}>
+                      {a.severity}
+                    </span>
+                    <span style={{ fontFamily: "monospace", color: C.text, minWidth: 140 }}>{a.service_name}</span>
+                    <span style={{ flex: 1, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
+                      {a.message || "—"}
+                    </span>
+                    <span style={{ fontSize: 10, color: C.muted, minWidth: 40, textAlign: "right" as const }}>{ageText} ago</span>
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, color: statusColor, background: statusColor + "1e",
+                      padding: "2px 6px", borderRadius: 3, textTransform: "uppercase" as const, letterSpacing: "0.05em",
+                      minWidth: 70, textAlign: "center" as const,
+                    }}>
+                      {a.status.replace(/_/g, " ")}
+                    </span>
+                    {a.status === "fired" ? (
+                      <button
+                        onClick={() => acknowledgeAlert(a.id)}
+                        style={{
+                          background: C.gold, color: "#fff", border: "none", borderRadius: 4,
+                          padding: "4px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer",
+                        }}
+                        title="Acknowledge this alert"
+                      >
+                        Ack
+                      </button>
+                    ) : a.status === "acknowledged" ? (
+                      <span style={{ fontSize: 10, color: C.muted, minWidth: 70, textAlign: "right" as const }}
+                            title={`by ${a.acknowledged_by}: ${a.acknowledge_reason}`}>
+                        {(a.acknowledged_by || "").split("@")[0]}
+                      </span>
+                    ) : (
+                      <span style={{ minWidth: 70 }}>&nbsp;</span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       )}
 

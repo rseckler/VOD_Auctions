@@ -20,7 +20,7 @@ import {
   getChecksByClass,
   runCheck,
 } from "../../lib/health-checks"
-import { maybeDispatchAlert } from "../../lib/health-alerting"
+import { maybeDispatchAlert, maybeAutoResolveAlerts } from "../../lib/health-alerting"
 import { getFeatureFlag } from "../../lib/feature-flags"
 
 const VALID_CLASSES: CheckClass[] = ["fast", "background", "synthetic"]
@@ -128,6 +128,17 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
     }
   }
 
+  // P4-A A3: Auto-resolve fired alerts for services that are now ok (3 consecutive)
+  let autoResolve: { resolved_count: number; services_resolved: string[] } = { resolved_count: 0, services_resolved: [] }
+  try {
+    const okServices = rows.filter((r) => r.severity === "ok").map((r) => r.service_name)
+    if (okServices.length > 0) {
+      autoResolve = await maybeAutoResolveAlerts(pg, okServices)
+    }
+  } catch (e: any) {
+    console.error(JSON.stringify({ event: "auto_resolve_failed", error: e?.message }))
+  }
+
   const duration = Date.now() - startedAt
   res.json({
     samples_written: rows.length,
@@ -138,5 +149,6 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
     alerting: alertingOn
       ? { enabled: true, dispatched: alertResults.filter((a) => a.dispatched).length, suppressed: alertResults.filter((a) => !a.dispatched).length }
       : { enabled: false },
+    auto_resolve: autoResolve,
   })
 }

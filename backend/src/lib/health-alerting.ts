@@ -234,7 +234,58 @@ export async function maybeDispatchAlert(
 
   markCooldown(check.service_name, check.severity)
 
+  // P4-A A2: persist dispatch-log for Alert-History
+  try {
+    await pg("health_alert_dispatch_log").insert({
+      service_name: check.service_name,
+      severity: check.severity,
+      message: check.message,
+      metadata: check.metadata ? JSON.stringify(check.metadata) : null,
+      channels_attempted: JSON.stringify(channels),
+      status: "fired",
+    })
+  } catch (e: any) {
+    // Non-blocking — log-row write failure shouldn't silence the alert
+    console.error(JSON.stringify({ event: "alert_dispatch_log_write_failed", error: e?.message, service: check.service_name }))
+  }
+
   return { dispatched: true, channels }
+}
+
+// ─── P4-A A3: Auto-Resolve fired alerts when service returns to ok ─────────
+//
+// Called from POST /health-sample after each sample batch. For each service
+// that has ≥ 3 consecutive recent `ok` samples, mark all `fired` rows for
+// that service as `auto_resolved`. Conservative — not triggered by single ok
+// to avoid flapping-resolve.
+
+const AUTO_RESOLVE_OK_THRESHOLD = 3
+
+export async function maybeAutoResolveAlerts(pg: Knex, serviceNames: string[]): Promise<{ resolved_count: number; services_resolved: string[] }> {
+  if (serviceNames.length === 0) return { resolved_count: 0, services_resolved: [] }
+
+  const resolvedServices: string[] = []
+  for (const service of serviceNames) {
+    // Last N samples
+    const { rows } = await pg.raw(
+      `SELECT severity FROM health_check_log
+        WHERE service_name = ?
+        ORDER BY checked_at DESC LIMIT ?`,
+      [service, AUTO_RESOLVE_OK_THRESHOLD]
+    )
+    if (!rows || rows.length < AUTO_RESOLVE_OK_THRESHOLD) continue
+    const allOk = rows.every((r: any) => r.severity === "ok")
+    if (!allOk) continue
+    resolvedServices.push(service)
+  }
+
+  if (resolvedServices.length === 0) return { resolved_count: 0, services_resolved: [] }
+
+  const result = await pg("health_alert_dispatch_log")
+    .whereIn("service_name", resolvedServices)
+    .where("status", "fired")
+    .update({ status: "auto_resolved", resolved_at: pg.fn.now() })
+  return { resolved_count: Number(result) || 0, services_resolved: resolvedServices }
 }
 
 // ─── Daily Digest — called via POST /health-sample/digest from cron ─────────

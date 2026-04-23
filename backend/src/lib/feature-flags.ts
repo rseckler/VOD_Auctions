@@ -115,6 +115,13 @@ export const FEATURES = {
     category: "platform",
     requires: [],
   },
+  SYSTEM_HEALTH_ALERT_HISTORY: {
+    key: "SYSTEM_HEALTH_ALERT_HISTORY",
+    default: false,
+    description: "P4-A: Alert-History-Panel im System-Health-Dashboard. Zeigt letzte 50 Alerts mit Status (fired/acknowledged/auto_resolved), Acknowledge-Button mit Reason-Required. Auto-Resolve nach 3 consecutive ok-Samples. Bei OFF werden dispatch-log-Rows weiter geschrieben (harmlos), UI-Panel hidden.",
+    category: "platform",
+    requires: [],
+  },
 } as const satisfies Record<string, FeatureFlagDefinition>
 
 export type FeatureFlagKey = keyof typeof FEATURES
