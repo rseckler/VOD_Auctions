@@ -2,7 +2,7 @@
 
 **Purpose:** Auktionsplattform für ~41.500 Produkte (Industrial Music Tonträger + Literatur/Merch) — eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Beta Test (`platform_mode: beta_test`) · Storefront+Admin-UI: Englisch
-**Last Updated:** 2026-04-22 (rc40 — Meilisearch Phase 1 live)
+**Last Updated:** 2026-04-23 (rc47.1 — System Health Observability komplett live, Plan v2 §P1-P4 in einem Tag durchgezogen)
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
 
@@ -291,12 +291,13 @@ docs/
 
 → Operative Liste: [`docs/TODO.md`](docs/TODO.md)
 
-1. **Meilisearch Phase 1 live (rc40, 2026-04-22).** `SEARCH_MEILI_CATALOG` ON, Storefront /store/catalog + /suggest über Meili 1.20 (two-profile, localhost-only). p95 48-58ms (vorher 6+s), Typo "cabarte voltarie" findet Cabaret Voltaire, Facets in jedem Response. Rollback trivial via Flag OFF. Doku: [`docs/optimizing/MEILI_PHASE1_DEPLOYMENT_STEPS.md`](docs/optimizing/MEILI_PHASE1_DEPLOYMENT_STEPS.md)
-2. **Frank arbeitet aktiv an Inventur.** rc39 Catalog/Inventur Mirror-Fix weiterhin im Einsatz. Franks MacBook Air-Rollout ausstehend: `cd ~/VOD_Auctions && git pull && bash frank-macbook-setup/install.sh` (erkennt IPP-Drucker + schickt zu Brother-PPD, einmaliger sudo für mkcert)
-3. **Discogs-Mapping Manual Review (Low-Prio):** `docs/audit_discogs_flagged_2026-04-21.csv` — 431 geflagt, erst 10 Fälle mit Score < 0.3
-4. **POS P0 Dry-Run live** — Frank testet Scan→Cart→Checkout, Feedback sammeln
-5. **L1:** AGB-Anwalt beauftragen (Launch-Blocker, RSE-78)
-6. **Meilisearch Phase 2 (Backlog):** Admin-Endpoints (`/admin/media`, `/admin/erp/inventory/search`) auf Meili-discovery-Profil umstellen. Postgres-FTS bleibt als Fallback. ~1 Tag Effort. Konzept: `SEARCH_MEILISEARCH_PLAN.md §8 Phase 2`
+1. **System Health Observability komplett live (rc41-rc47.1, 2026-04-23).** Plan v2 vollständig umgesetzt an einem Tag statt geplanter 5-8 Tage. 25 registrierte Checks in 8 Kategorien, Sampler-Architektur (entkoppelt vom UI-GET), 7-stufiges Severity-Modell, 24h-Uptime-Sparklines, Alert-History + Acknowledge + Auto-Resolve (3 consecutive ok), Sentry-Issues-Embed pro Service (rseckler@gmail.com Token, scopes `event:read + org:read + project:read`), Log-Drawer mit restricted scope (6 hart-kodierte Sources, Regex-Scrubbing), Low-Impact-Actions (Force-Refresh + Silence-Service persistent), Public Status Page `vod-auctions.com/status`, 7 Runbooks, Digest-Cron 08:00 UTC. Alle Flags ON. Plan: [`docs/optimizing/SYSTEM_HEALTH_OBSERVABILITY_PLAN.md`](docs/optimizing/SYSTEM_HEALTH_OBSERVABILITY_PLAN.md). P4-E destructive Actions (pm2_restart, manual_sync) bleiben OFFEN — nach 4 Wochen Laufzeit re-evaluieren.
+2. **Meilisearch Phase 1 live (rc40, 2026-04-22).** `SEARCH_MEILI_CATALOG` ON, Storefront /store/catalog + /suggest über Meili 1.20 (two-profile, localhost-only). p95 48-58ms (vorher 6+s), Typo-Tolerance, Facets. Doku: [`docs/optimizing/MEILI_PHASE1_DEPLOYMENT_STEPS.md`](docs/optimizing/MEILI_PHASE1_DEPLOYMENT_STEPS.md)
+3. **Frank arbeitet aktiv an Inventur.** rc39 Catalog/Inventur Mirror-Fix weiterhin im Einsatz. Franks MacBook Air-Rollout ausstehend: `cd ~/VOD_Auctions && git pull && bash frank-macbook-setup/install.sh`.
+4. **POS P0 Dry-Run live** — Frank testet Scan→Cart→Checkout, Feedback sammeln.
+5. **L1:** AGB-Anwalt beauftragen (Launch-Blocker, RSE-78).
+6. **Meilisearch Phase 2 (Backlog):** Admin-Endpoints (`/admin/media`, `/admin/erp/inventory/search`) auf Meili-discovery-Profil umstellen. ~1 Tag Effort.
+7. **`supabase_realtime: degraded`** (known, non-blocker): Realtime-Service im Supabase-Projekt nicht aktiviert. Sobald Live-Bidding live geht, via Supabase-Console Dashboard → Realtime → Enable.
 
 **Arbeitsregeln:**
 - Keine Task-Listen hier pflegen — `docs/TODO.md` nutzen
