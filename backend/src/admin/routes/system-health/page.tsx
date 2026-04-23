@@ -74,8 +74,14 @@ const CATEGORIES: Array<{
   {
     id: "infrastructure",
     label: "Infrastructure",
-    description: "Database, API server & storefront hosting",
-    services: ["postgresql", "vps", "storefront", "storefront_public"],
+    description: "Database, API server, storefront hosting, VPS ops",
+    services: ["postgresql", "vps", "storefront", "storefront_public", "disk_space", "ssl_expiry", "pm2_status"],
+  },
+  {
+    id: "sync_pipelines",
+    label: "Sync Pipelines",
+    description: "Legacy sync, Meili drift & reindex backlog",
+    services: ["sync_log_freshness", "meili_drift", "meili_backlog"],
   },
   {
     id: "payments",
@@ -98,8 +104,8 @@ const CATEGORIES: Array<{
   {
     id: "data_plane",
     label: "Data Plane",
-    description: "Caching, search & media storage",
-    services: ["upstash", "meilisearch", "r2-images"],
+    description: "Caching, search, media storage & external data sources",
+    services: ["upstash", "meilisearch", "r2-images", "discogs_api", "supabase_realtime"],
   },
   {
     id: "ai",
@@ -289,6 +295,16 @@ const SERVICE_ICONS: Record<string, string> = {
   anthropic:         "🤖",
   vps:               "🖥️",
   storefront_public: "🌍",
+  "r2-images":       "🖼️",
+  meilisearch:       "🔎",
+  disk_space:        "💾",
+  ssl_expiry:        "🔐",
+  pm2_status:        "📦",
+  discogs_api:       "🎛️",
+  supabase_realtime: "📡",
+  sync_log_freshness: "🔄",
+  meili_drift:       "📐",
+  meili_backlog:     "📥",
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────

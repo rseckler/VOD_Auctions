@@ -12,6 +12,12 @@
 import type { Knex } from "knex"
 import { stripe } from "./stripe"
 import { getFeatureFlag } from "./feature-flags"
+import { statfs } from "node:fs/promises"
+import { exec } from "node:child_process"
+import { promisify } from "node:util"
+import tls from "node:tls"
+
+const execAsync = promisify(exec)
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -221,8 +227,8 @@ export const CHECKS: HealthCheckDefinition[] = [
         if (!statsRes.ok) throw new Error(`stats HTTP ${statsRes.status}`)
         const health = await healthRes.json() as any
         const stats = await statsRes.json() as any
-        const indexes = stats?.indexes ?? {}
-        const totalDocs = Object.values(indexes).reduce((sum: number, idx: any) => sum + (idx?.numberOfDocuments ?? 0), 0)
+        const indexes: Record<string, any> = stats?.indexes ?? {}
+        const totalDocs: number = Object.values(indexes).reduce<number>((sum, idx: any) => sum + (idx?.numberOfDocuments ?? 0), 0)
         let flagOn = false
         try { flagOn = await getFeatureFlag(pg, "SEARCH_MEILI_CATALOG") } catch { /* ignore */ }
         const status: ServiceStatus = flagOn ? "ok" : "degraded"
@@ -411,6 +417,319 @@ export const CHECKS: HealthCheckDefinition[] = [
       const plane = env.RUDDERSTACK_DATA_PLANE_URL
       if (!key || !plane) return { status: "unconfigured", message: "RUDDERSTACK_WRITE_KEY or DATA_PLANE_URL not set", latency_ms: null }
       return { status: "ok", message: `Write key configured — plane: ${plane}`, latency_ms: null }
+    },
+  },
+
+  // ── Infrastructure (P1.9 — VPS-local) ────────────────────────────────
+  {
+    name: "disk_space",
+    label: "Disk Space (VPS /)",
+    category: "infrastructure",
+    check_class: "background",
+    severity_note: "ok < 80%, warning 80-90%, error 90-95%, critical > 95%",
+    async run() {
+      const start = Date.now()
+      try {
+        const s = await statfs("/")
+        const totalBytes = s.blocks * s.bsize
+        const freeBytes = s.bavail * s.bsize
+        const usedBytes = totalBytes - freeBytes
+        const usedPct = (usedBytes / totalBytes) * 100
+        const latency_ms = Date.now() - start
+        const status: ServiceStatus =
+          usedPct > 95 ? "critical" :
+          usedPct > 90 ? "error" :
+          usedPct > 80 ? "warning" :
+          "ok"
+        const fmtGB = (b: number) => (b / 1e9).toFixed(1)
+        return {
+          status,
+          message: `${usedPct.toFixed(1)}% used · ${fmtGB(usedBytes)}/${fmtGB(totalBytes)} GB · ${fmtGB(freeBytes)} GB free`,
+          latency_ms,
+          metadata: { used_pct: Number(usedPct.toFixed(2)), used_gb: Number(fmtGB(usedBytes)), total_gb: Number(fmtGB(totalBytes)), free_gb: Number(fmtGB(freeBytes)) },
+        }
+      } catch (e: any) {
+        return { status: "error", message: e?.message || "statfs failed", latency_ms: Date.now() - start }
+      }
+    },
+  },
+  {
+    name: "ssl_expiry",
+    label: "SSL Certificates (3 Domains)",
+    category: "infrastructure",
+    check_class: "background",
+    severity_note: "ok > 30d, warning 14-30d, error 7-14d, critical < 7d · checks api./admin./vod-auctions.com",
+    async run() {
+      const hosts = ["vod-auctions.com", "api.vod-auctions.com", "admin.vod-auctions.com"]
+      const start = Date.now()
+      const getExpiry = (host: string): Promise<Date> =>
+        new Promise((resolve, reject) => {
+          const socket = tls.connect({ host, port: 443, servername: host, timeout: 4000 }, () => {
+            const cert = socket.getPeerCertificate()
+            socket.end()
+            if (!cert?.valid_to) return reject(new Error(`no cert for ${host}`))
+            resolve(new Date(cert.valid_to))
+          })
+          socket.on("error", reject)
+          socket.on("timeout", () => { socket.destroy(); reject(new Error(`tls timeout for ${host}`)) })
+        })
+      try {
+        const results = await Promise.allSettled(hosts.map((h) => getExpiry(h)))
+        const perHost: Array<{ host: string; days?: number; error?: string }> = []
+        let minDays = Infinity
+        let anyError = false
+        results.forEach((r, i) => {
+          if (r.status === "fulfilled") {
+            const days = Math.floor((r.value.getTime() - Date.now()) / 86_400_000)
+            perHost.push({ host: hosts[i], days })
+            if (days < minDays) minDays = days
+          } else {
+            anyError = true
+            perHost.push({ host: hosts[i], error: r.reason?.message || "failed" })
+          }
+        })
+        const latency_ms = Date.now() - start
+        const status: ServiceStatus = anyError
+          ? "error"
+          : minDays < 7 ? "critical"
+          : minDays < 14 ? "error"
+          : minDays < 30 ? "warning"
+          : "ok"
+        const msg = anyError
+          ? `check failed for ${perHost.filter((p) => p.error).map((p) => p.host).join(", ")}`
+          : `min expiry ${minDays}d (${perHost.map((p) => `${p.host.split(".")[0]}:${p.days}d`).join(", ")})`
+        return { status, message: msg, latency_ms, metadata: { hosts: perHost, min_days: minDays === Infinity ? null : minDays } }
+      } catch (e: any) {
+        return { status: "error", message: e?.message || "tls check failed", latency_ms: Date.now() - start }
+      }
+    },
+  },
+  {
+    name: "pm2_status",
+    label: "PM2 Processes",
+    category: "infrastructure",
+    check_class: "background",
+    severity_note: "ok = all online + restarts < 10 · warning if any stopped or restarts 10-50 · error if restarts > 50 or critical services down",
+    async run() {
+      const start = Date.now()
+      try {
+        const { stdout } = await execAsync("pm2 jlist", { timeout: 4500 })
+        const procs = JSON.parse(stdout) as any[]
+        const latency_ms = Date.now() - start
+        // Focus on VOD-Auctions apps
+        const vodApps = procs.filter((p) => p.name?.startsWith("vodauction"))
+        const details = vodApps.map((p) => ({
+          name: p.name,
+          status: p.pm2_env?.status,
+          restarts: p.pm2_env?.restart_time ?? 0,
+          uptime_ms: p.pm2_env?.pm_uptime ? Date.now() - p.pm2_env.pm_uptime : null,
+        }))
+        const anyDown = details.some((d) => d.status !== "online")
+        const maxRestarts = Math.max(...details.map((d) => d.restarts), 0)
+        const status: ServiceStatus =
+          anyDown ? "critical" :
+          maxRestarts > 50 ? "error" :
+          maxRestarts > 10 ? "warning" :
+          "ok"
+        const msg = anyDown
+          ? `DOWN: ${details.filter((d) => d.status !== "online").map((d) => d.name).join(", ")}`
+          : `${details.length} online · max restarts: ${maxRestarts}`
+        return { status, message: msg, latency_ms, metadata: { vod_apps: details, total_procs: procs.length } }
+      } catch (e: any) {
+        return { status: "error", message: e?.message || "pm2 jlist failed", latency_ms: Date.now() - start }
+      }
+    },
+  },
+
+  // ── External APIs (P1.10) ────────────────────────────────────────────
+  {
+    name: "discogs_api",
+    label: "Discogs API",
+    category: "data_plane",
+    check_class: "background",
+    severity_note: "ok if reachable with rate-limit-remaining > 30 · warning if 10-30 · error if < 10 or unreachable",
+    async run() {
+      const start = Date.now()
+      try {
+        const r = await fetch("https://api.discogs.com/database/search?q=test&per_page=1", {
+          headers: { "User-Agent": "VOD-Auctions-Health/1.0" },
+          signal: AbortSignal.timeout(4500),
+        })
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        const remaining = Number(r.headers.get("x-discogs-ratelimit-remaining") ?? NaN)
+        const total = Number(r.headers.get("x-discogs-ratelimit") ?? NaN)
+        const latency_ms = Date.now() - start
+        const status: ServiceStatus =
+          !Number.isFinite(remaining) ? "degraded" :
+          remaining < 10 ? "error" :
+          remaining < 30 ? "warning" :
+          "ok"
+        return {
+          status,
+          message: Number.isFinite(remaining)
+            ? `rate-limit ${remaining}/${total} remaining`
+            : "reachable (no rate-limit header)",
+          latency_ms,
+          metadata: { rate_limit_remaining: Number.isFinite(remaining) ? remaining : null, rate_limit_total: Number.isFinite(total) ? total : null },
+        }
+      } catch (e: any) {
+        return { status: "error", message: e?.message || "unreachable", latency_ms: Date.now() - start }
+      }
+    },
+  },
+  {
+    name: "supabase_realtime",
+    label: "Supabase Realtime (Live-Bidding)",
+    category: "data_plane",
+    check_class: "background",
+    severity_note: "critical if unreachable in live-auction mode · WebSocket ping roundtrip",
+    async run({ env }) {
+      const anonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY
+      if (!anonKey) {
+        return { status: "unconfigured", message: "SUPABASE_ANON_KEY not set in backend env", latency_ms: null }
+      }
+      const url = "wss://bofblwqieuvmqybzxapx.supabase.co/realtime/v1/websocket?apikey=" + encodeURIComponent(anonKey) + "&vsn=1.0.0"
+      const start = Date.now()
+      try {
+        // Node 22+ has built-in WebSocket. Check availability.
+        const WSClass: any = (globalThis as any).WebSocket
+        if (!WSClass) {
+          return { status: "unconfigured", message: "WebSocket not available in Node runtime", latency_ms: null }
+        }
+        const result = await new Promise<{ ok: boolean; error?: string }>((resolve) => {
+          const ws = new WSClass(url)
+          const timer = setTimeout(() => {
+            try { ws.close() } catch { /* noop */ }
+            resolve({ ok: false, error: "connect timeout 4s" })
+          }, 4000)
+          ws.onopen = () => {
+            clearTimeout(timer)
+            try { ws.close() } catch { /* noop */ }
+            resolve({ ok: true })
+          }
+          ws.onerror = (e: any) => {
+            clearTimeout(timer)
+            resolve({ ok: false, error: e?.message || "ws error" })
+          }
+        })
+        const latency_ms = Date.now() - start
+        if (!result.ok) {
+          return { status: "error", message: `realtime ws: ${result.error}`, latency_ms }
+        }
+        return { status: "ok", message: `ws connect + close OK (${latency_ms}ms)`, latency_ms }
+      } catch (e: any) {
+        return { status: "error", message: e?.message || "ws exception", latency_ms: Date.now() - start }
+      }
+    },
+  },
+
+  // ── Sync Pipelines (P1.8) ─────────────────────────────────────────────
+  {
+    name: "sync_log_freshness",
+    label: "Legacy Sync (sync_log)",
+    category: "sync_pipelines",
+    check_class: "background",
+    severity_note: "ok < 1h, warning 1-3h, error > 3h (cron runs hourly)",
+    async run({ pg }) {
+      const start = Date.now()
+      try {
+        const { rows } = await pg.raw(
+          `SELECT ended_at, validation_status, run_id, rows_written
+             FROM sync_log
+            WHERE phase IS NOT NULL AND validation_status IS NOT NULL
+            ORDER BY ended_at DESC NULLS LAST
+            LIMIT 1`
+        )
+        const latency_ms = Date.now() - start
+        if (!rows || rows.length === 0) {
+          return { status: "warning", message: "no sync_log entries found", latency_ms }
+        }
+        const row = rows[0]
+        const endedAt = row.ended_at ? new Date(row.ended_at) : null
+        if (!endedAt) {
+          return { status: "warning", message: "latest sync has no ended_at", latency_ms, metadata: row }
+        }
+        const ageMin = Math.round((Date.now() - endedAt.getTime()) / 60_000)
+        const status: ServiceStatus =
+          ageMin > 180 ? "error" :
+          ageMin > 60 ? "warning" :
+          row.validation_status !== "ok" ? "degraded" : "ok"
+        return {
+          status,
+          message: `last run ${ageMin}min ago · validation: ${row.validation_status} · rows_written: ${row.rows_written}`,
+          latency_ms,
+          metadata: { age_min: ageMin, run_id: row.run_id, validation_status: row.validation_status, rows_written: row.rows_written },
+        }
+      } catch (e: any) {
+        return { status: "error", message: e?.message || "query failed", latency_ms: Date.now() - start }
+      }
+    },
+  },
+  {
+    name: "meili_drift",
+    label: "Meilisearch Drift",
+    category: "sync_pipelines",
+    check_class: "background",
+    severity_note: "maps drift_log.severity directly (ok/warning/critical) · cron every 30min",
+    async run({ pg }) {
+      const start = Date.now()
+      try {
+        const { rows } = await pg.raw(
+          `SELECT timestamp, profile, db_count, meili_count, diff_pct, severity
+             FROM meilisearch_drift_log
+            ORDER BY timestamp DESC
+            LIMIT 1`
+        )
+        const latency_ms = Date.now() - start
+        if (!rows || rows.length === 0) {
+          return { status: "warning", message: "no drift_log entries yet", latency_ms }
+        }
+        const row = rows[0]
+        const ageMin = Math.round((Date.now() - new Date(row.timestamp).getTime()) / 60_000)
+        if (ageMin > 90) {
+          return { status: "error", message: `drift check stale: last run ${ageMin}min ago (expected every 30min)`, latency_ms, metadata: row }
+        }
+        const sev = row.severity as string
+        const status: ServiceStatus =
+          sev === "critical" ? "critical" :
+          sev === "warning" ? "warning" :
+          sev === "ok" ? "ok" : "degraded"
+        return {
+          status,
+          message: `drift ${Number(row.diff_pct).toFixed(2)}% · db: ${row.db_count} / meili: ${row.meili_count} · ${ageMin}min ago`,
+          latency_ms,
+          metadata: { diff_pct: Number(row.diff_pct), db_count: row.db_count, meili_count: row.meili_count, severity: sev, age_min: ageMin },
+        }
+      } catch (e: any) {
+        return { status: "error", message: e?.message || "query failed", latency_ms: Date.now() - start }
+      }
+    },
+  },
+  {
+    name: "meili_backlog",
+    label: "Meilisearch Backlog",
+    category: "sync_pipelines",
+    check_class: "background",
+    severity_note: "rows with search_indexed_at IS NULL · ok < 100, warning 100-1000, error > 1000",
+    async run({ pg }) {
+      const start = Date.now()
+      try {
+        const { rows } = await pg.raw(`SELECT COUNT(*)::int AS backlog FROM "Release" WHERE search_indexed_at IS NULL`)
+        const latency_ms = Date.now() - start
+        const backlog: number = rows?.[0]?.backlog ?? 0
+        const status: ServiceStatus =
+          backlog > 1000 ? "error" :
+          backlog > 100 ? "warning" :
+          "ok"
+        return {
+          status,
+          message: `${backlog.toLocaleString("de-DE")} rows pending reindex`,
+          latency_ms,
+          metadata: { backlog },
+        }
+      } catch (e: any) {
+        return { status: "error", message: e?.message || "query failed", latency_ms: Date.now() - start }
+      }
     },
   },
 
