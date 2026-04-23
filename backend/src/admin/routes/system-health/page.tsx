@@ -630,12 +630,18 @@ function ArchitectureFlow() {
         <p style={{ ...arrowStyle, margin: 0 }}>↘</p>
       </div>
 
-      {/* Layer 4: Data / Payments / Communication / Cache+AI */}
+      {/* Layer 4: Data / Payments / Communication / AI */}
       <div style={{ display: "flex", gap: 8 }}>
         {[
           {
             label: "Data Layer",
-            items: [["🗄️", "PostgreSQL", "Primary DB"], ["⚡", "Upstash Redis", "Cache"]],
+            items: [
+              ["🗄️", "PostgreSQL", "Primary DB (Supabase)"],
+              ["🔎", "Meilisearch", "Search (Docker/VPS)"],
+              ["⚡", "Upstash Redis", "Cache"],
+              ["🖼️", "Cloudflare R2", "Image CDN"],
+              ["📡", "Supabase Realtime", "Live-Bidding WS"],
+            ],
           },
           {
             label: "Payments",
@@ -643,11 +649,50 @@ function ArchitectureFlow() {
           },
           {
             label: "Communication",
-            items: [["✉️", "Resend", "Transactional"], ["📧", "Brevo", "CRM + Newsletter"]],
+            items: [["✉️", "Resend", "Transactional + Alerts"], ["📧", "Brevo", "CRM + Newsletter"]],
           },
           {
             label: "AI",
             items: [["🤖", "Anthropic", "Admin Chat"]],
+          },
+        ].map((col) => (
+          <div key={col.label} style={{ ...boxStyle(), flex: 1 }}>
+            <p style={labelStyle}>{col.label}</p>
+            {col.items.map(([icon, name, role]) => (
+              <div key={name} style={{ marginBottom: 4 }}>
+                <div style={{ fontSize: 11, color: C.text, fontWeight: 600 }}>{icon} {name}</div>
+                <div style={{ fontSize: 10, color: C.muted }}>{role}</div>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+
+      {/* Layer 5: External Sources + Sync Pipelines + Edge */}
+      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+        {[
+          {
+            label: "External Sources",
+            items: [
+              ["🎛️", "Discogs API", "Metadata + Price Suggestions"],
+              ["💾", "Legacy MySQL", "Hourly sync → PostgreSQL"],
+            ],
+          },
+          {
+            label: "Sync Pipelines (VPS Cron)",
+            items: [
+              ["🔄", "legacy_sync_v2", "hourly · 14 fields diff"],
+              ["📥", "discogs_daily_sync", "Mo-Fr 02:00 UTC"],
+              ["🔎", "meilisearch_sync", "every 5min · delta"],
+              ["📐", "meili_drift_check", "every 30min"],
+            ],
+          },
+          {
+            label: "Edge Devices",
+            items: [
+              ["🖨️", "Print Bridge", "3 Macs · Python LaunchAgent"],
+              ["📱", "Scanner (BCST-70)", "USB-HID · USB-tethered"],
+            ],
           },
         ].map((col) => (
           <div key={col.label} style={{ ...boxStyle(), flex: 1 }}>
