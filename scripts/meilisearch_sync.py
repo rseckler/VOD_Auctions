@@ -389,6 +389,7 @@ def transform_to_doc(row):
         "cover_image": row["cover_image"],
         "has_cover": bool(row["cover_image"]),
         "has_image": bool(row["cover_image"]),  # Admin-Alias fürs Catalog-Filter
+        "has_discogs": row["discogs_id"] is not None,
         "legacy_price": legacy,
         "shop_price": shop,
         "effective_price": effective,

@@ -188,6 +188,7 @@ function transformToDoc(row: any): Record<string, unknown> {
     cover_image: row.cover_image ?? null,
     has_cover: !!row.cover_image,
     has_image: !!row.cover_image,
+    has_discogs: row.discogs_id != null,
     legacy_price: legacy,
     shop_price: shop,
     effective_price: effective,

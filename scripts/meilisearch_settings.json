@@ -43,11 +43,13 @@
     "stocktake_state",
     "has_image",
     "has_inventory",
+    "has_discogs",
     "exemplar_count",
     "verified_count",
     "legacy_available",
     "last_stocktake_at",
-    "updated_at_ts"
+    "updated_at_ts",
+    "discogs_id"
   ],
   "sortableAttributes": [
     "year",
@@ -63,7 +65,8 @@
     "updated_at",
     "updated_at_ts",
     "last_stocktake_at",
-    "popularity_score"
+    "popularity_score",
+    "release_id"
   ],
   "displayedAttributes": [
     "id",
@@ -148,6 +151,6 @@
     }
   },
   "pagination": {
-    "maxTotalHits": 5000
+    "maxTotalHits": 60000
   }
 }

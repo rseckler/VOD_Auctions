@@ -126,13 +126,13 @@ CASES = [
         "group": "single_filter",
         "name": "has_discogs_yes",
         "pg_where": "r.discogs_id IS NOT NULL",
-        "meili_filter": "discogs_id EXISTS",
+        "meili_filter": "has_discogs = true",
     },
     {
         "group": "single_filter",
         "name": "has_discogs_no",
         "pg_where": "r.discogs_id IS NULL",
-        "meili_filter": "discogs_id NOT EXISTS",
+        "meili_filter": "has_discogs = false",
     },
     {
         "group": "single_filter",
@@ -289,7 +289,14 @@ CASES = [
 
 def meili_search(filter_expr: Optional[str], limit: int = COMPARE_LIMIT):
     url = f"{MEILI_URL}/indexes/{INDEX}/search"
-    body = {"q": "", "limit": limit, "attributesToRetrieve": ["release_id"]}
+    body = {
+        "q": "",
+        "limit": limit,
+        "attributesToRetrieve": ["release_id"],
+        # Stabile Ordering damit PG (ORDER BY r.id) und Meili identische
+        # erste-N Ausschnitte liefern bei grossen Result-Sets
+        "sort": ["release_id:asc"],
+    }
     if filter_expr is not None:
         body["filter"] = filter_expr
 
