@@ -317,13 +317,39 @@ export async function GET(
     query = query.where("warehouse_location.code", warehouse_location.trim())
   }
 
-  // Count before pagination
-  const countQuery = query
-    .clone()
-    .clearSelect()
-    .clearOrder()
-    .count("Release.id as count")
-    .first()
+  // Count before pagination.
+  //
+  // Performance: wenn keine Filter aktiv sind (Erstaufruf der Catalog-Seite
+  // ohne Suche/Filter), war der Clone-Count-Query ein Full-JOIN von Release
+  // mit der 13k-Row inventorySub + Artist + Label + Format + warehouse_location,
+  // nur um COUNT(*) zurueckzugeben. Fuer den No-Filter-Fall ist das
+  // aequivalent zu einem einfachen `SELECT COUNT(*) FROM "Release"` — der
+  // ueber Index-Only-Scan auf der PK laeuft (~30-50ms statt 1-2s).
+  const hasAnyFilter = !!(
+    (q && typeof q === "string" && q.trim()) ||
+    format ||
+    (year_from && typeof year_from === "string") ||
+    (year_to && typeof year_to === "string") ||
+    country ||
+    (label && typeof label === "string" && label.trim()) ||
+    auction_status ||
+    category ||
+    has_discogs ||
+    has_price ||
+    has_image ||
+    visibility ||
+    (import_collection && typeof import_collection === "string" && import_collection.trim()) ||
+    (import_action && typeof import_action === "string" && import_action.trim()) ||
+    inventory_state ||
+    (inventory_status && typeof inventory_status === "string" && inventory_status.trim()) ||
+    stocktake ||
+    price_locked ||
+    (warehouse_location && typeof warehouse_location === "string" && warehouse_location.trim())
+  )
+
+  const countQuery = hasAnyFilter
+    ? query.clone().clearSelect().clearOrder().count("Release.id as count").first()
+    : pgConnection("Release").count("* as count").first()
 
   // Sorting
   const sortMap: Record<string, [string, string]> = {

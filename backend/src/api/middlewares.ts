@@ -21,6 +21,13 @@ export default defineMiddlewares({
       bodyParser: { sizeLimit: "10mb" },
     },
     {
+      // ERP inventory image upload — iPhone-Fotos kommen als base64-JSON
+      // (~5-10 MB raw + 33% base64-Overhead → bis 20 MB Payload).
+      matcher: "/admin/erp/inventory/upload-image",
+      methods: ["POST"],
+      bodyParser: { sizeLimit: "25mb" },
+    },
+    {
       // Stripe webhook — raw body for signature verification, no auth
       matcher: "/webhooks/stripe",
       methods: ["POST"],
