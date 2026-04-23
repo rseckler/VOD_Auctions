@@ -12,6 +12,7 @@
 import type { Knex } from "knex"
 import { stripe } from "./stripe"
 import { getFeatureFlag } from "./feature-flags"
+import { getSiteConfig } from "./site-config"
 import { statfs } from "node:fs/promises"
 import { exec } from "node:child_process"
 import { promisify } from "node:util"
@@ -729,6 +730,132 @@ export const CHECKS: HealthCheckDefinition[] = [
         }
       } catch (e: any) {
         return { status: "error", message: e?.message || "query failed", latency_ms: Date.now() - start }
+      }
+    },
+  },
+
+  // ── Business Flows (P2.5-P2.7) — synthetic, Platform-Mode-aware ─────
+  {
+    name: "last_order",
+    label: "Last Order (transaction)",
+    category: "business_flows",
+    check_class: "synthetic",
+    severity_note: "beta_test/pre_launch → insufficient_signal · live → ok<24h, warning<72h, error≥72h",
+    async run({ pg }) {
+      const start = Date.now()
+      try {
+        const cfg = await getSiteConfig(pg)
+        const mode = cfg.platform_mode
+        const { rows } = await pg.raw(`SELECT MAX(created_at) AS last_at FROM transaction`)
+        const last = rows?.[0]?.last_at ? new Date(rows[0].last_at) : null
+        const latency_ms = Date.now() - start
+        if (!last) {
+          return { status: "insufficient_signal", message: `no orders yet · platform_mode=${mode}`, latency_ms, metadata: { platform_mode: mode } }
+        }
+        const ageHr = (Date.now() - last.getTime()) / 3_600_000
+        const ageText = ageHr < 1 ? `${Math.round(ageHr * 60)}min ago` : ageHr < 24 ? `${ageHr.toFixed(1)}h ago` : `${Math.floor(ageHr / 24)}d ${Math.round(ageHr % 24)}h ago`
+        // Only live-mode expects continuous activity. Beta/pre_launch accept long gaps.
+        if (mode !== "live") {
+          return {
+            status: "insufficient_signal",
+            message: `last order ${ageText} · platform_mode=${mode} (traffic not expected)`,
+            latency_ms,
+            metadata: { last_order_at: last.toISOString(), age_hr: Number(ageHr.toFixed(2)), platform_mode: mode },
+          }
+        }
+        const status: ServiceStatus =
+          ageHr >= 72 ? "error" :
+          ageHr >= 24 ? "warning" :
+          "ok"
+        return {
+          status,
+          message: `last order ${ageText}`,
+          latency_ms,
+          metadata: { last_order_at: last.toISOString(), age_hr: Number(ageHr.toFixed(2)), platform_mode: mode },
+        }
+      } catch (e: any) {
+        return { status: "error", message: e?.message || "query failed", latency_ms: Date.now() - start }
+      }
+    },
+  },
+  {
+    name: "active_auctions",
+    label: "Active Auctions",
+    category: "business_flows",
+    check_class: "synthetic",
+    severity_note: "live-mode expects >0 · beta_test/pre_launch: 0 is fine (insufficient_signal)",
+    async run({ pg }) {
+      const start = Date.now()
+      try {
+        const cfg = await getSiteConfig(pg)
+        const mode = cfg.platform_mode
+        const { rows } = await pg.raw(`SELECT COUNT(*)::int AS live_count FROM auction_block WHERE status = 'live'`)
+        const liveCount: number = rows?.[0]?.live_count ?? 0
+        const latency_ms = Date.now() - start
+        if (mode !== "live") {
+          return {
+            status: "insufficient_signal",
+            message: `${liveCount} live auction(s) · platform_mode=${mode}`,
+            latency_ms,
+            metadata: { live_count: liveCount, platform_mode: mode },
+          }
+        }
+        // live mode — 0 is a warning, non-zero OK
+        const status: ServiceStatus = liveCount === 0 ? "warning" : "ok"
+        return {
+          status,
+          message: `${liveCount} auction(s) currently live`,
+          latency_ms,
+          metadata: { live_count: liveCount, platform_mode: mode },
+        }
+      } catch (e: any) {
+        return { status: "error", message: e?.message || "query failed", latency_ms: Date.now() - start }
+      }
+    },
+  },
+  {
+    name: "stripe_webhook_freshness",
+    label: "Stripe Webhook (last event)",
+    category: "business_flows",
+    check_class: "synthetic",
+    severity_note: "Stripe Events API /v1/events?limit=1 · insufficient_signal wenn platform_mode != live",
+    async run({ pg, env }) {
+      const start = Date.now()
+      if (!env.STRIPE_SECRET_KEY) {
+        return { status: "unconfigured", message: "STRIPE_SECRET_KEY not set", latency_ms: null }
+      }
+      try {
+        const cfg = await getSiteConfig(pg)
+        const mode = cfg.platform_mode
+        const events = await stripe.events.list({ limit: 1 })
+        const latency_ms = Date.now() - start
+        const latest = events.data[0]
+        if (!latest) {
+          return { status: "insufficient_signal", message: "no Stripe events in account", latency_ms, metadata: { platform_mode: mode } }
+        }
+        const ageMin = (Date.now() / 1000 - latest.created) / 60
+        const ageText = ageMin < 60 ? `${Math.round(ageMin)}min ago` : ageMin < 1440 ? `${(ageMin / 60).toFixed(1)}h ago` : `${Math.floor(ageMin / 1440)}d ago`
+        if (mode !== "live") {
+          return {
+            status: "insufficient_signal",
+            message: `last event ${ageText} (type=${latest.type}) · platform_mode=${mode}`,
+            latency_ms,
+            metadata: { last_event_type: latest.type, age_min: Math.round(ageMin), platform_mode: mode },
+          }
+        }
+        // live mode — webhooks expected at regular intervals
+        const status: ServiceStatus =
+          ageMin >= 1440 ? "error" :     // >24h in live mode is problematic
+          ageMin >= 360 ? "warning" :    // >6h degraded
+          "ok"
+        return {
+          status,
+          message: `last event ${ageText} (type=${latest.type})`,
+          latency_ms,
+          metadata: { last_event_type: latest.type, age_min: Math.round(ageMin), platform_mode: mode },
+        }
+      } catch (e: any) {
+        return { status: "error", message: e?.message || "stripe events query failed", latency_ms: Date.now() - start }
       }
     },
   },

@@ -99,6 +99,12 @@ const CATEGORIES: Array<{
     services: ["sync_log_freshness", "meili_drift", "meili_backlog"],
   },
   {
+    id: "business_flows",
+    label: "Business Flows",
+    description: "Orders, active auctions, payment webhooks (synthetic checks, 15min interval)",
+    services: ["last_order", "active_auctions", "stripe_webhook_freshness"],
+  },
+  {
     id: "payments",
     label: "Payments",
     description: "Checkout & payment processing",
@@ -329,6 +335,9 @@ const SERVICE_ICONS: Record<string, string> = {
   sync_log_freshness: "🔄",
   meili_drift:       "📐",
   meili_backlog:     "📥",
+  last_order:        "🛒",
+  active_auctions:   "🔨",
+  stripe_webhook_freshness: "💳",
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
