@@ -122,6 +122,13 @@ export const FEATURES = {
     category: "platform",
     requires: [],
   },
+  SYSTEM_HEALTH_SENTRY_EMBED: {
+    key: "SYSTEM_HEALTH_SENTRY_EMBED",
+    default: false,
+    description: "P4-B: Sentry-Issues-Tab im ServiceCard-Drawer. Zeigt letzte 10 unresolved Issues pro Service (Filter via Sentry-Tag oder Message-Match). Cache 60s. Bei fehlendem SENTRY_AUTH_TOKEN: Graceful-Empty mit Setup-Hinweis.",
+    category: "platform",
+    requires: [],
+  },
 } as const satisfies Record<string, FeatureFlagDefinition>
 
 export type FeatureFlagKey = keyof typeof FEATURES

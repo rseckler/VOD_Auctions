@@ -45,6 +45,30 @@ type AlertHistoryData = {
   rows: AlertDispatchEntry[]
 }
 
+// P4-B: Sentry-Issues-Embed
+type SentryIssueEntry = {
+  id: string
+  short_id: string
+  title: string
+  culprit: string | null
+  level: "fatal" | "error" | "warning" | "info" | "debug"
+  status: string
+  count: string | number
+  user_count: number
+  first_seen: string
+  last_seen: string
+  permalink: string
+}
+
+type SentryIssuesResponse = {
+  configured: boolean
+  org: string
+  project: string
+  issues: SentryIssueEntry[]
+  message?: string
+  error?: string
+}
+
 type ServiceStatus =
   | "ok"
   | "degraded"
@@ -392,6 +416,205 @@ function LatencyBadge({ ms }: { ms: number | null }) {
   )
 }
 
+// P4-B — Sentry-Issues Tab (renders inside ServiceDrawer)
+function SentryIssuesTab({ service }: { service: string }) {
+  const [data, setData] = useState<SentryIssuesResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    fetch(`/admin/system-health/sentry/issues?service=${encodeURIComponent(service)}&limit=10`, { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (!cancelled) { setData(j); setLoading(false) } })
+      .catch(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [service])
+
+  if (loading) return <div style={{ padding: 20, color: C.muted, fontSize: 12 }}>Loading Sentry issues…</div>
+  if (!data) return <div style={{ padding: 20, color: C.error, fontSize: 12 }}>Failed to load.</div>
+  if (!data.configured) {
+    return (
+      <div style={{ padding: 20, fontSize: 12, color: C.muted, lineHeight: 1.6 }}>
+        <p style={{ margin: "0 0 8px", fontWeight: 600, color: C.warning }}>Sentry not configured</p>
+        <p style={{ margin: 0 }}>{data.message}</p>
+      </div>
+    )
+  }
+  if (data.error) {
+    return (
+      <div style={{ padding: 20, fontSize: 12, color: C.error }}>
+        Sentry API error: {data.error}
+      </div>
+    )
+  }
+  if (data.issues.length === 0) {
+    return (
+      <div style={{ padding: 20, fontSize: 12, color: C.success }}>
+        ✓ No unresolved issues in last 14d for <code style={{ color: C.text }}>{service}</code>
+      </div>
+    )
+  }
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: 12 }}>
+      {data.issues.map((issue) => {
+        const levelColor =
+          issue.level === "fatal" || issue.level === "error" ? C.error :
+          issue.level === "warning" ? C.warning :
+          C.muted
+        const lastSeenAgo = (() => {
+          const ms = Date.now() - new Date(issue.last_seen).getTime()
+          const min = Math.round(ms / 60_000)
+          if (min < 60) return `${min}min`
+          const h = Math.round(min / 60)
+          if (h < 24) return `${h}h`
+          return `${Math.round(h / 24)}d`
+        })()
+        return (
+          <a
+            key={issue.id}
+            href={issue.permalink}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: "flex", flexDirection: "column", gap: 4,
+              padding: "10px 12px",
+              background: levelColor + "0d",
+              border: `1px solid ${levelColor}33`,
+              borderRadius: 6,
+              textDecoration: "none",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span style={{
+                fontSize: 9, fontWeight: 700, color: levelColor,
+                background: levelColor + "1e", padding: "2px 6px", borderRadius: 3,
+                textTransform: "uppercase", letterSpacing: "0.05em",
+              }}>
+                {issue.level}
+              </span>
+              <span style={{ fontFamily: "monospace", fontSize: 10, color: C.muted }}>{issue.short_id}</span>
+              <span style={{ fontSize: 10, color: C.muted }}>· {issue.count} events · {issue.user_count} users · {lastSeenAgo} ago</span>
+            </div>
+            <p style={{ margin: 0, fontSize: 12, color: C.text, fontWeight: 600 }}>{issue.title}</p>
+            {issue.culprit && (
+              <p style={{ margin: 0, fontSize: 11, color: C.muted, fontFamily: "monospace" }}>{issue.culprit}</p>
+            )}
+          </a>
+        )
+      })}
+    </div>
+  )
+}
+
+// P4-B — ServiceDrawer (right-side slide-in, reusable for P4-C Logs too)
+function ServiceDrawer({
+  service,
+  sentryEmbedOn,
+  onClose,
+}: {
+  service: ServiceCheck
+  sentryEmbedOn: boolean
+  onClose: () => void
+}) {
+  const availableTabs: string[] = []
+  if (sentryEmbedOn) availableTabs.push("sentry")
+  // P4-C wird "logs" hier ergänzen
+  const [activeTab, setActiveTab] = useState<string>(availableTabs[0] || "overview")
+
+  // Close on ESC
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
+    window.addEventListener("keydown", handler)
+    return () => window.removeEventListener("keydown", handler)
+  }, [onClose])
+
+  const cfg = STATUS_CONFIG[service.status]
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)",
+          zIndex: 9998, cursor: "pointer",
+        }}
+      />
+      {/* Drawer */}
+      <div style={{
+        position: "fixed", top: 0, right: 0, bottom: 0, width: "min(600px, 100vw)",
+        background: C.card, border: `1px solid ${C.border}`, borderLeft: `2px solid ${cfg.color}`,
+        zIndex: 9999, display: "flex", flexDirection: "column",
+        boxShadow: "-4px 0 20px rgba(0,0,0,0.15)",
+      }}>
+        {/* Header */}
+        <div style={{ padding: "14px 18px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 10, justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 20 }}>{SERVICE_ICONS[service.name] ?? "⚙️"}</span>
+            <div>
+              <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.text }}>{service.label}</p>
+              <p style={{ margin: 0, fontSize: 10, color: C.muted, fontFamily: "monospace" }}>{service.name}</p>
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{
+              fontSize: 10, fontWeight: 700, color: cfg.color, background: cfg.bg,
+              padding: "3px 9px", borderRadius: 4, textTransform: "uppercase", letterSpacing: "0.06em",
+            }}>
+              {cfg.label}
+            </span>
+            <button onClick={onClose} style={{
+              background: "transparent", border: "none", color: C.muted, fontSize: 20,
+              cursor: "pointer", padding: "0 6px", lineHeight: 1,
+            }}>×</button>
+          </div>
+        </div>
+
+        {/* Tab bar */}
+        {availableTabs.length > 1 && (
+          <div style={{ display: "flex", borderBottom: `1px solid ${C.border}`, background: "rgba(0,0,0,0.02)" }}>
+            {availableTabs.map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                style={{
+                  background: "transparent", border: "none", padding: "10px 16px",
+                  fontSize: 12, fontWeight: 600, color: activeTab === tab ? C.gold : C.muted,
+                  borderBottom: activeTab === tab ? `2px solid ${C.gold}` : "2px solid transparent",
+                  cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.06em",
+                }}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Body */}
+        <div style={{ flex: 1, overflowY: "auto" }}>
+          {availableTabs.length === 0 && (
+            <div style={{ padding: 20, fontSize: 12, color: C.muted }}>
+              No integrations enabled. Enable <code>SYSTEM_HEALTH_SENTRY_EMBED</code> or <code>SYSTEM_HEALTH_LOG_VIEWER</code> in <a href="/app/config" style={{ color: C.gold }}>Platform Config</a>.
+            </div>
+          )}
+          {activeTab === "sentry" && <SentryIssuesTab service={service.name} />}
+        </div>
+
+        {/* Footer with runbook link */}
+        {service.runbook && (
+          <div style={{ padding: "10px 18px", borderTop: `1px solid ${C.border}`, background: "rgba(0,0,0,0.02)" }}>
+            <a href={service.runbook} target="_blank" rel="noopener noreferrer"
+               style={{ fontSize: 12, color: C.gold, textDecoration: "none", fontWeight: 600 }}>
+              📖 Open Runbook for {service.name} ↗
+            </a>
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
 // P2.2/P2.3 — 24h uptime sparkline for one service
 type HistoryBucket = { start: string; severity: ServiceStatus; sample_count: number; avg_latency_ms: number | null }
 type HistoryResponse = { service: string; window: string; bucket_minutes: number; bucket_count: number; uptime_pct: number | null; buckets: HistoryBucket[] }
@@ -461,7 +684,7 @@ function UptimeSparkline({ service }: { service: string }) {
   )
 }
 
-function ServiceCard({ service }: { service: ServiceCheck }) {
+function ServiceCard({ service, onOpenDrawer }: { service: ServiceCheck; onOpenDrawer?: (service: ServiceCheck) => void }) {
   const cfg = STATUS_CONFIG[service.status]
   const icon = SERVICE_ICONS[service.name] ?? "⚙️"
   const meta = SERVICE_META[service.name]
@@ -505,7 +728,7 @@ function ServiceCard({ service }: { service: ServiceCheck }) {
           </p>
         </div>
 
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
           {service.url && (
             <a href={service.url} target="_blank" rel="noopener noreferrer"
               style={{ fontSize: 11, color: C.gold, textDecoration: "none" }}>
@@ -518,6 +741,19 @@ function ServiceCard({ service }: { service: ServiceCheck }) {
               title="Runbook: symptoms, diagnose, fixes">
               📖 Runbook ↗
             </a>
+          )}
+          {onOpenDrawer && (
+            <button
+              onClick={() => onOpenDrawer(service)}
+              style={{
+                fontSize: 11, color: C.blue, background: "transparent", border: `1px solid ${C.blue}33`,
+                padding: "2px 8px", borderRadius: 4, cursor: "pointer", fontWeight: 600,
+                marginLeft: "auto",
+              }}
+              title="Open details drawer (Sentry + Logs)"
+            >
+              Details →
+            </button>
           )}
         </div>
       </div>
@@ -834,7 +1070,12 @@ export default function SystemHealthPage() {
   }, [autoRefresh, fetchHealth, fetchAlertHistory])
 
   const alertHistoryFlagOn = data?.feature_flags?.some((f) => f.key === "SYSTEM_HEALTH_ALERT_HISTORY" && f.enabled) ?? false
+  const sentryEmbedFlagOn = data?.feature_flags?.some((f) => f.key === "SYSTEM_HEALTH_SENTRY_EMBED" && f.enabled) ?? false
   const unresolvedAlerts = alertHistory?.rows.filter((r) => r.status === "fired") ?? []
+
+  // P4-B: Drawer state — one service open at a time
+  const [drawerService, setDrawerService] = useState<ServiceCheck | null>(null)
+  const anyDrawerFlagOn = sentryEmbedFlagOn // P4-C: add `|| logViewerFlagOn`
 
   const checkedAt = data?.checked_at
     ? new Date(data.checked_at).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
@@ -1303,7 +1544,7 @@ export default function SystemHealthPage() {
                 {/* Service grid */}
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 14 }}>
                   {services.map((service) => (
-                    <ServiceCard key={service.name} service={service} />
+                    <ServiceCard key={service.name} service={service} onOpenDrawer={anyDrawerFlagOn ? setDrawerService : undefined} />
                   ))}
                 </div>
               </div>
@@ -1319,7 +1560,7 @@ export default function SystemHealthPage() {
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 14 }}>
                 {orphanServices.map((service) => (
-                  <ServiceCard key={service.name} service={service} />
+                  <ServiceCard key={service.name} service={service} onOpenDrawer={anyDrawerFlagOn ? setDrawerService : undefined} />
                 ))}
               </div>
             </div>
@@ -1362,6 +1603,15 @@ export default function SystemHealthPage() {
           ))}
         </div>
       </div>
+
+      {/* P4-B: ServiceDrawer (renders with position:fixed, doesn't affect layout) */}
+      {drawerService && (
+        <ServiceDrawer
+          service={drawerService}
+          sentryEmbedOn={sentryEmbedFlagOn}
+          onClose={() => setDrawerService(null)}
+        />
+      )}
     </PageShell>
   )
 }
