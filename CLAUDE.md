@@ -2,7 +2,7 @@
 
 **Purpose:** Auktionsplattform für ~41.500 Produkte (Industrial Music Tonträger + Literatur/Merch) — eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Beta Test (`platform_mode: beta_test`) · Storefront+Admin-UI: Englisch
-**Last Updated:** 2026-04-23 (rc48 — Admin-Catalog auf Meilisearch deployed, Flag `SEARCH_MEILI_ADMIN` OFF bis Paritätsmatrix grün. 3-Gate-Wrapper `/admin/media/route.ts`, 13 neue Admin-Filter-Attrs im Meili-Index, `pushReleaseNow`-Hook in 4 Klasse-B-Mutations, separater `/admin/media/count`-Endpoint für exakten Count, Paritäts-Check-Script `admin_meili_parity_check.py` mit 37 Test-Cases. Plan: `docs/optimizing/ADMIN_CATALOG_PERFORMANCE_PLAN.md` v2.)
+**Last Updated:** 2026-04-23 (rc48.1 — Admin-Catalog auf Meilisearch **live**, Paritäts-Gate grün (28/28 passed). Flag `SEARCH_MEILI_ADMIN=true`. Admin-Filter (13 neue Attrs, inkl. computed `stocktake_state`/`has_discogs`/`format_group`), `pushReleaseNow`-Hook in 4 Klasse-B-Mutations (Verify/Add-Copy/PATCH-media/Block-Add), `/admin/media/count` für exakten Count, Single-Source-of-Truth-Sync zwischen Python/TS/SQL. Plan: `docs/optimizing/ADMIN_CATALOG_PERFORMANCE_PLAN.md` v2. **Tag 3 Frontend-Polish** (Skeleton + React-Query + Optimistic-Updates + Prefetch) folgt separat.)
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
 
