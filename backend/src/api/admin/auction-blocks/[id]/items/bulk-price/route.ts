@@ -6,8 +6,13 @@ import { AUCTION_MODULE } from "../../../../../../modules/auction"
 
 // POST /admin/auction-blocks/:id/items/bulk-price
 // Body option 1: { items: [{ id: string, start_price: number }] }
-// Body option 2: { rule: "percentage", value: 20 }  — set all to X% of estimated_value
-// Body option 3: { rule: "fixed", value: 5.00 }     — set all to fixed price
+// Body option 2: { rule: "percentage", value: 20 }       — X% of estimated_value
+// Body option 3: { rule: "fixed", value: 5.00 }          — fixed price
+// Body option 4: { rule: "shop_price_percentage", value: 50 } — round(shop_price × value/100)
+//                (rc47.2 Preis-Modell: nutzt Release.shop_price als Basis,
+//                 skippt Items ohne shop_price. Fallback-Kette wie bei Single-
+//                 Item-POST: wenn shop_price=0, fällt auf estimated_value, dann
+//                 legacy_price; wenn nichts > 0, wird das Item geskippt.)
 export async function POST(
   req: MedusaRequest,
   res: MedusaResponse
@@ -38,7 +43,7 @@ export async function POST(
 
   const { items, rule, value } = req.body as {
     items?: { id: string; start_price: number }[]
-    rule?: "percentage" | "fixed"
+    rule?: "percentage" | "fixed" | "shop_price_percentage"
     value?: number
   }
 
@@ -142,7 +147,56 @@ export async function POST(
       return
     }
 
-    res.status(400).json({ message: `Unknown rule: "${rule}". Use "percentage" or "fixed".` })
+    if (rule === "shop_price_percentage") {
+      // Fetch all items joined to Release.shop_price / estimated_value / legacy_price.
+      // Preis-Modell rc47.2: shop_price ist primär, Fallback-Kette für Items
+      // die noch nicht verifiziert sind. Items ohne jeden Preis werden geskippt.
+      const joined = await pgConnection("block_item as bi")
+        .leftJoin("Release as r", "bi.release_id", "r.id")
+        .select(
+          "bi.id",
+          "r.shop_price",
+          "r.estimated_value",
+          "r.legacy_price"
+        )
+        .where("bi.auction_block_id", blockId)
+
+      const updates: { id: string; finalPrice: number }[] = []
+      let skipped = 0
+      for (const row of joined) {
+        const shop = row.shop_price != null ? Number(row.shop_price) : 0
+        const estimated = row.estimated_value != null ? Number(row.estimated_value) : 0
+        const legacy = row.legacy_price != null ? Number(row.legacy_price) : 0
+        const base = shop > 0 ? shop : estimated > 0 ? estimated : legacy > 0 ? legacy : 0
+        if (base <= 0) {
+          skipped++
+          continue
+        }
+        const finalPrice = Math.max(1, Math.round(base * value / 100))
+        updates.push({ id: row.id, finalPrice })
+      }
+
+      if (updates.length === 0) {
+        res.json({ updated: 0, skipped })
+        return
+      }
+
+      await pgConnection.transaction(async (trx) => {
+        for (const u of updates) {
+          await trx("block_item")
+            .where("id", u.id)
+            .where("auction_block_id", blockId)
+            .update({ start_price: u.finalPrice })
+        }
+      })
+
+      res.json({ updated: updates.length, skipped })
+      return
+    }
+
+    res.status(400).json({
+      message: `Unknown rule: "${rule}". Use "percentage", "shop_price_percentage", or "fixed".`,
+    })
     return
   }
 

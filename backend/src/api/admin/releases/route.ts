@@ -40,6 +40,7 @@ export async function GET(
       "Release.catalogNumber",
       "Release.estimated_value",
       "Release.legacy_price",
+      "Release.shop_price",
       "Release.auction_status",
       "Artist.name as artist_name",
       "Label.name as label_name",

@@ -72,6 +72,7 @@ type Release = {
   auction_status: string | null
   estimated_value: number | null
   legacy_price: number | null
+  shop_price: number | null
 }
 
 type FilterOption = { value: string | number; count: number }
@@ -965,17 +966,30 @@ const BlockDetailPage = () => {
       return
     }
     try {
+      // Start-Preis-Default (rc47.2 Preis-Modell, Phase 2):
+      // Priorität shop_price → estimated_value → legacy_price → 1
+      // shop_price ist der im Inventory-Process gesetzte kanonische Preis.
+      // Formel: round(price × default_start_price_percent / 100). Block-Level-
+      // Prozent ist konfigurierbar (Default 50 → round(shop_price × 0.5)).
+      const pct = block.default_start_price_percent || 50
+      const basePrice = release.shop_price && release.shop_price > 0
+        ? release.shop_price
+        : release.estimated_value && release.estimated_value > 0
+        ? release.estimated_value
+        : release.legacy_price && release.legacy_price > 0
+        ? release.legacy_price
+        : null
+      const startPrice = basePrice != null
+        ? Math.max(1, Math.round(basePrice * pct / 100))
+        : 1
+
       const res = await fetch(`/admin/auction-blocks/${id}/items`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           release_id: release.id,
-          start_price: release.estimated_value
-            ? release.estimated_value * (block.default_start_price_percent || 50) / 100
-            : release.legacy_price
-            ? Math.round(release.legacy_price * 0.5)
-            : 1,
+          start_price: startPrice,
           estimated_value: release.estimated_value,
           lot_number: (block.items?.length || 0) + 1,
         }),

@@ -22,7 +22,10 @@ export const CreateAuctionBlockSchema = z.object({
 export const CreateBlockItemSchema = z.object({
   release_id: z.string().min(1),
   lot_number: z.number().int().min(1),
-  start_price: z.number().min(0),
+  // start_price: optional. Wenn nicht angegeben, berechnet der POST-Handler
+  // den Default aus round(shop_price × block.default_start_price_percent / 100),
+  // Fallback shop_price → estimated_value → legacy_price → 400.
+  start_price: z.number().min(0).optional().nullable(),
   reserve_price: z.number().min(0).optional().nullable(),
   condition_grade: z
     .enum(["M", "NM", "VG+", "VG", "G+", "G", "F", "P"])

@@ -55,13 +55,54 @@ export async function POST(
     return
   }
 
-  const { release_id, start_price, reserve_price, lot_number } = validation.data
+  const { release_id, start_price: explicitStartPrice, reserve_price, lot_number } = validation.data
   // Pass through any extra fields (estimated_value, buy_now_price) from req.body as-is
   const { estimated_value, buy_now_price } = req.body as any
+
+  // Start-Preis-Default (rc47.2 Preis-Modell, Phase 2):
+  // Wenn der Client keinen expliziten start_price schickt, berechnen wir
+  // server-seitig den Default aus `round(shop_price × default_start_price_percent / 100)`.
+  // Fallback-Kette shop_price → Release.estimated_value → legacy_price. Wenn
+  // nichts davon > 0, 400 zurück — ein Item ohne sinnvollen Start-Preis in eine
+  // Auction zu packen ergibt keinen Sinn.
+  let startPrice: number
+  if (explicitStartPrice != null && explicitStartPrice > 0) {
+    startPrice = explicitStartPrice
+  } else {
+    const release = await pgConnection("Release")
+      .where("id", releaseId)
+      .select("shop_price", "estimated_value", "legacy_price")
+      .first()
+    if (!release) {
+      res.status(404).json({ message: "Release not found" })
+      return
+    }
+    const block = await pgConnection("auction_block")
+      .where("id", blockId)
+      .select("default_start_price_percent")
+      .first()
+    const pct = block?.default_start_price_percent ?? 50
+
+    const shop = release.shop_price != null ? Number(release.shop_price) : 0
+    const estimated = release.estimated_value != null ? Number(release.estimated_value) : 0
+    const legacy = release.legacy_price != null ? Number(release.legacy_price) : 0
+    const basePrice = shop > 0 ? shop : estimated > 0 ? estimated : legacy > 0 ? legacy : 0
+
+    if (basePrice <= 0) {
+      res.status(400).json({
+        message:
+          "Cannot determine start_price: Release has no shop_price, estimated_value, or legacy_price. " +
+          "Either verify the item in the Inventory Process first (sets shop_price) or pass start_price explicitly.",
+      })
+      return
+    }
+    startPrice = Math.max(1, Math.round(basePrice * pct / 100))
+  }
+
   const item = await auctionService.createBlockItems({
     auction_block: blockId,
     release_id,
-    start_price,
+    start_price: startPrice,
     estimated_value: estimated_value ?? null,
     reserve_price: reserve_price ?? null,
     buy_now_price: buy_now_price ?? null,
