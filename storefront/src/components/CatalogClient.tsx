@@ -28,7 +28,6 @@ type CatalogRelease = {
   legacy_condition: string | null
   legacy_price: number | null
   effective_price?: number | null
-  is_purchasable?: boolean
   legacy_format_detail: string | null
   artist_name: string | null
   artist_slug?: string | null
