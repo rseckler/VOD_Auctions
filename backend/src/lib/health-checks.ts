@@ -518,32 +518,55 @@ export const CHECKS: HealthCheckDefinition[] = [
     label: "PM2 Processes",
     category: "infrastructure",
     check_class: "background",
-    severity_note: "ok = all online + restarts < 10 · warning if any stopped or restarts 10-50 · error if restarts > 50 or critical services down",
+    severity_note: "Primär: unstable_restarts (PM2 crash-loop-detection) + uptime. Lifetime restart_time ist nur informativ — steigt bei jedem legitimen Deploy, sagt nichts über aktuellen Zustand.",
     async run() {
       const start = Date.now()
       try {
         const { stdout } = await execAsync("pm2 jlist", { timeout: 4500 })
         const procs = JSON.parse(stdout) as any[]
         const latency_ms = Date.now() - start
-        // Focus on VOD-Auctions apps
         const vodApps = procs.filter((p) => p.name?.startsWith("vodauction"))
+        const now = Date.now()
         const details = vodApps.map((p) => ({
           name: p.name,
           status: p.pm2_env?.status,
-          restarts: p.pm2_env?.restart_time ?? 0,
-          uptime_ms: p.pm2_env?.pm_uptime ? Date.now() - p.pm2_env.pm_uptime : null,
+          restarts_lifetime: p.pm2_env?.restart_time ?? 0,
+          unstable_restarts: p.pm2_env?.unstable_restarts ?? 0,
+          uptime_sec: p.pm2_env?.pm_uptime ? Math.floor((now - p.pm2_env.pm_uptime) / 1000) : null,
         }))
+
         const anyDown = details.some((d) => d.status !== "online")
-        const maxRestarts = Math.max(...details.map((d) => d.restarts), 0)
-        const status: ServiceStatus =
-          anyDown ? "critical" :
-          maxRestarts > 50 ? "error" :
-          maxRestarts > 10 ? "warning" :
-          "ok"
-        const msg = anyDown
-          ? `DOWN: ${details.filter((d) => d.status !== "online").map((d) => d.name).join(", ")}`
-          : `${details.length} online · max restarts: ${maxRestarts}`
-        return { status, message: msg, latency_ms, metadata: { vod_apps: details, total_procs: procs.length } }
+        const anyUnstable = details.some((d) => d.unstable_restarts > 0)
+        const anyVeryYoung = details.some((d) => d.uptime_sec !== null && d.uptime_sec < 60)
+
+        let status: ServiceStatus = "ok"
+        let msgParts: string[] = []
+
+        if (anyDown) {
+          status = "critical"
+          const down = details.filter((d) => d.status !== "online")
+          msgParts.push(`DOWN: ${down.map((d) => d.name).join(", ")}`)
+        } else if (anyUnstable) {
+          status = "error"
+          const unstable = details.filter((d) => d.unstable_restarts > 0)
+          msgParts.push(`crash-loop: ${unstable.map((d) => `${d.name}(${d.unstable_restarts}×)`).join(", ")}`)
+        } else if (anyVeryYoung) {
+          status = "warning"
+          const young = details.filter((d) => d.uptime_sec !== null && d.uptime_sec < 60)
+          msgParts.push(`recently restarted: ${young.map((d) => d.name).join(", ")}`)
+        } else {
+          msgParts.push(`${details.length} online`)
+        }
+        // Informational suffix — lifetime restarts as context, not alarm
+        const maxLifetime = Math.max(...details.map((d) => d.restarts_lifetime), 0)
+        if (maxLifetime > 0) msgParts.push(`lifetime restarts: ${maxLifetime}`)
+
+        return {
+          status,
+          message: msgParts.join(" · "),
+          latency_ms,
+          metadata: { vod_apps: details, total_procs: procs.length },
+        }
       } catch (e: any) {
         return { status: "error", message: e?.message || "pm2 jlist failed", latency_ms: Date.now() - start }
       }
