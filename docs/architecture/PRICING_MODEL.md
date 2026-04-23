@@ -1,6 +1,6 @@
 # Pricing Model — Single Source of Truth
 
-**Status:** Live seit rc47.2 (2026-04-23)
+**Status:** Live seit rc47.2 (2026-04-23), Phase 2 Auction-Start-Preis live seit rc47.3 (2026-04-23)
 **Scope:** Gesamtsystem (Storefront, Admin, Auction-Flow, Label-Pipeline, Meili-Index)
 
 ## Begriffe
@@ -30,8 +30,12 @@ Label-Druck (Barcode):
                                          je gesetzt waren
                                          (historisch)
 
-Auction-Start-Preis (rc47.2 geplant, Phase 2):
-    block_item.start_price = round(shop_price × 0.5)
+Auction-Start-Preis (rc47.3):
+    block_item.start_price = round(base × default_start_price_percent / 100)
+    wobei base = shop_price > 0 ? shop_price
+                 : estimated_value > 0 ? estimated_value
+                 : legacy_price > 0 ? legacy_price
+                 : 400 Fehler
 ```
 
 ## DB-Spalten
@@ -153,13 +157,24 @@ Wer in diesem Bereich arbeitet, MUSS folgende Spalten konsistent behandeln:
 - [ ] Validierungen für `sale_mode ≠ 'auction_only'` prüfen auf `shop_price`, nicht auf `legacy_price`
 - [ ] Cronjobs die Preise ändern: prüfen `price_locked=true`, respektieren die Kanon-Spalte (`shop_price` bleibt unangetastet, `legacy_price` darf bei `price_locked=false` überschrieben werden)
 
-## Phase 2 — noch offen
+## Phase 2 — live seit rc47.3 (2026-04-23)
 
-**Auction-Start-Preis-Ableitung.** Wenn Frank ein Item in einen `auction_block` aufnimmt, soll `block_item.start_price` **automatisch** auf `round(shop_price × 0.5)` gesetzt werden (User-Entscheidung 2026-04-23). Frank kann im Auction-Block-Form manuell überschreiben.
+**Auction-Start-Preis-Ableitung.** Beim Aufnehmen eines Releases in einen `auction_block` wird `block_item.start_price` automatisch aus `round(shop_price × default_start_price_percent / 100)` berechnet.
 
-Betroffen: `POST /admin/auction-blocks/:id/items` (+ der UI-Block-Builder).
+- **Block-Level-Prozent:** `auction_block.default_start_price_percent` (Default 50, konfigurierbar im Block-Form) — bei 50 ergibt die Formel `round(shop_price × 0.5)` wie vom User gewünscht.
+- **Fallback-Kette:** wenn `shop_price` 0/NULL ist, wird `estimated_value`, dann `legacy_price` herangezogen. Wenn alle drei 0/NULL sind, rejected der Endpoint mit 400 — ein Item ohne sinnvollen Preis in eine Auction zu packen macht keinen Sinn. Fehlermeldung gibt zwei Auswege vor: entweder "Inventory Verify first" oder "pass explicit start_price".
+- **Server-vs-Client:** der Admin-UI-Block-Builder berechnet den Default bereits Client-seitig und sendet ihn. Der Server-Default greift, wenn ein Caller `start_price` weglässt — neu optional im `CreateBlockItemSchema`. Beide Pfade verwenden dieselbe Formel.
 
-Nicht für rc47.2 — kommt im nächsten Auction-Block-Commit.
+**Bulk-Rule:** `POST /admin/auction-blocks/:id/items/bulk-price` unterstützt `rule='shop_price_percentage'`, der `round(shop_price × value / 100)` für alle Items im Block setzt (mit derselben Fallback-Kette). Items ohne jeden Preis werden im `skipped`-Counter zurückgegeben. Frank kann damit z.B. eine komplette neue Block-Population nachträglich auf 40 % oder 60 % setzen, ohne durch die Items zu klicken.
+
+**Manueller Override:** Frank kann pro Item im Block-Builder den `start_price` direkt editieren — die Default-Berechnung greift nur beim initialen Add, danach ist der Wert "festgenagelt".
+
+Betroffene Code-Stellen:
+- `backend/src/lib/validation.ts` (`CreateBlockItemSchema.start_price` → optional)
+- `backend/src/api/admin/auction-blocks/[id]/items/route.ts` (POST-Handler, Server-Default)
+- `backend/src/api/admin/auction-blocks/[id]/items/bulk-price/route.ts` (neue Rule)
+- `backend/src/admin/routes/auction-blocks/[id]/page.tsx` (Client-Default + Release-Typ)
+- `backend/src/api/admin/releases/route.ts` (SELECT shop_price für Release-Picker)
 
 ## Historische Anmerkungen
 
