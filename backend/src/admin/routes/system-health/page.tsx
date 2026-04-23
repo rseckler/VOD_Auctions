@@ -360,6 +360,75 @@ function LatencyBadge({ ms }: { ms: number | null }) {
   )
 }
 
+// P2.2/P2.3 — 24h uptime sparkline for one service
+type HistoryBucket = { start: string; severity: ServiceStatus; sample_count: number; avg_latency_ms: number | null }
+type HistoryResponse = { service: string; window: string; bucket_minutes: number; bucket_count: number; uptime_pct: number | null; buckets: HistoryBucket[] }
+
+function UptimeSparkline({ service }: { service: string }) {
+  const [hist, setHist] = useState<HistoryResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch(`/admin/system-health/history?service=${encodeURIComponent(service)}&window=24h`, { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (!cancelled) { setHist(j); setLoading(false) } })
+      .catch(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [service])
+
+  if (loading) return <div style={{ height: 12, background: "rgba(0,0,0,0.04)", borderRadius: 2 }} />
+  if (!hist || hist.bucket_count === 0) {
+    return <div style={{ fontSize: 10, color: C.muted, fontStyle: "italic" }}>no history yet</div>
+  }
+
+  // Full 288 buckets for 24h (5min each) — fill gaps with "unknown"
+  const TOTAL = 288
+  const BUCKET_SEC = 5 * 60
+  const now = Date.now()
+  const cells: Array<{ severity: ServiceStatus | "unknown"; ts: number }> = []
+  for (let i = TOTAL - 1; i >= 0; i--) {
+    const ts = now - (i * BUCKET_SEC * 1000)
+    const matching = hist.buckets.find((b) => {
+      const bStart = new Date(b.start).getTime()
+      return Math.abs(bStart - ts) < (BUCKET_SEC * 1000) / 2
+    })
+    cells.push(matching ? { severity: matching.severity, ts } : { severity: "unknown", ts })
+  }
+
+  const cellColor = (s: ServiceStatus | "unknown"): string => {
+    if (s === "unknown") return "rgba(0,0,0,0.06)"
+    return STATUS_CONFIG[s as ServiceStatus]?.dot || C.muted
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 10, color: C.muted }}>
+        <span>24h</span>
+        {hist.uptime_pct !== null && (
+          <span style={{ fontWeight: 600, color: hist.uptime_pct >= 99 ? C.success : hist.uptime_pct >= 95 ? C.warning : C.error }}>
+            {hist.uptime_pct.toFixed(1)}% uptime
+          </span>
+        )}
+      </div>
+      <div style={{ display: "flex", gap: 1, height: 12, alignItems: "stretch" }}>
+        {cells.map((c, i) => (
+          <div
+            key={i}
+            title={`${new Date(c.ts).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} — ${c.severity}`}
+            style={{
+              flex: 1,
+              background: cellColor(c.severity),
+              minWidth: 1,
+              borderRadius: 0,
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function ServiceCard({ service }: { service: ServiceCheck }) {
   const cfg = STATUS_CONFIG[service.status]
   const icon = SERVICE_ICONS[service.name] ?? "⚙️"
@@ -457,6 +526,11 @@ function ServiceCard({ service }: { service: ServiceCheck }) {
           </div>
         </div>
       )}
+
+      {/* P2.2 — 24h uptime sparkline */}
+      <div style={{ padding: "8px 16px 12px", borderTop: "1px solid rgba(0,0,0,0.04)" }}>
+        <UptimeSparkline service={service.name} />
+      </div>
     </div>
   )
 }

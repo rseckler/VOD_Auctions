@@ -29,7 +29,26 @@ fi
 
 BACKEND_URL="${HEALTH_SAMPLER_BACKEND_URL:-http://127.0.0.1:9000}"
 
-# Fire POST. Capture body + status. Don't fail hard on backend down — just log.
+# "cleanup" is a separate action (retention policy, §3.4).
+if [ "$CLASS" = "cleanup" ]; then
+  HTTP_CODE=$(curl -sS -o /tmp/health_sampler_response.json -w '%{http_code}' \
+    -X POST \
+    -H "X-Sampler-Token: $TOKEN" \
+    --max-time 30 \
+    "$BACKEND_URL/health-sample/cleanup" 2>&1 || echo "curl_failed")
+  if [ "$HTTP_CODE" = "200" ]; then
+    BODY=$(cat /tmp/health_sampler_response.json 2>/dev/null || echo "{}")
+    DEL_FB=$(echo "$BODY" | python3 -c "import sys,json; print(json.load(sys.stdin).get('deleted_fast_background',0))" 2>/dev/null || echo "?")
+    DEL_SY=$(echo "$BODY" | python3 -c "import sys,json; print(json.load(sys.stdin).get('deleted_synthetic',0))" 2>/dev/null || echo "?")
+    REMAIN=$(echo "$BODY" | python3 -c "import sys,json; print(json.load(sys.stdin).get('remaining_rows',0))" 2>/dev/null || echo "?")
+    echo "[$(date -u +%FT%TZ)] ok cleanup deleted_fb=$DEL_FB deleted_synth=$DEL_SY remaining=$REMAIN"
+  else
+    echo "[$(date -u +%FT%TZ)] FAIL cleanup http_code=$HTTP_CODE body=$(cat /tmp/health_sampler_response.json 2>/dev/null | head -c 500)"
+  fi
+  exit 0
+fi
+
+# Sample-class run (fast/background/synthetic).
 HTTP_CODE=$(curl -sS -o /tmp/health_sampler_response.json -w '%{http_code}' \
   -X POST \
   -H "X-Sampler-Token: $TOKEN" \
