@@ -136,6 +136,13 @@ export const FEATURES = {
     category: "platform",
     requires: [],
   },
+  SYSTEM_HEALTH_ACTIONS: {
+    key: "SYSTEM_HEALTH_ACTIONS",
+    default: false,
+    description: "P4-D: Low-Impact-Admin-Actions + Audit-Log + Service-Silences. Aktionen: refresh_sampler (read_only), silence_service (low_impact, max 24h TTL). acknowledge_alert separat über /alerts/:id/acknowledge. Jede Action schreibt 2 rows in admin_action_log (pre+post, gleiche request_id). Rate-Limit 20/h refresh, 10/h silence. Keine destructive Actions in v1 (pm2_restart, manual_sync explizit ausgeschlossen). Bei OFF: Actions-Endpoints 404, UI-Buttons hidden, aktive Silences bleiben persistent.",
+    category: "platform",
+    requires: [],
+  },
 } as const satisfies Record<string, FeatureFlagDefinition>
 
 export type FeatureFlagKey = keyof typeof FEATURES

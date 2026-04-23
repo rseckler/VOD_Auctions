@@ -15,6 +15,26 @@
 import type { Knex } from "knex"
 import type { ServiceStatus } from "./health-checks"
 
+// P4-D D5: silence check, inlined to avoid circular import with admin-actions.ts
+async function isServiceSilencedInAlerting(pg: Knex, serviceName: string): Promise<{ silenced: boolean; silenced_until?: string; reason?: string }> {
+  try {
+    const row = await pg("service_silence")
+      .where("service_name", serviceName)
+      .whereNull("cancelled_at")
+      .where("silenced_until", ">", pg.fn.now())
+      .orderBy("silenced_until", "desc")
+      .first()
+    if (!row) return { silenced: false }
+    return {
+      silenced: true,
+      silenced_until: new Date(row.silenced_until).toISOString(),
+      reason: row.reason,
+    }
+  } catch {
+    return { silenced: false }  // table may not exist yet (pre-P4-D migration)
+  }
+}
+
 const COOLDOWN_MS: Record<string, number> = {
   critical: 15 * 60 * 1000,
   error:    30 * 60 * 1000,
@@ -211,6 +231,25 @@ export async function maybeDispatchAlert(
   if (check.severity === "warning") {
     return { dispatched: false, reason: "warning_digest_only" }
   }
+
+  // P4-D D5: silence-check (persistent)
+  try {
+    const silence = await isServiceSilencedInAlerting(pg, check.service_name)
+    if (silence.silenced) {
+      // Still persist dispatch-log entry with suppressed_by_silence status
+      try {
+        await pg("health_alert_dispatch_log").insert({
+          service_name: check.service_name,
+          severity: check.severity,
+          message: check.message,
+          metadata: check.metadata ? JSON.stringify(check.metadata) : null,
+          channels_attempted: JSON.stringify({ suppressed_by_silence: { until: silence.silenced_until, reason: silence.reason } }),
+          status: "suppressed_by_silence",
+        })
+      } catch { /* non-blocking */ }
+      return { dispatched: false, reason: "suppressed_by_silence" }
+    }
+  } catch { /* silence-check failure shouldn't block the alert — continue */ }
 
   // Flapping-guard
   const stable = await hasStableSeverity(pg, check.service_name, check.severity)

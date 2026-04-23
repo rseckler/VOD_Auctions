@@ -644,11 +644,15 @@ function ServiceDrawer({
   service,
   sentryEmbedOn,
   logViewerOn,
+  actionsOn,
+  onSilence,
   onClose,
 }: {
   service: ServiceCheck
   sentryEmbedOn: boolean
   logViewerOn: boolean
+  actionsOn: boolean
+  onSilence?: (serviceName: string) => void
   onClose: () => void
 }) {
   const availableTabs: string[] = []
@@ -692,6 +696,19 @@ function ServiceDrawer({
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {actionsOn && onSilence && (
+              <button
+                onClick={() => onSilence(service.name)}
+                style={{
+                  background: "transparent", color: C.muted, border: `1px solid ${C.border}`,
+                  borderRadius: 4, padding: "4px 10px", fontSize: 11, fontWeight: 600,
+                  cursor: "pointer",
+                }}
+                title="Silence alerts for this service (max 24h)"
+              >
+                🔕 Silence
+              </button>
+            )}
             <span style={{
               fontSize: 10, fontWeight: 700, color: cfg.color, background: cfg.bg,
               padding: "3px 9px", borderRadius: 4, textTransform: "uppercase", letterSpacing: "0.06em",
@@ -1207,11 +1224,59 @@ export default function SystemHealthPage() {
   const alertHistoryFlagOn = data?.feature_flags?.some((f) => f.key === "SYSTEM_HEALTH_ALERT_HISTORY" && f.enabled) ?? false
   const sentryEmbedFlagOn = data?.feature_flags?.some((f) => f.key === "SYSTEM_HEALTH_SENTRY_EMBED" && f.enabled) ?? false
   const logViewerFlagOn = data?.feature_flags?.some((f) => f.key === "SYSTEM_HEALTH_LOG_VIEWER" && f.enabled) ?? false
+  const actionsFlagOn = data?.feature_flags?.some((f) => f.key === "SYSTEM_HEALTH_ACTIONS" && f.enabled) ?? false
   const unresolvedAlerts = alertHistory?.rows.filter((r) => r.status === "fired") ?? []
 
   // P4-B/C: Drawer state — one service open at a time
   const [drawerService, setDrawerService] = useState<ServiceCheck | null>(null)
   const anyDrawerFlagOn = sentryEmbedFlagOn || logViewerFlagOn
+
+  // P4-D: refresh_sampler action
+  const triggerRefreshSampler = useCallback(async (cls: "fast" | "background" | "synthetic") => {
+    try {
+      const r = await fetch(`/admin/system-health/actions/refresh_sampler`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ payload: { class: cls } }),
+      })
+      const body = await r.json().catch(() => ({}))
+      if (!r.ok) window.alert(`Refresh failed: ${body.error || r.status}`)
+      await fetchHealth()
+      await fetchAlertHistory()
+    } catch (e: any) {
+      window.alert(`Refresh error: ${e?.message}`)
+    }
+  }, [fetchHealth, fetchAlertHistory])
+
+  // P4-D: silence_service action
+  const triggerSilenceService = useCallback(async (serviceName: string) => {
+    const durationStr = window.prompt(`Silence alerts for "${serviceName}" — duration in minutes (max 1440 = 24h):`, "60")
+    if (!durationStr) return
+    const duration = parseInt(durationStr, 10)
+    if (!Number.isFinite(duration) || duration < 1 || duration > 1440) {
+      window.alert("Invalid duration. Must be 1-1440 minutes.")
+      return
+    }
+    const reason = window.prompt("Reason (min 3 chars):", "Planned maintenance")
+    if (!reason || reason.trim().length < 3) return
+    try {
+      const r = await fetch(`/admin/system-health/actions/silence_service`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target: serviceName, payload: { duration_minutes: duration, reason: reason.trim() } }),
+      })
+      const body = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        window.alert(`Silence failed: ${body.error || r.status}`)
+        return
+      }
+      window.alert(`Silenced "${serviceName}" until ${new Date(body.data.silenced_until).toLocaleString("de-DE")}`)
+    } catch (e: any) {
+      window.alert(`Silence error: ${e?.message}`)
+    }
+  }, [])
 
   const checkedAt = data?.checked_at
     ? new Date(data.checked_at).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
@@ -1280,6 +1345,19 @@ export default function SystemHealthPage() {
             >
               {loading ? "Checking…" : "↻ Refresh"}
             </button>
+            {actionsFlagOn && (
+              <button
+                onClick={() => triggerRefreshSampler("fast")}
+                style={{
+                  background: "transparent", color: C.blue, border: `1px solid ${C.blue}55`,
+                  borderRadius: 6, padding: "8px 12px", fontSize: 12, fontWeight: 600,
+                  cursor: "pointer",
+                }}
+                title="Trigger fast-class sampler run now (force refresh beyond the 60s cron)"
+              >
+                ⚡ Force Sample (fast)
+              </button>
+            )}
           </div>
         }
       />
@@ -1740,12 +1818,14 @@ export default function SystemHealthPage() {
         </div>
       </div>
 
-      {/* P4-B/C: ServiceDrawer (renders with position:fixed, doesn't affect layout) */}
+      {/* P4-B/C/D: ServiceDrawer (renders with position:fixed, doesn't affect layout) */}
       {drawerService && (
         <ServiceDrawer
           service={drawerService}
           sentryEmbedOn={sentryEmbedFlagOn}
           logViewerOn={logViewerFlagOn}
+          actionsOn={actionsFlagOn}
+          onSilence={triggerSilenceService}
           onClose={() => setDrawerService(null)}
         />
       )}
