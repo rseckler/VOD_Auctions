@@ -114,6 +114,11 @@ function toFloat(v: unknown): number | null {
   return Number.isFinite(n) ? n : null
 }
 
+/**
+ * Spiegel zu `meilisearch_sync.py::_compute_format_group` (Single-Source-of-
+ * Truth per Doku §4.A.4). Bei Änderung an einer Stelle die andere identisch
+ * nachziehen — Paritätsmatrix fängt Drift via category/format_group_*-Cases.
+ */
 function computeFormatGroup(row: any): string {
   const fmt = (row.format || "").toUpperCase()
   const kat = row.format_kat
@@ -124,8 +129,9 @@ function computeFormatGroup(row: any): string {
   if (kat === 2 || fmt === "LP") return "vinyl"
   if (fmt === "CD") return "cd"
   if (fmt === "VHS") return "vhs"
-  if (kat === 1 && (fmt === "CASSETTE" || fmt === "REEL")) return "tapes"
   if (kat === 1) return "tapes"
+  // Fallback wenn format_id fehlt: format-enum-Match (Postgres-Parität)
+  if (kat == null && (fmt === "CASSETTE" || fmt === "REEL")) return "tapes"
   return "other"
 }
 

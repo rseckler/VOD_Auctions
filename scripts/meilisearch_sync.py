@@ -283,6 +283,15 @@ def _to_float(v):
 
 
 def _compute_format_group(row):
+    """
+    Spiegel der Postgres-Filterlogik in route-postgres-fallback.ts `category`
+    switch. Wird für Meili's `format_group` verwendet.
+
+    Wichtig (rc48 Parity-Fix): format_id kann NULL sein (Non-Discogs-Import-
+    Pfad), dann fällt zurück auf format-enum-Match für CASSETTE/REEL → tapes
+    bzw. LP → vinyl. Gleiches Verhalten wie Postgres:
+      `(Format.kat=1 OR (format_id IS NULL AND format IN ('CASSETTE','REEL')))`
+    """
     fmt_enum = (row["format"] or "").upper() if row["format"] else ""
     kat = row["format_kat"]
     prod_cat = row["product_category"]
@@ -295,9 +304,10 @@ def _compute_format_group(row):
         return "cd"
     if fmt_enum == "VHS":
         return "vhs"
-    if kat == 1 and fmt_enum in ("CASSETTE", "REEL"):
-        return "tapes"
     if kat == 1:
+        return "tapes"
+    # Fallback wenn format_id fehlt: format-enum-Match
+    if kat is None and fmt_enum in ("CASSETTE", "REEL"):
         return "tapes"
     return "other"
 
