@@ -706,6 +706,34 @@ function ArchitectureFlow() {
           </div>
         ))}
       </div>
+
+      {/* Layer 6: Planned Integrations (dimmed, dashed border) */}
+      <div style={{
+        marginTop: 8,
+        padding: "10px 14px",
+        border: `1px dashed ${C.border}`,
+        borderRadius: 8,
+        background: "rgba(0,0,0,0.015)",
+      }}>
+        <p style={{ ...labelStyle, marginBottom: 6 }}>
+          Planned Integrations <span style={{ opacity: 0.7 }}>· deployed-ready, activation pending</span>
+        </p>
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", opacity: 0.7 }}>
+          {[
+            ["📦", "Sendcloud", "Shipping automation · DHL-GK 5115313430"],
+            ["🧾", "easybill", "ERP_INVOICING · §14 UStG compliance"],
+            ["🔐", "Fiskaly TSE", "POS_WALK_IN P1 · KassenSichV"],
+          ].map(([icon, name, role]) => (
+            <div key={name} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 16 }}>{icon}</span>
+              <div>
+                <div style={{ fontSize: 11, color: C.text, fontWeight: 600 }}>{name}</div>
+                <div style={{ fontSize: 10, color: C.muted }}>{role}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
