@@ -56,6 +56,7 @@ TASK_TIMEOUT_MS = 60_000
 RANKING_RULES = {
     "commerce": [
         "words", "typo", "proximity", "attribute", "exactness",
+        "sort",
         "in_stock:desc",
         "has_cover:desc",
         "cohort_a:desc",
@@ -63,6 +64,7 @@ RANKING_RULES = {
     ],
     "discovery": [
         "words", "typo", "proximity", "attribute", "exactness",
+        "sort",
         "discogs_last_synced:desc",
     ],
 }
