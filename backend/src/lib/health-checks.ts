@@ -62,6 +62,8 @@ export type HealthCheckDefinition = {
   url?: string
   /** Short doc-block explaining severity mapping, kept here for traceability. */
   severity_note?: string
+  /** Relative path from repo root to markdown runbook. Rendered as link in UI. */
+  runbook?: string
   run: (ctx: CheckContext) => Promise<CheckRunResult>
 }
 
@@ -114,6 +116,7 @@ export const CHECKS: HealthCheckDefinition[] = [
     category: "infrastructure",
     check_class: "fast",
     url: "https://supabase.com/dashboard/project/bofblwqieuvmqybzxapx",
+    runbook: "https://github.com/rseckler/VOD_Auctions/blob/main/docs/runbooks/postgresql.md",
     severity_note: "ok if SELECT 1 returns; critical if connection fails (DB is launch-blocker)",
     async run({ pg }) {
       const start = Date.now()
@@ -133,6 +136,7 @@ export const CHECKS: HealthCheckDefinition[] = [
     category: "infrastructure",
     check_class: "background",
     url: "https://manage.hostinger.com",
+    runbook: "https://github.com/rseckler/VOD_Auctions/blob/main/docs/runbooks/vps.md",
     async run() {
       const apiUrl = "https://api.vod-auctions.com"
       const start = Date.now()
@@ -168,6 +172,7 @@ export const CHECKS: HealthCheckDefinition[] = [
     category: "infrastructure",
     check_class: "background",
     url: "https://vod-auctions.com",
+    runbook: "https://github.com/rseckler/VOD_Auctions/blob/main/docs/runbooks/storefront.md",
     severity_note: "critical if 5xx — direct user-facing; ok on 3xx (gate redirect)",
     async run() {
       const url = "https://vod-auctions.com"
@@ -189,6 +194,7 @@ export const CHECKS: HealthCheckDefinition[] = [
     category: "data_plane",
     check_class: "fast",
     url: "https://console.upstash.com",
+    runbook: "https://github.com/rseckler/VOD_Auctions/blob/main/docs/runbooks/upstash.md",
     async run({ env }) {
       const url = env.UPSTASH_REDIS_REST_URL
       const token = env.UPSTASH_REDIS_REST_TOKEN
@@ -211,6 +217,7 @@ export const CHECKS: HealthCheckDefinition[] = [
     category: "data_plane",
     check_class: "background",
     url: "/app/config",
+    runbook: "https://github.com/rseckler/VOD_Auctions/blob/main/docs/runbooks/meilisearch.md",
     severity_note: "degraded if flag OFF but index healthy; error if unreachable with flag ON",
     async run({ pg, env }) {
       const url = env.MEILI_URL
@@ -273,6 +280,7 @@ export const CHECKS: HealthCheckDefinition[] = [
     category: "payments",
     check_class: "background",
     url: "https://dashboard.stripe.com",
+    runbook: "https://github.com/rseckler/VOD_Auctions/blob/main/docs/runbooks/stripe.md",
     severity_note: "critical on HTTP fail — checkout depends on this",
     async run({ env }) {
       if (!env.STRIPE_SECRET_KEY) {
@@ -630,6 +638,7 @@ export const CHECKS: HealthCheckDefinition[] = [
     label: "Legacy Sync (sync_log)",
     category: "sync_pipelines",
     check_class: "background",
+    runbook: "https://github.com/rseckler/VOD_Auctions/blob/main/docs/runbooks/sync_pipelines.md",
     severity_note: "ok < 1h, warning 1-3h, error > 3h (cron runs hourly)",
     async run({ pg }) {
       const start = Date.now()
@@ -671,6 +680,7 @@ export const CHECKS: HealthCheckDefinition[] = [
     label: "Meilisearch Drift",
     category: "sync_pipelines",
     check_class: "background",
+    runbook: "https://github.com/rseckler/VOD_Auctions/blob/main/docs/runbooks/sync_pipelines.md",
     severity_note: "maps drift_log.severity directly (ok/warning/critical) · cron every 30min",
     async run({ pg }) {
       const start = Date.now()
@@ -711,6 +721,7 @@ export const CHECKS: HealthCheckDefinition[] = [
     label: "Meilisearch Backlog",
     category: "sync_pipelines",
     check_class: "background",
+    runbook: "https://github.com/rseckler/VOD_Auctions/blob/main/docs/runbooks/sync_pipelines.md",
     severity_note: "rows with search_indexed_at IS NULL · ok < 100, warning 100-1000, error > 1000",
     async run({ pg }) {
       const start = Date.now()

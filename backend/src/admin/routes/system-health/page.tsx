@@ -482,12 +482,21 @@ function ServiceCard({ service }: { service: ServiceCheck }) {
           </p>
         </div>
 
-        {service.url && (
-          <a href={service.url} target="_blank" rel="noopener noreferrer"
-            style={{ fontSize: 11, color: C.gold, textDecoration: "none" }}>
-            Open Dashboard →
-          </a>
-        )}
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          {service.url && (
+            <a href={service.url} target="_blank" rel="noopener noreferrer"
+              style={{ fontSize: 11, color: C.gold, textDecoration: "none" }}>
+              Open Dashboard →
+            </a>
+          )}
+          {service.runbook && (
+            <a href={service.runbook} target="_blank" rel="noopener noreferrer"
+              style={{ fontSize: 11, color: C.muted, textDecoration: "none", fontWeight: 500 }}
+              title="Runbook: symptoms, diagnose, fixes">
+              📖 Runbook ↗
+            </a>
+          )}
+        </div>
       </div>
 
       {/* Key Info section */}

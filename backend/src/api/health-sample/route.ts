@@ -20,6 +20,8 @@ import {
   getChecksByClass,
   runCheck,
 } from "../../lib/health-checks"
+import { maybeDispatchAlert } from "../../lib/health-alerting"
+import { getFeatureFlag } from "../../lib/feature-flags"
 
 const VALID_CLASSES: CheckClass[] = ["fast", "background", "synthetic"]
 
@@ -100,6 +102,32 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
     await pg("health_check_log").insert(rows)
   }
 
+  // ── P3: dispatch alerts for error/critical samples ─────────────────
+  // Read flag once per sampler-run (cheap — site_config has internal cache)
+  let alertingOn = false
+  try {
+    alertingOn = await getFeatureFlag(pg, "SYSTEM_HEALTH_ALERTING")
+  } catch { /* no-op — treat as off */ }
+
+  const alertResults: Array<{ service: string; severity: string; dispatched: boolean; reason?: string }> = []
+  if (alertingOn) {
+    for (const row of rows) {
+      if (!["error", "critical"].includes(row.severity)) continue  // warnings → daily digest only
+      const result = await maybeDispatchAlert(
+        pg,
+        {
+          service_name: row.service_name,
+          category: row.category,
+          severity: row.severity,
+          message: row.message || "",
+          metadata: row.metadata ? JSON.parse(row.metadata) : null,
+        },
+        true
+      )
+      alertResults.push({ service: row.service_name, severity: row.severity, dispatched: result.dispatched, reason: result.reason })
+    }
+  }
+
   const duration = Date.now() - startedAt
   res.json({
     samples_written: rows.length,
@@ -107,5 +135,8 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
     class: classParam || "all",
     source: sourceParam,
     services: rows.map((r) => ({ name: r.service_name, severity: r.severity, latency_ms: r.latency_ms })),
+    alerting: alertingOn
+      ? { enabled: true, dispatched: alertResults.filter((a) => a.dispatched).length, suppressed: alertResults.filter((a) => !a.dispatched).length }
+      : { enabled: false },
   })
 }

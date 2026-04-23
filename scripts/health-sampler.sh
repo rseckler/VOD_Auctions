@@ -48,6 +48,24 @@ if [ "$CLASS" = "cleanup" ]; then
   exit 0
 fi
 
+# "digest" triggers daily warning-digest email (alerting must be ON).
+if [ "$CLASS" = "digest" ]; then
+  HTTP_CODE=$(curl -sS -o /tmp/health_sampler_response.json -w '%{http_code}' \
+    -X POST \
+    -H "X-Sampler-Token: $TOKEN" \
+    --max-time 15 \
+    "$BACKEND_URL/health-sample/digest" 2>&1 || echo "curl_failed")
+  if [ "$HTTP_CODE" = "200" ]; then
+    BODY=$(cat /tmp/health_sampler_response.json 2>/dev/null || echo "{}")
+    SENT=$(echo "$BODY" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('sent', d.get('skipped', '?')))" 2>/dev/null || echo "?")
+    COUNT=$(echo "$BODY" | python3 -c "import sys,json; print(json.load(sys.stdin).get('warning_count',0))" 2>/dev/null || echo "?")
+    echo "[$(date -u +%FT%TZ)] ok digest sent=$SENT warnings=$COUNT"
+  else
+    echo "[$(date -u +%FT%TZ)] FAIL digest http_code=$HTTP_CODE body=$(cat /tmp/health_sampler_response.json 2>/dev/null | head -c 500)"
+  fi
+  exit 0
+fi
+
 # Sample-class run (fast/background/synthetic).
 HTTP_CODE=$(curl -sS -o /tmp/health_sampler_response.json -w '%{http_code}' \
   -X POST \

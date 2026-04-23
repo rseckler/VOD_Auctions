@@ -108,6 +108,13 @@ export const FEATURES = {
     category: "platform",
     requires: [],
   },
+  SYSTEM_HEALTH_ALERTING: {
+    key: "SYSTEM_HEALTH_ALERTING",
+    default: false,
+    description: "Severity-Routing: error/critical-Samples lösen Resend-Immediate-Mail + Sentry-Issue aus, warning landet im täglichen Digest. Flapping-Guard (3 consecutive samples) + Cooldown (error 30min, critical 15min, warning 24h) verhindern Flood. Bei OFF werden Samples weiter geschrieben, aber kein Alert ausgelöst.",
+    category: "platform",
+    requires: [],
+  },
 } as const satisfies Record<string, FeatureFlagDefinition>
 
 export type FeatureFlagKey = keyof typeof FEATURES

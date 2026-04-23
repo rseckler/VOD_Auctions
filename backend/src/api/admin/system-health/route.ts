@@ -91,6 +91,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse): Promise<void
       message,
       latency_ms: row.latency_ms,
       url: def?.url,
+      runbook: def?.runbook,
       category: row.category,
       check_class: row.check_class,
       metadata: row.metadata || undefined,
