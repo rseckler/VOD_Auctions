@@ -130,9 +130,11 @@ function InventoryHubPage() {
     }
   }, [])
 
+  // Browse fires parallel zu Stats (kein Warten auf `loading`) — sonst 2
+  // sequentielle Round-Trips, die gemeinsam gefuehlt ~1s kosten.
   useEffect(() => {
-    if (!loading) loadBrowse(browseTab, browseOffset, browseSearch)
-  }, [browseTab, browseOffset, browseSearch, loading, loadBrowse])
+    loadBrowse(browseTab, browseOffset, browseSearch)
+  }, [browseTab, browseOffset, browseSearch, loadBrowse])
 
   // ── Handlers ──
 
@@ -383,9 +385,7 @@ function InventoryHubPage() {
       </div>
 
       <div style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
-        {browseLoading ? (
-          <div style={{ padding: 40, textAlign: "center", color: C.muted }}>Loading...</div>
-        ) : browseItems.length === 0 ? (
+        {!browseLoading && browseItems.length === 0 ? (
           <div style={{ padding: 40, textAlign: "center", color: C.muted }}>Keine Einträge</div>
         ) : (
           <>
@@ -403,7 +403,22 @@ function InventoryHubPage() {
                 </tr>
               </thead>
               <tbody>
-                {browseItems.map((item) => (
+                {browseLoading && browseItems.length === 0 ? (
+                  // Skeleton rows damit die Tabelle sofort sichtbar ist und
+                  // sich das Layout nicht umbaut, sobald Daten kommen.
+                  Array.from({ length: 8 }).map((_, i) => (
+                    <tr key={`skeleton-${i}`}>
+                      <td style={tdStyle}>
+                        <div style={{ width: 36, height: 36, background: C.subtle, borderRadius: 3 }} />
+                      </td>
+                      {Array.from({ length: 7 }).map((__, j) => (
+                        <td key={j} style={tdStyle}>
+                          <div style={{ height: 12, background: C.subtle, borderRadius: 2, width: `${50 + ((i * 7 + j) % 4) * 10}%` }} />
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                ) : browseItems.map((item) => (
                   <tr
                     key={item.release_id}
                     style={{ cursor: "pointer", transition: "background 0.1s" }}
