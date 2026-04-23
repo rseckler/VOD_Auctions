@@ -13,11 +13,11 @@
  */
 
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { getFeatureFlag } from "../../../../../lib/feature-flags"
+import { getFeatureFlag } from "../../../../../../lib/feature-flags"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
-import { isValidPm2Key, PM2_ALLOWLIST } from "../../../../../lib/log-sources"
-import { streamPm2Combined } from "../../../../../lib/log-streaming"
+import { isValidPm2Key, PM2_ALLOWLIST } from "../../../../../../lib/log-sources"
+import { streamPm2Combined } from "../../../../../../lib/log-streaming"
 
 export async function GET(req: MedusaRequest, res: MedusaResponse): Promise<void> {
   const pg: Knex = req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
