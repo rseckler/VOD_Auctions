@@ -2,18 +2,16 @@
 // Single source of truth for all colors, typography, and spacing.
 // Every admin page MUST import from here. No hardcoded values in pages.
 //
-// Dark-Mode: Neutral colors (card/text/muted/border/hover) are CSS variables
-// that flip with Medusa's `.dark` root class. Accent colors (gold, success,
-// error, blue, purple, warning) are constant because they read well on both
-// light and dark backgrounds.
-//
-// The theme-var CSS is injected exactly once on module load (browser only,
-// idempotent via the #vod-theme-vars id guard).
+// Dark-Mode: deaktiviert. Medusas next-themes-Switch wird hart auf Light
+// gepinnt, weil nicht alle Admin-Seiten/Dialoge sauber durchgefärbt sind.
+// Der unten injizierte Style + Observer reißt `.dark` von <html> wieder runter,
+// falls Medusa (z. B. via Systemeinstellung) sie re-applyt.
 
 // ─── Theme-var injection (side-effect, module-init) ────────────────────────
 
 const THEME_VAR_CSS = `
   :root {
+    color-scheme: light;
     --vod-card: #f8f7f6;
     --vod-text: #1a1714;
     --vod-muted: #78716c;
@@ -22,12 +20,13 @@ const THEME_VAR_CSS = `
     --vod-subtle: rgba(0, 0, 0, 0.04);
   }
   html.dark, html[data-theme="dark"], .dark {
-    --vod-card: #1c1b1a;
-    --vod-text: #f5f4f2;
-    --vod-muted: #a8a29e;
-    --vod-border: #3a3734;
-    --vod-hover: #262422;
-    --vod-subtle: rgba(255, 255, 255, 0.04);
+    color-scheme: light;
+    --vod-card: #f8f7f6;
+    --vod-text: #1a1714;
+    --vod-muted: #78716c;
+    --vod-border: #e7e5e4;
+    --vod-hover: #f5f4f3;
+    --vod-subtle: rgba(0, 0, 0, 0.04);
   }
 `
 
@@ -36,6 +35,24 @@ if (typeof document !== "undefined" && !document.getElementById("vod-theme-vars"
   style.id = "vod-theme-vars"
   style.textContent = THEME_VAR_CSS
   document.head.appendChild(style)
+}
+
+// Force light mode: pin next-themes preference + strip `.dark` / data-theme
+// from <html>. Observer is idempotent — only acts when dark is actually set,
+// so our own removals don't loop.
+if (typeof document !== "undefined" && !(window as any).__vodForceLight) {
+  ;(window as any).__vodForceLight = true
+  try {
+    window.localStorage?.setItem("theme", "light")
+  } catch {}
+  const html = document.documentElement
+  const stripDark = () => {
+    if (html.classList.contains("dark")) html.classList.remove("dark")
+    if (html.getAttribute("data-theme") === "dark") html.setAttribute("data-theme", "light")
+  }
+  stripDark()
+  const obs = new MutationObserver(stripDark)
+  obs.observe(html, { attributes: true, attributeFilter: ["class", "data-theme"] })
 }
 
 // ─── Color Tokens ──────────────────────────────────────────────────────────
