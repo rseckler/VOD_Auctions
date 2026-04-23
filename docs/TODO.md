@@ -1,7 +1,7 @@
 # VOD Auctions — TODO
 
 Operative Aufgabenliste. Single Source of Truth für laufende Arbeit.
-**Letzte Aktualisierung:** 2026-04-23 (rc47.1 — System Health Observability Plan v2 komplett live. 25 Checks, Sampler-Architektur, Alert-History + Sentry-Embed + Log-Drawer + Low-Impact-Actions, Public Status Page, 7 Runbooks. Ops-Cleanup: Upstash-Cluster reaktiviert, Sentry-Token gefixt, pm2_status Check-Logic auf unstable_restarts umgestellt.)
+**Letzte Aktualisierung:** 2026-04-23 (rc47.2 — Preis-Modell konsolidiert: `direct_price → shop_price` kanonisch, Storefront-Gate via `catalog_visibility` auf `shop_price>0 AND verified`, Defaults `sale_mode=both` + `warehouse=ALPENSTRASSE`. Backfill der 23 verifizierten Items. Full-Doku in `docs/architecture/PRICING_MODEL.md`.)
 
 ## Arbeitslogik
 
@@ -17,7 +17,7 @@ Operative Aufgabenliste. Single Source of Truth für laufende Arbeit.
 
 Aktuell aktive Workstreams. Maximal 2-3 gleichzeitig.
 
-1. **Inventur Workflow v2 — Frank arbeitet aktiv** — rc39 (2026-04-22) Search-Sweep + Mirror-Fix live, 6 Altlasten backfilled (Notturno + 5 weitere). Catalog zeigt jetzt Stocktake-Daten (Barcode/Preis/Conditions). Frank macht weitere Platten.
+1. **Inventur Workflow v2 — Frank arbeitet aktiv** — rc47.2 (2026-04-23) Preis-Modell konsolidiert (shop_price kanonisch). rc39 (2026-04-22) Search-Sweep + Mirror-Fix. Catalog zeigt Stocktake-Daten. Frank macht weitere Platten.
 2. **POS Walk-in Sale** — P0 Dry-Run live, Frank testet, P1-P4 warten auf Steuerberater
 3. **Launch-Vorbereitung** — AGB-Anwalt als kritischer Pfad
 
@@ -32,6 +32,7 @@ Kommt dran sobald ein Now-Slot frei wird oder ein Blocker sich löst.
 9. **[x] System Health Evolution P3** — **done 2026-04-23 (rc43).** Alerting-Engine (Resend-Immediate + Sentry + optional Slack, Flapping-Guard 3 consecutive samples, in-memory Cooldowns severity-spezifisch), Digest-Cron 08:00 für warnings. Feature-Flag `SYSTEM_HEALTH_ALERTING` ON. 7 Runbooks (P-1: postgresql/stripe/storefront/vps, P-2: meilisearch/sync_pipelines/upstash) + Template. Admin-UI Runbook-Links pro ServiceCard. Acceptance grün (Upstash-Alert dispatched via Resend). **Nicht drin:** Alert-History-Panel UI, Test-Alert-Button, P-3/P-4-Runbooks (bei Bedarf später).
 10. **[x] System Health Observability P4** — **done 2026-04-23 (rc44-rc47).** Plan v2 vollständig umgesetzt an einem Tag. P4-A Alert-History (rc44) · P4-B Sentry-Embed (rc45, Token-Setup pending user) · P4-C Log-Drawer restricted-scope (rc46, Flag OFF default) · P4-D Low-Impact-Actions (rc47) — alle LIVE. **P4-E destructive Actions** (pm2_restart, manual_sync) bleibt bewusst OFFEN, nach 4 Wochen Laufzeit re-evaluieren. Plan: [`docs/optimizing/SYSTEM_HEALTH_OBSERVABILITY_PLAN.md`](optimizing/SYSTEM_HEALTH_OBSERVABILITY_PLAN.md).
 11. **[x] Meilisearch Search-Engine Phase 1** — **done 2026-04-22 (rc40).** Live auf VPS (Docker, localhost:7700), Two-Profile-Index (`releases-commerce` + `releases-discovery`, je 52.777 docs), Flag `SEARCH_MEILI_CATALOG` ON, 3-Gate-Runtime-Fallback (flag → health-probe → try/catch). p95 Latency /store/catalog 48-58ms (vorher 6+s), Typo-Tolerance wirkt ("cabarte voltarie" findet Cabaret Voltaire). 4 Cronjobs (delta 5min, cleanup täglich, drift 30min, dump täglich). Admin-Endpoints bleiben Postgres-FTS. Siehe [`docs/optimizing/SEARCH_MEILISEARCH_PLAN.md`](optimizing/SEARCH_MEILISEARCH_PLAN.md) + [`docs/optimizing/MEILI_PHASE1_DEPLOYMENT_STEPS.md`](optimizing/MEILI_PHASE1_DEPLOYMENT_STEPS.md).
+12. **[x] Preis-Modell konsolidiert (shop_price)** — **done 2026-04-23 (rc47.2).** DB-Rename `direct_price → shop_price` + 34 Files + Meili-Trigger + Full-Reindex. Verify/Add-Copy schreiben ab jetzt `shop_price` (kanonisch) + Defaults `sale_mode='both'` (wenn NULL/auction_only) + `warehouse_location_id=ALPENSTRASSE` (wenn NULL). Storefront-Gate via `site_config.catalog_visibility`: `'visible'` = nur `shop_price>0 AND EXISTS(verified erp_inventory_item)`, `'all'` = zusätzlich unpriced ohne Preis-Tag + ohne Add-to-Cart. Admin-Catalog-Detail Label "Shop Price", Missing-Badge-Logic korrigiert. Helper `backend/src/lib/shop-price.ts::enrichWithShopPrice()`. Backfill: 23 verifizierte Items `shop_price=legacy_price`, 22 × `sale_mode auction_only → both`, 32 × Warehouse-Default. Full-Doku: [`docs/architecture/PRICING_MODEL.md`](architecture/PRICING_MODEL.md). **Phase 2 offen** (siehe Later): Auction-Start-Preis-Default `round(shop_price × 0.5)` beim Block-Add.
 
 ## Later
 
@@ -44,6 +45,7 @@ Bewusst geparkt. Wird bei Bedarf nach Next gezogen.
 12. Checkout Phase C (Apple Pay, Google Pay)
 13. ERP Marketplace (v2.0.0)
 14. Meilisearch Phase 2 (Admin-Endpoints + Vector-Search + LLM-Re-Rank — separate Konzepte später)
+15. **Preis-Modell Phase 2 — Auction-Start-Preis-Ableitung.** Wenn Frank ein Item in einen `auction_block` aufnimmt, soll `block_item.start_price` automatisch auf `round(shop_price × 0.5)` gesetzt werden (User-Entscheidung 2026-04-23, siehe `PRICING_MODEL.md` §"Phase 2"). Manuelles Überschreiben im Block-Builder bleibt möglich. Betroffen: `POST /admin/auction-blocks/:id/items` + UI-Block-Builder. ~2-4h Effort, hat sich noch kein konkreter Trigger ergeben — kommt beim nächsten Auction-Block-Flow-Commit.
 
 ---
 

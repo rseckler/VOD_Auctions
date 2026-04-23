@@ -2,7 +2,7 @@
 
 **Purpose:** Auktionsplattform für ~41.500 Produkte (Industrial Music Tonträger + Literatur/Merch) — eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Beta Test (`platform_mode: beta_test`) · Storefront+Admin-UI: Englisch
-**Last Updated:** 2026-04-23 (rc47.1 — System Health Observability komplett live, Plan v2 §P1-P4 in einem Tag durchgezogen)
+**Last Updated:** 2026-04-23 (rc47.2 — Preis-Modell konsolidiert: `direct_price → shop_price` als kanonischer Shop-Preis, Storefront-Visibility-Gate `shop_price>0 AND verified`, Defaults `sale_mode=both` + `warehouse=ALPENSTRASSE`, Backfill der 23 verifizierten Items. Dokumentation: `docs/architecture/PRICING_MODEL.md`.)
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
 
@@ -84,6 +84,15 @@ cd /root/VOD_Auctions/storefront && npm run build && pm2 restart vodauction-stor
 - Timeouts = Idle-Detection, nicht Job-Dauer. Für lang laufende Ops SSE-Heartbeat alle 5s (`SSEStream.startHeartbeat(5000)`), nicht `proxy_read_timeout` hochdrehen
 - Long-running Loops müssen von `res.write()` entkoppelt sein. HTTP-Teardown killt tightly-coupled Handler STILL. Pattern: `void (async () => {...})().catch(...)`, Route returnt 200, Events in DB, UI polled. Siehe `discogs-import/{fetch,analyze,commit}/route.ts`
 - Stale Import-Sessions (>6h in non-terminal status) auto-filtered aus `active_sessions`. Manuell: `UPDATE import_session SET status='abandoned' WHERE status NOT IN ('done','abandoned','error') AND created_at < NOW() - INTERVAL '6 hours'`
+
+**Preise (rc47.2):**
+- `Release.shop_price` ist der **einzige** Shop-Preis (gesetzt vom Inventory-Process). `legacy_price` = tape-mag-Historie (nur Info), `discogs_lowest_price` = Markt-Referenz (nur Info). Nie `legacy_price` als Shop-Preis rendern/validieren. Storefront nutzt `effective_price` aus API, Admin nutzt `shop_price` direkt
+- Verify/Add-Copy schreiben Copy #1: `Release.shop_price = new_price` (kanonisch) + `Release.legacy_price = new_price` (defensiver Mirror für Legacy-Leser) + `erp_inventory_item.exemplar_price = new_price`. Multi-Copy (Copy #2+) schreibt nur `exemplar_price` auf Item-Level
+- Defaults die Verify setzt wenn bisher nicht gesetzt: `sale_mode='both'` (wenn NULL/auction_only), `warehouse_location_id` = `is_default=true` Warehouse (ALPENSTRASSE). Nie überschreiben wenn schon was drin steht — explizite User-Wahl (`direct_purchase`) respektiert
+- Shop-Visibility-Gate via `site_config.catalog_visibility` (Admin-Toggle): `'visible'` = nur `shop_price>0 AND EXISTS(verified erp_inventory_item)`, `'all'` = zusätzlich ohne Preis + ohne Add-to-Cart
+- Helper `backend/src/lib/shop-price.ts::enrichWithShopPrice(pg, rows)` enricht Release-Rows mit `effective_price/is_purchasable/is_verified` — verwenden in band/label/press-Routes und überall wo ein Release-Array an Storefront geht
+- Meili-Trigger `trigger_release_indexed_at_self` hat 22-Feld-Whitelist — bei neuen preis-/sale-relevanten Spalten die Spalte dort ERGÄNZEN, sonst kein Delta-Reindex bei Änderung
+- Full-Referenz: [`docs/architecture/PRICING_MODEL.md`](docs/architecture/PRICING_MODEL.md) inkl. Verify-Checkliste für Code-Änderungen
 
 **UI:**
 - Bid-Inputs: `type="text" inputMode="decimal"` + `parseAmount()` (Komma→Punkt). Nie `parseFloat()` direkt — EU tippt Komma
@@ -234,7 +243,8 @@ python3 crm_import.py --phase 2
 - **Admin Navigation:** 8 Sidebar-Items (Dashboard, Auction Blocks, Orders, Catalog, Marketing, Operations, ERP, AI Assistant). Sub-Pages nur über Hub-Karten
 - **Deployment Methodology:** "Deploy early, activate when ready" — Feature Flags in `backend/src/lib/feature-flags.ts` + `site_config.features` JSONB. Additive-only Migrationen. Siehe [`docs/architecture/DEPLOYMENT_METHODOLOGY.md`](docs/architecture/DEPLOYMENT_METHODOLOGY.md)
 - **Sync-Architektur:** `legacy_sync_v2.py` stündlich, 14-Field Diff + V1-V4 Post-Run-Validation. A5/A6 (Dead-Man-Switch + Alerting) pending. Plus seit rc40: explicit bumps `search_indexed_at=NULL` nach jedem Release-Write (defense-in-depth für Meili-Delta-Sync, weil Trigger A nur auf UPDATE feuert, nicht INSERT-Branch des UPSERT). Siehe `docs/architecture/SYNC_ROBUSTNESS_PLAN.md`
-- **Catalog Visibility:** `coverImage IS NOT NULL` = sichtbar · `legacy_price > 0 AND legacy_available = true` = kaufbar
+- **Preis-Modell (rc47.2):** `Release.shop_price` ist **einziger** Shop-Preis (gesetzt vom Inventory-Process im Verify/Add-Copy). `legacy_price` = nur tape-mag-Historie, `discogs_lowest_price` = nur Markt-Referenz. Wahrheits-Hierarchie: Storefront `effective_price = shop_price` (kein Fallback); Label-Pipeline `COALESCE(exemplar_price, shop_price, legacy_price)`. Verify setzt Defaults `sale_mode='both'` (wenn NULL/auction_only) + `warehouse_location_id=ALPENSTRASSE` (wenn NULL). Vollständige Doku: [`docs/architecture/PRICING_MODEL.md`](docs/architecture/PRICING_MODEL.md)
+- **Catalog Visibility (rc47.2):** `site_config.catalog_visibility='visible'` (Default) zeigt nur Items mit `shop_price > 0 AND EXISTS(verified erp_inventory_item)` → Preis + Add-to-Cart. `catalog_visibility='all'` zeigt zusätzlich Items ohne Preis — ohne Preis-Tag, ohne Add-to-Cart (Auction-Bid bleibt aktiv). URL-Param `for_sale=true` forciert immer `'visible'`-Semantik. Implementierung: Meili-Filter `is_purchasable=true` (via `has_shop_price AND has_verified_inventory AND legacy_available` in `meilisearch_sync.py::transform_to_doc`), Postgres-Fallback mit identischer WHERE-Klausel, Helper `backend/src/lib/shop-price.ts::enrichWithShopPrice()` für Category-Pages.
 - **Search-Architektur (rc40):** Gesplittet zwischen Storefront (Meili) und Admin (Postgres-FTS):
   - **Storefront** — `/store/catalog` + `/store/catalog/suggest` gehen über Meilisearch 1.20 (self-hosted, VPS `127.0.0.1:7700`, two-profile `releases-commerce`/`releases-discovery`). Flag `SEARCH_MEILI_CATALOG`, 3-Gate-Fallback: Flag OFF → Postgres · Health-Probe tripped → Postgres · try-catch → Postgres. Runtime-Code: `backend/src/lib/meilisearch.ts` + `release-search-meili.ts`. Typo-Tolerance + Facets + Synonyme. Latenz p95 48-58ms.
   - **Admin** — `/admin/erp/inventory/search`, `/admin/media` nutzen weiterhin Postgres-FTS via `Release.search_text` + Shared Helper `backend/src/lib/release-search.ts`. Latenz ~20-30ms, keine Typo-Tolerance, keine Facetten. Phase-2-Backlog.
@@ -262,7 +272,7 @@ backend/src/
 ├── modules/auction/models/  # auction-block, block-item, bid, transaction, cart-item, saved-item
 ├── api/{admin,store,webhooks}/
 ├── api/middlewares.ts       # Auth + rawBodyMiddleware (DON'T REMOVE!)
-├── lib/                     # stripe/paypal/shipping/brevo/crm-sync/site-config/invite/feature-flags/paths/release-search/release-search-meili/meilisearch/image-upload/email.ts
+├── lib/                     # stripe/paypal/shipping/brevo/crm-sync/site-config/invite/feature-flags/paths/release-search/release-search-meili/meilisearch/image-upload/email/shop-price.ts
 ├── scripts/migrations/      # Raw SQL (idempotent, manuell angewendet)
 └── admin/{components,routes}/
 
@@ -279,7 +289,7 @@ scripts/
 └── entity_overhaul/         # 10-Module Pipeline
 
 docs/
-├── architecture/{CHANGELOG,DEPLOYMENT_METHODOLOGY,SYNC_ROBUSTNESS_PLAN,STAGING_ENVIRONMENT,DISCOGS_IMPORT_SESSION_LOCK_PLAN}.md
+├── architecture/{CHANGELOG,DEPLOYMENT_METHODOLOGY,SYNC_ROBUSTNESS_PLAN,STAGING_ENVIRONMENT,DISCOGS_IMPORT_SESSION_LOCK_PLAN,PRICING_MODEL}.md
 ├── optimizing/{SEARCH_MEILISEARCH_PLAN,INVENTUR_WORKFLOW_V2_KONZEPT,POS_WALK_IN_KONZEPT,CATALOG_SEARCH_FIXES_2026-04-22}.md
 ├── hardware/BROTHER_QL_820NWB_SETUP.md
 ├── UI_UX/                   # Style Guide, Gap Analysis, Plan, Report, PR Checklist
@@ -291,13 +301,14 @@ docs/
 
 → Operative Liste: [`docs/TODO.md`](docs/TODO.md)
 
-1. **System Health Observability komplett live (rc41-rc47.1, 2026-04-23).** Plan v2 vollständig umgesetzt an einem Tag statt geplanter 5-8 Tage. 25 registrierte Checks in 8 Kategorien, Sampler-Architektur (entkoppelt vom UI-GET), 7-stufiges Severity-Modell, 24h-Uptime-Sparklines, Alert-History + Acknowledge + Auto-Resolve (3 consecutive ok), Sentry-Issues-Embed pro Service (rseckler@gmail.com Token, scopes `event:read + org:read + project:read`), Log-Drawer mit restricted scope (6 hart-kodierte Sources, Regex-Scrubbing), Low-Impact-Actions (Force-Refresh + Silence-Service persistent), Public Status Page `vod-auctions.com/status`, 7 Runbooks, Digest-Cron 08:00 UTC. Alle Flags ON. Plan: [`docs/optimizing/SYSTEM_HEALTH_OBSERVABILITY_PLAN.md`](docs/optimizing/SYSTEM_HEALTH_OBSERVABILITY_PLAN.md). P4-E destructive Actions (pm2_restart, manual_sync) bleiben OFFEN — nach 4 Wochen Laufzeit re-evaluieren.
-2. **Meilisearch Phase 1 live (rc40, 2026-04-22).** `SEARCH_MEILI_CATALOG` ON, Storefront /store/catalog + /suggest über Meili 1.20 (two-profile, localhost-only). p95 48-58ms (vorher 6+s), Typo-Tolerance, Facets. Doku: [`docs/optimizing/MEILI_PHASE1_DEPLOYMENT_STEPS.md`](docs/optimizing/MEILI_PHASE1_DEPLOYMENT_STEPS.md)
-3. **Frank arbeitet aktiv an Inventur.** rc39 Catalog/Inventur Mirror-Fix weiterhin im Einsatz. Franks MacBook Air-Rollout ausstehend: `cd ~/VOD_Auctions && git pull && bash frank-macbook-setup/install.sh`.
-4. **POS P0 Dry-Run live** — Frank testet Scan→Cart→Checkout, Feedback sammeln.
-5. **L1:** AGB-Anwalt beauftragen (Launch-Blocker, RSE-78).
-6. **Meilisearch Phase 2 (Backlog):** Admin-Endpoints (`/admin/media`, `/admin/erp/inventory/search`) auf Meili-discovery-Profil umstellen. ~1 Tag Effort.
-7. **`supabase_realtime: degraded`** (known, non-blocker): Realtime-Service im Supabase-Projekt nicht aktiviert. Sobald Live-Bidding live geht, via Supabase-Console Dashboard → Realtime → Enable.
+1. **Preis-Modell konsolidiert (rc47.2, 2026-04-23).** `Release.shop_price` ist jetzt **einziger** kanonischer Shop-Preis. `legacy_price` + `discogs_lowest_price` nur noch Info. Verify/Add-Copy schreiben `shop_price` + setzen Defaults `sale_mode='both'` (wenn bisher NULL/auction_only) + `warehouse_location_id=ALPENSTRASSE` (wenn bisher NULL). Storefront-Gate: `catalog_visibility='visible'` zeigt nur verified+priced Items, `'all'` zeigt zusätzlich unpriced ohne Preis-Tag + ohne Add-to-Cart. Backfill: 23 verifizierte Items `shop_price=legacy_price`, 22 × `sale_mode auction_only → both`, 32 × Warehouse-Default. DB-Rename `direct_price → shop_price` + 34 Files + Meili-Trigger + Full-Reindex. Doku: [`docs/architecture/PRICING_MODEL.md`](docs/architecture/PRICING_MODEL.md). **Phase 2 offen:** Auction-Start-Preis `round(shop_price × 0.5)` beim Block-Add.
+2. **System Health Observability komplett live (rc41-rc47.1, 2026-04-23).** Plan v2 vollständig umgesetzt. 25 Checks, Sampler-Architektur, 7-stufiges Severity-Modell, Alert-History + Auto-Resolve, Sentry-Embed, Log-Drawer, Low-Impact-Actions, Public Status Page, 7 Runbooks. Plan: [`docs/optimizing/SYSTEM_HEALTH_OBSERVABILITY_PLAN.md`](docs/optimizing/SYSTEM_HEALTH_OBSERVABILITY_PLAN.md). P4-E destructive Actions OFFEN — nach 4 Wochen re-evaluieren.
+3. **Meilisearch Phase 1 live (rc40, 2026-04-22).** `SEARCH_MEILI_CATALOG` ON, Storefront /store/catalog + /suggest über Meili 1.20. p95 48-58ms. Doku: [`docs/optimizing/MEILI_PHASE1_DEPLOYMENT_STEPS.md`](docs/optimizing/MEILI_PHASE1_DEPLOYMENT_STEPS.md)
+4. **Frank arbeitet aktiv an Inventur.** Franks MacBook Air-Rollout ausstehend: `cd ~/VOD_Auctions && git pull && bash frank-macbook-setup/install.sh`.
+5. **POS P0 Dry-Run live** — Frank testet Scan→Cart→Checkout, Feedback sammeln.
+6. **L1:** AGB-Anwalt beauftragen (Launch-Blocker, RSE-78).
+7. **Meilisearch Phase 2 (Backlog):** Admin-Endpoints auf Meili-discovery-Profil umstellen. ~1 Tag.
+8. **`supabase_realtime: degraded`** (known, non-blocker): Realtime-Service sobald Live-Bidding live geht.
 
 **Arbeitsregeln:**
 - Keine Task-Listen hier pflegen — `docs/TODO.md` nutzen
