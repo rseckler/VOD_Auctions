@@ -34,6 +34,7 @@ import json
 import os
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 
 import psycopg2
@@ -154,10 +155,16 @@ def wait_for_task(task_uid, timeout_ms=TASK_TIMEOUT_MS):
 # Row fetch + transform
 # ═══════════════════════════════════════════════════════════════════════════
 
+# STOCKTAKE_STALE_DAYS muss identisch zum Postgres-Fallback-SQL bleiben
+# (backend/src/api/admin/media/route-postgres-fallback.ts::stocktake === "stale"
+# nutzt NOW() - INTERVAL '90 days'). Single-Source-of-Truth s. Plan §4.A.4.
+STOCKTAKE_STALE_DAYS = 90
+
 BASE_SELECT_SQL = """
     SELECT
         r.id,
         r.title,
+        r.slug,
         r."catalogNumber"      AS catalog_number,
         r.article_number,
         r.format,
@@ -168,6 +175,7 @@ BASE_SELECT_SQL = """
         r."coverImage"         AS cover_image,
         r.legacy_price,
         r.shop_price,
+        r.estimated_value,
         r.legacy_available,
         r.sale_mode,
         r.auction_status,
@@ -177,6 +185,8 @@ BASE_SELECT_SQL = """
         r.discogs_highest_price,
         r.discogs_num_for_sale,
         r.discogs_last_synced,
+        r.media_condition,
+        r.sleeve_condition,
         r."updatedAt"          AS updated_at,
         a.name                 AS artist_name,
         a.slug                 AS artist_slug,
@@ -192,7 +202,43 @@ BASE_SELECT_SQL = """
                                AS exemplar_count,
         (SELECT COUNT(*) FROM erp_inventory_item ii
           WHERE ii.release_id = r.id AND ii.last_stocktake_at IS NOT NULL)
-                               AS verified_count
+                               AS verified_count,
+        -- Inventory: first-exemplar-shaped Felder fuer Admin-Catalog-Listing,
+        -- analog zum Postgres-Endpoint (route-postgres-fallback.ts inventorySub).
+        (SELECT ii.status FROM erp_inventory_item ii
+          WHERE ii.release_id = r.id
+          ORDER BY COALESCE(ii.copy_number, 1) ASC LIMIT 1) AS inventory_status_first,
+        (SELECT ii.price_locked FROM erp_inventory_item ii
+          WHERE ii.release_id = r.id
+          ORDER BY COALESCE(ii.copy_number, 1) ASC LIMIT 1) AS price_locked_first,
+        (SELECT ii.barcode FROM erp_inventory_item ii
+          WHERE ii.release_id = r.id
+          ORDER BY COALESCE(ii.copy_number, 1) ASC LIMIT 1) AS inventory_barcode_first,
+        (SELECT MAX(ii.last_stocktake_at) FROM erp_inventory_item ii
+          WHERE ii.release_id = r.id) AS last_stocktake_at_max,
+        (SELECT wl.code FROM erp_inventory_item ii
+          LEFT JOIN warehouse_location wl ON wl.id = ii.warehouse_location_id
+          WHERE ii.release_id = r.id
+          ORDER BY COALESCE(ii.copy_number, 1) ASC LIMIT 1) AS warehouse_code_first,
+        (SELECT wl.id FROM erp_inventory_item ii
+          LEFT JOIN warehouse_location wl ON wl.id = ii.warehouse_location_id
+          WHERE ii.release_id = r.id
+          ORDER BY COALESCE(ii.copy_number, 1) ASC LIMIT 1) AS warehouse_id_first,
+        (SELECT wl.name FROM erp_inventory_item ii
+          LEFT JOIN warehouse_location wl ON wl.id = ii.warehouse_location_id
+          WHERE ii.release_id = r.id
+          ORDER BY COALESCE(ii.copy_number, 1) ASC LIMIT 1) AS warehouse_name_first,
+        -- Import-Relationen: Array-Aggregation aus import_log fuer Admin-Filter
+        -- "Import-Collection" + "Import-Action". Distinct weil ein Release
+        -- mehrfach durch denselben Import-Run gehen kann.
+        (SELECT array_agg(DISTINCT il.collection_name)
+          FROM import_log il
+          WHERE il.release_id = r.id AND il.import_type = 'discogs_collection'
+            AND il.collection_name IS NOT NULL) AS import_collections_arr,
+        (SELECT array_agg(DISTINCT il.action)
+          FROM import_log il
+          WHERE il.release_id = r.id AND il.import_type = 'discogs_collection'
+            AND il.action IS NOT NULL) AS import_actions_arr
     FROM "Release" r
     LEFT JOIN "Artist"    a  ON a.id = r."artistId"
     LEFT JOIN "Label"     l  ON l.id = r."labelId"
@@ -268,7 +314,9 @@ def transform_to_doc(row):
     """
     shop = _to_float(row["shop_price"])
     legacy = _to_float(row["legacy_price"])  # info only
+    estimated = _to_float(row.get("estimated_value"))
     verified_count = int(row["verified_count"] or 0)
+    exemplar_count = int(row["exemplar_count"] or 0)
 
     has_shop_price = shop is not None and shop > 0
     has_verified_inventory = verified_count > 0
@@ -282,11 +330,43 @@ def transform_to_doc(row):
 
     discogs_synced = row["discogs_last_synced"]
     updated_at = row["updated_at"]
+    last_stocktake = row.get("last_stocktake_at_max")
+
+    # stocktake_state (berechnet, Spiegel zum Postgres-Filter in
+    # route-postgres-fallback.ts — STOCKTAKE_STALE_DAYS ist Single-Source
+    # siehe oben). Kategorien:
+    #   "never"   = kein erp_inventory_item ODER last_stocktake_at IS NULL
+    #   "done"    = last_stocktake_at >= NOW() - 90d
+    #   "stale"   = last_stocktake_at < NOW() - 90d
+    # Für Postgres-Parität: "pending" = exemplar exists + last_stocktake NULL
+    # (wird hier auf "never" gemappt wenn kein exemplar, "pending" wenn exemplar
+    # aber nie verifiziert).
+    if exemplar_count == 0:
+        stocktake_state = "none"
+    elif last_stocktake is None:
+        stocktake_state = "pending"
+    else:
+        age_days = (datetime.now(last_stocktake.tzinfo) - last_stocktake).days if last_stocktake else None
+        if age_days is not None and age_days >= STOCKTAKE_STALE_DAYS:
+            stocktake_state = "stale"
+        else:
+            stocktake_state = "done"
+
+    # Inventory-first-exemplar-Felder (analog zum Postgres inventorySub)
+    inventory_status = row.get("inventory_status_first")
+    price_locked = bool(row.get("price_locked_first")) if row.get("price_locked_first") is not None else None
+    inventory_barcode = row.get("inventory_barcode_first")
+    warehouse_code = row.get("warehouse_code_first")
+    warehouse_id = row.get("warehouse_id_first")
+    warehouse_name = row.get("warehouse_name_first")
+    import_collections = list(row.get("import_collections_arr") or [])
+    import_actions = list(row.get("import_actions_arr") or [])
 
     return {
         "id": row["id"],  # keep dashes — Meili 1.x accepts [a-zA-Z0-9_-]
         "release_id": row["id"],
         "title": row["title"],
+        "slug": row.get("slug"),
         "artist_name": row["artist_name"],
         "artist_slug": row["artist_slug"],
         "label_name": row["label_name"],
@@ -308,9 +388,11 @@ def transform_to_doc(row):
         "styles": [],  # placeholder — add when entity_content.style_tags exists
         "cover_image": row["cover_image"],
         "has_cover": bool(row["cover_image"]),
+        "has_image": bool(row["cover_image"]),  # Admin-Alias fürs Catalog-Filter
         "legacy_price": legacy,
         "shop_price": shop,
         "effective_price": effective,
+        "estimated_value": estimated,
         "has_price": has_price,
         "is_purchasable": is_purchasable,
         "legacy_available": bool(row["legacy_available"]),
@@ -322,13 +404,28 @@ def transform_to_doc(row):
         "discogs_highest_price": _to_float(row["discogs_highest_price"]),
         "discogs_num_for_sale": row["discogs_num_for_sale"],
         "discogs_last_synced": int(discogs_synced.timestamp()) if discogs_synced else 0,
-        "exemplar_count": int(row["exemplar_count"] or 0),
-        "verified_count": int(row["verified_count"] or 0),
-        "in_stock": int(row["exemplar_count"] or 0) > 0,
+        "exemplar_count": exemplar_count,
+        "verified_count": verified_count,
+        "has_inventory": exemplar_count > 0,
+        "in_stock": exemplar_count > 0,
         "cohort_a": shop is not None and shop > 0,
+        # Admin-Felder (rc48 Phase 2)
+        "inventory_status": inventory_status,
+        "price_locked": price_locked,
+        "inventory_barcode": inventory_barcode,
+        "warehouse_code": warehouse_code,
+        "warehouse_id": warehouse_id,
+        "warehouse_name": warehouse_name,
+        "import_collections": import_collections,
+        "import_actions": import_actions,
+        "stocktake_state": stocktake_state,
+        "last_stocktake_at": int(last_stocktake.timestamp()) if last_stocktake else 0,
+        "media_condition": row.get("media_condition"),
+        "sleeve_condition": row.get("sleeve_condition"),
         "popularity_score": 0,
         "indexed_at": int(time.time()),
-        "updated_at": int(updated_at.timestamp()) if updated_at else 0,
+        "updated_at": updated_at.isoformat() if updated_at else None,
+        "updated_at_ts": int(updated_at.timestamp()) if updated_at else 0,
     }
 
 

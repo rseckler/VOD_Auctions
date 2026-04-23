@@ -4,6 +4,7 @@ import { Knex } from "knex"
 import AuctionModuleService from "../../../../../modules/auction/service"
 import { AUCTION_MODULE } from "../../../../../modules/auction"
 import { CreateBlockItemSchema, validateBody } from "../../../../../lib/validation"
+import { pushReleaseNow } from "../../../../../lib/meilisearch-push"
 
 // GET /admin/auction-blocks/:id/items — List items in a block
 export async function GET(
@@ -120,4 +121,18 @@ export async function POST(
   }
 
   res.status(201).json({ block_item: item })
+
+  // Klasse-B on-demand-Reindex (rc48 §3.8) — auction_status auf Release
+  // wurde oben auf 'reserved' gesetzt, das soll im Admin-Catalog-Filter
+  // sofort greifen.
+  pushReleaseNow(pgConnection, releaseId).catch((err) => {
+    console.warn(
+      JSON.stringify({
+        event: "meili_push_now_failed",
+        handler: "auction_block_item_add",
+        release_id: releaseId,
+        error: err?.message,
+      })
+    )
+  })
 }

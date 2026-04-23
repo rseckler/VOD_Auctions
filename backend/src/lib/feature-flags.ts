@@ -100,6 +100,13 @@ export const FEATURES = {
     category: "search",
     requires: [],
   },
+  SEARCH_MEILI_ADMIN: {
+    key: "SEARCH_MEILI_ADMIN",
+    default: false,
+    description: "Meilisearch für /admin/media + /admin/erp/inventory/search aktivieren (rc48 Phase 2). Bei false: bestehende Postgres-basierte Listing-Query. Runtime-Health-Probe + try/catch fallen automatisch auf Postgres zurück. Admin-UI-Request mit `?_backend=postgres` umgeht diesen Flag (für Paritätsmatrix-Check, siehe ADMIN_CATALOG_PERFORMANCE_PLAN.md §4.A).",
+    category: "search",
+    requires: [],
+  },
   // ─── Platform flags — visibility gates for user-facing surfaces ─────────────
   SYSTEM_HEALTH_PUBLIC_PAGE: {
     key: "SYSTEM_HEALTH_PUBLIC_PAGE",

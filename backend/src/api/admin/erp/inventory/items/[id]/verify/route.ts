@@ -2,6 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { requireFeatureFlag, createMovement, lockPrice, assignBarcode } from "../../../../../../../lib/inventory"
+import { pushReleaseNow } from "../../../../../../../lib/meilisearch-push"
 
 /**
  * POST /admin/erp/inventory/items/:id/verify
@@ -223,5 +224,19 @@ export async function POST(
     condition_sleeve: updated?.condition_sleeve || null,
     exemplar_price: updated?.exemplar_price != null ? Number(updated.exemplar_price) : null,
     label_url: `/admin/erp/inventory/items/${inventoryItemId}/label`,
+  })
+
+  // Klasse-B on-demand-Reindex (rc48 §3.8) — fire-and-forget nach response.
+  // Frank will das verifizierte Item sofort im Admin-Catalog + Inventory-Tabs
+  // sehen, nicht erst nach 5-min-Delta-Cron.
+  pushReleaseNow(pg, item.release_id).catch((err) => {
+    console.warn(
+      JSON.stringify({
+        event: "meili_push_now_failed",
+        handler: "inventory_verify",
+        release_id: item.release_id,
+        error: err?.message,
+      })
+    )
   })
 }

@@ -26,7 +26,7 @@ interface FlagResponse {
   enabled: boolean
   default: boolean
   description: string
-  category: "erp" | "platform" | "experimental"
+  category: "erp" | "platform" | "experimental" | "search"
   requires: string[]  // Keys that must be enabled before this flag can be activated
 }
 

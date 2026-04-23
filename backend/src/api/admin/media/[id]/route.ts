@@ -2,6 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { createMovement } from "../../../../lib/inventory"
+import { pushReleaseNow } from "../../../../lib/meilisearch-push"
 
 // GET /admin/media/:id — Single release detail with sync history
 export async function GET(
@@ -398,4 +399,18 @@ export async function POST(
   }
 
   res.json({ release })
+
+  // Klasse-B on-demand-Reindex (rc48 §3.8) — Admin-Edit soll sofort im
+  // Catalog-Listing sichtbar sein. Plus Inventory-Item-Änderungen (Warehouse,
+  // Status, Stocktake-Reset) die im Admin-Catalog-Filter gefragt sind.
+  pushReleaseNow(pgConnection, id).catch((err) => {
+    console.warn(
+      JSON.stringify({
+        event: "meili_push_now_failed",
+        handler: "admin_media_patch",
+        release_id: id,
+        error: err?.message,
+      })
+    )
+  })
 }

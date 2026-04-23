@@ -2,6 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, generateEntityId } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { requireFeatureFlag, createMovement, assignBarcode } from "../../../../../../lib/inventory"
+import { pushReleaseNow } from "../../../../../../lib/meilisearch-push"
 
 /**
  * POST /admin/erp/inventory/items/add-copy
@@ -150,5 +151,18 @@ export async function POST(
       is_verified: true,
     },
     label_url: `/admin/erp/inventory/items/${itemId}/label`,
+  })
+
+  // Klasse-B on-demand-Reindex (rc48 §3.8) — neue Copy soll sofort in
+  // Admin-Tabs (v.a. "Mehrere Ex.") sichtbar sein.
+  pushReleaseNow(pg, release_id).catch((err) => {
+    console.warn(
+      JSON.stringify({
+        event: "meili_push_now_failed",
+        handler: "inventory_add_copy",
+        release_id,
+        error: err?.message,
+      })
+    )
   })
 }
