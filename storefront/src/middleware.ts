@@ -67,6 +67,7 @@ function isPublicPath(pathname: string): boolean {
     pathname === "/impressum" ||
     pathname === "/datenschutz" ||
     pathname === "/cookies" ||
+    pathname === "/status" ||
     pathname.startsWith("/gallery/gallery-") ||
     pathname === "/monitoring"
   )
