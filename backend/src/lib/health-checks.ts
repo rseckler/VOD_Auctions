@@ -591,43 +591,35 @@ export const CHECKS: HealthCheckDefinition[] = [
     label: "Supabase Realtime (Live-Bidding)",
     category: "data_plane",
     check_class: "background",
-    severity_note: "critical if unreachable in live-auction mode · WebSocket ping roundtrip",
+    severity_note: "HTTPS-probe auf /realtime/v1/ · 426 Upgrade Required ist expected (WS-Service lebt) · 5xx/timeout = error · Node 20 hat kein nativen WS, deshalb kein echter Roundtrip",
     async run({ env }) {
       const anonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY
       if (!anonKey) {
         return { status: "unconfigured", message: "SUPABASE_ANON_KEY not set in backend env", latency_ms: null }
       }
-      const url = "wss://bofblwqieuvmqybzxapx.supabase.co/realtime/v1/websocket?apikey=" + encodeURIComponent(anonKey) + "&vsn=1.0.0"
+      // HTTPS-probe to the realtime endpoint. Supabase Realtime answers with 426
+      // Upgrade Required to non-WS clients — that's healthy. 5xx or timeout = bad.
+      const url = `https://bofblwqieuvmqybzxapx.supabase.co/realtime/v1/?apikey=${encodeURIComponent(anonKey)}`
       const start = Date.now()
       try {
-        // Node 22+ has built-in WebSocket. Check availability.
-        const WSClass: any = (globalThis as any).WebSocket
-        if (!WSClass) {
-          return { status: "unconfigured", message: "WebSocket not available in Node runtime", latency_ms: null }
-        }
-        const result = await new Promise<{ ok: boolean; error?: string }>((resolve) => {
-          const ws = new WSClass(url)
-          const timer = setTimeout(() => {
-            try { ws.close() } catch { /* noop */ }
-            resolve({ ok: false, error: "connect timeout 4s" })
-          }, 4000)
-          ws.onopen = () => {
-            clearTimeout(timer)
-            try { ws.close() } catch { /* noop */ }
-            resolve({ ok: true })
-          }
-          ws.onerror = (e: any) => {
-            clearTimeout(timer)
-            resolve({ ok: false, error: e?.message || "ws error" })
-          }
+        const r = await fetch(url, {
+          headers: { apikey: anonKey },
+          signal: AbortSignal.timeout(4500),
         })
         const latency_ms = Date.now() - start
-        if (!result.ok) {
-          return { status: "error", message: `realtime ws: ${result.error}`, latency_ms }
+        // Expected healthy responses: 101 (upgrade), 400, 404, 426 (upgrade required)
+        // Anything 5xx = service down
+        if (r.status >= 500) {
+          return { status: "error", message: `realtime HTTP ${r.status}`, latency_ms, metadata: { http_status: r.status } }
         }
-        return { status: "ok", message: `ws connect + close OK (${latency_ms}ms)`, latency_ms }
+        return {
+          status: "ok",
+          message: `realtime reachable (HTTP ${r.status}, ${latency_ms}ms)`,
+          latency_ms,
+          metadata: { http_status: r.status },
+        }
       } catch (e: any) {
-        return { status: "error", message: e?.message || "ws exception", latency_ms: Date.now() - start }
+        return { status: "error", message: e?.message || "unreachable", latency_ms: Date.now() - start }
       }
     },
   },
