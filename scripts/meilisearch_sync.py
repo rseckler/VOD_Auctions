@@ -309,7 +309,7 @@ def transform_to_doc(row):
         "cover_image": row["cover_image"],
         "has_cover": bool(row["cover_image"]),
         "legacy_price": legacy,
-        "shop_price": direct,
+        "shop_price": shop,
         "effective_price": effective,
         "has_price": has_price,
         "is_purchasable": is_purchasable,
