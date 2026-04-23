@@ -160,7 +160,35 @@ def wait_for_task(task_uid, timeout_ms=TASK_TIMEOUT_MS):
 # nutzt NOW() - INTERVAL '90 days'). Single-Source-of-Truth s. Plan §4.A.4.
 STOCKTAKE_STALE_DAYS = 90
 
+# BASE_SELECT_SQL (rc49 IO-Fix):
+# Vorher 11 korrelierte Subqueries pro Row (580k Executions bei Full-Rebuild,
+# 8.59 GB Disk-Reads kumulativ — Supabase-Alert). Jetzt 2 aggregate CTEs (inv_agg,
+# imp_agg), die je EIN Mal über ihre Source-Tabellen laufen und per LEFT JOIN
+# ans Release geklebt werden. Erwartete Einsparung ~40-50× Disk-IO.
+# Semantik identisch — Paritätsmatrix (admin_meili_data_parity.py) validiert.
 BASE_SELECT_SQL = """
+    WITH inv_agg AS (
+        SELECT
+            release_id,
+            COUNT(*)::int AS exemplar_count,
+            COUNT(*) FILTER (WHERE last_stocktake_at IS NOT NULL)::int AS verified_count,
+            MAX(last_stocktake_at) AS last_stocktake_at_max,
+            (array_agg(status ORDER BY COALESCE(copy_number, 1) ASC))[1] AS inventory_status_first,
+            (array_agg(price_locked ORDER BY COALESCE(copy_number, 1) ASC))[1] AS price_locked_first,
+            (array_agg(barcode ORDER BY COALESCE(copy_number, 1) ASC))[1] AS inventory_barcode_first,
+            (array_agg(warehouse_location_id ORDER BY COALESCE(copy_number, 1) ASC))[1] AS warehouse_id_first
+        FROM erp_inventory_item
+        GROUP BY release_id
+    ),
+    imp_agg AS (
+        SELECT
+            release_id,
+            array_agg(DISTINCT collection_name) FILTER (WHERE collection_name IS NOT NULL) AS collections,
+            array_agg(DISTINCT action) FILTER (WHERE action IS NOT NULL) AS actions
+        FROM import_log
+        WHERE import_type = 'discogs_collection'
+        GROUP BY release_id
+    )
     SELECT
         r.id,
         r.title,
@@ -198,47 +226,17 @@ BASE_SELECT_SQL = """
         f.format_group         AS format_group_raw,
         f.kat                  AS format_kat,
         ec.genre_tags          AS genres,
-        (SELECT COUNT(*) FROM erp_inventory_item ii WHERE ii.release_id = r.id)
-                               AS exemplar_count,
-        (SELECT COUNT(*) FROM erp_inventory_item ii
-          WHERE ii.release_id = r.id AND ii.last_stocktake_at IS NOT NULL)
-                               AS verified_count,
-        -- Inventory: first-exemplar-shaped Felder fuer Admin-Catalog-Listing,
-        -- analog zum Postgres-Endpoint (route-postgres-fallback.ts inventorySub).
-        (SELECT ii.status FROM erp_inventory_item ii
-          WHERE ii.release_id = r.id
-          ORDER BY COALESCE(ii.copy_number, 1) ASC LIMIT 1) AS inventory_status_first,
-        (SELECT ii.price_locked FROM erp_inventory_item ii
-          WHERE ii.release_id = r.id
-          ORDER BY COALESCE(ii.copy_number, 1) ASC LIMIT 1) AS price_locked_first,
-        (SELECT ii.barcode FROM erp_inventory_item ii
-          WHERE ii.release_id = r.id
-          ORDER BY COALESCE(ii.copy_number, 1) ASC LIMIT 1) AS inventory_barcode_first,
-        (SELECT MAX(ii.last_stocktake_at) FROM erp_inventory_item ii
-          WHERE ii.release_id = r.id) AS last_stocktake_at_max,
-        (SELECT wl.code FROM erp_inventory_item ii
-          LEFT JOIN warehouse_location wl ON wl.id = ii.warehouse_location_id
-          WHERE ii.release_id = r.id
-          ORDER BY COALESCE(ii.copy_number, 1) ASC LIMIT 1) AS warehouse_code_first,
-        (SELECT wl.id FROM erp_inventory_item ii
-          LEFT JOIN warehouse_location wl ON wl.id = ii.warehouse_location_id
-          WHERE ii.release_id = r.id
-          ORDER BY COALESCE(ii.copy_number, 1) ASC LIMIT 1) AS warehouse_id_first,
-        (SELECT wl.name FROM erp_inventory_item ii
-          LEFT JOIN warehouse_location wl ON wl.id = ii.warehouse_location_id
-          WHERE ii.release_id = r.id
-          ORDER BY COALESCE(ii.copy_number, 1) ASC LIMIT 1) AS warehouse_name_first,
-        -- Import-Relationen: Array-Aggregation aus import_log fuer Admin-Filter
-        -- "Import-Collection" + "Import-Action". Distinct weil ein Release
-        -- mehrfach durch denselben Import-Run gehen kann.
-        (SELECT array_agg(DISTINCT il.collection_name)
-          FROM import_log il
-          WHERE il.release_id = r.id AND il.import_type = 'discogs_collection'
-            AND il.collection_name IS NOT NULL) AS import_collections_arr,
-        (SELECT array_agg(DISTINCT il.action)
-          FROM import_log il
-          WHERE il.release_id = r.id AND il.import_type = 'discogs_collection'
-            AND il.action IS NOT NULL) AS import_actions_arr
+        COALESCE(inv_agg.exemplar_count, 0)   AS exemplar_count,
+        COALESCE(inv_agg.verified_count, 0)   AS verified_count,
+        inv_agg.inventory_status_first,
+        inv_agg.price_locked_first,
+        inv_agg.inventory_barcode_first,
+        inv_agg.last_stocktake_at_max,
+        wl.code                AS warehouse_code_first,
+        wl.id                  AS warehouse_id_first,
+        wl.name                AS warehouse_name_first,
+        imp_agg.collections    AS import_collections_arr,
+        imp_agg.actions        AS import_actions_arr
     FROM "Release" r
     LEFT JOIN "Artist"    a  ON a.id = r."artistId"
     LEFT JOIN "Label"     l  ON l.id = r."labelId"
@@ -246,6 +244,9 @@ BASE_SELECT_SQL = """
     LEFT JOIN "Format"    f  ON f.id = r.format_id
     LEFT JOIN entity_content ec
       ON ec.entity_id = r."artistId" AND ec.entity_type = 'artist'
+    LEFT JOIN inv_agg ON inv_agg.release_id = r.id
+    LEFT JOIN imp_agg ON imp_agg.release_id = r.id
+    LEFT JOIN warehouse_location wl ON wl.id = inv_agg.warehouse_id_first
 """
 
 
