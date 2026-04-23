@@ -1,7 +1,7 @@
 # Supabase Disk-IO Audit — 2026-04-23
 
-**Trigger:** Supabase-Alert-Mail "Your project is depleting its Disk IO Budget" (Projekt `bofblwqieuvmqybzxapx`, Free Plan).
-**Status:** Analyse abgeschlossen, Fix-Plan definiert, **Implementierung pending User-Freigabe**.
+**Trigger:** Supabase-Alert-Mail "Your project is depleting its Disk IO Budget" (Projekt `bofblwqieuvmqybzxapx`, Free Plan). Zweite Mail innerhalb weniger Stunden → User-Freigabe zur sofortigen Umsetzung.
+**Status:** **Tier 1 umgesetzt und deployed (rc49, 2026-04-23 Abend).** Monitoring-Follow-up geplant für 2026-04-24 (pg_stat_statements re-check).
 **Companion:**
 - [`CATALOG_PERFORMANCE_BENCHMARK.md`](CATALOG_PERFORMANCE_BENCHMARK.md)
 - [`ADMIN_CATALOG_PERFORMANCE_PLAN.md`](ADMIN_CATALOG_PERFORMANCE_PLAN.md)
@@ -109,9 +109,9 @@ Plus Paritäts-Script-Runs (28 Cases × 2 Calls = 56 Queries gegen die gleichen 
 
 Priorisiert nach Impact × Aufwand.
 
-### 4.1 Tier 1 — Sofort-Wirkung (bevor nächster Full-Rebuild)
+### 4.1 Tier 1 — Sofort-Wirkung **[UMGESETZT in rc49, 2026-04-23 Abend]**
 
-**A. `BASE_SELECT_SQL` auf aggregierte JOINs umschreiben.**
+**A. `BASE_SELECT_SQL` auf aggregierte JOINs umschreiben.** [DONE]
 
 Statt 11 korrelierte Subqueries pro Row: **ein aggregierter LEFT JOIN** auf eine Subquery die `erp_inventory_item` einmal group-byed, plus ein LEFT JOIN auf eine aggregierte `import_log`-Subquery.
 
@@ -161,7 +161,7 @@ LEFT JOIN entity_content ec ...
 
 **Risiko:** niedrig — rein SQL-Rewrite mit gleicher Semantik. Paritätsmatrix (`admin_meili_data_parity.py`) fängt Regression.
 
-**B. Delta-Cron-Frequenz reduzieren**
+**B. Delta-Cron-Frequenz reduzieren** [DONE]
 
 Aktuell: `*/5 * * * *` (alle 5 min). Bei typischem Admin-Verkehr 80 % der Cron-Runs sehen "0 neue Rows". Verschwendung.
 
@@ -169,7 +169,7 @@ Vorschlag: **`*/15 * * * *`** (alle 15 min) für Delta-Sync. Drift-Check + Clean
 
 Dazu: **on-demand-Reindex-Hooks** (rc48.1, `pushReleaseNow`) fangen alle Klasse-B-Mutations **sofort** ab — der 15-min-Cron ist nur noch für Klasse-A-Events (Legacy-Sync, Discogs-Cron). Konsistenz-Impact: vernachlässigbar.
 
-**C. Keine weiteren Full-Rebuilds heute.**
+**C. Keine weiteren Full-Rebuilds heute.** [DONE — Delta-Cron läuft ab jetzt mit neuer CTE-Query ein]
 
 Die Admin-Felder sind drin, Paritätsmatrix ist grün. Falls später nochmal ein Rebuild nötig: erst 4.1.A umsetzen damit der Rebuild 40× günstiger ist.
 
@@ -214,18 +214,16 @@ Ab Pro Plan ($25/Monat) + Compute-Add-On möglich. Alle read-only Admin-Queries 
 
 ---
 
-## 5. Implementierungs-Reihenfolge
+## 5. Implementierungs-Reihenfolge [COMPLETED]
 
-Wenn User zustimmt:
+1. ✅ **4.1.A Rewrite `BASE_SELECT_SQL`** — rc49 Commit, Python + TS-Mirror. Ohne Full-Rebuild deployed (CTE läuft im Delta-Cron ein).
+2. ✅ **4.1.B Cron-Frequenz** — crontab auf VPS direkt umgestellt von `*/5` auf `*/15`.
+3. ✅ **Paritäts-Check-Lauf nach Rewrite** — `admin_meili_data_parity.py` liefert **28/28 PASSED**, keine Regression.
+4. ⏳ **Monitoring** — 2026-04-24 erneut `pg_stat_statements` prüfen, validieren dass BASE_SELECT_SQL nicht mehr Top-1-Query. Falls doch: Tier 2.
 
-1. **4.1.A Rewrite `BASE_SELECT_SQL`** (Python + TS mirror) → Commit + Deploy → Full-Rebuild zum Testen (kostet einmal Disk-IO, ab dann deutlich günstiger). **Dauer: 1-1.5 h.**
-2. **4.1.B Cron-Frequenz** auf `*/15` setzen + dokumentieren. **Dauer: 5 min.**
-3. **Neuer Paritäts-Check-Lauf** nach Rewrite — muss 28/28 PASSED liefern.
-4. **Monitoring**: 24 h später erneut `pg_stat_statements` abfragen, validieren dass Top-1-Query nicht mehr dominiert.
+Tier 2 (D-F) separater Commit bei Bedarf.
 
-Tier 2 (D-F) separater Commit in einer späteren Session — kein akuter Druck.
-
-Tier 3 (Upgrade/Replica) nur wenn Tier-1-Maßnahmen nicht reichen. Erwartung: tun sie.
+Tier 3 (Upgrade/Replica) nur wenn Tier-1+2 nicht reichen.
 
 ---
 
@@ -233,20 +231,20 @@ Tier 3 (Upgrade/Replica) nur wenn Tier-1-Maßnahmen nicht reichen. Erwartung: tu
 
 Zum Vergleich nach Fix:
 
-- **Heute, 17:30 UTC (vor Fix):** Query #1 kumulativ 8.59 GB disk-sourced, 243 calls, mean 20149 ms
-- **Ziel nach Fix:** Query #1 kumulativ sollte bei nächstem Messpunkt (+1 Tag) nur noch wenige 100 MB zusätzlich gelesen haben, mean <5000 ms
+- **2026-04-23 17:30 UTC (vor Fix):** Query #1 kumulativ 8.59 GB disk-sourced, 243 calls, mean 20149 ms
+- **2026-04-23 18:00 UTC (nach rc49, EXPLAIN-Messung):** 53 ms für LIMIT 100 query, Buffer-Hits shared hit=180 (praktisch komplett aus Cache)
+- **Ziel 2026-04-24:** Query sollte bei nächstem Messpunkt (+1 Tag) nur noch wenige 100 MB zusätzlich gelesen haben, mean <5000 ms bei Full-Rebuild-Runs (falls überhaupt einer läuft — nicht empfohlen in nahen Tagen)
 - **Gesamtbudget-Trend:** Supabase-Dashboard → Settings → Usage → "Disk IO Budget consumed today" — User kann selbst tracken, Alert kommt wenn ~80% verbraucht
 
 ---
 
-## 7. Offene Entscheidungen
+## 7. Entscheidungen
 
-1. **Go für Tier 1?** — meine Empfehlung: ja, umgehend. Kein Architektur-Risiko, Paritätsmatrix fängt Regressionen.
-2. **Cron auf 15 min?** — oder `*/10`? Oder ganz weg weil `pushReleaseNow` das meiste abfängt? Mein Vorschlag: `*/15` als Kompromiss (fängt Klasse-A-Events ab, aber nicht über-poll).
-3. **Upgrade-Schwelle** — ab welchem IO-Budget-Verbrauch (z.B. >70 % täglich nach Tier-1) sollten wir auf kostenpflichtigen Plan wechseln?
+1. ~~Go für Tier 1?~~ → **Ja, umgesetzt in rc49 (2026-04-23 Abend).**
+2. ~~Cron-Frequenz?~~ → `*/15` gewählt, live auf VPS.
+3. **Upgrade-Schwelle** — ab welchem IO-Budget-Verbrauch (z.B. >70 % täglich nach Tier-1) sollten wir auf kostenpflichtigen Plan wechseln? **OFFEN** — abhängig von Monitoring 2026-04-24+.
 
 ---
 
 **Author:** Robin Seckler · rseckler@gmail.com
-**Review-Status:** Draft zur Diskussion
-**Dependent on:** Keine — kann sofort umgesetzt werden bei User-Freigabe
+**Status:** Tier 1 implementiert. Monitoring läuft.

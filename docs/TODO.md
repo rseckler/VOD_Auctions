@@ -1,7 +1,7 @@
 # VOD Auctions — TODO
 
 Operative Aufgabenliste. Single Source of Truth für laufende Arbeit.
-**Letzte Aktualisierung:** 2026-04-23 (Abend — Supabase-Disk-IO-Alert. BASE_SELECT_SQL in meilisearch_sync.py als #1 IO-Hog identifiziert (8.59 GB kumulativ, 11 korrelierte Subqueries × 52k Rows). Fix-Plan: aggregierte LEFT JOINs + Cron */5→*/15. Doku: `docs/optimizing/SUPABASE_DISK_IO_AUDIT_2026-04-23.md`. rc48.1 Admin-Meili-Flag `SEARCH_MEILI_ADMIN=true` live, 28/28 Parität grün. rc47.2+47.3 shop_price-Modell konsolidiert.)
+**Letzte Aktualisierung:** 2026-04-23 (rc49.1 — Inventory-Hub + Session-Scanner auf Meili umgestellt. Alle 4 Admin-Listen-Endpoints + Storefront Meili-backed. rc49 Disk-IO-Fix deployed: aggregate CTEs statt 11 korrelierter Subqueries, Cron */5→*/15. Paritätsmatrix weiterhin 28/28. rc47.2+rc47.3 shop_price-Modell stabil.)
 
 ## Arbeitslogik
 
@@ -17,8 +17,8 @@ Operative Aufgabenliste. Single Source of Truth für laufende Arbeit.
 
 Aktuell aktive Workstreams. Maximal 2-3 gleichzeitig.
 
-1. **Supabase Disk-IO-Optimierung (akut)** — Alert vom 2026-04-23 Abend. `meilisearch_sync.py::BASE_SELECT_SQL` macht 8.59 GB Disk-Reads kumulativ (32% Top-20-Queries), 11 korrelierte Subqueries pro Row × 52k Rows. Fix-Plan bereit: aggregierte LEFT JOINs statt Subqueries (Faktor 40-50× Einsparung), Cron */5→*/15. Keine Full-Rebuilds bis Fix. Doku: [`docs/optimizing/SUPABASE_DISK_IO_AUDIT_2026-04-23.md`](optimizing/SUPABASE_DISK_IO_AUDIT_2026-04-23.md). **Pending User-Freigabe für Tier-1-Umsetzung (~1.5h).**
-2. **Inventur Workflow v2 — Frank arbeitet aktiv** — rc47.2 (2026-04-23) Preis-Modell konsolidiert (shop_price kanonisch). rc39 (2026-04-22) Search-Sweep + Mirror-Fix. Catalog zeigt Stocktake-Daten. Frank macht weitere Platten.
+1. **Performance-Offensive abgeschlossen (rc48.1 + rc49 + rc49.1)** — alle 4 Admin-Listen-Endpoints auf Meilisearch, Disk-IO-Alert durch SQL-Rewrite bereinigt. **Monitoring-Check 2026-04-24:** `pg_stat_statements` erneut abfragen, validieren dass BASE_SELECT_SQL nicht mehr Top-1-Disk-IO-Hog ist. Bei Fail: Tier 2 aus `SUPABASE_DISK_IO_AUDIT` (partial delta-fetch, entity_content-Cache, Discogs-Audit-Caching).
+2. **Inventur Workflow v2 — Frank arbeitet aktiv** — rc47.2/47.3 shop_price-Modell, rc48.1+rc49.1 alles auf Meili. Frank macht weitere Platten.
 3. **POS Walk-in Sale** — P0 Dry-Run live, Frank testet, P1-P4 warten auf Steuerberater
 4. **Launch-Vorbereitung** — AGB-Anwalt als kritischer Pfad
 

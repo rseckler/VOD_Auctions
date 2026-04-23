@@ -1,8 +1,8 @@
 # Admin Catalog Performance Plan — Phase 2 Meilisearch für Admin
 
 **Datum:** 2026-04-23 (v2 — nach Review-Feedback am selben Tag)
-**Status:** Plan (nicht implementiert) — **freigegeben mit drei Pre-Conditions** (siehe §0)
-**Erwarteter RC:** rc48 (Implementierung + Rollout)
+**Status:** **Umgesetzt in rc48-rc49.1 (2026-04-23).** Alle 3 Pre-Conditions erfüllt: (0.1) Konsistenz-Klassen via `pushReleaseNow()`-Hooks in 4 Mutations, (0.2) Paritätsmatrix 28/28 grün, (0.3) Count-Semantik dokumentiert + `/admin/media/count`-Endpoint deployed. Phase-2-Scope komplett: `/admin/media` (rc48.1), `/admin/erp/inventory/browse` + `/admin/erp/inventory/search` (rc49.1). Frontend-Polish (Tag 3) noch ausstehend.
+**Releases:** rc48 (Code-Rollout Flag OFF), rc48.1 (Flag ON nach Parität), rc49 (Disk-IO-Fix), rc49.1 (Inventory-Routen auf Meili).
 **Companion:** [`CATALOG_PERFORMANCE_BENCHMARK.md`](CATALOG_PERFORMANCE_BENCHMARK.md) — State-of-the-Art-Recherche, auf der dieser Plan aufsetzt.
 
 ---
@@ -398,7 +398,7 @@ Das würde `/app/media` in den **State-of-the-Art-Bereich** bringen: p95 <100 ms
 
 ## 8. Go/No-Go
 
-**Vorgeschlagen:** Go **mit den drei Pre-Conditions aus §0**.
+**Status:** **Freigegeben + umgesetzt** (siehe Datei-Header). Go mit drei Pre-Conditions aus §0 — alle erfüllt.
 
 Storefront-Phase-1 hat bewiesen dass unsere Meili-Infrastruktur tragfähig ist (rc40 lief ohne Rollback). Die Erweiterung auf Admin ist inkrementell + rollback-trivial. ROI: Frank arbeitet täglich mit `/app/media` und `/app/erp/inventory` — die Stunden die aktuell im Warten verloren gehen summieren sich.
 
@@ -407,7 +407,7 @@ Storefront-Phase-1 hat bewiesen dass unsere Meili-Infrastruktur tragfähig ist (
 - Drei Schwächen identifiziert (Konsistenz, Parität, Count-Semantik) — **alle drei jetzt Teil des Minimalumfangs**, siehe §0 Pre-Conditions + §3.4 + §3.8 + §4.A
 - Frontend-Polish korrekt deprioritisiert — reflektiert in §4 Reihenfolge (Tag 3 NACH Flag-ON, nicht parallel)
 
-**Freigabe durch User:** ☐ offen (Warte auf explizites Go vor rc48-Implementierung)
+**Freigabe durch User:** ☑ erteilt am 2026-04-23, Implementierung rc48→rc49.1 live.
 
 ---
 

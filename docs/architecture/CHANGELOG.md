@@ -11,6 +11,8 @@ Jeder Git-Tag entspricht einem Snapshot des Gesamtsystems. Feature Flags zeigen 
 | Version | Datum | Platform Mode | Feature Flags aktiv (prod) | Milestone / Inhalt |
 |---------|-------|--------------|---------------------------|-------------------|
 | **v1.0.0** | TBD | `live` | ERP: TBD | RSE-78: Erster öffentlicher Launch |
+| **v1.0.0-rc49.1** | 2026-04-23 | `beta_test` | `ERP_INVENTORY`, `SEARCH_MEILI_CATALOG`, `SEARCH_MEILI_ADMIN`, `SYSTEM_HEALTH_*` | **Inventory-Hub + Session-Scanner auf Meilisearch.** Plan §4 Tag 3.5 umgesetzt. `/admin/erp/inventory/browse` (4 Tabs: all/verified/pending/multi_copy) + `/admin/erp/inventory/search` (Text-Such-Branch) jetzt Meili-backed via 3-Gate-Wrapper-Pattern. Tab-Mapping: verified→`stocktake_state="done"`, pending→`stocktake_state="pending"`, multi_copy→`exemplar_count > 1`, all→`has_inventory=true`. Scanner-Pattern VOD-XXXXXX (Barcode) + VOD-\\d+ (Article-No.) bleiben Postgres (deterministic Index-Lookups <10ms). Messung: Meili-Queries 0-2ms (Admin-Hub war vorher 1-2s nach rc43-CTE-Fix, Session-Such war 200-500ms FTS). Postgres-Fallbacks als `*GetPostgres`-Funktionen erhalten, via `?_backend=postgres` manuell erzwingbar für Parity-Check. |
+| **v1.0.0-rc49** | 2026-04-23 | `beta_test` | `ERP_INVENTORY`, `SEARCH_MEILI_CATALOG`, `SEARCH_MEILI_ADMIN`, `SYSTEM_HEALTH_*` | **Supabase Disk-IO-Fix: Meili-Sync-SQL auf aggregierte CTEs.** Zweite Supabase-Alert-Mail "depleting Disk IO Budget". `pg_stat_statements`-Analyse: `meilisearch_sync.py::BASE_SELECT_SQL` = 8.59 GB Disk-Reads kumulativ (32 % Top-20), 11 korrelierte Subqueries pro Row × 52k Rows × 3 Full-Rebuilds heute. Rewrite: zwei aggregate CTEs (`inv_agg`, `imp_agg`) die je einmal über ihre Source-Tabellen laufen, statt 580k Subquery-Executions pro Rebuild. EXPLAIN ANALYZE misst 53ms (LIMIT 100) — Faktor ~380× schneller als altes Mean (20149ms). TS-Mirror in `meilisearch-push.ts::SELECT_SINGLE_RELEASE_SQL` identisch refaktoriert. Delta-Cron `*/5 → */15` min (on-demand-Reindex-Hooks aus rc48.1 fangen Klasse-B-Mutations sofort ab, Cron fängt nur Legacy/Discogs-Cron-Events). Paritätsmatrix weiterhin 28/28 PASSED. Keine Full-Rebuilds mehr nötig (CTE erst im Delta-Mode "einlaufen" lassen). Full-Doku: `docs/optimizing/SUPABASE_DISK_IO_AUDIT_2026-04-23.md`. |
 | **v1.0.0-rc48.1** | 2026-04-23 | `beta_test` | `ERP_INVENTORY`, `SEARCH_MEILI_CATALOG`, `SEARCH_MEILI_ADMIN`, `SYSTEM_HEALTH_*` | **Admin-Catalog-Meili Paritäts-Gate grün, Flag ON.** Direkt-Daten-Paritätsmatrix `admin_meili_data_parity.py` (28 Cases) läuft **28/28 PASSED** nach 2 Fixes: (1) `has_discogs: bool` als indexed field + `discogs_id` filterable + `release_id` sortable, `pagination.maxTotalHits` 5000 → 60000; (2) `computeFormatGroup` Fallback für `format_id=NULL AND format='CASSETTE'/'REEL'` — Single-Source-of-Truth-Drift zwischen Python/TS/SQL-Logik behoben (spiegelt Postgres-Filter exakt). Meili full-rebuilt (52.778 docs × 2 Profile). `site_config.features.SEARCH_MEILI_ADMIN = true`. `pm2 restart --update-env`. Admin-Catalog nutzt ab jetzt Meilisearch — erwartete p95 <100ms statt 2-10s. Fallback-Pfad unverändert (Postgres via `?_backend=postgres` oder Flag OFF). |
 | **v1.0.0-rc48** | 2026-04-23 | `beta_test` | `ERP_INVENTORY`, `SEARCH_MEILI_CATALOG`, `SYSTEM_HEALTH_*`, `SEARCH_MEILI_ADMIN`=OFF | **Admin-Catalog auf Meilisearch (Flag OFF, Paritätsmatrix bereit).** Plan `ADMIN_CATALOG_PERFORMANCE_PLAN.md` v2 umgesetzt: Meili-Schema um 13 Admin-Filter-Attrs erweitert (inventory_status, price_locked, warehouse_code, import_collections/actions, stocktake_state, exemplar/verified_count etc.), neuer 3-Gate-Wrapper `/admin/media/route.ts` mit Postgres-Fallback via `?_backend=postgres`-Bypass + Flag + Health-Probe + try/catch. Neuer `/admin/media/count`-Endpoint liefert exakten SQL-Count für Export/Bulk-Actions (Plan §3.4). Konsistenz-Klasse-B-Hooks (Plan §3.8): `pushReleaseNow(pg, releaseId)`-Helper + Aufrufe in Verify/Add-Copy/PATCH-media/Auction-Block-Add — fire-and-forget, on-demand-Reindex direkt nach Mutation. Trigger auf `import_log` AFTER INSERT + Whitelist um estimated_value/media_condition/sleeve_condition erweitert. Meili full-rebuilt (52.777 docs × 2 Profile). Paritätsmatrix-Script `scripts/admin_meili_parity_check.py` mit 37 Cases in 6 Gruppen bereit. **Flag bleibt OFF bis User Paritätsmatrix ausgeführt + grün.** Rollback via Flag trivial. |
 | **v1.0.0-rc47.3** | 2026-04-23 | `beta_test` | `ERP_INVENTORY`, `SEARCH_MEILI_CATALOG`, `SYSTEM_HEALTH_PUBLIC_PAGE`, `SYSTEM_HEALTH_ALERTING`, `SYSTEM_HEALTH_ALERT_HISTORY`, `SYSTEM_HEALTH_SENTRY_EMBED`, `SYSTEM_HEALTH_ACTIONS` | **Preis-Modell Phase 2: Auction-Start-Preis aus `round(shop_price × default_start_price_percent / 100)`.** Beim Aufnehmen in `auction_block` rechnet der Admin-UI-Block-Builder den Default-Start-Preis aus dem `shop_price` (nicht mehr aus `estimated_value`/`legacy_price`). Fallback-Kette shop_price → estimated_value → legacy_price → 400. Block-Level-Prozent `default_start_price_percent` bleibt konfigurierbar (Default 50 → 0.5er-Formel wie User gewünscht). **Backend-Default** greift auch wenn ein Caller `start_price` weglässt (Schema jetzt optional) — gleiche Formel, gleiche Fallback-Kette. **Neuer Bulk-Rule `shop_price_percentage`** in `/items/bulk-price` für Re-Pricing ganzer Blocks. Doku: `docs/architecture/PRICING_MODEL.md §Phase 2`. |
@@ -93,6 +95,104 @@ Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Rel
 - **Patch Release** (`v1.0.x`): Kritische Bugfixes zwischen geplanten Releases
 - **Tagging-Workflow:** `git tag -a vX.Y.Z -m "Release vX.Y.Z: <Kurzname>"` → `git push origin vX.Y.Z`
 - **Tag-Zeitpunkt:** Direkt nach Deploy + Smoke-Test auf Production — nicht vor dem Deploy
+
+---
+
+## 2026-04-23 — Inventory-Hub + Session-Scanner auf Meilisearch (rc49.1)
+
+**Kontext:** User-Feedback nach rc49-Deploy: "hier haben wir aber noch keine schnelle Suche, richtig?" (mit Link auf `/app/erp/inventory`). Stimmt — rc48.1 hatte nur `/app/media` migriert. Der Inventory-Hub (`/admin/erp/inventory/browse`) lief trotz rc43-CTE-Fix weiter auf Postgres, und die Stocktake-Session-Suche (`/admin/erp/inventory/search`) auf Postgres-FTS.
+
+**Umfang (Plan §4 Tag 3.5, ursprünglich "optional"):**
+
+**`browse/route.ts`** — Hub-Tab-Listing:
+- Neuer 3-Gate-Wrapper analog `/admin/media`: Flag `SEARCH_MEILI_ADMIN` → Health-Probe → `?_backend=postgres`-Bypass → try/catch → Fallback
+- Tab-Filter-Mapping auf Meili-Filter:
+  - `tab=all` → `has_inventory = true` (Hub zeigt nur Items mit Inventar)
+  - `tab=verified` → `stocktake_state = "done"`
+  - `tab=pending` → `stocktake_state = "pending"`
+  - `tab=multi_copy` → `exemplar_count > 1`
+- Sort-Mapping: `recent_desc → updated_at_ts:desc`, `verified_desc → last_stocktake_at:desc`, plus artist/title/price
+- Response-Shape unverändert (`items[] / total / limit / offset`) — UI keine Änderung
+
+**`search/route.ts`** — Stocktake-Scanner:
+- **Barcode VOD-XXXXXX** (6-digit): bleibt Postgres — deterministic Scanner-Lookup via Index-Hit <10ms. Meili könnte falsch priorisieren.
+- **Article-No. VOD-\\d+** (variable Länge): bleibt Postgres — index-backed UPPER-Match
+- **Text-Search** (multi-word mit Typo/Synonym): Meili via `searchReleases`-Client, Fallback auf Postgres-FTS
+
+**Bestehende Postgres-Handler umbenannt** nach `*GetPostgres` und als Export in `route-postgres-fallback.ts` verlagert — Pattern identisch zu rc48 `/admin/media`.
+
+**Messung via direktem Meili-Curl:**
+
+| Query | Meili-Zeit | Hits |
+|---|--:|--:|
+| `has_inventory=true` (Tab All) | 0 ms | 13 157 |
+| `stocktake_state="done"` (Tab Verifiziert) | 0 ms | 74 |
+| `exemplar_count > 1` (Tab Mehrere Ex.) | 0 ms | 0 |
+| Text-Search "cabaret voltaire" | 2 ms | 135 |
+
+Vorher (Postgres rc43-CTE): 1-2 s für Hub-Tabs, 200-500 ms für Text-Search.
+
+**Rollback:** Flag `SEARCH_MEILI_ADMIN` OFF → alle drei Endpoints (media/browse/search) fallen auf Postgres zurück.
+
+---
+
+## 2026-04-23 — Supabase Disk-IO-Fix: Meili-Sync auf aggregierte CTEs (rc49)
+
+**Kontext:** Zweite Supabase-Alert-Mail "depleting Disk IO Budget" innerhalb weniger Stunden nach der ersten. Free Plan (`micro`-Compute) hat begrenztes Tages-IO-Budget — bei Überschreitung: Response-Zeiten steigen, CPU durch IO-Wait ausgelastet, Instance unresponsive.
+
+**Root-Cause-Analyse** via `pg_stat_statements` (via Supabase MCP):
+
+| Query | Calls | Disk GB | Mean ms |
+|---|--:|--:|--:|
+| `meilisearch_sync.py::BASE_SELECT_SQL` | 243 | **8.59** | 20 149 |
+| Legacy-Sync `INSERT INTO Release` | 92 407 | 3.41 | 48 |
+| Discogs-Audit COUNT-Queries | 420 | 1.98 | 2 252 |
+| `UPDATE Release SET search_indexed_at = NOW()` | 464 | 1.70 | 2 368 |
+
+Top-1 Query dominiert mit **32 % der Top-20-Summe**. Ursache: **11 korrelierte Subqueries** pro Row × 52k Rows × 3 Full-Rebuilds heute (rc47.2 Column-Rename + rc48 Admin-Felder + rc48.1 Parity-Fix) = 580k Subquery-Executions × 8 KB Block-Reads ≈ 4.7 GB pro Rebuild, mal 3 = 14 GB (akkumuliert mit Cache-Hits = die gemessenen 8.59 GB).
+
+**Fix — Rewrite auf aggregierte CTEs:**
+
+```sql
+WITH inv_agg AS (
+  SELECT release_id, COUNT(*), MAX(last_stocktake_at),
+         (array_agg(status ORDER BY copy_number))[1], ...
+  FROM erp_inventory_item GROUP BY release_id
+),
+imp_agg AS (
+  SELECT release_id,
+         array_agg(DISTINCT collection_name) FILTER (WHERE IS NOT NULL),
+         array_agg(DISTINCT action) FILTER (WHERE IS NOT NULL)
+  FROM import_log WHERE import_type='discogs_collection' GROUP BY release_id
+)
+SELECT r.*, inv_agg.*, imp_agg.*, wl.*
+FROM "Release" r
+LEFT JOIN inv_agg ON ...
+LEFT JOIN imp_agg ON ...
+LEFT JOIN warehouse_location wl ON wl.id = inv_agg.warehouse_id_first
+LEFT JOIN Artist/Label/PressOrga/Format/entity_content ...
+```
+
+Statt 580k Subquery-Executions: **2 aggregate Scans** (~13k erp_inventory_item + ~17k import_log). Theoretischer Disk-IO-Drop: von 4.7 GB auf ~100 MB pro Rebuild (Faktor 47×).
+
+**EXPLAIN ANALYZE Messung** (mit LIMIT 100):
+- Execution Time: **53 ms**
+- Buffers: `shared hit=180` (praktisch alles aus Cache nach Erst-Aufruf)
+- Erwartetes Mean bei Full-Rebuild: ~5 s statt bisheriger 20 s
+
+**TS-Mirror** in `backend/src/lib/meilisearch-push.ts::SELECT_SINGLE_RELEASE_SQL` identisch refaktoriert. Single-Release-Push auch günstiger (weniger Plan-Overhead, 3 `?`-Parameter statt 1 — alle dieselbe `releaseId`).
+
+**Cron-Frequenz reduziert** (via `crontab -e` auf VPS): `*/5 → */15` min für Delta-Sync. Weil `pushReleaseNow()`-Hooks in allen Klasse-B-Mutations (Verify/Add-Copy/PATCH-media/Block-Add) seit rc48.1 die unmittelbare Sichtbarkeit garantieren, kann der Delta-Cron entspannter laufen. Drift-Check (`*/30`) + Cleanup (`0 3`) + Dump (`0 4`) bleiben.
+
+**Paritätsmatrix** (`admin_meili_data_parity.py`) läuft nach Rewrite unverändert **28/28 PASSED** — semantische Äquivalenz bestätigt.
+
+**Nicht in rc49:**
+- Tier 2 (Partial Delta-Fetch mit LIMIT, entity_content-Cache, Discogs-Audit-Caching) — separate Session bei Bedarf
+- Tier 3 (Compute-Upgrade oder Read-Replica) — nur wenn Tier 1+2 nicht reichen
+
+**Monitoring:** 24h nach rc49 erneut `pg_stat_statements` prüfen. Erwartet: Query #1 nicht mehr dominant.
+
+**Volldoku:** [`docs/optimizing/SUPABASE_DISK_IO_AUDIT_2026-04-23.md`](../optimizing/SUPABASE_DISK_IO_AUDIT_2026-04-23.md).
 
 ---
 
