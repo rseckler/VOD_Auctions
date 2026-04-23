@@ -33,7 +33,7 @@ export async function POST(
       "Release.sleeve_condition",
       "Release.auction_status",
       "Release.sale_mode",
-      "Release.direct_price",
+      "Release.shop_price",
       "Release.legacy_price",
       "Release.discogs_id",
       "Release.discogs_lowest_price",
@@ -72,7 +72,7 @@ export async function POST(
     r.year, r.country, r.catalogNumber, r.barcode, r.discogs_id,
     r.estimated_value, r.discogs_lowest_price, r.discogs_median_price, r.legacy_price,
     r.media_condition, r.sleeve_condition, r.auction_status, r.sale_mode,
-    r.direct_price, r.inventory,
+    r.shop_price, r.inventory,
   ].map(escCsv).join(","))
 
   const csv = [headers.join(","), ...rows].join("\n")

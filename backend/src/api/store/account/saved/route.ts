@@ -27,7 +27,7 @@ export async function GET(
       "Release.coverImage",
       "Release.format",
       "Release.sale_mode",
-      "Release.direct_price",
+      "Release.shop_price",
       "Release.auction_status",
       "Release.legacy_price",
       "Artist.name as artist_name",

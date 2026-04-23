@@ -63,7 +63,7 @@ type Release = {
   sleeve_condition: string | null
   auction_status: string | null
   sale_mode: string | null
-  direct_price: number | null
+  shop_price: number | null
   inventory: number | null
   shipping_item_type_id: string | null
   current_block_id: string | null
@@ -584,7 +584,7 @@ const MediaDetailPage = () => {
   // Default 2026-04-22: direct_purchase passt zum Walk-in-First-Workflow.
   // Frank's Standard ist Direkt-Verkauf; Auktionen sind die Ausnahme.
   const [saleMode, setSaleMode] = useState<string>("direct_purchase")
-  const [directPrice, setDirectPrice] = useState<string>("")
+  const [shopPrice, setShopPrice] = useState<string>("")
   const [inventory, setInventory] = useState<string>("")
   const [shippingTypeId, setShippingTypeId] = useState<string>("")
   const [shippingTypes, setShippingTypes] = useState<Array<{ id: string; name: string; default_weight_grams: number }>>([])
@@ -640,7 +640,7 @@ const MediaDetailPage = () => {
           setMediaCondition(d.release.media_condition || "")
           setSleeveCondition(d.release.sleeve_condition || "")
           setSaleMode(d.release.sale_mode || "direct_purchase")
-          setDirectPrice(d.release.direct_price != null ? String(d.release.direct_price) : "")
+          setShopPrice(d.release.shop_price != null ? String(d.release.shop_price) : "")
           setInventory(d.release.inventory != null ? String(d.release.inventory) : "")
           setShippingTypeId(d.release.shipping_item_type_id || "")
           setLocationId(d.release.warehouse_location_id || "")
@@ -667,7 +667,7 @@ const MediaDetailPage = () => {
       body.media_condition = mediaCondition || null
       body.sleeve_condition = sleeveCondition || null
       body.sale_mode = saleMode
-      body.direct_price = directPrice !== "" ? parseFloat(directPrice) : null
+      body.shop_price = shopPrice !== "" ? parseFloat(shopPrice) : null
       body.inventory = inventory !== "" ? parseInt(inventory) : null
       body.shipping_item_type_id = shippingTypeId || null
       body.warehouse_location_id = locationId || null
@@ -1000,8 +1000,8 @@ const MediaDetailPage = () => {
           </div>
           {saleMode !== "auction_only" && (
             <div>
-              <div style={labelStyle}>Direct Price (&euro;)</div>
-              <input type="number" step="0.01" min="0.01" value={directPrice} onChange={(e) => setDirectPrice(e.target.value)} placeholder="0.00" style={localInputStyle} />
+              <div style={labelStyle}>Shop Price (&euro;)</div>
+              <input type="number" step="0.01" min="0.01" value={shopPrice} onChange={(e) => setShopPrice(e.target.value)} placeholder="0.00" style={localInputStyle} />
             </div>
           )}
         </div>
@@ -1122,8 +1122,14 @@ const MediaDetailPage = () => {
                 const lbl = release.inventory_status === "damaged" ? "⚫ Beschädigt" : "⚫ Abgeschrieben"
                 return <Badge label={lbl} variant="neutral" />
               }
-              // Missing per F2 convention: price=0 + price_locked=true + no stocktake means "in stock but not findable"
-              if (release.price_locked && release.direct_price === 0) {
+              // Missing per F2 convention: price=0 + price_locked=true + no
+              // stocktake means "in stock but not findable". Nach dem rc47.x
+              // Preis-Modell ist shop_price die Quelle — aber nur dann "missing",
+              // wenn wirklich KEIN Preis da ist (weder shop_price noch legacy_price).
+              // Legacy-only Items ohne shop_price sind "nicht verifiziert", nicht "missing".
+              const shopZero = release.shop_price != null && Number(release.shop_price) === 0
+              const legacyZero = release.legacy_price == null || Number(release.legacy_price) === 0
+              if (release.price_locked && shopZero && legacyZero) {
                 return <Badge label="🟠 Als missing markiert (Preis 0 €)" variant="warning" />
               }
               if (release.last_stocktake_at) {

@@ -66,7 +66,7 @@
     "article_number",
     "cover_image",
     "legacy_price",
-    "direct_price",
+    "shop_price",
     "effective_price",
     "is_purchasable",
     "legacy_available",

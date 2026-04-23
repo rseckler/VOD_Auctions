@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
+import { enrichWithShopPrice } from "../../../../lib/shop-price"
 
 // GET /store/label/:slug — Public label detail page data
 export async function GET(
@@ -30,7 +31,7 @@ export async function GET(
     .first()
 
   // 3. Get releases on this label (product_category = 'release')
-  const releases = await pgConnection("Release")
+  const releasesRaw = await pgConnection("Release")
     .select(
       "Release.id",
       "Release.title",
@@ -40,6 +41,8 @@ export async function GET(
       "Release.country",
       "Release.coverImage",
       "Release.legacy_price",
+      "Release.shop_price",
+      "Release.legacy_available",
       "Release.legacy_condition",
       "Artist.name as artist_name",
       "Format.name as format_name",
@@ -51,9 +54,10 @@ export async function GET(
     .andWhere("Release.product_category", "release")
     .orderBy("Release.year", "desc")
     .limit(100)
+  const releases = await enrichWithShopPrice(pgConnection, releasesRaw)
 
   // 4. Get label_literature
-  const literature = await pgConnection("Release")
+  const literatureRaw = await pgConnection("Release")
     .select(
       "Release.id",
       "Release.title",
@@ -63,6 +67,8 @@ export async function GET(
       "Release.country",
       "Release.coverImage",
       "Release.legacy_price",
+      "Release.shop_price",
+      "Release.legacy_available",
       "Release.legacy_condition",
       "Artist.name as artist_name",
       "Format.name as format_name",
@@ -74,6 +80,7 @@ export async function GET(
     .andWhere("Release.product_category", "label_literature")
     .orderBy("Release.year", "desc")
     .limit(100)
+  const literature = await enrichWithShopPrice(pgConnection, literatureRaw)
 
   // 5. Get distinct artists on this label
   const artists = await pgConnection("Release")

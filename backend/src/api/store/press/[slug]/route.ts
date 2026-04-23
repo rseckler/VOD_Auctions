@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
+import { enrichWithShopPrice } from "../../../../lib/shop-price"
 
 // GET /store/press/:slug — Public press orga detail page data
 export async function GET(
@@ -30,7 +31,7 @@ export async function GET(
     .first()
 
   // 3. Get press_literature by this press orga
-  const publications = await pgConnection("Release")
+  const publicationsRaw = await pgConnection("Release")
     .select(
       "Release.id",
       "Release.title",
@@ -40,6 +41,8 @@ export async function GET(
       "Release.country",
       "Release.coverImage",
       "Release.legacy_price",
+      "Release.shop_price",
+      "Release.legacy_available",
       "Release.legacy_condition",
       "Artist.name as artist_name",
       "Format.name as format_name",
@@ -51,6 +54,7 @@ export async function GET(
     .andWhere("Release.product_category", "press_literature")
     .orderBy("Release.year", "desc")
     .limit(100)
+  const publications = await enrichWithShopPrice(pgConnection, publicationsRaw)
 
   // Total publication count
   const [{ count: publication_count }] = await pgConnection("Release")

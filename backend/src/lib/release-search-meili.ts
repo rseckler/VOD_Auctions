@@ -197,7 +197,7 @@ export interface LegacyReleaseShape {
   article_number: string | null
   legacy_condition: string | null
   legacy_price: number | null
-  direct_price: number | null
+  shop_price: number | null
   legacy_available: boolean
   legacy_format_detail: string | null
   auction_status: string | null
@@ -232,7 +232,7 @@ export function toLegacyShape(hit: any): LegacyReleaseShape {
     // Frontend treats null as "no condition listed".
     legacy_condition: null,
     legacy_price: hit.legacy_price ?? null,
-    direct_price: hit.direct_price ?? null,
+    shop_price: hit.shop_price ?? null,
     legacy_available: hit.legacy_available ?? false,
     // Same as legacy_condition — not currently indexed.
     legacy_format_detail: null,

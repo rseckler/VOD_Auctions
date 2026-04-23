@@ -61,7 +61,7 @@ interface ReleaseRow {
   legacy_available: boolean | null
   legacy_condition: string | null
   sale_mode: string | null
-  direct_price: number | string | null
+  shop_price: number | string | null
   auction_status: string | null
   artist_name: string | null
   artist_slug: string | null

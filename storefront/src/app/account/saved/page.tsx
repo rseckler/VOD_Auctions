@@ -21,7 +21,7 @@ type SavedItem = {
   format: string | null
   artist_name: string | null
   sale_mode: string
-  direct_price: number | null
+  shop_price: number | null
   legacy_price: number | null
   auction_status: string
   block_item_id: string | null
@@ -182,7 +182,7 @@ export default function SavedPage() {
 
       <div className="flex flex-col gap-4">
         {items.map((item) => {
-          const price = item.direct_price || item.legacy_price
+          const price = item.shop_price || item.legacy_price
           const itemHref =
             item.block_slug && item.block_item_id
               ? `/auctions/${item.block_slug}/${item.block_item_id}`

@@ -43,7 +43,7 @@ export async function GET(
       "Release.discogs_num_for_sale",
       "Release.auction_status",
       "Release.sale_mode",
-      "Release.direct_price",
+      "Release.shop_price",
       "Release.inventory",
       "Release.artistId",
       "Release.labelId",
@@ -145,22 +145,23 @@ export async function GET(
         .limit(50)
     : []
 
-  // Effective price: for items that Frank captured via the ERP stocktake
-  // session (Non-Cohort-A), legacy_price may be NULL while direct_price is
-  // set. Fall back to direct_price so the Storefront renders + sells them.
-  // Auction-specific prices live on block_item.current_price/start_price —
-  // this Release-level field is the "shop price" regardless of sale_mode.
+  // Effective price (rc47.x): shop_price ist der einzige Shop-Preis.
+  // legacy_price ist nur noch Info (MySQL-Historie), wird NICHT als
+  // Fallback-Shop-Preis verwendet. Kaufbar nur wenn shop_price > 0 UND
+  // mindestens ein verifiziertes Exemplar existiert.
+  const rawShop = release.shop_price != null ? Number(release.shop_price) : null
   const rawLegacy = release.legacy_price != null ? Number(release.legacy_price) : null
-  const rawDirect = release.direct_price != null ? Number(release.direct_price) : null
-  const effective_price = rawLegacy != null && rawLegacy > 0 ? rawLegacy
-    : rawDirect != null && rawDirect > 0 ? rawDirect
-    : null
-  // Normalize legacy_price for Frontend so existing
-  // `Number(legacy_price).toFixed(2)` calls don't render NaN.
-  if (rawLegacy == null && rawDirect != null && rawDirect > 0) {
-    release.legacy_price = rawDirect
-  }
+  const verifiedRow = await pgConnection("erp_inventory_item")
+    .where("release_id", id)
+    .whereNotNull("last_stocktake_at")
+    .where("price_locked", true)
+    .first()
+  const isVerified = !!verifiedRow
+  const effective_price = rawShop != null && rawShop > 0 && isVerified ? rawShop : null
   const is_purchasable = effective_price != null && release.legacy_available !== false
+  // legacy_price bleibt als Info erhalten (Frontend kann "Legacy tape-mag
+  // Preis" anzeigen wenn gewünscht) — aber NIE als Shop-Preis rendern.
+  release.legacy_price = rawLegacy
 
   // Auction lot link — only for publicly visible blocks (preview/active)
   let auction_lot: { block_slug: string; block_item_id: string } | null = null
@@ -184,6 +185,7 @@ export async function GET(
       ...release,
       is_purchasable,
       effective_price,
+      is_verified: isVerified,
       auction_lot,
       images,
       various_artists,

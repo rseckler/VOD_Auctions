@@ -43,6 +43,13 @@ type CatalogRelease = Release & {
   related_by_artist?: RelatedRelease[]
   related_by_label?: RelatedRelease[]
   auction_lot?: { block_slug: string; block_item_id: string } | null
+  // rc47.x Preis-Modell: Backend liefert effective_price (aus shop_price,
+  // nur gesetzt wenn shop_price>0 UND verifiziert). legacy_price bleibt als
+  // Info erhalten, darf aber NICHT als Shop-Preis angezeigt werden.
+  effective_price?: number | null
+  is_purchasable?: boolean
+  is_verified?: boolean
+  shop_price?: number | null
 }
 
 async function getRelease(id: string): Promise<{ release: CatalogRelease } | null> {
@@ -177,7 +184,7 @@ export default async function CatalogDetailPage({
         itemId={release.id}
         itemName={contextName ? `${contextName} — ${release.title}` : release.title}
         itemCategory={release.product_category || "release"}
-        price={release.legacy_price ?? undefined}
+        price={release.effective_price ?? undefined}
       />
       {/* Back button */}
       <div className="mb-4">
@@ -286,7 +293,7 @@ export default async function CatalogDetailPage({
                       </span>
                     ) : null}
                     <span className="text-xl font-mono font-bold text-primary">
-                      &euro;{Number(release.legacy_price).toFixed(2)}
+                      &euro;{Number(release.effective_price).toFixed(2)}
                     </span>
                   </div>
                 </div>
@@ -355,7 +362,7 @@ export default async function CatalogDetailPage({
             <DirectPurchaseButton
               releaseId={release.id}
               saleMode={release.sale_mode || null}
-              directPrice={release.direct_price || null}
+              shopPrice={release.shop_price || null}
               auctionStatus={release.auction_status || null}
             />
           )}
@@ -533,12 +540,12 @@ export default async function CatalogDetailPage({
       {release.is_purchasable ? (
         <div className="fixed bottom-0 left-0 right-0 z-40 lg:hidden bg-background border-t border-border px-4 py-3 flex items-center justify-between gap-3">
           <span className="text-lg font-mono font-bold text-primary">
-            &euro;{Number(release.legacy_price).toFixed(2)}
+            &euro;{Number(release.effective_price).toFixed(2)}
           </span>
           <DirectPurchaseButton
             releaseId={release.id}
             saleMode={release.sale_mode || null}
-            directPrice={release.direct_price || null}
+            shopPrice={release.shop_price || null}
             auctionStatus={release.auction_status || null}
           />
         </div>
@@ -569,11 +576,11 @@ export default async function CatalogDetailPage({
             ...(release.label_name
               ? { brand: { "@type": "Organization", name: release.label_name } }
               : {}),
-            ...(release.is_purchasable && release.legacy_price
+            ...(release.is_purchasable && release.effective_price
               ? {
                   offers: {
                     "@type": "Offer",
-                    price: Number(release.legacy_price).toFixed(2),
+                    price: Number(release.effective_price).toFixed(2),
                     priceCurrency: "EUR",
                     availability: "https://schema.org/InStock",
                     seller: {

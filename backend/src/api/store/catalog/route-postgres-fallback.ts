@@ -2,6 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { buildReleaseSearchSubquery } from "../../../lib/release-search"
+import { getSiteConfig } from "../../../lib/site-config"
 
 // Map German (and other common) country names to English DB values
 const COUNTRY_ALIASES: Record<string, string> = {
@@ -189,7 +190,7 @@ export async function catalogGetPostgres(
       "Release.legacy_format_detail",
       "Release.auction_status",
       "Release.sale_mode",
-      "Release.direct_price",
+      "Release.shop_price",
       "Artist.name as artist_name",
       "Artist.slug as artist_slug",
       "Label.name as label_name",
@@ -329,16 +330,29 @@ export async function catalogGetPostgres(
   query = query.whereNotNull("Release.coverImage")
   countQuery = countQuery.whereNotNull("Release.coverImage")
 
-  if (for_sale === "true") {
-    const salePriceClause = function (this: any) {
-      this.where(function (this: any) {
-        this.whereNotNull("Release.legacy_price").andWhere("Release.legacy_price", ">", 0)
-      }).orWhere(function (this: any) {
-        this.whereNotNull("Release.direct_price").andWhere("Release.direct_price", ">", 0)
-      })
+  // Shop-Visibility-Gate (rc47.x Preis-Modell):
+  //   catalog_visibility='visible' (Default): nur Items mit shop_price > 0
+  //     UND mindestens einem verifizierten Exemplar → diese erscheinen mit
+  //     Preis + Add-to-Cart
+  //   catalog_visibility='all': zeigt zusätzlich Items OHNE Preis (kommen
+  //     ohne Preis-Tag + ohne Add-to-Cart)
+  // `for_sale=true` URL-Param verschärft immer auf "nur mit Preis +
+  // kaufbar", egal was die globale Einstellung sagt (Category-Links mit
+  // "zum Verkauf"-Anker).
+  const siteConfig = await getSiteConfig(pgConnection)
+  const forceOnlyForSale = for_sale === "true"
+  const defaultOnlyForSale = siteConfig.catalog_visibility === "visible"
+
+  if (forceOnlyForSale || defaultOnlyForSale) {
+    const verifiedWithShopPrice = function (this: any) {
+      this.whereNotNull("Release.shop_price")
+        .andWhere("Release.shop_price", ">", 0)
+        .andWhereRaw(
+          `EXISTS (SELECT 1 FROM erp_inventory_item ii WHERE ii.release_id = "Release"."id" AND ii.last_stocktake_at IS NOT NULL AND ii.price_locked = true)`
+        )
     }
-    query = query.where(salePriceClause).where("Release.legacy_available", true)
-    countQuery = countQuery.where(salePriceClause).where("Release.legacy_available", true)
+    query = query.where(verifiedWithShopPrice).where("Release.legacy_available", true)
+    countQuery = countQuery.where(verifiedWithShopPrice).where("Release.legacy_available", true)
   }
 
   if (genre && typeof genre === "string" && genre.trim()) {
@@ -363,7 +377,7 @@ export async function catalogGetPostgres(
   const [{ count: total }] = await countQuery.count("Release.id as count")
 
   const sortField =
-    sort === "price" ? `COALESCE("Release"."legacy_price", "Release"."direct_price")`
+    sort === "price" ? `"Release"."shop_price"`
     : sort === "year" ? `"Release"."year"`
     : sort === "artist" ? `"Artist"."name"`
     : `"Release"."title"`
@@ -381,19 +395,32 @@ export async function catalogGetPostgres(
 
   const releases = await query
 
+  // Verified-Set für is_purchasable nachladen (nur für die tatsächlich
+  // returned page — max 100 IDs, EXISTS-Scan via Index auf release_id).
+  const releaseIds = releases.map((r: any) => r.id)
+  const verifiedIds = new Set<string>()
+  if (releaseIds.length > 0) {
+    const verifiedRows = await pgConnection("erp_inventory_item")
+      .whereIn("release_id", releaseIds)
+      .whereNotNull("last_stocktake_at")
+      .where("price_locked", true)
+      .select("release_id")
+    for (const row of verifiedRows) verifiedIds.add(row.release_id)
+  }
+
   const enrichedReleases = releases.map((r: any) => {
+    const rawShop = r.shop_price != null ? Number(r.shop_price) : null
     const rawLegacy = r.legacy_price != null ? Number(r.legacy_price) : null
-    const rawDirect = r.direct_price != null ? Number(r.direct_price) : null
-    const effective_price = rawLegacy != null && rawLegacy > 0 ? rawLegacy
-      : rawDirect != null && rawDirect > 0 ? rawDirect
-      : null
+    const isVerified = verifiedIds.has(r.id)
+    const hasShopPrice = rawShop != null && rawShop > 0
+    const effective_price = hasShopPrice && isVerified ? rawShop : null
     return {
       ...r,
-      legacy_price: rawLegacy != null && rawLegacy > 0 ? rawLegacy
-        : rawDirect != null && rawDirect > 0 ? rawDirect
-        : r.legacy_price,
+      shop_price: rawShop,
+      legacy_price: rawLegacy, // info only — NIE als Shop-Preis darstellen
       effective_price,
       is_purchasable: effective_price != null && r.legacy_available !== false,
+      is_verified: isVerified,
     }
   })
 

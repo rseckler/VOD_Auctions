@@ -27,6 +27,8 @@ type CatalogRelease = {
   article_number: string | null
   legacy_condition: string | null
   legacy_price: number | null
+  effective_price?: number | null
+  is_purchasable?: boolean
   legacy_format_detail: string | null
   artist_name: string | null
   artist_slug?: string | null
@@ -66,8 +68,8 @@ const LITERATURE_FORMATS = ["MAGAZINE", "POSTER", "PHOTO", "POSTCARD"]
 const SORT_OPTIONS = [
   { value: "artist:asc", label: "Artist A-Z" },
   { value: "artist:desc", label: "Artist Z-A" },
-  { value: "legacy_price:asc", label: "Price: Low to High" },
-  { value: "legacy_price:desc", label: "Price: High to Low" },
+  { value: "price:asc", label: "Price: Low to High" },
+  { value: "price:desc", label: "Price: High to Low" },
   { value: "year:desc", label: "Year: Newest" },
   { value: "year:asc", label: "Year: Oldest" },
 ]
@@ -496,7 +498,7 @@ export default function CatalogClient({ releases, total, pages }: CatalogClientP
                     <span className="text-[10px] font-semibold text-amber-400 italic">In Auction</span>
                   ) : release.is_purchasable ? (
                     <span className="text-xs font-mono text-primary">
-                      &euro;{Number(release.legacy_price).toFixed(2)}
+                      &euro;{Number(release.effective_price).toFixed(2)}
                     </span>
                   ) : (
                     <span className="text-[10px] text-muted-foreground/70 italic">

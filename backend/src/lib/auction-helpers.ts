@@ -27,7 +27,7 @@ export async function isAvailableForDirectPurchase(
   releaseId: string
 ): Promise<{ available: boolean; release: any; reason?: string }> {
   const release = await pgConnection("Release")
-    .select("id", "sale_mode", "direct_price", "auction_status", "title")
+    .select("id", "sale_mode", "shop_price", "auction_status", "title")
     .where("id", releaseId)
     .first()
 
@@ -39,7 +39,7 @@ export async function isAvailableForDirectPurchase(
     return { available: false, release, reason: "Item is not available for direct purchase" }
   }
 
-  if (!release.direct_price || Number(release.direct_price) <= 0) {
+  if (!release.shop_price || Number(release.shop_price) <= 0) {
     return { available: false, release, reason: "Item does not have a direct price set" }
   }
 

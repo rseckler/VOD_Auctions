@@ -74,7 +74,7 @@ export async function GET(
           r.legacy_available,
           r.legacy_condition,
           r.sale_mode,
-          r.direct_price,
+          r.shop_price,
           r.auction_status,
           a.name as artist_name,
           a.slug as artist_slug,

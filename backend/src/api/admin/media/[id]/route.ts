@@ -183,7 +183,7 @@ export async function POST(
   const allowedReleaseFields = [
     "estimated_value",
     "sale_mode",
-    "direct_price",
+    "shop_price",
     "shipping_item_type_id",
     "discogs_id",
     "genres",
@@ -237,11 +237,11 @@ export async function POST(
     return
   }
 
-  // If sale_mode requires direct_price, validate it exists
+  // If sale_mode requires shop_price, validate it exists
   if (releaseUpdates.sale_mode && releaseUpdates.sale_mode !== "auction_only") {
-    const current = await pgConnection("Release").where("id", id).select("direct_price").first()
-    if (!releaseUpdates.direct_price && (!current?.direct_price || Number(current.direct_price) <= 0)) {
-      res.status(400).json({ message: "direct_price is required when sale_mode is not auction_only" })
+    const current = await pgConnection("Release").where("id", id).select("shop_price").first()
+    if (!releaseUpdates.shop_price && (!current?.shop_price || Number(current.shop_price) <= 0)) {
+      res.status(400).json({ message: "shop_price is required when sale_mode is not auction_only" })
       return
     }
   }
@@ -280,7 +280,7 @@ export async function POST(
     if (Object.keys(erpFields).length > 0) Object.assign(erpUpdatePayload, erpFields)
     if (warehouseLocationId !== undefined) erpUpdatePayload.warehouse_location_id = warehouseLocationId || null
 
-    // Single-exemplar price mirror: when Frank changes direct_price in the
+    // Single-exemplar price mirror: when Frank changes shop_price in the
     // Edit-Valuation form AND there is exactly one inventory_item for this
     // release, mirror the new price onto erp_inventory_item.exemplar_price.
     // This keeps the label print (COALESCE(exemplar, direct, legacy)) showing
@@ -298,14 +298,14 @@ export async function POST(
       newPrice: number
     } | null = null
 
-    const directPriceProvided =
-      releaseUpdates.direct_price !== undefined && releaseUpdates.direct_price !== null
-    if (directPriceProvided) {
+    const shopPriceProvided =
+      releaseUpdates.shop_price !== undefined && releaseUpdates.shop_price !== null
+    if (shopPriceProvided) {
       const existingItems = await trx("erp_inventory_item")
         .where("release_id", id)
         .select("id", "exemplar_price")
       if (existingItems.length === 1) {
-        const newPrice = Number(releaseUpdates.direct_price)
+        const newPrice = Number(releaseUpdates.shop_price)
         const oldPrice =
           existingItems[0].exemplar_price != null
             ? Number(existingItems[0].exemplar_price)

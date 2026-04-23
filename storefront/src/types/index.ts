@@ -74,7 +74,9 @@ export type Release = {
   discogs_num_for_sale?: number | null
   auction_status?: string | null
   sale_mode?: string | null
-  direct_price?: number | null
+  shop_price?: number | null
+  effective_price?: number | null
+  is_verified?: boolean
   inventory?: number | null
   is_purchasable?: boolean
   various_artists?: VariousArtist[]
@@ -200,7 +202,7 @@ export type CartItem = {
   coverImage: string | null
   format: string
   sale_mode: string | null
-  direct_price: number | null
+  shop_price: number | null
   auction_status: string | null
   artist_name: string | null
 }

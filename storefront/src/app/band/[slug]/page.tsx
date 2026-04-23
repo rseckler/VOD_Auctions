@@ -14,6 +14,8 @@ type BandRelease = {
   format_name: string | null
   year: number | null
   legacy_price: number | null
+  effective_price?: number | null
+  is_purchasable?: boolean
   label_name: string | null
   label_slug: string | null
 }
@@ -25,6 +27,8 @@ type BandLiterature = {
   format_name: string | null
   year: number | null
   legacy_price: number | null
+  effective_price?: number | null
+  is_purchasable?: boolean
 }
 
 type BandLabel = {
@@ -179,8 +183,8 @@ function ReleaseTable({ releases }: { releases: BandRelease[] }) {
                 )}
               </td>
               <td className="py-2 text-right font-mono text-xs">
-                {r.legacy_price
-                  ? `\u20AC${Number(r.legacy_price).toFixed(2)}`
+                {r.effective_price
+                  ? `\u20AC${Number(r.effective_price).toFixed(2)}`
                   : "---"}
               </td>
             </tr>
@@ -243,8 +247,8 @@ function LiteratureTable({ items }: { items: BandLiterature[] }) {
                 {item.year || "---"}
               </td>
               <td className="py-2 text-right font-mono text-xs">
-                {item.legacy_price
-                  ? `\u20AC${Number(item.legacy_price).toFixed(2)}`
+                {item.effective_price
+                  ? `\u20AC${Number(item.effective_price).toFixed(2)}`
                   : "---"}
               </td>
             </tr>

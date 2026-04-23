@@ -58,6 +58,12 @@ export async function POST(
   const itemId = generateEntityId()
 
   await pg.transaction(async (trx) => {
+    // Warehouse-Default: wenn keine Location explizit, auf is_default=true.
+    const defaultLoc = await trx("warehouse_location")
+      .where({ is_default: true, is_active: true })
+      .select("id")
+      .first()
+
     // Create the new exemplar
     await trx("erp_inventory_item").insert({
       id: itemId,
@@ -71,6 +77,7 @@ export async function POST(
       condition_media: condition_media || null,
       condition_sleeve: condition_sleeve || null,
       exemplar_price: exemplar_price != null ? exemplar_price : null,
+      warehouse_location_id: defaultLoc?.id || null,
       notes: notes || null,
       price_locked: true,
       price_locked_at: new Date(),
@@ -81,18 +88,25 @@ export async function POST(
     })
 
     // Copy #1 Mirror auf Release: bei der ersten Erfassung dieses Releases
-    // (Non-Cohort-A Workflow) muessen Preis + Conditions auch in die
-    // Release-Felder, damit der Catalog-Listing (`/admin/media`) und die
-    // Storefront (Release.legacy_price/media_condition/sleeve_condition lesen)
-    // die Werte sehen. Ohne Mirror landet der Preis nur in
-    // erp_inventory_item.exemplar_price und im Catalog steht weiter "—".
-    // price_locked=true (oben gesetzt) schuetzt vor dem stuendlichen
-    // legacy_sync_v2 Overwrite.
+    // muessen Preis + Conditions auch in die Release-Felder.
+    // Preis-Modell rc47.x: shop_price ist kanonisch, legacy_price wird
+    // defensiv mit gespiegelt (Legacy-Sync-Konflikt-Schutz). sale_mode
+    // default='both' wenn bisher NULL/auction_only.
     if (nextCopyNumber === 1) {
+      const currentRel = await trx("Release")
+        .where("id", release_id)
+        .select("sale_mode")
+        .first()
       const releaseUpdate: Record<string, unknown> = { updatedAt: new Date() }
-      if (exemplar_price != null) releaseUpdate.legacy_price = exemplar_price
+      if (exemplar_price != null) {
+        releaseUpdate.shop_price = exemplar_price
+        releaseUpdate.legacy_price = exemplar_price
+      }
       if (condition_media) releaseUpdate.media_condition = condition_media
       if (condition_sleeve) releaseUpdate.sleeve_condition = condition_sleeve
+      if (!currentRel?.sale_mode || currentRel.sale_mode === "auction_only") {
+        releaseUpdate.sale_mode = "both"
+      }
       if (Object.keys(releaseUpdate).length > 1) {
         await trx("Release").where("id", release_id).update(releaseUpdate)
       }

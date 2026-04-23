@@ -29,7 +29,7 @@ export async function GET(
       "Release.coverImage",
       "Release.format",
       "Release.sale_mode",
-      "Release.direct_price",
+      "Release.shop_price",
       "Release.auction_status",
       "Artist.name as artist_name"
     )
@@ -86,7 +86,7 @@ export async function POST(
       id: generateEntityId(),
       user_id: customerId,
       release_id,
-      price: Number(release.direct_price),
+      price: Number(release.shop_price),
       created_at: new Date(),
       updated_at: new Date(),
     })
@@ -94,7 +94,7 @@ export async function POST(
 
   rudderTrack(customerId, "Cart Item Added", {
     release_id,
-    price: Number(release.direct_price),
+    price: Number(release.shop_price),
   })
 
   res.status(201).json({ item })

@@ -50,7 +50,7 @@ export async function GET(
       "r.country",
       "r.legacy_condition",
       "r.legacy_price",
-      "r.direct_price",
+      "r.shop_price",
       "a.name as artist_name",
       "l.name as label_name"
     )
@@ -64,7 +64,7 @@ export async function GET(
     // Same fallback as single-label route: exemplar → direct → legacy
     const effectivePrice =
       item.exemplar_price != null ? Number(item.exemplar_price)
-      : item.direct_price != null ? Number(item.direct_price)
+      : item.shop_price != null ? Number(item.shop_price)
       : item.legacy_price != null ? Number(item.legacy_price)
       : null
     const effectiveCondition = item.condition_media

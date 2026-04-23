@@ -47,7 +47,7 @@ export async function POST(
 
     // Price handling: new_price updates Release.legacy_price (Copy #1 convention)
     // AND exemplar_price (so the label print pipeline reads the fresh value —
-    // barcode-label.ts order is exemplar_price → direct_price → legacy_price).
+    // barcode-label.ts order is exemplar_price → shop_price → legacy_price).
     // Historically we only wrote legacy_price here, which made the label show
     // a stale exemplar_price from earlier stocktakes. Frank hit this 2026-04-22:
     // Preis geändert → Label zeigt alten Wert, DB hat auch alten Wert beim
@@ -63,14 +63,30 @@ export async function POST(
       const releaseUpdate: Record<string, unknown> = {}
 
       if (body?.new_price != null && body.new_price >= 0) {
+        // Preis-Schreib-Modell (rc47.x): shop_price ist ab jetzt der
+        // kanonische Shop-Preis. legacy_price bleibt nur noch als Info
+        // erhalten (MySQL-Import-Historie). Wir spiegeln trotzdem auch auf
+        // legacy_price damit bestehende Leser (Legacy-Sync-Konflikt-Detection
+        // via price_locked, diverse Scripts) weiter funktionieren.
         const release = await trx("Release")
           .where("id", item.release_id)
-          .select("legacy_price")
+          .select("shop_price", "legacy_price", "sale_mode")
           .first()
 
+        releaseUpdate.shop_price = body.new_price
         releaseUpdate.legacy_price = body.new_price
-        reference.old_price = release ? Number(release.legacy_price) : null
+        reference.old_shop_price = release?.shop_price != null ? Number(release.shop_price) : null
+        reference.old_legacy_price = release?.legacy_price != null ? Number(release.legacy_price) : null
         reference.new_price = body.new_price
+
+        // Sale-Mode-Default: wenn bisher NULL oder auction_only, auf 'both'
+        // kippen. direct_purchase oder 'both' nie überschreiben — das waren
+        // explizite User-Choices.
+        if (!release?.sale_mode || release.sale_mode === "auction_only") {
+          releaseUpdate.sale_mode = "both"
+          reference.old_sale_mode = release?.sale_mode || null
+          reference.new_sale_mode = "both"
+        }
       }
 
       if (body?.condition_media) {
@@ -173,6 +189,19 @@ export async function POST(
       updateFields.exemplar_price = body.new_price
     }
     if (body?.notes != null) updateFields.notes = body.notes || item.notes
+
+    // Warehouse-Default: wenn das Exemplar noch keine Location zugewiesen
+    // hat, beim ersten Verify auf die als default markierte Location setzen
+    // (aktuell ALPENSTRASSE). Wenn schon was drin steht — nie überschreiben.
+    if (!item.warehouse_location_id) {
+      const defaultLoc = await trx("warehouse_location")
+        .where({ is_default: true, is_active: true })
+        .select("id")
+        .first()
+      if (defaultLoc?.id) {
+        updateFields.warehouse_location_id = defaultLoc.id
+      }
+    }
 
     await trx("erp_inventory_item")
       .where("id", inventoryItemId)

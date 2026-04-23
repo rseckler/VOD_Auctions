@@ -9,7 +9,7 @@ const CartItem = model.define("cart_item", {
   // FK to Release table (legacy, not Medusa ORM)
   release_id: model.text(),
 
-  // Snapshot of direct_price at time of adding to cart
+  // Snapshot of shop_price at time of adding to cart
   price: model.float(),
 })
 

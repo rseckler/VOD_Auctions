@@ -8,6 +8,7 @@ import {
   searchReleases,
   toLegacyShape,
 } from "../../../lib/release-search-meili"
+import { getSiteConfig } from "../../../lib/site-config"
 import { catalogGetPostgres } from "./route-postgres-fallback"
 
 /**
@@ -53,6 +54,14 @@ export async function GET(
     const limit = q.limit ? Math.min(100, parseInt(q.limit)) : 24
     const ranking = q.ranking === "relevance" ? "discovery" : "commerce"
 
+    // Shop-Visibility-Gate (rc47.x): wenn site_config.catalog_visibility=
+    // 'visible' (Default), zeigt der Shop nur Items mit shop_price + verifizier-
+    // tem Inventar — gleichbedeutend mit Meili's `is_purchasable=true` Filter.
+    // `for_sale=true` URL-Param forciert das ebenfalls (explizit vom User).
+    const siteConfig = await getSiteConfig(pg)
+    const effectiveForSale =
+      q.for_sale === "true" || siteConfig.catalog_visibility === "visible"
+
     const result = await searchReleases({
       query: q.search,
       ranking,
@@ -67,7 +76,7 @@ export async function GET(
         label_slug: q.label_slug,
         artist_slug: q.artist_slug,
         genres: q.genre ? [q.genre] : undefined,
-        for_sale: q.for_sale === "true",
+        for_sale: effectiveForSale,
       },
       sort: mapLegacySort(q.sort, q.order),
       page,

@@ -44,7 +44,7 @@ export async function GET(
       "r.country",
       "r.legacy_condition",
       "r.legacy_price",
-      "r.direct_price",
+      "r.shop_price",
       "r.article_number",
       "a.name as artist_name",
       "l.name as label_name"
@@ -68,7 +68,7 @@ export async function GET(
   // sale_mode=direct_purchase/both) → legacy (MySQL auction start price).
   const effectivePrice =
     item.exemplar_price != null ? Number(item.exemplar_price)
-    : item.direct_price != null ? Number(item.direct_price)
+    : item.shop_price != null ? Number(item.shop_price)
     : item.legacy_price != null ? Number(item.legacy_price)
     : null
 

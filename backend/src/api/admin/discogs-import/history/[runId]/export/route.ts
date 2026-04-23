@@ -53,7 +53,7 @@ export async function GET(
         r.legacy_price,
         r.legacy_available,
         r.legacy_condition,
-        r.direct_price,
+        r.shop_price,
         r.sale_mode,
         r.catalogNumber,
         a.name as artist_name,
@@ -116,7 +116,7 @@ export async function GET(
       const storefrontUrl = slug ? `https://vod-auctions.com/catalog/${slug}` : ""
 
       const price = r.legacy_price != null ? Number(r.legacy_price).toFixed(2) : ""
-      const directPrice = r.direct_price != null ? Number(r.direct_price).toFixed(2) : ""
+      const shopPrice = r.shop_price != null ? Number(r.shop_price).toFixed(2) : ""
       const lowestPrice = api.lowest_price != null ? Number(api.lowest_price).toFixed(2) : ""
 
       const loggedAt = r.logged_at
@@ -143,7 +143,7 @@ export async function GET(
         String(community.have ?? ""),
         String(community.want ?? ""),
         price,
-        directPrice,
+        shopPrice,
         csvEscape((r.legacy_condition as string) || ""),
         (r.sale_mode as string) || "",
         r.legacy_available === true ? "yes" : r.legacy_available === false ? "no" : "",

@@ -12,18 +12,18 @@ import { brevoAddToCart } from "@/lib/brevo-tracking"
 type Props = {
   releaseId: string
   saleMode: string | null
-  directPrice: number | null
+  shopPrice: number | null
   auctionStatus: string | null
 }
 
-export function DirectPurchaseButton({ releaseId, saleMode, directPrice, auctionStatus }: Props) {
+export function DirectPurchaseButton({ releaseId, saleMode, shopPrice, auctionStatus }: Props) {
   const { isAuthenticated, refreshStatus } = useAuth()
   const [adding, setAdding] = useState(false)
   const [added, setAdded] = useState(false)
 
   // Only show if item is available for direct purchase
   if (!saleMode || (saleMode !== "direct_purchase" && saleMode !== "both")) return null
-  if (!directPrice || directPrice <= 0) return null
+  if (!shopPrice || shopPrice <= 0) return null
   if (auctionStatus !== "available") return null
 
   async function handleAddToCart() {
@@ -56,7 +56,7 @@ export function DirectPurchaseButton({ releaseId, saleMode, directPrice, auction
 
       setAdded(true)
       await refreshStatus()
-      brevoAddToCart(releaseId, data.title || releaseId, directPrice!)
+      brevoAddToCart(releaseId, data.title || releaseId, shopPrice!)
       toast.success("Added to cart!")
     } catch {
       toast.error("Failed to add to cart")
@@ -71,7 +71,7 @@ export function DirectPurchaseButton({ releaseId, saleMode, directPrice, auction
         <div>
           <p className="text-sm text-muted-foreground">Direct Purchase</p>
           <p className="text-2xl font-bold font-mono text-primary">
-            &euro;{Number(directPrice).toFixed(2)}
+            &euro;{Number(shopPrice).toFixed(2)}
           </p>
         </div>
         <Button

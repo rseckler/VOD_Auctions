@@ -167,7 +167,7 @@ BASE_SELECT_SQL = """
         r.country,
         r."coverImage"         AS cover_image,
         r.legacy_price,
-        r.direct_price,
+        r.shop_price,
         r.legacy_available,
         r.sale_mode,
         r.auction_status,
@@ -257,15 +257,25 @@ def _compute_format_group(row):
 
 
 def transform_to_doc(row):
-    """Map DB-row → Meilisearch doc per §3.2 of SEARCH_MEILISEARCH_PLAN."""
-    legacy = _to_float(row["legacy_price"])
-    direct = _to_float(row["direct_price"])
-    effective = (
-        legacy if (legacy is not None and legacy > 0)
-        else (direct if (direct is not None and direct > 0) else None)
-    )
-    has_price = effective is not None and effective > 0
-    is_purchasable = has_price and bool(row["legacy_available"])
+    """Map DB-row → Meilisearch doc per §3.2 of SEARCH_MEILISEARCH_PLAN.
+
+    Preis-Modell rc47.x: shop_price ist der einzige Shop-Preis. legacy_price
+    ist nur Historie (MySQL-tape-mag-Import) und wird NICHT mehr als
+    Fallback für den Shop-Preis benutzt. Ein Item erscheint nur mit Preis
+    im Shop wenn (a) shop_price > 0 und (b) mindestens ein verifiziertes
+    Exemplar existiert. Der Toggle `catalog_visibility='all'` zeigt Items
+    ohne shop_price ohne Preis-Tag.
+    """
+    shop = _to_float(row["shop_price"])
+    legacy = _to_float(row["legacy_price"])  # info only
+    verified_count = int(row["verified_count"] or 0)
+
+    has_shop_price = shop is not None and shop > 0
+    has_verified_inventory = verified_count > 0
+    shop_visible_with_price = has_shop_price and has_verified_inventory
+    effective = shop if shop_visible_with_price else None
+    has_price = shop_visible_with_price
+    is_purchasable = shop_visible_with_price and bool(row["legacy_available"])
 
     year = row["year"]
     decade = (year // 10) * 10 if year else None
@@ -299,7 +309,7 @@ def transform_to_doc(row):
         "cover_image": row["cover_image"],
         "has_cover": bool(row["cover_image"]),
         "legacy_price": legacy,
-        "direct_price": direct,
+        "shop_price": direct,
         "effective_price": effective,
         "has_price": has_price,
         "is_purchasable": is_purchasable,
@@ -315,7 +325,7 @@ def transform_to_doc(row):
         "exemplar_count": int(row["exemplar_count"] or 0),
         "verified_count": int(row["verified_count"] or 0),
         "in_stock": int(row["exemplar_count"] or 0) > 0,
-        "cohort_a": legacy is not None and legacy > 0,
+        "cohort_a": shop is not None and shop > 0,
         "popularity_score": 0,
         "indexed_at": int(time.time()),
         "updated_at": int(updated_at.timestamp()) if updated_at else 0,

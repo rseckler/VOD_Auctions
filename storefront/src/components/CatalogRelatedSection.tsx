@@ -13,6 +13,8 @@ type RelatedRelease = {
   country: string | null
   coverImage: string | null
   legacy_price: number | null
+  effective_price?: number | null
+  is_purchasable?: boolean
   legacy_condition: string | null
   product_category?: string | null
   artist_name: string | null
@@ -161,8 +163,8 @@ function ReleaseTable({ releases }: { releases: RelatedRelease[] }) {
             </span>
             {/* Price */}
             <span className="text-sm font-serif font-bold text-primary text-right">
-              {r.legacy_price
-                ? <>&euro;{Number(r.legacy_price).toFixed(0)}</>
+              {r.effective_price
+                ? <>&euro;{Number(r.effective_price).toFixed(0)}</>
                 : "—"}
             </span>
           </Link>
