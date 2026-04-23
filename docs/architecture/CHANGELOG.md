@@ -11,6 +11,7 @@ Jeder Git-Tag entspricht einem Snapshot des Gesamtsystems. Feature Flags zeigen 
 | Version | Datum | Platform Mode | Feature Flags aktiv (prod) | Milestone / Inhalt |
 |---------|-------|--------------|---------------------------|-------------------|
 | **v1.0.0** | TBD | `live` | ERP: TBD | RSE-78: Erster öffentlicher Launch |
+| **v1.0.0-rc48** | 2026-04-23 | `beta_test` | `ERP_INVENTORY`, `SEARCH_MEILI_CATALOG`, `SYSTEM_HEALTH_*`, `SEARCH_MEILI_ADMIN`=OFF | **Admin-Catalog auf Meilisearch (Flag OFF, Paritätsmatrix bereit).** Plan `ADMIN_CATALOG_PERFORMANCE_PLAN.md` v2 umgesetzt: Meili-Schema um 13 Admin-Filter-Attrs erweitert (inventory_status, price_locked, warehouse_code, import_collections/actions, stocktake_state, exemplar/verified_count etc.), neuer 3-Gate-Wrapper `/admin/media/route.ts` mit Postgres-Fallback via `?_backend=postgres`-Bypass + Flag + Health-Probe + try/catch. Neuer `/admin/media/count`-Endpoint liefert exakten SQL-Count für Export/Bulk-Actions (Plan §3.4). Konsistenz-Klasse-B-Hooks (Plan §3.8): `pushReleaseNow(pg, releaseId)`-Helper + Aufrufe in Verify/Add-Copy/PATCH-media/Auction-Block-Add — fire-and-forget, on-demand-Reindex direkt nach Mutation. Trigger auf `import_log` AFTER INSERT + Whitelist um estimated_value/media_condition/sleeve_condition erweitert. Meili full-rebuilt (52.777 docs × 2 Profile). Paritätsmatrix-Script `scripts/admin_meili_parity_check.py` mit 37 Cases in 6 Gruppen bereit. **Flag bleibt OFF bis User Paritätsmatrix ausgeführt + grün.** Rollback via Flag trivial. |
 | **v1.0.0-rc47.3** | 2026-04-23 | `beta_test` | `ERP_INVENTORY`, `SEARCH_MEILI_CATALOG`, `SYSTEM_HEALTH_PUBLIC_PAGE`, `SYSTEM_HEALTH_ALERTING`, `SYSTEM_HEALTH_ALERT_HISTORY`, `SYSTEM_HEALTH_SENTRY_EMBED`, `SYSTEM_HEALTH_ACTIONS` | **Preis-Modell Phase 2: Auction-Start-Preis aus `round(shop_price × default_start_price_percent / 100)`.** Beim Aufnehmen in `auction_block` rechnet der Admin-UI-Block-Builder den Default-Start-Preis aus dem `shop_price` (nicht mehr aus `estimated_value`/`legacy_price`). Fallback-Kette shop_price → estimated_value → legacy_price → 400. Block-Level-Prozent `default_start_price_percent` bleibt konfigurierbar (Default 50 → 0.5er-Formel wie User gewünscht). **Backend-Default** greift auch wenn ein Caller `start_price` weglässt (Schema jetzt optional) — gleiche Formel, gleiche Fallback-Kette. **Neuer Bulk-Rule `shop_price_percentage`** in `/items/bulk-price` für Re-Pricing ganzer Blocks. Doku: `docs/architecture/PRICING_MODEL.md §Phase 2`. |
 | **v1.0.0-rc47.2** | 2026-04-23 | `beta_test` | `ERP_INVENTORY`, `SEARCH_MEILI_CATALOG`, `SYSTEM_HEALTH_PUBLIC_PAGE`, `SYSTEM_HEALTH_ALERTING`, `SYSTEM_HEALTH_ALERT_HISTORY`, `SYSTEM_HEALTH_SENTRY_EMBED`, `SYSTEM_HEALTH_ACTIONS` | **Preis-Modell konsolidiert: `direct_price → shop_price` + Shop-Visibility-Gate.** `Release.shop_price` ist jetzt einzige kanonische Shop-Preis-Quelle (vorher: drei Spalten nebeneinander, keine kanonisch — Verify schrieb `legacy_price`, Catalog-Detail las `direct_price`, inkonsistent). **Storefront zeigt nur noch Items mit `shop_price > 0 UND verifiziertem Exemplar`**. Toggle `site_config.catalog_visibility='all'` zeigt unpriced Items ohne Preis-Tag + ohne Add-to-Cart. **Verify/Add-Copy** setzen ab jetzt `shop_price` (+ `sale_mode='both'` wenn vorher NULL/auction_only) + `warehouse_location_id=ALPENSTRASSE` als Defaults. **DB-Rename** via idempotente Migration, plus Meili-Trigger `trigger_release_indexed_at_self` auf `shop_price` umgestellt. **Backfill** (one-shot): 23 verifizierte Items `shop_price = legacy_price`, 22 × `sale_mode auction_only → both`, 32 × Warehouse-Default. **34 Dateien gerenamed** (Backend + Storefront + Meili-Sync-Python). Meili-Index full-rebuilt. Vollständige Doku: `docs/architecture/PRICING_MODEL.md`. |
 | **v1.0.0-rc47.1** | 2026-04-23 | `beta_test` | `ERP_INVENTORY`, `SEARCH_MEILI_CATALOG`, `SYSTEM_HEALTH_PUBLIC_PAGE`, `SYSTEM_HEALTH_ALERTING`, `SYSTEM_HEALTH_ALERT_HISTORY`, `SYSTEM_HEALTH_SENTRY_EMBED`, `SYSTEM_HEALTH_ACTIONS` | **Post-rc47 Ops-Hotfixes (3 Items aufgeräumt aus rc41-Monitoring-Funden).** (1) **Sentry-PAT-Fix.** Initial falschen Token für Account `seckler@seckler.de` (nicht Member der Org `vod-records`) gesetzt → alle `/projects/<org>/<proj>/issues/` Aufrufe mit HTTP 403. Root-Cause identifiziert via base `/api/0/` Call: scopes=[project:read] aber `/projects/` = leer. Fix: Token aus vorhandenem 1Password-Item "Sentry VOD Auctions" (Private-Vault) gezogen — Owner `rseckler@gmail.com` (Member von vod-records), scopes `event:read + org:read + project:read`. End-to-End verifiziert via `curl https://sentry.io/api/0/projects/vod-records/vod-auctions-storefront/issues/?limit=3` → HTTP 200 mit 2 aktuellen Issues (VOD-AUCTIONS-STOREFRONT-3+4 LRUCache). VPS `.env` aktualisiert, `pm2 restart --update-env`. User soll altes 1Password-Item "VOD Sentry PAT (System Health)" (Work-Vault mit seckler@-Token) löschen — nutzlos, unnötige Attack-Surface. `SYSTEM_HEALTH_SENTRY_EMBED` seit rc47 auf ON, Sentry-Tab im ServiceDrawer jetzt live-funktional. (2) **Upstash-Cluster-Reaktivierung.** Alter Cluster `uncommon-moray-70767.upstash.io` seit heute früh NXDOMAIN (Free-Tier-Deletion nach 14 Tagen Inaktivität, Upstash-Standard-Policy). UI zeigte "DELETED" im Recycle-Bin mit "Restore or Delete"-Option — Restore aber nur möglich wenn neuer Cluster existiert (= Backup-Restore, nicht Cluster-Namen-Revival). Entscheidung: endgültig löschen + neu erstellen. Neuer Cluster `vod-auctions-prod` in **eu-central-1 (Frankfurt)** (näher zu Hostinger-VPS als vorige eu-west-1), TLS enabled, Eviction `allkeys-lru`, Free Tier (500k commands/month). Neuer Endpoint `https://helpful-cub-82258.upstash.io`. Token in 1Password "Upstash Redis VOD-Auctions" (Private-Vault) gespeichert. VPS `.env` aktualisiert (alter + neuer Token-Wert ersetzt, `.env.bak.upstash-<ts>` als Backup), `pm2 restart --update-env`. Validierung: `curl /ping` → PONG, Health-Check `upstash: ok` in 73ms. 10 bisherige fired Alerts für upstash-error sind nach 3 consecutive ok-Samples als `auto_resolved` markiert (Auto-Resolve-Logic aus rc44 P4-A). Launch-Blocker-Workstream 4 (Rate-Limiting) ist jetzt un-blocked. (3) **`pm2_status`-Check Logic-Fix.** Der Lifetime-Restart-Counter (58 nach heutigen 15+ Deploys) triggerte false `error` obwohl `unstable_restarts=0` und beide Prozesse seit >7min stabil. Neue Severity-Logik: **critical** bei `status != online`, **error** bei `unstable_restarts > 0` (echte PM2-Crash-Loop-Detection), **warning** bei `uptime < 60s` (recently restarted, evtl. flapping — deckt Deploy-Window ab, Flapping-Guard 3 consecutive samples schützt vor Alert-Storm), sonst **ok**. Lifetime-Restart-Count bleibt als Info-Suffix in der Message (`"2 online · lifetime restarts: N"`), nicht mehr alarm-auslösend. `pm2 reset vodauction-backend + vodauction-storefront` gemacht → Counter auf 0 gesetzt (kosmetisch, kein semantischer Unterschied). Verifiziert: direkt nach Deploy `warning: recently restarted` für 60s, danach `ok`. **Offene Low-Impact-Items heute:** `supabase_realtime: degraded` (Realtime-Service im Projekt nicht aktiviert — nicht-blockierend bis Live-Bidding, manuell via Supabase-Console aktivierbar). `discogs_api` Rate-Limit-warning transient. **Session-Summary:** 8 Git-Tags heute (rc40.2 → rc47.1), Plan v2 Observability komplett umgesetzt (P1+P2+P3+P4 an einem Tag statt geplante 5-8 Tage), 4 reale Ops-Incidents während Setup behoben (Upstash-NXDOMAIN, sync_log-FK-Violation, Sentry-Account-Confusion, pm2_status-False-Positive). |
@@ -91,6 +92,78 @@ Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Rel
 - **Patch Release** (`v1.0.x`): Kritische Bugfixes zwischen geplanten Releases
 - **Tagging-Workflow:** `git tag -a vX.Y.Z -m "Release vX.Y.Z: <Kurzname>"` → `git push origin vX.Y.Z`
 - **Tag-Zeitpunkt:** Direkt nach Deploy + Smoke-Test auf Production — nicht vor dem Deploy
+
+---
+
+## 2026-04-23 — Admin-Catalog auf Meilisearch: Code-Rollout (Flag OFF, Paritätsmatrix bereit) (rc48)
+
+**Kontext:** Frank (und User-Direktfeedback): `/app/media` und `/app/erp/inventory/*` laden mehrere Sekunden pro Request, trotz mehrerer Optimierungs-Runden mit btree-Indexes + CTE-Pattern + No-Filter-Count-Fastpath. Root-Cause: 6-Table-JOIN + Sub-Aggregation auf 52k × 13k Rows — kein Index repariert Architektur-Problem.
+
+**Plan:** `docs/optimizing/ADMIN_CATALOG_PERFORMANCE_PLAN.md` v2 (Companion: `CATALOG_PERFORMANCE_BENCHMARK.md`) — state of the art für Katalog-Browsing ist CQRS mit dediziertem Search-Store. Wir haben Meilisearch bereits für Storefront seit rc40 (p95 48-58ms). Phase 2 erweitert die Nutzung auf Admin.
+
+**Review-Feedback am selben Tag** identifizierte drei Schwächen, alle in den Minimal-Scope gezogen (Plan §0 Pre-Conditions): Konsistenz-Klassen, Paritätsmatrix als Acceptance-Gate, Count-Semantik (estimated vs. exact).
+
+### Umsetzung (Tag 1+2)
+
+**Meili-Schema erweitert** (13 neue Admin-Filter-Attrs):
+- `inventory_status` (first-exemplar's status)
+- `price_locked` (first-exemplar's lock)
+- `warehouse_code` / `warehouse_id` / `warehouse_name`
+- `import_collections` (array — Release kann durch mehrere Imports)
+- `import_actions` (array)
+- `stocktake_state` — computed: `none` | `pending` | `done` | `stale` (STOCKTAKE_STALE_DAYS=90, Single-Source-of-Truth in beiden Python + TS)
+- `has_image` (alias has_cover für Admin-UI-Konsistenz)
+- `has_inventory` (exemplar_count > 0)
+- `exemplar_count` / `verified_count` / `last_stocktake_at` / `updated_at_ts` als filterable
+
+**SQL-Extensions** in `meilisearch_sync.py::BASE_SELECT_SQL`:
+- First-exemplar-shape Felder via korrelierte Subqueries (status, price_locked, barcode, warehouse_*, last_stocktake_at_max)
+- Import-Relationen via `array_agg(DISTINCT collection_name)` / `action` aus import_log
+
+**DB-Trigger** (`2026-04-23_admin_meili_fields.sql`, applied via psql auf Prod):
+- `trg_release_indexed_at_import_log` AFTER INSERT ON import_log → bumpt Release.search_indexed_at
+- `trigger_release_indexed_at_self` Whitelist um 3 Felder erweitert: estimated_value, media_condition, sleeve_condition (waren nicht drin, relevant für Admin-Listing)
+
+**Backend-Route-Umbau** (`backend/src/api/admin/media/`):
+- `route.ts` NEU: 3-Gate-Wrapper (Flag `SEARCH_MEILI_ADMIN` → Health-Probe → try/catch). Plus 4. Gate: `?_backend=postgres` Query-Param forciert Fallback für Paritätsmatrix-Runs.
+- `route-postgres-fallback.ts`: bisherige Implementation 1:1 umbenannt, Funktion `adminMediaGetPostgres` exportiert.
+- `count/route.ts` NEU: exakter SQL-Count-Endpoint mit minimaler JOIN-Nutzung (nur die Tables die Filter fordern). Für Export-Bestätigung + destruktive Bulk-Action-Dialoge. Spart den inline-Count-Roundtrip im 99%-Pfad.
+
+**Meili-Filter-Builder** (`backend/src/lib/release-search-meili.ts`):
+- `CatalogFilters` um 11 Admin-Filter erweitert
+- `buildFilterString` übersetzt sie in Meili-Filter-Syntax (category-Shorthand, has_discogs-EXISTS, stocktake_state-equality, etc.)
+- `CatalogSort` um title_desc/artist_desc/country_*/label_*/synced_* erweitert
+- Neuer `toAdminShape()`-Mapper — snake_case→camelCase + rc23 Inventory-Felder, hält `/app/media`-Frontend stabil ohne Code-Änderung
+
+**Konsistenz-Klasse-B Hooks** (Plan §3.8):
+- `backend/src/lib/meilisearch-push.ts` NEU — `pushReleaseNow(pg, releaseId)` mit eigener TS-Implementierung derselben Select+Transform-Logik wie Python-Sync (Single-Source-Doku in Datei-Kopf). Fire-and-forget, catcht Fehler stumm.
+- 4 Endpoints eingehängt: Verify, Add-Copy, PATCH /admin/media/:id, Auction-Block-Add. Pattern: nach `res.json()` → `pushReleaseNow(pg, releaseId).catch(logError)`. Nie blockierend.
+- State-Tabellen-Bump (`meilisearch_index_state` + `Release.search_indexed_at`) damit Delta-Cron das Dokument nicht erneut pusht.
+
+**Feature-Flag** `SEARCH_MEILI_ADMIN` (category=search, default OFF). `FlagResponse`-Type in `/admin/platform-flags` um "search" erweitert damit UI es rendert.
+
+**Paritätsmatrix** (`scripts/admin_meili_parity_check.py`, Plan §4.A):
+- 37 Test-Cases in 6 Gruppen: single_filter, filter_sort, ui_combos, computed, search, boundary
+- Pro Case: fetch `?_backend=postgres` und `?_backend=meili`, vergleiche IDs + Count-Delta + Sort
+- Status: ok/warning/failed/error, Exit-Code 0/1/2 als CI-Gate
+- Acceptance-Kriterium: 0 failed. Warnings (IDs ok, count 1-5% delta) manuell sichtprüfen.
+
+### Rollout-Status
+
+- **Meili full-rebuilt** 52.777 docs × beide Profile (commerce + discovery). Stats-Check: `numberOfDocuments: 52777, avgDocumentSize: 1121 bytes`.
+- **Smoke-Test** via direktem Meili-Call: Filter `warehouse_code="ALPENSTRASSE"` liefert 71 hits — exakt identisch zu Postgres `COUNT(DISTINCT release_id)`.
+- **VOD-19576 Doc** enthält: shop_price=27, is_purchasable=true, warehouse_code=ALPENSTRASSE, stocktake_state=done, import_collections=[]. Alle neuen Felder korrekt populiert.
+- **Backend läuft**, Flag OFF → Admin-Catalog verhält sich weiterhin wie vor rc48 (Postgres-Route).
+
+### Nicht in rc48 (folgt separat)
+
+- **Flag-ON auf Prod** — User muss Paritätsmatrix mit Admin-Cookie laufen lassen, dann per `/app/config` aktivieren. Plan §0.2 Pre-Condition.
+- **Tag 3 Frontend-Polish** (Skeleton + React-Query + Optimistic-Updates + Prefetch) — bleibt nachgelagert wie im Plan vorgesehen.
+- **`/admin/erp/inventory/search` auf Meili** — Tag 3.5 optional, kleinerer Scope.
+
+### Rollback
+
+Trivial: `SEARCH_MEILI_ADMIN` flag OFF → Postgres-Route. Keine DB-Migration zurückzurollen (alle Migrations sind additiv: Trigger-Erweiterungen + neue Indexes). Kein Daten-Verlust.
 
 ---
 

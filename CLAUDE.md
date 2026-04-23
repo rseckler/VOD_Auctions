@@ -2,7 +2,7 @@
 
 **Purpose:** Auktionsplattform für ~41.500 Produkte (Industrial Music Tonträger + Literatur/Merch) — eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Beta Test (`platform_mode: beta_test`) · Storefront+Admin-UI: Englisch
-**Last Updated:** 2026-04-23 (rc47.3 — Preis-Modell Phase 2 live: Auction-Start-Preis = `round(shop_price × default_start_price_percent / 100)` mit Fallback-Kette shop_price → estimated_value → legacy_price → 400. Neuer Bulk-Rule `shop_price_percentage`. rc47.2: `direct_price → shop_price`-Rename + Shop-Visibility-Gate. Dokumentation: `docs/architecture/PRICING_MODEL.md`.)
+**Last Updated:** 2026-04-23 (rc48 — Admin-Catalog auf Meilisearch deployed, Flag `SEARCH_MEILI_ADMIN` OFF bis Paritätsmatrix grün. 3-Gate-Wrapper `/admin/media/route.ts`, 13 neue Admin-Filter-Attrs im Meili-Index, `pushReleaseNow`-Hook in 4 Klasse-B-Mutations, separater `/admin/media/count`-Endpoint für exakten Count, Paritäts-Check-Script `admin_meili_parity_check.py` mit 37 Test-Cases. Plan: `docs/optimizing/ADMIN_CATALOG_PERFORMANCE_PLAN.md` v2.)
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
 
@@ -307,7 +307,7 @@ docs/
 4. **Frank arbeitet aktiv an Inventur.** Franks MacBook Air-Rollout ausstehend: `cd ~/VOD_Auctions && git pull && bash frank-macbook-setup/install.sh`.
 5. **POS P0 Dry-Run live** — Frank testet Scan→Cart→Checkout, Feedback sammeln.
 6. **L1:** AGB-Anwalt beauftragen (Launch-Blocker, RSE-78).
-7. **Meilisearch Phase 2 (Backlog):** Admin-Endpoints auf Meili-discovery-Profil umstellen. ~1 Tag.
+7. **Admin-Catalog auf Meilisearch (rc48, 2026-04-23) — Code deployed, Flag OFF.** Plan v2 Tag 1+2 umgesetzt: 3-Gate-Wrapper, 13 neue Admin-Filter-Attrs, pushReleaseNow-Hooks in Klasse-B-Mutations, /admin/media/count für exakten Count, Paritätsmatrix-Script mit 37 Cases. Meili full-rebuilt (52.777 docs × 2 profiles). **Next:** User führt `scripts/admin_meili_parity_check.py` mit Admin-Cookie aus, bei 0 failed → Flag `SEARCH_MEILI_ADMIN` ON via `/app/config`, danach Tag 3 Frontend-Polish (Skeleton + React-Query + Optimistic-Updates).
 8. **`supabase_realtime: degraded`** (known, non-blocker): Realtime-Service sobald Live-Bidding live geht.
 
 **Arbeitsregeln:**
