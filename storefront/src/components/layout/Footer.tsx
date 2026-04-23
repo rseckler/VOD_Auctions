@@ -148,6 +148,12 @@ export function Footer() {
               >
                 Cookie Settings
               </button>
+              <Link
+                href="/status"
+                className="text-muted-foreground hover:text-primary transition-colors"
+              >
+                System Status
+              </Link>
             </div>
           </nav>
         </div>

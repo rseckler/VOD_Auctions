@@ -100,6 +100,14 @@ export const FEATURES = {
     category: "search",
     requires: [],
   },
+  // ─── Platform flags — visibility gates for user-facing surfaces ─────────────
+  SYSTEM_HEALTH_PUBLIC_PAGE: {
+    key: "SYSTEM_HEALTH_PUBLIC_PAGE",
+    default: false,
+    description: "Public Status Page unter vod-auctions.com/status exponieren. Nur aggregated Kategorie-Severities (keine internen Service-Namen/Latenzen). Redis-cached 60s.",
+    category: "platform",
+    requires: [],
+  },
 } as const satisfies Record<string, FeatureFlagDefinition>
 
 export type FeatureFlagKey = keyof typeof FEATURES
