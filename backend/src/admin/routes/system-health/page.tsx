@@ -828,6 +828,7 @@ export default function SystemHealthPage() {
             { label: "GA4 Analytics", url: "https://analytics.google.com" },
             { label: "RudderStack", url: "https://app.rudderstack.com" },
             { label: "Upstash Redis", url: "https://console.upstash.com" },
+            { label: "Meilisearch Flag", url: "/app/config" },
             { label: "Anthropic Console", url: "https://console.anthropic.com" },
             { label: "Hostinger VPS", url: "https://hpanel.hostinger.com" },
           ].map((link) => (

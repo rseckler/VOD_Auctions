@@ -2,6 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { stripe } from "../../../lib/stripe"
+import { getFeatureFlag } from "../../../lib/feature-flags"
 
 type ServiceStatus = "ok" | "degraded" | "error" | "unconfigured"
 
@@ -243,6 +244,48 @@ export async function GET(
     }
   }
 
+  async function checkMeilisearch(): Promise<ServiceCheck> {
+    const url = process.env.MEILI_URL
+    const apiKey = process.env.MEILI_ADMIN_API_KEY
+    if (!url || !apiKey) {
+      return {
+        name: "meilisearch", label: "Meilisearch (Search)",
+        status: "unconfigured",
+        message: "MEILI_URL or MEILI_ADMIN_API_KEY not set",
+        latency_ms: null,
+        url: "/app/config",
+      }
+    }
+    const { result, error, latency_ms } = await checkWithTimeout(async () => {
+      const [healthRes, statsRes] = await Promise.all([
+        fetch(`${url}/health`, { headers: { Authorization: `Bearer ${apiKey}` } }),
+        fetch(`${url}/stats`, { headers: { Authorization: `Bearer ${apiKey}` } }),
+      ])
+      if (!healthRes.ok) throw new Error(`health HTTP ${healthRes.status}`)
+      if (!statsRes.ok) throw new Error(`stats HTTP ${statsRes.status}`)
+      return { health: await healthRes.json(), stats: await statsRes.json() }
+    })
+    if (error) {
+      return { name: "meilisearch", label: "Meilisearch (Search)", status: "error", message: error, latency_ms, url: "/app/config" }
+    }
+    const r = result as any
+    const indexes = r?.stats?.indexes ?? {}
+    const indexNames = Object.keys(indexes)
+    const totalDocs = indexNames.reduce((sum, k) => sum + (indexes[k]?.numberOfDocuments ?? 0), 0)
+    let flagOn = false
+    try {
+      flagOn = await getFeatureFlag(pgConnection, "SEARCH_MEILI_CATALOG")
+    } catch { /* flag unknown — omit from message */ }
+    const healthStatus = r?.health?.status ?? "unknown"
+    return {
+      name: "meilisearch", label: "Meilisearch (Search)",
+      status: "ok",
+      message: `${healthStatus} — ${indexNames.length} index(es), ${totalDocs.toLocaleString("de-DE")} docs · flag SEARCH_MEILI_CATALOG: ${flagOn ? "ON" : "OFF"}`,
+      latency_ms,
+      url: "/app/config",
+    }
+  }
+
   async function checkUpstash(): Promise<ServiceCheck> {
     const url = process.env.UPSTASH_REDIS_REST_URL
     const token = process.env.UPSTASH_REDIS_REST_TOKEN
@@ -337,6 +380,7 @@ export async function GET(
     Promise.resolve(checkGA4()),
     Promise.resolve(checkRudderStack()),
     checkUpstash(),
+    checkMeilisearch(),
     Promise.resolve(checkAnthropic()),
     checkVPS(),
     checkStorefrontPublic(),
