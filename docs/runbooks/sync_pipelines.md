@@ -43,7 +43,40 @@ ssh vps "tail -50 /root/VOD_Auctions/scripts/discogs_daily.log | grep -i 'rate\|
 # Bei persistierendem Rate-Limit: am Folgetag nochmal, nicht erzwingen
 ```
 
-### C: meilisearch_sync skipped Pushes
+### C: FK-Violation "Release_labelId_fkey" → sync crashed
+Symptom im Log: `FATAL ERROR: insert or update on table "Release" violates foreign key constraint "Release_labelId_fkey"  DETAIL: Key (labelId)=(legacy-label-X) is not present in table "Label"` am `bump_search_indexed_at`-Statement.
+
+Root-Cause: Orphan `Release.labelId`-Werte zeigen auf Labels, die in Supabase nicht existieren (Legacy-MySQL hat Label gelöscht, aber Releases behalten). V3-Validation meldet das als `warnings` (`orphan_labels: N`), das ist ein Dauerzustand. Problem wird akut sobald `bump_search_indexed_at` (seit rc40) einen UPDATE auf die Tabelle triggert, der die deferred FK evaluiert.
+
+Diagnose:
+```sql
+-- Welche labelIds haben keine Label-Zeile?
+SELECT r."labelId", COUNT(*) 
+  FROM "Release" r LEFT JOIN "Label" l ON l.id = r."labelId"
+ WHERE r."labelId" IS NOT NULL AND l.id IS NULL
+ GROUP BY r."labelId" ORDER BY COUNT(*) DESC;
+```
+
+Fix (non-destructive — Label-Stubs erstellen):
+```sql
+INSERT INTO "Label" (id, name, slug, description, "createdAt", "updatedAt")
+SELECT DISTINCT r."labelId",
+       'Unknown Label (' || REPLACE(r."labelId", 'legacy-label-', '#') || ')',
+       'unknown-' || REPLACE(r."labelId", 'legacy-label-', ''),
+       'Stub — FK-Violation recovery. Real label missing in legacy MySQL.',
+       NOW(), NOW()
+  FROM "Release" r LEFT JOIN "Label" l ON l.id = r."labelId"
+ WHERE r."labelId" IS NOT NULL AND l.id IS NULL
+ ON CONFLICT (id) DO NOTHING;
+```
+
+Sync manuell triggern zum Verify:
+```bash
+ssh vps "cd /root/VOD_Auctions/scripts && ./venv/bin/python3 legacy_sync_v2.py | tail -5"
+# Erwartet: validation_status: ok
+```
+
+### D: meilisearch_sync skipped Pushes
 Hash-Diff detection hält potentially richtige Updates zurück.
 ```bash
 ssh vps ". /root/VOD_Auctions/scripts/meili-cron-env.sh && cd /root/VOD_Auctions/scripts && venv/bin/python3 meilisearch_sync.py --dry-run"
@@ -58,5 +91,6 @@ ssh vps ". /root/VOD_Auctions/scripts/meili-cron-env.sh && cd /root/VOD_Auctions
 
 ## Verwandte Incidents
 
+- **2026-04-23 FK-Violation:** `legacy_sync_v2.py` crashed seit 2026-04-22 18:00 UTC (14 Stunden stumm). 18 Label-IDs orphan, darunter `legacy-label-1` mit 134 Releases. Fix: 18 Stub-Labels manuell erstellt. `bump_search_indexed_at` (rc40) hatte die deferred FK-Constraint akut gemacht — V3-Validation hatte den Zustand schon länger als `warnings` gemeldet, aber nicht als blocker.
 - rc24 Discogs-Import-Races (gefixed rc25/rc26)
 - rc33 Search-Trigram-Indexes verbessern Sync-Query-Speed
