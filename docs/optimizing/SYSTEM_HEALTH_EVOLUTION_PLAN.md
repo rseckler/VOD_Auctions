@@ -1,310 +1,454 @@
 # System Health Evolution Plan
 
-**Status:** Draft · ausstehende Freigabe Robin
+**Status:** v2 — überarbeitet nach Review · Freigabe pending
 **Autor:** Robin Seckler + Claude Opus 4.7
-**Erstellt:** 2026-04-23
-**Scope:** `/app/system-health` von Reachability-Dashboard zu Ops-Dashboard ausbauen (P1), semantische Checks + Public-Page ergänzen (P2), Severity-Routing + Runbooks (P3).
+**Erstellt:** 2026-04-23 · **Letzte Revision:** 2026-04-23 (v2)
+**Scope:** `/app/system-health` von Reachability-Dashboard zu production-safe Ops-Dashboard ausbauen (P1), Historie + semantische Checks + Public-Page ergänzen (P2), Severity-Routing + Runbooks (P3).
 **Verwandte Docs:** [`DEPLOYMENT_METHODOLOGY.md`](../architecture/DEPLOYMENT_METHODOLOGY.md) · [`SYNC_ROBUSTNESS_PLAN.md`](../architecture/SYNC_ROBUSTNESS_PLAN.md) · [`SEARCH_MEILISEARCH_PLAN.md`](SEARCH_MEILISEARCH_PLAN.md)
+
+---
+
+## 0. Versionshistorie
+
+### v2 — 2026-04-23 (nach Review-Feedback)
+
+Breaking changes gegenüber v1:
+
+1. **Persistenz entkoppelt vom Admin-GET.** Neuer Sampler-Cron liest Checks in festem Intervall und schreibt in `health_check_log`. Admin-UI liest nur noch aus der Tabelle. Samples sind nicht mehr vom Seitenzugriff abhängig.
+2. **Check-Klassen eingeführt** — `fast` / `background` / `synthetic` mit unterschiedlichen Timeouts, Intervallen und Retry-Semantik.
+3. **Severity-Policy formalisiert** — Entscheidungstabelle mit harten Kriterien pro Stufe. Neue Severity `insufficient_signal` für Business-Checks bei legitim geringer Aktivität.
+4. **Public-Mapping-Tabelle** — explizite Abbildung interner Kategorien → externer Kategorien, Severity-Mapping, Redaction-Regeln.
+5. **Alert-Transport fixiert** — Resend (transaktional, bereits im Stack). Brevo explizit ausgeschlossen, weil CRM-Newsletter-Kontext Alerts verwässert.
+6. **`health_check_log` Schema erweitert** — severity als dedizierte Spalte, category, metadata JSONB, source, environment.
+7. **Acceptance-Kriterien präzisiert** — p95-Latenzen, Timeout-Verhalten pro Klasse, Partial-Failure-Handling, Max-Staleness.
+8. **Runbook-Priorisierung nach Impact** — 4-Stufen-Priorität statt pauschaler "16+ Runbooks".
+9. **LLM-Modell-Zuordnung kompakter** — Kategorien statt per-Task, weniger Pflegeaufwand.
+10. **Drei offene Fragen endgültig entschieden** (§3.8).
+
+### v1 — 2026-04-23 (initialer Wurf)
+
+Vollständig ersetzt durch v2. Abrufbar in git history: commit `ec46557`.
 
 ---
 
 ## 1. Kontext
 
-Die aktuelle System-Health-Seite (rc40, 16 Service-Checks) ist ein solider Statuspage.io-artiger Baseline-Monitor, aber:
+Die aktuelle System-Health-Seite (rc40.2, 16 Service-Checks) ist ein solider Statuspage.io-artiger Snapshot-Monitor, aber:
 
-- **Sync-Pipelines sind komplett blind** — 6 Cronjobs + Meili-Drift + sync_log werden nicht abgefragt.
-- **Infrastruktur-Checks fehlen** — Disk, SSL, PM2-Restarts.
-- **Keine Zeitachse** — nur "jetzt gerade", keine 24h-Uptime, keine Trend-Daten.
+- **Sync-Pipelines sind blind** — 6 Cronjobs + Meili-Drift + sync_log werden nicht abgefragt.
+- **Infrastruktur-Checks fehlen** — Disk, SSL, PM2-Restart-Counter.
+- **Keine Zeitachse** — nur "jetzt gerade", keine 24h-Uptime.
 - **Reachability ≠ Funktionsfähigkeit** — "Stripe API antwortet" sagt nichts über "letzter Webhook erfolgreich empfangen".
-- **Admin-only** — Frank oder externe Stakeholder können sich nicht selbst vergewissern ob die Plattform läuft.
-- **Keine Alert-Kette** — ein kritischer Fehler steht stumm auf dem Dashboard bis jemand nachsieht.
+- **Admin-only** — externe Stakeholder haben keinen Einblick.
+- **Keine Alert-Kette** — kritische Fehler stehen stumm auf dem Dashboard.
+- **Messung hängt am UI-Zugriff** (v2-Fix) — würde in v1 bedeuten: keine Seitenaufrufe = keine Historie.
 
-**Bereits getan (rc40.2, 2026-04-23):**
+**Bereits live (rc40.2):**
 - Meilisearch-Check ergänzt (`MEILI_URL`/stats + Feature-Flag-Status).
-- Kategorien umstrukturiert: "Cache & AI" aufgeteilt in "Data Plane" (upstash/meilisearch/r2-images) + "AI" (anthropic).
-- Meili `rankingRules` gefixt (rc40-Regression).
-
-**Dieser Plan adressiert P1 + P2 + P3** (P0 bereits umgesetzt = Meili-Check + Kategorie-Fix).
+- Kategorien: "Cache & AI" aufgeteilt in "Data Plane" (upstash/meilisearch/r2-images) + "AI" (anthropic).
+- Meili `rankingRules` gefixt.
 
 ---
 
 ## 2. Zielbild
 
-Nach P3 ist die Seite ein Tier-1-Operations-Dashboard mit:
+Nach P3 ist die Seite ein Tier-1-Ops-Dashboard mit:
 
-1. **Layered Status** — 8 Kategorien (Infrastruktur · Data Plane · Sync Pipelines · Payments · Communication · Analytics · AI · Edge/Hardware).
-2. **Zeitachse** — 24h/7d-Uptime-Balken pro Service aus persisted `health_check_log`.
-3. **Semantische Checks** — "letzter erfolgreicher Stripe-Webhook vor 12 min", "letzte Order vor 3h 21min", "Meili drift 0.0 %, Sync-Lag 0 rows".
-4. **Deploy-Info** — Git-SHA + Uptime + aktive Feature-Flags als permanentes Header-Panel.
-5. **Public Status Page** (`vod-auctions.com/status`, auth-frei) — nur grün/gelb/rot pro Kategorie, keine internen Details. Für Frank + Stakeholder.
-6. **Severity-Routing** — critical-Level-Ausfälle feuern automatisch Sentry + Brevo-Mail.
-7. **Runbook-Links** — jeder Check linkt zu `docs/runbooks/<service>.md` mit Diagnose + Fix-Rezept.
+1. **Entkoppelter Sampler** läuft im Hintergrund, Admin-UI liest nur Snapshots — Messung ist vom Zugriff unabhängig.
+2. **9 Kategorien** (Infrastruktur · Data Plane · Sync Pipelines · Payments · Communication · Analytics · AI · Business Flows · Edge/Hardware).
+3. **Check-Klassen**: fast/background/synthetic mit eigenen Intervallen und Timeouts.
+4. **24h/7d-Uptime-Balken** aus `health_check_log`.
+5. **Semantische Business-Checks** mit Kontextualisierung ("Sonntag 03:00 — insufficient signal").
+6. **Deploy-Info** (Git-SHA, Uptime, Node-Version) + **Feature-Flags-Snapshot** im Header.
+7. **Public Status Page** (`vod-auctions.com/status`, auth-frei, cached 60s).
+8. **Severity-Routing** via Resend + Sentry + optional Slack.
+9. **Runbook-Links** gestaffelt nach Impact-Priorität.
 
 ---
 
 ## 3. Transversale Design-Entscheidungen
 
-Entscheidungen, die durch P1–P3 durchziehen. Werden in P1 fixiert — spätere Phasen bauen darauf auf.
+Alle Entscheidungen werden in P1 fixiert. P2 und P3 bauen darauf auf.
 
-### 3.1 Severity-Model (erweitert auf 5 Level)
+### 3.1 Severity-Policy
 
-Aktuell: `ok` / `degraded` / `error` / `unconfigured`. Erweitern auf:
+Stufen mit harten Kriterien und Ownership-Regel (wer darf welche Severity vergeben):
 
-| Status | Bedeutung | Beispiel | UI-Farbe |
-|---|---|---|---|
-| `ok` | Alles normal | 200 in < 1s | grün |
-| `degraded` | Funktioniert, aber mit Einschränkung | Latency > 2s, Drift 0.5-2%, Fallback aktiv | gelb |
-| `warning` | Beobachten, nicht blockierend | Cron 10-30 min alt, SSL < 14 Tage | orange |
-| `error` | Kaputt, aber isoliert | Einzelner Service down, Rest läuft | rot |
-| `critical` | Launch-Blocker / User-Impact | Checkout tot, DB down, Realtime weg | rot + Pulse |
+| Severity | Definition | Kriterium | Ownership | UI |
+|---|---|---|---|---|
+| `ok` | Funktioniert normal | Check grün, Schwellen eingehalten | default | grün |
+| `degraded` | Funktioniert mit Einschränkung, System-induziert | Latency > 2× p50, Fallback aktiv, Drift 0.5-2% | automatisch aus metrics | gelb |
+| `warning` | Beobachten, menschliche Aufmerksamkeit binnen 24h | Cron 10-30min alt, SSL < 14 Tage, Disk > 80% | muss durch Check-Definition begründet sein | orange |
+| `error` | Kaputt, isoliert, menschliche Aktion nötig | Service down, aber Rest funktioniert | automatisch bei Reachability-Fail | rot |
+| `critical` | User-Impact oder Revenue-Impact jetzt | Checkout down, DB down, Realtime weg im Live-Auction-Mode | **nur Tasks explizit als critical markiert** — keine Inflation | rot + Pulse |
+| `insufficient_signal` | Nicht messbar weil keine Aktivität erwartet | Webhook-Freshness Sonntag 03:00, Last-Order-Check in Betaphase | Business-Checks only | grau |
+| `unconfigured` | Env-Var fehlt | ENV-Check failed | config | grau |
 
-Migration: bestehende `degraded` bleibt, `warning` und `critical` werden neu eingeführt. Summary-Panel zeigt alle 5.
-
-### 3.2 Check-Typen (formalisiert)
-
+**Governance:** Jede Check-Definition dokumentiert in einem Kommentar:
 ```ts
-type CheckType =
-  | "reachability"   // HTTP 2xx + Latency (aktuell dominant)
-  | "freshness"      // Timestamp der letzten Aktion vs Schwelle
-  | "threshold"      // Numerischer Wert vs Schwelle (Drift%, Backlog)
-  | "semantic"       // End-to-End-Flow-Simulation
-  | "config"         // Nur ENV-Check (aktuell z.B. sentry)
-  | "static"         // Frontend-Aggregation (z.B. PM2, Disk)
+// Severity-Mapping:
+//   ok:       Latency < 500ms
+//   degraded: Latency 500-2000ms  
+//   error:    HTTP non-2xx oder Timeout
+// Rationale: <Begründung>
 ```
 
-Check-Funktionen deklarieren ihren Typ. UI zeigt `type` als kleines Icon/Tooltip.
+`critical` darf nur für explizit genannte Checks verwendet werden (initial: postgres, stripe-webhook-receive, checkout-e2e, storefront_public, vps). Neue `critical`-Labels brauchen Plan-Update.
 
-### 3.3 `health_check_log` Tabelle (Basis für Zeitachse)
+### 3.2 Check-Klassen
+
+| Klasse | Intervall | Timeout | Sichtbarkeit im UI | Typische Checks |
+|---|---|---|---|---|
+| `fast` | 60 s (oder on-demand via Force-Refresh) | 500 ms | Immer | Postgres-Ping, Feature-Flags-Read, Upstash-Ping, In-Memory-State |
+| `background` | 300 s | 5 s | Immer, mit Staleness-Indicator wenn > 15 min | Reachability (Stripe, PayPal, R2, Brevo, Resend), Threshold-Queries (Drift, Backlog), Disk/SSL/PM2 |
+| `synthetic` | 900 s (15 min) | 30 s | Eigene Kategorie "Business Flows" | Checkout-E2E, Realtime-Broadcast-Roundtrip, Last-Order-Check |
+
+Separate Sampler-Instanzen, unterschiedliche Cron-Einträge. Synthetic-Scheduler trägt das separat loggbar als `source='synthetic_cron'`.
+
+### 3.3 Sampler-Architektur (kritisch)
+
+```
+                         ┌─────────────────────┐
+                         │  VPS Cron           │
+                         │  * * * * *          │ fast-sampler (60s)
+                         │  */5 * * * *        │ background-sampler (5min)
+                         │  */15 * * * *       │ synthetic-sampler (15min)
+                         └──────────┬──────────┘
+                                    │
+                                    ▼
+                    ┌───────────────────────────────┐
+                    │  scripts/health-sampler.py    │
+                    │  (oder TS-Script via tsx)     │
+                    │                                │
+                    │  liest checks-registry.ts     │
+                    │  führt Checks der Klasse aus  │
+                    │  schreibt in health_check_log │
+                    └───────────────┬───────────────┘
+                                    │
+                                    ▼
+                           ┌─────────────────┐
+                           │ health_check_log│
+                           └────────┬────────┘
+                                    │
+                                    ▼
+                 ┌──────────────────────────────────┐
+                 │  GET /admin/system-health         │
+                 │  → SELECT DISTINCT ON (service)   │
+                 │    ORDER BY checked_at DESC       │
+                 │  → SELECT buckets für 24h-Balken │
+                 └──────────────────────────────────┘
+```
+
+**Admin-UI tut keine Checks mehr.** Es rendert nur den letzten Snapshot pro Service + historische Buckets. Ein "Force Refresh"-Button triggert (optional) einen On-Demand-Sampler-Run via `POST /admin/system-health/sample?class=fast`, schreibt die Ergebnisse als `source='manual'`, UI pollt bis 10s nach dem Trigger.
+
+**Effekt:** Historie ist vollständig, unabhängig vom Seitenzugriff. UI-Response < 500ms (nur DB-Read).
+
+### 3.4 `health_check_log` Schema
 
 ```sql
 CREATE TABLE health_check_log (
   id BIGSERIAL PRIMARY KEY,
   checked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   service_name TEXT NOT NULL,
-  status TEXT NOT NULL,          -- ok|degraded|warning|error|critical|unconfigured
+  category TEXT NOT NULL,                    -- infrastructure | data_plane | sync_pipelines | ...
+  check_class TEXT NOT NULL,                 -- fast | background | synthetic
+  severity TEXT NOT NULL,                    -- see §3.1
   latency_ms INT,
   message TEXT,
-  check_type TEXT
+  metadata JSONB,                            -- freies struct je Check (threshold, actual, extras)
+  source TEXT NOT NULL DEFAULT 'sampler',    -- sampler | manual | synthetic_cron
+  environment TEXT NOT NULL DEFAULT 'prod'
 );
 CREATE INDEX idx_hcl_service_time ON health_check_log (service_name, checked_at DESC);
--- Retention: 30 Tage
-CREATE INDEX idx_hcl_cleanup ON health_check_log (checked_at) WHERE checked_at < NOW() - INTERVAL '30 days';
+CREATE INDEX idx_hcl_category_time ON health_check_log (category, checked_at DESC);
+CREATE INDEX idx_hcl_severity_time ON health_check_log (severity, checked_at DESC) WHERE severity IN ('error', 'critical');
+-- Retention: 30 Tage für fast/background, 90 Tage für synthetic
 ```
 
-Write-Path: Nach jedem `/admin/system-health` GET ein INSERT pro Service (16+ Rows alle 30s = 46k/Tag → 1.4M/Monat, mit Cleanup auf 30 Tage handhabbar).
-
-Read-Path: Neuer Endpoint `/admin/system-health/history?service=X&window=24h` liefert Buckets für Uptime-Balken.
-
-### 3.4 Storage-Strategy
-
-`health_check_log` lebt in **Prod-Supabase** (`bofblwqieuvmqybzxapx`). Additive Migration, rollback = `DROP TABLE`. Kein separater DB-Cluster — Volume ist unkritisch (< 1% der Prod-DB-Size).
-
-### 3.5 Runbook-Struktur
-
-`docs/runbooks/<service>.md` pro Service. Template:
-
-```markdown
-# Runbook: <Service>
-
-## Symptome
-## Diagnose (Copy-Paste-Commands)
-## Bekannte Fixes
-## Eskalation (wer, wann)
-## Verwandte Incidents
+Cleanup-Cron (täglich 03:30 UTC):
+```sql
+DELETE FROM health_check_log 
+ WHERE check_class IN ('fast', 'background') AND checked_at < NOW() - INTERVAL '30 days';
+DELETE FROM health_check_log 
+ WHERE check_class = 'synthetic' AND checked_at < NOW() - INTERVAL '90 days';
 ```
 
-Jeder `ServiceCheck` bekommt Feld `runbook?: string` → Link.
+Volumen-Schätzung: 16 Services × 60s Fast + 25 Services × 5min Background + 5 Synthetic × 15min = ~28k Rows/Tag × 30 Tage = 840k Rows. Unkritisch.
 
-### 3.6 Severity-Routing (P3)
+### 3.5 Public-Status-Mapping
 
+Externe Sichtbarkeit ist sehr restriktiv. Interne Namen, Latenzen, Messages werden niemals veröffentlicht.
+
+| Interne Kategorie | Public-Kategorie | Veröffentlicht | Rationale |
+|---|---|---|---|
+| Infrastructure | "Platform" | Ja (aggregated) | User braucht zu wissen ob Plattform läuft |
+| Data Plane | "Platform" | Ja (gemeinsam mit Infrastructure) | Nicht sinnvoll getrennt extern |
+| Sync Pipelines | — | Nein | Internal-only, betrifft Daten-Aktualität, nicht Verfügbarkeit |
+| Payments | "Checkout" | Ja (aggregated) | User braucht zu wissen ob Bezahlen geht |
+| Communication | "Notifications" | Ja — aber nur bei echtem Ausfall | Nur wenn transaktionale Mails nicht rausgehen |
+| Analytics | — | Nein | User nicht relevant |
+| AI | — | Nein | Admin-Feature only |
+| Business Flows | "Shopping Experience" | Ja (aggregated) | Kauf-E2E |
+| Edge/Hardware | — | Nein | Internal Tooling |
+
+**Severity-Mapping intern → extern:**
+
+| Intern | Public | Sichtbar? |
+|---|---|---|
+| `ok`, `unconfigured`, `insufficient_signal` | `operational` | Ja |
+| `degraded`, `warning` | `degraded_performance` | Ja |
+| `error`, `critical` | `outage` | Ja |
+| `stale` (Sampler-Gap) | `unknown` | Ja, wenn > 15min |
+
+**Aggregations-Regel pro Public-Kategorie:** Worst-Severity aller zugehörigen internen Services gewinnt. Ein `error` im Stripe-Webhook-Check → "Checkout: outage" in Public, auch wenn PayPal grün ist.
+
+**Response-Body** (`GET /store/status`):
+```json
+{
+  "categories": [
+    { "name": "Platform", "status": "operational" },
+    { "name": "Checkout", "status": "operational" },
+    { "name": "Shopping Experience", "status": "degraded_performance" },
+    { "name": "Notifications", "status": "operational" }
+  ],
+  "overall": "degraded_performance",
+  "last_updated": "2026-04-23T08:15:00Z"
+}
 ```
-warning  → Admin-UI + Brevo Digest-Mail (täglich 08:00 an rseckler@)
-error    → + Sentry Issue + Brevo Immediate-Mail
-critical → + Brevo SMS-relay (Twilio) + Slack-Webhook (falls vorhanden)
-```
 
-Cooldown pro Service 30 min, sonst Flood bei flapping Check.
+Keine Service-Namen, keine Latencies, keine Messages. Kategorien fix — keine dynamische Leaks von internen Labels.
+
+### 3.6 Alert-Transport (final)
+
+**Entscheidung: Resend als Mail-Transport für Alerts.**
+
+Rationale:
+- Resend ist bereits transaktional im Stack (Welcome-Mails, Bid-Placed, Payment, Shipping usw.) — keine neue Abhängigkeit.
+- Hohe Deliverability-SLA, kein Template-Freigabe-Zwang (im Gegensatz zu Brevo).
+- Brevo ist bewusst CRM-Newsletter-only — wenn Alerts dort landen, verwässert das die Deliverability für Newsletter-Campaigns und macht das Abmelde-Management kompliziert.
+- Absender: bereits existierende Domain `noreply@vod-auctions.com`, neuer Alias `alerts@vod-auctions.com` nötig (all-inkl Config).
+
+**Kanal-Matrix:**
+
+| Severity | Kanal | Cooldown | Empfänger |
+|---|---|---|---|
+| `warning` | Resend Digest-Mail (täglich 08:00 UTC) | pro Check 24h Dedup | rseckler@gmail.com |
+| `error` | Resend Immediate-Mail | pro Check 30min | rseckler@gmail.com |
+| `error` | Sentry Issue (`Sentry.captureMessage` mit fingerprint = service_name) | keiner (Sentry dedupliziert selbst) | — |
+| `critical` | Resend Immediate-Mail + Sentry Issue + Slack-Webhook (falls `SLACK_WEBHOOK_URL` gesetzt) | pro Check 15min | rseckler + Slack-Kanal |
+
+**Flapping-Guard:** Alert wird nur ausgelöst wenn **3 aufeinanderfolgende Samples** dieselbe Severity haben (mindestens 3× 60s = 3min für fast, 3× 300s = 15min für background). Verhindert "flap spam" bei instabilen Netzwerk-Bedingungen.
+
+**Fallback bei Resend-Ausfall:** Kein sekundärer Transport Day-1 — wenn Resend down ist, kann man den Ausfall nicht via Mail melden (klassisches Henne-Ei). Stattdessen Sentry als sekundärer Kanal (unabhängige Infrastruktur, pullt nicht Resend-abhängig). Wer Resend-Health checkt: eigener Check im Dashboard. `critical` bei Resend-Ausfall → Slack (wenn konfiguriert) oder erkennbar am Dashboard beim nächsten Login.
+
+### 3.7 Runbook-Priorisierung nach Impact
+
+Statt "16+ Runbooks" gestaffelt nach realer Eskalation:
+
+| Priorität | Service | Runbook-Tiefe | Impact |
+|---|---|---|---|
+| **P-1 (Launch-Blocker)** | postgresql, stripe, storefront_public, vps/nginx, checkout-e2e | Vollständig (Symptome × Diagnose × Fix × Eskalation × Incidents) | Kompletter Ausfall = User kann nicht kaufen |
+| **P-2 (Customer-Impact)** | meilisearch, upstash, sync_pipelines, resend | Standard (Symptome × Diagnose × Fix) | Degradation spürbar für User oder führt zu Datenalter |
+| **P-3 (Operational)** | r2-images, paypal, brevo, meili-drift | Kompakt (Symptome × Top-3-Fixes) | Beeinträchtigt aber nicht-blockierend |
+| **P-4 (Meta/Static)** | sentry, clarity, ga4, rudderstack, anthropic, disk/ssl/pm2 | Quick-Reference (1-Seiten-FAQ) | Monitoring/Reporting-Services, selten akut |
+
+P3 in der Roadmap schreibt zuerst die P-1-Runbooks, dann P-2. P-3 und P-4 werden im Launch-Zeitraum ergänzt falls nötig, initial nur Links auf die Service-Dashboards.
+
+### 3.8 Endgültig entschiedene Fragen (v1 §9)
+
+1. **VPS-Helper-Endpoint für Disk/PM2:** Backend-Prozess selbst nutzt `fs.statfs('/')` und `pm2 jlist` via Child-Process. Läuft ohnehin auf VPS, hat Lese-Rechte. Kein separater Helper.
+2. **Public Status Page Domain:** `vod-auctions.com/status` als Pfad (kein DNS-Change).
+3. **Mail-Transport für Alerts:** Resend (siehe §3.6).
+4. **Realtime-Check-Tiefe:** P1 nur Ping, P2.11 erweitert um Broadcast-Roundtrip als Teil des Checkout-E2E-Pakets.
 
 ---
 
 ## 4. Roadmap
 
-### P1 — Ops Foundation (1-2 Tage)
+Jede Phase ist ein separater Rollout (rc41 / rc42 / rc43). Feature-Flags: `SYSTEM_HEALTH_PUBLIC_PAGE` (P2), `SYSTEM_HEALTH_ALERTING` (P3).
 
-**Ziel:** Sync-Pipelines + Infrastruktur-Fundament sichtbar. Keine Zeitachse noch.
+### P1 — Ops Foundation (2-3 Tage)
 
-| # | Task | Typ | Effort | Modell | Dep |
-|---|---|---|---|---|---|
-| P1.1 | Severity-Enum auf 5 Level erweitern (Backend + UI) | Refactor | 30 min | **Sonnet 4.6** | — |
-| P1.2 | Check-Typ-Feld in `ServiceCheck` + UI-Icon/Tooltip | Refactor | 20 min | **Haiku 4.5** | P1.1 |
-| P1.3 | `checkCronFreshness()` — Mtime von `legacy_sync.log`, `discogs_daily.log`, `meilisearch_sync.log`, `meilisearch_drift.log` via SSH-exec ODER via neuem VPS-Helper-Endpoint ODER via `sync_log` Query | Freshness | 90 min | **Opus 4.7** | — |
-| P1.4 | `checkMeiliDrift()` — liest letzten `meilisearch_drift_log` Eintrag, Status nach severity-Spalte | Threshold | 30 min | **Sonnet 4.6** | P1.1 |
-| P1.5 | `checkMeiliBacklog()` — `COUNT(*) FROM "Release" WHERE search_indexed_at IS NULL` | Threshold | 20 min | **Haiku 4.5** | P1.1 |
-| P1.6 | `checkSyncLogFreshness()` — letzter `sync_log` entry mit `validation_status='ok'` | Freshness | 45 min | **Sonnet 4.6** | — |
-| P1.7 | Neue Kategorie "Sync Pipelines" in `CATEGORIES`: `[cron_freshness, meili_drift, meili_backlog, sync_log]` | UI | 15 min | **Haiku 4.5** | P1.3-6 |
-| P1.8 | `checkDiskSpace()` — liest `/` via `df` über VPS-Helper-Endpoint auf Backend-Process (`statfs` in Node) | Threshold | 45 min | **Sonnet 4.6** | — |
-| P1.9 | `checkSSLExpiry()` — TLS Cert lesen für api./admin./vod-auctions.com, Tage bis Expiry | Threshold | 60 min | **Sonnet 4.6** | — |
-| P1.10 | `checkPM2Restarts()` — PM2 JSON-Status via `pm2 jlist` im Backend-Process lesen (selbes Server-Image) | Threshold | 45 min | **Sonnet 4.6** | — |
-| P1.11 | "Infrastructure"-Kategorie um disk/ssl/pm2 erweitern | UI | 10 min | **Haiku 4.5** | P1.8-10 |
-| P1.12 | Deploy-Info-Panel: Build-Time Git-SHA + `process.uptime()` + Node-Version im Page-Header | UI | 30 min | **Sonnet 4.6** | — |
-| P1.13 | Git-SHA beim VPS-Build als ENV-Var injizieren (`VOD_BUILD_SHA`, in `scripts/vps-deploy.sh` vor `medusa build`) | Build | 20 min | **Sonnet 4.6** | — |
-| P1.14 | Feature-Flags-Snapshot-Panel: alle `FEATURES` + ihre effective-values als Read-only-Pills | UI | 30 min | **Sonnet 4.6** | — |
-| P1.15 | `checkDiscogsAPI()` — HEAD auf `api.discogs.com/database/search?q=test` mit gemessenem Rate-Limit-Remaining aus Response-Header | Reachability | 45 min | **Sonnet 4.6** | — |
-| P1.16 | `checkSupabaseRealtime()` — WebSocket-Connect auf `wss://bofblwqieuvmqybzxapx.supabase.co/realtime/v1` + Ping | Reachability | 60 min | **Opus 4.7** | — |
-| P1.17 | Acceptance-Test: alle neuen Checks liefern in < 5s, Response unter 50KB | QA | 30 min | **Haiku 4.5** | alle |
-| P1.18 | Rollout: deploy, in Admin prüfen, screenshot in CHANGELOG rc41 | Deploy | 30 min | **Sonnet 4.6** | alle |
+**Ziel:** Sampler-Architektur live, Sync-Pipelines + Infrastruktur sichtbar, Severity + Check-Klassen als Framework etabliert.
 
-**P1-Deliverables:** Sync Pipelines als volle Kategorie sichtbar, Infrastructure um Disk/SSL/PM2 erweitert, Deploy-Info + Flags-Snapshot permanent im Header. Erwartete neue Checks: ~10. Page lädt weiterhin < 5s (parallele `Promise.all`).
+| # | Task | Klasse | Acceptance |
+|---|---|---|---|
+| P1.1 | Severity-Enum (7 Level) + check-class Typen in `ServiceCheck` TS-Type | — | Build ohne TS-Errors, UI-Badges für alle 7 Stufen |
+| P1.2 | Migration `2026-XX-XX_health_check_log.sql` (§3.4) via Supabase MCP | — | Tabelle + 3 Indexes angelegt, idempotent |
+| P1.3 | `scripts/health-sampler.py` (oder `tsx scripts/health-sampler.ts`) — liest Registry, führt Checks der angegebenen Klasse aus, schreibt in `health_check_log`. Struktur modular mit `registry/<category>/<check>.ts` | — | `python3 health-sampler.py --class fast --dry-run` zeigt Check-Liste; `--class fast` schreibt Rows |
+| P1.4 | Check-Registry migrieren: bestehende 16 Checks aus `api/admin/system-health/route.ts` in `backend/src/lib/health-checks/` extrahieren, pro Datei ein Check, mit expliziter `class`/`category`/`severityMapping` | — | Alle 16 Checks migriert, bestehende Funktionalität 1:1 |
+| P1.5 | `GET /admin/system-health` umbauen: nur noch DB-Read `DISTINCT ON (service_name)` + `check_class`-Filter optional | fast | p95 Response < 200ms, keine Check-Logik mehr im Request-Path |
+| P1.6 | `POST /admin/system-health/sample?class=fast` — On-Demand-Trigger für Sampler (manueller Refresh-Button) | — | Invocation schreibt source='manual' Rows, Rückgabe mit Task-Status |
+| P1.7 | 3 Cron-Einträge auf VPS: fast (60s), background (5min), synthetic-placeholder (15min, leer für P1) | — | `crontab -l` zeigt drei Einträge, Logs schreiben in `~/VOD_Auctions/scripts/health_sampler.log` |
+| P1.8 | Neue Checks Sync Pipelines: cron-freshness (mtime + sync_log), meili-drift (aus meilisearch_drift_log letzte Row), meili-backlog (`COUNT WHERE search_indexed_at IS NULL`) | background | 3 Rows pro 5-min-Zyklus, Severity nach Schwellenwerten |
+| P1.9 | Neue Checks Infrastructure: disk-space (`fs.statfs('/')`), ssl-expiry (tls-cert für 3 Domains), pm2-restarts (`pm2 jlist`) | background | 3 neue Rows pro Zyklus |
+| P1.10 | Neue Checks External: discogs-api (HEAD + X-Discogs-Ratelimit-Remaining-Header), supabase-realtime (WebSocket-Connect + Ping) | background | 2 neue Rows, Rate-Limit in metadata JSONB |
+| P1.11 | Kategorien-Update in UI: "Sync Pipelines" neu, Infrastructure um disk/ssl/pm2 erweitert, Data Plane stays | — | UI zeigt 7 Kategorien korrekt |
+| P1.12 | Deploy-Info-Panel: Git-SHA (`VOD_BUILD_SHA` ENV-Var beim Build injiziert) + Uptime + Node-Version oberhalb der Kategorien | — | Panel rendert, SHA klickbar zu GitHub |
+| P1.13 | Feature-Flags-Snapshot-Panel: alle `FEATURES` + effective-values als pills | — | Panel rendert, Flags live |
+| P1.14 | `scripts/vps-deploy.sh` aktualisieren: `VOD_BUILD_SHA=$(git rev-parse HEAD)` vor `npx medusa build` exportieren | — | Nach Deploy zeigt Dashboard den aktuellen Commit |
+| P1.15 | Staleness-Indicator: wenn letzter Sample > 2× Intervall-Alter → Badge "stale Xmin" auf Service-Karte | — | Test mit artifiziell altem sample row → Badge erscheint |
+| P1.16 | Acceptance-Suite P1 (§6) durchziehen | — | Alle Kriterien grün |
+| P1.17 | Rollout + CHANGELOG rc41 + git tag | — | Tag + Release veröffentlicht |
+
+**P1-Nicht-Ziele:** Keine Historie-Balken, keine Public-Page, kein Alerting. Nur Sampler-Foundation + neue Checks.
 
 ---
 
 ### P2 — Zeitachse + Semantik + Public Page (3-5 Tage)
 
-**Ziel:** Historische Daten, Business-Impact-Checks, externe Sichtbarkeit.
+**Ziel:** 24h-Uptime-Balken, Business-Impact-Checks mit Kontextualisierung, Public-Page.
 
-| # | Task | Typ | Effort | Modell | Dep |
-|---|---|---|---|---|---|
-| P2.1 | Migration `health_check_log` Tabelle (§3.3) + Cleanup-Job | DB | 30 min | **Opus 4.7** | — |
-| P2.2 | Write-Path: jeder GET `/admin/system-health` INSERTs rows (Bulk-Insert, fire-and-forget Promise) | Backend | 45 min | **Sonnet 4.6** | P2.1 |
-| P2.3 | Cleanup-Cron: täglich 03:30 UTC `DELETE FROM health_check_log WHERE checked_at < NOW() - '30 days'` | Cron | 15 min | **Haiku 4.5** | P2.1 |
-| P2.4 | `GET /admin/system-health/history` — Buckets 1min/5min/15min/1h je nach window, für einzelnen oder alle Services | Backend | 2h | **Opus 4.7** | P2.1 |
-| P2.5 | Uptime-Balken-Komponente (SVG sparkline, 1px/bucket, 288 buckets für 24h = 5min-window) | UI | 2h | **Opus 4.7** | P2.4 |
-| P2.6 | 24h-Uptime-Prozent pro Service ("99.2%") + Trend-Pfeil (vs prev 24h) | UI | 1h | **Sonnet 4.6** | P2.4 |
-| P2.7 | `checkStripeWebhookFreshness()` — `MAX(created_at) FROM stripe_webhook_log` (neue Tabelle ODER auslesbar aus Stripe Events API) | Semantic | 90 min | **Opus 4.7** | — |
-| P2.8 | `checkPayPalWebhookFreshness()` — analog zu Stripe | Semantic | 45 min | **Sonnet 4.6** | P2.7 |
-| P2.9 | `checkLastOrder()` — "letzte `transaction` vor X min" → ok wenn < 24h, warning < 48h, error ≥ 72h | Semantic | 30 min | **Sonnet 4.6** | — |
-| P2.10 | `checkActiveAuctions()` — Anzahl `auction_block.status='live'` — warning wenn 0 im `live`-Mode | Semantic | 30 min | **Sonnet 4.6** | — |
-| P2.11 | `checkCheckoutE2E()` — End-to-End-Probe: Storefront lädt → Catalog-API → Stripe PaymentIntent kann erstellt werden (ohne confirm) | Semantic | 2h | **Opus 4.7** | — |
-| P2.12 | Neue Kategorie "Business Flows": `[stripe_webhook, paypal_webhook, last_order, active_auctions, checkout_e2e]` | UI | 20 min | **Haiku 4.5** | P2.7-11 |
-| P2.13 | Client-Side Print-Bridge-Check (Fetch `https://127.0.0.1:17891/health` aus Admin-Browser, Status in eigenem Panel "Edge Devices") | Hybrid | 90 min | **Sonnet 4.6** | — |
-| P2.14 | Public Status Page Backend: `GET /store/status` (auth-frei, PK-key NICHT nötig), returnt nur Kategorie-Aggregates (ok/degraded/down pro Gruppe, keine internen Details) | Backend | 2h | **Opus 4.7** | P1.1 |
-| P2.15 | Public Status Page Frontend: `storefront/src/app/status/page.tsx` — minimale Design-Sprache (nur Kategorie-Pills grün/gelb/rot, "Last Updated"-Timestamp), 60s Auto-Refresh | UI | 2h | **Sonnet 4.6** | P2.14 |
-| P2.16 | Public-Page Caching: Response in Upstash Redis 60s TTL, damit /status-DDoS nicht das Backend belastet | Backend | 45 min | **Sonnet 4.6** | P2.14 |
-| P2.17 | Acceptance: /status antwortet in < 100ms (cached), zeigt mit Prod-Data korrekte Farben, leakt keine internen Details | QA | 45 min | **Opus 4.7** | P2.15 |
-| P2.18 | Rollout: deploy, Public-Page-Link in Footer vom Storefront aufnehmen (klein, "Status" neben Impressum), CHANGELOG rc42 | Deploy | 45 min | **Sonnet 4.6** | alle |
+| # | Task | Klasse | Acceptance |
+|---|---|---|---|
+| P2.1 | `GET /admin/system-health/history?service=X&window=24h&bucket=5min` — liefert Buckets mit `{start, severity_max, count}` | — | Response < 300ms für 24h@5min (288 buckets) |
+| P2.2 | Uptime-Balken-Komponente (SVG sparkline, 288 buckets, Farbe = severity-max des Buckets) | — | Rendert korrekt bei 0-Gap-Daten, Hover-Tooltip mit Timestamp + Severity |
+| P2.3 | 24h-Uptime-Prozent pro Service ("99.2%") + Trend-Pfeil vs prev 24h | — | Prozent = Buckets mit `severity IN ('ok','insufficient_signal','unconfigured')` / total |
+| P2.4 | Cleanup-Cron 03:30 UTC (§3.4 SQL) | — | Daily cron, Log in `~/VOD_Auctions/scripts/health_cleanup.log` |
+| P2.5 | Business-Check `last-order` mit Kontext: metadata enthält `expected_activity`, Severity: ok wenn `now - last < expected_max`, insufficient_signal wenn Aktivität legitim niedrig (Beta-Phase, Sonntag-Nacht), warning/error nur wenn echt anomal | synthetic | `expected_activity` aus site_config lesbar, Severity-Regeln dokumentiert |
+| P2.6 | Business-Check `active-auctions`: Severity ok wenn in passender Anzahl zum Platform-Mode (`beta_test` = 0 erwartet, `live` = > 0 erwartet), sonst warning | synthetic | Platform-Mode-aware |
+| P2.7 | Business-Check `stripe-webhook-freshness`: liest `MAX(created_at)` aus neuer Tabelle `stripe_webhook_log` (aus rc?? falls existiert, sonst aus order_event oder Stripe Events API `/v1/events?limit=1`) mit expected_activity-Gate | synthetic | Severity = insufficient_signal wenn expected < 1/h |
+| P2.8 | Business-Check `paypal-webhook-freshness` analog | synthetic | — |
+| P2.9 | Business-Check `checkout-e2e`: Storefront /api/health + Catalog-API + Stripe createPaymentIntent (ohne confirm, mit cancel danach) | synthetic | Läuft 15min-Cron, dauert < 15s, räumt PaymentIntent auf |
+| P2.10 | Kategorie "Business Flows" in CATEGORIES | — | UI zeigt Kategorie mit 5 Checks |
+| P2.11 | Supabase-Realtime Broadcast-Roundtrip (P1.10 erweitern): subscribe + publish + wait for echo + unsubscribe, Timeout 5s | synthetic | metadata.roundtrip_ms gemessen |
+| P2.12 | Client-Side Print-Bridge-Check: Admin-Browser fetcht `https://127.0.0.1:17891/health` beim Seitenladen, rendert in eigenem Panel "Edge Devices". Ergebnis client-only, nicht in `health_check_log` (kein Server-Sichtkontakt) | — | Panel rendert mit 3 möglichen Stati (online/offline/unknown) |
+| P2.13 | Migration `2026-XX-XX_public_status_cache.sql` + Feature-Flag `SYSTEM_HEALTH_PUBLIC_PAGE` registrieren | — | Flag in Registry, default false |
+| P2.14 | `GET /store/status` — keine Auth, Response-Shape aus §3.5, Upstash-Cache 60s TTL, Strict-CORS für storefront-origin | — | p95 < 100ms (cached), Leak-Test: keine internen Namen im Body |
+| P2.15 | Public Status Page Frontend: `storefront/src/app/status/page.tsx` — minimales Design, nur Kategorie-Pills + Overall + Last-Updated, 60s Auto-Refresh | — | Rendert mit 4 Kategorien + overall-status |
+| P2.16 | Footer-Link im Storefront: "Status" neben Impressum, nur wenn Flag `SYSTEM_HEALTH_PUBLIC_PAGE` ON | — | Flag OFF → Footer ohne Link, Flag ON → Link sichtbar |
+| P2.17 | Acceptance-Suite P2 (§6) durchziehen | — | Alle Kriterien grün |
+| P2.18 | Flag `SYSTEM_HEALTH_PUBLIC_PAGE` ON in Prod, Rollout + CHANGELOG rc42 + git tag | — | Live |
 
-**P2-Deliverables:** 24h-Uptime-Balken pro Service, 5 Business-Impact-Checks, öffentliche Status-Seite unter `vod-auctions.com/status`, Print-Bridge-Check aus Browser.
+**P2-Nicht-Ziele:** Kein Alerting. Alert-Transport-Code nicht drin.
 
 ---
 
 ### P3 — Alerting + Runbooks (2-3 Tage)
 
-**Ziel:** Fehler werden proaktiv gemeldet, jeder Check hat eine Handlungsanleitung.
+**Ziel:** Automatische Benachrichtigung bei relevanten Fehlern, Runbook-Infrastruktur.
 
-| # | Task | Typ | Effort | Modell | Dep |
-|---|---|---|---|---|---|
-| P3.1 | Severity-Routing-Engine: Helper `dispatchAlert(service, status, message)` mit Cooldown-Tracking in Redis | Backend | 2h | **Opus 4.7** | P1.1 |
-| P3.2 | Sentry-Integration für `error` + `critical` (manuell capturen via `Sentry.captureMessage` + fingerprint) | Backend | 45 min | **Sonnet 4.6** | P3.1 |
-| P3.3 | Brevo-Digest-Mail: täglich 08:00 UTC Cron, sammelt alle `warning`-Checks der letzten 24h, schickt Mail an rseckler@ | Cron | 90 min | **Sonnet 4.6** | P3.1 |
-| P3.4 | Brevo-Immediate-Mail: bei `error` direkt, Template mit Check-Name + Message + Runbook-Link | Backend | 60 min | **Sonnet 4.6** | P3.1 |
-| P3.5 | Slack-Webhook optional: falls `SLACK_WEBHOOK_URL` gesetzt, `critical` dorthin (Feature ohne Webhook = no-op) | Backend | 30 min | **Haiku 4.5** | P3.1 |
-| P3.6 | `runbook?: string` Feld in `ServiceCheck` + UI-Link "Runbook ↗" pro Karte | Refactor | 20 min | **Haiku 4.5** | — |
-| P3.7 | Runbook-Template `docs/runbooks/_template.md` schreiben | Docs | 30 min | **Sonnet 4.6** | — |
-| P3.8 | Runbooks schreiben für: postgresql, stripe, meilisearch, sync_pipelines, storefront, vps | Docs | 2h | **Opus 4.7** | P3.7 |
-| P3.9 | Runbooks für restliche 10 Services (lightweight: Symptom + Fix) | Docs | 2h | **Sonnet 4.6** | P3.7 |
-| P3.10 | Severity-Routing für alle P1+P2-Checks konfigurieren (welcher Check feuert welche Severity?) | Config | 60 min | **Opus 4.7** | P3.1-5 |
-| P3.11 | Flapping-Guard: nur alert wenn Status ≥ 3 consecutive Checks in derselben Severity | Backend | 45 min | **Opus 4.7** | P3.1 |
-| P3.12 | Alert-History-Panel: letzte 20 ausgelöste Alerts als Timeline unterhalb der Kategorie-Sektionen | UI | 90 min | **Sonnet 4.6** | P3.1 |
-| P3.13 | Test-Alert-Button im UI: "Send Test Alert" für jeden Kanal (Sentry/Mail/Slack) um Pipeline zu verifizieren | Backend + UI | 45 min | **Sonnet 4.6** | P3.1-5 |
-| P3.14 | Acceptance: synthetischer Fehler in postgresql-Check feuert erwartete Sentry + Mail + Slack (falls konfiguriert), Cooldown wirkt | QA | 60 min | **Opus 4.7** | alle |
-| P3.15 | Rollout: deploy, CHANGELOG rc43, README-Absatz in CLAUDE.md Key-Gotchas ("System Health Alerting", damit Runbook-Struktur auffindbar) | Deploy | 45 min | **Sonnet 4.6** | alle |
+| # | Task | Klasse | Acceptance |
+|---|---|---|---|
+| P3.1 | Feature-Flag `SYSTEM_HEALTH_ALERTING` registrieren (default false) | — | Flag in Registry |
+| P3.2 | `backend/src/lib/health-alerting.ts`: `dispatchAlert(service, severity, message, metadata)` mit Cooldown-Tracking in Upstash Redis (`health_alert_cooldown:<service>:<severity>` TTL passend zur Severity) | — | Unit-Test mit fake Redis zeigt Cooldown-Behavior |
+| P3.3 | Flapping-Guard: dispatchAlert wird nur gefeuert, wenn die letzten 3 Samples in `health_check_log` dieselbe Severity haben | — | Unit-Test mit 3 Test-Rows |
+| P3.4 | Sentry-Integration (`@sentry/node` im Backend, bereits integriert?): bei `error`/`critical` `Sentry.captureMessage` mit fingerprint = service_name | — | Test-Alert erscheint in Sentry-Issues |
+| P3.5 | Resend-Templates (2): `alert-immediate.html` (error/critical, single Service) + `alert-digest.html` (warning, täglich Summary) — Template in `backend/src/lib/emails/templates/` | — | Preview in `/app/emails` |
+| P3.6 | Digest-Cron täglich 08:00 UTC: `SELECT ... severity='warning' AND checked_at > NOW() - '24h'` gruppiert nach service, Mail via Resend | — | Cron schickt eine Mail/Tag |
+| P3.7 | Immediate-Mail-Trigger: im Sampler nach INSERT, Flapping-Guard durchlaufen, dispatchAlert rufen | — | synthetic-Check mit 3 error-Rows triggert Mail + Sentry |
+| P3.8 | Optional Slack-Webhook: `SLACK_WEBHOOK_URL` lesen, bei `critical` POST mit gleichem Content wie Mail. No-op wenn ENV leer | — | Keine Fehler wenn Flag leer, Message bei Flag gesetzt |
+| P3.9 | `runbook?: string` Feld in Check-Definition + UI-Link "Runbook ↗" pro Karte | — | Link rendert nur wenn runbook gesetzt |
+| P3.10 | Runbook-Template `docs/runbooks/_template.md` (§3.7 Struktur) | — | Template existiert, Format ist Markdown |
+| P3.11 | P-1-Runbooks schreiben (5 Docs): postgresql, stripe, storefront_public, vps, checkout-e2e | — | Alle mit vollständigen Sektionen |
+| P3.12 | P-2-Runbooks schreiben (4 Docs): meilisearch, upstash, sync_pipelines, resend | — | Standard-Tiefe |
+| P3.13 | P-3-Runbooks (kompakt, 4 Docs): r2-images, paypal, brevo, meili-drift | — | 1 Seite je |
+| P3.14 | Alert-History-Panel im Admin-UI: letzte 20 dispatchAlert-Aufrufe als Timeline | — | Panel rendert, klickbar zu Check-Detail |
+| P3.15 | "Send Test Alert"-Button pro Kanal (Sentry/Resend/Slack) für Operator-Pipeline-Validation | — | Button sendet Test-Payload, zeigt Success/Error |
+| P3.16 | Acceptance-Suite P3 (§6) durchziehen | — | Alle Kriterien grün |
+| P3.17 | Flag `SYSTEM_HEALTH_ALERTING` ON, Rollout + CHANGELOG rc43 + git tag | — | Live |
 
-**P3-Deliverables:** Automatische Mail/Sentry/Slack-Benachrichtigung bei relevanten Fehlern, 16+ Runbooks verlinkt im Dashboard, Flapping-Schutz, Alert-History.
-
----
-
-## 5. Claude-Model-Empfehlung (Gesamtbild)
-
-### Wann welches Modell?
-
-**Opus 4.7 (komplexes Reasoning, Architektur-Entscheidungen):**
-- Alles mit DB-Schema-Auswirkungen (P2.1, P2.4)
-- Sicherheitsrelevante Endpoints (P2.14 Public-Page)
-- Severity-Model-Design (P3.1, P3.10, P3.11)
-- Semantische E2E-Checks (P2.11 Checkout-E2E)
-- Realtime/WebSocket-Checks (P1.16)
-- Sync-Freshness-Logik mit mehreren Signalquellen (P1.3)
-- Primäre Runbooks der Core-Services (P3.8)
-- Final-Acceptance-Tests (P2.17, P3.14)
-
-**Sonnet 4.6 (solide Implementation nach klarer Spec):**
-- Neue Service-Checks nach existierendem Pattern (P1.4, P1.5 mit Vorsicht, P1.8, P1.9, P1.10, P1.15)
-- UI-Komponenten mit bekannten Design-Tokens (P2.6, P2.15)
-- Cron-Scripts nach existierender Struktur (P2.3, P3.3)
-- Runbook-Schreiben für Standard-Services (P3.9)
-- Rollout-Routinen (P1.18, P2.18, P3.15)
-- Refactor-Deliverables (P1.1, P3.2)
-
-**Haiku 4.5 (schnelle mechanische Tasks):**
-- Copy-Text-Tasks (P1.14 Flag-Pills, P1.2 Icon-Tooltip)
-- Kategorien-Konstanten-Updates (P1.7, P1.11, P2.12)
-- Trivial-UI-Wiring (P3.5 mit bestehendem Webhook-Pattern, P3.6 Link-Rendering)
-- Einfache Schwellen-Checks (P1.5)
-
-### Kostenschätzung (grob, Pay-as-you-go)
-
-| Phase | Opus-Tasks | Sonnet-Tasks | Haiku-Tasks | Token-Schätzung |
-|---|---|---|---|---|
-| P1 | 3 | 10 | 5 | ~15 MT Input, 500k MT Output = ~$3-5 |
-| P2 | 6 | 9 | 3 | ~25 MT Input, 1.2M MT Output = ~$8-12 |
-| P3 | 5 | 7 | 3 | ~20 MT Input, 1M MT Output = ~$7-10 |
-
-Gesamt ~$20-30 LLM-Kosten. Menschliche Review-Zeit kommt oben drauf.
-
-### Empfohlene Session-Struktur
-
-1. **Plan-Freigabe-Session (Opus 4.7):** Dieser Plan wird reviewed, Korrekturen eingepflegt.
-2. **P1-Kickoff (Opus 4.7, 30 min):** Severity-Refactor (P1.1) + Check-Typ-Feld (P1.2) als Foundation. Danach Aufteilung.
-3. **P1-Bulk (Sonnet 4.6 + Haiku 4.5 parallel):** alle Reachability/Threshold/Freshness-Checks als Sub-Agent-Tasks.
-4. **P1-Final (Opus 4.7):** schwierige Tasks (P1.3 cron-freshness, P1.16 realtime) + Acceptance.
-5. **P2 analog:** Opus für Foundation (Migration, History-Endpoint, Public-Page-Backend), Sonnet/Haiku für UI-Bulk.
-6. **P3 analog:** Opus für Routing-Engine + Flapping-Guard, Sonnet/Haiku für Mail-Templates + Runbook-Bulk.
+**P3-Nicht-Ziele:** Keine PagerDuty, keine On-Call-Rotation, keine SMS. Nur Mail + Sentry + optional Slack.
 
 ---
 
-## 6. Rollout-Strategie
+## 5. Claude-Modell-Strategie
+
+Statt per-Task-Zuordnung (v1) drei Kategorien. Task-Lead entscheidet im Session-Kontext, wenn ein Task vom Standard abweicht.
+
+| Kategorie | Modell | Task-Typen |
+|---|---|---|
+| **High-Risk / Architektur** | Opus 4.7 | DB-Migrations, Severity-Engine, Flapping-Guard, Public-Page-Security, E2E-Checks, Acceptance-Suite, Core-Runbooks (P-1) |
+| **Routine-Implementation** | Sonnet 4.6 | Neue Service-Checks nach Registry-Pattern, UI-Komponenten mit Design-Tokens, Cron-Scripts, P-2/P-3-Runbooks, Rollout-Routinen |
+| **Mechanische Edits** | Haiku 4.5 | Kategorien-Konstanten, Copy-Text, Flag-Pills, Wiring-Trivia, P-4-Quick-References |
+
+Abweichungen werden im Commit-Body begründet (z.B. "Haiku für P1.15 nachgezogen, Task war nicht trivial wie geplant").
+
+**Kosten-Schätzung (pay-as-you-go, grober Daumen):** ~$20-30 über alle drei Phasen. Menschliche Review-Zeit kommt oben drauf.
+
+---
+
+## 6. Acceptance-Kriterien (pro Phase verbindlich)
+
+### P1 Acceptance
+
+- `GET /admin/system-health` p95 < 200ms auf Prod (reine DB-Read-Query).
+- Sampler fast-class: p95 Gesamtlaufzeit < 5s, p99 < 10s.
+- Sampler background-class: p95 Gesamtlaufzeit < 20s, p99 < 45s.
+- Partial Failure: wenn 1 Check timeout → Row wird trotzdem geschrieben mit `severity='error'`, `message='timeout after Xs'`.
+- Staleness-Detection: wenn letzter Sample > 2× expected Intervall → UI-Badge "stale", nach 5× → `unknown` statt letzter Severity.
+- Keine Checks in Request-Path von `/admin/system-health` (gemessen über fehlende Outbound-Calls in Request-Logs).
+
+### P2 Acceptance
+
+- `GET /admin/system-health/history?window=24h` p95 < 300ms.
+- `GET /store/status` p95 < 100ms (cached) / < 500ms (cache-miss).
+- Public-Response enthält keine internen Service-Namen, keine Latenzen, keine Messages. Validiert durch Regex-Grep auf Response.
+- Business-Checks mit `expected_activity=null` melden `insufficient_signal` statt `error` — nie falsche Positives in Beta-Phase.
+- Uptime-Balken rendern mit mind. 1 Gap im Data-Set (simulated Sampler-Ausfall) und zeigen Gap als "unknown" (grau), nicht als ok/error.
+
+### P3 Acceptance
+
+- Alert feuert frühestens nach 3 aufeinanderfolgenden Samples derselben Severity.
+- Cooldown wirkt — zweiter Alert für denselben Service innerhalb der Cooldown-Zeit wird unterdrückt (verifiziert via Log).
+- Test-Alert über jeden Kanal funktioniert (Sentry, Resend, Slack) in < 10s.
+- P-1-Runbooks enthalten je mindestens: 3 Symptome, 2 Diagnose-Commands, 2 Fix-Szenarien, Eskalationspfad.
+- Digest-Mail enthält alle `warning`-Events der letzten 24h gruppiert, nicht mehr als 1 Mail/Tag.
+
+---
+
+## 7. Rollout
 
 Jede Phase ist separat live-schaltbar. Keine Big-Bang-Releases.
 
-- **P1 → rc41** (ein Commit-Bundle, ein Deploy, ein CHANGELOG-Entry).
-- **P2 → rc42** (kann in 2 Teilen rausgehen: zuerst history + Uptime-Balken, dann Public-Page).
-- **P3 → rc43** (Routing + Runbooks).
+- **P1 → rc41** (Sampler + Foundation, keine User-facing Changes außer Deploy-Info-Panel)
+- **P2 → rc42** (Flag `SYSTEM_HEALTH_PUBLIC_PAGE` kann ON gehen, sobald Acceptance grün)
+- **P3 → rc43** (Flag `SYSTEM_HEALTH_ALERTING` ON nach 24h Trockenlauf ohne False Positives)
 
-Feature-Flag `SYSTEM_HEALTH_PUBLIC_PAGE` (default false) für P2.14 — damit ist die Public-Seite deploybar vor der User-facing Verlinkung.
-
-Feature-Flag `SYSTEM_HEALTH_ALERTING` (default false) für P3 — damit Alerts stumm geschaltet werden können bei Incidents die die Routing-Engine selbst verursachen würden.
+Rollback-Pfade:
+- P1: Sampler-Cron auskommentieren → kein Write, alte Route wieder aktivieren (Feature-Branch-Revert)
+- P2: Flag `SYSTEM_HEALTH_PUBLIC_PAGE` OFF → Public-Page 404, interner Umbau bleibt
+- P3: Flag `SYSTEM_HEALTH_ALERTING` OFF → keine Alerts mehr, UI bleibt
 
 ---
 
-## 7. Risiken + Gegenmaßnahmen
+## 8. Risiken + Gegenmaßnahmen
 
 | Risiko | Gegenmaßnahme |
 |---|---|
-| `health_check_log` wächst zu schnell | Cleanup-Cron + Monitoring der Tabellen-Size als eigener Check |
-| Public-Page wird DDoS-Ziel | Redis-Cache 60s TTL, Cloudflare-WAF falls nötig |
-| Severity-Routing floodet Postfach | Cooldown 30min + Flapping-Guard (3 consecutive checks) |
-| Semantic-Checks lösen Sideeffects aus | Alle semantic checks sind read-only, keine State-Changes |
-| Neue Checks slowen Dashboard | Timeout pro Check 5s, `Promise.allSettled` statt `Promise.all` für Resilienz |
-| Ecken-Edge-Cases in Status-Balken-Buckets | Ausreichend Unit-Tests in P2.4 mit künstlichen Daten |
+| `health_check_log` wächst zu schnell | Cleanup-Cron + eigener Check für Tabellen-Size (warning > 5M rows) |
+| Sampler-Cron hängt → keine neuen Samples | Staleness-Indicator im UI, plus separater "sampler-liveness"-Check (der letzte `source='sampler'` Row nicht älter als 5× Intervall) |
+| Public-Page wird DDoS-Ziel | Upstash-Cache 60s + Storefront-Rate-Limit via Redis |
+| Alert-Flood | Flapping-Guard + Cooldown + Digest für Warnings |
+| Semantic-Checks mit Sideeffects | Alle synthetic checks dokumentiert als read-only, Stripe-PaymentIntent mit `capture_method=manual` + explicit cancel |
+| Business-Checks in Beta-Phase führen zu Rauschen | `insufficient_signal`-Severity + Platform-Mode-Awareness |
+| Sentry-Rate-Limit | Fingerprint pro service_name — Sentry dedupliziert, kein Issue-Spam |
+| Resend-Bounce-Rate | Absender-Domain DKIM/SPF validated, List-Unsubscribe-Header trotz transaktional drin |
 
 ---
 
-## 8. Nachverfolgung
+## 9. Nachverfolgung
 
-- Workstream-Eintrag in [`docs/TODO.md`](../TODO.md) (Section "Next", nach AGB/Sendcloud).
-- Plan-Doc bleibt hier, wird nach jeder Phase mit "done 2026-xx-xx" pro Zeile gekennzeichnet.
-- CHANGELOG-Entry pro Phase.
-- Kein Linear-Epic nötig (Zeitrahmen < 2 Wochen bei konzentrierter Arbeit).
-
----
-
-## 9. Offene Fragen für Robin
-
-1. **VPS-Helper-Endpoint für Disk/PM2?** P1.8 + P1.10 brauchen Ops-Info vom VPS. Option A: Backend läuft auf VPS, kann `fs.statfs('/')` + `pm2 jlist` direkt. Option B: separater Node-Helper auf anderem Port. **Empfehlung:** A, wenn der Backend-Prozess PM2-Read-Rechte hat. Falls nicht: kurzer CLI-Wrapper der die Info periodisch in eine Tabelle schreibt.
-2. **Public Status Page Domain?** `vod-auctions.com/status` oder Subdomain `status.vod-auctions.com`? **Empfehlung:** `/status` (Pfad), kein weiterer DNS-Eintrag nötig.
-3. **Brevo vs separater Transaktions-Pfad für Alerts?** Brevo ist aktuell für CRM-Newsletter gedacht. Alerts könnten über Resend (transaktional) laufen. **Empfehlung:** Resend nutzen, weil höhere Deliverability-SLA und kein Template-Freigabe-Zwang.
-4. **Realtime-Check (P1.16) via WebSocket oder Broadcast-Test?** Pure Reachability (Ping) vs echtes Broadcast-Pattern. **Empfehlung:** Phase P1 nur Ping, Phase P2.11 erweitern um Broadcast-Round-Trip falls Checkout-E2E ohnehin kompletter Flow wird.
+- Workstream-Eintrag in [`docs/TODO.md`](../TODO.md) existiert seit v1, wird pro Phasen-Rollout um `[x]` ergänzt.
+- Dieses Plan-Dokument wird nach jeder Phase mit `**done 2026-xx-xx (rcXX)**` pro Task-Zeile markiert.
+- Ein CHANGELOG-Entry pro Phase.
+- Kein Linear-Epic (< 2 Wochen konzentrierte Arbeit).
 
 ---
 
-**Freigabe erforderlich vor Umsetzungsstart.** Bei Freigabe: P1 starten mit Severity-Refactor als erstem Commit.
+## 10. Freigabe-Checklist
+
+Vor P1-Start muss geklärt sein:
+
+- [x] Alert-Transport (Resend fixiert, §3.6)
+- [x] Public-Page-Domain (`/status` als Pfad, §3.8)
+- [x] VPS-Helper-Entscheidung (Backend direkt mit fs.statfs, §3.8)
+- [x] Severity-Governance (7 Level + Ownership-Regel, §3.1)
+- [x] Check-Klassen (fast/background/synthetic, §3.2)
+- [x] Sampler-Architektur (entkoppelt vom UI-GET, §3.3)
+- [x] Schema-Details (severity, category, metadata JSONB, §3.4)
+- [x] Public-Mapping-Tabelle (§3.5)
+- [x] Runbook-Priorisierung (P-1 bis P-4, §3.7)
+- [ ] Robin-Freigabe dieses v2
+
+Bei Freigabe: P1 startet mit P1.1 (Severity-Enum) + P1.2 (DB-Migration) als Foundation-Commits.
