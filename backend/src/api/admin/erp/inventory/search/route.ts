@@ -2,14 +2,29 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { requireFeatureFlag } from "../../../../../lib/inventory"
-import { buildReleaseSearchWhereRawAliased, getSearchTokens } from "../../../../../lib/release-search"
+import { getFeatureFlag } from "../../../../../lib/feature-flags"
+import { isMeiliEffective, getMeiliClient, COMMERCE_INDEX } from "../../../../../lib/meilisearch"
+import { inventorySearchGetPostgres } from "./route-postgres-fallback"
 
 /**
- * GET /admin/erp/inventory/search?q=<query>&limit=20
+ * GET /admin/erp/inventory/search — Stocktake-Session-Scanner (rc49+).
  *
- * Search inventory items by artist, title, catalog number, or barcode.
- * Returns Release-level results with exemplar counts.
- * Barcode exact match is tried first (scanner input).
+ * Workflow-Logik unverändert:
+ *   Step 1a: VOD-XXXXXX (6-digit) → Barcode-Exact-Match via Postgres
+ *            (Scanner-Input, direkt index-gesourced, <10ms — kein Meili)
+ *   Step 1b: VOD-<any digits>     → Article-Number-Match via Postgres
+ *            (direktes UPPER-Match, index-gesourced)
+ *   Step 2:  Text-Search          → Meili (multi-word, Typo, Synonym)
+ *
+ * Barcode/Article-Lookups bleiben Postgres weil sie schon schnell sind UND
+ * gefährlich für Meili wären (ein einziger exakter Match für Scanner-Input
+ * muss deterministisch sein, Meili's Ranking würde evtl. andere Items zeigen).
+ *
+ * Gates für Step 2:
+ *   1. Feature-Flag SEARCH_MEILI_ADMIN OFF → komplett Postgres
+ *   2. Health-Probe tripped                → komplett Postgres
+ *   3. `?_backend=postgres`                → komplett Postgres
+ *   4. Meili-Runtime-Error                 → Fallback auf komplett Postgres
  */
 export async function GET(
   req: MedusaRequest,
@@ -18,183 +33,103 @@ export async function GET(
   const pg: Knex = req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
   await requireFeatureFlag(pg, "ERP_INVENTORY")
 
-  const q = ((req.query.q as string) || "").trim()
-  // Cap auf 500: FTS via idx_release_search_fts bleibt index-backed, auch
-  // bei generischen Tokens wie "vanity" (~80+ Treffer). Frank's UI hat einen
-  // scrollbaren Container, deshalb ist 500 ein praktischer Plafond statt 20.
-  const limit = Math.min(parseInt((req.query.limit as string) || "500"), 500)
+  const qRaw = ((req.query.q as string) || "").trim()
+  const limit = Math.min(parseInt((req.query.limit as string) || "500", 10), 500)
 
-  if (!q) {
+  if (!qRaw) {
     res.json({ results: [], total: 0 })
     return
   }
 
-  // Step 1a: Barcode exact match (scanner input pattern VOD-XXXXXX, 6 digits)
-  if (/^VOD-\d{6}$/i.test(q)) {
-    const barcodeResult = await pg.raw(`
-      SELECT
-        r.id as release_id, r.title, r."coverImage", r.legacy_price, r.format,
-        r."catalogNumber", r.year, r.country, r.legacy_condition,
-        r.discogs_id, r.discogs_lowest_price, r.discogs_median_price,
-        r.discogs_highest_price, r.discogs_num_for_sale,
-        a.name as artist_name, l.name as label_name,
-        ii.id as inventory_item_id, ii.barcode, ii.copy_number,
-        ii.condition_media, ii.condition_sleeve, ii.exemplar_price,
-        ii.last_stocktake_at, ii.price_locked
-      FROM erp_inventory_item ii
-      JOIN "Release" r ON r.id = ii.release_id
-      LEFT JOIN "Artist" a ON a.id = r."artistId"
-      LEFT JOIN "Label" l ON l.id = r."labelId"
-      WHERE UPPER(ii.barcode) = UPPER(?)
-      LIMIT 1
-    `, [q])
+  // Gate 3: explicit Postgres-Bypass
+  if ((req.query._backend as string) === "postgres") {
+    return inventorySearchGetPostgres(req, res)
+  }
 
-    if (barcodeResult.rows.length > 0) {
-      const row = barcodeResult.rows[0]
-      res.json({
-        results: [{
-          release_id: row.release_id,
-          artist_name: row.artist_name,
-          title: row.title,
-          format: row.format,
-          catalog_number: row.catalogNumber,
-          cover_image: row.coverImage,
-          legacy_price: row.legacy_price != null ? Number(row.legacy_price) : null,
-          exemplar_count: 1,
-          verified_count: row.last_stocktake_at ? 1 : 0,
-          discogs_median: row.discogs_median_price != null ? Number(row.discogs_median_price) : null,
-          // Direct hit: include the specific exemplar
-          matched_exemplar: {
-            inventory_item_id: row.inventory_item_id,
-            barcode: row.barcode,
-            copy_number: row.copy_number,
-            condition_media: row.condition_media,
-            condition_sleeve: row.condition_sleeve,
-            exemplar_price: row.exemplar_price != null ? Number(row.exemplar_price) : null,
-            is_verified: !!row.last_stocktake_at,
-          }
-        }],
-        total: 1,
-        match_type: "barcode"
+  // Step 1a: Barcode-Scanner-Pattern VOD-XXXXXX (exakt 6 digits)
+  // → Direktes DB-Lookup, schnell, deterministic. Bleibt Postgres.
+  if (/^VOD-\d{6}$/i.test(qRaw)) {
+    return inventorySearchGetPostgres(req, res)
+  }
+
+  // Step 1b: Article-Number-Pattern VOD-<any digits> (variable Länge)
+  // → UPPER-Match auf article_number, index-backed. Bleibt Postgres.
+  if (/^VOD-\d+$/i.test(qRaw)) {
+    return inventorySearchGetPostgres(req, res)
+  }
+
+  // Step 2: Text-Search (multi-word mit Typo + Synonym)
+  // → Meili wenn Flag + Health OK, sonst Fallback
+
+  const flagOn = await getFeatureFlag(pg, "SEARCH_MEILI_ADMIN")
+  if (!flagOn) {
+    return inventorySearchGetPostgres(req, res)
+  }
+  if (!isMeiliEffective()) {
+    return inventorySearchGetPostgres(req, res)
+  }
+
+  try {
+    const client = getMeiliClient()
+    if (!client) {
+      return inventorySearchGetPostgres(req, res)
+    }
+
+    const result = await client.index(COMMERCE_INDEX).search(qRaw, {
+      limit,
+      // Kein harter Filter — Stocktake-Session sucht über alles, auch
+      // Items ohne Inventar (Frank kann neue Copies anlegen).
+      attributesToRetrieve: [
+        "release_id",
+        "title",
+        "cover_image",
+        "shop_price",
+        "legacy_price",
+        "format",
+        "catalog_number",
+        "article_number",
+        "year",
+        "country",
+        "artist_name",
+        "label_name",
+        "exemplar_count",
+        "verified_count",
+        "discogs_median_price",
+        "discogs_id",
+      ],
+    })
+
+    const results = (result.hits as any[]).map((hit) => ({
+      release_id: hit.release_id,
+      artist_name: hit.artist_name ?? null,
+      title: hit.title ?? null,
+      format: hit.format ?? null,
+      catalog_number: hit.catalog_number ?? null,
+      article_number: hit.article_number ?? null,
+      cover_image: hit.cover_image ?? null,
+      legacy_price: hit.shop_price ?? hit.legacy_price ?? null,
+      label_name: hit.label_name ?? null,
+      year: hit.year ?? null,
+      country: hit.country ?? null,
+      exemplar_count: hit.exemplar_count ?? 0,
+      verified_count: hit.verified_count ?? 0,
+      discogs_median: hit.discogs_median_price ?? null,
+      discogs_id: hit.discogs_id ?? null,
+    }))
+
+    res.json({
+      results,
+      total: result.estimatedTotalHits ?? results.length,
+      match_type: "text",
+      backend: "meili",
+    })
+  } catch (err: any) {
+    console.error(
+      JSON.stringify({
+        event: "inventory_search_meili_fallback",
+        error: err?.message,
       })
-      return
-    }
+    )
+    return inventorySearchGetPostgres(req, res)
   }
-
-  // Step 1b: Article-Number exact match — tape-mag-Katalognummer VOD-<Ziffern>,
-  // variable Länge (VOD-123, VOD-19586, VOD-100000 ...). Unser Inventar-Barcode
-  // (Step 1a, 6-stellig sequentiell VOD-000001..) und Franks article_number sind
-  // beide VOD-<Ziffern> — in der Praxis gibt es selten Kollisionen, aber der
-  // exakte Barcode-Lookup läuft zuerst. Wenn nichts gefunden → article_number.
-  if (/^VOD-\d+$/i.test(q)) {
-    const articleResult = await pg.raw(`
-      SELECT
-        r.id as release_id, r.title, r."coverImage", r.legacy_price, r.format,
-        r."catalogNumber", r.article_number, r.year, r.country,
-        r.discogs_median_price, r.discogs_id,
-        a.name as artist_name, l.name as label_name,
-        COUNT(ii.id)::int as exemplar_count,
-        COUNT(ii.id) FILTER (WHERE ii.last_stocktake_at IS NOT NULL)::int as verified_count
-      FROM "Release" r
-      LEFT JOIN erp_inventory_item ii ON ii.release_id = r.id
-      LEFT JOIN "Artist" a ON a.id = r."artistId"
-      LEFT JOIN "Label" l ON l.id = r."labelId"
-      WHERE UPPER(r.article_number) = UPPER(?)
-      GROUP BY r.id, a.name, l.name
-      LIMIT 5
-    `, [q])
-
-    if (articleResult.rows.length > 0) {
-      const rows = articleResult.rows.map((r: any) => ({
-        release_id: r.release_id,
-        artist_name: r.artist_name,
-        title: r.title,
-        format: r.format,
-        catalog_number: r.catalogNumber,
-        article_number: r.article_number,
-        cover_image: r.coverImage,
-        legacy_price: r.legacy_price != null ? Number(r.legacy_price) : null,
-        label_name: r.label_name,
-        year: r.year,
-        country: r.country,
-        exemplar_count: r.exemplar_count,
-        verified_count: r.verified_count,
-        discogs_median: r.discogs_median_price != null ? Number(r.discogs_median_price) : null,
-        discogs_id: r.discogs_id,
-      }))
-      res.json({ results: rows, total: rows.length, match_type: "article_number" })
-      return
-    }
-  }
-
-  // Step 2: Text search — searches ALL releases (not just Cohort A).
-  // Performance: Nutzt Postgres FTS mit tsvector-GIN-Index auf denormalisierter
-  // `Release.search_text` Spalte (title + catalogNumber + article_number +
-  // artist.name + label.name). Multi-Word Search via AND-Semantik: alle
-  // Tokens muessen in search_text vorkommen. Siehe
-  // `backend/src/lib/release-search.ts` und Migration
-  // `2026-04-22_release_search_text_fts.sql`.
-  // Ergebnis: ~20ms statt 6s fuer 52k Rows, auch bei Multi-Word-Queries
-  // wie "music various" die in der alten ILIKE-Substring-Match keinen Treffer
-  // fanden (weil "music various" als exakte Zeichenkette nirgends steht).
-  const ftsClause = buildReleaseSearchWhereRawAliased(q, "r")
-  if (!ftsClause) {
-    res.json({ results: [], total: 0, match_type: "text" })
-    return
-  }
-
-  // Ranking: bei vorhandenem ersten Token bevorzugen wir artist/title-Matches
-  // (feinere Sortierung als FTS ranking). Das ist ein subjektiver Schliff,
-  // nicht performance-relevant.
-  const tokens = getSearchTokens(q)
-  const primaryToken = tokens[0]
-  const primaryLike = `%${primaryToken}%`
-  const primaryPrefix = `${primaryToken}%`
-
-  const result = await pg.raw(`
-    SELECT
-      r.id as release_id, r.title, r."coverImage", r.legacy_price, r.format,
-      r."catalogNumber", r.article_number, r.year, r.country,
-      r.discogs_median_price, r.discogs_id,
-      a.name as artist_name, l.name as label_name,
-      COUNT(ii.id)::int as exemplar_count,
-      COUNT(ii.id) FILTER (WHERE ii.last_stocktake_at IS NOT NULL)::int as verified_count
-    FROM "Release" r
-    LEFT JOIN erp_inventory_item ii ON ii.release_id = r.id
-    LEFT JOIN "Artist" a ON a.id = r."artistId"
-    LEFT JOIN "Label" l ON l.id = r."labelId"
-    WHERE ${ftsClause.sql}
-    GROUP BY r.id, a.name, l.name
-    ORDER BY
-      CASE
-        WHEN lower(r.article_number) = lower(?) THEN 0
-        WHEN lower(a.name) LIKE ? THEN 1
-        WHEN lower(r.title) LIKE ? THEN 2
-        WHEN lower(a.name) LIKE ? THEN 3
-        WHEN lower(r.title) LIKE ? THEN 4
-        ELSE 5
-      END,
-      a.name ASC NULLS LAST, r.title ASC
-    LIMIT ?
-  `, [...ftsClause.bindings, q, primaryLike, primaryLike, primaryPrefix, primaryPrefix, limit])
-
-  const results = result.rows.map((r: any) => ({
-    release_id: r.release_id,
-    artist_name: r.artist_name,
-    title: r.title,
-    format: r.format,
-    catalog_number: r.catalogNumber,
-    article_number: r.article_number,
-    cover_image: r.coverImage,
-    legacy_price: r.legacy_price != null ? Number(r.legacy_price) : null,
-    label_name: r.label_name,
-    year: r.year,
-    country: r.country,
-    exemplar_count: r.exemplar_count,
-    verified_count: r.verified_count,
-    discogs_median: r.discogs_median_price != null ? Number(r.discogs_median_price) : null,
-    discogs_id: r.discogs_id,
-  }))
-
-  res.json({ results, total: results.length, match_type: "text" })
 }

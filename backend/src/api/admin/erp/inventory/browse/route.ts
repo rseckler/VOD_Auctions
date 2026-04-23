@@ -2,20 +2,31 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { requireFeatureFlag } from "../../../../../lib/inventory"
+import { getFeatureFlag } from "../../../../../lib/feature-flags"
+import { isMeiliEffective, getMeiliClient, COMMERCE_INDEX } from "../../../../../lib/meilisearch"
+import { type CatalogFilters } from "../../../../../lib/release-search-meili"
+import { inventoryBrowseGetPostgres } from "./route-postgres-fallback"
 
 /**
- * GET /admin/erp/inventory/browse
+ * GET /admin/erp/inventory/browse — Inventory-Hub-Tab-Listing (rc49+).
  *
- * Paginated browse of inventory items at Release level.
- * Tabs: all | verified | pending | multi_copy | price_changed
- * Filters: q (search), format, sort
+ * Drei-Gate-Wrapper analog /admin/media (rc48):
+ *   1. Feature-Flag SEARCH_MEILI_ADMIN OFF → postgres
+ *   2. Health-Probe tripped                → postgres
+ *   3. `?_backend=postgres`-Param          → postgres (Paritäts-Test)
+ *   4. Meili-Runtime-Error                 → postgres
  *
- * Performance: die alte Version hat JOIN auf Release VOR GROUP BY gemacht
- * (~5-10s auf 13k inventory-Rows), plus eine zweite identische Aggregation
- * als countQuery. Fix spiegelt den /stats-Fix: per-release Aggregation in
- * einer MATERIALIZED CTE auf erp_inventory_item alleine (13k Rows, Index
- * auf source), dann Join auf Release/Artist/Label erst danach. Count kommt
- * jetzt als COUNT(*) OVER() im selben Query.
+ * Der Inventory-Hub hat 4 Tabs (all, verified, pending, multi_copy) plus
+ * eine Suche + Format-Filter. Alle davon sind jetzt im Meili-Index mappbar:
+ *   - tab='verified'   → stocktake_state = "done"
+ *   - tab='pending'    → stocktake_state = "pending"
+ *   - tab='multi_copy' → exemplar_count > 1
+ *   - tab='all'        → has_inventory = true
+ *   - q-Search         → Meili full-text
+ *   - format           → format-filter
+ *
+ * Response-Shape identisch zur Postgres-Variante, damit die Admin-UI
+ * nichts anpassen muss (gleicher Mapper wie vorher).
  */
 export async function GET(
   req: MedusaRequest,
@@ -24,103 +35,134 @@ export async function GET(
   const pg: Knex = req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
   await requireFeatureFlag(pg, "ERP_INVENTORY")
 
-  const tab = (req.query.tab as string) || "all"
-  const q = ((req.query.q as string) || "").trim()
-  const format = (req.query.format as string) || ""
-  const sort = (req.query.sort as string) || "recent_desc"
-  const limit = Math.min(parseInt((req.query.limit as string) || "50"), 100)
-  const offset = parseInt((req.query.offset as string) || "0")
+  const q = req.query as Record<string, string>
 
-  // ── CTE filter (applied early on erp_inventory_item) ──
-  let cteWhere = `WHERE ii.source = 'frank_collection'`
-  if (tab === "verified") {
-    cteWhere += ` AND ii.last_stocktake_at IS NOT NULL`
-  } else if (tab === "pending") {
-    cteWhere += ` AND ii.last_stocktake_at IS NULL`
-  } else if (tab === "price_changed") {
-    cteWhere += ` AND ii.exemplar_price IS NOT NULL`
+  // Gate 3: explicit Postgres-Bypass
+  if (q._backend === "postgres") {
+    return inventoryBrowseGetPostgres(req, res)
   }
-  const havingClause = tab === "multi_copy" ? "HAVING COUNT(*) > 1" : ""
 
-  // ── Outer filter (on Release/Artist after JOIN) ──
-  const escape = (s: string) => s.replace(/'/g, "''")
-  const outerWhereParts: string[] = []
-  if (q) {
-    const qs = escape(q)
-    outerWhereParts.push(
-      `(a.name ILIKE '%${qs}%' OR r.title ILIKE '%${qs}%' OR r."catalogNumber" ILIKE '%${qs}%')`
+  // Gate 1: feature flag
+  const flagOn = await getFeatureFlag(pg, "SEARCH_MEILI_ADMIN")
+  if (!flagOn) {
+    return inventoryBrowseGetPostgres(req, res)
+  }
+
+  // Gate 2: health probe
+  if (!isMeiliEffective()) {
+    return inventoryBrowseGetPostgres(req, res)
+  }
+
+  try {
+    const tab = q.tab || "all"
+    const search = (q.q || "").trim()
+    const format = q.format || ""
+    const sortParam = q.sort || "recent_desc"
+    const limit = Math.min(parseInt(q.limit || "50", 10), 100)
+    const offset = parseInt(q.offset || "0", 10)
+    const page = Math.floor(offset / limit) + 1
+
+    // Tab-Filter → Meili-Filter
+    const filters: CatalogFilters = {}
+    if (tab === "verified") filters.stocktake_state = "done"
+    else if (tab === "pending") filters.stocktake_state = "pending"
+    else if (tab === "multi_copy") {
+      // "Mehrere Exemplare" — Meili hat exemplar_count als filterable,
+      // aber Filter-Syntax unterstützt `>` für Integer-Fields.
+      // Fallback: wenn Meili das nicht sauber macht, auf Postgres zurück.
+      // Wir appendieren manuell unten.
+    }
+    else {
+      // tab="all" — aus dem Inventory-Hub heißt "alle mit Inventar"
+      filters.has_inventory = true
+    }
+
+    // Format-Filter
+    if (format) filters.format = format
+
+    // Sort-Mapping — Inventory-Browse hat eigene Sorts (verify_desc, recent_desc)
+    // die nicht 1:1 zu CatalogSort passen. Map:
+    //   recent_desc  → updated_at_ts:desc
+    //   verified_desc → stocktake last_stocktake_at (über Sort nicht filterable in Meili?
+    //     prüfen — aktuell mit updated_at_ts approximiert)
+    //   artist_asc/desc, title_asc/desc, price_asc/desc → wie CatalogSort
+    const sortMeili: string[] = (() => {
+      switch (sortParam) {
+        case "recent_desc":
+          return ["updated_at_ts:desc"]
+        case "verified_desc":
+          return ["last_stocktake_at:desc"]
+        case "artist_asc":
+          return ["artist_name:asc"]
+        case "artist_desc":
+          return ["artist_name:desc"]
+        case "title_asc":
+          return ["title:asc"]
+        case "title_desc":
+          return ["title:desc"]
+        case "price_asc":
+          return ["shop_price:asc"]
+        case "price_desc":
+          return ["shop_price:desc"]
+        default:
+          return ["updated_at_ts:desc"]
+      }
+    })()
+
+    const filterParts: string[] = []
+    // Baue Meili-Filter aus den CatalogFilters + zusätzliche Admin-Spezifika
+    if (filters.format) filterParts.push(`format = "${filters.format}"`)
+    if (filters.stocktake_state) {
+      filterParts.push(`stocktake_state = "${filters.stocktake_state}"`)
+    }
+    if (filters.has_inventory) filterParts.push(`has_inventory = true`)
+    if (tab === "multi_copy") filterParts.push(`exemplar_count > 1`)
+
+    const client = getMeiliClient()
+    if (!client) {
+      return inventoryBrowseGetPostgres(req, res)
+    }
+
+    const result = await client.index(COMMERCE_INDEX).search(search || "", {
+      limit,
+      offset,
+      filter: filterParts.length > 0 ? filterParts : undefined,
+      sort: sortMeili,
+    })
+
+    // Response-Shape matcht den Browse-Response der Postgres-Route
+    const items = (result.hits as any[]).map((hit) => ({
+      release_id: hit.release_id,
+      title: hit.title,
+      cover_image: hit.cover_image,
+      format: hit.format,
+      catalog_number: hit.catalog_number,
+      legacy_price: hit.shop_price ?? hit.legacy_price ?? null, // Hub zeigt Preis — nutze shop_price wenn gesetzt
+      year: hit.year,
+      country: hit.country,
+      artist_name: hit.artist_name,
+      label_name: hit.label_name,
+      exemplar_count: hit.exemplar_count ?? 0,
+      verified_count: hit.verified_count ?? 0,
+      last_verified_at: hit.last_stocktake_at
+        ? new Date(hit.last_stocktake_at * 1000).toISOString()
+        : null,
+    }))
+
+    res.json({
+      items,
+      total: result.estimatedTotalHits ?? 0,
+      limit,
+      offset,
+      backend: "meili",
+    })
+  } catch (err: any) {
+    console.error(
+      JSON.stringify({
+        event: "inventory_browse_meili_fallback",
+        error: err?.message,
+      })
     )
+    return inventoryBrowseGetPostgres(req, res)
   }
-  if (format) {
-    outerWhereParts.push(`r.format = '${escape(format)}'`)
-  }
-  const outerWhere = outerWhereParts.length ? `WHERE ${outerWhereParts.join(" AND ")}` : ""
-
-  // ── Sort mapping ──
-  const sortMap: Record<string, string> = {
-    recent_desc: "pr.last_updated_at DESC NULLS LAST, r.title ASC",
-    artist_asc: `a.name ASC NULLS LAST, r.title ASC`,
-    artist_desc: `a.name DESC NULLS LAST, r.title ASC`,
-    title_asc: "r.title ASC",
-    title_desc: "r.title DESC",
-    price_asc: `r.legacy_price ASC NULLS LAST`,
-    price_desc: `r.legacy_price DESC NULLS LAST`,
-    verified_desc: "pr.last_verified_at DESC NULLS LAST, r.title ASC",
-  }
-  const orderBy = sortMap[sort] || sortMap.recent_desc
-
-  // Single query: CTE aggregates per release on erp_inventory_item alone,
-  // then joins Release/Artist/Label, with COUNT(*) OVER() for pagination total.
-  const sql = `
-    WITH per_release AS MATERIALIZED (
-      SELECT
-        ii.release_id,
-        COUNT(*)::int AS exemplar_count,
-        COUNT(*) FILTER (WHERE ii.last_stocktake_at IS NOT NULL)::int AS verified_count,
-        MAX(ii.last_stocktake_at) AS last_verified_at,
-        MAX(ii.updated_at) AS last_updated_at
-      FROM erp_inventory_item ii
-      ${cteWhere}
-      GROUP BY ii.release_id
-      ${havingClause}
-    )
-    SELECT
-      r.id AS release_id, r.title, r."coverImage" AS cover_image, r.format,
-      r."catalogNumber" AS catalog_number, r.legacy_price, r.year, r.country,
-      a.name AS artist_name, l.name AS label_name,
-      pr.exemplar_count, pr.verified_count, pr.last_verified_at,
-      COUNT(*) OVER() AS _total_count
-    FROM per_release pr
-    JOIN "Release" r ON r.id = pr.release_id
-    LEFT JOIN "Artist" a ON a.id = r."artistId"
-    LEFT JOIN "Label" l ON l.id = r."labelId"
-    ${outerWhere}
-    ORDER BY ${orderBy}
-    LIMIT ${limit} OFFSET ${offset}
-  `
-
-  const result = await pg.raw(sql)
-  const rows = result.rows as any[]
-  const total = rows.length > 0 ? Number(rows[0]._total_count) : 0
-
-  res.json({
-    items: rows.map((r) => ({
-      release_id: r.release_id,
-      title: r.title,
-      cover_image: r.cover_image,
-      format: r.format,
-      catalog_number: r.catalog_number,
-      legacy_price: r.legacy_price != null ? Number(r.legacy_price) : null,
-      year: r.year,
-      country: r.country,
-      artist_name: r.artist_name,
-      label_name: r.label_name,
-      exemplar_count: r.exemplar_count,
-      verified_count: r.verified_count,
-      last_verified_at: r.last_verified_at,
-    })),
-    total,
-    limit,
-    offset,
-  })
 }
