@@ -129,6 +129,13 @@ export const FEATURES = {
     category: "platform",
     requires: [],
   },
+  SYSTEM_HEALTH_LOG_VIEWER: {
+    key: "SYSTEM_HEALTH_LOG_VIEWER",
+    default: false,
+    description: "P4-C: Log-Viewer-Tab im ServiceCard-Drawer. Streamt via SSE aus hart-kodierter Allowlist: 2 PM2-Prozesse (vodauction-backend/storefront) + 4 File-Logs (health_sampler/legacy_sync/discogs_daily/meilisearch_sync). Kein User-Input für Pfade. Regex-Scrubbing von bekannten Secrets. Max 3 concurrent Streams pro Actor, Max 10min Lifetime. Bei OFF: Endpoints 404.",
+    category: "platform",
+    requires: [],
+  },
 } as const satisfies Record<string, FeatureFlagDefinition>
 
 export type FeatureFlagKey = keyof typeof FEATURES

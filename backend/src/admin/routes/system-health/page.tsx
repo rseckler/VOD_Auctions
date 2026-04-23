@@ -507,19 +507,153 @@ function SentryIssuesTab({ service }: { service: string }) {
   )
 }
 
+// P4-C — LogViewerTab (SSE via EventSource, client-side search/filter)
+const LOG_SOURCES: Array<{ type: "pm2" | "file"; key: string; label: string }> = [
+  { type: "pm2", key: "vodauction-backend", label: "Medusa Backend (PM2)" },
+  { type: "pm2", key: "vodauction-storefront", label: "Next.js Storefront (PM2)" },
+  { type: "file", key: "health_sampler", label: "Health Sampler Cron" },
+  { type: "file", key: "legacy_sync", label: "Legacy Sync" },
+  { type: "file", key: "discogs_daily", label: "Discogs Daily Sync" },
+  { type: "file", key: "meilisearch_sync", label: "Meilisearch Delta Sync" },
+]
+
+function suggestLogSource(serviceName: string): string {
+  const n = serviceName.toLowerCase()
+  if (n.includes("storefront")) return "pm2:vodauction-storefront"
+  if (n.includes("sync_log") || n.includes("legacy")) return "file:legacy_sync"
+  if (n.includes("meili_drift") || n.includes("meili_backlog") || n.includes("meilisearch")) return "file:meilisearch_sync"
+  if (n.includes("discogs")) return "file:discogs_daily"
+  if (n.includes("sampler")) return "file:health_sampler"
+  return "pm2:vodauction-backend"  // default for postgres/stripe/upstash/vps/etc
+}
+
+type LogLine = { text: string; ts: string; source?: "out" | "error" }
+
+function LogViewerTab({ service }: { service: string }) {
+  const initialSource = suggestLogSource(service)
+  const [source, setSource] = useState<string>(initialSource)
+  const [follow, setFollow] = useState(true)
+  const [lines, setLines] = useState<LogLine[]>([])
+  const [status, setStatus] = useState<"connecting" | "live" | "closed" | "error" | "rate_limited">("connecting")
+  const [search, setSearch] = useState("")
+
+  // Re-suggest if service changes
+  useEffect(() => { setSource(suggestLogSource(service)); setLines([]) }, [service])
+
+  useEffect(() => {
+    setStatus("connecting")
+    setLines([])
+    const [type, key] = source.split(":")
+    const base = type === "pm2"
+      ? `/admin/system-health/logs/pm2/${encodeURIComponent(key)}`
+      : `/admin/system-health/logs/file/${encodeURIComponent(key)}`
+    const url = `${base}?tail=100&follow=${follow}`
+    const es = new EventSource(url, { withCredentials: true })
+
+    es.addEventListener("ready", () => setStatus("live"))
+    es.addEventListener("line", (ev: MessageEvent) => {
+      try {
+        const data = JSON.parse(ev.data) as LogLine
+        setLines((prev) => {
+          const next = [...prev, data]
+          return next.length > 1000 ? next.slice(-1000) : next
+        })
+      } catch { /* ignore malformed */ }
+    })
+    es.addEventListener("timeout", () => setStatus("closed"))
+    es.addEventListener("exit", () => setStatus("closed"))
+    es.addEventListener("error", (ev: MessageEvent) => {
+      try {
+        const data = JSON.parse(ev.data)
+        if (data?.error?.includes("concurrent")) setStatus("rate_limited")
+      } catch { /* ignore */ }
+    })
+    es.onerror = () => { if (status === "connecting") setStatus("error"); es.close() }
+
+    return () => { es.close() }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [source, follow])
+
+  const filtered = search.trim()
+    ? lines.filter((l) => l.text.toLowerCase().includes(search.toLowerCase()))
+    : lines
+
+  const statusColor =
+    status === "live" ? C.success :
+    status === "closed" ? C.muted :
+    status === "rate_limited" ? C.warning :
+    status === "error" ? C.error :
+    C.blue
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
+      {/* Toolbar */}
+      <div style={{ display: "flex", gap: 8, padding: 10, borderBottom: `1px solid ${C.border}`, background: "rgba(0,0,0,0.02)", flexWrap: "wrap", alignItems: "center" }}>
+        <select
+          value={source}
+          onChange={(e) => setSource(e.target.value)}
+          style={{ fontSize: 11, padding: "4px 6px", background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text }}
+        >
+          {LOG_SOURCES.map((s) => (
+            <option key={`${s.type}:${s.key}`} value={`${s.type}:${s.key}`}>{s.label}</option>
+          ))}
+        </select>
+        <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: C.muted, cursor: "pointer" }}>
+          <input type="checkbox" checked={follow} onChange={(e) => setFollow(e.target.checked)} />
+          Follow
+        </label>
+        <input
+          type="text"
+          placeholder="Filter…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ fontSize: 11, padding: "4px 8px", background: C.card, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, flex: 1, minWidth: 120 }}
+        />
+        <span style={{ fontSize: 10, fontWeight: 700, color: statusColor, background: statusColor + "1e", padding: "2px 6px", borderRadius: 3, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+          {status}
+        </span>
+      </div>
+
+      {/* Line list */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "8px 0", background: "#0f0f0f", color: "#d4d4d4", fontFamily: "ui-monospace, Menlo, monospace", fontSize: 11, lineHeight: 1.4 }}>
+        {filtered.length === 0 ? (
+          <div style={{ padding: 16, color: "#888" }}>
+            {status === "connecting" ? "Connecting…" :
+             status === "rate_limited" ? "Rate-Limit: Max 3 concurrent streams per user. Close another drawer tab to open this one." :
+             status === "error" ? "Error opening stream. Check backend-logs." :
+             search ? `No lines matching "${search}"` :
+             "No log lines yet."}
+          </div>
+        ) : filtered.map((line, i) => {
+          const isErr = line.source === "error" || /error|exception|traceback|fatal|failed/i.test(line.text)
+          const isWarn = /warn|warning|deprecat/i.test(line.text)
+          const color = isErr ? "#ef4444" : isWarn ? "#f59e0b" : "#d4d4d4"
+          return (
+            <div key={i} style={{ padding: "1px 12px", color, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+              {line.text}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 // P4-B — ServiceDrawer (right-side slide-in, reusable for P4-C Logs too)
 function ServiceDrawer({
   service,
   sentryEmbedOn,
+  logViewerOn,
   onClose,
 }: {
   service: ServiceCheck
   sentryEmbedOn: boolean
+  logViewerOn: boolean
   onClose: () => void
 }) {
   const availableTabs: string[] = []
+  if (logViewerOn) availableTabs.push("logs")
   if (sentryEmbedOn) availableTabs.push("sentry")
-  // P4-C wird "logs" hier ergänzen
   const [activeTab, setActiveTab] = useState<string>(availableTabs[0] || "overview")
 
   // Close on ESC
@@ -592,13 +726,14 @@ function ServiceDrawer({
         )}
 
         {/* Body */}
-        <div style={{ flex: 1, overflowY: "auto" }}>
+        <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", minHeight: 0 }}>
           {availableTabs.length === 0 && (
             <div style={{ padding: 20, fontSize: 12, color: C.muted }}>
               No integrations enabled. Enable <code>SYSTEM_HEALTH_SENTRY_EMBED</code> or <code>SYSTEM_HEALTH_LOG_VIEWER</code> in <a href="/app/config" style={{ color: C.gold }}>Platform Config</a>.
             </div>
           )}
           {activeTab === "sentry" && <SentryIssuesTab service={service.name} />}
+          {activeTab === "logs" && <LogViewerTab service={service.name} />}
         </div>
 
         {/* Footer with runbook link */}
@@ -1071,11 +1206,12 @@ export default function SystemHealthPage() {
 
   const alertHistoryFlagOn = data?.feature_flags?.some((f) => f.key === "SYSTEM_HEALTH_ALERT_HISTORY" && f.enabled) ?? false
   const sentryEmbedFlagOn = data?.feature_flags?.some((f) => f.key === "SYSTEM_HEALTH_SENTRY_EMBED" && f.enabled) ?? false
+  const logViewerFlagOn = data?.feature_flags?.some((f) => f.key === "SYSTEM_HEALTH_LOG_VIEWER" && f.enabled) ?? false
   const unresolvedAlerts = alertHistory?.rows.filter((r) => r.status === "fired") ?? []
 
-  // P4-B: Drawer state — one service open at a time
+  // P4-B/C: Drawer state — one service open at a time
   const [drawerService, setDrawerService] = useState<ServiceCheck | null>(null)
-  const anyDrawerFlagOn = sentryEmbedFlagOn // P4-C: add `|| logViewerFlagOn`
+  const anyDrawerFlagOn = sentryEmbedFlagOn || logViewerFlagOn
 
   const checkedAt = data?.checked_at
     ? new Date(data.checked_at).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
@@ -1604,11 +1740,12 @@ export default function SystemHealthPage() {
         </div>
       </div>
 
-      {/* P4-B: ServiceDrawer (renders with position:fixed, doesn't affect layout) */}
+      {/* P4-B/C: ServiceDrawer (renders with position:fixed, doesn't affect layout) */}
       {drawerService && (
         <ServiceDrawer
           service={drawerService}
           sentryEmbedOn={sentryEmbedFlagOn}
+          logViewerOn={logViewerFlagOn}
           onClose={() => setDrawerService(null)}
         />
       )}
