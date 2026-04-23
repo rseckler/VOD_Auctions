@@ -22,7 +22,16 @@ type AlertsData = {
   checked_at: string
 }
 
-type ServiceStatus = "ok" | "degraded" | "error" | "unconfigured"
+type ServiceStatus =
+  | "ok"
+  | "degraded"
+  | "warning"
+  | "error"
+  | "critical"
+  | "insufficient_signal"
+  | "unconfigured"
+
+type CheckClass = "fast" | "background" | "synthetic"
 
 type ServiceCheck = {
   name: string
@@ -31,10 +40,25 @@ type ServiceCheck = {
   message: string
   latency_ms: number | null
   url?: string
+  category?: string
+  check_class?: CheckClass
+  runbook?: string
+  metadata?: Record<string, unknown>
 }
 
 type HealthData = {
-  summary: { total: number; ok: number; errors: number; unconfigured: number; degraded: number }
+  summary: {
+    total: number
+    ok: number
+    degraded: number
+    warning: number
+    error: number
+    critical: number
+    insufficient_signal: number
+    unconfigured: number
+    // legacy alias (kept for back-compat with cached clients)
+    errors?: number
+  }
   services: ServiceCheck[]
   checked_at: string
 }
@@ -240,11 +264,14 @@ const SERVICE_META: Record<string, ServiceMeta> = {
 
 // ─── Status helpers ───────────────────────────────────────────────────────────
 
-const STATUS_CONFIG: Record<ServiceStatus, { color: string; bg: string; dot: string; label: string }> = {
-  ok:            { color: C.success,  bg: C.success + "1e", dot: C.success,  label: "OK"       },
-  degraded:      { color: C.warning,  bg: C.warning + "1e", dot: C.warning,  label: "Degraded" },
-  error:         { color: C.error,    bg: C.error + "1e",   dot: C.error,    label: "Error"    },
-  unconfigured:  { color: C.muted,    bg: C.muted + "1e",   dot: C.muted,    label: "Not set"  },
+const STATUS_CONFIG: Record<ServiceStatus, { color: string; bg: string; dot: string; label: string; pulse?: boolean }> = {
+  ok:                  { color: C.success,  bg: C.success + "1e", dot: C.success, label: "OK"          },
+  degraded:            { color: C.gold,     bg: C.gold + "1e",    dot: C.gold,    label: "Degraded"    },
+  warning:             { color: C.warning,  bg: C.warning + "1e", dot: C.warning, label: "Warning"     },
+  error:               { color: C.error,    bg: C.error + "1e",   dot: C.error,   label: "Error"       },
+  critical:            { color: C.error,    bg: C.error + "2a",   dot: C.error,   label: "Critical", pulse: true },
+  insufficient_signal: { color: C.muted,    bg: C.muted + "1e",   dot: C.muted,   label: "No signal"   },
+  unconfigured:        { color: C.muted,    bg: C.muted + "1e",   dot: C.muted,   label: "Not set"     },
 }
 
 const SERVICE_ICONS: Record<string, string> = {
@@ -606,27 +633,42 @@ export default function SystemHealthPage() {
           border: `1px solid ${C.border}`, borderRadius: 10,
           padding: "14px 20px", flexWrap: "wrap",
         }}>
-          {[
-            { label: "All Systems", value: data.summary.total, color: C.text },
-            { label: "✓ Operational", value: data.summary.ok, color: C.success },
-            { label: "✗ Errors", value: data.summary.errors, color: C.error },
-            { label: "— Not Configured", value: data.summary.unconfigured, color: C.muted },
-          ].map((s) => (
-            <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 8, paddingRight: 20, borderRight: `1px solid ${C.border}` }}>
-              <span style={{ fontSize: 22, fontWeight: 700, color: s.color, lineHeight: 1 }}>{s.value}</span>
-              <span style={{ fontSize: 12, color: C.muted }}>{s.label}</span>
-            </div>
-          ))}
+          {(() => {
+            const s = data.summary
+            const errorCount = (s.error ?? 0) + (s.critical ?? 0)
+            const cells = [
+              { label: "All Systems", value: s.total, color: C.text },
+              { label: "✓ Operational", value: s.ok, color: C.success },
+              ...(s.degraded > 0 ? [{ label: "◐ Degraded", value: s.degraded, color: C.gold }] : []),
+              ...(s.warning > 0 ? [{ label: "⚠ Warning", value: s.warning, color: C.warning }] : []),
+              ...(errorCount > 0 ? [{ label: "✗ Errors", value: errorCount, color: C.error }] : []),
+              ...(s.insufficient_signal > 0 ? [{ label: "∅ No signal", value: s.insufficient_signal, color: C.muted }] : []),
+              { label: "— Not Configured", value: s.unconfigured, color: C.muted },
+            ]
+            return cells.map((c) => (
+              <div key={c.label} style={{ display: "flex", alignItems: "center", gap: 8, paddingRight: 20, borderRight: `1px solid ${C.border}` }}>
+                <span style={{ fontSize: 22, fontWeight: 700, color: c.color, lineHeight: 1 }}>{c.value}</span>
+                <span style={{ fontSize: 12, color: C.muted }}>{c.label}</span>
+              </div>
+            ))
+          })()}
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center" }}>
-            {data.summary.errors > 0 ? (
-              <span style={{ background: C.error + "26", color: C.error, padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600 }}>
-                ⚠ {data.summary.errors} service{data.summary.errors > 1 ? "s" : ""} down
-              </span>
-            ) : (
-              <span style={{ background: C.success + "26", color: C.success, padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600 }}>
-                ✓ All systems operational
-              </span>
-            )}
+            {(() => {
+              const crit = data.summary.critical ?? 0
+              const err = data.summary.error ?? 0
+              const warn = data.summary.warning ?? 0
+              const deg = data.summary.degraded ?? 0
+              if (crit > 0) {
+                return <span style={{ background: C.error + "26", color: C.error, padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600 }}>⚠ {crit} CRITICAL</span>
+              }
+              if (err > 0) {
+                return <span style={{ background: C.error + "26", color: C.error, padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600 }}>⚠ {err} service{err > 1 ? "s" : ""} down</span>
+              }
+              if (warn > 0 || deg > 0) {
+                return <span style={{ background: C.warning + "26", color: C.warning, padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600 }}>⚠ {warn + deg} attention</span>
+              }
+              return <span style={{ background: C.success + "26", color: C.success, padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600 }}>✓ All systems operational</span>
+            })()}
           </div>
         </div>
       )}

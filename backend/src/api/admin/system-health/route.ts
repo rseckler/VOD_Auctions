@@ -4,7 +4,16 @@ import { Knex } from "knex"
 import { stripe } from "../../../lib/stripe"
 import { getFeatureFlag } from "../../../lib/feature-flags"
 
-type ServiceStatus = "ok" | "degraded" | "error" | "unconfigured"
+type ServiceStatus =
+  | "ok"
+  | "degraded"
+  | "warning"
+  | "error"
+  | "critical"
+  | "insufficient_signal"
+  | "unconfigured"
+
+type CheckClass = "fast" | "background" | "synthetic"
 
 type ServiceCheck = {
   name: string
@@ -13,6 +22,11 @@ type ServiceCheck = {
   message: string
   latency_ms: number | null
   url?: string
+  // P1.1 additions (backward-compatible — legacy checks omit these)
+  category?: string
+  check_class?: CheckClass
+  runbook?: string
+  metadata?: Record<string, unknown>
 }
 
 async function checkWithTimeout<T>(
@@ -388,13 +402,22 @@ export async function GET(
   ])
 
   // ── Summary ───────────────────────────────────────────────────────────────
-  const total = checks.length
-  const ok = checks.filter((c) => c.status === "ok").length
-  const errors = checks.filter((c) => c.status === "error").length
-  const unconfigured = checks.filter((c) => c.status === "unconfigured").length
+  const count = (s: ServiceStatus) => checks.filter((c) => c.status === s).length
+  const summary = {
+    total: checks.length,
+    ok: count("ok"),
+    degraded: count("degraded"),
+    warning: count("warning"),
+    error: count("error"),
+    critical: count("critical"),
+    insufficient_signal: count("insufficient_signal"),
+    unconfigured: count("unconfigured"),
+    // legacy alias for older clients
+    errors: count("error") + count("critical"),
+  }
 
   res.json({
-    summary: { total, ok, errors, unconfigured, degraded: total - ok - errors - unconfigured },
+    summary,
     services: checks,
     checked_at: new Date().toISOString(),
   })
