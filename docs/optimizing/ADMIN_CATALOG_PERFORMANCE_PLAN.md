@@ -1,9 +1,23 @@
 # Admin Catalog Performance Plan — Phase 2 Meilisearch für Admin
 
-**Datum:** 2026-04-23
-**Status:** Plan (nicht implementiert)
+**Datum:** 2026-04-23 (v2 — nach Review-Feedback am selben Tag)
+**Status:** Plan (nicht implementiert) — **freigegeben mit drei Pre-Conditions** (siehe §0)
 **Erwarteter RC:** rc48 (Implementierung + Rollout)
 **Companion:** [`CATALOG_PERFORMANCE_BENCHMARK.md`](CATALOG_PERFORMANCE_BENCHMARK.md) — State-of-the-Art-Recherche, auf der dieser Plan aufsetzt.
+
+---
+
+## 0. Pre-Conditions für Go (aus Review v2)
+
+Drei Punkte müssen **vor** Flag-ON auf Prod adressiert sein. Nicht als spätere Kür — Teil des Minimal-Scopes.
+
+**0.1 Konsistenz-Klassen definiert.** Jede Admin-Mutation ist explizit einer von zwei Klassen zugeordnet: (a) Browse/Search-Only, eventual consistent bis zu 5 min ok; (b) Write-triggered-Read, muss sofort sichtbar sein. Für (b) wird der konkrete Mechanismus (on-demand-Reindex + optimistic UI) pro Mutation festgelegt. Siehe §3.8.
+
+**0.2 Filter-Paritätsmatrix liegt als Acceptance-Gate vor.** Automatisierter oder scripted Vergleich Postgres vs. Meili für jede Filter-Kombination, die das UI erzeugt. Nicht stichprobenartig. Siehe §4.A.
+
+**0.3 Count-Semantik bewusst entschieden.** Pro UI-Element festgehalten ob `estimatedTotalHits` (Meili-Default, schneller, aber ≠ exakt) oder exakter SQL-Count nötig ist. Siehe §3.4.
+
+Diese drei müssen vor Flag-ON grün sein. Frontend-Polish (Skeleton, React-Query, Prefetch) bleibt explizit **nachgelagert** — siehe §4.
 
 ---
 
@@ -158,7 +172,11 @@ export async function GET(req, res) {
       sort: mapLegacySort(q.sort),
       page, limit,
     })
-    res.json({ releases: result.hits.map(toAdminShape), count: result.estimatedTotalHits })
+    res.json({
+      releases: result.hits.map(toAdminShape),
+      count: result.estimatedTotalHits,            // für Pagination (ca-Angabe reicht)
+      count_exact_available: "/admin/media/count", // Secondary-Endpoint on-demand
+    })
   } catch (err) {
     return adminMediaGetPostgres(req, res)  // fallback
   }
@@ -166,6 +184,22 @@ export async function GET(req, res) {
 ```
 
 Die existing Postgres-Implementation wandert nach `route-postgres-fallback.ts` (Rename), bleibt unverändert als Fallback.
+
+**Count-Semantik — Pre-Condition 0.3:**
+
+Meili's `estimatedTotalHits` ist **approximativ** — kann mit dem exakten SQL-Count abweichen (bei Meili 1.20 typisch ± wenige Prozent; die Zahl ist pessimistisch/konservativ obergrenzt). Für UI-Pagination ("Seite 3 von 129") völlig ausreichend, semantisch aber ≠ exakt.
+
+Entscheidung pro UI-Element:
+
+| UI-Element | Count-Typ | Warum |
+|---|---|---|
+| Pagination-Label "Seite X von Y" | `estimatedTotalHits` | User interessiert nicht ob's 1.247 oder 1.251 Treffer sind — inline in Response |
+| Filter-Badge "Tapes (21.555)" | `estimatedTotalHits` aus Facet-Distribution | gleiches Argument, inline, kostenlos |
+| CSV-Export "N Rows exportieren" | **exakter SQL-Count** via `GET /admin/media/count?...` | User braucht belastbare Zahl bevor 20k-Row-Export angestoßen wird |
+| Bulk-Action "X Items betroffen, wirklich ausführen?" | **exakter SQL-Count** via `GET /admin/media/count?...` | gleiches — destruktive Action, muss exakt sein |
+| Dashboard-Stats "52.777 releases im Katalog" | exakter SQL-Count, aber aus separater `/admin/media/stats`-Route (existiert schon) | bleibt unverändert, nicht vom Meili-Wrapper abhängig |
+
+**Neuer Endpoint `GET /admin/media/count?...`** spiegelt die Filter-Parameter von `/admin/media` und führt nur den Count-Query aus (kein Listing). Wird von Frontend on-demand beim Öffnen von Export- oder Bulk-Action-Dialogen aufgerufen, nicht bei jedem Listing-Render. Spart den teuren Count-Roundtrip im 99%-Pfad, liefert Präzision wo sie gebraucht wird.
 
 ### 3.5 Frontend-Anpassungen
 
@@ -194,35 +228,132 @@ Die existing Postgres-Implementation wandert nach `route-postgres-fallback.ts` (
 | Admin-spezifische Filter wirken nicht korrekt | mittel | mittel | Parallel-Test: Postgres-Route liefert Ground-Truth, Meili-Route muss identische Result-Sets liefern. Integration-Test in Staging vor Flag-ON. |
 | Frank sieht gerade verifizierten Item nicht in "Pending"-Tab | mittel | niedrig | Erklärung: Sync läuft alle 5 min. Alternative: on-demand-reindex bei Verify-Save (Add-On in Phase 2.1). |
 
-### 3.8 Rollback-Pfad
+### 3.8 Konsistenz-Strategie (Pre-Condition 0.1)
+
+Storefront ist tolerant gegenüber 0–5 min Index-Lag — Frank nicht. Wenn er einen Preis ändert, erwartet er den neuen Wert **im Moment der Rückkehr zur Listen-Ansicht**. Ebenso nach Verify/Add-Copy: das Item muss sofort im "Verifiziert"-Tab erscheinen, nicht erst nach dem nächsten Delta-Cron.
+
+Deshalb klassifizieren wir jede Admin-Mutation in eine von zwei Konsistenz-Klassen:
+
+| Klasse | Latenz-Budget | Mechanismus | Mutations-Beispiele |
+|---|---|---|---|
+| **A — Eventual** | ≤ 5 min | Bestehender Delta-Cron via `search_indexed_at = NULL`-Bump | Legacy-Sync (hourly), Discogs-Import (daily), Entity-Content-Saves, Bulk-Price-Adjustments > 1000 Rows |
+| **B — Immediate** | ≤ 2 s | On-demand-Reindex **plus** optimistic UI-Update | Verify, Add-Copy, PATCH `/admin/media/:id`, Block-Item-Add/Remove, einzelne Price-Changes |
+
+**Klasse-B-Implementierung — Two-Phase:**
+
+1. **Phase B1: Optimistic UI** (Frontend, React-Query). Unmittelbar nach erfolgreichem Save updated die Client-Query-Cache-Entry für die betroffenen Release-IDs mit dem neuen Wert. User sieht die Änderung ohne Warten. Kommt aus dem React-Query-Pattern `queryClient.setQueryData(...)` nach Mutation-Success.
+
+2. **Phase B2: On-demand-Reindex** (Backend). Ergänzend zum Optimistic-Update wird nach der Mutation ein synchroner Meili-Push für genau diese Release-ID gefeuert. Pattern in `backend/src/lib/meilisearch.ts::pushReleaseNow(releaseId)`:
+   - Fetch dieselben Felder wie `meilisearch_sync.py::transform_to_doc` (shared SQL + JS-Transform im Backend)
+   - `client.index("releases-commerce").updateDocuments([doc])` und `releases-discovery` analog
+   - Fire-and-forget mit `.catch(logError)` — darf die Mutation-Response nicht blockieren
+   - Bei Meili-Error: `search_indexed_at = NULL` bleibt gesetzt, Delta-Cron fängt's ab. Kein Daten-Verlust.
+
+**Warum beides:** Optimistic UI allein reicht für die User-Interaktion, aber nicht für Cross-User-Szenarien (z.B. Frank ändert Preis, ein anderer Admin-User sieht auf seiner Catalog-Liste den alten Wert). On-demand-Reindex + normaler React-Query-Refetch bei Mount/Focus fängt diese Cross-User-Drift ab.
+
+**Konkrete Endpoint-Klassifizierung:**
+
+| Endpoint | Klasse | Why |
+|---|---|---|
+| `POST /admin/erp/inventory/items/:id/verify` | B | Frank klickt "Verifiziert"-Tab direkt nach Verify |
+| `POST /admin/erp/inventory/items/add-copy` | B | Neue Copy muss in Multi-Ex.-Tab auftauchen |
+| `PATCH /admin/media/:id` | B | Catalog-Detail → zurück zur Liste, Änderung muss da sein |
+| `POST /admin/auction-blocks/:id/items` | B | Block-Builder zeigt Preis-Default aus `shop_price` — wenn Frank ihn gerade geändert hat, muss neuer Wert greifen |
+| `POST /admin/erp/inventory/bulk-price-adjust` (+15%) | A | Betrifft tausende Rows, niemand watcht die Liste live dabei |
+| `POST /admin/erp/inventory/mark-missing-bulk` | A | gleiches |
+| `POST /admin/auction-blocks/:id/items/bulk-price` (rc47.3) | B | kleiner Block-Scope, UI erwartet sofortige Sichtbarkeit |
+| Discogs-Import-Commit | A | Läuft async, UI pollt ohnehin |
+| Legacy-Sync (cron) | A | per Definition eventual |
+
+**Optimistic-UI-Umfang konkret:** nur Release-Felder, die im Mutation-Response enthalten sind. `shop_price`, `legacy_price`, `sale_mode`, `media_condition`, `sleeve_condition`, `exemplar_count`, `verified_count`, `warehouse_code`. Keine abgeleiteten Felder — für die sieht User kurz den Stand von vor der Mutation, bis Meili-Refetch nachzieht.
+
+### 3.9 Rollback-Pfad
 
 Trivial: `SEARCH_MEILI_ADMIN` flag OFF. Admin fällt auf bisherige Postgres-Route zurück. Kein Deploy nötig, kein Daten-Verlust.
 
 ---
 
-## 4. Umsetzungs-Schritte (RC48)
+## 4. Umsetzungs-Schritte (RC48) — Reihenfolge reflektiert Pre-Conditions
 
-**Tag 1:**
+**Prinzip:** Backend-Read-Store zuerst, dann Konsistenz-Klasse-B-Mechanismen, dann Paritäts-Gate, DANN erst Flag-ON. Frontend-Polish kommt **am Ende**, nicht parallel.
+
+**Tag 1 — Meili-Schema + Backend-Route:**
 1. `scripts/meilisearch_settings.json` erweitern — neue filterableAttributes
-2. `scripts/meilisearch_sync.py::transform_to_doc()` erweitern — neue Felder berechnen
-3. `backend/scripts/migrations/<date>_admin_meili_fields.sql` — neuer Trigger auf `import_log`, ggf. andere Tabellen
+2. `scripts/meilisearch_sync.py::transform_to_doc()` erweitern — neue Felder berechnen (inkl. abgeleitete wie `stocktake_state`)
+3. `backend/scripts/migrations/<date>_admin_meili_fields.sql` — neuer Trigger auf `import_log`
 4. Apply Migration via Supabase MCP
-5. `python3 meilisearch_sync.py --apply-settings` (settings-only, kein Reindex nötig wenn Felder schon in docs sind)
-6. `python3 meilisearch_sync.py --full-rebuild` (wenn neue Felder)
+5. `python3 meilisearch_sync.py --apply-settings` + `--full-rebuild`
+6. `backend/src/lib/release-search-meili.ts` erweitern — Admin-Filter-Übersetzung inkl. abgeleitete Felder
+7. `backend/src/api/admin/media/route-postgres-fallback.ts` (Umbenennung)
+8. Neue `backend/src/api/admin/media/route.ts` — 3-Gate-Wrapper, Flag `SEARCH_MEILI_ADMIN` **bleibt OFF**
+9. Neuer Endpoint `backend/src/api/admin/media/count/route.ts` — exakter SQL-Count für Export/Bulk-Actions (§3.4)
 
-**Tag 2:**
-7. `backend/src/lib/release-search-meili.ts` erweitern — `searchReleases.filters` um Admin-Filter
-8. `backend/src/api/admin/media/route-postgres-fallback.ts` (Umbenennung der aktuellen `route.ts`)
-9. Neue `backend/src/api/admin/media/route.ts` — 3-Gate-Wrapper
-10. Feature-Flag `SEARCH_MEILI_ADMIN` registrieren
-11. Lokal + VPS testen mit Flag OFF → dann ON
-12. Frontend: Skeleton-Rows + React-Query + Debounce-Anpassung in `backend/src/admin/routes/media/page.tsx`
+**Tag 2 — Konsistenz-Klasse-B + Paritäts-Gate:**
+10. `backend/src/lib/meilisearch.ts::pushReleaseNow(releaseId)` — Helper für on-demand-Reindex, wie in §3.8 spezifiziert
+11. Write-Pfade um `pushReleaseNow()`-Call erweitern (Fire-and-forget) — Endpoints der Klasse B aus §3.8-Tabelle
+12. **Paritätsmatrix-Script** ausführen (§4.A) — Acceptance-Gate
+13. **Pre-Condition-Gate:** drei Punkte aus §0 verifizieren (Konsistenz-Mechanismen installiert, Paritätsmatrix grün, Count-Semantik dokumentiert)
+14. Flag `SEARCH_MEILI_ADMIN` via `/app/config` ON — beobachten
 
-**Tag 2.5 (optional):**
-13. Same-Pattern für `/admin/erp/inventory/search` — kleiner, geht schnell
-14. System-Health-Check `admin_meili_latency` mit p95-Tracking
+**Tag 3 — Frontend-Polish (nachgelagert):**
+15. `backend/src/admin/routes/media/page.tsx` — Skeleton-Rows, React-Query-Migration, Debounce 300→150 ms, Filter-Options-Cache (`staleTime: 5min`)
+16. Optimistic-UI-Updates nach Mutationen (§3.8 Klasse B, Phase B1) via `queryClient.setQueryData(...)`
+17. Prefetch auf Hover für Detail-Page-Navigation
 
-**Gesamt-Aufwand:** 1.5–2 Arbeitstage, abhängig von wie viele Admin-Filter man 1:1 in Meili-Filter-Syntax übersetzen muss (einige wie `stocktake='stale'` brauchen Meili-Filter-Ausdrücke wie `last_stocktake_timestamp < <90d-Cutoff-Unix>`).
+**Tag 3.5 (optional, wenn Tag 1-2 gut gelaufen):**
+18. Same-Pattern für `/admin/erp/inventory/search` — kleiner Scope
+19. System-Health-Check `admin_meili_latency` mit p95-Tracking
+
+**Gesamt-Aufwand:** 2–2.5 Arbeitstage (gegenüber v1: 1.5–2). Die Steigerung reflektiert Pre-Conditions (Paritätsmatrix + on-demand-Reindex-Pattern), nicht zusätzliche Features.
+
+---
+
+## 4.A Paritätsmatrix (Pre-Condition 0.2) — Acceptance-Gate vor Flag-ON
+
+**Ziel:** Vor dem ersten Prod-Traffic auf Meili-Route mathematisch sicherstellen dass Postgres-Route und Meili-Route **für jede reale Filter-Kombination identische Ergebnisse liefern**. Kein Spot-Check — systematisch.
+
+### 4.A.1 Was wird verglichen
+
+Für jede Testzeile (= eine Filter-Kombination):
+1. **Resultset-Identität** — gleiche `release.id`-Liste (erste N = 25, entspricht Pagination-Default)
+2. **Count-Konvergenz** — Postgres-exakt vs. Meili-estimated. Abweichung > 1 % → Flag für manuelle Prüfung (kann legitim sein bei Meili-Approximation, aber > 5 % nie)
+3. **Sort-Reihenfolge** — identische Sortierung in den ersten N bei jedem unterstützten Sort-Modus
+4. **Edge-Cases** — Items die exakt an der Filter-Grenze liegen (z.B. `stocktake='stale'` → `last_stocktake_at` exakt 90 Tage alt)
+
+### 4.A.2 Test-Matrix-Dimensionen
+
+Kombinatorische Explosion komplett testen ist unmöglich (2^15 Filter-Kombinationen). Stattdessen strukturierte Abdeckung:
+
+| Klasse | Inhalt | Anzahl Testfälle |
+|---|---|---|
+| **Single-Filter** | Jeder einzelne Filter isoliert, je Werte-Typ | ~20 |
+| **Filter + Sort** | Jeder Filter × jeder Sort-Modus | ~15 × 7 = ~100 |
+| **Kombinationen aus UI-Shortcuts** | Category-Filter + Format-Filter (reale UI-Kombis), Inventory-State + Stocktake-State, Import-Collection + Import-Action | ~30 |
+| **Abgeleitete-Feld-Edge-Cases** | `stocktake_state` Übergänge (done/pending/stale), `inventory_state` mit/ohne Exemplare, `has_image=false` | ~15 |
+| **Search + Filter** | FTS-Query + je 3 typische Filter | ~10 |
+| **Empty-Result + Large-Result** | Filter-Kombination die 0 Rows liefert, Kombination die 20k+ liefert | ~5 |
+
+Gesamt ca. **180 Testzeilen** — überschaubar, ohne kombinatorischen Overkill.
+
+### 4.A.3 Skript-Pattern
+
+`scripts/admin_meili_parity_check.py`:
+- Liest Test-Matrix aus `scripts/data/admin_meili_parity_cases.yaml`
+- Pro Fall: fetcht `/admin/media?...&_backend=postgres` (neuer Query-Param forciert Fallback) und `/admin/media?...&_backend=meili`
+- Vergleicht: `ids_match`, `count_delta`, `sort_match`
+- Output CSV + Summary: `✅ N passed · ⚠️ M warnings (count-delta 1-5%) · ❌ K failed`
+- Exit-Code ≠ 0 bei beliebigem Fail → CI-freundlich
+
+**Acceptance-Kriterium für Flag-ON:** 0 failed. Warnings (nur count-delta, Resultset identisch) werden manuell sichtgeprüft und entweder gefixt oder im Doc als "bewusste Toleranz" dokumentiert.
+
+### 4.A.4 Risikozone "berechnete Felder" (Review-Punkt)
+
+`stocktake_state`, `inventory_state`, `has_image` und ähnliche **abgeleitete** Felder sind fachlich heikel. Kleine Logikunterschiede zwischen Postgres-SQL und Python-Index-Transform → falsche Admin-Ansichten.
+
+Extra-Härtung:
+- Pro abgeleitetes Feld **dediziertes Test-File** mit ~10 Edge-Cases (nicht nur Happy-Path)
+- **Referenz-Implementation** lebt in EINEM Ort (`backend/src/lib/computed-fields.ts`), wird sowohl von Postgres-Fallback-Route (über `pg.raw()` mit identischem SQL) als auch vom Meili-Sync-Python (über gespiegelte Logik + identische Konstanten wie 90-Tage-Schwelle) konsumiert. Single-Source-of-Truth-Dokumentation mit beiden Implementierungen side-by-side — damit man den Drift spätestens beim nächsten Change merkt.
+- Cron-Check (täglich): re-run Paritätsmatrix gegen Prod. Alert bei neuen Abweichungen.
 
 ---
 
@@ -244,10 +375,15 @@ Das würde `/app/media` in den **State-of-the-Art-Bereich** bringen: p95 <100 ms
 
 ## 6. Entscheidungen die noch zu treffen sind
 
-1. **Rollout-Zeitpunkt** — Frank arbeitet aktiv an der Inventur. Rollout am Wochenende oder in einem ruhigen Fenster ist schlauer. Rollback via Flag ist trivial, aber sichtbare Latenz-Sprünge während Franks Arbeit sind unnötig.
-2. **Admin-Specific Ranking-Profile** — aktuell haben wir `releases-commerce` und `releases-discovery`. Optional: drittes Profil `releases-admin` mit Ranking nach `updated_at DESC` (Admin will "zuletzt bearbeitet" sehen, nicht "in stock + has cover"). Kann aber auch via `sort=...` parameter gelöst werden, ohne eigenes Profil.
-3. **Realtime-Reindex bei kritischen Änderungen** — wenn Frank einen Preis im Admin ändert und sofort im Catalog-Listing sehen will, reicht der 5-min-Delta-Cron nicht. Option: nach PATCH `/admin/media/:id` einen on-demand-Reindex triggern (Async, kleinem In-Memory-Queue). Oder: im Admin-UI optimistic update (UI zeigt neuen Wert sofort, Meili holt nach).
-4. **React-Query-Adoption ist größerer Schritt** — betrifft nicht nur `/app/media`, sondern perspektivisch alle Admin-Pages. Entscheidung: entweder "nur für `/app/media`" oder "ganzer Admin migriert langsam".
+1. **Rollout-Zeitpunkt** — Frank arbeitet aktiv an der Inventur. Rollout am Wochenende oder in einem ruhigen Fenster. Rollback via Flag ist trivial, aber sichtbare Latenz-Sprünge während Franks Arbeit sind unnötig.
+2. **Admin-Specific Ranking-Profile** — aktuell `releases-commerce` + `releases-discovery`. Optional: drittes Profil `releases-admin` mit Ranking nach `updated_at DESC`. Kann auch via `sort=...` parameter gelöst werden ohne eigenes Profil. **Entscheidung:** via Sort-Parameter lösen, kein drittes Profil. Spart Meili-Disk + Reindex-Zeit, identische Query-Latenz.
+3. ~~Realtime-Reindex bei kritischen Änderungen~~ — **entschieden in §3.8:** on-demand-Reindex + optimistic UI ist Klasse-B-Standard, Teil des Minimalumfangs (nicht optional).
+4. **React-Query-Adoption** — betrifft perspektivisch alle Admin-Pages. **Entscheidung:** in rc48 nur `/app/media` + `/app/erp/inventory/*`. Andere Admin-Pages migrieren wir wenn sich der Bedarf ergibt (nicht als Big-Bang).
+
+**Nicht mehr offen** (Review-Feedback hat diese geklärt):
+- Konsistenz-Strategie → §3.8 final
+- Paritätsmatrix-Umfang → §4.A final
+- Count-Semantik → §3.4 final
 
 ---
 
@@ -262,9 +398,16 @@ Das würde `/app/media` in den **State-of-the-Art-Bereich** bringen: p95 <100 ms
 
 ## 8. Go/No-Go
 
-**Vorgeschlagen:** Go. Storefront-Phase-1 hat bewiesen dass unsere Meili-Infrastruktur tragfähig ist (rc40 lief ohne Rollback). Die Erweiterung auf Admin ist inkrementell + rollback-trivial. ROI: Frank arbeitet täglich mit `/app/media` und `/app/erp/inventory` — die Stunden die aktuell im Warten verloren gehen summieren sich.
+**Vorgeschlagen:** Go **mit den drei Pre-Conditions aus §0**.
 
-**Freigabe durch User:** ☐ offen
+Storefront-Phase-1 hat bewiesen dass unsere Meili-Infrastruktur tragfähig ist (rc40 lief ohne Rollback). Die Erweiterung auf Admin ist inkrementell + rollback-trivial. ROI: Frank arbeitet täglich mit `/app/media` und `/app/erp/inventory` — die Stunden die aktuell im Warten verloren gehen summieren sich.
+
+**Review-Feedback-Bewertung (v2):**
+- Richtung richtig, Nutzen hoch, Rollback-Risiko niedrig — bestätigt
+- Drei Schwächen identifiziert (Konsistenz, Parität, Count-Semantik) — **alle drei jetzt Teil des Minimalumfangs**, siehe §0 Pre-Conditions + §3.4 + §3.8 + §4.A
+- Frontend-Polish korrekt deprioritisiert — reflektiert in §4 Reihenfolge (Tag 3 NACH Flag-ON, nicht parallel)
+
+**Freigabe durch User:** ☐ offen (Warte auf explizites Go vor rc48-Implementierung)
 
 ---
 
