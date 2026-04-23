@@ -61,6 +61,21 @@ type HealthData = {
   }
   services: ServiceCheck[]
   checked_at: string
+  registered_checks?: number
+  deploy_info?: {
+    sha: string
+    sha_short: string
+    node_version: string
+    process_uptime_sec: number
+    started_at: string
+    platform: string
+  }
+  feature_flags?: Array<{
+    key: string
+    enabled: boolean
+    description: string
+    category: string
+  }>
 }
 
 // ─── Static architecture metadata ────────────────────────────────────────────
@@ -269,6 +284,15 @@ const SERVICE_META: Record<string, ServiceMeta> = {
 // ─── Design Palette ──────────────────────────────────────────────────────────
 
 // ─── Status helpers ───────────────────────────────────────────────────────────
+
+function formatUptime(sec: number): string {
+  const d = Math.floor(sec / 86400)
+  const h = Math.floor((sec % 86400) / 3600)
+  const m = Math.floor((sec % 3600) / 60)
+  if (d > 0) return `${d}d ${h}h ${m}m`
+  if (h > 0) return `${h}h ${m}m`
+  return `${m}m`
+}
 
 const STATUS_CONFIG: Record<ServiceStatus, { color: string; bg: string; dot: string; label: string; pulse?: boolean }> = {
   ok:                  { color: C.success,  bg: C.success + "1e", dot: C.success, label: "OK"          },
@@ -639,6 +663,76 @@ export default function SystemHealthPage() {
       {error && (
         <div style={{ background: C.error + "1a", border: `1px solid ${C.error}4d`, borderRadius: 8, padding: "12px 16px", color: C.error, marginBottom: 20, fontSize: 13 }}>
           Failed to load health data: {error}
+        </div>
+      )}
+
+      {/* Deploy info + Feature flags panel */}
+      {data?.deploy_info && (
+        <div style={{
+          background: C.card,
+          border: `1px solid ${C.border}`,
+          borderRadius: 10,
+          padding: "12px 18px",
+          marginBottom: 16,
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 20,
+          alignItems: "center",
+          fontSize: 12,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ color: C.muted }}>Commit</span>
+            <a
+              href={`https://github.com/rseckler/VOD_Auctions/commit/${data.deploy_info.sha}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: C.gold, textDecoration: "none", fontFamily: "monospace", fontWeight: 600 }}
+              title={data.deploy_info.sha}
+            >
+              {data.deploy_info.sha_short}
+            </a>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ color: C.muted }}>Uptime</span>
+            <span style={{ color: C.text, fontFamily: "monospace" }}>
+              {formatUptime(data.deploy_info.process_uptime_sec)}
+            </span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ color: C.muted }}>Node</span>
+            <span style={{ color: C.text, fontFamily: "monospace" }}>{data.deploy_info.node_version}</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ color: C.muted }}>Registered checks</span>
+            <span style={{ color: C.text, fontWeight: 600 }}>{data.registered_checks ?? "?"}</span>
+          </div>
+          {data.feature_flags && data.feature_flags.length > 0 && (
+            <>
+              <div style={{ borderLeft: `1px solid ${C.border}`, height: 16 }} />
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+                <span style={{ color: C.muted, marginRight: 4 }}>Flags</span>
+                {data.feature_flags.map((f) => (
+                  <span
+                    key={f.key}
+                    title={f.description}
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 600,
+                      padding: "2px 7px",
+                      borderRadius: 4,
+                      background: f.enabled ? C.success + "24" : C.muted + "18",
+                      color: f.enabled ? C.success : C.muted,
+                      border: `1px solid ${f.enabled ? C.success + "4d" : C.border}`,
+                      fontFamily: "monospace",
+                      letterSpacing: "0.02em",
+                    }}
+                  >
+                    {f.enabled ? "●" : "○"} {f.key}
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
 

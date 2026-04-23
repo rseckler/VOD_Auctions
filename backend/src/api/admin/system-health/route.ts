@@ -16,6 +16,9 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { CHECKS, CheckClass, ServiceStatus, getCheckByName } from "../../../lib/health-checks"
+import { getAllFeatureFlags, listFlagDefinitions } from "../../../lib/feature-flags"
+
+const PROCESS_START = Date.now()
 
 type ServiceCheck = {
   name: string
@@ -114,10 +117,34 @@ export async function GET(req: MedusaRequest, res: MedusaResponse): Promise<void
     return d > max ? d : max
   }, new Date(0))
 
+  // ── Deploy info (P1.12) ───────────────────────────────────────────────
+  const deploy_info = {
+    sha: process.env.VOD_BUILD_SHA || "unknown",
+    sha_short: (process.env.VOD_BUILD_SHA || "unknown").slice(0, 7),
+    node_version: process.version,
+    process_uptime_sec: Math.floor((Date.now() - PROCESS_START) / 1000),
+    started_at: new Date(PROCESS_START).toISOString(),
+    platform: process.platform,
+  }
+
+  // ── Feature flags snapshot (P1.13) ────────────────────────────────────
+  let feature_flags: Array<{ key: string; enabled: boolean; description: string; category: string }> = []
+  try {
+    const flags = await getAllFeatureFlags(pg)
+    feature_flags = listFlagDefinitions().map((def) => ({
+      key: def.key,
+      enabled: flags[def.key as keyof typeof flags] ?? false,
+      description: def.description,
+      category: def.category,
+    }))
+  } catch { /* ignore — not blocking the response */ }
+
   res.json({
     summary,
     services,
     checked_at: newest.toISOString(),
     registered_checks: CHECKS.length,
+    deploy_info,
+    feature_flags,
   })
 }
