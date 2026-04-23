@@ -591,32 +591,47 @@ export const CHECKS: HealthCheckDefinition[] = [
     label: "Supabase Realtime (Live-Bidding)",
     category: "data_plane",
     check_class: "background",
-    severity_note: "HTTPS-probe auf /realtime/v1/ · 426 Upgrade Required ist expected (WS-Service lebt) · 5xx/timeout = error · Node 20 hat kein nativen WS, deshalb kein echter Roundtrip",
+    severity_note: "2-step probe: (1) REST-API als Baseline — 401 mit apikey-header = Projekt lebt. (2) Realtime /websocket — 101/426 = healthy, 5xx = degraded (Cloudflare-1101 von Supabase-Workers oft bei Pre-Launch-Projekten mit nicht-aktivierter Realtime).",
     async run({ env }) {
       const anonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY
       if (!anonKey) {
         return { status: "unconfigured", message: "SUPABASE_ANON_KEY not set in backend env", latency_ms: null }
       }
-      // HTTPS-probe to the realtime endpoint. Supabase Realtime answers with 426
-      // Upgrade Required to non-WS clients — that's healthy. 5xx or timeout = bad.
-      const url = `https://bofblwqieuvmqybzxapx.supabase.co/realtime/v1/?apikey=${encodeURIComponent(anonKey)}`
+      const projectBase = "https://bofblwqieuvmqybzxapx.supabase.co"
       const start = Date.now()
       try {
-        const r = await fetch(url, {
+        // Step 1: REST-API reachable? This tells us the Supabase project itself is live.
+        const restRes = await fetch(`${projectBase}/rest/v1/`, {
+          headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+          signal: AbortSignal.timeout(2500),
+        })
+        // 401 here is OK — means project routes work, just no table specified
+        if (restRes.status >= 500) {
+          const latency_ms = Date.now() - start
+          return { status: "error", message: `Supabase REST HTTP ${restRes.status} (project down)`, latency_ms, metadata: { rest_status: restRes.status } }
+        }
+
+        // Step 2: Realtime endpoint probe. Upgrade-Required or similar = healthy.
+        const rtRes = await fetch(`${projectBase}/realtime/v1/websocket?apikey=${encodeURIComponent(anonKey)}&vsn=1.0.0`, {
           headers: { apikey: anonKey },
-          signal: AbortSignal.timeout(4500),
+          signal: AbortSignal.timeout(2500),
         })
         const latency_ms = Date.now() - start
-        // Expected healthy responses: 101 (upgrade), 400, 404, 426 (upgrade required)
-        // Anything 5xx = service down
-        if (r.status >= 500) {
-          return { status: "error", message: `realtime HTTP ${r.status}`, latency_ms, metadata: { http_status: r.status } }
+        if (rtRes.status >= 500) {
+          // Common case: Cloudflare-1101 from Supabase-Workers when Realtime isn't
+          // initialized for the project. REST works → degraded, not error.
+          return {
+            status: "degraded",
+            message: `Realtime HTTP ${rtRes.status} (Supabase project OK, Realtime service unhealthy — check project.realtime config)`,
+            latency_ms,
+            metadata: { rest_status: restRes.status, realtime_status: rtRes.status },
+          }
         }
         return {
           status: "ok",
-          message: `realtime reachable (HTTP ${r.status}, ${latency_ms}ms)`,
+          message: `REST ${restRes.status}, Realtime ${rtRes.status} (${latency_ms}ms)`,
           latency_ms,
-          metadata: { http_status: r.status },
+          metadata: { rest_status: restRes.status, realtime_status: rtRes.status },
         }
       } catch (e: any) {
         return { status: "error", message: e?.message || "unreachable", latency_ms: Date.now() - start }
