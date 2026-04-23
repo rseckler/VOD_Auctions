@@ -72,10 +72,16 @@ const CATEGORIES: Array<{
     services: ["sentry", "ga4", "rudderstack", "clarity"],
   },
   {
-    id: "cache_ai",
-    label: "Cache & AI",
-    description: "Performance caching & AI admin assistant",
-    services: ["upstash", "anthropic"],
+    id: "data_plane",
+    label: "Data Plane",
+    description: "Caching, search & media storage",
+    services: ["upstash", "meilisearch", "r2-images"],
+  },
+  {
+    id: "ai",
+    label: "AI",
+    description: "Admin assistant & content tools",
+    services: ["anthropic"],
   },
 ]
 
