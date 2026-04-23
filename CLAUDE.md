@@ -307,6 +307,8 @@ docs/
 4. **Frank arbeitet aktiv an Inventur.** Franks MacBook Air-Rollout ausstehend: `cd ~/VOD_Auctions && git pull && bash frank-macbook-setup/install.sh`.
 5. **POS P0 Dry-Run live** — Frank testet Scan→Cart→Checkout, Feedback sammeln.
 6. **L1:** AGB-Anwalt beauftragen (Launch-Blocker, RSE-78).
+8. **Supabase Disk-IO-Alert (2026-04-23 Abend).** Mail "depleting Disk IO Budget". Ursache identifiziert: `meilisearch_sync.py::BASE_SELECT_SQL` macht 8.59 GB Disk-Reads kumulativ (32 % Top-20), 11 korrelierte Subqueries × 52k Rows bei Full-Rebuild. 3 Full-Rebuilds heute (rc47.2 + rc48 + rc48.1) + 28 Paritäts-Cases summieren auf. **Fix-Plan in [`docs/optimizing/SUPABASE_DISK_IO_AUDIT_2026-04-23.md`](docs/optimizing/SUPABASE_DISK_IO_AUDIT_2026-04-23.md):** Tier 1 = BASE_SELECT_SQL auf aggregierte LEFT JOINs umschreiben (Python + TS-Mirror), Cron `*/5 → */15`, keine Full-Rebuilds heute. Erwartete Einsparung: ~40-50× weniger Disk-IO pro Sync-Run. **Implementierung pending User-Freigabe.**
+
 7. **Admin-Catalog auf Meilisearch (rc48, 2026-04-23) — Code deployed, Flag OFF.** Plan v2 Tag 1+2 umgesetzt: 3-Gate-Wrapper, 13 neue Admin-Filter-Attrs, pushReleaseNow-Hooks in Klasse-B-Mutations, /admin/media/count für exakten Count, Paritätsmatrix-Script mit 37 Cases. Meili full-rebuilt (52.777 docs × 2 profiles). **Next:** User führt `scripts/admin_meili_parity_check.py` mit Admin-Cookie aus, bei 0 failed → Flag `SEARCH_MEILI_ADMIN` ON via `/app/config`, danach Tag 3 Frontend-Polish (Skeleton + React-Query + Optimistic-Updates).
 8. **`supabase_realtime: degraded`** (known, non-blocker): Realtime-Service sobald Live-Bidding live geht.
 

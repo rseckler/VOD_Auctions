@@ -1,7 +1,7 @@
 # VOD Auctions — TODO
 
 Operative Aufgabenliste. Single Source of Truth für laufende Arbeit.
-**Letzte Aktualisierung:** 2026-04-23 (rc47.2 — Preis-Modell konsolidiert: `direct_price → shop_price` kanonisch, Storefront-Gate via `catalog_visibility` auf `shop_price>0 AND verified`, Defaults `sale_mode=both` + `warehouse=ALPENSTRASSE`. Backfill der 23 verifizierten Items. Full-Doku in `docs/architecture/PRICING_MODEL.md`.)
+**Letzte Aktualisierung:** 2026-04-23 (Abend — Supabase-Disk-IO-Alert. BASE_SELECT_SQL in meilisearch_sync.py als #1 IO-Hog identifiziert (8.59 GB kumulativ, 11 korrelierte Subqueries × 52k Rows). Fix-Plan: aggregierte LEFT JOINs + Cron */5→*/15. Doku: `docs/optimizing/SUPABASE_DISK_IO_AUDIT_2026-04-23.md`. rc48.1 Admin-Meili-Flag `SEARCH_MEILI_ADMIN=true` live, 28/28 Parität grün. rc47.2+47.3 shop_price-Modell konsolidiert.)
 
 ## Arbeitslogik
 
@@ -17,9 +17,10 @@ Operative Aufgabenliste. Single Source of Truth für laufende Arbeit.
 
 Aktuell aktive Workstreams. Maximal 2-3 gleichzeitig.
 
-1. **Inventur Workflow v2 — Frank arbeitet aktiv** — rc47.2 (2026-04-23) Preis-Modell konsolidiert (shop_price kanonisch). rc39 (2026-04-22) Search-Sweep + Mirror-Fix. Catalog zeigt Stocktake-Daten. Frank macht weitere Platten.
-2. **POS Walk-in Sale** — P0 Dry-Run live, Frank testet, P1-P4 warten auf Steuerberater
-3. **Launch-Vorbereitung** — AGB-Anwalt als kritischer Pfad
+1. **Supabase Disk-IO-Optimierung (akut)** — Alert vom 2026-04-23 Abend. `meilisearch_sync.py::BASE_SELECT_SQL` macht 8.59 GB Disk-Reads kumulativ (32% Top-20-Queries), 11 korrelierte Subqueries pro Row × 52k Rows. Fix-Plan bereit: aggregierte LEFT JOINs statt Subqueries (Faktor 40-50× Einsparung), Cron */5→*/15. Keine Full-Rebuilds bis Fix. Doku: [`docs/optimizing/SUPABASE_DISK_IO_AUDIT_2026-04-23.md`](optimizing/SUPABASE_DISK_IO_AUDIT_2026-04-23.md). **Pending User-Freigabe für Tier-1-Umsetzung (~1.5h).**
+2. **Inventur Workflow v2 — Frank arbeitet aktiv** — rc47.2 (2026-04-23) Preis-Modell konsolidiert (shop_price kanonisch). rc39 (2026-04-22) Search-Sweep + Mirror-Fix. Catalog zeigt Stocktake-Daten. Frank macht weitere Platten.
+3. **POS Walk-in Sale** — P0 Dry-Run live, Frank testet, P1-P4 warten auf Steuerberater
+4. **Launch-Vorbereitung** — AGB-Anwalt als kritischer Pfad
 
 ## Next
 
