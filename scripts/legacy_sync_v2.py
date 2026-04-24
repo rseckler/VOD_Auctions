@@ -736,14 +736,40 @@ def sync_releases_v2(mysql_conn, pg_conn, run_id, dry_run=False):
                     legacy_format_detail = EXCLUDED.legacy_format_detail,
                     legacy_available = EXCLUDED.legacy_available,
                     "updatedAt" = NOW(),
-                    legacy_last_synced = NOW()""",
+                    legacy_last_synced = NOW()
+                WHERE
+                    -- rc49.4: Only execute the UPDATE branch if at least one
+                    -- semantic field differs. Without this WHERE, every UPSERT
+                    -- fires the release_indexed_at_self trigger (22-field
+                    -- whitelist) because ONE of those fields inevitably sees
+                    -- a subtle MySQL→PG type/encoding difference, bumping
+                    -- search_indexed_at=NULL on all 30k+ rows hourly. With the
+                    -- WHERE gate, no-op UPSERTs skip the UPDATE entirely → no
+                    -- trigger fire → no Meili-sync cascade.
+                    "Release".title IS DISTINCT FROM EXCLUDED.title
+                    OR "Release".description IS DISTINCT FROM EXCLUDED.description
+                    OR "Release".year IS DISTINCT FROM EXCLUDED.year
+                    OR "Release".format IS DISTINCT FROM EXCLUDED.format
+                    OR "Release".format_id IS DISTINCT FROM EXCLUDED.format_id
+                    OR "Release"."catalogNumber" IS DISTINCT FROM EXCLUDED."catalogNumber"
+                    OR "Release".country IS DISTINCT FROM EXCLUDED.country
+                    OR "Release"."artistId" IS DISTINCT FROM EXCLUDED."artistId"
+                    OR ("Release".label_enriched = FALSE
+                        AND "Release"."labelId" IS DISTINCT FROM EXCLUDED."labelId")
+                    OR "Release"."coverImage" IS DISTINCT FROM EXCLUDED."coverImage"
+                    OR (
+                        NOT EXISTS(SELECT 1 FROM erp_inventory_item ii
+                                   WHERE ii.release_id = "Release".id AND ii.price_locked = true)
+                        AND "Release".legacy_price IS DISTINCT FROM EXCLUDED.legacy_price
+                    )
+                    OR "Release".legacy_condition IS DISTINCT FROM EXCLUDED.legacy_condition
+                    OR "Release".legacy_format_detail IS DISTINCT FROM EXCLUDED.legacy_format_detail
+                    OR "Release".legacy_available IS DISTINCT FROM EXCLUDED.legacy_available""",
                 release_values,
                 template="(%s, %s, %s, %s, %s, %s::\"ReleaseFormat\", %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW())",
             )
-            # Bump search_indexed_at=NULL happens AFTER the diff loop below —
-            # we bump only rows that actually changed (rc49.3), not all 30k
-            # UPSERTs. Previously this bumped every row unconditionally, which
-            # caused 41.5k-row Meili-sync cascades hourly even with rows_changed=0.
+            # Explicit bump for INSERT branch (trigger only fires on UPDATE).
+            # Happens AFTER diff loop below, targeted at changed_or_new_ids.
 
         # Pre-fetch price-locked release IDs for this batch (sync protection).
         # NOTE (Exemplar-Modell): A release may have multiple erp_inventory_item rows
@@ -1040,12 +1066,31 @@ def sync_literature_v2(mysql_conn, pg_conn, run_id, table, category,
                     END,
                     legacy_format_detail = EXCLUDED.legacy_format_detail,
                     "updatedAt" = NOW(),
-                    legacy_last_synced = NOW()""",
+                    legacy_last_synced = NOW()
+                WHERE
+                    -- rc49.4: Only execute UPDATE branch if a semantic field
+                    -- differs. See release path for detailed rationale.
+                    "Release".title IS DISTINCT FROM EXCLUDED.title
+                    OR "Release".description IS DISTINCT FROM EXCLUDED.description
+                    OR "Release".year IS DISTINCT FROM EXCLUDED.year
+                    OR "Release".format IS DISTINCT FROM EXCLUDED.format
+                    OR "Release".format_id IS DISTINCT FROM EXCLUDED.format_id
+                    OR "Release".country IS DISTINCT FROM EXCLUDED.country
+                    OR "Release"."artistId" IS DISTINCT FROM EXCLUDED."artistId"
+                    OR ("Release".label_enriched = FALSE
+                        AND "Release"."labelId" IS DISTINCT FROM EXCLUDED."labelId")
+                    OR "Release"."pressOrgaId" IS DISTINCT FROM EXCLUDED."pressOrgaId"
+                    OR "Release"."coverImage" IS DISTINCT FROM EXCLUDED."coverImage"
+                    OR (
+                        NOT EXISTS(SELECT 1 FROM erp_inventory_item ii
+                                   WHERE ii.release_id = "Release".id AND ii.price_locked = true)
+                        AND "Release".legacy_price IS DISTINCT FROM EXCLUDED.legacy_price
+                    )
+                    OR "Release".legacy_format_detail IS DISTINCT FROM EXCLUDED.legacy_format_detail""",
                 release_values,
                 template="(%s, %s, %s, %s, %s, %s::\"ReleaseFormat\", %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW())",
             )
-            # Bump search_indexed_at=NULL happens AFTER the diff loop below —
-            # only rows that actually changed (rc49.3).
+            # Explicit bump for INSERT branch — happens AFTER diff loop.
 
         # Pre-fetch price-locked release IDs for this literature batch
         price_locked_ids = set()
