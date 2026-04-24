@@ -115,6 +115,24 @@ tail -50 ~/Library/Logs/vod-print-bridge.log
 ```
 Häufigste Ursache: Port 17891 schon belegt. Check via `lsof -i :17891`.
 
+### `mv: rename ... /Library/LaunchAgents/...: No such file or directory` → `launchctl bootstrap failed: 5: Input/output error`
+**Ursache:** Auf frischem macOS-User-Account (neues MacBook, neuer Local-User) existiert `~/Library/LaunchAgents/` nicht. `mv tmp.plist ~/Library/LaunchAgents/...` scheitert, LaunchAgent wird nie angelegt, `launchctl bootstrap` meldet kurz darauf Input/output error.
+**Status:** In `install-bridge.sh` seit 2026-04-24 gefixt (`mkdir -p` vor `mv`). Wenn das Symptom auf älteren Versionen auftritt:
+```bash
+mkdir -p ~/Library/LaunchAgents
+cd ~/VOD_Auctions && git pull
+bash frank-macbook-setup/print-bridge/install-bridge.sh --printer Brother_QL_820NWB
+```
+(Erstmalig gesehen auf Franks MacBook Air M5 / macOS 26.4.1, 2026-04-24.)
+
+### Bridge startet fälschlich im DRY_RUN, obwohl CUPS-Queue vorhanden ist
+**Ursache:** `install.sh` Step 3 nutzte früher `lpstat -p | grep brother` zur Detection — auf macOS 26+ zeigt `lpstat -p` die Queue nicht zuverlässig, wenn der physische Drucker gerade offline ist (Enabled-Status der Queue, nicht Existenz). Step 2 nutzt dagegen `lpstat -e` (Queue-Namen, locale- und online-unabhängig) und findet die Queue korrekt — Widerspruch in derselben Session.
+**Status:** Seit 2026-04-24 nutzt auch Step 3 `lpstat -e`. Wenn DRY_RUN trotzdem fälschlich aktiv ist, Bridge direkt mit expliziter Queue + IP (überspringt alle Auto-Checks):
+```bash
+bash ~/VOD_Auctions/frank-macbook-setup/print-bridge/install-bridge.sh \
+  --printer Brother_QL_820NWB --printer-ip <DRUCKER-IP>
+```
+
 ### Bridge reagiert, aber Druck kommt nicht
 Im Log schauen: wird `lp` aufgerufen? Exit-Code? Normalerweise sollte stdout zeigen:
 ```
