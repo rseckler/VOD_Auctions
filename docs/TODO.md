@@ -1,7 +1,7 @@
 # VOD Auctions — TODO
 
 Operative Aufgabenliste. Single Source of Truth für laufende Arbeit.
-**Letzte Aktualisierung:** 2026-04-23 (rc49.1 — Inventory-Hub + Session-Scanner auf Meili umgestellt. Alle 4 Admin-Listen-Endpoints + Storefront Meili-backed. rc49 Disk-IO-Fix deployed: aggregate CTEs statt 11 korrelierter Subqueries, Cron */5→*/15. Paritätsmatrix weiterhin 28/28. rc47.2+rc47.3 shop_price-Modell stabil.)
+**Letzte Aktualisierung:** 2026-04-24 (rc49.2-rc49.7 — 6-RC-Ops-Day. Meili-Sync chunked, **legacy_sync WHERE-gated UPSERT** (Root-Cause für hourly 41k-Cascade behoben: 180s→47s, Meili-Traffic −99.97%), Sentry-API-Fix, **Storefront Pricing-Cleanup** (effective_price end-to-end, legacy_price raus aus saved/wins/auction-detail), **legacy_available aus is_purchasable-Gate raus** (36 versteckte Releases wieder kaufbar). Meili Full-Rebuild 52.783 × 2. Alle 6 RCs mit CHANGELOG + GitHub-Release.)
 
 ## Arbeitslogik
 
@@ -17,10 +17,12 @@ Operative Aufgabenliste. Single Source of Truth für laufende Arbeit.
 
 Aktuell aktive Workstreams. Maximal 2-3 gleichzeitig.
 
-1. **Performance-Offensive abgeschlossen (rc48.1 + rc49 + rc49.1)** — alle 4 Admin-Listen-Endpoints auf Meilisearch, Disk-IO-Alert durch SQL-Rewrite bereinigt. **Monitoring-Check 2026-04-24:** `pg_stat_statements` erneut abfragen, validieren dass BASE_SELECT_SQL nicht mehr Top-1-Disk-IO-Hog ist. Bei Fail: Tier 2 aus `SUPABASE_DISK_IO_AUDIT` (partial delta-fetch, entity_content-Cache, Discogs-Audit-Caching).
-2. **Inventur Workflow v2 — Frank arbeitet aktiv** — rc47.2/47.3 shop_price-Modell, rc48.1+rc49.1 alles auf Meili. Frank macht weitere Platten.
-3. **POS Walk-in Sale** — P0 Dry-Run live, Frank testet, P1-P4 warten auf Steuerberater
-4. **Launch-Vorbereitung** — AGB-Anwalt als kritischer Pfad
+1. **Storefront Pricing-Cleanup abgeschlossen (rc49.6 + rc49.7, 2026-04-24).** `effective_price = shop_price` end-to-end im Storefront. `legacy_available` aus `is_purchasable`-Gate entfernt. 36 Releases mit `legacy_available=false` + verified-Bestand wieder sichtbar. Alle Code-Pfade (saved, wins, auction-detail, catalog-detail, catalog-fallback, recommendations, Meili-sync) konsistent nach PRICING_MODEL.md §Shop-Visibility-Gate. Plan: [`docs/optimizing/FRONTEND_PRICING_CLEANUP_PLAN.md`](optimizing/FRONTEND_PRICING_CLEANUP_PLAN.md).
+2. **Legacy-Sync + Meili-Sync strukturell stabil (rc49.2-rc49.4, 2026-04-24).** Root-Cause-Fix der 41k-Meili-Cascade. `ON CONFLICT DO UPDATE SET ... WHERE <semantic-diff>` kombiniert mit chunked Meili-Fetch + 5min statement_timeout + stale-cleanup. Dauer 180s→47s, Meili-Traffic −99.97%. Monitoring: 24h-Uptime-Stripe `meili_backlog` rollt automatisch von 64.3%→100% bis morgen 06:30 UTC.
+3. **Performance-Offensive abgeschlossen (rc48.1 + rc49 + rc49.1)** — alle 4 Admin-Listen-Endpoints auf Meilisearch, Disk-IO-Alert durch SQL-Rewrite bereinigt. **Monitoring-Check 2026-04-24:** `pg_stat_statements` erneut abfragen, validieren dass BASE_SELECT_SQL nicht mehr Top-1-Disk-IO-Hog ist. Bei Fail: Tier 2 aus `SUPABASE_DISK_IO_AUDIT` (partial delta-fetch, entity_content-Cache, Discogs-Audit-Caching).
+4. **Inventur Workflow v2 — Frank arbeitet aktiv** — rc47.2/47.3 shop_price-Modell, rc48.1+rc49.1 alles auf Meili. Frank macht weitere Platten.
+5. **POS Walk-in Sale** — P0 Dry-Run live, Frank testet, P1-P4 warten auf Steuerberater
+6. **Launch-Vorbereitung** — AGB-Anwalt als kritischer Pfad
 
 ## Next
 
