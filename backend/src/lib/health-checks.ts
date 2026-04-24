@@ -798,7 +798,15 @@ export const CHECKS: HealthCheckDefinition[] = [
       try {
         const cfg = await getSiteConfig(pg)
         const mode = cfg.platform_mode
-        const { rows } = await pg.raw(`SELECT MAX(created_at) AS last_at FROM transaction`)
+        // SET LOCAL statement_timeout scoped to this transaction — prevents
+        // lock-contention hangs (e.g. checkout holding row locks on "transaction")
+        // from cascading into a 30s probe timeout. "transaction" must be quoted
+        // because it is a reserved keyword in PostgreSQL.
+        const txResult = await pg.transaction(async (trx) => {
+          await trx.raw(`SET LOCAL statement_timeout = 8000`)
+          return trx.raw(`SELECT MAX(created_at) AS last_at FROM "transaction"`)
+        })
+        const { rows } = (txResult as unknown) as { rows: any[] }
         const last = rows?.[0]?.last_at ? new Date(rows[0].last_at) : null
         const latency_ms = Date.now() - start
         if (!last) {
