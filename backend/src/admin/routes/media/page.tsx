@@ -532,8 +532,7 @@ const MediaPage = () => {
       if (!resp.ok) {
         setBulkToast({ message: "Error: " + (data.message || "Bulk update failed"), type: "error" })
       } else {
-        const skipMsg = data.skipped_count > 0 ? ` · ${data.skipped_count} legacy items skipped` : ""
-        setBulkToast({ message: `Updated ${data.updated_count} releases${skipMsg}`, type: "success" })
+        setBulkToast({ message: `Updated ${data.updated_count} releases`, type: "success" })
         setRefetchTrigger((n) => n + 1)
       }
     } catch (err) {
@@ -1137,7 +1136,7 @@ const MediaPage = () => {
             <option value="sleeve_condition">Set Sleeve Condition</option>
             <option value="auction_status">Set Auction Status</option>
             <option value="assign_to_block">Assign to Auction Block</option>
-            <optgroup label="Stammdaten (skips legacy)">
+            <optgroup label="Stammdaten (auto-locks field)">
               <option value="stammdaten_title">Set Title</option>
               <option value="stammdaten_country">Set Country (ISO-2)</option>
               <option value="stammdaten_year">Set Year</option>

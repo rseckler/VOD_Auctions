@@ -573,7 +573,9 @@ const MediaDetailPage = () => {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null)
-  const [meta, setMeta] = useState<{ is_stammdaten_editable: boolean; source: string; locked_reason: string | null } | null>(null)
+  const [meta, setMeta] = useState<{ is_stammdaten_editable: boolean; source: string; locked_fields: string[] } | null>(null)
+  const [unlockFieldPending, setUnlockFieldPending] = useState<string | null>(null)
+  const [unlockingField, setUnlockingField] = useState(false)
   // Back-to-Inventur-Session: wenn Frank aus der Session hier her gesprungen ist,
   // zeigt die Session-Page setzt beim Mount sessionStorage["vod.inventory_session_active"].
   // Solange das Flag da ist, zeigen wir oben einen Back-Button.
@@ -743,6 +745,31 @@ const MediaDetailPage = () => {
     setSdError(null)
   }
 
+  const handleUnlockField = async (field: string) => {
+    if (!id || unlockingField) return
+    setUnlockingField(true)
+    try {
+      const resp = await fetch(`/admin/media/${id}/unlock-field`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ field }),
+      })
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}))
+        setToast({ message: err.message || "Unlock failed", type: "error" })
+        return
+      }
+      const data = await resp.json()
+      setMeta((prev) => prev ? { ...prev, locked_fields: data.locked_fields_remaining } : prev)
+      setUnlockFieldPending(null)
+    } catch {
+      setToast({ message: "Unlock failed", type: "error" })
+    } finally {
+      setUnlockingField(false)
+    }
+  }
+
   const handleSaveStammdaten = async () => {
     if (!id) return
     setSdSaving(true)
@@ -785,12 +812,13 @@ const MediaDetailPage = () => {
       if (res.ok) {
         const d = await res.json()
         setRelease(d.release || release)
+        // Sync locked_fields from the updated release (POST auto-locks hard fields)
+        if (d.release?.locked_fields !== undefined) {
+          setMeta((prev) => prev ? { ...prev, locked_fields: d.release.locked_fields || [] } : prev)
+        }
         setSdEditing(false)
         setAuditRefreshKey(k => k + 1)
         setToast({ message: "Stammdaten saved", type: "success" })
-      } else if (res.status === 403) {
-        const err = await res.json().catch(() => ({}))
-        setSdError(err.message || "Stammdaten are locked for this release")
       } else {
         const err = await res.json().catch(() => ({}))
         setSdError(err.message || "Failed to save")
@@ -976,7 +1004,7 @@ const MediaDetailPage = () => {
         </div>
       )}
 
-      {meta && <LockBanner locked={!meta.is_stammdaten_editable} reason={meta.locked_reason} />}
+      {/* LockBanner removed: all releases now editable (rc51.0 Sync-Lock-Modell) */}
 
       <PageHeader
         title={pageTitle}
@@ -991,7 +1019,7 @@ const MediaDetailPage = () => {
         } : undefined}
         actions={
           <div style={{ display: "flex", gap: S.gap.md, alignItems: "center" }}>
-            {meta && <SourceBadge source={meta.source} syncedAt={release.discogs_last_synced || release.legacy_last_synced} />}
+            {meta && <SourceBadge source={meta.source} syncedAt={release.discogs_last_synced || release.legacy_last_synced} lockedFields={meta.locked_fields} />}
             <div style={{ display: "flex", gap: S.gap.sm }}>
               <a href={`https://vod-auctions.com/catalog/${release.id}`} target="_blank" rel="noopener noreferrer" style={{ ...T.small, color: C.gold, textDecoration: "none" }}>
                 View in Catalog &#8599;
@@ -1082,93 +1110,109 @@ const MediaDetailPage = () => {
               label="Edit Stammdaten"
               variant="gold"
               onClick={handleStartEditStammdaten}
-              disabled={!meta?.is_stammdaten_editable}
-              style={{ padding: "6px 16px", fontSize: 13, opacity: meta?.is_stammdaten_editable ? 1 : 0.4 }}
+              style={{ padding: "6px 16px", fontSize: 13 }}
             />
           )}
         </div>
-        {!meta?.is_stammdaten_editable && (
-          <div style={{ ...T.micro, color: C.muted, marginTop: S.gap.sm }}>
-            {meta?.locked_reason || "Locked — only Discogs-imported releases can have stammdaten edited."}
-          </div>
-        )}
 
-        {sdEditing && (
-          <div style={{ marginTop: S.gap.lg }}>
-            {sdError && (
-              <div style={{ ...T.small, color: C.error, background: C.error + "15", border: `1px solid ${C.error}40`, borderRadius: S.radius.sm, padding: "8px 12px", marginBottom: S.gap.md }}>
-                {sdError}
+        {sdEditing && (() => {
+          // Helper: field label with optional 🔒 unlock button for locked fields
+          const FieldLabel = ({ text, field, required }: { text: string; field?: string; required?: boolean }) => {
+            const isLocked = field ? (meta?.locked_fields ?? []).includes(field) : false
+            return (
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                <span style={labelStyle}>{text}{required ? " *" : ""}</span>
+                {isLocked && (
+                  <button
+                    type="button"
+                    title={`Field "${field}" is locked from sync. Click to unlock (next sync will overwrite).`}
+                    onClick={() => setUnlockFieldPending(field!)}
+                    style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: 13, lineHeight: 1 }}
+                  >
+                    🔒
+                  </button>
+                )}
               </div>
-            )}
+            )
+          }
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: S.gap.lg }}>
-              <div style={{ gridColumn: "1 / -1" }}>
-                <div style={labelStyle}>Title *</div>
-                <input type="text" value={sdTitle} onChange={(e) => setSdTitle(e.target.value)} style={localInputStyle} />
-              </div>
+          return (
+            <div style={{ marginTop: S.gap.lg }}>
+              {sdError && (
+                <div style={{ ...T.small, color: C.error, background: C.error + "15", border: `1px solid ${C.error}40`, borderRadius: S.radius.sm, padding: "8px 12px", marginBottom: S.gap.md }}>
+                  {sdError}
+                </div>
+              )}
 
-              <div>
-                <div style={labelStyle}>Artist</div>
-                <div style={{ display: "flex", gap: S.gap.sm, alignItems: "center" }}>
-                  <input
-                    type="text"
-                    value={sdArtistName}
-                    readOnly
-                    placeholder="Click to select…"
-                    style={{ ...localInputStyle, cursor: "pointer", flex: 1 }}
-                    onClick={() => setSdPicker("artist")}
-                  />
-                  <Btn label="…" variant="ghost" onClick={() => setSdPicker("artist")} style={{ padding: "8px 12px", fontSize: 13 }} />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: S.gap.lg }}>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <FieldLabel text="Title" field="title" required />
+                  <input type="text" value={sdTitle} onChange={(e) => setSdTitle(e.target.value)} style={localInputStyle} />
+                </div>
+
+                <div>
+                  <FieldLabel text="Artist" field="artistId" />
+                  <div style={{ display: "flex", gap: S.gap.sm, alignItems: "center" }}>
+                    <input
+                      type="text"
+                      value={sdArtistName}
+                      readOnly
+                      placeholder="Click to select…"
+                      style={{ ...localInputStyle, cursor: "pointer", flex: 1 }}
+                      onClick={() => setSdPicker("artist")}
+                    />
+                    <Btn label="…" variant="ghost" onClick={() => setSdPicker("artist")} style={{ padding: "8px 12px", fontSize: 13 }} />
+                  </div>
+                </div>
+
+                <div>
+                  <FieldLabel text="Label" field="labelId" />
+                  <div style={{ display: "flex", gap: S.gap.sm, alignItems: "center" }}>
+                    <input
+                      type="text"
+                      value={sdLabelName}
+                      readOnly
+                      placeholder="Click to select…"
+                      style={{ ...localInputStyle, cursor: "pointer", flex: 1 }}
+                      onClick={() => setSdPicker("label")}
+                    />
+                    <Btn label="…" variant="ghost" onClick={() => setSdPicker("label")} style={{ padding: "8px 12px", fontSize: 13 }} />
+                  </div>
+                </div>
+
+                <div>
+                  <FieldLabel text="Year" field="year" />
+                  <input type="number" value={sdYear} onChange={(e) => setSdYear(e.target.value)} min={1900} max={new Date().getFullYear()} placeholder="e.g. 1994" style={localInputStyle} />
+                </div>
+
+                <div>
+                  <FieldLabel text="Country (ISO-2)" field="country" />
+                  <input type="text" value={sdCountry} onChange={(e) => setSdCountry(e.target.value.toUpperCase().slice(0, 2))} placeholder="e.g. DE" maxLength={2} style={localInputStyle} />
+                </div>
+
+                <div>
+                  <FieldLabel text="Catalog No." field="catalogNumber" />
+                  <input type="text" value={sdCatalogNumber} onChange={(e) => setSdCatalogNumber(e.target.value)} style={localInputStyle} />
+                </div>
+
+                <div>
+                  <FieldLabel text="Barcode" field="barcode" />
+                  <input type="text" value={sdBarcode} onChange={(e) => setSdBarcode(e.target.value)} style={localInputStyle} />
+                </div>
+
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <FieldLabel text="Description" field="description" />
+                  <textarea value={sdDescription} onChange={(e) => setSdDescription(e.target.value)} rows={4} style={{ ...localInputStyle, resize: "vertical" }} />
                 </div>
               </div>
 
-              <div>
-                <div style={labelStyle}>Label</div>
-                <div style={{ display: "flex", gap: S.gap.sm, alignItems: "center" }}>
-                  <input
-                    type="text"
-                    value={sdLabelName}
-                    readOnly
-                    placeholder="Click to select…"
-                    style={{ ...localInputStyle, cursor: "pointer", flex: 1 }}
-                    onClick={() => setSdPicker("label")}
-                  />
-                  <Btn label="…" variant="ghost" onClick={() => setSdPicker("label")} style={{ padding: "8px 12px", fontSize: 13 }} />
-                </div>
-              </div>
-
-              <div>
-                <div style={labelStyle}>Year</div>
-                <input type="number" value={sdYear} onChange={(e) => setSdYear(e.target.value)} min={1900} max={new Date().getFullYear()} placeholder="e.g. 1994" style={localInputStyle} />
-              </div>
-
-              <div>
-                <div style={labelStyle}>Country (ISO-2)</div>
-                <input type="text" value={sdCountry} onChange={(e) => setSdCountry(e.target.value.toUpperCase().slice(0, 2))} placeholder="e.g. DE" maxLength={2} style={localInputStyle} />
-              </div>
-
-              <div>
-                <div style={labelStyle}>Catalog No.</div>
-                <input type="text" value={sdCatalogNumber} onChange={(e) => setSdCatalogNumber(e.target.value)} style={localInputStyle} />
-              </div>
-
-              <div>
-                <div style={labelStyle}>Barcode</div>
-                <input type="text" value={sdBarcode} onChange={(e) => setSdBarcode(e.target.value)} style={localInputStyle} />
-              </div>
-
-              <div style={{ gridColumn: "1 / -1" }}>
-                <div style={labelStyle}>Description</div>
-                <textarea value={sdDescription} onChange={(e) => setSdDescription(e.target.value)} rows={4} style={{ ...localInputStyle, resize: "vertical" }} />
+              <div style={{ display: "flex", gap: S.gap.md, marginTop: S.gap.lg, paddingTop: S.gap.lg, borderTop: `1px solid ${C.border}` }}>
+                <Btn label={sdSaving ? "Saving…" : "Save Stammdaten"} variant="gold" onClick={handleSaveStammdaten} disabled={sdSaving} style={{ padding: "8px 24px", fontSize: 13 }} />
+                <Btn label="Cancel" variant="ghost" onClick={handleCancelEditStammdaten} disabled={sdSaving} style={{ padding: "8px 16px", fontSize: 13 }} />
               </div>
             </div>
-
-            <div style={{ display: "flex", gap: S.gap.md, marginTop: S.gap.lg, paddingTop: S.gap.lg, borderTop: `1px solid ${C.border}` }}>
-              <Btn label={sdSaving ? "Saving…" : "Save Stammdaten"} variant="gold" onClick={handleSaveStammdaten} disabled={sdSaving} style={{ padding: "8px 24px", fontSize: 13 }} />
-              <Btn label="Cancel" variant="ghost" onClick={handleCancelEditStammdaten} disabled={sdSaving} style={{ padding: "8px 16px", fontSize: 13 }} />
-            </div>
-          </div>
-        )}
+          )
+        })()}
       </div>
 
       {/* Picker Modals */}
@@ -1183,6 +1227,43 @@ const MediaDetailPage = () => {
           onSelect={(item) => { setSdLabelId(item.id); setSdLabelName(item.name) }}
           onClose={() => setSdPicker(null)}
         />
+      )}
+
+      {/* Unlock Field Confirm Modal */}
+      {unlockFieldPending && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 1000,
+          background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <div style={{
+            background: C.card, border: `1px solid ${C.border}`,
+            borderRadius: S.radius.lg, padding: 24, maxWidth: 420, width: "100%", margin: 16,
+          }}>
+            <div style={{ ...T.body, fontWeight: 700, marginBottom: S.gap.sm }}>
+              🔓 Unlock "{unlockFieldPending}"?
+            </div>
+            <div style={{ ...T.small, color: C.muted, marginBottom: S.gap.lg }}>
+              This removes the sync protection for this field. The <strong>next hourly legacy_sync run</strong> will
+              overwrite it with the tape-mag value. Only unlock if you want the MySQL value to take over again.
+            </div>
+            <div style={{ display: "flex", gap: S.gap.md }}>
+              <Btn
+                label={unlockingField ? "Unlocking…" : "Yes, unlock field"}
+                variant="danger"
+                onClick={() => handleUnlockField(unlockFieldPending)}
+                disabled={unlockingField}
+                style={{ padding: "8px 16px", fontSize: 13 }}
+              />
+              <Btn
+                label="Cancel"
+                variant="ghost"
+                onClick={() => setUnlockFieldPending(null)}
+                disabled={unlockingField}
+                style={{ padding: "8px 16px", fontSize: 13 }}
+              />
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Edit Valuation */}

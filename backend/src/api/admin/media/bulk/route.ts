@@ -3,14 +3,14 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { generateEntityId } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { logEdit } from "../../../../lib/release-audit"
-import { isStammdatenEditable } from "../../../../lib/release-source"
 import { validateReleaseStammdaten } from "../../../../lib/release-validation"
 import { pushReleaseNow } from "../../../../lib/meilisearch-push"
+import { SYNC_PROTECTED_FIELDS } from "../../../../lib/release-locks"
 
-// Zone-1 fields that require is_stammdaten_editable — legacy releases are skipped
+// Zone-1 Hard-Stammdaten fields allowed in bulk edits
 const HARD_STAMMDATEN_BULK = ["title", "year", "country", "catalogNumber", "description"] as const
 
-// POST /admin/media/bulk — Bulk update releases
+// POST /admin/media/bulk — Bulk update releases (rc51.0: all releases, including legacy)
 export async function POST(
   req: MedusaRequest,
   res: MedusaResponse
@@ -40,7 +40,7 @@ export async function POST(
     "media_condition",
     "sleeve_condition",
     "auction_status",
-    // Zone-1 Hard-Stammdaten (skipped for legacy releases, see below)
+    // Zone-1 Hard-Stammdaten (all releases — auto-locks on edit, rc51.0)
     "title",
     "year",
     "country",
@@ -113,29 +113,6 @@ export async function POST(
   const actorId: string = (req as any).auth_context?.actor_id || "admin"
   const actorEmail: string | null = (req as any).auth_context?.actor_email || null
 
-  // When any hard stammdaten field is being edited, split IDs into
-  // editable (discogs_import / manual_admin) vs skipped (legacy).
-  let editableIds = ids
-  let skippedCount = 0
-
-  if (hardFieldsInUpdate.length > 0) {
-    const rows = await pgConnection("Release")
-      .select("id", "data_source")
-      .whereIn("id", ids)
-
-    const legacyIds = new Set(
-      rows.filter((r: { id: string; data_source: string | null }) => !isStammdatenEditable(r)).map((r: { id: string }) => r.id)
-    )
-    skippedCount = legacyIds.size
-    editableIds = ids.filter(id => !legacyIds.has(id))
-  }
-
-  if (editableIds.length === 0) {
-    res.json({ updated_count: 0, skipped_count: skippedCount })
-    return
-  }
-
-  // Execute update + audit log in a transaction
   let updatedCount = 0
 
   await pgConnection.transaction(async (trx) => {
@@ -144,22 +121,40 @@ export async function POST(
     if (hardFieldsInUpdate.length > 0) {
       const currentRows = await trx("Release")
         .select(["id", ...hardFieldsInUpdate])
-        .whereIn("id", editableIds)
+        .whereIn("id", ids)
       for (const row of currentRows) {
         oldValues[row.id] = row
       }
     }
 
     updatedCount = await trx("Release")
-      .whereIn("id", editableIds)
+      .whereIn("id", ids)
       .update(sanitized)
+
+    // Auto-lock: batch-merge hard fields into locked_fields for all updated releases.
+    // Single UPDATE across all rows — same perf profile as the main UPDATE above.
+    if (hardFieldsInUpdate.length > 0) {
+      const lockableFields = hardFieldsInUpdate.filter(f =>
+        (SYNC_PROTECTED_FIELDS as readonly string[]).includes(f)
+      )
+      if (lockableFields.length > 0) {
+        await trx("Release")
+          .whereIn("id", ids)
+          .update({
+            locked_fields: trx.raw(
+              `(SELECT jsonb_agg(DISTINCT v ORDER BY v) FROM jsonb_array_elements_text(locked_fields || ?::jsonb) AS t(v))`,
+              [JSON.stringify(lockableFields)]
+            ),
+          })
+      }
+    }
 
     // Audit log: one row per release × per changed stammdaten field
     if (hardFieldsInUpdate.length > 0) {
       const auditRows: Record<string, unknown>[] = []
       const now = new Date()
 
-      for (const releaseId of editableIds) {
+      for (const releaseId of ids) {
         const old = oldValues[releaseId]
         if (!old) continue
 
@@ -186,10 +181,10 @@ export async function POST(
     }
   })
 
-  res.json({ updated_count: updatedCount, skipped_count: skippedCount })
+  res.json({ updated_count: updatedCount, skipped_count: 0 })
 
   // Fire-and-forget Meili reindex for all updated releases
-  for (const releaseId of editableIds) {
+  for (const releaseId of ids) {
     pushReleaseNow(pgConnection, releaseId).catch((err) => {
       console.warn(
         JSON.stringify({

@@ -3,9 +3,9 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { createMovement } from "../../../../lib/inventory"
 import { pushReleaseNow } from "../../../../lib/meilisearch-push"
-import { isStammdatenEditable, getLockedReason } from "../../../../lib/release-source"
 import { logEdit, HARD_STAMMDATEN_FIELDS, SYSTEM_ID_FIELDS } from "../../../../lib/release-audit"
 import { validateReleaseStammdaten } from "../../../../lib/release-validation"
+import { lockFields, getHardFieldsInBody } from "../../../../lib/release-locks"
 
 // GET /admin/media/:id — Single release detail with sync history
 export async function GET(
@@ -168,9 +168,9 @@ export async function GET(
   }
 
   const meta = {
-    is_stammdaten_editable: isStammdatenEditable(release),
+    is_stammdaten_editable: true, // All releases editable — lock is per-field via locked_fields
     source: release.data_source ?? "legacy",
-    locked_reason: getLockedReason(release),
+    locked_fields: release.locked_fields || [],
   }
 
   res.json({ release, sync_history, images, import_history, inventory_items, inventory_movements, meta })
@@ -199,19 +199,6 @@ export async function POST(
     return
   }
 
-  // Zone-1 Guard: Hard-Stammdaten only editable for non-legacy sources
-  const requestedHardFields = (HARD_STAMMDATEN_FIELDS as readonly string[]).filter(
-    (f) => body[f] !== undefined
-  )
-  if (requestedHardFields.length > 0 && !isStammdatenEditable(currentRelease)) {
-    res.status(403).json({
-      error: "stammdaten_locked",
-      message: "Stammdaten werden vom Legacy-Sync verwaltet und können nicht editiert werden.",
-      locked_fields: requestedHardFields,
-    })
-    return
-  }
-
   // Stammdaten validation — single source of truth for FE + BE.
   // Only validates fields actually present in the body (partial updates ok).
   const stammdatenErrors = validateReleaseStammdaten({
@@ -234,8 +221,9 @@ export async function POST(
   const actorId: string = (req as any).auth_context?.actor_id || "admin"
   const actorEmail: string | null = (req as any).auth_context?.actor_email || null
 
-  // Allowed Release fields — Zone-3 Commerce (always) + Zone-2 Soft-Stammdaten (always)
-  // + Zone-1 Hard-Stammdaten (only when is_stammdaten_editable=true, Guard above ensures it)
+  // Allowed Release fields — Zone-3 Commerce + Zone-2 Soft + Zone-1 Hard
+  // Zone-1 is open for ALL releases (legacy included) — edited fields auto-lock
+  // against sync overwrite via locked_fields JSONB array (rc51.0 Sync-Lock-Modell)
   const allowedReleaseFields = [
     // Zone-3 Commerce
     "estimated_value",
@@ -243,30 +231,26 @@ export async function POST(
     "shop_price",
     "shipping_item_type_id",
     "discogs_id",
-    // Zone-2 Soft-Stammdaten (always open)
+    // Zone-2 Soft-Stammdaten (always open, no lock needed)
     "genres",
     "styles",
     "barcode",
     "credits",
-    // Zone-1 Hard-Stammdaten (guard above already rejected non-editable releases)
-    ...(isStammdatenEditable(currentRelease)
-      ? [
-          "title",
-          "description",
-          "year",
-          "format",
-          "format_id",
-          "catalogNumber",
-          "country",
-          "artistId",
-          "labelId",
-          "coverImage",
-          "legacy_format_detail",
-          "legacy_condition",
-          "legacy_available",
-          "legacy_price",
-        ]
-      : []),
+    // Zone-1 Hard-Stammdaten (all releases — auto-locks on edit)
+    "title",
+    "description",
+    "year",
+    "format",
+    "format_id",
+    "catalogNumber",
+    "country",
+    "artistId",
+    "labelId",
+    "coverImage",
+    "legacy_format_detail",
+    "legacy_condition",
+    "legacy_available",
+    "legacy_price",
   ]
   const releaseUpdates: Record<string, any> = {}
 
@@ -349,6 +333,13 @@ export async function POST(
     if (Object.keys(releaseUpdates).length > 1) {
       // more than just updatedAt
       await trx("Release").where("id", id).update(releaseUpdates)
+    }
+
+    // Auto-lock: any Zone-1 Hard-Stammdaten field that was in this edit gets
+    // added to locked_fields, protecting it from legacy_sync_v2 overwrite.
+    const hardFieldsEdited = getHardFieldsInBody(body)
+    if (hardFieldsEdited.length > 0) {
+      await lockFields(trx, id, hardFieldsEdited)
     }
 
     // Update erp_inventory_item(s) — applies to all exemplars of this release.

@@ -208,6 +208,15 @@ DIFF_FIELDS_LITERATURE = [
     "legacy_format_detail",
 ]
 
+# Zone-1 Hard-Stammdaten fields that can be locked via locked_fields JSONB array.
+# Mirrors SYNC_PROTECTED_FIELDS in backend/src/lib/release-locks.ts (rc51.0).
+HARD_STAMMDATEN_FIELDS = {
+    "title", "year", "country", "catalogNumber", "barcode",
+    "description", "artistId", "labelId", "coverImage",
+    "format_id", "legacy_format_detail", "legacy_condition",
+    "legacy_available", "legacy_price",
+}
+
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -713,58 +722,69 @@ def sync_releases_v2(mysql_conn, pg_conn, run_id, dry_run=False):
                     "createdAt", "updatedAt", legacy_last_synced
                 ) VALUES %s
                 ON CONFLICT (id) DO UPDATE SET
-                    title = EXCLUDED.title,
-                    description = EXCLUDED.description,
-                    year = EXCLUDED.year,
+                    -- rc51.0: CASE-WHEN per field — if locked_fields contains
+                    -- the field name, keep existing value (skip sync overwrite).
+                    title = CASE WHEN "Release".locked_fields @> '"title"'::jsonb
+                                 THEN "Release".title ELSE EXCLUDED.title END,
+                    description = CASE WHEN "Release".locked_fields @> '"description"'::jsonb
+                                       THEN "Release".description ELSE EXCLUDED.description END,
+                    year = CASE WHEN "Release".locked_fields @> '"year"'::jsonb
+                                THEN "Release".year ELSE EXCLUDED.year END,
                     format = EXCLUDED.format,
-                    format_id = EXCLUDED.format_id,
-                    "catalogNumber" = EXCLUDED."catalogNumber",
-                    country = EXCLUDED.country,
-                    "artistId" = EXCLUDED."artistId",
+                    format_id = CASE WHEN "Release".locked_fields @> '"format_id"'::jsonb
+                                     THEN "Release".format_id ELSE EXCLUDED.format_id END,
+                    "catalogNumber" = CASE WHEN "Release".locked_fields @> '"catalogNumber"'::jsonb
+                                           THEN "Release"."catalogNumber" ELSE EXCLUDED."catalogNumber" END,
+                    country = CASE WHEN "Release".locked_fields @> '"country"'::jsonb
+                                   THEN "Release".country ELSE EXCLUDED.country END,
+                    "artistId" = CASE WHEN "Release".locked_fields @> '"artistId"'::jsonb
+                                      THEN "Release"."artistId" ELSE EXCLUDED."artistId" END,
                     "labelId" = CASE
+                        WHEN "Release".locked_fields @> '"labelId"'::jsonb THEN "Release"."labelId"
                         WHEN "Release".label_enriched = TRUE THEN "Release"."labelId"
                         ELSE EXCLUDED."labelId"
                     END,
-                    "coverImage" = EXCLUDED."coverImage",
+                    "coverImage" = CASE WHEN "Release".locked_fields @> '"coverImage"'::jsonb
+                                        THEN "Release"."coverImage" ELSE EXCLUDED."coverImage" END,
                     legacy_price = CASE
+                        WHEN "Release".locked_fields @> '"legacy_price"'::jsonb THEN "Release".legacy_price
                         WHEN EXISTS(SELECT 1 FROM erp_inventory_item ii
                                     WHERE ii.release_id = "Release".id AND ii.price_locked = true)
                         THEN "Release".legacy_price
                         ELSE EXCLUDED.legacy_price
                     END,
-                    legacy_condition = EXCLUDED.legacy_condition,
-                    legacy_format_detail = EXCLUDED.legacy_format_detail,
-                    legacy_available = EXCLUDED.legacy_available,
+                    legacy_condition = CASE WHEN "Release".locked_fields @> '"legacy_condition"'::jsonb
+                                           THEN "Release".legacy_condition ELSE EXCLUDED.legacy_condition END,
+                    legacy_format_detail = CASE WHEN "Release".locked_fields @> '"legacy_format_detail"'::jsonb
+                                               THEN "Release".legacy_format_detail ELSE EXCLUDED.legacy_format_detail END,
+                    legacy_available = CASE WHEN "Release".locked_fields @> '"legacy_available"'::jsonb
+                                           THEN "Release".legacy_available ELSE EXCLUDED.legacy_available END,
                     "updatedAt" = NOW(),
                     legacy_last_synced = NOW()
                 WHERE
-                    -- rc49.4: Only execute the UPDATE branch if at least one
-                    -- semantic field differs. Without this WHERE, every UPSERT
-                    -- fires the release_indexed_at_self trigger (22-field
-                    -- whitelist) because ONE of those fields inevitably sees
-                    -- a subtle MySQL→PG type/encoding difference, bumping
-                    -- search_indexed_at=NULL on all 30k+ rows hourly. With the
-                    -- WHERE gate, no-op UPSERTs skip the UPDATE entirely → no
-                    -- trigger fire → no Meili-sync cascade.
-                    "Release".title IS DISTINCT FROM EXCLUDED.title
-                    OR "Release".description IS DISTINCT FROM EXCLUDED.description
-                    OR "Release".year IS DISTINCT FROM EXCLUDED.year
+                    -- rc49.4: Only execute UPDATE branch if a semantic non-locked
+                    -- field differs. rc51.0: locked fields excluded from WHERE so
+                    -- they never trigger the UPDATE (no trigger fire, no Meili cascade).
+                    (NOT "Release".locked_fields @> '"title"'::jsonb AND "Release".title IS DISTINCT FROM EXCLUDED.title)
+                    OR (NOT "Release".locked_fields @> '"description"'::jsonb AND "Release".description IS DISTINCT FROM EXCLUDED.description)
+                    OR (NOT "Release".locked_fields @> '"year"'::jsonb AND "Release".year IS DISTINCT FROM EXCLUDED.year)
                     OR "Release".format IS DISTINCT FROM EXCLUDED.format
-                    OR "Release".format_id IS DISTINCT FROM EXCLUDED.format_id
-                    OR "Release"."catalogNumber" IS DISTINCT FROM EXCLUDED."catalogNumber"
-                    OR "Release".country IS DISTINCT FROM EXCLUDED.country
-                    OR "Release"."artistId" IS DISTINCT FROM EXCLUDED."artistId"
-                    OR ("Release".label_enriched = FALSE
+                    OR (NOT "Release".locked_fields @> '"format_id"'::jsonb AND "Release".format_id IS DISTINCT FROM EXCLUDED.format_id)
+                    OR (NOT "Release".locked_fields @> '"catalogNumber"'::jsonb AND "Release"."catalogNumber" IS DISTINCT FROM EXCLUDED."catalogNumber")
+                    OR (NOT "Release".locked_fields @> '"country"'::jsonb AND "Release".country IS DISTINCT FROM EXCLUDED.country)
+                    OR (NOT "Release".locked_fields @> '"artistId"'::jsonb AND "Release"."artistId" IS DISTINCT FROM EXCLUDED."artistId")
+                    OR (NOT "Release".locked_fields @> '"labelId"'::jsonb AND "Release".label_enriched = FALSE
                         AND "Release"."labelId" IS DISTINCT FROM EXCLUDED."labelId")
-                    OR "Release"."coverImage" IS DISTINCT FROM EXCLUDED."coverImage"
+                    OR (NOT "Release".locked_fields @> '"coverImage"'::jsonb AND "Release"."coverImage" IS DISTINCT FROM EXCLUDED."coverImage")
                     OR (
-                        NOT EXISTS(SELECT 1 FROM erp_inventory_item ii
-                                   WHERE ii.release_id = "Release".id AND ii.price_locked = true)
+                        NOT "Release".locked_fields @> '"legacy_price"'::jsonb
+                        AND NOT EXISTS(SELECT 1 FROM erp_inventory_item ii
+                                       WHERE ii.release_id = "Release".id AND ii.price_locked = true)
                         AND "Release".legacy_price IS DISTINCT FROM EXCLUDED.legacy_price
                     )
-                    OR "Release".legacy_condition IS DISTINCT FROM EXCLUDED.legacy_condition
-                    OR "Release".legacy_format_detail IS DISTINCT FROM EXCLUDED.legacy_format_detail
-                    OR "Release".legacy_available IS DISTINCT FROM EXCLUDED.legacy_available""",
+                    OR (NOT "Release".locked_fields @> '"legacy_condition"'::jsonb AND "Release".legacy_condition IS DISTINCT FROM EXCLUDED.legacy_condition)
+                    OR (NOT "Release".locked_fields @> '"legacy_format_detail"'::jsonb AND "Release".legacy_format_detail IS DISTINCT FROM EXCLUDED.legacy_format_detail)
+                    OR (NOT "Release".locked_fields @> '"legacy_available"'::jsonb AND "Release".legacy_available IS DISTINCT FROM EXCLUDED.legacy_available)""",
                 release_values,
                 template="(%s, %s, %s, %s, %s, %s::\"ReleaseFormat\", %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW())",
             )
@@ -787,6 +807,19 @@ def sync_releases_v2(mysql_conn, pg_conn, run_id, dry_run=False):
             price_locked_ids = {row[0] for row in pl_cur.fetchall()}
             pl_cur.close()
 
+        # rc51.0: Pre-fetch locked_fields for this batch (sync-lock protection).
+        # Only fetches rows where locked_fields is non-empty to minimize data transfer.
+        locked_fields_map = {}  # release_id -> frozenset of locked field names
+        if release_values:
+            lf_cur = pg_conn.cursor()
+            lf_cur.execute(
+                "SELECT id, locked_fields FROM \"Release\" WHERE id = ANY(%s) AND locked_fields != '[]'::jsonb",
+                ([rv[0] for rv in release_values],),
+            )
+            for row in lf_cur.fetchall():
+                locked_fields_map[row[0]] = frozenset(row[1] or [])
+            lf_cur.close()
+
         # Full-field diff: compare each new value against existing state.
         # Collect IDs of rows that actually changed — these are the only
         # rows that need a Meili reindex bump. Idempotent UPSERTs with no
@@ -806,6 +839,12 @@ def sync_releases_v2(mysql_conn, pg_conn, run_id, dry_run=False):
                 # so we must not report it as a change either.
                 if release_id in price_locked_ids:
                     fields_to_diff = [f for f in fields_to_diff if f != "legacy_price"]
+                # rc51.0: Exclude locked fields from diff — sync won't overwrite them.
+                # Also emit sync_skipped_locked entries for observability.
+                locked_fields = locked_fields_map.get(release_id, frozenset())
+                lockable_in_diff = [f for f in fields_to_diff if f in locked_fields and f in HARD_STAMMDATEN_FIELDS]
+                if locked_fields:
+                    fields_to_diff = [f for f in fields_to_diff if f not in locked_fields]
                 delta = compute_diff(old_state, new_values, fields_to_diff)
                 if delta:
                     rows_changed += 1
@@ -813,6 +852,14 @@ def sync_releases_v2(mysql_conn, pg_conn, run_id, dry_run=False):
                     for field_name, change in delta.items():
                         change_entries.append((
                             run_id, release_id, "updated",
+                            psycopg2.extras.Json({field_name: change}),
+                        ))
+                # Record sync_skipped_locked entries for fields that would have changed
+                if lockable_in_diff:
+                    locked_delta = compute_diff(old_state, new_values, lockable_in_diff)
+                    for field_name, change in locked_delta.items():
+                        change_entries.append((
+                            run_id, release_id, "sync_skipped_locked",
                             psycopg2.extras.Json({field_name: change}),
                         ))
             else:
@@ -1045,48 +1092,59 @@ def sync_literature_v2(mysql_conn, pg_conn, run_id, table, category,
                     "createdAt", "updatedAt", legacy_last_synced
                 ) VALUES %s
                 ON CONFLICT (id) DO UPDATE SET
-                    title = EXCLUDED.title,
-                    description = EXCLUDED.description,
-                    year = EXCLUDED.year,
+                    -- rc51.0: CASE-WHEN lock-awareness (same pattern as release path)
+                    title = CASE WHEN "Release".locked_fields @> '"title"'::jsonb
+                                 THEN "Release".title ELSE EXCLUDED.title END,
+                    description = CASE WHEN "Release".locked_fields @> '"description"'::jsonb
+                                       THEN "Release".description ELSE EXCLUDED.description END,
+                    year = CASE WHEN "Release".locked_fields @> '"year"'::jsonb
+                                THEN "Release".year ELSE EXCLUDED.year END,
                     format = EXCLUDED.format,
-                    format_id = EXCLUDED.format_id,
-                    country = EXCLUDED.country,
-                    "artistId" = EXCLUDED."artistId",
+                    format_id = CASE WHEN "Release".locked_fields @> '"format_id"'::jsonb
+                                     THEN "Release".format_id ELSE EXCLUDED.format_id END,
+                    country = CASE WHEN "Release".locked_fields @> '"country"'::jsonb
+                                   THEN "Release".country ELSE EXCLUDED.country END,
+                    "artistId" = CASE WHEN "Release".locked_fields @> '"artistId"'::jsonb
+                                      THEN "Release"."artistId" ELSE EXCLUDED."artistId" END,
                     "labelId" = CASE
+                        WHEN "Release".locked_fields @> '"labelId"'::jsonb THEN "Release"."labelId"
                         WHEN "Release".label_enriched = TRUE THEN "Release"."labelId"
                         ELSE EXCLUDED."labelId"
                     END,
                     "pressOrgaId" = EXCLUDED."pressOrgaId",
-                    "coverImage" = EXCLUDED."coverImage",
+                    "coverImage" = CASE WHEN "Release".locked_fields @> '"coverImage"'::jsonb
+                                        THEN "Release"."coverImage" ELSE EXCLUDED."coverImage" END,
                     legacy_price = CASE
+                        WHEN "Release".locked_fields @> '"legacy_price"'::jsonb THEN "Release".legacy_price
                         WHEN EXISTS(SELECT 1 FROM erp_inventory_item ii
                                     WHERE ii.release_id = "Release".id AND ii.price_locked = true)
                         THEN "Release".legacy_price
                         ELSE EXCLUDED.legacy_price
                     END,
-                    legacy_format_detail = EXCLUDED.legacy_format_detail,
+                    legacy_format_detail = CASE WHEN "Release".locked_fields @> '"legacy_format_detail"'::jsonb
+                                               THEN "Release".legacy_format_detail ELSE EXCLUDED.legacy_format_detail END,
                     "updatedAt" = NOW(),
                     legacy_last_synced = NOW()
                 WHERE
-                    -- rc49.4: Only execute UPDATE branch if a semantic field
-                    -- differs. See release path for detailed rationale.
-                    "Release".title IS DISTINCT FROM EXCLUDED.title
-                    OR "Release".description IS DISTINCT FROM EXCLUDED.description
-                    OR "Release".year IS DISTINCT FROM EXCLUDED.year
+                    -- rc51.0: locked fields excluded from WHERE — never trigger UPDATE.
+                    (NOT "Release".locked_fields @> '"title"'::jsonb AND "Release".title IS DISTINCT FROM EXCLUDED.title)
+                    OR (NOT "Release".locked_fields @> '"description"'::jsonb AND "Release".description IS DISTINCT FROM EXCLUDED.description)
+                    OR (NOT "Release".locked_fields @> '"year"'::jsonb AND "Release".year IS DISTINCT FROM EXCLUDED.year)
                     OR "Release".format IS DISTINCT FROM EXCLUDED.format
-                    OR "Release".format_id IS DISTINCT FROM EXCLUDED.format_id
-                    OR "Release".country IS DISTINCT FROM EXCLUDED.country
-                    OR "Release"."artistId" IS DISTINCT FROM EXCLUDED."artistId"
-                    OR ("Release".label_enriched = FALSE
+                    OR (NOT "Release".locked_fields @> '"format_id"'::jsonb AND "Release".format_id IS DISTINCT FROM EXCLUDED.format_id)
+                    OR (NOT "Release".locked_fields @> '"country"'::jsonb AND "Release".country IS DISTINCT FROM EXCLUDED.country)
+                    OR (NOT "Release".locked_fields @> '"artistId"'::jsonb AND "Release"."artistId" IS DISTINCT FROM EXCLUDED."artistId")
+                    OR (NOT "Release".locked_fields @> '"labelId"'::jsonb AND "Release".label_enriched = FALSE
                         AND "Release"."labelId" IS DISTINCT FROM EXCLUDED."labelId")
                     OR "Release"."pressOrgaId" IS DISTINCT FROM EXCLUDED."pressOrgaId"
-                    OR "Release"."coverImage" IS DISTINCT FROM EXCLUDED."coverImage"
+                    OR (NOT "Release".locked_fields @> '"coverImage"'::jsonb AND "Release"."coverImage" IS DISTINCT FROM EXCLUDED."coverImage")
                     OR (
-                        NOT EXISTS(SELECT 1 FROM erp_inventory_item ii
-                                   WHERE ii.release_id = "Release".id AND ii.price_locked = true)
+                        NOT "Release".locked_fields @> '"legacy_price"'::jsonb
+                        AND NOT EXISTS(SELECT 1 FROM erp_inventory_item ii
+                                       WHERE ii.release_id = "Release".id AND ii.price_locked = true)
                         AND "Release".legacy_price IS DISTINCT FROM EXCLUDED.legacy_price
                     )
-                    OR "Release".legacy_format_detail IS DISTINCT FROM EXCLUDED.legacy_format_detail""",
+                    OR (NOT "Release".locked_fields @> '"legacy_format_detail"'::jsonb AND "Release".legacy_format_detail IS DISTINCT FROM EXCLUDED.legacy_format_detail)""",
                 release_values,
                 template="(%s, %s, %s, %s, %s, %s::\"ReleaseFormat\", %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW())",
             )
@@ -1103,6 +1161,18 @@ def sync_literature_v2(mysql_conn, pg_conn, run_id, table, category,
             price_locked_ids = {row[0] for row in pl_cur.fetchall()}
             pl_cur.close()
 
+        # rc51.0: Pre-fetch locked_fields for this literature batch
+        locked_fields_map = {}
+        if release_values:
+            lf_cur = pg_conn.cursor()
+            lf_cur.execute(
+                "SELECT id, locked_fields FROM \"Release\" WHERE id = ANY(%s) AND locked_fields != '[]'::jsonb",
+                ([rv[0] for rv in release_values],),
+            )
+            for row in lf_cur.fetchall():
+                locked_fields_map[row[0]] = frozenset(row[1] or [])
+            lf_cur.close()
+
         # Full-field diff for literature — collect changed/new IDs for the
         # targeted Meili-reindex bump (rc49.3).
         changed_or_new_ids = []
@@ -1114,6 +1184,11 @@ def sync_literature_v2(mysql_conn, pg_conn, run_id, table, category,
                     effective_fields = [f for f in effective_fields if f != "labelId"]
                 if release_id in price_locked_ids:
                     effective_fields = [f for f in effective_fields if f != "legacy_price"]
+                # rc51.0: Exclude locked fields from diff + emit sync_skipped_locked
+                locked_fields = locked_fields_map.get(release_id, frozenset())
+                lockable_in_diff = [f for f in effective_fields if f in locked_fields and f in HARD_STAMMDATEN_FIELDS]
+                if locked_fields:
+                    effective_fields = [f for f in effective_fields if f not in locked_fields]
                 delta = compute_diff(old_state, new_values, effective_fields)
                 if delta:
                     rows_changed += 1
@@ -1121,6 +1196,13 @@ def sync_literature_v2(mysql_conn, pg_conn, run_id, table, category,
                     for field_name, change in delta.items():
                         change_entries.append((
                             run_id, release_id, "updated",
+                            psycopg2.extras.Json({field_name: change}),
+                        ))
+                if lockable_in_diff:
+                    locked_delta = compute_diff(old_state, new_values, lockable_in_diff)
+                    for field_name, change in locked_delta.items():
+                        change_entries.append((
+                            run_id, release_id, "sync_skipped_locked",
                             psycopg2.extras.Json({field_name: change}),
                         ))
             else:

@@ -1,37 +1,24 @@
 /**
- * Release data source helpers
- * Determines editability of stammdaten based on Release.data_source
+ * Release data source helpers.
+ * rc51.0: All releases are Zone-1 editable — lock is per-field via locked_fields JSONB.
  */
 
-export const EDITABLE_STAMMDATEN_SOURCES = ['discogs_import'] as const;
+export const EDITABLE_STAMMDATEN_SOURCES = ['discogs_import', 'legacy', 'manual_admin'] as const;
 
-export function isStammdatenEditable(release: {
+export function isStammdatenEditable(_release: {
   id: string;
-  data_source: string | null;
+  data_source?: string | null;
 }): boolean {
-  // Zone 0: System-IDs are never editable
-  if (release.id.startsWith('legacy-')) {
-    return false;
-  }
-
-  // Discogs-Import is editable
-  if (EDITABLE_STAMMDATEN_SOURCES.includes(release.data_source as any)) {
-    return true;
-  }
-
-  return false;
+  // rc51.0: All releases are editable. Hard-Stammdaten edits auto-lock the field
+  // against sync overwrite via Release.locked_fields. Zone-0 (id/article_number/
+  // data_source) are protected by the API allowlist, not this function.
+  return true;
 }
 
-export function getLockedReason(release: {
+export function getLockedReason(_release: {
   id: string;
-  data_source: string | null;
+  data_source?: string | null;
 }): string | null {
-  if (!isStammdatenEditable(release)) {
-    if (release.id.startsWith('legacy-')) {
-      return 'Synced from tape-mag legacy database (hourly updates). Changes would be overwritten at next sync.';
-    }
-    return 'Stammdaten are locked for this release.';
-  }
-
+  // rc51.0: No release-level lock reason — lock is per-field in locked_fields array.
   return null;
 }
