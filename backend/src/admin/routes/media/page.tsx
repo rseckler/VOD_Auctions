@@ -2,6 +2,7 @@ import { Component, useEffect, useState } from "react"
 import { useAdminNav } from "../../components/admin-nav"
 import { C } from "../../components/admin-tokens"
 import { PageHeader, PageShell } from "../../components/admin-layout"
+import { Toast } from "../../components/admin-ui"
 import type { ErrorInfo, ReactNode } from "react"
 
 class ErrorBoundary extends Component<
@@ -400,6 +401,7 @@ const MediaPage = () => {
   const [bulkAction, setBulkAction] = useState<string | null>(null)
   const [bulkValue, setBulkValue] = useState("")
   const [bulkLoading, setBulkLoading] = useState(false)
+  const [bulkToast, setBulkToast] = useState<{ message: string; type: "success" | "error" } | null>(null)
   const [refetchTrigger, setRefetchTrigger] = useState(0)
   const [blocks, setBlocks] = useState<{ id: string; title: string; status: string }[]>([])
   const [galleryOpen, setGalleryOpen] = useState(false)
@@ -509,6 +511,14 @@ const MediaPage = () => {
       updates.sleeve_condition = bulkValue || null
     } else if (bulkAction === "auction_status") {
       updates.auction_status = bulkValue || null
+    } else if (bulkAction === "stammdaten_title") {
+      updates.title = bulkValue.trim()
+    } else if (bulkAction === "stammdaten_country") {
+      updates.country = bulkValue.trim().toUpperCase()
+    } else if (bulkAction === "stammdaten_year") {
+      updates.year = parseInt(bulkValue, 10)
+    } else if (bulkAction === "stammdaten_catalogNumber") {
+      updates.catalogNumber = bulkValue.trim()
     }
 
     try {
@@ -520,13 +530,14 @@ const MediaPage = () => {
       })
       const data = await resp.json()
       if (!resp.ok) {
-        alert("Error: " + (data.message || "Bulk update failed"))
+        setBulkToast({ message: "Error: " + (data.message || "Bulk update failed"), type: "error" })
       } else {
-        alert(`Updated ${data.updated_count} releases.`)
+        const skipMsg = data.skipped_count > 0 ? ` · ${data.skipped_count} legacy items skipped` : ""
+        setBulkToast({ message: `Updated ${data.updated_count} releases${skipMsg}`, type: "success" })
         setRefetchTrigger((n) => n + 1)
       }
     } catch (err) {
-      alert("Error: " + (err as Error).message)
+      setBulkToast({ message: "Error: " + (err as Error).message, type: "error" })
     }
     setBulkLoading(false)
     setBulkAction(null)
@@ -1126,6 +1137,12 @@ const MediaPage = () => {
             <option value="sleeve_condition">Set Sleeve Condition</option>
             <option value="auction_status">Set Auction Status</option>
             <option value="assign_to_block">Assign to Auction Block</option>
+            <optgroup label="Stammdaten (skips legacy)">
+              <option value="stammdaten_title">Set Title</option>
+              <option value="stammdaten_country">Set Country (ISO-2)</option>
+              <option value="stammdaten_year">Set Year</option>
+              <option value="stammdaten_catalogNumber">Set Catalog Number</option>
+            </optgroup>
           </select>
 
           {/* Value input based on action */}
@@ -1163,6 +1180,36 @@ const MediaPage = () => {
               ))}
               {blocks.length === 0 && <option disabled>No draft/preview blocks</option>}
             </select>
+          )}
+          {(bulkAction === "stammdaten_title" || bulkAction === "stammdaten_catalogNumber") && (
+            <input
+              type="text"
+              placeholder={bulkAction === "stammdaten_title" ? "New title" : "Catalog number"}
+              value={bulkValue}
+              onChange={(e) => setBulkValue(e.target.value)}
+              style={{ ...smallInputStyle, width: "200px" }}
+            />
+          )}
+          {bulkAction === "stammdaten_country" && (
+            <input
+              type="text"
+              placeholder="DE"
+              maxLength={2}
+              value={bulkValue}
+              onChange={(e) => setBulkValue(e.target.value.toUpperCase())}
+              style={{ ...smallInputStyle, width: "60px" }}
+            />
+          )}
+          {bulkAction === "stammdaten_year" && (
+            <input
+              type="number"
+              placeholder="1985"
+              min={1900}
+              max={new Date().getFullYear()}
+              value={bulkValue}
+              onChange={(e) => setBulkValue(e.target.value)}
+              style={{ ...smallInputStyle, width: "90px" }}
+            />
           )}
 
           {bulkAction && bulkAction !== "estimated_value_discogs" && bulkAction !== "assign_to_block" && (
@@ -1412,6 +1459,13 @@ const MediaPage = () => {
       )}
     </PageShell>
     {galleryOpen && <ImageGalleryOverlay onClose={() => setGalleryOpen(false)} />}
+    {bulkToast && (
+      <Toast
+        message={bulkToast.message}
+        type={bulkToast.type}
+        onDone={() => setBulkToast(null)}
+      />
+    )}
     </ErrorBoundary>
   )
 }
