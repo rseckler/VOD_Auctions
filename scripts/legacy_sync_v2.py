@@ -1263,39 +1263,31 @@ def run_validation(mysql_conn, pg_conn):
     except Exception as e:
         errors.append({"check": "V3_referential_integrity", "severity": "error", "error": str(e)})
 
-    # V4: Sync freshness — all legacy releases should have
-    # legacy_last_synced < 2x cron interval. Cron = 1h → 2h threshold.
-    try:
-        pcur = pg_conn.cursor()
-        pcur.execute("""
-            SELECT COUNT(*) FROM "Release"
-            WHERE id LIKE 'legacy-%'
-              AND (legacy_last_synced IS NULL
-                   OR legacy_last_synced < NOW() - INTERVAL '2 hours')
-        """)
-        stale = pcur.fetchone()[0]
-        pcur.close()
-        if stale > 10:
-            errors.append({
-                "check": "V4_sync_freshness",
-                "severity": "warning",
-                "stale_rows": stale,
-                "threshold_hours": 2,
-            })
-            if status == "ok":
-                status = "warnings"
-    except Exception as e:
-        errors.append({"check": "V4_sync_freshness", "severity": "error", "error": str(e)})
+    # V4: Sync freshness — dropped in rc49.8 because the semantic is
+    # obsolete after rc49.4 (WHERE-gated UPSERT). legacy_last_synced gets
+    # bumped only on rows with real semantic diff — unchanged rows keep
+    # their old timestamp, which is correct behavior but looks "stale" to
+    # the old per-row check. Freshness is now monitored via the
+    # sync_log_freshness health probe (reads sync_log.ended_at, which IS
+    # written on every run regardless of per-row outcomes).
 
     # V5: No price changes on price-locked items
-    # If sync_change_log contains a legacy_price change for a price-locked
+    # If sync_change_log contains a legacy_price UPDATE for a price-locked
     # release, the ON CONFLICT guard failed or was bypassed. This is a
     # critical integrity violation.
+    #
+    # rc49.8: added change_type='updated' filter. Previously V5 matched
+    # LIKE '%legacy_price%' against any change_log row, which included
+    # INSERT events where the full new_values dict (with legacy_price as
+    # a KEY) was dumped as-is. That's not a mutation — it's just the
+    # initial snapshot of a newly-tracked row. Real violations only come
+    # through the "updated" change_type with {"old":..., "new":...} shape.
     try:
         pcur = pg_conn.cursor()
         pcur.execute("""
             SELECT COUNT(*) FROM sync_change_log scl
             WHERE scl.synced_at >= NOW() - INTERVAL '2 hours'
+              AND scl.change_type = 'updated'
               AND scl.changes::text LIKE '%legacy_price%'
               AND scl.release_id IN (
                   SELECT release_id FROM erp_inventory_item WHERE price_locked = true
