@@ -54,6 +54,20 @@ STAGING_INDEX = "releases-{profile}-staging"
 BATCH_SIZE = 1000
 TASK_TIMEOUT_MS = 60_000
 
+# rc49.1 IO-Fix: Chunked delta fetch to survive statement_timeout under load.
+# Phase 1 query fetches only IDs (cheap, uses idx_release_search_indexed_at_null
+# partial index). Phase 2 fetches full rows in chunks of DB_FETCH_CHUNK_SIZE,
+# with CTEs (inv_agg, imp_agg) narrowed via WHERE release_id = ANY(ids) so they
+# don't scan the full erp_inventory_item / import_log tables per batch.
+DB_FETCH_CHUNK_SIZE = 5000
+
+# Postgres statement_timeout for this script's connections. Default DB role
+# has '2min'. Full-rebuild fetch_all_rows can take >2min under load when the
+# 52k × CTE-join plan spills cache — so we bump to 5min. Setting it at the
+# connection level (SET LOCAL wouldn't persist across commits) rather than
+# per-query means every cursor on this connection inherits it.
+CONNECTION_STATEMENT_TIMEOUT = "5min"
+
 RANKING_RULES = {
     "commerce": [
         "words", "typo", "proximity", "attribute", "exactness",
@@ -79,7 +93,11 @@ def get_pg_conn(url_override=None):
     db_url = url_override or os.getenv("SUPABASE_DB_URL")
     if not db_url:
         sys.exit("ERROR: SUPABASE_DB_URL not set")
-    return psycopg2.connect(db_url)
+    conn = psycopg2.connect(db_url)
+    with conn.cursor() as cur:
+        cur.execute(f"SET statement_timeout = '{CONNECTION_STATEMENT_TIMEOUT}'")
+    conn.commit()
+    return conn
 
 
 def get_meili_url(override=None):
@@ -166,29 +184,7 @@ STOCKTAKE_STALE_DAYS = 90
 # imp_agg), die je EIN Mal über ihre Source-Tabellen laufen und per LEFT JOIN
 # ans Release geklebt werden. Erwartete Einsparung ~40-50× Disk-IO.
 # Semantik identisch — Paritätsmatrix (admin_meili_data_parity.py) validiert.
-BASE_SELECT_SQL = """
-    WITH inv_agg AS (
-        SELECT
-            release_id,
-            COUNT(*)::int AS exemplar_count,
-            COUNT(*) FILTER (WHERE last_stocktake_at IS NOT NULL)::int AS verified_count,
-            MAX(last_stocktake_at) AS last_stocktake_at_max,
-            (array_agg(status ORDER BY COALESCE(copy_number, 1) ASC))[1] AS inventory_status_first,
-            (array_agg(price_locked ORDER BY COALESCE(copy_number, 1) ASC))[1] AS price_locked_first,
-            (array_agg(barcode ORDER BY COALESCE(copy_number, 1) ASC))[1] AS inventory_barcode_first,
-            (array_agg(warehouse_location_id ORDER BY COALESCE(copy_number, 1) ASC))[1] AS warehouse_id_first
-        FROM erp_inventory_item
-        GROUP BY release_id
-    ),
-    imp_agg AS (
-        SELECT
-            release_id,
-            array_agg(DISTINCT collection_name) FILTER (WHERE collection_name IS NOT NULL) AS collections,
-            array_agg(DISTINCT action) FILTER (WHERE action IS NOT NULL) AS actions
-        FROM import_log
-        WHERE import_type = 'discogs_collection'
-        GROUP BY release_id
-    )
+_MAIN_SELECT = """
     SELECT
         r.id,
         r.title,
@@ -249,6 +245,63 @@ BASE_SELECT_SQL = """
     LEFT JOIN warehouse_location wl ON wl.id = inv_agg.warehouse_id_first
 """
 
+# CTE preludes — "full" for --full-rebuild & fetch_all_rows, "by-ids" for
+# chunked delta fetch (narrows CTEs to the IDs in the current batch, so
+# inv_agg / imp_agg don't scan the full tables per chunk).
+_CTE_PRELUDE_FULL = """
+    WITH inv_agg AS (
+        SELECT
+            release_id,
+            COUNT(*)::int AS exemplar_count,
+            COUNT(*) FILTER (WHERE last_stocktake_at IS NOT NULL)::int AS verified_count,
+            MAX(last_stocktake_at) AS last_stocktake_at_max,
+            (array_agg(status ORDER BY COALESCE(copy_number, 1) ASC))[1] AS inventory_status_first,
+            (array_agg(price_locked ORDER BY COALESCE(copy_number, 1) ASC))[1] AS price_locked_first,
+            (array_agg(barcode ORDER BY COALESCE(copy_number, 1) ASC))[1] AS inventory_barcode_first,
+            (array_agg(warehouse_location_id ORDER BY COALESCE(copy_number, 1) ASC))[1] AS warehouse_id_first
+        FROM erp_inventory_item
+        GROUP BY release_id
+    ),
+    imp_agg AS (
+        SELECT
+            release_id,
+            array_agg(DISTINCT collection_name) FILTER (WHERE collection_name IS NOT NULL) AS collections,
+            array_agg(DISTINCT action) FILTER (WHERE action IS NOT NULL) AS actions
+        FROM import_log
+        WHERE import_type = 'discogs_collection'
+        GROUP BY release_id
+    )
+"""
+
+_CTE_PRELUDE_BY_IDS = """
+    WITH inv_agg AS (
+        SELECT
+            release_id,
+            COUNT(*)::int AS exemplar_count,
+            COUNT(*) FILTER (WHERE last_stocktake_at IS NOT NULL)::int AS verified_count,
+            MAX(last_stocktake_at) AS last_stocktake_at_max,
+            (array_agg(status ORDER BY COALESCE(copy_number, 1) ASC))[1] AS inventory_status_first,
+            (array_agg(price_locked ORDER BY COALESCE(copy_number, 1) ASC))[1] AS price_locked_first,
+            (array_agg(barcode ORDER BY COALESCE(copy_number, 1) ASC))[1] AS inventory_barcode_first,
+            (array_agg(warehouse_location_id ORDER BY COALESCE(copy_number, 1) ASC))[1] AS warehouse_id_first
+        FROM erp_inventory_item
+        WHERE release_id = ANY(%(ids)s)
+        GROUP BY release_id
+    ),
+    imp_agg AS (
+        SELECT
+            release_id,
+            array_agg(DISTINCT collection_name) FILTER (WHERE collection_name IS NOT NULL) AS collections,
+            array_agg(DISTINCT action) FILTER (WHERE action IS NOT NULL) AS actions
+        FROM import_log
+        WHERE release_id = ANY(%(ids)s) AND import_type = 'discogs_collection'
+        GROUP BY release_id
+    )
+"""
+
+BASE_SELECT_SQL = _CTE_PRELUDE_FULL + _MAIN_SELECT
+BASE_SELECT_SQL_BY_IDS = _CTE_PRELUDE_BY_IDS + _MAIN_SELECT + "\n    WHERE r.id = ANY(%(ids)s)"
+
 
 def fetch_all_rows(pg_conn):
     cur = pg_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -258,17 +311,36 @@ def fetch_all_rows(pg_conn):
     return rows
 
 
-def fetch_delta_rows(pg_conn):
-    """Releases where search_indexed_at IS NULL, or no state row, or
-    state.indexed_at older than the latest bump."""
-    sql = BASE_SELECT_SQL + """
+def fetch_delta_ids(pg_conn):
+    """Phase 1 of chunked delta: cheap query returning only IDs of rows that
+    need reindex. Uses idx_release_search_indexed_at_null partial index for
+    the NULL branch; the LEFT JOIN + OR costs about 50-200ms on 52k rows.
+
+    Returns: list of Release.id strings, sorted for stable chunking."""
+    sql = """
+        SELECT r.id
+        FROM "Release" r
         LEFT JOIN meilisearch_index_state s ON s.release_id = r.id
         WHERE r.search_indexed_at IS NULL
            OR s.release_id IS NULL
            OR s.indexed_at < r.search_indexed_at
+        ORDER BY r.id
     """
-    cur = pg_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur = pg_conn.cursor()
     cur.execute(sql)
+    ids = [row[0] for row in cur.fetchall()]
+    cur.close()
+    return ids
+
+
+def fetch_rows_by_ids(pg_conn, ids):
+    """Phase 2 of chunked delta: fetch full rows for a given ID list.
+    Narrows the CTEs via WHERE release_id = ANY(ids) so inv_agg / imp_agg
+    don't scan the full erp_inventory_item / import_log tables per chunk."""
+    if not ids:
+        return []
+    cur = pg_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute(BASE_SELECT_SQL_BY_IDS, {"ids": list(ids)})
     rows = cur.fetchall()
     cur.close()
     return rows
@@ -557,39 +629,56 @@ def apply_settings(dry_run=False):
 
 def delta_sync(pg_conn, dry_run=False):
     t0 = time.time()
-    rows = fetch_delta_rows(pg_conn)
-    print(f"Delta candidates: {len(rows)}")
+    candidate_ids = fetch_delta_ids(pg_conn)
+    print(f"Delta candidates: {len(candidate_ids)}")
 
-    if not rows:
+    if not candidate_ids:
         return
 
     existing_hashes = load_existing_hashes(pg_conn)
 
-    to_push = []
-    unchanged_ids = []
-    for row in rows:
-        doc = transform_to_doc(row)
-        if existing_hashes.get(row["id"]) != doc_hash(doc):
-            to_push.append(doc)
-        else:
-            unchanged_ids.append(row["id"])
+    total_pushed = 0
+    total_unchanged = 0
 
-    print(f"  After hash-filter: {len(to_push)} push, {len(unchanged_ids)} unchanged")
+    # Chunked fetch: survives statement_timeout even when the backlog is
+    # 40k+ rows (e.g. after a mass search_indexed_at=NULL bump). Each chunk
+    # fetch narrows the CTEs and typically completes in <30s.
+    for chunk_start in range(0, len(candidate_ids), DB_FETCH_CHUNK_SIZE):
+        chunk_ids = candidate_ids[chunk_start:chunk_start + DB_FETCH_CHUNK_SIZE]
+        rows = fetch_rows_by_ids(pg_conn, chunk_ids)
 
-    mark_unchanged_as_indexed(pg_conn, unchanged_ids, dry_run)
+        to_push = []
+        unchanged_ids = []
+        for row in rows:
+            doc = transform_to_doc(row)
+            if existing_hashes.get(row["id"]) != doc_hash(doc):
+                to_push.append(doc)
+            else:
+                unchanged_ids.append(row["id"])
 
-    for i in range(0, len(to_push), BATCH_SIZE):
-        batch = to_push[i:i + BATCH_SIZE]
-        for profile in PROFILES:
-            push_batch(profile, batch, staging=False, dry_run=dry_run)
-        update_state_and_bump_indexed_at(pg_conn, batch, dry_run)
+        print(
+            f"  Chunk {chunk_start // DB_FETCH_CHUNK_SIZE + 1}: "
+            f"{len(rows)} rows → {len(to_push)} push, {len(unchanged_ids)} unchanged"
+        )
+
+        mark_unchanged_as_indexed(pg_conn, unchanged_ids, dry_run)
+
+        for i in range(0, len(to_push), BATCH_SIZE):
+            batch = to_push[i:i + BATCH_SIZE]
+            for profile in PROFILES:
+                push_batch(profile, batch, staging=False, dry_run=dry_run)
+            update_state_and_bump_indexed_at(pg_conn, batch, dry_run)
+
+        total_pushed += len(to_push)
+        total_unchanged += len(unchanged_ids)
 
     dt = int((time.time() - t0) * 1000)
     print(json.dumps({
         "event": "meili_delta_done",
-        "candidates": len(rows),
-        "pushed": len(to_push),
-        "unchanged": len(unchanged_ids),
+        "candidates": len(candidate_ids),
+        "pushed": total_pushed,
+        "unchanged": total_unchanged,
+        "chunks": (len(candidate_ids) + DB_FETCH_CHUNK_SIZE - 1) // DB_FETCH_CHUNK_SIZE,
         "duration_ms": dt,
     }))
 

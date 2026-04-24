@@ -28,6 +28,17 @@ PROFILES = ("commerce", "discovery")
 WARN_PCT = 0.5
 CRITICAL_PCT = 2.0
 
+# Backlog thresholds for search_indexed_at=NULL rows — if the Meili sync
+# can't keep up, these fire even while the db/meili counts still match
+# (because only search_indexed_at is behind, not the row existence).
+BACKLOG_WARN = 1_000
+BACKLOG_CRITICAL = 10_000
+
+# Statement timeout for this script's connection. COUNT(*) on "Release" is
+# an Index Only Scan (cost ~1100, sub-100ms), so 60s is far more than
+# enough and surfaces real DB problems quickly rather than hanging 2min.
+CONNECTION_STATEMENT_TIMEOUT = "60s"
+
 
 def main():
     db_url = os.getenv("SUPABASE_DB_URL")
@@ -44,11 +55,70 @@ def main():
     pg = psycopg2.connect(db_url)
     try:
         cur = pg.cursor()
+        cur.execute(f"SET statement_timeout = '{CONNECTION_STATEMENT_TIMEOUT}'")
         # Must match what meilisearch_sync.py actually pushes to Meili
         # (all Release rows, no coverImage filter — visibility is handled
         # by Meili filter `has_cover: true` at query time, not at index time).
         cur.execute('SELECT COUNT(*) FROM "Release"')
         db_count = cur.fetchone()[0]
+
+        # Backlog: rows flagged for reindex that meilisearch_sync hasn't
+        # processed yet. Uses the partial index idx_release_search_indexed_at_null.
+        cur.execute(
+            'SELECT COUNT(*) FROM "Release" WHERE search_indexed_at IS NULL'
+        )
+        backlog_count = cur.fetchone()[0]
+
+        if backlog_count >= BACKLOG_CRITICAL:
+            backlog_severity = "critical"
+        elif backlog_count >= BACKLOG_WARN:
+            backlog_severity = "warning"
+        else:
+            backlog_severity = "ok"
+
+        backlog_entry = {
+            "event": "meili_backlog_check",
+            "backlog_count": backlog_count,
+            "severity": backlog_severity,
+        }
+        print(json.dumps(backlog_entry))
+
+        if backlog_severity == "warning":
+            slack_url = os.getenv("SLACK_OPS_WEBHOOK")
+            if slack_url:
+                try:
+                    requests.post(
+                        slack_url,
+                        json={
+                            "text": (
+                                f":warning: Meili backlog WARN: "
+                                f"{backlog_count} rows flagged for reindex "
+                                f"(search_indexed_at IS NULL)"
+                            )
+                        },
+                        timeout=5,
+                    )
+                except Exception as e:
+                    print(json.dumps({
+                        "event": "slack_notify_failed",
+                        "error": str(e),
+                    }))
+        elif backlog_severity == "critical":
+            sentry_dsn = os.getenv("SENTRY_DSN")
+            if sentry_dsn:
+                try:
+                    import sentry_sdk
+                    sentry_sdk.init(sentry_dsn)
+                    sentry_sdk.capture_message(
+                        f"Meili backlog CRITICAL: {backlog_count} rows "
+                        f"flagged for reindex — sync loop likely stuck",
+                        level="error",
+                    )
+                except Exception as e:
+                    print(json.dumps({
+                        "event": "sentry_capture_failed",
+                        "error": str(e),
+                    }))
 
         for profile in PROFILES:
             index = f"releases-{profile}"
