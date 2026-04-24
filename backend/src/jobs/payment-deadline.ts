@@ -87,7 +87,7 @@ export default async function paymentDeadline(container: MedusaContainer) {
             if (releaseId) {
               await pgConnection("Release")
                 .where("id", releaseId)
-                .update({ auction_status: "available", updated_at: now })
+                .update({ auction_status: "available", updatedAt: now })
 
               // Get release title for admin notification
               const release = await pgConnection("Release")

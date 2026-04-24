@@ -18,6 +18,7 @@ import {
   startHeartbeatLoop,
 } from "../../../../lib/discogs-import"
 import { isR2Configured, downloadOptimizeUpload } from "../../../../lib/image-upload"
+import { lockFields } from "../../../../lib/release-locks"
 
 // ─── POST /admin/discogs-import/commit ───────────────────────────────────────
 // SSE Stream with phase-based progress:
@@ -608,6 +609,17 @@ export async function POST(
         const suggestedPrices = cache?.suggested_prices || null
         const priceEntry = buildPriceEntry(cached, suggestedPrices, price_markup, now)
         const dbId = linkableMap.get(did)!
+
+        // rc51.1 B3: Pre-check ob description jetzt erst-gesetzt wird. COALESCE unten
+        // schreibt nur wenn description IS NULL. Wenn das passiert, müssen wir lock'en
+        // damit nächster legacy_sync_v2 nicht zurück auf MySQL-NULL überschreibt.
+        const incomingNotes = (cached?.notes as string) || null
+        let descriptionWillBeSet = false
+        if (incomingNotes) {
+          const cur = await trx("Release").where("id", dbId).select("description").first()
+          descriptionWillBeSet = cur?.description == null
+        }
+
         await trx.raw(
           `UPDATE "Release" SET
             discogs_id = ?,
@@ -635,11 +647,16 @@ export async function POST(
             priceEntry.estimated_value,
             cached?.genres ? (cached.genres as string[]) : null,
             cached?.styles ? (cached.styles as string[]) : null,
-            (cached?.notes as string) || null,
+            incomingNotes,
             JSON.stringify([priceEntry]),
             dbId,
           ]
         )
+
+        if (descriptionWillBeSet) {
+          await lockFields(trx, dbId, ["description"])
+        }
+
         await logImport(trx, effectiveRunId, session, dbId, did, "linked", row, cached)
       },
       () => { counters.linked++ }

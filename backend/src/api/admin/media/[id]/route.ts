@@ -3,7 +3,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { createMovement } from "../../../../lib/inventory"
 import { pushReleaseNow } from "../../../../lib/meilisearch-push"
-import { logEdit, HARD_STAMMDATEN_FIELDS, SYSTEM_ID_FIELDS } from "../../../../lib/release-audit"
+import { logEdit, HARD_STAMMDATEN_FIELDS, SYSTEM_ID_FIELDS, looseEqual } from "../../../../lib/release-audit"
 import { validateReleaseStammdaten } from "../../../../lib/release-validation"
 import { lockFields, getHardFieldsInBody } from "../../../../lib/release-locks"
 
@@ -237,10 +237,10 @@ export async function POST(
     "barcode",
     "credits",
     // Zone-1 Hard-Stammdaten (all releases — auto-locks on edit)
+    // rc51.1 R1: `format` entfernt — Legacy-MySQL-owned, kein UI-Input, nicht in SYNC_PROTECTED_FIELDS.
     "title",
     "description",
     "year",
-    "format",
     "format_id",
     "catalogNumber",
     "country",
@@ -335,11 +335,15 @@ export async function POST(
       await trx("Release").where("id", id).update(releaseUpdates)
     }
 
-    // Auto-lock: any Zone-1 Hard-Stammdaten field that was in this edit gets
-    // added to locked_fields, protecting it from legacy_sync_v2 overwrite.
-    const hardFieldsEdited = getHardFieldsInBody(body)
-    if (hardFieldsEdited.length > 0) {
-      await lockFields(trx, id, hardFieldsEdited)
+    // Auto-lock: any Zone-1 Hard-Stammdaten field that actually CHANGED gets
+    // added to locked_fields (rc51.1 R2 — vorher: alle Felder im Body auch
+    // wenn unverändert, was zu Noise im locked_fields-Array führte).
+    // looseEqual handelt DECIMAL-Roundtrip (String vs Number) korrekt ab.
+    const hardFieldsChanged = getHardFieldsInBody(body).filter(
+      (f) => !looseEqual(currentRelease[f], body[f])
+    )
+    if (hardFieldsChanged.length > 0) {
+      await lockFields(trx, id, hardFieldsChanged)
     }
 
     // Update erp_inventory_item(s) — applies to all exemplars of this release.
@@ -425,10 +429,11 @@ export async function POST(
     // Audit-Log: track Stammdaten field changes (Zone-1 + Zone-2)
     // Zone-3 Commerce fields (shop_price, sale_mode, etc.) are tracked via
     // erp_inventory_movement and bulk_price_adjustment_log instead.
-    const STAMMDATEN_AUDIT_FIELDS = [
+    // Hard-Stammdaten (inkl. barcode seit R1-Merge) + Zone-2 Soft-Stammdaten
+    const STAMMDATEN_AUDIT_FIELDS = Array.from(new Set([
       ...(HARD_STAMMDATEN_FIELDS as readonly string[]),
-      "barcode", "credits", "genres", "styles",
-    ]
+      "credits", "genres", "styles",
+    ]))
     const auditFields: Record<string, { oldValue: unknown; newValue: unknown }> = {}
     for (const field of STAMMDATEN_AUDIT_FIELDS) {
       if (releaseUpdates[field] !== undefined) {

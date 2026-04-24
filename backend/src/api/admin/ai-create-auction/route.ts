@@ -244,7 +244,7 @@ async function executeTool(
           // Mark release as reserved
           await pg("Release")
             .where("id", item.release_id)
-            .update({ auction_status: "reserved", updated_at: now })
+            .update({ auction_status: "reserved", updatedAt: now })
 
           added.push(item.release_id)
         } catch (err: any) {

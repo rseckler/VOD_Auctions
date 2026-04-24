@@ -2,7 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { generateEntityId } from "@medusajs/framework/utils"
 import { Knex } from "knex"
-import { logEdit } from "../../../../lib/release-audit"
+import { logEdit, looseEqual } from "../../../../lib/release-audit"
 import { validateReleaseStammdaten } from "../../../../lib/release-validation"
 import { pushReleaseNow } from "../../../../lib/meilisearch-push"
 import { SYNC_PROTECTED_FIELDS } from "../../../../lib/release-locks"
@@ -131,21 +131,30 @@ export async function POST(
       .whereIn("id", ids)
       .update(sanitized)
 
-    // Auto-lock: batch-merge hard fields into locked_fields for all updated releases.
-    // Single UPDATE across all rows — same perf profile as the main UPDATE above.
+    // Auto-lock: rc51.1 R2 — nur Release-IDs lock'en wo der Field-Wert
+    // sich tatsächlich ändert. Vorher haben wir blindly alle Hard-Fields
+    // auf alle IDs gelockt, auch wenn der neue Wert === alter Wert war.
+    // Dedupe pro Field: IDs sammeln wo das Field changed, dann batched UPDATE.
     if (hardFieldsInUpdate.length > 0) {
       const lockableFields = hardFieldsInUpdate.filter(f =>
         (SYNC_PROTECTED_FIELDS as readonly string[]).includes(f)
       )
-      if (lockableFields.length > 0) {
-        await trx("Release")
-          .whereIn("id", ids)
-          .update({
-            locked_fields: trx.raw(
-              `(SELECT jsonb_agg(DISTINCT v ORDER BY v) FROM jsonb_array_elements_text(locked_fields || ?::jsonb) AS t(v))`,
-              [JSON.stringify(lockableFields)]
-            ),
-          })
+      for (const field of lockableFields) {
+        const changedIds = ids.filter((releaseId) => {
+          const old = oldValues[releaseId]
+          if (!old) return false
+          return !looseEqual(old[field], sanitized[field])
+        })
+        if (changedIds.length > 0) {
+          await trx("Release")
+            .whereIn("id", changedIds)
+            .update({
+              locked_fields: trx.raw(
+                `(SELECT jsonb_agg(DISTINCT v ORDER BY v) FROM jsonb_array_elements_text(locked_fields || ?::jsonb) AS t(v))`,
+                [JSON.stringify([field])]
+              ),
+            })
+        }
       }
     }
 

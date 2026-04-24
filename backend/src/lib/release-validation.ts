@@ -35,8 +35,16 @@ export function validateReleaseStammdaten(stammdaten: StammdatenInput): Record<s
     errors.country = "Country must be a 2-letter ISO code (e.g. DE, SE, US)"
   }
 
-  if (stammdaten.barcode !== undefined && stammdaten.barcode && !/^\d+$/.test(stammdaten.barcode)) {
-    errors.barcode = "Barcode must contain only digits"
+  if (stammdaten.barcode !== undefined && stammdaten.barcode) {
+    // rc51.1 R5: Strengere Format-Validation — UPC-A (12) oder EAN-13 (13)
+    // plus optional EAN-8 (8) für ältere Releases. Nur digits-only war zu lose.
+    if (!/^\d+$/.test(stammdaten.barcode)) {
+      errors.barcode = "Barcode must contain only digits"
+    } else if (![8, 12, 13].includes(stammdaten.barcode.length)) {
+      errors.barcode = `Barcode must be 8 (EAN-8), 12 (UPC-A), or 13 digits (EAN-13) — got ${stammdaten.barcode.length}`
+    } else if (!validateBarcodeChecksum(stammdaten.barcode)) {
+      errors.barcode = "Barcode checksum invalid — check for typos"
+    }
   }
 
   if (stammdaten.catalogNumber !== undefined && stammdaten.catalogNumber && stammdaten.catalogNumber.length > MAX_CATALOG_NUMBER) {
@@ -48,4 +56,30 @@ export function validateReleaseStammdaten(stammdaten: StammdatenInput): Record<s
   }
 
   return errors
+}
+
+/**
+ * Validates the check digit of UPC-A (12), EAN-13 (13) or EAN-8 (8).
+ *
+ * Algorithm (GTIN check digit):
+ *  - Right-aligned: odd-position digits × 3, even-position digits × 1
+ *  - Sum all, take mod 10; check digit = (10 - sum % 10) % 10
+ *  - Compare to the last digit.
+ *
+ * Reference: GS1 General Specifications, Section 7.9.
+ */
+export function validateBarcodeChecksum(barcode: string): boolean {
+  if (!/^\d+$/.test(barcode)) return false
+  if (![8, 12, 13].includes(barcode.length)) return false
+
+  const digits = barcode.split("").map((c) => parseInt(c, 10))
+  const check = digits.pop()!
+
+  // Right-align: rightmost data digit is odd-position (×3). Build weights from the right.
+  let sum = 0
+  for (let i = digits.length - 1, weight = 3; i >= 0; i--, weight = weight === 3 ? 1 : 3) {
+    sum += digits[i] * weight
+  }
+  const computed = (10 - (sum % 10)) % 10
+  return computed === check
 }

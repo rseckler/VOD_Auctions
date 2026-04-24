@@ -8,7 +8,8 @@ import { Badge, Btn, Toast, EmptyState, inputStyle, selectStyle } from "../../..
 import { printLabelAuto } from "../../../lib/print-client"
 import { SourceBadge } from "../../../components/release-detail/SourceBadge"
 import { LockBanner } from "../../../components/release-detail/LockBanner"
-import { ArtistPickerModal, LabelPickerModal } from "../../../components/release-detail/PickerModals"
+import { ArtistPickerModal, LabelPickerModal, CountryPickerModal } from "../../../components/release-detail/PickerModals"
+import { findCountry, isValidIsoCode, flagFor } from "../../../data/country-iso"
 import { AuditHistory } from "../../../components/release-detail/AuditHistory"
 import { TrackManagement } from "../../../components/release-detail/TrackManagement"
 import { validateReleaseStammdaten } from "../../../../lib/release-validation"
@@ -628,7 +629,7 @@ const MediaDetailPage = () => {
   const [sdLabelId, setSdLabelId] = useState("")
   const [sdLabelName, setSdLabelName] = useState("")
   const [sdSaving, setSdSaving] = useState(false)
-  const [sdPicker, setSdPicker] = useState<"artist" | "label" | null>(null)
+  const [sdPicker, setSdPicker] = useState<"artist" | "label" | "country" | null>(null)
   const [sdError, setSdError] = useState<string | null>(null)
   const [auditRefreshKey, setAuditRefreshKey] = useState(0)
 
@@ -951,7 +952,10 @@ const MediaDetailPage = () => {
     ["Title", release.title],
     ["Format", release.format],
     ["Year", release.year != null ? String(release.year) : null],
-    ["Country", release.country],
+    ["Country", release.country ? (() => {
+      const c = findCountry(release.country)
+      return c ? `${flagFor(c.code)} ${c.nameEn} (${c.code})` : `⚠️ ${release.country} (non-ISO)`
+    })() : null],
     ["Label", release.label_name],
     ["CatNo", release.catalogNumber],
     ["Barcode", release.barcode],
@@ -1186,8 +1190,55 @@ const MediaDetailPage = () => {
                 </div>
 
                 <div>
-                  <FieldLabel text="Country (ISO-2)" field="country" />
-                  <input type="text" value={sdCountry} onChange={(e) => setSdCountry(e.target.value.toUpperCase().slice(0, 2))} placeholder="e.g. DE" maxLength={2} style={localInputStyle} />
+                  <FieldLabel text="Country (ISO-3166-1 alpha-2)" field="country" />
+                  {(() => {
+                    const sel = findCountry(sdCountry)
+                    const isInvalid = sdCountry !== "" && !isValidIsoCode(sdCountry)
+                    return (
+                      <div style={{ display: "flex", gap: S.gap.sm, alignItems: "center" }}>
+                        <button
+                          type="button"
+                          onClick={() => setSdPicker("country")}
+                          style={{
+                            ...localInputStyle,
+                            cursor: "pointer",
+                            flex: 1,
+                            textAlign: "left",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                            // Yellow warning when current DB value is non-ISO (legacy dirty data)
+                            borderColor: isInvalid ? C.warning : (localInputStyle as React.CSSProperties).border?.toString().split(" ")[2] || C.border,
+                          } as React.CSSProperties}
+                          title={isInvalid ? "Non-ISO value — click to select a canonical ISO code" : "Click to select country"}
+                        >
+                          {sel ? (
+                            <>
+                              <span style={{ fontSize: 16 }}>{flagFor(sel.code)}</span>
+                              <span>{sel.nameEn}</span>
+                              <span style={{ ...T.small, color: C.muted, marginLeft: "auto" }}>{sel.code}</span>
+                            </>
+                          ) : isInvalid ? (
+                            <>
+                              <span style={{ fontSize: 14 }}>⚠️</span>
+                              <span style={{ color: C.warning }}>{sdCountry}</span>
+                              <span style={{ ...T.small, color: C.muted, marginLeft: "auto" }}>non-ISO</span>
+                            </>
+                          ) : (
+                            <span style={{ color: C.muted }}>Click to select…</span>
+                          )}
+                        </button>
+                        {sdCountry && (
+                          <Btn
+                            label="×"
+                            variant="ghost"
+                            onClick={() => setSdCountry("")}
+                            style={{ padding: "8px 10px", fontSize: 13 }}
+                          />
+                        )}
+                      </div>
+                    )
+                  })()}
                 </div>
 
                 <div>
@@ -1197,7 +1248,17 @@ const MediaDetailPage = () => {
 
                 <div>
                   <FieldLabel text="Barcode" field="barcode" />
-                  <input type="text" value={sdBarcode} onChange={(e) => setSdBarcode(e.target.value)} style={localInputStyle} />
+                  <input
+                    type="text"
+                    value={sdBarcode}
+                    onChange={(e) => setSdBarcode(e.target.value.replace(/[^\d]/g, ""))}
+                    placeholder="UPC-A (12) or EAN-13 (13) digits"
+                    inputMode="numeric"
+                    style={localInputStyle}
+                  />
+                  <div style={{ ...T.micro, color: C.muted, marginTop: 2 }}>
+                    8 (EAN-8), 12 (UPC-A), or 13 digits (EAN-13) with check digit
+                  </div>
                 </div>
 
                 <div style={{ gridColumn: "1 / -1" }}>
@@ -1225,6 +1286,12 @@ const MediaDetailPage = () => {
       {sdPicker === "label" && (
         <LabelPickerModal
           onSelect={(item) => { setSdLabelId(item.id); setSdLabelName(item.name) }}
+          onClose={() => setSdPicker(null)}
+        />
+      )}
+      {sdPicker === "country" && (
+        <CountryPickerModal
+          onSelect={(country) => setSdCountry(country.code)}
           onClose={() => setSdPicker(null)}
         />
       )}

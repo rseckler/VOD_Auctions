@@ -3,6 +3,8 @@ import { ContainerRegistrationKeys, generateEntityId } from "@medusajs/framework
 import { Knex } from "knex"
 import { requireFeatureFlag } from "../../../../../lib/inventory"
 import { optimizeImage, uploadToR2 } from "../../../../../lib/image-upload"
+import { lockFields } from "../../../../../lib/release-locks"
+import { pushReleaseNow } from "../../../../../lib/meilisearch-push"
 
 /**
  * POST /admin/erp/inventory/upload-image
@@ -71,19 +73,26 @@ export async function POST(
         rang: 0,  // Primary image
       })
 
-      // Update Release.coverImage if not already set
+      // Update Release.coverImage if not already set + auto-lock (rc51.1 B2).
+      // Ohne lockFields würde der nächste legacy_sync_v2-Run den Admin-Upload
+      // wieder auf MySQL-Wert (oft NULL) überschreiben.
       const currentRelease = await pg("Release")
         .where("id", body.release_id)
         .select("coverImage")
         .first()
 
+      let coverLocked = false
       if (!currentRelease?.coverImage) {
-        await pg("Release")
-          .where("id", body.release_id)
-          .update({
-            coverImage: publicUrl,
-            updatedAt: new Date(),
-          })
+        await pg.transaction(async (trx) => {
+          await trx("Release")
+            .where("id", body.release_id)
+            .update({
+              coverImage: publicUrl,
+              updatedAt: new Date(),
+            })
+          await lockFields(trx, body.release_id!, ["coverImage"])
+        })
+        coverLocked = true
       }
 
       const originalKb = Math.round(imageBuffer.length / 1024)
@@ -97,6 +106,20 @@ export async function POST(
         optimized_size_kb: optimizedKb,
         compression: `${Math.round((1 - optimized.length / imageBuffer.length) * 100)}%`,
       })
+
+      // Fire-and-forget Meili-Reindex — Admin-Upload soll sofort im Catalog sichtbar sein
+      if (coverLocked) {
+        pushReleaseNow(pg, body.release_id).catch((err) => {
+          console.warn(
+            JSON.stringify({
+              event: "meili_push_now_failed",
+              handler: "admin_upload_image",
+              release_id: body.release_id,
+              error: err?.message,
+            })
+          )
+        })
+      }
     } catch (e: any) {
       console.error("Image upload error:", e)
       res.status(500).json({ message: `Upload failed: ${e.message}` })

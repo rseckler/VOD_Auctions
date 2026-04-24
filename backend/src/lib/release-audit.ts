@@ -1,24 +1,13 @@
 import type { Knex } from "knex"
 import { generateEntityId } from "@medusajs/framework/utils"
 import { isStammdatenEditable } from "./release-source"
+import { SYNC_PROTECTED_FIELDS } from "./release-locks"
 
-// Zone 1 — Hard-Stammdaten: these fields require is_stammdaten_editable=true to edit
-export const HARD_STAMMDATEN_FIELDS = [
-  "title",
-  "description",
-  "year",
-  "format",
-  "format_id",
-  "catalogNumber",
-  "country",
-  "artistId",
-  "labelId",
-  "coverImage",
-  "legacy_format_detail",
-  "legacy_condition",
-  "legacy_available",
-  "legacy_price",
-] as const
+// Zone 1 — Hard-Stammdaten. rc51.1: Re-export aus release-locks.ts um Drift zu
+// verhindern. Diese Liste wird vom Audit-Log und vom Revert-Hard-Field-Check
+// genutzt; release-locks.SYNC_PROTECTED_FIELDS wird vom Auto-Lock + Sync-UPSERT
+// genutzt. Früher waren's zwei Listen die sich um format/barcode unterschieden.
+export const HARD_STAMMDATEN_FIELDS = SYNC_PROTECTED_FIELDS
 
 // Zone 0 — System-IDs: never editable, stripped before any write
 export const SYSTEM_ID_FIELDS = [
@@ -169,7 +158,7 @@ export class RevertError extends Error {
  * Does NOT handle date-string vs Date object — Release stammdaten don't have
  * date fields editable through the audit-log path, so this is acceptable.
  */
-function looseEqual(a: unknown, b: unknown): boolean {
+export function looseEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true
   if (a == null && b == null) return true
   if (a == null || b == null) return false
