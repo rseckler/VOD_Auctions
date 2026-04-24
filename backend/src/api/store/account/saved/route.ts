@@ -2,6 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, generateEntityId } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { rudderTrack } from "../../../../lib/rudderstack"
+import { enrichWithShopPrice } from "../../../../lib/shop-price"
 
 // GET /store/account/saved — List saved items
 export async function GET(
@@ -18,7 +19,7 @@ export async function GET(
     ContainerRegistrationKeys.PG_CONNECTION
   )
 
-  const items = await pgConnection("saved_item")
+  const rawItems = await pgConnection("saved_item")
     .select(
       "saved_item.id",
       "saved_item.release_id",
@@ -28,8 +29,8 @@ export async function GET(
       "Release.format",
       "Release.sale_mode",
       "Release.shop_price",
+      "Release.legacy_available",
       "Release.auction_status",
-      "Release.legacy_price",
       "Artist.name as artist_name",
       // Active auction lot — if this release is currently in an active block
       "block_item.id as block_item_id",
@@ -48,6 +49,27 @@ export async function GET(
     .where("saved_item.user_id", customerId)
     .whereNull("saved_item.deleted_at")
     .orderBy("saved_item.created_at", "desc")
+
+  // rc49.6: enrich with effective_price / is_purchasable / is_verified per
+  // PRICING_MODEL.md. Helper keys by Release.id, so we feed it release_id.
+  const priceShape = rawItems.map((r) => ({
+    id: r.release_id as string,
+    shop_price: r.shop_price,
+    legacy_available: r.legacy_available,
+  }))
+  const enriched = await enrichWithShopPrice(pgConnection, priceShape)
+  const byReleaseId = new Map(enriched.map((e) => [e.id, e]))
+
+  const items = rawItems.map((r) => {
+    const e = byReleaseId.get(r.release_id)
+    return {
+      ...r,
+      shop_price: e?.shop_price ?? null,
+      effective_price: e?.effective_price ?? null,
+      is_purchasable: e?.is_purchasable ?? false,
+      is_verified: e?.is_verified ?? false,
+    }
+  })
 
   res.json({ items, count: items.length })
 }

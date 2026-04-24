@@ -22,7 +22,12 @@ type SavedItem = {
   artist_name: string | null
   sale_mode: string
   shop_price: number | null
-  legacy_price: number | null
+  // rc49.6: effective_price is the canonical shop price. Only set when
+  // shop_price > 0 AND release has a verified erp_inventory_item AND
+  // legacy_available. Never fall back to legacy_price in UI.
+  effective_price: number | null
+  is_purchasable: boolean
+  is_verified: boolean
   auction_status: string
   block_item_id: string | null
   block_slug: string | null
@@ -182,7 +187,8 @@ export default function SavedPage() {
 
       <div className="flex flex-col gap-4">
         {items.map((item) => {
-          const price = item.shop_price || item.legacy_price
+          const price = item.effective_price
+          const canBuy = item.is_purchasable && item.sale_mode !== "auction_only"
           const itemHref =
             item.block_slug && item.block_item_id
               ? `/auctions/${item.block_slug}/${item.block_item_id}`
@@ -237,14 +243,12 @@ export default function SavedPage() {
                   )}
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {item.format}
-                    {item.sale_mode !== "auction_only" && price
-                      ? ` · Available for purchase`
-                      : ""}
+                    {canBuy ? ` · Available for purchase` : ""}
                   </p>
                 </div>
 
                 <div className="text-right flex-shrink-0 flex flex-col items-end gap-2">
-                  {price ? (
+                  {price != null ? (
                     <p className="text-sm font-bold font-mono text-primary">
                       &euro;{Number(price).toFixed(2)}
                     </p>
@@ -252,7 +256,7 @@ export default function SavedPage() {
                     <p className="text-sm text-muted-foreground">—</p>
                   )}
                   <div className="flex items-center gap-1">
-                    {item.sale_mode !== "auction_only" && price && (
+                    {canBuy && (
                       <Button
                         variant="ghost"
                         size="sm"

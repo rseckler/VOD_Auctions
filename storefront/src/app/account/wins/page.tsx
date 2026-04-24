@@ -42,7 +42,9 @@ type Recommendation = {
   title: string
   coverImage: string
   artist_name: string | null
-  legacy_price: number
+  // rc49.6: effective_price = shop_price (always > 0 here because the
+  // /recommendations endpoint filters on is_purchasable). Never legacy_price.
+  effective_price: number
   format: string | null
   reason: string
 }
@@ -560,7 +562,7 @@ export default function WinsPage() {
                   <p className="text-xs font-medium truncate">{rec.title}</p>
                   <div className="flex items-center justify-between mt-2">
                     <span className="text-sm font-bold font-mono text-primary">
-                      &euro;{rec.legacy_price.toFixed(2)}
+                      &euro;{rec.effective_price.toFixed(2)}
                     </span>
                     <Button
                       size="sm"

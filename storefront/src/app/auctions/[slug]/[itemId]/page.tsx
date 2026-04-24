@@ -389,7 +389,10 @@ export default async function ItemDetailPage({
                 release?.catalogNumber && { k: "Catalog No.", v: release.catalogNumber, mono: true },
                 release?.legacy_condition && { k: "Condition", v: release.legacy_condition, mono: true },
                 release?.legacy_format_detail && { k: "Format", v: release.legacy_format_detail },
-                release?.legacy_price && { k: "Catalog Price", v: `€${Number(release.legacy_price).toFixed(2)}`, mono: true },
+                // rc49.6: legacy_price/discogs_* removed from customer-facing
+                // auction page per PRICING_MODEL.md — only the auction bid
+                // price and start_price are shown (both derived from
+                // shop_price via rc47.3 percent-rule).
               ].filter(Boolean).map((row, i) => {
                 const { k, v, mono, link } = row as { k: string; v: string; mono?: boolean; link?: string }
                 return (

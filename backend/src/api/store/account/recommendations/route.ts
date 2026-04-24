@@ -3,7 +3,13 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 
 // GET /store/account/recommendations?release_ids=id1,id2&limit=8
-// Returns related purchasable releases for cross-sell
+// Returns related purchasable releases for cross-sell.
+//
+// rc49.6: purchasable-Gate auf shop_price + verifiziertes Exemplar umgestellt
+// (PRICING_MODEL.md §Shop-Visibility-Gate). Frühere Filter nutzte
+// `legacy_price > 0`, was rc47.2 widerspricht (legacy_price ist rein
+// historisch, kein Shop-Preis). Jetzt: Items sind nur empfohlen wenn sie
+// aktuell wirklich kaufbar sind.
 export async function GET(
   req: MedusaRequest,
   res: MedusaResponse
@@ -33,12 +39,22 @@ export async function GET(
 
   const maxResults = Math.min(parseInt(limit) || 8, 20)
 
-  // Purchasable filter used across all queries
+  // Purchasable filter — matches Meili-index is_purchasable semantics:
+  //   shop_price > 0 AND verified erp_inventory_item exists AND legacy_available
+  // Plus: only releases with coverImage (Meili-visibility convention), and
+  // exclude the source IDs the customer already knows.
   const purchasableFilter = (q: Knex.QueryBuilder) =>
     q.where("Release.legacy_available", true)
-      .where("Release.legacy_price", ">", 0)
+      .where("Release.shop_price", ">", 0)
       .whereNotNull("Release.coverImage")
       .whereNotIn("Release.id", inputIds)
+      .whereExists((sub) =>
+        sub.select(pgConnection.raw("1"))
+          .from("erp_inventory_item as ii")
+          .whereRaw('ii.release_id = "Release".id')
+          .whereNotNull("ii.last_stocktake_at")
+          .where("ii.price_locked", true)
+      )
 
   // Look up artists + labels for the input releases
   const sourceReleases = await pgConnection("Release")
@@ -53,7 +69,7 @@ export async function GET(
     title: string
     coverImage: string
     artist_name: string | null
-    legacy_price: number
+    effective_price: number
     format: string | null
     reason: string
   }
@@ -61,7 +77,9 @@ export async function GET(
   const results: RecommendationRow[] = []
   const seenIds = new Set<string>()
 
-  // Helper to add results without duplicates
+  // Helper to add results without duplicates. effective_price is guaranteed
+  // > 0 by the purchasable filter (shop_price > 0 + verified inventory), so
+  // we map shop_price → effective_price directly.
   function addResults(rows: any[], reason: string) {
     for (const row of rows) {
       if (seenIds.has(row.id) || results.length >= maxResults) continue
@@ -71,7 +89,7 @@ export async function GET(
         title: row.title,
         coverImage: row.coverImage,
         artist_name: row.artist_name || null,
-        legacy_price: Number(row.legacy_price),
+        effective_price: Number(row.shop_price),
         format: row.format || null,
         reason,
       })
@@ -86,7 +104,7 @@ export async function GET(
           "Release.id",
           "Release.title",
           "Release.coverImage",
-          "Release.legacy_price",
+          "Release.shop_price",
           "Release.format",
           "Artist.name as artist_name"
         )
@@ -107,7 +125,7 @@ export async function GET(
           "Release.id",
           "Release.title",
           "Release.coverImage",
-          "Release.legacy_price",
+          "Release.shop_price",
           "Release.format",
           "Artist.name as artist_name"
         )
@@ -128,7 +146,7 @@ export async function GET(
           "Release.id",
           "Release.title",
           "Release.coverImage",
-          "Release.legacy_price",
+          "Release.shop_price",
           "Release.format",
           "Artist.name as artist_name"
         )

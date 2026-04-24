@@ -62,14 +62,23 @@ export type Release = {
   description?: string | null
   media_condition?: string | null
   sleeve_condition?: string | null
+  // Price model per docs/architecture/PRICING_MODEL.md — rc47.2+:
+  //   Canonical shop price = effective_price (= shop_price when verified, else null)
+  //   Purchasable gate = is_purchasable (effective_price + legacy_available)
+  // Never render legacy_price / discogs_*_price as a shop price. They ship
+  // through the API for backwards compat + admin-side display only.
+  /** @deprecated rc47.2 — Historical tape-mag price. Do not render as shop price. */
   legacy_price?: number | null
   legacy_condition?: string | null
   legacy_format_detail?: string | null
   tracklist?: TracklistEntry[] | null
   credits?: string | null
   discogs_id?: number | null
+  /** @deprecated rc47.2 — Market reference only, not a shop price. */
   discogs_lowest_price?: number | null
+  /** @deprecated rc47.2 — Market reference only, not a shop price. */
   discogs_median_price?: number | null
+  /** @deprecated rc47.2 — Market reference only, not a shop price. */
   discogs_highest_price?: number | null
   discogs_num_for_sale?: number | null
   auction_status?: string | null
