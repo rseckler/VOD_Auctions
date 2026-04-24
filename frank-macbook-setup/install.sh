@@ -164,10 +164,14 @@ fi
 
 # String statt Array, damit's unter macOS bash 3.2 + `set -u` sauber bleibt
 # (leeres Array + "${arr[@]}" triggert "unbound variable" auf bash <4.4).
+#
+# DRY_RUN-Detection: `lpstat -e` (Queue-Namen, locale-unabhängig) — konsistent
+# mit Step 2. `lpstat -p` zeigt auf macOS 26+ die Queue nicht zuverlässig wenn
+# der physische Drucker gerade offline ist, obwohl CUPS-Queue eingerichtet ist.
 BRIDGE_DRY_RUN_FLAG=""
-if ! lpstat -p 2>/dev/null | grep -qi "brother"; then
-  warn "Kein Brother-Drucker im System — Bridge startet im DRY_RUN (Test-Modus)."
-  warn "Sobald Drucker angeschlossen ist, Bridge mit: bash $BRIDGE_INSTALLER --printer $PRINTER_QUEUE neu installieren."
+if ! lpstat -e 2>/dev/null | grep -qi "brother"; then
+  warn "Keine Brother-Queue in CUPS — Bridge startet im DRY_RUN (Test-Modus)."
+  warn "Sobald Drucker-Queue eingerichtet ist: bash $BRIDGE_INSTALLER --printer $PRINTER_QUEUE"
   BRIDGE_DRY_RUN_FLAG="--dry-run"
 fi
 

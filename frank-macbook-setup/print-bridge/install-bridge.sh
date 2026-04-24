@@ -267,6 +267,11 @@ if ! plutil -lint "$tmp_plist" >/dev/null 2>&1; then
   exit 1
 fi
 
+# Zielverzeichnis sicherstellen — auf frischem macOS (neuer User-Account)
+# existiert ~/Library/LaunchAgents/ nicht, mv scheitert dann mit "No such file"
+# und `launchctl bootstrap` kommt später mit "Input/output error" zurück.
+mkdir -p "$(dirname "$PLIST_PATH")"
+
 mv "$tmp_plist" "$PLIST_PATH"
 ok "LaunchAgent plist: $PLIST_PATH"
 ok "Backend: $BACKEND"
