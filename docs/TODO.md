@@ -100,7 +100,12 @@ Neuer Workflow: Frank nimmt Artikel → sucht im System → bewertet (Zustand Me
 - [x] **1.15** Kit auf Franks Mac Studio ausgerollt + Print Bridge brother_ql-Backend (rc37, 2026-04-22)
 - [x] **1.16** Frank briefen + verifiziert: Workflow läuft, Frank arbeitet aktiv (rc38+rc39, 2026-04-22)
 - [x] **1.17** V5 Sync-Check verifiziert: `price_locked=true` in beiden Endpoints (`add-copy` + `verify`) gesetzt, Mirror auf Release.legacy_price funktioniert, kein Sync-Overwrite (rc39)
-- [ ] **1.18** MacBook Air als Zweit-Gerät ausrollen (`bash frank-macbook-setup/install.sh`)
+- [~] **1.18** MacBook Air als Zweit-Gerät ausrollen — **in Progress (2026-04-24)**
+  - Einzeiler-Bootstrap live: `bash -c "$(curl -fsSL https://raw.githubusercontent.com/rseckler/VOD_Auctions/main/frank-macbook-setup/bootstrap.sh)"`
+  - Erster Run auf Franks MBA M5 (macOS 26.4.1) erfolgreich durchgelaufen bis Step 3 der Bridge-Installation, dann zwei Bugs aufgedeckt (beide gefixt): `mkdir -p LaunchAgents` missing + `lpstat -p` vs `-e` inkonsistent auf macOS 26
+  - **Offen:** Frank muss neu ausführen — entweder full Einzeiler oder direkt `cd ~/VOD_Auctions && git pull && bash frank-macbook-setup/print-bridge/install-bridge.sh --printer Brother_QL_820NWB --printer-ip 10.1.1.136`
+  - Danach Steps 5-7 (Raster-Mode-Check, Safari-Web-App, Test-Label) + Scanner-Setup
+  - Drucker-IP für diesen Mac: `10.1.1.136`
 
 #### Phase 2: Dashboard + Übersicht
 
