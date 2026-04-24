@@ -3,7 +3,7 @@ import { C, T, S, fmtDate, BADGE_VARIANTS } from "../admin-tokens"
 import { Btn } from "../admin-ui"
 import { RevertConfirmModal } from "./RevertConfirmModal"
 
-type AuditAction = "edit" | "revert" | "track_add" | "track_edit" | "track_delete" | "image_add" | "image_delete"
+type AuditAction = "edit" | "revert" | "track_add" | "track_edit" | "track_delete" | "image_add" | "image_delete" | "field_unlocked"
 
 type AuditEntry = {
   id: string
@@ -52,6 +52,7 @@ const ACTION_STYLE: Record<AuditAction, typeof BADGE_VARIANTS[keyof typeof BADGE
   track_delete: BADGE_VARIANTS.error,
   image_add: BADGE_VARIANTS.success,
   image_delete: BADGE_VARIANTS.error,
+  field_unlocked: BADGE_VARIANTS.neutral,
 }
 
 const ACTION_LABEL: Record<AuditAction, string> = {
@@ -62,6 +63,7 @@ const ACTION_LABEL: Record<AuditAction, string> = {
   track_delete: "Track ×",
   image_add: "Image +",
   image_delete: "Image ×",
+  field_unlocked: "Unlocked",
 }
 
 type Props = {

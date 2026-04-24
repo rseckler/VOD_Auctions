@@ -40,6 +40,7 @@ export type AuditAction =
   | "track_delete"
   | "image_add"
   | "image_delete"
+  | "field_unlocked"
 
 export type AuditEntry = {
   id: string
