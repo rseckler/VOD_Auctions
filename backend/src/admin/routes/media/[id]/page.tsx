@@ -6,6 +6,9 @@ import { C, T, S, fmtDate, fmtMoney, BADGE_VARIANTS } from "../../../components/
 import { PageHeader, PageShell, SectionHeader } from "../../../components/admin-layout"
 import { Badge, Btn, Toast, EmptyState, inputStyle, selectStyle } from "../../../components/admin-ui"
 import { printLabelAuto } from "../../../lib/print-client"
+import { SourceBadge } from "../../../components/release-detail/SourceBadge"
+import { LockBanner } from "../../../components/release-detail/LockBanner"
+import { ArtistPickerModal, LabelPickerModal } from "../../../components/release-detail/PickerModals"
 
 class ErrorBoundary extends Component<
   { children: ReactNode },
@@ -38,6 +41,8 @@ class ErrorBoundary extends Component<
 type Release = {
   id: string
   title: string
+  artistId: string | null
+  labelId: string | null
   artist_name: string | null
   label_name: string | null
   format: string
@@ -75,6 +80,8 @@ type Release = {
   tape_mag_url: string | null
   discogs_last_synced: string | null
   legacy_last_synced: string | null
+  legacy_price: number | string | null
+  data_source: string | null
   createdAt: string | null
   updatedAt: string | null
   // ERP inventory fields (from erp_inventory_item, left-joined — may be null for non-cohort-A items)
@@ -563,6 +570,7 @@ const MediaDetailPage = () => {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null)
+  const [meta, setMeta] = useState<{ is_stammdaten_editable: boolean; source: string; locked_reason: string | null } | null>(null)
   // Back-to-Inventur-Session: wenn Frank aus der Session hier her gesprungen ist,
   // zeigt die Session-Page setzt beim Mount sessionStorage["vod.inventory_session_active"].
   // Solange das Flag da ist, zeigen wir oben einen Back-Button.
@@ -602,6 +610,22 @@ const MediaDetailPage = () => {
   // Q2: unlock-price loading state (by inventory_item_id)
   const [unlockingPriceId, setUnlockingPriceId] = useState<string | null>(null)
 
+  // Edit Stammdaten (Phase 2 — Zone-1 fields for discogs_import releases)
+  const [sdEditing, setSdEditing] = useState(false)
+  const [sdTitle, setSdTitle] = useState("")
+  const [sdYear, setSdYear] = useState("")
+  const [sdCountry, setSdCountry] = useState("")
+  const [sdCatalogNumber, setSdCatalogNumber] = useState("")
+  const [sdBarcode, setSdBarcode] = useState("")
+  const [sdDescription, setSdDescription] = useState("")
+  const [sdArtistId, setSdArtistId] = useState("")
+  const [sdArtistName, setSdArtistName] = useState("")
+  const [sdLabelId, setSdLabelId] = useState("")
+  const [sdLabelName, setSdLabelName] = useState("")
+  const [sdSaving, setSdSaving] = useState(false)
+  const [sdPicker, setSdPicker] = useState<"artist" | "label" | null>(null)
+  const [sdError, setSdError] = useState<string | null>(null)
+
   const goLightbox = useCallback((dir: "prev" | "next") => {
     setLightboxIndex((i) => {
       if (i === null) return null
@@ -628,6 +652,7 @@ const MediaDetailPage = () => {
       fetch("/admin/erp/locations", { credentials: "include" }).then((r) => r.json()).catch(() => ({ locations: [] })),
     ]).then(([d, st, loc]) => {
         setRelease(d.release || null)
+        setMeta(d.meta || null)
         setSyncHistory(d.sync_history || [])
         setImportHistory(d.import_history || [])
         setImages(d.images || [])
@@ -690,6 +715,79 @@ const MediaDetailPage = () => {
       setToast({ message: "Network error", type: "error" })
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleStartEditStammdaten = () => {
+    if (!release) return
+    setSdTitle(release.title || "")
+    setSdYear(release.year != null ? String(release.year) : "")
+    setSdCountry(release.country || "")
+    setSdCatalogNumber(release.catalogNumber || "")
+    setSdBarcode(release.barcode || "")
+    setSdDescription(release.description || "")
+    setSdArtistId(release.artistId || "")
+    setSdArtistName(release.artist_name || "")
+    setSdLabelId(release.labelId || "")
+    setSdLabelName(release.label_name || "")
+    setSdError(null)
+    setSdEditing(true)
+  }
+
+  const handleCancelEditStammdaten = () => {
+    setSdEditing(false)
+    setSdError(null)
+  }
+
+  const handleSaveStammdaten = async () => {
+    if (!id) return
+    setSdSaving(true)
+    setSdError(null)
+    try {
+      const yearNum = sdYear !== "" ? parseInt(sdYear) : null
+      if (yearNum !== null && (isNaN(yearNum) || yearNum < 1900 || yearNum > new Date().getFullYear())) {
+        setSdError(`Year must be between 1900 and ${new Date().getFullYear()}`)
+        return
+      }
+      if (sdCountry && !/^[A-Z]{2}$/.test(sdCountry)) {
+        setSdError("Country must be a 2-letter ISO code (e.g. DE, SE, US)")
+        return
+      }
+
+      const body: Record<string, unknown> = {
+        title: sdTitle || null,
+        year: yearNum,
+        country: sdCountry || null,
+        catalogNumber: sdCatalogNumber || null,
+        barcode: sdBarcode || null,
+        description: sdDescription || null,
+      }
+      if (sdArtistId) body.artistId = sdArtistId
+      if (sdLabelId) body.labelId = sdLabelId
+
+      const res = await fetch(`/admin/media/${id}`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+
+      if (res.ok) {
+        const d = await res.json()
+        setRelease(d.release || release)
+        setSdEditing(false)
+        setToast({ message: "Stammdaten saved", type: "success" })
+      } else if (res.status === 403) {
+        const err = await res.json().catch(() => ({}))
+        setSdError(err.message || "Stammdaten are locked for this release")
+      } else {
+        const err = await res.json().catch(() => ({}))
+        setSdError(err.message || "Failed to save")
+      }
+    } catch {
+      setSdError("Network error — please retry")
+    } finally {
+      setSdSaving(false)
     }
   }
 
@@ -867,6 +965,8 @@ const MediaDetailPage = () => {
         </div>
       )}
 
+      {meta && <LockBanner locked={!meta.is_stammdaten_editable} reason={meta.locked_reason} />}
+
       <PageHeader
         title={pageTitle}
         subtitle={pageSubtitle}
@@ -879,15 +979,18 @@ const MediaDetailPage = () => {
             : C.muted,
         } : undefined}
         actions={
-          <div style={{ display: "flex", gap: S.gap.sm }}>
-            <a href={`https://vod-auctions.com/catalog/${release.id}`} target="_blank" rel="noopener noreferrer" style={{ ...T.small, color: C.gold, textDecoration: "none" }}>
-              View in Catalog &#8599;
-            </a>
-            {tapeMagUrl && (
-              <a href={tapeMagUrl} target="_blank" rel="noopener noreferrer" style={{ ...T.small, color: C.gold, textDecoration: "none" }}>
-                tape-mag.com &#8599;
+          <div style={{ display: "flex", gap: S.gap.md, alignItems: "center" }}>
+            {meta && <SourceBadge source={meta.source} syncedAt={release.discogs_last_synced || release.legacy_last_synced} />}
+            <div style={{ display: "flex", gap: S.gap.sm }}>
+              <a href={`https://vod-auctions.com/catalog/${release.id}`} target="_blank" rel="noopener noreferrer" style={{ ...T.small, color: C.gold, textDecoration: "none" }}>
+                View in Catalog &#8599;
               </a>
-            )}
+              {tapeMagUrl && (
+                <a href={tapeMagUrl} target="_blank" rel="noopener noreferrer" style={{ ...T.small, color: C.gold, textDecoration: "none" }}>
+                  tape-mag.com &#8599;
+                </a>
+              )}
+            </div>
           </div>
         }
       />
@@ -958,6 +1061,118 @@ const MediaDetailPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Edit Stammdaten — Zone-1 fields; locked for legacy releases */}
+      <div style={{ ...cardStyle, border: `1px solid ${C.border}`, marginBottom: S.sectionGap }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <SectionHeader title="Edit Stammdaten" style={{ marginTop: 0, marginBottom: 0 }} />
+          {!sdEditing && (
+            <Btn
+              label="Edit Stammdaten"
+              variant="gold"
+              onClick={handleStartEditStammdaten}
+              disabled={!meta?.is_stammdaten_editable}
+              style={{ padding: "6px 16px", fontSize: 13, opacity: meta?.is_stammdaten_editable ? 1 : 0.4 }}
+            />
+          )}
+        </div>
+        {!meta?.is_stammdaten_editable && (
+          <div style={{ ...T.micro, color: C.muted, marginTop: S.gap.sm }}>
+            {meta?.locked_reason || "Locked — only Discogs-imported releases can have stammdaten edited."}
+          </div>
+        )}
+
+        {sdEditing && (
+          <div style={{ marginTop: S.gap.lg }}>
+            {sdError && (
+              <div style={{ ...T.small, color: C.error, background: C.error + "15", border: `1px solid ${C.error}40`, borderRadius: S.radius.sm, padding: "8px 12px", marginBottom: S.gap.md }}>
+                {sdError}
+              </div>
+            )}
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: S.gap.lg }}>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <div style={labelStyle}>Title *</div>
+                <input type="text" value={sdTitle} onChange={(e) => setSdTitle(e.target.value)} style={localInputStyle} />
+              </div>
+
+              <div>
+                <div style={labelStyle}>Artist</div>
+                <div style={{ display: "flex", gap: S.gap.sm, alignItems: "center" }}>
+                  <input
+                    type="text"
+                    value={sdArtistName}
+                    readOnly
+                    placeholder="Click to select…"
+                    style={{ ...localInputStyle, cursor: "pointer", flex: 1 }}
+                    onClick={() => setSdPicker("artist")}
+                  />
+                  <Btn label="…" variant="ghost" onClick={() => setSdPicker("artist")} style={{ padding: "8px 12px", fontSize: 13 }} />
+                </div>
+              </div>
+
+              <div>
+                <div style={labelStyle}>Label</div>
+                <div style={{ display: "flex", gap: S.gap.sm, alignItems: "center" }}>
+                  <input
+                    type="text"
+                    value={sdLabelName}
+                    readOnly
+                    placeholder="Click to select…"
+                    style={{ ...localInputStyle, cursor: "pointer", flex: 1 }}
+                    onClick={() => setSdPicker("label")}
+                  />
+                  <Btn label="…" variant="ghost" onClick={() => setSdPicker("label")} style={{ padding: "8px 12px", fontSize: 13 }} />
+                </div>
+              </div>
+
+              <div>
+                <div style={labelStyle}>Year</div>
+                <input type="number" value={sdYear} onChange={(e) => setSdYear(e.target.value)} min={1900} max={new Date().getFullYear()} placeholder="e.g. 1994" style={localInputStyle} />
+              </div>
+
+              <div>
+                <div style={labelStyle}>Country (ISO-2)</div>
+                <input type="text" value={sdCountry} onChange={(e) => setSdCountry(e.target.value.toUpperCase().slice(0, 2))} placeholder="e.g. DE" maxLength={2} style={localInputStyle} />
+              </div>
+
+              <div>
+                <div style={labelStyle}>Catalog No.</div>
+                <input type="text" value={sdCatalogNumber} onChange={(e) => setSdCatalogNumber(e.target.value)} style={localInputStyle} />
+              </div>
+
+              <div>
+                <div style={labelStyle}>Barcode</div>
+                <input type="text" value={sdBarcode} onChange={(e) => setSdBarcode(e.target.value)} style={localInputStyle} />
+              </div>
+
+              <div style={{ gridColumn: "1 / -1" }}>
+                <div style={labelStyle}>Description</div>
+                <textarea value={sdDescription} onChange={(e) => setSdDescription(e.target.value)} rows={4} style={{ ...localInputStyle, resize: "vertical" }} />
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: S.gap.md, marginTop: S.gap.lg, paddingTop: S.gap.lg, borderTop: `1px solid ${C.border}` }}>
+              <Btn label={sdSaving ? "Saving…" : "Save Stammdaten"} variant="gold" onClick={handleSaveStammdaten} disabled={sdSaving} style={{ padding: "8px 24px", fontSize: 13 }} />
+              <Btn label="Cancel" variant="ghost" onClick={handleCancelEditStammdaten} disabled={sdSaving} style={{ padding: "8px 16px", fontSize: 13 }} />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Picker Modals */}
+      {sdPicker === "artist" && (
+        <ArtistPickerModal
+          onSelect={(item) => { setSdArtistId(item.id); setSdArtistName(item.name) }}
+          onClose={() => setSdPicker(null)}
+        />
+      )}
+      {sdPicker === "label" && (
+        <LabelPickerModal
+          onSelect={(item) => { setSdLabelId(item.id); setSdLabelName(item.name) }}
+          onClose={() => setSdPicker(null)}
+        />
+      )}
 
       {/* Edit Valuation */}
       <div style={{ ...cardStyle, border: `1px solid ${C.gold}30`, marginBottom: S.sectionGap }}>
