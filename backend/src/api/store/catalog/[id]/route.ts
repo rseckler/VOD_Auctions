@@ -83,6 +83,15 @@ export async function GET(
     .leftJoin("Artist", "ReleaseArtist.artistId", "Artist.id")
     .where("ReleaseArtist.releaseId", id)
 
+  // Tracks from Track table (rc50.0 track management — canonical for discogs releases)
+  const tracks = await pgConnection("Track")
+    .where("releaseId", id)
+    .orderByRaw(`
+      CASE WHEN position ~ '^[A-Z]' THEN 1 ELSE 2 END,
+      position
+    `)
+    .select("id", "position", "title", "duration")
+
   // Comments
   const comments = await pgConnection("Comment")
     .select("id", "content", "rating", "legacy_date", "createdAt")
@@ -189,6 +198,7 @@ export async function GET(
       effective_price,
       is_verified: isVerified,
       auction_lot,
+      tracks,
       images,
       various_artists,
       comments,

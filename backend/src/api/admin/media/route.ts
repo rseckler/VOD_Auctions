@@ -101,6 +101,13 @@ export async function GET(
       return adminMediaGetPostgres(req, res)
     }
 
+    // Reine Zahlen-Query (z.B. "45544") → ID-Suffix-Lookup benötigt Postgres.
+    // Meili kennt die Release-ID nicht als searchable Attribut, FTS-search_text
+    // auch nicht — daher Fallback auf Postgres der Release.id LIKE '%-45544' matcht.
+    if (q.q && /^\d+$/.test(q.q.trim())) {
+      return adminMediaGetPostgres(req, res)
+    }
+
     // Sort-Übersetzung — Admin-UI sendet sort="field_dir" oder "field:dir"
     const sortEnum: CatalogSort = mapLegacySort(q.sort, "asc") // mapLegacySort kennt das "_" Format intern
     const parsedSort = (() => {

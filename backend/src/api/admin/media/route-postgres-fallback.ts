@@ -148,14 +148,22 @@ export async function adminMediaGetPostgres(
   // landen koennen.
   if (q && typeof q === "string" && q.trim()) {
     const trimmed = q.trim()
-    const ftsSubquery = buildReleaseSearchSubquery(pgConnection, trimmed)
+    const isPureNumber = /^\d+$/.test(trimmed)
+    const ftsSubquery = isPureNumber ? null : buildReleaseSearchSubquery(pgConnection, trimmed)
     const barcodeSubquery = pgConnection("erp_inventory_item")
       .select("release_id")
       .whereRaw("UPPER(barcode) = UPPER(?)", [trimmed])
 
-    if (ftsSubquery) {
+    if (ftsSubquery || isPureNumber) {
       query = query.where(function () {
-        this.whereIn("Release.id", ftsSubquery).orWhereIn("Release.id", barcodeSubquery)
+        if (ftsSubquery) this.whereIn("Release.id", ftsSubquery)
+        this.orWhereIn("Release.id", barcodeSubquery)
+        if (isPureNumber) {
+          // Match Release.id ending with '-{number}' — z.B. 'discogs-release-45544'
+          // oder 'legacy-release-45544'. PK exact-match wäre schneller, aber wir
+          // kennen den Prefix nicht sicher → LIKE '%-N' reicht für admin (52k rows).
+          this.orWhereRaw(`"Release".id LIKE ?`, [`%-${trimmed}`])
+        }
       })
     } else {
       // Fallback: Tokens leer (z.B. nur Sonderzeichen) → nur Barcode-Lookup

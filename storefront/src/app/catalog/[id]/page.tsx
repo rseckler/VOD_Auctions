@@ -50,6 +50,8 @@ type CatalogRelease = Release & {
   is_purchasable?: boolean
   is_verified?: boolean
   shop_price?: number | null
+  // rc50.0 Track Management: Track-Tabellen-Einträge (canonical für discogs-Releases)
+  tracks?: { id: string; position: string | null; title: string; duration: string | null }[]
 }
 
 async function getRelease(id: string): Promise<{ release: CatalogRelease } | null> {
@@ -149,19 +151,21 @@ export default async function CatalogDetailPage({
       ? (release.label_slug ? `/label/${release.label_slug}` : null)
       : (release.artist_slug ? `/band/${release.artist_slug}` : null)
 
-  // Handle tracklist/credits separation from legacy data.
-  // Always prefer the credits-parser result (produces A1/title/duration structure).
-  // JSONB tracklist is fallback only — legacy imports often store each raw line as a
-  // flat entry without proper position+title pairs.
-  const extracted = release.credits
+  // Tracklist priority:
+  // 1. Track table (rc50.0 track management) — canonical for discogs releases
+  // 2. Credits-parser result — legacy releases that embed tracklist in credits text
+  // 3. Release.tracklist JSONB field — older legacy fallback
+  const extracted = (!release.tracks?.length && release.credits)
     ? extractTracklistFromText(release.credits)
     : null
   const effectiveTracklist =
-    extracted?.tracks.length
-      ? extracted.tracks
-      : (release.tracklist?.length
-          ? (parseUnstructuredTracklist(release.tracklist) ?? release.tracklist)
-          : null)
+    release.tracks?.length
+      ? release.tracks
+      : extracted?.tracks.length
+        ? extracted.tracks
+        : (release.tracklist?.length
+            ? (parseUnstructuredTracklist(release.tracklist) ?? release.tracklist)
+            : null)
   // Strip parsed tracklist lines from the credits display
   const effectiveCredits = extracted?.tracks.length
     ? extracted.remainingCredits
