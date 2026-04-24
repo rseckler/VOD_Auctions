@@ -677,8 +677,16 @@ export const CHECKS: HealthCheckDefinition[] = [
     async run({ pg }) {
       const start = Date.now()
       try {
+        // rc49.9: age-Berechnung SQL-seitig. sync_log.ended_at ist
+        // TIMESTAMP WITHOUT TIME ZONE — node-postgres parsed das als
+        // lokaler CEST-Timestamp, nicht als UTC → 2h Offset auf VPS
+        // (CEST=UTC+2), UI zeigte "last run 129min ago" für einen Run
+        // der erst 12min alt war. EPOCH-Diff in Postgres umgeht die
+        // JS-Date-Parsing-Falle.
         const { rows } = await pg.raw(
-          `SELECT ended_at, validation_status, run_id, rows_written
+          `SELECT validation_status, run_id, rows_written,
+                  EXTRACT(EPOCH FROM (NOW() - ended_at))::int AS age_sec,
+                  (ended_at IS NOT NULL) AS has_ended_at
              FROM sync_log
             WHERE phase IS NOT NULL AND validation_status IS NOT NULL
             ORDER BY ended_at DESC NULLS LAST
@@ -689,11 +697,10 @@ export const CHECKS: HealthCheckDefinition[] = [
           return { status: "warning", message: "no sync_log entries found", latency_ms }
         }
         const row = rows[0]
-        const endedAt = row.ended_at ? new Date(row.ended_at) : null
-        if (!endedAt) {
+        if (!row.has_ended_at || row.age_sec == null) {
           return { status: "warning", message: "latest sync has no ended_at", latency_ms, metadata: row }
         }
-        const ageMin = Math.round((Date.now() - endedAt.getTime()) / 60_000)
+        const ageMin = Math.round(Number(row.age_sec) / 60)
         const status: ServiceStatus =
           ageMin > 180 ? "error" :
           ageMin > 60 ? "warning" :
