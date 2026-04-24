@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { C, T, S, fmtDate, BADGE_VARIANTS } from "../admin-tokens"
 import { Btn } from "../admin-ui"
+import { RevertConfirmModal } from "./RevertConfirmModal"
 
 type AuditAction = "edit" | "revert" | "track_add" | "track_edit" | "track_delete" | "image_add" | "image_delete"
 
@@ -23,6 +24,7 @@ function parseVal(raw: string | null): string {
   try {
     const v = JSON.parse(raw)
     if (v == null) return "—"
+    if (v === "") return "(empty)"
     if (typeof v === "object") return JSON.stringify(v)
     return String(v)
   } catch {
@@ -72,9 +74,8 @@ export function AuditHistory({ releaseId, refreshKey }: Props) {
   const [entries, setEntries] = useState<AuditEntry[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [confirmId, setConfirmId] = useState<string | null>(null)
-  const [revertingId, setRevertingId] = useState<string | null>(null)
-  const [revertError, setRevertError] = useState<string | null>(null)
+  const [revertModalEntry, setRevertModalEntry] = useState<AuditEntry | null>(null)
+  const [internalRefresh, setInternalRefresh] = useState(0)
 
   const load = async (append = false) => {
     setLoading(true)
@@ -93,33 +94,7 @@ export function AuditHistory({ releaseId, refreshKey }: Props) {
     }
   }
 
-  useEffect(() => { load() }, [releaseId, refreshKey])
-
-  const handleRevert = async (entry: AuditEntry) => {
-    setRevertingId(entry.id)
-    setRevertError(null)
-    try {
-      const res = await fetch(
-        `/admin/media/${releaseId}/audit-log/${entry.id}/revert`,
-        { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: "{}" }
-      )
-      if (res.ok) {
-        setConfirmId(null)
-        load()
-      } else if (res.status === 409) {
-        const err = await res.json().catch(() => ({}))
-        const cur = parseVal(err.current != null ? JSON.stringify(err.current) : null)
-        setRevertError(`Conflict: current value is "${cur}" — no longer matches expected value. Cannot auto-revert.`)
-        setConfirmId(null)
-      } else {
-        const err = await res.json().catch(() => ({}))
-        setRevertError(err.message || "Revert failed")
-        setConfirmId(null)
-      }
-    } finally {
-      setRevertingId(null)
-    }
-  }
+  useEffect(() => { load() }, [releaseId, refreshKey, internalRefresh])
 
   if (loading && entries.length === 0) {
     return <div style={{ ...T.small, color: C.muted, padding: `${S.gap.lg}px 0` }}>Loading history…</div>
@@ -131,21 +106,9 @@ export function AuditHistory({ releaseId, refreshKey }: Props) {
 
   return (
     <div>
-      {revertError && (
-        <div style={{
-          ...T.small, color: C.error,
-          background: C.error + "15", border: `1px solid ${C.error}40`,
-          borderRadius: S.radius.sm, padding: "8px 12px", marginBottom: S.gap.md,
-        }}>
-          {revertError}
-        </div>
-      )}
-
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         {entries.map((entry) => {
           const isReverted = !!entry.reverted_at
-          const isConfirming = confirmId === entry.id
-          const isReverting = revertingId === entry.id
           const canRevert = !isReverted && entry.action === "edit" && !entry.parent_audit_id
 
           return (
@@ -171,34 +134,12 @@ export function AuditHistory({ releaseId, refreshKey }: Props) {
                 )}
                 <span style={{ flex: 1 }} />
                 {canRevert && (
-                  <div style={{ display: "flex", gap: S.gap.sm, alignItems: "center" }}>
-                    {isConfirming ? (
-                      <>
-                        <span style={{ ...T.small, color: C.error }}>Revert this change?</span>
-                        <Btn
-                          label={isReverting ? "Reverting…" : "Yes, revert"}
-                          variant="danger"
-                          onClick={() => handleRevert(entry)}
-                          disabled={isReverting}
-                          style={{ padding: "3px 10px", fontSize: 11 }}
-                        />
-                        <Btn
-                          label="Cancel"
-                          variant="ghost"
-                          onClick={() => { setConfirmId(null); setRevertError(null) }}
-                          disabled={isReverting}
-                          style={{ padding: "3px 10px", fontSize: 11 }}
-                        />
-                      </>
-                    ) : (
-                      <Btn
-                        label="↩ Revert"
-                        variant="ghost"
-                        onClick={() => { setConfirmId(entry.id); setRevertError(null) }}
-                        style={{ padding: "3px 10px", fontSize: 11 }}
-                      />
-                    )}
-                  </div>
+                  <Btn
+                    label="↩ Revert"
+                    variant="ghost"
+                    onClick={() => setRevertModalEntry(entry)}
+                    style={{ padding: "3px 10px", fontSize: 11 }}
+                  />
                 )}
               </div>
 
@@ -236,6 +177,15 @@ export function AuditHistory({ releaseId, refreshKey }: Props) {
           onClick={() => load(true)}
           disabled={loading}
           style={{ marginTop: S.gap.md, fontSize: 12 }}
+        />
+      )}
+
+      {revertModalEntry && (
+        <RevertConfirmModal
+          releaseId={releaseId}
+          entry={revertModalEntry}
+          onClose={() => setRevertModalEntry(null)}
+          onReverted={() => setInternalRefresh(k => k + 1)}
         />
       )}
     </div>
