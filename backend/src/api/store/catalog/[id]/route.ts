@@ -158,7 +158,9 @@ export async function GET(
     .first()
   const isVerified = !!verifiedRow
   const effective_price = rawShop != null && rawShop > 0 && isVerified ? rawShop : null
-  const is_purchasable = effective_price != null && release.legacy_available !== false
+  // rc49.7: legacy_available nicht mehr im Gate — Franks Verify+price_locked
+  // ist Authority. Siehe PRICING_MODEL.md §Shop-Visibility-Gate.
+  const is_purchasable = effective_price != null
   // legacy_price bleibt als Info erhalten (Frontend kann "Legacy tape-mag
   // Preis" anzeigen wenn gewünscht) — aber NIE als Shop-Preis rendern.
   release.legacy_price = rawLegacy

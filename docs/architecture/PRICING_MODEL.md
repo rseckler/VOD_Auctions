@@ -77,7 +77,7 @@ Gesteuert durch **`site_config.catalog_visibility`** (Admin-Toggle unter **Catal
 **Wichtig:** Der URL-Param `for_sale=true` forciert die `'visible'`-Semantik unabhängig vom Toggle (für "zum Verkauf"-Deep-Links).
 
 Implementierung:
-- **Storefront Main (Meilisearch-Pfad, `/store/catalog`):** Filter `is_purchasable = true` im Meili-Query. Der Filter ist in `meilisearch_sync.py::transform_to_doc()` gesetzt als `has_shop_price AND has_verified_inventory AND legacy_available`.
+- **Storefront Main (Meilisearch-Pfad, `/store/catalog`):** Filter `is_purchasable = true` im Meili-Query. Der Filter ist in `meilisearch_sync.py::transform_to_doc()` gesetzt als `has_shop_price AND has_verified_inventory`. (rc49.7: `legacy_available` wurde aus dem Gate entfernt — es ist rein tape-mag-MySQL-Historie und sagt nichts über aktuellen VOD-Bestand aus. Franks `price_locked=true` ist die Authority.)
 - **Storefront Fallback (Postgres, `route-postgres-fallback.ts`):** SQL-Klausel `shop_price > 0 AND EXISTS(verified erp_inventory_item)`.
 - **Detail (`/store/catalog/[id]`):** Extra-Query auf `erp_inventory_item`, setzt `is_verified + is_purchasable + effective_price` in der API-Response.
 - **Category-Pages (`/store/{band,label,press}/[slug]`):** via `enrichWithShopPrice(pg, rows)` Helper aus `backend/src/lib/shop-price.ts`.
@@ -132,7 +132,7 @@ Der Meili-Index `releases-commerce` / `releases-discovery` enthält folgende Pre
   "legacy_price": 27.0,       // Info — NICHT für Visibility-Filter nutzen
   "effective_price": 27.0,    // shop_price wenn verified + > 0, sonst null
   "has_price": true,          // shorthand für effective_price != null
-  "is_purchasable": true,     // has_price + legacy_available
+  "is_purchasable": true,     // has_price (rc49.7: legacy_available nicht mehr im Gate)
   "verified_count": 1         // Anzahl verifizierter Exemplare
 }
 ```

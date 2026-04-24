@@ -406,7 +406,12 @@ def transform_to_doc(row):
     shop_visible_with_price = has_shop_price and has_verified_inventory
     effective = shop if shop_visible_with_price else None
     has_price = shop_visible_with_price
-    is_purchasable = shop_visible_with_price and bool(row["legacy_available"])
+    # rc49.7: legacy_available nicht mehr im is_purchasable-Gate.
+    # Frank's Verify+price_locked ist Authority — sonst werden Items
+    # die tape-mag historisch verkauft hatte (legacy_available=false)
+    # fälschlich als nicht-kaufbar markiert trotz verifiziertem Bestand.
+    # Entspricht PRICING_MODEL.md §Shop-Visibility-Gate.
+    is_purchasable = shop_visible_with_price
 
     year = row["year"]
     decade = (year // 10) * 10 if year else None

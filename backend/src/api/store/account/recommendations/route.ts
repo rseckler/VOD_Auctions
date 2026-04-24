@@ -40,12 +40,13 @@ export async function GET(
   const maxResults = Math.min(parseInt(limit) || 8, 20)
 
   // Purchasable filter — matches Meili-index is_purchasable semantics:
-  //   shop_price > 0 AND verified erp_inventory_item exists AND legacy_available
-  // Plus: only releases with coverImage (Meili-visibility convention), and
+  //   shop_price > 0 AND verified erp_inventory_item exists
+  // Plus: only releases with coverImage (visibility convention), and
   // exclude the source IDs the customer already knows.
+  // rc49.7: kein legacy_available-Filter mehr — Franks Verify+price_locked
+  // ist Authority, tape-mag-Historie irrelevant.
   const purchasableFilter = (q: Knex.QueryBuilder) =>
-    q.where("Release.legacy_available", true)
-      .where("Release.shop_price", ">", 0)
+    q.where("Release.shop_price", ">", 0)
       .whereNotNull("Release.coverImage")
       .whereNotIn("Release.id", inputIds)
       .whereExists((sub) =>

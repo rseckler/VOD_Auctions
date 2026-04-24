@@ -351,8 +351,10 @@ export async function catalogGetPostgres(
           `EXISTS (SELECT 1 FROM erp_inventory_item ii WHERE ii.release_id = "Release"."id" AND ii.last_stocktake_at IS NOT NULL AND ii.price_locked = true)`
         )
     }
-    query = query.where(verifiedWithShopPrice).where("Release.legacy_available", true)
-    countQuery = countQuery.where(verifiedWithShopPrice).where("Release.legacy_available", true)
+    // rc49.7: legacy_available nicht mehr im Shop-Visibility-Gate. Franks
+    // Verify+price_locked ist Authority — siehe PRICING_MODEL.md.
+    query = query.where(verifiedWithShopPrice)
+    countQuery = countQuery.where(verifiedWithShopPrice)
   }
 
   if (genre && typeof genre === "string" && genre.trim()) {
@@ -419,7 +421,7 @@ export async function catalogGetPostgres(
       shop_price: rawShop,
       legacy_price: rawLegacy, // info only — NIE als Shop-Preis darstellen
       effective_price,
-      is_purchasable: effective_price != null && r.legacy_available !== false,
+      is_purchasable: effective_price != null,
       is_verified: isVerified,
     }
   })
