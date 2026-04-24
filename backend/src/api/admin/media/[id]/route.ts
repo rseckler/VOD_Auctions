@@ -3,6 +3,8 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { createMovement } from "../../../../lib/inventory"
 import { pushReleaseNow } from "../../../../lib/meilisearch-push"
+import { isStammdatenEditable, getLockedReason } from "../../../../lib/release-source"
+import { logEdit, HARD_STAMMDATEN_FIELDS, SYSTEM_ID_FIELDS } from "../../../../lib/release-audit"
 
 // GET /admin/media/:id — Single release detail with sync history
 export async function GET(
@@ -164,7 +166,13 @@ export async function GET(
     import_history = []
   }
 
-  res.json({ release, sync_history, images, import_history, inventory_items, inventory_movements })
+  const meta = {
+    is_stammdaten_editable: isStammdatenEditable(release),
+    source: release.data_source ?? "legacy",
+    locked_reason: getLockedReason(release),
+  }
+
+  res.json({ release, sync_history, images, import_history, inventory_items, inventory_movements, meta })
 }
 
 // POST /admin/media/:id — Update editable fields
@@ -178,17 +186,67 @@ export async function POST(
   const { id } = req.params
   const body = (req.body || {}) as Record<string, any>
 
-  // Allowed Release fields (Q8a: discogs_id / genres / styles newly editable).
-  // Note: Release.genres and Release.styles are TEXT[] in Postgres — accept
-  // arrays (preferred) or comma-separated strings (for backward compat).
+  // Zone-0: Strip system IDs silently — never writable via this endpoint
+  for (const f of SYSTEM_ID_FIELDS) {
+    delete body[f]
+  }
+
+  // Load current release for Guard + Audit old-values
+  const currentRelease = await pgConnection("Release").where("id", id).first()
+  if (!currentRelease) {
+    res.status(404).json({ message: "Release not found" })
+    return
+  }
+
+  // Zone-1 Guard: Hard-Stammdaten only editable for non-legacy sources
+  const requestedHardFields = (HARD_STAMMDATEN_FIELDS as readonly string[]).filter(
+    (f) => body[f] !== undefined
+  )
+  if (requestedHardFields.length > 0 && !isStammdatenEditable(currentRelease)) {
+    res.status(403).json({
+      error: "stammdaten_locked",
+      message: "Stammdaten werden vom Legacy-Sync verwaltet und können nicht editiert werden.",
+      locked_fields: requestedHardFields,
+    })
+    return
+  }
+
+  const actorId: string = (req as any).auth_context?.actor_id || "admin"
+  const actorEmail: string | null = (req as any).auth_context?.actor_email || null
+
+  // Allowed Release fields — Zone-3 Commerce (always) + Zone-2 Soft-Stammdaten (always)
+  // + Zone-1 Hard-Stammdaten (only when is_stammdaten_editable=true, Guard above ensures it)
   const allowedReleaseFields = [
+    // Zone-3 Commerce
     "estimated_value",
     "sale_mode",
     "shop_price",
     "shipping_item_type_id",
     "discogs_id",
+    // Zone-2 Soft-Stammdaten (always open)
     "genres",
     "styles",
+    "barcode",
+    "credits",
+    // Zone-1 Hard-Stammdaten (guard above already rejected non-editable releases)
+    ...(isStammdatenEditable(currentRelease)
+      ? [
+          "title",
+          "description",
+          "year",
+          "format",
+          "format_id",
+          "catalogNumber",
+          "country",
+          "artistId",
+          "labelId",
+          "coverImage",
+          "legacy_format_detail",
+          "legacy_condition",
+          "legacy_available",
+          "legacy_price",
+        ]
+      : []),
   ]
   const releaseUpdates: Record<string, any> = {}
 
@@ -339,18 +397,41 @@ export async function POST(
     // (und im Session-Recent-Activity, sobald reasons auf "catalog_%" ebenfalls
     // aufgenommen werden) die Catalog-basierte Preisänderung zeigt.
     if (priceChangeAudit) {
-      const actor = (req as any).auth_context?.actor_id || "admin"
       await createMovement(trx, {
         inventoryItemId: priceChangeAudit.itemId,
         type: "adjustment",
         quantityChange: 0,
         reason: "catalog_price_update",
-        performedBy: actor,
+        performedBy: actorId,
         reference: JSON.stringify({
           old_price: priceChangeAudit.oldPrice,
           new_price: priceChangeAudit.newPrice,
           source: "catalog_detail",
         }),
+      })
+    }
+
+    // Audit-Log: track Stammdaten field changes (Zone-1 + Zone-2)
+    // Zone-3 Commerce fields (shop_price, sale_mode, etc.) are tracked via
+    // erp_inventory_movement and bulk_price_adjustment_log instead.
+    const STAMMDATEN_AUDIT_FIELDS = [
+      ...(HARD_STAMMDATEN_FIELDS as readonly string[]),
+      "barcode", "credits", "genres", "styles",
+    ]
+    const auditFields: Record<string, { oldValue: unknown; newValue: unknown }> = {}
+    for (const field of STAMMDATEN_AUDIT_FIELDS) {
+      if (releaseUpdates[field] !== undefined) {
+        auditFields[field] = {
+          oldValue: currentRelease[field],
+          newValue: releaseUpdates[field],
+        }
+      }
+    }
+    if (Object.keys(auditFields).length > 0) {
+      await logEdit(trx, {
+        releaseId: id,
+        fields: auditFields,
+        actor: { id: actorId, email: actorEmail },
       })
     }
   })
