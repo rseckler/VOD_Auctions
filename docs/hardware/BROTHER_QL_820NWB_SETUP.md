@@ -7,6 +7,88 @@
 - **Rolle:** Brother DK-22210 (29mm × 30,48m weißes Endlosband)
 - **Scanner:** Inateck BCST-70 (USB HID, 1D Barcodes)
 
+**Silent-Print-Architektur (seit rc34, 2026-04-22):** QZ Tray ist komplett raus. Silent-Druck läuft über die **VOD Print Bridge** — Python stdlib LaunchAgent auf `127.0.0.1:17891` HTTPS (mkcert-Cert), Backend `brother_ql` (TCP-Direct-Send auf Drucker-Port 9100). Admin-UI pollt `/health`, druckt per `POST /print`. Kein Browser-Dialog, kein Java, kein Signing-Theater. Siehe [`frank-macbook-setup/print-bridge/README.md`](../../frank-macbook-setup/print-bridge/README.md).
+
+---
+
+## 0. Rollout auf neuem Mac (Einzeiler)
+
+**Zielgruppe:** MacBook Air M5 / Mac Studio / Dev-Macs. Gleicher Ablauf egal ob Apple Silicon oder Intel (Architektur wird automatisch erkannt).
+
+### Voraussetzungen (vor dem Einzeiler)
+
+1. Brother QL-820NWB im gleichen WLAN wie der Mac, DK-22210 Rolle eingelegt, Drucker-IP am LCD ablesbar (Menu → WLAN → Info)
+2. Drucker-Admin-Passwort von der Rückseite (Format `Pwd: xxxxxxxx`) griffbereit — wird für den Raster-Mode-Fix im Web-Interface gebraucht
+3. Inateck BCST-70 USB-Empfänger im Mac, BCST-70 Handbuch PDF griffbereit (Setup-Barcodes aus §1.6)
+4. **Brother-Treiber installiert:** [https://support.brother.com](https://support.brother.com/g/b/downloadlist.aspx?c=eu_ot&lang=en&prod=lpql820nwbeas&os=10064) → QL-820NWB → Downloads → macOS → „Full Driver & Software Package" (.pkg, ~60 MB). Ohne Brother-PPD verwirft der Drucker Raster-Jobs lautlos — IPP-Everywhere/AirPrint können das Brother-Protokoll nicht. Der Einzeiler checkt das in Step 2 und bricht mit Link zum Download ab, falls er fehlt.
+5. Homebrew installiert (`which brew` → Pfad). Falls nicht: `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`
+
+### Der Einzeiler
+
+Im Terminal auf dem Ziel-Mac:
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/rseckler/VOD_Auctions/main/frank-macbook-setup/bootstrap.sh)"
+```
+
+**Was passiert:** Bootstrap-Script (`frank-macbook-setup/bootstrap.sh`) prüft Xcode CLT + Homebrew, cloned/pulled `~/VOD_Auctions`, startet `frank-macbook-setup/install.sh`. Das Setup ist idempotent — der Einzeiler kann beliebig oft neu gestartet werden (aktualisiert per `git fetch && git reset --hard origin/main`).
+
+### Die 7 Schritte von install.sh
+
+| # | Was | Interaktiv? |
+|---|---|---|
+| 1/7 | System-Check (macOS-Version, Architektur, Homebrew) | nein |
+| 2/7 | Brother-Treiber verifizieren (PPD vorhanden + nicht via AirPrint eingerichtet) + CUPS-Queue-Namen normalisieren | nein |
+| 3/7 | **Altes QZ Tray entfernen** (falls vorhanden, braucht einmalig sudo für `/Applications/QZ Tray.app`) + **VOD Print Bridge installieren** (venv mit `brother_ql` + `Pillow` + `pypdfium2`, mkcert HTTPS-Cert, LaunchAgent im User-Scope, kein sudo) | ggf. sudo + Drucker-IP falls Bonjour fehlschlägt |
+| 4/7 | CUPS-Default `PageSize=Custom.29x90mm` setzen (siehe §4) | nein |
+| 5/7 | **Drucker Raster-Mode** umstellen — öffnet `https://<printer-ip>/` im Browser (siehe §3) | **ja** — Drucker-IP + Admin-Pwd |
+| 6/7 | Safari Web-App für `admin.vod-auctions.com` erstellen | **ja** — Enter |
+| 7/7 | Test-Label drucken (29×90mm Diagnose-Label) | **ja** — Enter |
+
+### Scanner-Setup (nach install.sh)
+
+Der Einzeiler kümmert sich nicht um den BCST-70 — das ist Hardware-intern (Setup-Barcodes aus dem Handbuch scannen, nicht via Software). Siehe §6 weiter unten, Ablauf in [`frank-macbook-setup/scanner/SCANNER_SETUP.md`](../../frank-macbook-setup/scanner/SCANNER_SETUP.md).
+
+### Rollback / Uninstall
+
+```bash
+# Nur die Print Bridge entfernen (LaunchAgent + Script + Cert), Brother-Treiber/CUPS bleibt
+bash ~/VOD_Auctions/frank-macbook-setup/print-bridge/install-bridge.sh --uninstall
+```
+
+### Re-Run gezielt nur für die Bridge (ohne volles install.sh)
+
+Nützlich wenn Drucker getauscht wurde, IP sich geändert hat, oder nach Homebrew-Update:
+
+```bash
+cd ~/VOD_Auctions/frank-macbook-setup
+bash print-bridge/install-bridge.sh --printer Brother_QL_820NWB
+# Mit expliziter IP (überspringt Bonjour-Autodetect):
+bash print-bridge/install-bridge.sh --printer Brother_QL_820NWB --printer-ip 10.1.1.136
+# Dev-Mac ohne Brother (Robins Setup):
+bash print-bridge/install-bridge.sh --dry-run
+```
+
+### Health-Check nach der Installation
+
+```bash
+curl -sk https://127.0.0.1:17891/health
+# Erwartet: {"ok":true,"printer_found":true,"backend":"brother_ql",...}
+
+# Logs live
+tail -f ~/Library/Logs/vod-print-bridge.log
+```
+
+Im Admin-UI (Safari Web-App): oben rechts muss Badge **„Silent Print"** stehen (nicht „Browser Print"). Falls „Browser Print": Bridge ist down — `curl` oben prüfen, ggf. `bash install-bridge.sh` erneut.
+
+### Rollout-Log (Stand 2026-04-24)
+
+| Mac | Status | Mode |
+|---|---|---|
+| Franks MacBook Air M5 | ⏳ Rollout ausstehend | production |
+| Franks Mac Studio | ⏳ Rollout ausstehend | production |
+| Robins MacBook (Dev) | ✅ Installiert | DRY_RUN (kein Brother angeschlossen) |
+
 ---
 
 ## 1. Quick Reference — Das funktionierende Setup
@@ -24,7 +106,16 @@ lpoptions -p Brother_QL_820NWB -o PageSize=Custom.29x90mm
 - „Beginn der Einrichtung" → „Deutsche Tastatur" → „Speichern und Beenden"
 
 **Drucken aus Code:**
+
+In Production (Admin-UI): HTTPS POST an die lokale Print Bridge — kein Browser-Dialog, keine CUPS-Fallstricke.
+
 ```bash
+# Production: via VOD Print Bridge (brother_ql-Backend, TCP-direct an Drucker:9100)
+curl -sk -X POST https://127.0.0.1:17891/print \
+  -H 'Content-Type: application/pdf' \
+  --data-binary @/pfad/zum/label.pdf
+
+# Hardware-Debugging: direkt via CUPS (geht auch, bypasst Bridge)
 lp -d Brother_QL_820NWB /pfad/zum/label.pdf
 # oder explizit:
 lp -d Brother_QL_820NWB -o PageSize=Custom.29x90mm /pfad/zum/label.pdf
