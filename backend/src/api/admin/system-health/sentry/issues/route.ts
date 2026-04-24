@@ -43,15 +43,21 @@ export async function GET(req: MedusaRequest, res: MedusaResponse): Promise<void
     return
   }
 
-  // Build Sentry-API query. If a service name is provided, filter via tags.
+  // Build Sentry-API query. If a service name is provided, filter via
+  // quoted free-text search. Sentry's issues-API rejects Boolean OR/AND
+  // ("Boolean statements containing 'OR' or 'AND' are not supported in
+  // this search" → HTTP 400), so we can't combine a tag-filter with a
+  // message-substring fallback. Plain quoted free-text matches across
+  // title/message/culprit, which is what we want anyway.
   const queryParams = new URLSearchParams({
     limit: String(limit),
     sort: "date",
     statsPeriod: "14d",
   })
   if (service) {
-    // Sentry-Query-Syntax: tag-based filter with "OR" fallback für message/culprit
-    queryParams.set("query", `is:unresolved service:"${service}" OR "${service}"`)
+    // Sanitize: strip any double-quotes to keep the quoted term balanced.
+    const safeService = service.replace(/"/g, "")
+    queryParams.set("query", `is:unresolved "${safeService}"`)
   } else {
     queryParams.set("query", "is:unresolved")
   }
