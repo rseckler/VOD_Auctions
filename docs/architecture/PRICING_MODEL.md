@@ -81,6 +81,9 @@ Implementierung:
 - **Storefront Fallback (Postgres, `route-postgres-fallback.ts`):** SQL-Klausel `shop_price > 0 AND EXISTS(verified erp_inventory_item)`.
 - **Detail (`/store/catalog/[id]`):** Extra-Query auf `erp_inventory_item`, setzt `is_verified + is_purchasable + effective_price` in der API-Response.
 - **Category-Pages (`/store/{band,label,press}/[slug]`):** via `enrichWithShopPrice(pg, rows)` Helper aus `backend/src/lib/shop-price.ts`.
+- **Account-Merkliste (`/store/account/saved`, rc49.6):** via `enrichWithShopPrice(pg, rows)`. Items ohne `effective_price` bleiben in der Liste, aber ohne Preis-Tag und ohne Add-to-Cart-Button.
+- **Account-Recommendations (`/store/account/recommendations`, rc49.6):** SQL-Filter `shop_price > 0 AND EXISTS(verified erp_inventory_item) AND legacy_available=true` auf allen drei Query-Zweigen (same_artist / same_label / popular). Response-Feld `effective_price` statt `legacy_price`. Items ohne verifizierten Preis werden nicht empfohlen.
+- **Auction-Detail (Storefront `/auctions/:slug/:itemId`, rc49.6):** keine `legacy_price` / `discogs_*` im Details-Block mehr. Customer sieht nur Bid-Werte + `start_price` (bereits aus `shop_price × default_start_price_percent / 100` abgeleitet).
 
 ## Verify-Endpoint: was passiert genau
 
