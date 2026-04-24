@@ -9,6 +9,8 @@ import { printLabelAuto } from "../../../lib/print-client"
 import { SourceBadge } from "../../../components/release-detail/SourceBadge"
 import { LockBanner } from "../../../components/release-detail/LockBanner"
 import { ArtistPickerModal, LabelPickerModal } from "../../../components/release-detail/PickerModals"
+import { AuditHistory } from "../../../components/release-detail/AuditHistory"
+import { TrackManagement } from "../../../components/release-detail/TrackManagement"
 import { validateReleaseStammdaten } from "../../../../lib/release-validation"
 
 class ErrorBoundary extends Component<
@@ -626,6 +628,7 @@ const MediaDetailPage = () => {
   const [sdSaving, setSdSaving] = useState(false)
   const [sdPicker, setSdPicker] = useState<"artist" | "label" | null>(null)
   const [sdError, setSdError] = useState<string | null>(null)
+  const [auditRefreshKey, setAuditRefreshKey] = useState(0)
 
   const goLightbox = useCallback((dir: "prev" | "next") => {
     setLightboxIndex((i) => {
@@ -783,6 +786,7 @@ const MediaDetailPage = () => {
         const d = await res.json()
         setRelease(d.release || release)
         setSdEditing(false)
+        setAuditRefreshKey(k => k + 1)
         setToast({ message: "Stammdaten saved", type: "success" })
       } else if (res.status === 403) {
         const err = await res.json().catch(() => ({}))
@@ -1649,8 +1653,21 @@ const MediaDetailPage = () => {
         </div>
       </div>
 
-      {/* Notes + Tracklist */}
+      {/* Notes + Tracklist (read-only, parsed from Release.tracklist/credits) */}
       <NotesAndTracklist credits={release.credits} tracklist={release.tracklist} description={release.description} />
+
+      {/* Track Management — edit/add/delete via Track DB table */}
+      <div style={{ ...cardStyle, marginBottom: S.sectionGap }}>
+        <SectionHeader title="Track Management" style={{ marginTop: 0 }} />
+        <div style={{ ...T.micro, color: C.muted, marginBottom: S.gap.md }}>
+          Edits here write to the Track table and are reflected in the storefront tracklist.
+          Track editing is always open (not locked by source).
+        </div>
+        <TrackManagement
+          releaseId={release.id}
+          onTrackChange={() => setAuditRefreshKey(k => k + 1)}
+        />
+      </div>
 
       {/* Import History — which Discogs imports touched this release */}
       {importHistory.length > 0 && (
@@ -1745,6 +1762,16 @@ const MediaDetailPage = () => {
             </table>
           </div>
         )}
+      </div>
+
+      {/* Edit History — stammdaten + track changes with revert */}
+      <div style={{ ...cardStyle, marginBottom: S.sectionGap }}>
+        <SectionHeader title="Edit History" style={{ marginTop: 0 }} />
+        <div style={{ ...T.micro, color: C.muted, marginBottom: S.gap.md }}>
+          All stammdaten and track edits for this release, newest first.
+          Revert rolls back a single field change.
+        </div>
+        <AuditHistory releaseId={release.id} refreshKey={auditRefreshKey} />
       </div>
 
       {/* Lightbox Overlay */}
