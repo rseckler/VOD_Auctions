@@ -42,17 +42,30 @@ Einmal Admin-Passwort eingeben, ~3 Minuten warten, fertig. Danach den Hinweis am
 
 ## Schritt 2 — Kit herunterladen
 
-Das Kit ist im VOD-Repo unter `frank-macbook-setup/`. Zwei Optionen:
+### Option A: Einzeiler (empfohlen — holt Repo + startet Setup)
 
-### Option A: Per Git Clone (empfohlen — einfacher für Updates)
+Ein einzelner Terminal-Befehl holt das Repo nach `~/VOD_Auctions`, prüft Voraussetzungen (Xcode CLT, Homebrew) und startet direkt `install.sh`:
+
+```sh
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/rseckler/VOD_Auctions/main/frank-macbook-setup/bootstrap.sh)"
+```
+
+Beim erneuten Ausführen wird das Repo per `git fetch && git reset --hard origin/main` aktualisiert — Kit bleibt immer auf dem neuesten Stand. Siehe [`bootstrap.sh`](bootstrap.sh) für Details.
+
+**Voraussetzungen die der Einzeiler prüft:**
+- Xcode Command-Line-Tools (bringen `git` + `python3`) — werden bei Bedarf via `xcode-select --install` GUI-Dialog angestoßen
+- Homebrew — wird NICHT automatisch installiert (eigene sudo-Prompts); bei Fehlen wird der Install-Befehl ausgegeben
+
+### Option B: Manueller Clone (für Dev-Zwecke)
 
 ```sh
 cd ~
 git clone https://github.com/rseckler/VOD_Auctions.git
 cd VOD_Auctions/frank-macbook-setup
+bash install.sh
 ```
 
-### Option B: Als ZIP (keine Git-Installation nötig)
+### Option C: Als ZIP (keine Git-Installation nötig)
 
 1. https://github.com/rseckler/VOD_Auctions öffnen
 2. Grüner „Code"-Button → „Download ZIP"
@@ -60,6 +73,7 @@ cd VOD_Auctions/frank-macbook-setup
 4. Im Terminal:
    ```sh
    cd ~/Downloads/VOD_Auctions-main/frank-macbook-setup
+   bash install.sh
    ```
 
 ---
@@ -79,7 +93,9 @@ cd VOD_Auctions/frank-macbook-setup
 
 ## Schritt 4 — Das Setup-Script ausführen
 
-Im Terminal (im `frank-macbook-setup/` Verzeichnis):
+**Wenn Du den Einzeiler aus Schritt 2 / Option A genutzt hast: schon erledigt.** Der Bootstrap ruft `install.sh` automatisch auf — überspringe diesen Schritt.
+
+Nur bei Option B oder C manuell nötig, im Terminal (im `frank-macbook-setup/` Verzeichnis):
 
 ```sh
 bash install.sh

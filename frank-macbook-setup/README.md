@@ -59,13 +59,19 @@ Falls `lpstat` den Drucker nicht zeigt: Systemeinstellungen → Drucker & Scanne
 
 ## Installation
 
-```bash
-cd ~/Desktop
-# Kit nach Frank's Mac übertragen (AirDrop, USB-Stick, oder git clone)
-git clone https://github.com/rseckler/VOD_Auctions.git
-cd VOD_Auctions/frank-macbook-setup
+**Einzeiler (empfohlen):**
 
-# Ausführen (fragt interaktiv nach)
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/rseckler/VOD_Auctions/main/frank-macbook-setup/bootstrap.sh)"
+```
+
+Holt das Repo nach `~/VOD_Auctions`, prüft Voraussetzungen (Xcode CLT, Homebrew) und startet `install.sh`. Bei Wiederholung wird per `git fetch && git reset --hard origin/main` aktualisiert. Siehe [`bootstrap.sh`](bootstrap.sh).
+
+**Manuell (Dev-Zwecke):**
+
+```bash
+git clone https://github.com/rseckler/VOD_Auctions.git ~/VOD_Auctions
+cd ~/VOD_Auctions/frank-macbook-setup
 bash install.sh
 ```
 
