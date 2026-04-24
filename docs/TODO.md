@@ -18,7 +18,7 @@ Operative Aufgabenliste. Single Source of Truth für laufende Arbeit.
 Aktuell aktive Workstreams. Maximal 2-3 gleichzeitig.
 
 1. **Catalog Stammdaten-Editierbarkeit komplett live (rc50.0-rc50.4, 2026-04-24).** Phase 1-4 deployed. Frank kann ab jetzt Stammdaten von Discogs-Import-Releases editieren (~11k), Legacy (~41k) bleiben read-only. 4-Zonen-Modell, `release_audit_log`-Tabelle + 8 Routes, SourceBadge/LockBanner/PickerModals/AuditHistory/TrackManagement/RevertConfirmModal, Bulk-Edit-Skip-Logic. Doku: [`docs/optimizing/CATALOG_STAMMDATEN_EDITABILITY_KONZEPT.md`](optimizing/CATALOG_STAMMDATEN_EDITABILITY_KONZEPT.md), [`docs/optimizing/IMPLEMENTATION_PLAN.md`](optimizing/IMPLEMENTATION_PLAN.md). **Nächste Aktion:** Frank briefen auf neue UI (Edit-Card in Discogs-Release-Detail, History-Tab, Bulk-Stammdaten-Skip).
-2. **rc50.5 Follow-up — `payment-deadline` Cron camelCase-Bug.** Entdeckt beim rc50.4-Deploy im PM2-Error-Log (täglich 09:00 UTC). `column "updated_at" of relation "Release" does not exist` — gleicher Bug-Typ wie Codex-Rescue-Fix in Phase 1 (Release nutzt camelCase `updatedAt`). Existiert seit mindestens rc49.x, nicht aus Phase 1-4. **Nächste Aktion:** `grep -rn '"Release".*update.*updated_at' backend/src` → Fix + rc50.5.
+2. **rc51.1 Follow-Up Bundle — 3 pre-existing Bugs + 3 Recommendations aus Opus Review.** Opus-Review zu rc51.0 hat `AuditAction`-Type-Drift gefixt (rc51.0.1 live). Pending: B1 ai-create-auction camelCase (+F.1 payment-deadline Cron gebündelt), B2 upload-image coverImage-Lock, B3 discogs-import description-Lock, R1 Field-Listen konsolidieren, R2 Auto-Lock nur auf changed fields, R3 unlock-field TOCTOU. Plan: [`docs/optimizing/RC51_1_FOLLOWUP_PLAN.md`](optimizing/RC51_1_FOLLOWUP_PLAN.md). ETA ~3h als Bundle-Release.
 3. **Storefront Pricing-Cleanup abgeschlossen (rc49.6 + rc49.7, 2026-04-24).** `effective_price = shop_price` end-to-end im Storefront. `legacy_available` aus `is_purchasable`-Gate entfernt. 36 Releases mit `legacy_available=false` + verified-Bestand wieder sichtbar. Alle Code-Pfade (saved, wins, auction-detail, catalog-detail, catalog-fallback, recommendations, Meili-sync) konsistent nach PRICING_MODEL.md §Shop-Visibility-Gate. Plan: [`docs/optimizing/FRONTEND_PRICING_CLEANUP_PLAN.md`](optimizing/FRONTEND_PRICING_CLEANUP_PLAN.md).
 2. **Legacy-Sync + Meili-Sync strukturell stabil (rc49.2-rc49.4, 2026-04-24).** Root-Cause-Fix der 41k-Meili-Cascade. `ON CONFLICT DO UPDATE SET ... WHERE <semantic-diff>` kombiniert mit chunked Meili-Fetch + 5min statement_timeout + stale-cleanup. Dauer 180s→47s, Meili-Traffic −99.97%. Monitoring: 24h-Uptime-Stripe `meili_backlog` rollt automatisch von 64.3%→100% bis morgen 06:30 UTC.
 3. **Performance-Offensive abgeschlossen (rc48.1 + rc49 + rc49.1)** — alle 4 Admin-Listen-Endpoints auf Meilisearch, Disk-IO-Alert durch SQL-Rewrite bereinigt. **Monitoring-Check 2026-04-24:** `pg_stat_statements` erneut abfragen, validieren dass BASE_SELECT_SQL nicht mehr Top-1-Disk-IO-Hog ist. Bei Fail: Tier 2 aus `SUPABASE_DISK_IO_AUDIT` (partial delta-fetch, entity_content-Cache, Discogs-Audit-Caching).
@@ -546,10 +546,24 @@ Diese Punkte werden erst gezogen, wenn konkrete Metriken (Response-Zeit, Last, F
 
 #### Follow-ups (offen)
 
-- [ ] **F.1** `payment-deadline` Cron camelCase-Bug — entdeckt im PM2-Error-Log beim rc50.4-Deploy (täglich 09:00 UTC). `column "updated_at" of relation "Release" does not exist`. Gleicher Bug-Typ wie Codex-Rescue-Fix Phase 1. Existiert seit mindestens rc49.x. Nächste Aktion: `grep -rn '"Release".*update.*updated_at' backend/src` + rc50.5-Patch.
-- [ ] **F.2** Frank briefen auf neue UI: Edit-Card in Discogs-Release-Detail, Revert-Button in History-Tab, Stammdaten-Bulk-Skip
-- [ ] **F.3** `refetch-discogs/route.ts` gap (pre-existing, aufgedeckt im Opus-Review): Writer aktualisiert genres/styles/discogs_* direkt ohne pushReleaseNow und ohne audit-log. Trigger `release_indexed_at_self` fängt es via search_indexed_at-Bump — aber on-demand-Reindex wäre schneller. Non-blocking.
+- [ ] **F.1** `payment-deadline` Cron camelCase-Bug — entdeckt im PM2-Error-Log beim rc50.4-Deploy (täglich 09:00 UTC). `column "updated_at" of relation "Release" does not exist`. Gleicher Bug-Typ wie Codex-Rescue-Fix Phase 1. Existiert seit mindestens rc49.x. **Gebündelt mit B1 in rc51.1** — siehe [`RC51_1_FOLLOWUP_PLAN.md`](optimizing/RC51_1_FOLLOWUP_PLAN.md) §B1.
+- [ ] **F.2** Frank briefen auf neue UI: Edit-Card in Discogs-Release-Detail, Revert-Button in History-Tab, Stammdaten-Bulk-Skip, per-Field 🔒-Icon + Unlock-Modal (rc51.0), SourceBadge zeigt "N fields locked from sync"
+- [ ] **F.3** `refetch-discogs/route.ts` gap (pre-existing, aufgedeckt im rc50.4-Opus-Review): Writer aktualisiert genres/styles/discogs_* direkt ohne pushReleaseNow und ohne audit-log. Trigger `release_indexed_at_self` fängt es via search_indexed_at-Bump — aber on-demand-Reindex wäre schneller. Non-blocking.
 - [ ] **F.4** Bulk-Edit auf Zone-2-Soft-Stammdaten (barcode/credits/genres/styles) erweitern — individual Route audited diese Felder, Bulk noch nicht. Scope-Choice für später.
+
+#### rc51.1 Follow-ups (aus Opus Architecture Review 2026-04-24)
+
+→ **Plan-Doc:** [`RC51_1_FOLLOWUP_PLAN.md`](optimizing/RC51_1_FOLLOWUP_PLAN.md) · ETA ~3h · **Empfehlung:** Bundle-Release rc51.1
+
+Pre-existing Bugs:
+- [ ] **F.5 (B1)** 🔴 `ai-create-auction/route.ts:247` nutzt `updated_at` statt `updatedAt`. Würde beim AI-Create-Auction-Tool (`reserve_release`) at-runtime crashen. **Gleichzeitig F.1 (payment-deadline) mitfixen** damit die Bug-Klasse komplett rausfällt.
+- [ ] **F.6 (B2)** 🟡 `upload-image/route.ts` schreibt `coverImage` ohne `lockFields()`. Admin-Upload kann vom nächsten Legacy-Sync überschrieben werden wenn MySQL `coverImage=NULL` hat. Seit rc51.0 via `lockFields(trx, id, ["coverImage"])` fixbar.
+- [ ] **F.7 (B3)** 🟢 `discogs-import/commit` Match-Mode schreibt `description` (via COALESCE auf NULL) ohne Lock. Matched Legacy-Release description kann bei nächstem Sync auf MySQL-NULL zurückfallen.
+
+Recommendations (non-blocking):
+- [ ] **F.8 (R1)** 🟢 `HARD_STAMMDATEN_FIELDS` (release-audit.ts, hat `format`) vs `SYNC_PROTECTED_FIELDS` (release-locks.ts, hat `barcode`) konsolidieren. Vorschlag: re-export aus `release-locks.ts`, `format` komplett aus allowedReleaseFields raus.
+- [ ] **F.9 (R2)** 🟢 Auto-Lock aktuell auf ALLE Felder im Save-Body (auch unveränderte). Backend-side Fix: mit `looseEqual(currentRelease[f], body[f])` vergleichen, nur changed-Felder locken. UX-Verbesserung — widerspricht sonst dem "beim ersten Edit"-Prinzip im Concept.
+- [ ] **F.10 (R3)** 🟢 `unlock-field` TOCTOU — `isFieldLocked`-Check außerhalb Transaction. Fix: Check inside `pg.transaction()` mit `FOR UPDATE`. Very low priority — doppelter Audit-Entry bei sehr seltenem Concurrent-Unlock.
 
 ---
 
