@@ -28,8 +28,9 @@ Alle Findings sind **nicht rc51.0-Regressionen** — sie existieren schon länge
 | **R1** | `HARD_STAMMDATEN_FIELDS` vs `SYNC_PROTECTED_FIELDS` konsolidieren | 🟢 LOW | 30min | Prevention: verhindert zukünftige Drift | `release-audit.ts`, `release-locks.ts`, Aufrufer |
 | **R2** | Auto-Lock nur auf tatsächlich geänderte Felder | 🟢 LOW | 40min | UX: weniger Noise im `locked_fields`-Array | `media/[id]/route.ts`, `media/bulk/route.ts` |
 | **R3** | `unlock-field` TOCTOU-Check außerhalb Transaction | 🟢 LOW | 10min | Edge-Case: doppelter Audit-Entry bei Concurrent-Unlock | `media/[id]/unlock-field/route.ts` |
+| **R4** | Country-Input → ISO-2 Searchable Dropdown | 🟡 MEDIUM | 2h | Data-Integrity: Admin muss nicht Codes auswendig kennen, Typos vermieden | `media/[id]/page.tsx`, neue `CountryPickerModal.tsx`, neue `data/country-iso.ts` |
 
-**Summe:** ~2h Code-Aufwand + ~30min Deploy-Workflow.
+**Summe:** ~4h Code-Aufwand + ~30min Deploy-Workflow.
 
 ---
 
@@ -289,9 +290,111 @@ Aktuell eher Code-Hygiene als Bugfix. Kann auch skipped werden, wenn Budget-knap
 
 ---
 
+### R4 — Country-Input → ISO-2 Searchable Dropdown
+
+**Problem:** Country-Feld im Edit-Stammdaten-Formular ist aktuell ein Freitext-Input mit nur `maxLength={2}` + `toUpperCase()`-Coercion. Backend-Validation erlaubt `/^[A-Z]{2}$/` — akzeptiert also auch **ungültige** Codes wie `"UK"` (korrekt wäre `"GB"`), `"ZZ"`, `"XX"`.
+
+**Konsequenzen:**
+- Typo-Anfälligkeit: `"UK"` statt `"GB"` (Groß­britannien), `"D"` statt `"DE"` (fehlt 2. Zeichen)
+- Sprachverwirrung: Admin tippt `"NL"` für Netherlands vs `"NE"` für Niger → beides ISO-valide, eines falsch
+- Inkonsistente Daten: existierende DB-Werte haben manche Legacy-Codes (z.B. aus tape-mag `"D"` für Deutschland statt `"DE"`)
+- Meili-Facets + Storefront-Country-Filter verlässt sich auf ISO-2-Konformität
+
+**Proposed Fix:** Searchable Combobox (ähnlich Artist/Label-PickerModal) mit:
+- Canonical Liste aller **249 ISO-3166-1 alpha-2 Codes**
+- Anzeige: `🇩🇪 Germany (DE)` (Flag-Emoji + Englischer Name + Code)
+- **Deutsche Alternativen als Such-Aliases**: Admin tippt `"Deutsch"` → findet `DE`; `"Frank"` → `FR`
+- Live-Filter beim Tippen (client-side, 249 Items ist schnell genug ohne Debounce)
+- Fallback: wenn aktueller DB-Wert ein nicht-ISO-Code ist (z.B. `"D"`), wird er gelb markiert mit Tooltip "Non-ISO value — select a canonical code to fix"
+
+**Datenquelle:**
+- Neuer Frontend-File: `backend/src/admin/data/country-iso.ts` — statische TypeScript-Konstante mit ~249 Einträgen: `{code: "DE", nameEn: "Germany", nameDe: "Deutschland", flag: "🇩🇪"}`
+- Einmalig generiert aus `scripts/data/country_iso.py` + `world-countries`-Dataset (no npm dependency, Daten werden einmalig kopiert und im Source-Tree eingecheckt)
+
+**Komponenten-Design:**
+```typescript
+// PickerModals.tsx bekommt eine dritte Variante (analog Artist/Label):
+<CountryPicker
+  currentValue={sdCountry}          // "DE" oder Legacy-Wert
+  onSelect={(iso) => setSdCountry(iso)}
+  onClose={() => setSdPicker(null)}
+/>
+```
+
+**Edit-Card Integration:**
+- Country-Input im Formular wird zu einem Picker-Trigger (wie Artist/Label)
+- Anzeige im read-only-Feld: `🇩🇪 Germany (DE)` — visuelle Bestätigung
+- Klick → Modal mit Such-Input + Live-gefilterter Liste
+
+**Migration-Überlegung:**
+- Keine DB-Migration — Non-ISO Werte bleiben in der DB (sind ~hunderte aus Legacy-Sync)
+- Admin muss nicht aktiv korrigieren — passiert natürlich beim nächsten Edit-Touch
+- Optional Stage 2: Reporting-Query `SELECT country, COUNT(*) FROM "Release" WHERE country !~ '^[A-Z]{2}$' OR country NOT IN (<iso-list>) GROUP BY country` → Frank sieht welche Codes "schmutzig" sind
+
+**Verification:**
+1. Edit-Modal öffnen, Country-Picker klicken → 249 Länder geladen
+2. `"germ"` tippen → nur Germany/Germania sichtbar
+3. Germany auswählen → `sdCountry = "DE"`, Anzeige `🇩🇪 Germany (DE)`
+4. Save → `POST /admin/media/:id {country: "DE"}` → DB-Wert korrekt gespeichert
+5. Release mit Legacy-`country = "D"` öffnen → gelber Warn-Hint, Picker erlaubt Korrektur
+
+**Effort:** 2h
+- country-iso.ts Dataset generieren: 30min
+- CountryPicker-Komponente: 45min (kann 80% aus existierender ArtistPickerModal klonen)
+- Edit-Card-Integration: 20min
+- Non-ISO-Fallback + yellow-warning-Styling: 15min
+- Tests + Smoke-Test: 20min
+
+**Abgrenzung:** Storefront-seitige Country-Filter (Catalog-Page-Facet) wird NICHT geändert — dort wird bereits mit ISO-Codes gearbeitet, Problem nur auf Admin-Input-Seite.
+
+---
+
+### Analyse: Macht das Pattern bei anderen Feldern Sinn?
+
+Durchgang durch alle editierbaren Zone-1/Zone-3 Inputs:
+
+| Feld | Aktueller Input | Empfehlung | Begründung |
+|------|-----------------|------------|------------|
+| `title` | Freitext | — | Keine Constraint-fähige Domain |
+| `year` | Number 1900-current | ✅ okay | Bereits ausreichend constrained |
+| `country` | Freitext 2-char | **R4 Dropdown** | ISO-Konformität kritisch |
+| `catalogNumber` | Freitext | — | Label-spezifisch, keine canonical Liste |
+| `barcode` | Freitext digits-only | 🟡 **R5** optional | Format-Check (UPC-A=12, EAN-13=13 digits) möglich, keine Dropdown aber strengere Validation |
+| `description` | Freitext | — | Keine Constraint |
+| `artistId` | PickerModal ✅ | — | Schon optimal |
+| `labelId` | PickerModal ✅ | — | Schon optimal |
+| `coverImage` | URL/Upload | — | Separater Upload-Flow |
+| `format` / `format_id` | Kein UI-Input | R1 sagt raus | Legacy-MySQL-owned, aus allowedReleaseFields entfernen (R1) |
+| `media_condition` / `sleeve_condition` | `<select>` ✅ | — | Schon Dropdown |
+| `sale_mode` | `<select>` ✅ | — | Schon Dropdown |
+| `auction_status` (bulk) | `<select>` ✅ | — | Schon Dropdown |
+| `estimated_value`, `shop_price` | Number | — | Keine Constraint-fähige Domain |
+
+**Zweiter Kandidat (optional): R5 — Barcode-Format-Validation**
+
+Aktuell: nur `/^\d+$/` (digits-only). Akzeptiert `"123"`, `"9999999999999999"`, etc.
+
+**Besser:** Format-Erkennung + Validation:
+- **UPC-A:** exakt 12 Digits + Checksum-Digit (letzte Ziffer)
+- **EAN-13:** exakt 13 Digits + Checksum-Digit
+- **Optional EAN-8:** 8 Digits
+
+**Frontend-Hint:**
+```
+Barcode [_____________________] ⓘ UPC-A (12 digits) or EAN-13 (13 digits)
+```
+
+Bei ungültigem Checksum rote Underline + Message "Invalid checksum — check for typo".
+
+**Effort:** 30min (kein Dropdown, nur strengere Validation + visueller Hint).
+
+**Priorität:** Niedriger als R4. Barcode-Typos fallen eher beim Scannen auf (Scanner liest entweder korrekten Code oder gar nichts). Manuelle Eingabe ist Edge-Case. Kann gesetzt werden wenn Budget-Überschuss, sonst skipped.
+
+---
+
 ## Rollout-Strategie
 
-### Variante A: Bundle-Release als rc51.1
+### Variante A: Bundle-Release als rc51.1 (Bugs + R1-R3)
 
 Alles in einem Commit-Bundle. Passt gut weil:
 - Keine DB-Migration
@@ -302,26 +405,33 @@ Alles in einem Commit-Bundle. Passt gut weil:
 1. 6 Code-Änderungen (B1-B3 + R1-R3)
 2. Lokaler `tsc --noEmit` Check
 3. Commit + Push + VPS Build + Deploy (~5min)
-4. Smoke-Test 3 Szenarien:
-   - AI-Create-Auction Tool-Call (B1 Verification)
-   - Upload-Image + manueller Sync-Run (B2 Verification)
-   - Bulk-Edit mit teilweise unchanged values (R2 Verification)
+4. Smoke-Test 3 Szenarien (siehe Verification-Matrix)
 5. CHANGELOG + Tag `v1.0.0-rc51.1`
 
-**ETA:** 3h inkl. Verification.
+**ETA:** 2.5h inkl. Verification.
 
-### Variante B: Split in rc51.1 (Bugs) + rc51.2 (Recommendations)
+### Variante B: Split in rc51.1 (Bugs + R1-R3) + rc51.2 (R4 Country-Picker)
 
-Trennt Risiko. Bugs sind klarer Fix, Recommendations brauchen mehr Tests.
+R4 ist ein **größerer** Scope als die Bugs — neue Komponente + statisches Dataset + visueller Warn-Zustand für Non-ISO-Legacy-Werte. Trennt das Risiko sauber.
 
-- **rc51.1 (heute Abend):** B1 + B2 + B3 — ~1h
-- **rc51.2 (später):** R1 + R2 + R3 — ~1.5h
+- **rc51.1 (zuerst):** B1 + B2 + B3 + R1 + R2 + R3 — ~2.5h
+- **rc51.2 (danach):** R4 Country-Picker — ~2h, eigenes Testing
+- **rc51.3 (optional):** R5 Barcode-Format-Validation — 30min
 
-Mehr Deploy-Overhead, saubere Trennung.
+Mehr Deploy-Overhead (3 statt 1), aber jeder Release sauber fokussiert und unabhängig reviewbar.
 
-### Empfehlung: **Variante A** (Bundle).
+### Variante C: Big Bundle rc51.1 (alles zusammen)
 
-Alle Änderungen sind klein und niedrig-risiko. Ein einziger Deploy-Zyklus minimiert den Overhead. Falls im Smoke-Test etwas failt, können wir die Einzelkomponente reverten.
+B1-B3 + R1-R4 + optional R5 = ~5h Code + 30min Deploy.
+
+Macht nur Sinn wenn du eine längere ungestörte Session hast.
+
+### Empfehlung: **Variante B** (Split).
+
+- Bugs + Mini-Recommendations sind Low-Risk und schnell durch, verdienen eigenen Release
+- Country-Picker ist UI-relevant, braucht mehr UX-Testing (Search-Filter, Flag-Rendering, Legacy-Wert-Warnung) und ist für sich alleine ein klares Feature
+
+Falls Budget-reduziert: Variante A (nur Bugs + R1-R3), R4 später als separates Ticket ziehen.
 
 ---
 
@@ -335,6 +445,8 @@ Alle Änderungen sind klein und niedrig-risiko. Ein einziger Deploy-Zyklus minim
 | R1 | — | `HARD_STAMMDATEN_FIELDS.length === SYNC_PROTECTED_FIELDS.length` | Assertion passed |
 | R2 | Frank's Release mit `locked_fields = []` | Edit nur `title` via UI, Save | `locked_fields = ["title"]` (nicht 8 fields) |
 | R3 | — | Rapid-Click "Unlock title" 2x im UI | 1x `field_unlocked`-Audit-Entry (nicht 2) |
+| R4 | Legacy-Release mit `country = "D"` (non-ISO) | Edit-Modal öffnen, Country-Feld anklicken | Warn-Hint "Non-ISO value", 249 Länder im Picker, Filter funktioniert, Save schreibt korrekten ISO-Code |
+| R5 (optional) | — | Barcode mit 11 Digits eingeben | Inline-Error "UPC-A (12 digits) or EAN-13 (13 digits)" |
 
 ---
 

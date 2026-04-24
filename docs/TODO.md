@@ -564,6 +564,8 @@ Recommendations (non-blocking):
 - [ ] **F.8 (R1)** 🟢 `HARD_STAMMDATEN_FIELDS` (release-audit.ts, hat `format`) vs `SYNC_PROTECTED_FIELDS` (release-locks.ts, hat `barcode`) konsolidieren. Vorschlag: re-export aus `release-locks.ts`, `format` komplett aus allowedReleaseFields raus.
 - [ ] **F.9 (R2)** 🟢 Auto-Lock aktuell auf ALLE Felder im Save-Body (auch unveränderte). Backend-side Fix: mit `looseEqual(currentRelease[f], body[f])` vergleichen, nur changed-Felder locken. UX-Verbesserung — widerspricht sonst dem "beim ersten Edit"-Prinzip im Concept.
 - [ ] **F.10 (R3)** 🟢 `unlock-field` TOCTOU — `isFieldLocked`-Check außerhalb Transaction. Fix: Check inside `pg.transaction()` mit `FOR UPDATE`. Very low priority — doppelter Audit-Entry bei sehr seltenem Concurrent-Unlock.
+- [ ] **F.11 (R4)** 🟡 Country-Feld Freitext → ISO-3166-1 alpha-2 Searchable Dropdown. Verhindert Typos (UK vs GB, D vs DE) und Non-ISO-Werte. Neue Komponente `CountryPickerModal` analog Artist/Label-Picker, canonical Liste in `backend/src/admin/data/country-iso.ts` mit Flag + EN/DE-Aliases. ~2h Effort. **Bevorzugt als separater rc51.2-Release** (größerer UI-Scope als die anderen Recommendations). Plan-Doc: [`RC51_1_FOLLOWUP_PLAN.md`](optimizing/RC51_1_FOLLOWUP_PLAN.md) §R4.
+- [ ] **F.12 (R5, optional)** 🟢 Barcode-Format-Validation verschärfen: nur UPC-A (12) oder EAN-13 (13) digits + optional Checksum. Aktuell nur `/^\d+$/`. 30min Effort, low priority weil Scanner-Input eher korrekt ist als manueller Tipp.
 
 ---
 
