@@ -1,7 +1,7 @@
 # VOD Auctions — TODO
 
 Operative Aufgabenliste. Single Source of Truth für laufende Arbeit.
-**Letzte Aktualisierung:** 2026-04-24 (rc49.2-rc49.7 — 6-RC-Ops-Day. Meili-Sync chunked, **legacy_sync WHERE-gated UPSERT** (Root-Cause für hourly 41k-Cascade behoben: 180s→47s, Meili-Traffic −99.97%), Sentry-API-Fix, **Storefront Pricing-Cleanup** (effective_price end-to-end, legacy_price raus aus saved/wins/auction-detail), **legacy_available aus is_purchasable-Gate raus** (36 versteckte Releases wieder kaufbar). Meili Full-Rebuild 52.783 × 2. Alle 6 RCs mit CHANGELOG + GitHub-Release.)
+**Letzte Aktualisierung:** 2026-04-24 (rc50.0-rc50.4 — **Catalog Stammdaten-Editierbarkeit Phase 1-4 komplett live auf Prod deployed.** 5 RCs + 1 Bugfix-RC mit CHANGELOG + GitHub-Releases. Backend-Foundation + Frontend Edit-Mode + History-Tab + RevertConfirmModal + Bulk-Edit-Skip-Logic. 2 Codex-Rescue-Bugs + 4 Opus-Review-Bugs gefunden und gefixt bevor Phase abgeschlossen. Final Architecture-Review über alle 5 Release-Writer GREEN.)
 
 ## Arbeitslogik
 
@@ -17,7 +17,9 @@ Operative Aufgabenliste. Single Source of Truth für laufende Arbeit.
 
 Aktuell aktive Workstreams. Maximal 2-3 gleichzeitig.
 
-1. **Storefront Pricing-Cleanup abgeschlossen (rc49.6 + rc49.7, 2026-04-24).** `effective_price = shop_price` end-to-end im Storefront. `legacy_available` aus `is_purchasable`-Gate entfernt. 36 Releases mit `legacy_available=false` + verified-Bestand wieder sichtbar. Alle Code-Pfade (saved, wins, auction-detail, catalog-detail, catalog-fallback, recommendations, Meili-sync) konsistent nach PRICING_MODEL.md §Shop-Visibility-Gate. Plan: [`docs/optimizing/FRONTEND_PRICING_CLEANUP_PLAN.md`](optimizing/FRONTEND_PRICING_CLEANUP_PLAN.md).
+1. **Catalog Stammdaten-Editierbarkeit komplett live (rc50.0-rc50.4, 2026-04-24).** Phase 1-4 deployed. Frank kann ab jetzt Stammdaten von Discogs-Import-Releases editieren (~11k), Legacy (~41k) bleiben read-only. 4-Zonen-Modell, `release_audit_log`-Tabelle + 8 Routes, SourceBadge/LockBanner/PickerModals/AuditHistory/TrackManagement/RevertConfirmModal, Bulk-Edit-Skip-Logic. Doku: [`docs/optimizing/CATALOG_STAMMDATEN_EDITABILITY_KONZEPT.md`](optimizing/CATALOG_STAMMDATEN_EDITABILITY_KONZEPT.md), [`docs/optimizing/IMPLEMENTATION_PLAN.md`](optimizing/IMPLEMENTATION_PLAN.md). **Nächste Aktion:** Frank briefen auf neue UI (Edit-Card in Discogs-Release-Detail, History-Tab, Bulk-Stammdaten-Skip).
+2. **rc50.5 Follow-up — `payment-deadline` Cron camelCase-Bug.** Entdeckt beim rc50.4-Deploy im PM2-Error-Log (täglich 09:00 UTC). `column "updated_at" of relation "Release" does not exist` — gleicher Bug-Typ wie Codex-Rescue-Fix in Phase 1 (Release nutzt camelCase `updatedAt`). Existiert seit mindestens rc49.x, nicht aus Phase 1-4. **Nächste Aktion:** `grep -rn '"Release".*update.*updated_at' backend/src` → Fix + rc50.5.
+3. **Storefront Pricing-Cleanup abgeschlossen (rc49.6 + rc49.7, 2026-04-24).** `effective_price = shop_price` end-to-end im Storefront. `legacy_available` aus `is_purchasable`-Gate entfernt. 36 Releases mit `legacy_available=false` + verified-Bestand wieder sichtbar. Alle Code-Pfade (saved, wins, auction-detail, catalog-detail, catalog-fallback, recommendations, Meili-sync) konsistent nach PRICING_MODEL.md §Shop-Visibility-Gate. Plan: [`docs/optimizing/FRONTEND_PRICING_CLEANUP_PLAN.md`](optimizing/FRONTEND_PRICING_CLEANUP_PLAN.md).
 2. **Legacy-Sync + Meili-Sync strukturell stabil (rc49.2-rc49.4, 2026-04-24).** Root-Cause-Fix der 41k-Meili-Cascade. `ON CONFLICT DO UPDATE SET ... WHERE <semantic-diff>` kombiniert mit chunked Meili-Fetch + 5min statement_timeout + stale-cleanup. Dauer 180s→47s, Meili-Traffic −99.97%. Monitoring: 24h-Uptime-Stripe `meili_backlog` rollt automatisch von 64.3%→100% bis morgen 06:30 UTC.
 3. **Performance-Offensive abgeschlossen (rc48.1 + rc49 + rc49.1)** — alle 4 Admin-Listen-Endpoints auf Meilisearch, Disk-IO-Alert durch SQL-Rewrite bereinigt. **Monitoring-Check 2026-04-24:** `pg_stat_statements` erneut abfragen, validieren dass BASE_SELECT_SQL nicht mehr Top-1-Disk-IO-Hog ist. Bei Fail: Tier 2 aus `SUPABASE_DISK_IO_AUDIT` (partial delta-fetch, entity_content-Cache, Discogs-Audit-Caching).
 4. **Inventur Workflow v2 — Frank arbeitet aktiv** — rc47.2/47.3 shop_price-Modell, rc48.1+rc49.1 alles auf Meili. Frank macht weitere Platten.
@@ -499,6 +501,55 @@ Diese Punkte werden erst gezogen, wenn konkrete Metriken (Response-Zeit, Last, F
 #### Referenzen
 
 - Konzept: `docs/optimizing/ERP_WARENWIRTSCHAFT_KONZEPT.md`
+
+---
+
+### 11. Catalog Stammdaten-Editierbarkeit
+
+**Ziel:** Frank kann Stammdaten (Title, Artist, Label, Jahr, Country, Catalog-Number, Barcode, Description) von Discogs-Import-Releases (~11k) editieren während Legacy-Releases aus tape-mag (~41k) read-only bleiben. Alle Edits auditable + revertable mit Conflict-Detection.
+**Status:** **Phase 1-4 komplett deployed (rc50.0-rc50.4, 2026-04-24).** Auf Prod live seit 13:35 UTC.
+**Blocker:** Keiner.
+**Nächste Aktion:** Frank briefen auf neue UI.
+
+#### Phase 1: Backend Foundation (rc50.0, Opus 4.7)
+
+- [x] **1.1** DB-Migration via Supabase MCP: `data_source` Backfill (legacy:41553, discogs_import:11230), NOT NULL + DEFAULT 'legacy', `release_audit_log`-Tabelle mit jsonb old/new_value + action CHECK constraint + self-FK parent_audit_id + reverted_by ON DELETE SET NULL + revert-consistency CHECK (2026-04-24)
+- [x] **1.2** Helper `backend/src/lib/release-source.ts` (isStammdatenEditable, getLockedReason) + `backend/src/lib/release-audit.ts` (logEdit, logTrackChange, listForRelease, revertEntry mit Knex-Transaktion + forUpdate-Lock + looseEqual, RevertError-Class mit 5 Codes) (2026-04-24)
+- [x] **1.3** GET/POST `/admin/media/:id` erweitert um meta.is_stammdaten_editable + Zone-1-Guard (403 auf Legacy) + Audit-Log-Hook in Transaction (2026-04-24)
+- [x] **1.4** GET/POST `/admin/media/:id/tracks`, PATCH/DELETE `/admin/media/:id/tracks/:trackId` (2026-04-24)
+- [x] **1.5** GET `/admin/media/:id/audit-log` (paginated) + POST `/audit-log/:auditId/revert` mit force-Override + audit-release-mismatch Defense (2026-04-24)
+- [x] **1.6** Codex-Rescue Review — 2 ernste Bugs gefixt: updatedAt-camelCase (hätte at-runtime gecrashed) + Lost-Update-Race (forUpdate-Lock auf Release-Row) (2026-04-24)
+- [x] **1.7** pushReleaseNow in allen Klasse-B-Mutations (Edit/Track/Revert) für sofortige Meili-Reindex (2026-04-24)
+
+#### Phase 2: Frontend Edit-Mode (rc50.1 + rc50.1.1, Sonnet + Opus-Review)
+
+- [x] **2.1** `SourceBadge.tsx` (data_source-Anzeige mit Tooltip), `LockBanner.tsx`, `PickerModals.tsx` (Artist/Label-Picker mit trgm-Live-Search) (2026-04-24)
+- [x] **2.2** Edit-Card in `routes/media/[id]/page.tsx` — 8 Input-Felder + 2 Entity-Picker-Modals, Guard via `is_stammdaten_editable` (2026-04-24)
+- [x] **2.3** Shared Validation-Library `backend/src/lib/release-validation.ts` — year-range, country ISO-2 Regex, barcode digits-only, title trim+length (2026-04-24)
+- [x] **2.4** Admin-Suggest-Endpoints GET `/admin/artists/suggest?q=...`, `/admin/labels/suggest?q=...` mit pg_trgm-Ranking (2026-04-24)
+- [x] **2.5** 4 Bugs nach Opus-Code-Review gefixt (rc50.1.1): Validation-Library-Wiring (war dead code), SourceBadge CSS-var-concat-Drop, POST-Response fehlende Artist/Label-JOINs, dead Doc-Link im LockBanner (2026-04-24)
+
+#### Phase 3: History-Tab + Revert-UI (rc50.2 + rc50.3, Sonnet + Opus)
+
+- [x] **3.1** `AuditHistory.tsx` — Fetch audit-log, Action-Badges (edit/revert/track_*/image_*), reverted-Entries ausgegraut, Load-More-Pagination (2026-04-24)
+- [x] **3.2** `TrackManagement.tsx` — Fetch Track-DB-Tabelle, Add/Edit/Delete mit Modal + MM:SS-Duration-Validation (2026-04-24)
+- [x] **3.3** Integration in Detail-Page: 2 neue Cards + auditRefreshKey-Bump nach Save/Track-Change (2026-04-24)
+- [x] **3.4** `RevertConfirmModal.tsx` — 4 Views (confirm/conflict/locked/gone), 3-Reihen-Diff bei 409 (expected/current/target), Force-Revert-Button, `unwrapAuditValue()` für double-encoded JSON (2026-04-24)
+
+#### Phase 4: Bulk-Edit + Architecture-Review (rc50.4, Sonnet + Opus-Review)
+
+- [x] **4.1** `POST /admin/media/bulk` erweitert um Hard-Stammdaten (title/year/country/catalogNumber/description) + Skip-Logic für Legacy-Releases + Audit-Log in Transaction + pushReleaseNow fire-and-forget (2026-04-24)
+- [x] **4.2** Frontend Bulk-Dropdown — neue Optgroup "Stammdaten (skips legacy)" mit 4 Actions, Toast "X updated · Y legacy items skipped" (2026-04-24)
+- [x] **4.3** Final Architecture-Review (Switch #14, Opus 4.7) — 5 Release-Writer auditiert, Zone-0-Enforcement verified, Audit-Atomicity verified, Revert-Conflict-Detection verified, Meili-Integration verified. GREEN. (2026-04-24)
+- [x] **4.4** VPS-Deploy: git pull + Vite-Cache cleared + medusa build + admin copy + symlink env + pm2 restart. Smoke-Test 4 Endpoints (Admin 200, API 200, Audit-Log 401, Bulk 401). Server ready :9000 um 13:35:56 UTC. (2026-04-24)
+- [x] **4.5** CHANGELOG-Entry rc50.4 + GitHub-Release-Tag `v1.0.0-rc50.4` (2026-04-24)
+
+#### Follow-ups (offen)
+
+- [ ] **F.1** `payment-deadline` Cron camelCase-Bug — entdeckt im PM2-Error-Log beim rc50.4-Deploy (täglich 09:00 UTC). `column "updated_at" of relation "Release" does not exist`. Gleicher Bug-Typ wie Codex-Rescue-Fix Phase 1. Existiert seit mindestens rc49.x. Nächste Aktion: `grep -rn '"Release".*update.*updated_at' backend/src` + rc50.5-Patch.
+- [ ] **F.2** Frank briefen auf neue UI: Edit-Card in Discogs-Release-Detail, Revert-Button in History-Tab, Stammdaten-Bulk-Skip
+- [ ] **F.3** `refetch-discogs/route.ts` gap (pre-existing, aufgedeckt im Opus-Review): Writer aktualisiert genres/styles/discogs_* direkt ohne pushReleaseNow und ohne audit-log. Trigger `release_indexed_at_self` fängt es via search_indexed_at-Bump — aber on-demand-Reindex wäre schneller. Non-blocking.
+- [ ] **F.4** Bulk-Edit auf Zone-2-Soft-Stammdaten (barcode/credits/genres/styles) erweitern — individual Route audited diese Felder, Bulk noch nicht. Scope-Choice für später.
 
 ---
 
