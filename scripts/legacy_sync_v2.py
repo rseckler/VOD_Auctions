@@ -269,12 +269,51 @@ def bump_search_indexed_at(pg_cur, release_ids, dry_run=False):
 
 def get_pg_connection(pg_url_override=None):
     """Create PostgreSQL connection to Supabase, optionally overriding
-    the URL from environment. Used by --pg-url flag."""
+    the URL from environment. Used by --pg-url flag.
+
+    Sets statement_timeout='5min' at connection level (rc49.3). Default DB
+    role timeout is 2min, which was too tight when the hourly UPSERT on
+    41.5k rows triggered slow index updates (FTS, search_indexed_at bumps)
+    — 5 consecutive hourly runs hung silently with phase='started' but no
+    ended_at in sync_log (2026-04-23 23:00 — 2026-04-24 03:00 UTC)."""
     db_url = pg_url_override or os.getenv("SUPABASE_DB_URL")
     if not db_url:
         print("ERROR: SUPABASE_DB_URL not set in .env and no --pg-url override")
         sys.exit(1)
-    return psycopg2.connect(db_url)
+    conn = psycopg2.connect(db_url)
+    with conn.cursor() as cur:
+        cur.execute("SET statement_timeout = '5min'")
+    conn.commit()
+    return conn
+
+
+def cleanup_stale_runs(pg_conn, dry_run=False):
+    """Mark orphaned sync_log rows (phase='started' >30min without ended_at)
+    as 'abandoned'. rc49.3: added to recover cleanly from hard-killed runs
+    where the script got SIGKILL'd mid-transaction and never wrote ended_at.
+
+    Returns count of rows cleaned up (for logging)."""
+    if dry_run:
+        return 0
+    cur = pg_conn.cursor()
+    cur.execute(
+        """UPDATE sync_log
+              SET phase = 'abandoned',
+                  status = 'error',
+                  ended_at = NOW(),
+                  error_message = 'stale: phase=started >30min without ended_at (likely SIGKILL/timeout)'
+            WHERE phase = 'started'
+              AND ended_at IS NULL
+              AND started_at < NOW() - INTERVAL '30 minutes'
+           RETURNING id"""
+    )
+    rows = cur.fetchall()
+    pg_conn.commit()
+    cur.close()
+    count = len(rows)
+    if count > 0:
+        print(f"  Cleaned up {count} stale sync_log rows (phase=started >30min)")
+    return count
 
 
 # ─── sync_log helpers ────────────────────────────────────────────────────────
@@ -701,10 +740,10 @@ def sync_releases_v2(mysql_conn, pg_conn, run_id, dry_run=False):
                 release_values,
                 template="(%s, %s, %s, %s, %s, %s::\"ReleaseFormat\", %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW())",
             )
-            # Mark as 'needs reindex' for Meilisearch delta-sync (defense-in-depth
-            # for Trigger A which only fires on UPDATE, not on the INSERT branch
-            # of the UPSERT).
-            bump_search_indexed_at(pg_cur, [rv[0] for rv in release_values], dry_run)
+            # Bump search_indexed_at=NULL happens AFTER the diff loop below —
+            # we bump only rows that actually changed (rc49.3), not all 30k
+            # UPSERTs. Previously this bumped every row unconditionally, which
+            # caused 41.5k-row Meili-sync cascades hourly even with rows_changed=0.
 
         # Pre-fetch price-locked release IDs for this batch (sync protection).
         # NOTE (Exemplar-Modell): A release may have multiple erp_inventory_item rows
@@ -722,7 +761,11 @@ def sync_releases_v2(mysql_conn, pg_conn, run_id, dry_run=False):
             price_locked_ids = {row[0] for row in pl_cur.fetchall()}
             pl_cur.close()
 
-        # Full-field diff: compare each new value against existing state
+        # Full-field diff: compare each new value against existing state.
+        # Collect IDs of rows that actually changed — these are the only
+        # rows that need a Meili reindex bump. Idempotent UPSERTs with no
+        # material change are skipped (rc49.3).
+        changed_or_new_ids = []
         for release_id, new_values in new_values_by_id.items():
             if release_id in existing_state:
                 old_state = existing_state[release_id]
@@ -740,6 +783,7 @@ def sync_releases_v2(mysql_conn, pg_conn, run_id, dry_run=False):
                 delta = compute_diff(old_state, new_values, fields_to_diff)
                 if delta:
                     rows_changed += 1
+                    changed_or_new_ids.append(release_id)
                     for field_name, change in delta.items():
                         change_entries.append((
                             run_id, release_id, "updated",
@@ -747,10 +791,18 @@ def sync_releases_v2(mysql_conn, pg_conn, run_id, dry_run=False):
                         ))
             else:
                 rows_inserted += 1
+                changed_or_new_ids.append(release_id)
                 change_entries.append((
                     run_id, release_id, "inserted",
                     psycopg2.extras.Json({k: normalize_value(v) for k, v in new_values.items()}),
                 ))
+
+        # Bump search_indexed_at=NULL only for rows that actually changed.
+        # Defense-in-depth for Trigger A (only fires on UPDATE, not INSERT
+        # branch of UPSERT) — now gated on real change detection so we don't
+        # generate 41k-row Meili cascades every hour for zero-change runs.
+        if changed_or_new_ids:
+            bump_search_indexed_at(pg_cur, changed_or_new_ids, dry_run)
 
         # Write change entries to existing sync_change_log (v1 table, kept
         # for backward compat until Phase B1 introduces sync_change_log_v2)
@@ -992,8 +1044,8 @@ def sync_literature_v2(mysql_conn, pg_conn, run_id, table, category,
                 release_values,
                 template="(%s, %s, %s, %s, %s, %s::\"ReleaseFormat\", %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW())",
             )
-            # Mark as 'needs reindex' for Meilisearch delta-sync.
-            bump_search_indexed_at(pg_cur, [rv[0] for rv in release_values], dry_run)
+            # Bump search_indexed_at=NULL happens AFTER the diff loop below —
+            # only rows that actually changed (rc49.3).
 
         # Pre-fetch price-locked release IDs for this literature batch
         price_locked_ids = set()
@@ -1006,7 +1058,9 @@ def sync_literature_v2(mysql_conn, pg_conn, run_id, table, category,
             price_locked_ids = {row[0] for row in pl_cur.fetchall()}
             pl_cur.close()
 
-        # Full-field diff for literature
+        # Full-field diff for literature — collect changed/new IDs for the
+        # targeted Meili-reindex bump (rc49.3).
+        changed_or_new_ids = []
         for release_id, new_values in new_values_by_id.items():
             if release_id in existing_state:
                 old_state = existing_state[release_id]
@@ -1018,6 +1072,7 @@ def sync_literature_v2(mysql_conn, pg_conn, run_id, table, category,
                 delta = compute_diff(old_state, new_values, effective_fields)
                 if delta:
                     rows_changed += 1
+                    changed_or_new_ids.append(release_id)
                     for field_name, change in delta.items():
                         change_entries.append((
                             run_id, release_id, "updated",
@@ -1025,10 +1080,15 @@ def sync_literature_v2(mysql_conn, pg_conn, run_id, table, category,
                         ))
             else:
                 rows_inserted += 1
+                changed_or_new_ids.append(release_id)
                 change_entries.append((
                     run_id, release_id, "inserted",
                     psycopg2.extras.Json({k: normalize_value(v) for k, v in new_values.items() if k in fields_to_diff}),
                 ))
+
+        # Bump search_indexed_at=NULL only for rows that actually changed.
+        if changed_or_new_ids:
+            bump_search_indexed_at(pg_cur, changed_or_new_ids, dry_run)
 
         if change_entries and not dry_run:
             psycopg2.extras.execute_values(
@@ -1251,6 +1311,11 @@ def main():
         print(f"  FAILED: {e}")
         mysql_conn.close()
         sys.exit(1)
+
+    # Reap orphan sync_log rows from previous crashed/killed runs before
+    # starting a fresh one (rc49.3). Without this, phase='started' rows
+    # stay forever and poison the sync_log_freshness health probe.
+    cleanup_stale_runs(pg_conn, dry_run=args.dry_run)
 
     run_ctx = start_run(pg_conn, SYNC_TYPE, dry_run=args.dry_run)
     print(f"  Run ID: {run_ctx['run_id']}")

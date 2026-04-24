@@ -69,10 +69,14 @@ export type HealthCheckDefinition = {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-/** Class-specific default timeout per §3.2. */
+/** Class-specific default timeout per §3.2. Background bumped from 5s→10s
+ * in rc49.3: COUNT(*) on "Release" (52k rows) can hit 3-5s under Postgres
+ * cold cache, so 5s produced false-positive probe failures cascading with
+ * the 2026-04-23 meili_sync incident. 10s gives real headroom without
+ * compromising UX (background probes don't block rendering). */
 export function timeoutForClass(cls: CheckClass): number {
   if (cls === "fast") return 500
-  if (cls === "background") return 5000
+  if (cls === "background") return 10_000
   return 30_000
 }
 
