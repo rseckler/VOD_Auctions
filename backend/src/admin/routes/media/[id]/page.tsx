@@ -9,6 +9,7 @@ import { printLabelAuto } from "../../../lib/print-client"
 import { SourceBadge } from "../../../components/release-detail/SourceBadge"
 import { LockBanner } from "../../../components/release-detail/LockBanner"
 import { ArtistPickerModal, LabelPickerModal } from "../../../components/release-detail/PickerModals"
+import { validateReleaseStammdaten } from "../../../../lib/release-validation"
 
 class ErrorBoundary extends Component<
   { children: ReactNode },
@@ -744,18 +745,24 @@ const MediaDetailPage = () => {
     setSdSaving(true)
     setSdError(null)
     try {
-      const yearNum = sdYear !== "" ? parseInt(sdYear) : null
-      if (yearNum !== null && (isNaN(yearNum) || yearNum < 1900 || yearNum > new Date().getFullYear())) {
-        setSdError(`Year must be between 1900 and ${new Date().getFullYear()}`)
-        return
-      }
-      if (sdCountry && !/^[A-Z]{2}$/.test(sdCountry)) {
-        setSdError("Country must be a 2-letter ISO code (e.g. DE, SE, US)")
+      const trimmedTitle = sdTitle.trim()
+
+      const validationErrors = validateReleaseStammdaten({
+        title: trimmedTitle,
+        year: sdYear,
+        country: sdCountry,
+        catalogNumber: sdCatalogNumber,
+        barcode: sdBarcode,
+        description: sdDescription,
+      })
+      if (Object.keys(validationErrors).length > 0) {
+        setSdError(Object.values(validationErrors)[0])
         return
       }
 
+      const yearNum = sdYear !== "" ? parseInt(sdYear, 10) : null
       const body: Record<string, unknown> = {
-        title: sdTitle || null,
+        title: trimmedTitle,
         year: yearNum,
         country: sdCountry || null,
         catalogNumber: sdCatalogNumber || null,

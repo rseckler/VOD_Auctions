@@ -27,19 +27,11 @@ export function LockBanner({ locked, reason }: LockBannerProps) {
           Stammdaten are locked
         </div>
         {reason && (
-          <div style={{ ...T.micro, color: C.muted, marginTop: 4 }}>
+          <div style={{ ...T.small, color: C.muted, marginTop: 4 }}>
             {reason}
           </div>
         )}
       </div>
-      <a
-        href="/docs/catalog-stammdaten-editability"
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{ ...T.small, color: C.error, textDecoration: "none", whiteSpace: "nowrap" }}
-      >
-        Learn more →
-      </a>
     </div>
   )
 }

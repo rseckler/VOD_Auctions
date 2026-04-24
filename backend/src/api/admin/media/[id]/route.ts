@@ -5,6 +5,7 @@ import { createMovement } from "../../../../lib/inventory"
 import { pushReleaseNow } from "../../../../lib/meilisearch-push"
 import { isStammdatenEditable, getLockedReason } from "../../../../lib/release-source"
 import { logEdit, HARD_STAMMDATEN_FIELDS, SYSTEM_ID_FIELDS } from "../../../../lib/release-audit"
+import { validateReleaseStammdaten } from "../../../../lib/release-validation"
 
 // GET /admin/media/:id — Single release detail with sync history
 export async function GET(
@@ -207,6 +208,25 @@ export async function POST(
       error: "stammdaten_locked",
       message: "Stammdaten werden vom Legacy-Sync verwaltet und können nicht editiert werden.",
       locked_fields: requestedHardFields,
+    })
+    return
+  }
+
+  // Stammdaten validation — single source of truth for FE + BE.
+  // Only validates fields actually present in the body (partial updates ok).
+  const stammdatenErrors = validateReleaseStammdaten({
+    title: body.title,
+    year: body.year,
+    country: body.country,
+    catalogNumber: body.catalogNumber,
+    barcode: body.barcode,
+    description: body.description,
+  })
+  if (Object.keys(stammdatenErrors).length > 0) {
+    res.status(400).json({
+      error: "validation_failed",
+      message: Object.values(stammdatenErrors)[0],
+      errors: stammdatenErrors,
     })
     return
   }
@@ -441,8 +461,23 @@ export async function POST(
   // und release.inventory_item_id sind conditional-gerendert (z.B. Label-
   // drucken-Button). Vorher gab POST nur das plain Release-Row zurück ohne
   // erp_inventory_item-Merge → price_locked=undefined → Button verschwand
-  // nach Preis-Save. Frank hit this 2026-04-22.
+  // nach Preis-Save. Frank hit this 2026-04-22. Plus Artist/Label-JOIN
+  // (rc50.1.1): Phase-2-Stammdaten-Edit ändert artistId/labelId, ohne JOIN
+  // wären artist_name/label_name in der Response undefined und die UI würde
+  // "—" anzeigen bis zum Reload.
   const release = await pgConnection("Release")
+    .select(
+      "Release.*",
+      "Artist.name as artist_name",
+      "Label.name as label_name",
+      "Format.name as format_name",
+      "Format.format_group",
+      "PressOrga.name as pressorga_name"
+    )
+    .leftJoin("Artist", "Release.artistId", "Artist.id")
+    .leftJoin("Label", "Release.labelId", "Label.id")
+    .leftJoin("Format", "Release.format_id", "Format.id")
+    .leftJoin("PressOrga", "Release.pressOrgaId", "PressOrga.id")
     .where("Release.id", id)
     .first()
 
