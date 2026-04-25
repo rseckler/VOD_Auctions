@@ -43,6 +43,7 @@ export async function GET(
       r.title,
       r.slug,
       r.format,
+      r.format_v2,
       r."coverImage",
       r."catalogNumber",
       r.legacy_price,

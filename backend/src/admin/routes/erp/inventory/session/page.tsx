@@ -4,6 +4,7 @@ import { C, T, S, fmtMoney } from "../../../../components/admin-tokens"
 import { PageHeader, PageShell } from "../../../../components/admin-layout"
 import { Btn, Toast, Modal, inputStyle, Badge } from "../../../../components/admin-ui"
 import { printerAvailable, printLabelAuto } from "../../../../lib/print-client"
+import { displayFormat, type FormatValue } from "../../../../../lib/format-mapping"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -12,6 +13,7 @@ interface SearchResult {
   artist_name: string | null
   title: string
   format: string
+  format_v2: string | null
   catalog_number: string | null
   article_number: string | null
   cover_image: string | null
@@ -40,6 +42,7 @@ interface ReleaseDetail {
   artist_name: string | null
   label_name: string | null
   format: string
+  format_v2: string | null
   year: number | null
   country: string | null
   cover_image: string | null
@@ -736,7 +739,7 @@ function StocktakeSessionPage() {
                 </div>
                 <div style={{ ...T.small, color: C.muted }}>
                   {r.article_number ? <span style={{ fontFamily: "monospace", fontWeight: 600, marginRight: 6 }}>{r.article_number}</span> : null}
-                  {r.format}
+                  {r.format_v2 ? displayFormat(r.format_v2 as FormatValue) : r.format}
                   {r.catalog_number ? ` · ${r.catalog_number}` : ""}
                   {r.label_name ? ` · ${r.label_name}` : ""}
                 </div>
@@ -816,7 +819,7 @@ function StocktakeSessionPage() {
                 </div>
               )}
               <div style={{ ...T.small, color: C.muted, marginTop: 8 }}>
-                {releaseDetail.format}
+                {releaseDetail.format_v2 ? displayFormat(releaseDetail.format_v2 as FormatValue) : releaseDetail.format}
                 {releaseDetail.catalog_number ? ` · ${releaseDetail.catalog_number}` : ""}
                 {releaseDetail.label_name ? ` · ${releaseDetail.label_name}` : ""}
               </div>

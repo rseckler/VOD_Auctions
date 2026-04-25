@@ -136,6 +136,7 @@ export async function GET(
       title: hit.title,
       cover_image: hit.cover_image,
       format: hit.format,
+      format_v2: hit.format_v2 ?? null,
       catalog_number: hit.catalog_number,
       legacy_price: hit.shop_price ?? hit.legacy_price ?? null, // Hub zeigt Preis — nutze shop_price wenn gesetzt
       year: hit.year,

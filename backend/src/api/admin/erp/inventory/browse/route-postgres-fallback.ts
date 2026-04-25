@@ -85,7 +85,7 @@ export async function inventoryBrowseGetPostgres(
       ${havingClause}
     )
     SELECT
-      r.id AS release_id, r.title, r."coverImage" AS cover_image, r.format,
+      r.id AS release_id, r.title, r."coverImage" AS cover_image, r.format, r.format_v2,
       r."catalogNumber" AS catalog_number, r.legacy_price, r.year, r.country,
       a.name AS artist_name, l.name AS label_name,
       pr.exemplar_count, pr.verified_count, pr.last_verified_at,
@@ -109,6 +109,7 @@ export async function inventoryBrowseGetPostgres(
       title: r.title,
       cover_image: r.cover_image,
       format: r.format,
+      format_v2: r.format_v2,
       catalog_number: r.catalog_number,
       legacy_price: r.legacy_price != null ? Number(r.legacy_price) : null,
       year: r.year,

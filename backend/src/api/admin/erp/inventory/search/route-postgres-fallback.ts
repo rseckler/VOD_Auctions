@@ -35,7 +35,7 @@ export async function inventorySearchGetPostgres(
   if (/^\d+VODe$/i.test(q) || /^VOD-\d{6}$/i.test(q)) {
     const barcodeResult = await pg.raw(`
       SELECT
-        r.id as release_id, r.title, r."coverImage", r.legacy_price, r.format,
+        r.id as release_id, r.title, r."coverImage", r.legacy_price, r.format, r.format_v2,
         r."catalogNumber", r.year, r.country, r.legacy_condition,
         r.discogs_id, r.discogs_lowest_price, r.discogs_median_price,
         r.discogs_highest_price, r.discogs_num_for_sale,
@@ -59,6 +59,7 @@ export async function inventorySearchGetPostgres(
           artist_name: row.artist_name,
           title: row.title,
           format: row.format,
+          format_v2: row.format_v2,
           catalog_number: row.catalogNumber,
           cover_image: row.coverImage,
           legacy_price: row.legacy_price != null ? Number(row.legacy_price) : null,
@@ -91,7 +92,7 @@ export async function inventorySearchGetPostgres(
   if (/^VOD-\d+$/i.test(q)) {
     const articleResult = await pg.raw(`
       SELECT
-        r.id as release_id, r.title, r."coverImage", r.legacy_price, r.format,
+        r.id as release_id, r.title, r."coverImage", r.legacy_price, r.format, r.format_v2,
         r."catalogNumber", r.article_number, r.year, r.country,
         r.discogs_median_price, r.discogs_id,
         a.name as artist_name, l.name as label_name,
@@ -185,6 +186,7 @@ export async function inventorySearchGetPostgres(
     artist_name: r.artist_name,
     title: r.title,
     format: r.format,
+    format_v2: r.format_v2,
     catalog_number: r.catalogNumber,
     article_number: r.article_number,
     cover_image: r.coverImage,

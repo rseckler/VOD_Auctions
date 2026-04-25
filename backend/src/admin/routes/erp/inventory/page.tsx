@@ -3,6 +3,7 @@ import { useAdminNav } from "../../../components/admin-nav"
 import { C, T, S } from "../../../components/admin-tokens"
 import { PageHeader, SectionHeader, PageShell, StatsGrid } from "../../../components/admin-layout"
 import { Btn, Toast, Modal, Alert, Badge, inputStyle } from "../../../components/admin-ui"
+import { displayFormat, type FormatValue } from "../../../../lib/format-mapping"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -31,6 +32,7 @@ interface BrowseItem {
   title: string
   cover_image: string | null
   format: string
+  format_v2: string | null
   catalog_number: string | null
   legacy_price: number | null
   artist_name: string | null
@@ -437,7 +439,7 @@ function InventoryHubPage() {
                     <td style={{ ...tdStyle, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {item.title}
                     </td>
-                    <td style={{ ...tdStyle, ...T.small }}>{item.format}</td>
+                    <td style={{ ...tdStyle, ...T.small }}>{item.format_v2 ? displayFormat(item.format_v2 as FormatValue) : item.format}</td>
                     <td style={{ ...tdStyle, color: C.gold, fontWeight: 600 }}>
                       {item.legacy_price != null ? `€${item.legacy_price}` : "—"}
                     </td>
