@@ -101,6 +101,7 @@ from shared import (
     upload_image_to_r2,
     check_r2_exists,
 )
+from format_mapping import classify_tape_mag_format
 
 
 # ─── Constants ───────────────────────────────────────────────────────────────
@@ -618,6 +619,7 @@ def sync_releases_v2(mysql_conn, pg_conn, run_id, dry_run=False):
                 year = row["year"] if row["year"] and row["year"] > 0 else None
                 format_id = row["format"] if row["format"] and row["format"] > 0 else None
                 format_enum = map_format_by_id(format_id)
+                format_v2 = classify_tape_mag_format(format_id)
                 country = translate_country(row["country_name"])
                 artist_name = decode_entities(row["band_name"]) if row["band_name"] else "unknown"
                 slug = slugify(f"{artist_name} {title} {row['id']}") or f"release-{row['id']}"
@@ -667,7 +669,7 @@ def sync_releases_v2(mysql_conn, pg_conn, run_id, dry_run=False):
                     release_id, slug, title, description, year,
                     format_enum, format_id, catalog_number, country,
                     artist_id, label_id, cover_image, price, condition,
-                    format_detail, legacy_available,
+                    format_detail, legacy_available, format_v2,
                 ))
 
                 if cover_image:
@@ -686,7 +688,8 @@ def sync_releases_v2(mysql_conn, pg_conn, run_id, dry_run=False):
                 """SELECT id, title, description, year, format::text, format_id,
                           "catalogNumber", country, "artistId", "labelId",
                           "coverImage", legacy_price, legacy_condition,
-                          legacy_format_detail, legacy_available, label_enriched
+                          legacy_format_detail, legacy_available, label_enriched,
+                          format_v2
                    FROM "Release" WHERE id = ANY(%s)""",
                 (batch_ids,),
             )
@@ -707,6 +710,7 @@ def sync_releases_v2(mysql_conn, pg_conn, run_id, dry_run=False):
                     "legacy_format_detail": frow[13],
                     "legacy_available": frow[14],
                     "label_enriched": frow[15],
+                    "format_v2": frow[16],
                 }
             fetch_cur.close()
 
@@ -719,6 +723,7 @@ def sync_releases_v2(mysql_conn, pg_conn, run_id, dry_run=False):
                     id, slug, title, description, year, format, format_id,
                     "catalogNumber", country, "artistId", "labelId", "coverImage",
                     legacy_price, legacy_condition, legacy_format_detail, legacy_available,
+                    format_v2,
                     "createdAt", "updatedAt", legacy_last_synced
                 ) VALUES %s
                 ON CONFLICT (id) DO UPDATE SET
@@ -731,6 +736,9 @@ def sync_releases_v2(mysql_conn, pg_conn, run_id, dry_run=False):
                     year = CASE WHEN "Release".locked_fields @> '"year"'::jsonb
                                 THEN "Release".year ELSE EXCLUDED.year END,
                     format = EXCLUDED.format,
+                    -- rc51.7: format_v2 derived from format_id, locked together with `format_id`
+                    format_v2 = CASE WHEN "Release".locked_fields @> '"format_id"'::jsonb
+                                     THEN "Release".format_v2 ELSE EXCLUDED.format_v2 END,
                     format_id = CASE WHEN "Release".locked_fields @> '"format_id"'::jsonb
                                      THEN "Release".format_id ELSE EXCLUDED.format_id END,
                     "catalogNumber" = CASE WHEN "Release".locked_fields @> '"catalogNumber"'::jsonb
@@ -769,6 +777,7 @@ def sync_releases_v2(mysql_conn, pg_conn, run_id, dry_run=False):
                     OR (NOT "Release".locked_fields @> '"description"'::jsonb AND "Release".description IS DISTINCT FROM EXCLUDED.description)
                     OR (NOT "Release".locked_fields @> '"year"'::jsonb AND "Release".year IS DISTINCT FROM EXCLUDED.year)
                     OR "Release".format IS DISTINCT FROM EXCLUDED.format
+                    OR (NOT "Release".locked_fields @> '"format_id"'::jsonb AND "Release".format_v2 IS DISTINCT FROM EXCLUDED.format_v2)
                     OR (NOT "Release".locked_fields @> '"format_id"'::jsonb AND "Release".format_id IS DISTINCT FROM EXCLUDED.format_id)
                     OR (NOT "Release".locked_fields @> '"catalogNumber"'::jsonb AND "Release"."catalogNumber" IS DISTINCT FROM EXCLUDED."catalogNumber")
                     OR (NOT "Release".locked_fields @> '"country"'::jsonb AND "Release".country IS DISTINCT FROM EXCLUDED.country)
@@ -786,7 +795,7 @@ def sync_releases_v2(mysql_conn, pg_conn, run_id, dry_run=False):
                     OR (NOT "Release".locked_fields @> '"legacy_format_detail"'::jsonb AND "Release".legacy_format_detail IS DISTINCT FROM EXCLUDED.legacy_format_detail)
                     OR (NOT "Release".locked_fields @> '"legacy_available"'::jsonb AND "Release".legacy_available IS DISTINCT FROM EXCLUDED.legacy_available)""",
                 release_values,
-                template="(%s, %s, %s, %s, %s, %s::\"ReleaseFormat\", %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW())",
+                template="(%s, %s, %s, %s, %s, %s::\"ReleaseFormat\", %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW())",
             )
             # Explicit bump for INSERT branch (trigger only fires on UPDATE).
             # Happens AFTER diff loop below, targeted at changed_or_new_ids.
@@ -1005,6 +1014,7 @@ def sync_literature_v2(mysql_conn, pg_conn, run_id, table, category,
 
                 format_id = r["format"] if r["format"] and r["format"] > 0 else None
                 format_enum = map_format_by_id(format_id)
+                format_v2 = classify_tape_mag_format(format_id)
                 country = translate_country(r["country_name"])
                 format_detail = decode_entities(r["format_name"]) if r["format_name"] else None
                 price = parse_price(r.get("preis"))
@@ -1039,7 +1049,7 @@ def sync_literature_v2(mysql_conn, pg_conn, run_id, table, category,
                     release_id, slug, title, description, year,
                     format_enum, format_id, country,
                     artist_id, label_id, pressorga_id,
-                    cover_image, price, format_detail, category,
+                    cover_image, price, format_detail, category, format_v2,
                 ))
 
                 if cover_image and r.get("image_id"):
@@ -1060,7 +1070,7 @@ def sync_literature_v2(mysql_conn, pg_conn, run_id, table, category,
                 """SELECT id, title, description, year, format::text, format_id,
                           country, "artistId", "labelId", "pressOrgaId",
                           "coverImage", legacy_price, legacy_format_detail,
-                          label_enriched
+                          label_enriched, format_v2
                    FROM "Release" WHERE id = ANY(%s)""",
                 (batch_ids,),
             )
@@ -1079,6 +1089,7 @@ def sync_literature_v2(mysql_conn, pg_conn, run_id, table, category,
                     "legacy_price": frow[11],
                     "legacy_format_detail": frow[12],
                     "label_enriched": frow[13],
+                    "format_v2": frow[14],
                 }
             fetch_cur.close()
 
@@ -1089,6 +1100,7 @@ def sync_literature_v2(mysql_conn, pg_conn, run_id, table, category,
                     id, slug, title, description, year, format, format_id,
                     country, "artistId", "labelId", "pressOrgaId", "coverImage",
                     legacy_price, legacy_format_detail, product_category,
+                    format_v2,
                     "createdAt", "updatedAt", legacy_last_synced
                 ) VALUES %s
                 ON CONFLICT (id) DO UPDATE SET
@@ -1100,6 +1112,9 @@ def sync_literature_v2(mysql_conn, pg_conn, run_id, table, category,
                     year = CASE WHEN "Release".locked_fields @> '"year"'::jsonb
                                 THEN "Release".year ELSE EXCLUDED.year END,
                     format = EXCLUDED.format,
+                    -- rc51.7: format_v2 from format_id, locked together with `format`
+                    format_v2 = CASE WHEN "Release".locked_fields @> '"format"'::jsonb
+                                     THEN "Release".format_v2 ELSE EXCLUDED.format_v2 END,
                     format_id = CASE WHEN "Release".locked_fields @> '"format_id"'::jsonb
                                      THEN "Release".format_id ELSE EXCLUDED.format_id END,
                     country = CASE WHEN "Release".locked_fields @> '"country"'::jsonb
@@ -1131,6 +1146,7 @@ def sync_literature_v2(mysql_conn, pg_conn, run_id, table, category,
                     OR (NOT "Release".locked_fields @> '"description"'::jsonb AND "Release".description IS DISTINCT FROM EXCLUDED.description)
                     OR (NOT "Release".locked_fields @> '"year"'::jsonb AND "Release".year IS DISTINCT FROM EXCLUDED.year)
                     OR "Release".format IS DISTINCT FROM EXCLUDED.format
+                    OR (NOT "Release".locked_fields @> '"format_id"'::jsonb AND "Release".format_v2 IS DISTINCT FROM EXCLUDED.format_v2)
                     OR (NOT "Release".locked_fields @> '"format_id"'::jsonb AND "Release".format_id IS DISTINCT FROM EXCLUDED.format_id)
                     OR (NOT "Release".locked_fields @> '"country"'::jsonb AND "Release".country IS DISTINCT FROM EXCLUDED.country)
                     OR (NOT "Release".locked_fields @> '"artistId"'::jsonb AND "Release"."artistId" IS DISTINCT FROM EXCLUDED."artistId")
@@ -1146,7 +1162,7 @@ def sync_literature_v2(mysql_conn, pg_conn, run_id, table, category,
                     )
                     OR (NOT "Release".locked_fields @> '"legacy_format_detail"'::jsonb AND "Release".legacy_format_detail IS DISTINCT FROM EXCLUDED.legacy_format_detail)""",
                 release_values,
-                template="(%s, %s, %s, %s, %s, %s::\"ReleaseFormat\", %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW())",
+                template="(%s, %s, %s, %s, %s, %s::\"ReleaseFormat\", %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW())",
             )
             # Explicit bump for INSERT branch — happens AFTER diff loop.
 

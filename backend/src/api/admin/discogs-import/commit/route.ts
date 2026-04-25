@@ -19,6 +19,7 @@ import {
 } from "../../../../lib/discogs-import"
 import { isR2Configured, downloadOptimizeUpload } from "../../../../lib/image-upload"
 import { lockFields } from "../../../../lib/release-locks"
+import { classifyDiscogsFormat } from "../../../../lib/format-mapping"
 
 // ─── POST /admin/discogs-import/commit ───────────────────────────────────────
 // SSE Stream with phase-based progress:
@@ -683,6 +684,7 @@ export async function POST(
         const labelId = await ensureLabel(trx, row.label, cached)
         const formatResult = mapDiscogsFormat(cached)
         const formatDetail = getFormatDetail(cached)
+        const formatV2 = classifyFormatV2(cached)
         const creditsText = buildCreditsText(cached)
         const additionalLabels = getAdditionalLabels(cached)
 
@@ -697,6 +699,7 @@ export async function POST(
           `INSERT INTO "Release" (
             id, title, slug, "artistId", "labelId",
             "catalogNumber", year, country, format, legacy_format_detail,
+            format_v2, format_descriptors,
             description, credits, genres, styles,
             media_condition, sleeve_condition, inventory,
             estimated_value, discogs_suggested_prices,
@@ -707,6 +710,7 @@ export async function POST(
           ) VALUES (
             ?, ?, ?, ?, ?,
             ?, ?, ?, ?::"ReleaseFormat", ?,
+            ?, ?::jsonb,
             ?, ?, ?, ?,
             ?, ?, ?,
             ?, ?::jsonb,
@@ -727,6 +731,8 @@ export async function POST(
             (cached?.country as string) || "",
             formatResult,
             formatDetail,
+            formatV2.format,
+            formatV2.descriptors.length > 0 ? JSON.stringify(formatV2.descriptors) : null,
             (cached?.notes as string) || null,
             creditsText,
             cached?.genres ? (cached.genres as string[]) : null,
@@ -1005,6 +1011,24 @@ function mapDiscogsFormat(cached: Record<string, unknown> | null): string {
   const formats = cached.formats as Array<{ name?: string }> | undefined
   if (!formats?.length) return "OTHER"
   return FORMAT_MAP[formats[0].name || ""] || "OTHER"
+}
+
+/**
+ * format_v2 + format_descriptors via lib/format-mapping.ts (rc51.7).
+ * Liefert {format, descriptors[], reason} aus dem Discogs-formats-Array.
+ */
+function classifyFormatV2(cached: Record<string, unknown> | null): { format: string; descriptors: string[] } {
+  if (!cached) return { format: "Other", descriptors: [] }
+  const formats = cached.formats as Array<{ name?: string; descriptions?: string[]; qty?: string }> | undefined
+  if (!formats?.length) return { format: "Other", descriptors: [] }
+  const result = classifyDiscogsFormat(
+    formats.map((f) => ({
+      name: f.name || "",
+      qty: f.qty || "1",
+      descriptions: f.descriptions || [],
+    }))
+  )
+  return { format: result.format, descriptors: result.descriptors }
 }
 
 function getFormatDetail(cached: Record<string, unknown> | null): string | null {

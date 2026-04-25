@@ -327,6 +327,14 @@ export async function POST(
   if (body.sleeve_condition !== undefined) releaseUpdates.sleeve_condition = body.sleeve_condition || null
   if (body.inventory !== undefined) releaseUpdates.inventory = body.inventory !== "" && body.inventory !== null ? Number(body.inventory) : null
 
+  // rc51.7: When format_id is changed, derive format_v2 from LEGACY_FORMAT_ID_MAP
+  // so the new value is consistent without a separate sync run.
+  if (releaseUpdates.format_id !== undefined) {
+    const { classifyTapeMagFormat } = await import("../../../../lib/format-mapping.js")
+    const fid = releaseUpdates.format_id == null ? null : Number(releaseUpdates.format_id)
+    releaseUpdates.format_v2 = classifyTapeMagFormat(Number.isFinite(fid as number) ? (fid as number) : null)
+  }
+
   releaseUpdates.updatedAt = new Date()
 
   await pgConnection.transaction(async (trx) => {
