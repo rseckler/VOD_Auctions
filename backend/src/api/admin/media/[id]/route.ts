@@ -7,6 +7,7 @@ import { logEdit, HARD_STAMMDATEN_FIELDS, SYSTEM_ID_FIELDS, looseEqual } from ".
 import { validateReleaseStammdaten } from "../../../../lib/release-validation"
 import { lockFields, getHardFieldsInBody } from "../../../../lib/release-locks"
 import { isValidFormat, isValidDescriptor } from "../../../../lib/format-mapping"
+import { isValidGenre } from "../../../../admin/data/genre-styles"
 
 // GET /admin/media/:id — Single release detail with sync history
 export async function GET(
@@ -270,7 +271,24 @@ export async function POST(
     if (typeof v === "string") return v ? v.split(",").map((s) => s.trim()).filter(Boolean) : null
     return null
   }
-  if (body.genres !== undefined) releaseUpdates.genres = normalizeArray(body.genres)
+  if (body.genres !== undefined) {
+    const arr = normalizeArray(body.genres)
+    if (arr === null) {
+      releaseUpdates.genres = null
+    } else {
+      // Strict whitelist — only the 15 Discogs top-level genres allowed.
+      const invalid = arr.filter((g) => !isValidGenre(g))
+      if (invalid.length > 0) {
+        res.status(400).json({
+          error: "validation_failed",
+          message: `Invalid genres: ${invalid.join(", ")} — must be one of the 15 Discogs top-level genres`,
+        })
+        return
+      }
+      releaseUpdates.genres = arr
+    }
+  }
+  // styles — open whitelist (DB-derived suggestions + custom add). No validation.
   if (body.styles !== undefined) releaseUpdates.styles = normalizeArray(body.styles)
 
   // format_v2 — strict whitelist (71 values from FORMAT_VALUES). Empty/null clears.

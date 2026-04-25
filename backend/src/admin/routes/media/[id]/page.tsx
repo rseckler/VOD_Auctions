@@ -8,7 +8,7 @@ import { Badge, Btn, Toast, EmptyState, inputStyle, selectStyle } from "../../..
 import { printLabelAuto } from "../../../lib/print-client"
 import { SourceBadge } from "../../../components/release-detail/SourceBadge"
 import { LockBanner } from "../../../components/release-detail/LockBanner"
-import { ArtistPickerModal, LabelPickerModal, CountryPickerModal, FormatPickerModal, DescriptorPickerModal } from "../../../components/release-detail/PickerModals"
+import { ArtistPickerModal, LabelPickerModal, CountryPickerModal, FormatPickerModal, DescriptorPickerModal, GenrePickerModal, StylesPickerModal } from "../../../components/release-detail/PickerModals"
 import { findCountry, isValidIsoCode, flagFor } from "../../../data/country-iso"
 import { AuditHistory } from "../../../components/release-detail/AuditHistory"
 import { TrackManagement } from "../../../components/release-detail/TrackManagement"
@@ -633,8 +633,10 @@ const MediaDetailPage = () => {
   const [sdLabelName, setSdLabelName] = useState("")
   const [sdFormatV2, setSdFormatV2] = useState<string>("")
   const [sdDescriptors, setSdDescriptors] = useState<string[]>([])
+  const [sdGenres, setSdGenres] = useState<string[]>([])
+  const [sdStyles, setSdStyles] = useState<string[]>([])
   const [sdSaving, setSdSaving] = useState(false)
-  const [sdPicker, setSdPicker] = useState<"artist" | "label" | "country" | "format" | "descriptors" | null>(null)
+  const [sdPicker, setSdPicker] = useState<"artist" | "label" | "country" | "format" | "descriptors" | "genres" | "styles" | null>(null)
   const [sdError, setSdError] = useState<string | null>(null)
   const [auditRefreshKey, setAuditRefreshKey] = useState(0)
 
@@ -744,6 +746,8 @@ const MediaDetailPage = () => {
     setSdLabelName(release.label_name || "")
     setSdFormatV2(release.format_v2 || "")
     setSdDescriptors(Array.isArray(release.format_descriptors) ? release.format_descriptors : [])
+    setSdGenres(Array.isArray(release.genres) ? release.genres : [])
+    setSdStyles(Array.isArray(release.styles) ? release.styles : [])
     setSdError(null)
     setSdEditing(true)
   }
@@ -808,6 +812,8 @@ const MediaDetailPage = () => {
         description: sdDescription || null,
         format_v2: sdFormatV2 || null,
         format_descriptors: sdDescriptors,
+        genres: sdGenres,
+        styles: sdStyles,
       }
       if (sdArtistId) body.artistId = sdArtistId
       if (sdLabelId) body.labelId = sdLabelId
@@ -1369,6 +1375,110 @@ const MediaDetailPage = () => {
                     Picture Disc, Reissue, Limited Edition, Stereo, Mono, … (32 tags)
                   </div>
                 </div>
+
+                <div>
+                  <FieldLabel text="Genres (Discogs Top-Level)" />
+                  <div style={{ display: "flex", gap: S.gap.sm, alignItems: "center" }}>
+                    <button
+                      type="button"
+                      onClick={() => setSdPicker("genres")}
+                      style={{
+                        ...localInputStyle,
+                        cursor: "pointer",
+                        flex: 1,
+                        textAlign: "left",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        flexWrap: "wrap",
+                        minHeight: 38,
+                      } as React.CSSProperties}
+                      title="Click to manage genres"
+                    >
+                      {sdGenres.length > 0 ? (
+                        sdGenres.map((g) => (
+                          <span
+                            key={g}
+                            style={{
+                              background: C.subtle,
+                              border: `1px solid ${C.border}`,
+                              borderRadius: S.radius.sm,
+                              padding: "2px 8px",
+                              fontSize: 12,
+                            }}
+                          >
+                            {g}
+                          </span>
+                        ))
+                      ) : (
+                        <span style={{ color: C.muted }}>Click to select genres…</span>
+                      )}
+                    </button>
+                    {sdGenres.length > 0 && (
+                      <Btn
+                        label="×"
+                        variant="ghost"
+                        onClick={() => setSdGenres([])}
+                        style={{ padding: "8px 10px", fontSize: 13 }}
+                      />
+                    )}
+                  </div>
+                  <div style={{ ...T.micro, color: C.muted, marginTop: 2 }}>
+                    15 Discogs top-level genres · Pflicht-Whitelist
+                  </div>
+                </div>
+
+                <div>
+                  <FieldLabel text="Styles" />
+                  <div style={{ display: "flex", gap: S.gap.sm, alignItems: "center" }}>
+                    <button
+                      type="button"
+                      onClick={() => setSdPicker("styles")}
+                      style={{
+                        ...localInputStyle,
+                        cursor: "pointer",
+                        flex: 1,
+                        textAlign: "left",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        flexWrap: "wrap",
+                        minHeight: 38,
+                      } as React.CSSProperties}
+                      title="Click to manage styles"
+                    >
+                      {sdStyles.length > 0 ? (
+                        sdStyles.map((s) => (
+                          <span
+                            key={s}
+                            style={{
+                              background: C.subtle,
+                              border: `1px solid ${C.border}`,
+                              borderRadius: S.radius.sm,
+                              padding: "2px 8px",
+                              fontSize: 12,
+                            }}
+                          >
+                            {s}
+                          </span>
+                        ))
+                      ) : (
+                        <span style={{ color: C.muted }}>Click to select styles…</span>
+                      )}
+                    </button>
+                    {sdStyles.length > 0 && (
+                      <Btn
+                        label="×"
+                        variant="ghost"
+                        onClick={() => setSdStyles([])}
+                        style={{ padding: "8px 10px", fontSize: 13 }}
+                      />
+                    )}
+                  </div>
+                  <div style={{ ...T.micro, color: C.muted, marginTop: 2 }}>
+                    DB-suggested + custom — Industrial, Experimental, Synth-pop, …
+                  </div>
+                </div>
               </div>
 
               <div style={{ display: "flex", gap: S.gap.md, marginTop: S.gap.lg, paddingTop: S.gap.lg, borderTop: `1px solid ${C.border}` }}>
@@ -1410,6 +1520,20 @@ const MediaDetailPage = () => {
         <DescriptorPickerModal
           selected={sdDescriptors}
           onSave={(values) => setSdDescriptors(values)}
+          onClose={() => setSdPicker(null)}
+        />
+      )}
+      {sdPicker === "genres" && (
+        <GenrePickerModal
+          selected={sdGenres}
+          onSave={(values) => setSdGenres(values)}
+          onClose={() => setSdPicker(null)}
+        />
+      )}
+      {sdPicker === "styles" && (
+        <StylesPickerModal
+          selected={sdStyles}
+          onSave={(values) => setSdStyles(values)}
           onClose={() => setSdPicker(null)}
         />
       )}

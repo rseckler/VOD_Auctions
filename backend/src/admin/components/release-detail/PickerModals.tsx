@@ -9,6 +9,7 @@ import {
   type FormatValue,
   type FormatDescriptor,
 } from "../../../lib/format-mapping"
+import { GENRE_VALUES, type GenreValue } from "../../data/genre-styles"
 
 type PickerItem = { id: string; name: string; slug?: string | null }
 
@@ -492,6 +493,305 @@ export function DescriptorPickerModal({
             </button>
           )
         })}
+      </div>
+
+      <div style={{ display: "flex", gap: S.gap.md, marginTop: S.gap.lg, justifyContent: "flex-end" }}>
+        <Btn label="Cancel" variant="ghost" onClick={onClose} />
+        <Btn label={`Save (${picked.size})`} variant="gold" onClick={save} />
+      </div>
+    </Modal>
+  )
+}
+
+/**
+ * GenrePickerModal — Multi-Select aus den 15 Discogs Top-Level-Genres.
+ * Strict whitelist (no custom add).
+ */
+export function GenrePickerModal({
+  selected,
+  onSave,
+  onClose,
+}: {
+  selected: string[]
+  onSave: (values: GenreValue[]) => void
+  onClose: () => void
+}) {
+  const [picked, setPicked] = useState<Set<string>>(() => new Set(selected))
+
+  const toggle = (g: string) => {
+    const next = new Set(picked)
+    if (next.has(g)) next.delete(g)
+    else next.add(g)
+    setPicked(next)
+  }
+
+  const save = () => {
+    const out = GENRE_VALUES.filter((g) => picked.has(g))
+    onSave(out)
+    onClose()
+  }
+
+  return (
+    <Modal title={`Select Genres (${picked.size}/15 selected)`} onClose={onClose}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, 1fr)",
+          gap: 4,
+          maxHeight: 400,
+          overflowY: "auto",
+        }}
+      >
+        {GENRE_VALUES.map((g) => {
+          const isPicked = picked.has(g)
+          return (
+            <button
+              key={g}
+              type="button"
+              onClick={() => toggle(g)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: S.gap.sm,
+                width: "100%",
+                textAlign: "left",
+                padding: "8px 10px",
+                borderRadius: S.radius.sm,
+                border: isPicked ? `1px solid ${C.gold}` : `1px solid ${C.border}`,
+                background: isPicked ? C.subtle : "transparent",
+                color: C.text,
+                cursor: "pointer",
+                fontSize: 13,
+              }}
+            >
+              <span style={{ fontFamily: "monospace", color: isPicked ? C.gold : C.muted }}>
+                {isPicked ? "✓" : "○"}
+              </span>
+              <span>{g}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      <div style={{ ...T.micro, color: C.muted, textAlign: "center", marginTop: S.gap.md }}>
+        15 Discogs top-level genres · strict whitelist (no free-text)
+      </div>
+
+      <div style={{ display: "flex", gap: S.gap.md, marginTop: S.gap.lg, justifyContent: "flex-end" }}>
+        <Btn label="Cancel" variant="ghost" onClick={onClose} />
+        <Btn label={`Save (${picked.size})`} variant="gold" onClick={save} />
+      </div>
+    </Modal>
+  )
+}
+
+/**
+ * StylesPickerModal — Multi-Select aus den DB-suggested styles + Custom-Add.
+ * Open list: existing 388 distinct values from /admin/media/style-suggestions
+ * + free-text input that adds to the picked set.
+ */
+export function StylesPickerModal({
+  selected,
+  onSave,
+  onClose,
+}: {
+  selected: string[]
+  onSave: (values: string[]) => void
+  onClose: () => void
+}) {
+  const [picked, setPicked] = useState<Set<string>>(() => new Set(selected))
+  const [suggestions, setSuggestions] = useState<string[]>([])
+  const [loading, setLoading] = useState(true)
+  const [query, setQuery] = useState("")
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    inputRef.current?.focus()
+    fetch("/admin/media/style-suggestions", { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => setSuggestions(d.values || []))
+      .catch(() => setSuggestions([]))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const trimmedQuery = query.trim()
+  const filtered = useMemo(() => {
+    if (!trimmedQuery) return suggestions
+    const q = trimmedQuery.toLowerCase()
+    return suggestions.filter((s) => s.toLowerCase().includes(q))
+  }, [suggestions, trimmedQuery])
+
+  const isExactMatch = trimmedQuery && suggestions.some((s) => s.toLowerCase() === trimmedQuery.toLowerCase())
+  const showAddCustom = trimmedQuery && !isExactMatch && !picked.has(trimmedQuery)
+
+  const toggle = (s: string) => {
+    const next = new Set(picked)
+    if (next.has(s)) next.delete(s)
+    else next.add(s)
+    setPicked(next)
+  }
+
+  const addCustom = () => {
+    if (!trimmedQuery) return
+    const next = new Set(picked)
+    next.add(trimmedQuery)
+    setPicked(next)
+    setQuery("")
+  }
+
+  const save = () => {
+    onSave(Array.from(picked).sort((a, b) => a.localeCompare(b)))
+    onClose()
+  }
+
+  return (
+    <Modal title={`Select Styles (${picked.size} selected)`} onClose={onClose}>
+      {picked.size > 0 && (
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 4,
+            marginBottom: S.gap.md,
+            padding: "8px",
+            background: C.subtle,
+            borderRadius: S.radius.sm,
+          }}
+        >
+          {Array.from(picked)
+            .sort((a, b) => a.localeCompare(b))
+            .map((s) => (
+              <span
+                key={s}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  background: C.card,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: S.radius.sm,
+                  padding: "2px 6px 2px 8px",
+                  fontSize: 12,
+                }}
+              >
+                {s}
+                <button
+                  type="button"
+                  onClick={() => toggle(s)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    color: C.muted,
+                    fontSize: 14,
+                    padding: "0 4px",
+                    lineHeight: 1,
+                  }}
+                  title={`Remove ${s}`}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+        </div>
+      )}
+
+      <input
+        ref={inputRef}
+        type="text"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && showAddCustom) {
+            e.preventDefault()
+            addCustom()
+          }
+        }}
+        placeholder={loading ? "Loading suggestions…" : `Type to search ${suggestions.length} styles or add custom…`}
+        disabled={loading}
+        style={{
+          width: "100%",
+          padding: "8px 12px",
+          borderRadius: S.radius.sm,
+          border: `1px solid ${C.border}`,
+          background: C.card,
+          color: C.text,
+          fontSize: 14,
+          marginBottom: S.gap.md,
+          boxSizing: "border-box",
+        }}
+      />
+
+      {showAddCustom && (
+        <button
+          type="button"
+          onClick={addCustom}
+          style={{
+            width: "100%",
+            padding: "8px 12px",
+            marginBottom: S.gap.md,
+            borderRadius: S.radius.sm,
+            border: `1px dashed ${C.gold}`,
+            background: "transparent",
+            color: C.gold,
+            cursor: "pointer",
+            fontSize: 13,
+            textAlign: "left",
+          }}
+        >
+          + Add custom: <strong>{trimmedQuery}</strong>
+        </button>
+      )}
+
+      <div
+        style={{
+          maxHeight: 300,
+          overflowY: "auto",
+          display: "grid",
+          gridTemplateColumns: "repeat(2, 1fr)",
+          gap: 2,
+        }}
+      >
+        {filtered.length === 0 && !showAddCustom && !loading && (
+          <div style={{ ...T.small, color: C.muted, textAlign: "center", padding: S.gap.md, gridColumn: "1 / -1" }}>
+            No styles match "{trimmedQuery}"
+          </div>
+        )}
+        {filtered.map((s) => {
+          const isPicked = picked.has(s)
+          return (
+            <button
+              key={s}
+              type="button"
+              onClick={() => toggle(s)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: S.gap.sm,
+                width: "100%",
+                textAlign: "left",
+                padding: "6px 10px",
+                borderRadius: S.radius.sm,
+                border: isPicked ? `1px solid ${C.gold}` : `1px solid transparent`,
+                background: isPicked ? C.subtle : "transparent",
+                color: C.text,
+                cursor: "pointer",
+                fontSize: 13,
+              }}
+              onMouseOver={(e) => (e.currentTarget.style.background = C.hover)}
+              onMouseOut={(e) => (e.currentTarget.style.background = isPicked ? C.subtle : "transparent")}
+            >
+              <span style={{ fontFamily: "monospace", color: isPicked ? C.gold : C.muted, fontSize: 11 }}>
+                {isPicked ? "✓" : "○"}
+              </span>
+              <span>{s}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      <div style={{ ...T.micro, color: C.muted, textAlign: "center", marginTop: S.gap.md }}>
+        {suggestions.length} known styles · custom values allowed
       </div>
 
       <div style={{ display: "flex", gap: S.gap.md, marginTop: S.gap.lg, justifyContent: "flex-end" }}>
