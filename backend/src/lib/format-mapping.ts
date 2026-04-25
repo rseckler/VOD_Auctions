@@ -124,6 +124,73 @@ export function displayFormat(v: FormatValue | string | null | undefined): strin
   return isValidFormat(v) ? FORMAT_DISPLAY[v] : v
 }
 
+/**
+ * Compact display for tight contexts (Brother-QL labels, Mobile, Badges).
+ * Drops the "Vinyl " prefix, uses "Format×N" suffix instead of "N× Format".
+ * Length goal: ≤8 characters in 95% of cases.
+ */
+export const FORMAT_DISPLAY_COMPACT: Record<FormatValue, string> = {
+  "Vinyl-LP": "LP",
+  "Vinyl-LP-2": "LP×2", "Vinyl-LP-3": "LP×3",
+  "Vinyl-LP-4": "LP×4", "Vinyl-LP-5": "LP×5",
+  "Vinyl-LP-6": "LP×6", "Vinyl-LP-7": "LP×7",
+  "Vinyl-LP-8": "LP×8", "Vinyl-LP-9": "LP×9",
+  "Vinyl-LP-10": "LP×10", "Vinyl-LP-11": "LP×11",
+  "Vinyl-LP-12": "LP×12",
+  "Vinyl-7-Inch": '7"',
+  "Vinyl-7-Inch-2": '7"×2',
+  "Vinyl-7-Inch-3": '7"×3',
+  "Vinyl-7-Inch-4": '7"×4',
+  "Vinyl-7-Inch-5": '7"×5',
+  "Vinyl-7-Inch-10": '7"×10',
+  "Vinyl-10-Inch": '10"',
+  "Vinyl-10-Inch-2": '10"×2',
+  "Vinyl-10-Inch-3": '10"×3',
+  "Vinyl-10-Inch-4": '10"×4',
+  "Vinyl-12-Inch": '12"',
+  "Vinyl-12-Inch-2": '12"×2',
+  "Vinyl-12-Inch-3": '12"×3',
+  "Vinyl-12-Inch-4": '12"×4',
+  "Vinyl-12-Inch-12": '12"×12',
+  Flexi: "Flexi",
+  "Lathe-Cut": "Lathe",
+  "Lathe-Cut-2": "Lathe×2",
+  Acetate: "Acet.",
+  Shellac: "78rpm",
+  Tape: "Tape",
+  "Tape-2": "Tape×2", "Tape-3": "Tape×3", "Tape-4": "Tape×4",
+  "Tape-5": "Tape×5", "Tape-6": "Tape×6", "Tape-7": "Tape×7",
+  "Tape-8": "Tape×8", "Tape-10": "Tape×10", "Tape-12": "Tape×12",
+  "Tape-26": "Tape×26", "Tape-32": "Tape×32",
+  Tapes: "Tapes",
+  Reel: "Reel",
+  "Reel-2": "Reel×2",
+  CD: "CD",
+  "CD-2": "CD×2", "CD-3": "CD×3", "CD-4": "CD×4", "CD-5": "CD×5",
+  "CD-8": "CD×8", "CD-10": "CD×10", "CD-16": "CD×16",
+  CDr: "CDr",
+  "CDr-2": "CDr×2",
+  CDV: "CDV",
+  VHS: "VHS",
+  DVD: "DVD",
+  DVDr: "DVDr",
+  "Blu-ray": "BluRay",
+  File: "File",
+  "Memory-Stick": "USB",
+  Magazin: "Magazin",
+  Photo: "Photo",
+  Postcard: "Postcard",
+  Poster: "Poster",
+  Book: "Book",
+  "T-Shirt": "T-Shirt",
+  Other: "Other",
+}
+
+export function displayFormatCompact(v: FormatValue | string | null | undefined): string {
+  if (!v) return ""
+  return isValidFormat(v) ? FORMAT_DISPLAY_COMPACT[v] : v
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 3. Storefront filter buckets (format_group)
 // ─────────────────────────────────────────────────────────────────────────────
