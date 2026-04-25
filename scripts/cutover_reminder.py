@@ -81,7 +81,7 @@ def fetch_status():
           FROM "Release"
          WHERE format IS NOT NULL AND format_v2 IS NOT NULL
            AND NOT (
-               (format::text = 'LP' AND format_v2 LIKE 'Vinyl-%') OR
+               (format::text = 'LP' AND (format_v2 LIKE 'Vinyl-%' OR format_v2 IN ('Lathe-Cut','Lathe-Cut-2','Flexi','Acetate','Shellac'))) OR
                (format::text = 'CASSETTE' AND (format_v2 LIKE 'Tape%' OR format_v2 = 'Tapes')) OR
                (format::text = 'CD' AND format_v2 LIKE 'CD%') OR
                (format::text = 'REEL' AND format_v2 LIKE 'Reel%') OR
