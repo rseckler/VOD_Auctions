@@ -13,6 +13,7 @@ import { findCountry, isValidIsoCode, flagFor } from "../../../data/country-iso"
 import { AuditHistory } from "../../../components/release-detail/AuditHistory"
 import { TrackManagement } from "../../../components/release-detail/TrackManagement"
 import { validateReleaseStammdaten } from "../../../../lib/release-validation"
+import { displayFormat, FORMAT_VALUES, type FormatValue } from "../../../../lib/format-mapping"
 
 class ErrorBoundary extends Component<
   { children: ReactNode },
@@ -50,6 +51,8 @@ type Release = {
   artist_name: string | null
   label_name: string | null
   format: string
+  format_v2: string | null
+  format_descriptors: string[] | null
   year: number | null
   country: string | null
   catalogNumber: string | null
@@ -943,14 +946,16 @@ const MediaDetailPage = () => {
 
   const tapeMagUrl = release.tape_mag_url
   const pageTitle = release.artist_name ? `${release.artist_name} \u2014 ${release.title}` : release.title
-  const pageSubtitle = [release.format, release.year, release.label_name].filter(Boolean).join(" \u00B7 ")
+  const formatLabel = release.format_v2 ? displayFormat(release.format_v2 as FormatValue) : release.format
+  const formatDescriptors = Array.isArray(release.format_descriptors) ? release.format_descriptors : []
+  const pageSubtitle = [formatLabel, release.year, release.label_name].filter(Boolean).join(" \u00B7 ")
 
   type InfoField = [string, ReactNode | string | null | number]
   const infoFields: InfoField[] = [
     ["Article No.", release.article_number],
     ["Artist", release.artist_name],
     ["Title", release.title],
-    ["Format", release.format],
+    ["Format", formatDescriptors.length > 0 ? `${formatLabel} (${formatDescriptors.join(", ")})` : formatLabel],
     ["Year", release.year != null ? String(release.year) : null],
     ["Country", release.country ? (() => {
       const c = findCountry(release.country)

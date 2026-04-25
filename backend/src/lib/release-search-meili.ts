@@ -25,6 +25,7 @@ export type CatalogSort =
 
 export interface CatalogFilters {
   format?: string
+  format_v2?: string | string[]   // rc51.7: new format whitelist (Vinyl-LP, Vinyl-7-Inch, Tape-7, …)
   format_group?: string
   product_category?: string
   country?: string
@@ -74,6 +75,11 @@ function buildFilterString(f?: CatalogFilters): string[] {
   const parts: string[] = []
 
   if (f.format) parts.push(`format = "${escape(f.format)}"`)
+  if (f.format_v2) {
+    const values = Array.isArray(f.format_v2) ? f.format_v2 : [f.format_v2]
+    if (values.length === 1) parts.push(`format_v2 = "${escape(values[0])}"`)
+    else parts.push(`(${values.map((v) => `format_v2 = "${escape(v)}"`).join(" OR ")})`)
+  }
   if (f.format_group) parts.push(`format_group = "${escape(f.format_group)}"`)
   if (f.product_category)
     parts.push(`product_category = "${escape(f.product_category)}"`)
@@ -348,6 +354,7 @@ export interface AdminReleaseShape {
   format_name: string | null
   format_group: string | null
   format_kat: number | null
+  format_v2: string | null
   product_category: string | null
   year: number | null
   country: string | null
@@ -408,6 +415,7 @@ export function toAdminShape(hit: any): AdminReleaseShape {
     format_name: hit.format_name ?? null,
     format_group: hit.format_group ?? null,
     format_kat: null, // not indexed currently; Admin-UI reads format_group instead
+    format_v2: hit.format_v2 ?? null,
     product_category: hit.product_category ?? null,
     year: hit.year ?? null,
     country: hit.country ?? null,
@@ -484,6 +492,7 @@ export function toLegacyShape(hit: any): LegacyReleaseShape {
     press_orga_slug: hit.press_orga_slug ?? null,
     format_name: hit.format_name ?? null,
     format_group: hit.format_group ?? null,
+    format_v2: hit.format_v2 ?? null,
     effective_price: hit.effective_price ?? null,
     is_purchasable: hit.is_purchasable ?? false,
     _highlight: hit._formatted,

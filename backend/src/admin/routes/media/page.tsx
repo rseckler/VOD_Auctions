@@ -3,6 +3,7 @@ import { useAdminNav } from "../../components/admin-nav"
 import { C } from "../../components/admin-tokens"
 import { PageHeader, PageShell } from "../../components/admin-layout"
 import { Toast } from "../../components/admin-ui"
+import { displayFormat, type FormatValue } from "../../../lib/format-mapping"
 import type { ErrorInfo, ReactNode } from "react"
 
 class ErrorBoundary extends Component<
@@ -42,6 +43,7 @@ type Release = {
   format_name: string | null
   format_group: string | null
   format_kat: number | null
+  format_v2: string | null
   product_category: string
   year: number | null
   country: string | null
@@ -284,7 +286,7 @@ const ImageGalleryOverlay = ({ onClose }: { onClose: () => void }) => {
                     whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                   }}>{r.title}</div>
                   <div style={{ display: "flex", justifyContent: "space-between", marginTop: "4px" }}>
-                    <span style={{ fontSize: "10px", color: C.muted }}>{r.format_name || r.format}{r.year ? ` \u00B7 ${r.year}` : ""}</span>
+                    <span style={{ fontSize: "10px", color: C.muted }}>{r.format_v2 ? displayFormat(r.format_v2 as FormatValue) : (r.format_name || r.format)}{r.year ? ` \u00B7 ${r.year}` : ""}</span>
                     {r.legacy_price != null && (
                       <span style={{ fontSize: "10px", color: C.gold, fontWeight: 600 }}>\u20AC{Number(r.legacy_price).toFixed(2)}</span>
                     )}

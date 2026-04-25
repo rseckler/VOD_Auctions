@@ -84,6 +84,7 @@ export async function adminMediaGetPostgres(
       "Release.slug",
       "Release.format",
       "Release.format_id",
+      "Release.format_v2",
       "Release.product_category",
       "Release.year",
       "Release.country",

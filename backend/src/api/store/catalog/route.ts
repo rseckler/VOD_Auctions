@@ -67,6 +67,7 @@ export async function GET(
       ranking,
       filters: {
         format: q.format,
+        format_v2: q.format_v2,
         format_group: q.category,
         country: q.country,
         country_code: q.country_code,
