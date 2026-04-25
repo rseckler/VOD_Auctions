@@ -46,9 +46,12 @@ export async function GET(
     return inventorySearchGetPostgres(req, res)
   }
 
-  // Step 1a: Barcode-Scanner-Pattern VOD-XXXXXX (exakt 6 digits)
-  // → Direktes DB-Lookup, schnell, deterministic. Bleibt Postgres.
-  if (/^VOD-\d{6}$/i.test(qRaw)) {
+  // Step 1a: Barcode-Scanner-Pattern — beide Formate exact-match, deterministic.
+  //   - neues Exemplar-Barcode (seit 2026-04-22):  000001VODe
+  //   - altes Exemplar-Barcode (Legacy):            VOD-XXXXXX (6 digits)
+  // → Direktes DB-Lookup, schnell. Bleibt Postgres (Scanner-Input darf nicht
+  //   durch Meili-Ranking laufen, sonst evtl. anderer Treffer als gescannt).
+  if (/^\d+VODe$/i.test(qRaw) || /^VOD-\d{6}$/i.test(qRaw)) {
     return inventorySearchGetPostgres(req, res)
   }
 

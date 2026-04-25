@@ -21,8 +21,13 @@ export async function GET(
 
   const barcode = req.params.barcode
 
-  if (!barcode || !barcode.startsWith("VOD-")) {
-    res.status(400).json({ message: "Invalid barcode format. Expected VOD-XXXXXX." })
+  // Accept both barcode formats:
+  //   - new (since 2026-04-22): 000001VODe
+  //   - legacy: VOD-000001 (old exemplars still carry it)
+  const newBarcodePattern = /^\d+VODe$/i
+  const oldBarcodePattern = /^VOD-\d+$/i
+  if (!barcode || (!newBarcodePattern.test(barcode) && !oldBarcodePattern.test(barcode))) {
+    res.status(400).json({ message: "Invalid barcode format. Expected 000001VODe or VOD-XXXXXX." })
     return
   }
 

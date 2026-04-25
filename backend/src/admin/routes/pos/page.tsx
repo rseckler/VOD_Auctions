@@ -171,7 +171,8 @@ function POSPage() {
         e.preventDefault()
         const barcode = scanBufferRef.current.trim()
         scanBufferRef.current = ""
-        if (barcode.startsWith("VOD-")) {
+        // Accept both formats: new 000001VODe (since 2026-04-22) + legacy VOD-XXXXXX
+        if (/^\d+VODe$/i.test(barcode) || /^VOD-\d+$/i.test(barcode)) {
           handleScan(barcode)
         }
         return
@@ -479,7 +480,7 @@ function POSPage() {
             <input
               ref={scanInputRef}
               type="text"
-              placeholder="Scan barcode or type VOD-XXXXXX..."
+              placeholder="Scan barcode or type 000001VODe..."
               onKeyDown={handleScanInputKeyDown}
               autoFocus
               style={{
@@ -563,7 +564,7 @@ function POSPage() {
               <div style={{ fontSize: 48, marginBottom: 12 }}>&#128722;</div>
               <div style={{ fontSize: 15, fontWeight: 500 }}>Scan a barcode to start</div>
               <div style={{ fontSize: 12, marginTop: 6 }}>
-                Use the Inateck scanner or type a VOD-XXXXXX barcode above
+                Use the Inateck scanner or type a 000001VODe barcode above
               </div>
             </div>
           )}

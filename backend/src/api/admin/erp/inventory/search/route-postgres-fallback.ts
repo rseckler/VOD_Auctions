@@ -29,8 +29,10 @@ export async function inventorySearchGetPostgres(
     return
   }
 
-  // Step 1a: Barcode exact match (scanner input pattern VOD-XXXXXX, 6 digits)
-  if (/^VOD-\d{6}$/i.test(q)) {
+  // Step 1a: Barcode exact match (scanner input). Akzeptiert beide Formate:
+  //   - neues Exemplar-Barcode (seit 2026-04-22):  000001VODe
+  //   - altes Exemplar-Barcode (Legacy):            VOD-XXXXXX (6 digits)
+  if (/^\d+VODe$/i.test(q) || /^VOD-\d{6}$/i.test(q)) {
     const barcodeResult = await pg.raw(`
       SELECT
         r.id as release_id, r.title, r."coverImage", r.legacy_price, r.format,
