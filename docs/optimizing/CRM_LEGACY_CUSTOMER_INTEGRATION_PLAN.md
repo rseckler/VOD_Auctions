@@ -1026,11 +1026,15 @@ Vor Wave-1-Sendung:
 
 ---
 
-## Section D — Monkey Office REWE Datenmigration
+## Section D — Monkey Office REWE Datenmigration ⏸️ DEFERRED
 
-**Ziel:** Historische Customer- + Order-Daten aus Monkey Office REWE (das aktuell **alle** vod-records-Bestellungen verarbeitet, nicht nur die der tape-mag-Website) in unser CRM importieren. Saubere History bauen, damit Marketing-Flows auf vollständige Customer-Lifetime-Value-Reports zugreifen können.
+**Status:** **Zurückgestellt am 2026-04-25** — wird in einem späteren Schritt aufgenommen, nicht in der ersten Phase. Robin's Entscheidung: Section A + C reichen für Wave 1, MO-Sync hat keinen Launch-Blocker-Charakter.
 
-**Status:** Konzept (2026-04-25). Vorab-Klärungen offen — siehe D.0.
+**Inhalte unten bleiben erhalten** als Discovery-Vorarbeit für den späteren Pickup. Wenn Section D wieder aktuell wird, ist Sprint D0 (Lizenz-Antrag + Remote-Session mit Frank für MO-Version-Check) der erste Schritt.
+
+**Ziel (für späteren Pickup):** Historische Customer- + Order-Daten aus Monkey Office REWE (das aktuell **alle** vod-records-Bestellungen verarbeitet, nicht nur die der tape-mag-Website) in unser CRM importieren. Saubere History bauen, damit Marketing-Flows auf vollständige Customer-Lifetime-Value-Reports zugreifen können.
+
+**Konsequenz für Sprint-Plan:** D-Prep + D0 + D1-D3 fallen aus Phase 1 raus. Phase 1 reduziert sich auf C + A. Top-Spender-Reports zeigen vorläufig nur tape-mag-Website-Bestellungen (Option A) — Offline-MO-Verkäufe fehlen, das ist akzeptiert. Wave 1 fokussiert auf Top-Spender aus den 4.465 Tape-Mag-Käufern.
 
 **Wichtige Annahme:** Monkey Office bleibt **vorerst** das Buchhaltungs-Tool für vod-records (GoBD-Konformität, Steuerberater-Anbindung, Rechnungslegung). Diese Section beschreibt zunächst einen **One-Shot-Historischen-Import** plus optional einen Continued-Sync. Migration-aus-MO-heraus ist ein separater strategischer Workstream und nicht Scope dieses Plans.
 
@@ -1535,49 +1539,50 @@ Vor dem ersten Production-Import:
 
 ## Vergleich + Empfehlung
 
-| Aspekt | Option A | Option B | Section C | Section D |
+| Aspekt | Option A | Option B | Section C | Section D ⏸️ |
 |---|---|---|---|---|
-| Aufwand | ~3 Tage | ~2 Wochen | ~3 Tage Phase 1 | ~6 Tage + 1 Tag Klärung |
+| Aufwand | ~3 Tage | ~2 Wochen | ~3 Tage Phase 1 | ~7 Tage (deferred) |
 | Daten-Sichtbarkeit | Eigene UI für Legacy, parallel zu Native | Vereint in bestehender CRM-UI | Bestehende Admin-Routes (Waitlist + Invites) erweitert | Existing Customer-Detail erweitert um MO-Orders |
 | Konversions-Tracking | On-Touch (POS-Checkout, Self-Register) | Proaktiv via Backfill | Hart enforced (`is_invited_user`-Gate auf Bid/Buy-API) | n/a (importiert nur History) |
 | Top-Spender-Reports | Brauchen JOIN über zwei Tabellen | Out-of-the-box korrekt | n/a | **Vollständig** — alle Kanäle inkl. Offline-Verkäufe |
 | Brevo-Sync | Bleibt Read-Only | Bidirectional verkabelt | Drei-Listen-Modell (tape-mag / vod-auctions / waitlist) | Vier-Listen (zusätzlich vod-records-customers) |
-| Risiko | Niedrig (additiv) | Mittel | Niedrig (additiv + Migration idempotent) | Mittel — abhängig von MO-Export-Qualität |
+| Risiko | Niedrig (additiv) | Mittel | Niedrig (additiv + Migration idempotent) | Mittel — abhängig von OfficeConnect-Setup |
 | Reversibilität | Stub-Identifikation einfach | Stubs identifizierbar | Flag droppable, Tokens via Status revoke'bar | Re-Import idempotent (UNIQUE-Index auf MO-IDs) |
-| Marketing-Wert | Mittel | Hoch | Hoch (Wellen-Mechanik + Funnel-Tracking) | **Sehr hoch** — komplette Customer-Lifetime-Value sichtbar |
-| Launch-Blocker? | Nein | Nein | **Ja** — ohne C kann kein controlled Soft-Launch passieren | Nein — kann nach Launch nachgezogen |
+| Marketing-Wert | Mittel | Hoch | Hoch (Wellen-Mechanik + Funnel-Tracking) | **Sehr hoch** (langfristig) — komplette Customer-Lifetime-Value sichtbar |
+| Launch-Blocker? | Nein | Nein | **Ja** — ohne C kann kein controlled Soft-Launch passieren | Nein — **deferred bis nach Phase 1** |
+| Status | Phase 1 nach C | Deferred | Phase 1 (Launch-Blocker) | **Deferred 2026-04-25** |
 
 ### Reihenfolge
 
-**Empfehlung: D0 + C zuerst (parallel), dann A, dann D1+D2, dann B.**
+**Empfehlung: C zuerst, dann A. B + D deferred.**
 
 **Begründung:**
 - **C ist Launch-Blocker.** Ohne `is_invited_user`-Server-Enforcement (C.2) sind die Bid/Buy-Endpoints nicht sicher gegen einen User der via Self-Register reinkommt. Das **muss** vor RSE-294 (Erste öffentliche Auktionen) live sein.
-- **D0 (Discovery für MO-Import) parallel.** Lange Lead-Time (OfficeConnect-Lizenz-Beantragung 1-3 Tage E-Mail-Bestätigung). Robin macht Discovery selbst — eine Remote-Session mit Frank (30-60min) für Tailscale-Setup + MO-Version-Check, alles andere ist Online-Registrierung + Test-Pulls. Sollte sofort starten, blockiert nichts.
 - **A liefert sofort Wert für Wave 1.** Wenn C live ist und Wave 1 die Top-100 nach `legacy_customers.total_spent` ansprechen soll, brauchen wir A.0+A.1 um diese überhaupt im Admin sehen + sortieren zu können. Forgot-Password-Flow (A.5.3) und Bridge-Helper (A.5.7) liefern den kanonischen Reaktivierungs-Pfad — kritisch für Wave-1-Conversion.
-- **D1+D2 (MO-Customer + Order-Import) nach A.** A liefert die Customer-Bridge-Infrastruktur (`metadata.source`, `monkey_office_customer_id`-Spalte etc.), D nutzt sie. Wave 1 kann bereits auf reine Tape-Mag-Daten gefahren werden — MO-Import erweitert die Top-Spender-Liste um Offline-Verkäufe für Wave 2+.
-- **B kann auf unbestimmte Zeit warten.** Option A's `metadata.legacy_customer_id`-Pattern ist **vorwärtskompatibel** mit B's Backfill-Schema. Wenn nach 4 Wochen Live klar wird dass „CRM zeigt €0 statt €X" zu schmerzhaft ist, kann B nachgezogen werden ohne A/D-Code zu ändern.
+- **B kann auf unbestimmte Zeit warten.** Option A's `metadata.legacy_customer_id`-Pattern ist **vorwärtskompatibel** mit B's Backfill-Schema. Wenn nach 4 Wochen Live klar wird dass „CRM zeigt €0 statt €X" zu schmerzhaft ist, kann B nachgezogen werden ohne A-Code zu ändern.
+- **D ⏸️ deferred (2026-04-25).** Monkey-Office-Sync wird nicht in Phase 1 angegangen. Wave 1 fokussiert auf die 4.465 tape-mag-Website-Käufer aus dem bestehenden `customers`-/`orders`-Bestand. MO-Offline-Käufer (Brevo List 5: 3.580 Newsletter-Kontakte) bleiben erreichbar via Re-DOI-Kampagne — historische Order-Daten in unserer DB sind nicht Voraussetzung für Wave-1-Versand. Section D bleibt im Dokument als Discovery-Vorarbeit für späteren Pickup.
 
 ### Sprint-Vorschlag
 
 | Sprint | RC-Range | Inhalt | Aufwand |
 |---|---|---|---|
-| **Sprint D0** | parallel | D.0 Discovery (Robin selbst): Lizenz-Antrag + Remote-Session mit Frank für MO-Version + Tailscale + Connect-Install + erster Test-Pull | 0.5 Tag + 1-3 Tage Lizenz-Lead-Time |
-| **Sprint D-Prep** | parallel zu A1 | OfficeConnect-Doku, Endpoint-Map, `lib/monkey-office.ts` HTTP-Client | 2 Tage |
 | Sprint C1 | rc52.0–rc52.3 | C.1 Migration, C.2 Access-Gate, C.3 Redeem-Flag, C.6 Rate-Limit | ~3 Tage |
 | Sprint A1 | rc52.4–rc52.6 | A.0 Customers-Dedup, A.1 Legacy-API, A.2 POS-Search-UNION | ~2 Tage |
 | Sprint A2 | rc53.0–rc53.2 | A.3 Auto-Stub, A.4 Admin-Tab Tape-Mag, A.5.3 Forgot-Password | ~2 Tage |
 | Sprint C2 | rc53.3–rc53.5 | C.4 Magic-Link, C.5 Admin-Wave-UI, C.8 Brevo-Waitlist-Liste | ~2 Tage |
 | **Wave 1 GO** | nach C2 | RSE-78 AGB-Anwalt + Re-DOI-Decision parallel | — |
-| Sprint D1 | rc54.0–rc54.2 | D.2 Migration + D.3 MO-Customer-Pull (OfficeConnect) | ~2 Tage |
-| Sprint D2 | rc54.3–rc54.5 | D.4 MO-Invoice + Item-Import + D.5 Reconciliation | ~2 Tage |
-| Sprint D3 | rc54.6 | D.6 Continued-Sync Cron + Monitoring | ~1 Tag |
-| **Wave 2+ GO** | nach D3 | Top-Spender-Liste vollständig (inkl. MO-Offline-Käufer), live-aktuell | — |
 | Sprint B (deferred) | rc55+ | B.1-B.7 Backfill + Bidirectional-Brevo-Sync | ~2 Wochen |
-| Sprint D4 (deferred, Phase 2) | rc56+ | D.7 Write-Sync vod-auctions Auctions → MO Rechnungen | ~3-5 Tage |
+| **Sprint D (deferred ⏸️)** | tba | D-Prep + D1-D3 OfficeConnect-Sync. Pickup-Trigger: wenn Top-Spender-Reports merklich unvollständig wirken (= reine Tape-Mag-Sicht reicht nicht mehr) ODER MO-Phase-Out strategisch entschieden wird | ~7 Tage |
+| Sprint D4 (deferred, Phase 3) | tba | D.7 Bidirectional Write-Sync vod-auctions → MO | ~3-5 Tage |
 
 **Total Phase 1 (vor Wave 1):** ~9 Tage Code + 1 Tag QA + 1 Tag Deployments-Buffer = **~2 Arbeitswochen**.
-**Total Phase 1.5 (vor Wave 2 mit OfficeConnect-Sync):** + ~7 Tage MO (D-Prep + D1+D2+D3) = **~3 Arbeitswochen gesamt** (live-synchronisierter CRM-Spiegel statt einmaliger CSV-Snapshot).
+
+**Was Phase 1 ohne Section D NICHT liefert:**
+- Top-Spender-Liste zeigt nur Tape-Mag-Website-Käufer. Offline-/Telefon-/POS-Stammkunden aus MO sind nicht im CRM sichtbar.
+- Customer-Detail-Page eines Tape-Mag-Käufers zeigt nur Website-Orders, nicht die MO-Verkäufe ab Migration auf MO.
+- Marketing-Segmentierung „Top-Spender aller Zeiten" geht nur über die ~4.465 Website-Käufer, nicht über alle ~5-20k MO-Kunden.
+
+Diese Lücken sind akzeptiert — Wave 1 funktioniert auf Tape-Mag-Daten und Brevo List 5. Section D wird gezogen, sobald die Lücke schmerzhaft wird.
 
 ---
 
@@ -1593,13 +1598,15 @@ Vor dem ersten Production-Import:
 8. **Magic-Link-Default an/aus:** Soll Magic-Link als Default-Login (Email-Field, dann optional Password) oder als sekundäre Option neben Password? Empfehlung: sekundär — Magic-Link-Mails landen oft im Spam.
 9. **Test-Account-Backfill:** Die 12 bestehenden `customer`-Rows sind alle Test-Accounts (`bidder1@test.de` etc.). Sollen die `is_invited_user=true` bekommen oder explizit abgesetzt werden? Empfehlung: alle auf `true` setzen damit Tests weiterlaufen, aber `metadata.is_test_account=true` als zusätzlicher Marker für Reports.
 10. **`platform_mode='preview'`-Use-Case:** Soft-Open (Browse + Apply, kein Bid) — wollen wir das überhaupt? Wenn ja, muss C.2 Access-Gate auch `'preview'` als „Bid/Buy gegated, Browse offen" behandeln.
-11. **MO Phase-Out vs. Continued-Sync (Section D):** Bleibt Monkey Office Buchhaltungs-System nach Launch? Empfehlung mit OfficeConnect: **Continued-Sync** dauerhaft, kein Phase-Out-Druck mehr.
-12. **MO Sync-Richtung:** Read-Only (MO → vod-auctions, Tag 1) ist klarer Default. Bidirectional (Auctions → MO Rechnungen, Phase 2) erst wenn Tax-Workflow geklärt ist.
-13. **MO-Version + OfficeConnect-Lizenz (Section D.0.2):** Robin beantragt Lizenz selbst online. MO-Version per Remote-Session mit Frank ermitteln. Frank hat **keine** technische Antwort-Kompetenz — Discovery muss von Robin geleitet werden.
-14. **Tailscale-Setup auf MO-Mac:** Robin koordiniert Remote-Session (30-60min, kombiniert mit MO-Version-Check + OfficeConnect-Install). Bootstrap analog zum existierenden `frank-macbook-setup/install.sh`-Pattern.
-15. **MO Marketing-Opt-In Datenpunkt:** Hat MO REWE ein Newsletter-Consent-Feld pro Kunde? Falls ja: muss mit-synced werden (DSGVO-relevant, RSE-78-Scope).
-16. **MO Article-Number-Mapping:** Können MO-`Artikelnummer` 1:1 auf unsere `Release.article_number` (Format `VOD-XXXXX`) gemapped werden? Wenn ja: Order-Items bekommen FK auf Release-Tabelle.
-17. **OfficeConnect-Doku detaillierte Endpoint-Liste:** Müssen wir aus der Live-Doku (`monkey-office.de/doc/Start.html`) extrahieren — Endpoint-Map, Pagination, Filter-Syntax, Webhook-Support. Sprint D-Prep blocker.
+**Section-D-bezogene Decisions (deferred — werden geklärt wenn Section D aufgenommen wird):**
+
+11. **MO Phase-Out vs. Continued-Sync:** Empfehlung Continued-Sync dauerhaft mit OfficeConnect, aber Klärung erst bei Section-D-Pickup.
+12. **MO Sync-Richtung:** Read-Only Tag 1, Bidirectional als Phase 3.
+13. **MO-Version + OfficeConnect-Lizenz:** Robin beantragt Lizenz online + ermittelt MO-Version per Remote-Session mit Frank. Erst relevant bei D-Pickup.
+14. **Tailscale-Setup auf MO-Mac:** Robin koordiniert Remote-Session. Erst relevant bei D-Pickup.
+15. **MO Marketing-Opt-In Datenpunkt:** Newsletter-Consent-Feld in MO? DSGVO-relevant, RSE-78-Scope. Klären bei D-Pickup.
+16. **MO Article-Number-Mapping:** MO-`Artikelnummer` → `Release.article_number` (`VOD-XXXXX`)? Klären bei D-Pickup via Test-Pull.
+17. **OfficeConnect-Doku detaillierte Endpoint-Liste:** Aus Live-Doku extrahieren. Sprint D-Prep blocker, aber irrelevant solange D deferred.
 
 ---
 
@@ -1612,16 +1619,18 @@ Vor dem ersten Production-Import:
 
 ---
 
-**Vorgeschlagener nächster Schritt — Owner ist Robin, Frank ist nur passiver Mitwirkender (siehe D.0.4):**
+**Vorgeschlagener nächster Schritt:**
 
-1. **Sofort (Robin selbst, ~15min, Lead-Time-kritisch):** OfficeConnect-Lizenz im prosaldo-Online-Shop beantragen. Lizenznummer in 1Password speichern. → 1-3 Tage E-Mail-Bestätigung läuft im Hintergrund.
-2. **Diese Woche (Robin koordiniert):** 30-60min Remote-Session mit Frank vereinbaren:
-   - macOS Screen-Sharing oder Zoom mit Bildschirm-Teilen
-   - Frank klickt: „Über MonKey Office" → Robin notiert MO-Version
-   - Robin checkt Tailscale-Status, ggf. installiert via existierendem `frank-macbook-setup/install.sh`-Pattern
-   - Sobald Lizenz da: OfficeConnect installieren, Test-`curl` von Frank's Mac + Robin's Mac (über Tailscale)
-3. **Parallel:** Sprint C1 (rc52.0-rc52.3) als ersten Workstream in `docs/TODO.md` aufnehmen. C.1-Migration vorbereiten + auf Supabase-Branch oder lokal smoke-testen.
-4. **Parallel zu C1, sobald D0 grünes Licht gibt:** Sprint D-Prep — OfficeConnect-Doku (`monkey-office.de/doc/Start.html`) lesen, Endpoint-Map erstellen, `lib/monkey-office.ts` HTTP-Client bauen.
-5. **Parallel:** Anwalt-Tickets (Re-DOI Brevo List 5, AGB, MO-Marketing-Consent-Übertragung, AVV intern für vod-records ↔ vod-auctions Datenfluss) zu RSE-78 ergänzen — die brauchen Lead-Time und blockieren Wave 1.
+1. **Diese Woche:** Sprint C1 (rc52.0-rc52.3) als ersten Workstream in `docs/TODO.md` aufnehmen. C.1-Migration vorbereiten + auf Supabase-Branch oder lokal smoke-testen.
+2. **Parallel:** Anwalt-Tickets (Re-DOI Brevo List 5, AGB) zu RSE-78 ergänzen — die brauchen Lead-Time und blockieren Wave 1.
+3. **Nach C1:** Sprint A1 + A2 — Tape-Mag-Bestand sichtbar im Admin + Forgot-Password als Reaktivierungs-Pfad.
+4. **Nach C2:** Wave 1 GO — kuratiert auf die Top-Spender aus `customers`-Tabelle (4.465 Käufer aus tape-mag-Website-Bestand).
 
-**Owner-Klarstellung (wichtig):** Frank ist Vinyl-Operator (Inventur, POS, Versand) — keine MO-/Netzwerk-Konfigurations-Kompetenzen. Alle Discovery- und Setup-Tasks sind Robin-owned. Frank's Beitrag = 30-60min Bildschirm-Sharing + Bestätigung von 1-2 Stichproben.
+**Section D (Monkey Office Sync) ⏸️ deferred 2026-04-25.** Pickup erst wenn:
+- Top-Spender-Reports merklich unvollständig wirken (= reine Tape-Mag-Sicht reicht nicht), ODER
+- Marketing strategisch entscheidet dass MO-Offline-Kunden ins CRM gehören, ODER
+- MO-Phase-Out konkret wird (langfristige strategische Entscheidung)
+
+Wenn der Pickup kommt: Section D ist vollständig dokumentiert (D.0-D.11), Robin startet bei D.0.2 Schritt 1 (Lizenz-Antrag).
+
+**Owner-Klarstellung:** Frank ist Vinyl-Operator (Inventur, POS, Versand) — wird in Phase 1 nicht aktiv eingebunden außer bei der Stub-VIP-Threshold-Frage (B.3 Open Decision) und der Wave-1-Strategie-Bestätigung. Bei späterem D-Pickup: 30-60min Remote-Session mit Robin als Owner.
