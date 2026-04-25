@@ -1034,32 +1034,72 @@ Vor Wave-1-Sendung:
 
 **Wichtige Annahme:** Monkey Office bleibt **vorerst** das Buchhaltungs-Tool für vod-records (GoBD-Konformität, Steuerberater-Anbindung, Rechnungslegung). Diese Section beschreibt zunächst einen **One-Shot-Historischen-Import** plus optional einen Continued-Sync. Migration-aus-MO-heraus ist ein separater strategischer Workstream und nicht Scope dieses Plans.
 
-### D.0 Voraussetzung — Klärungs-Block (vor jeder Code-Arbeit)
+### D.0 Voraussetzung — Discovery-Plan (vor jeder Code-Arbeit)
 
-**Update 2026-04-25:** Robin hat OfficeConnect identifiziert (siehe D.1.1) — das **ist** die offizielle MO-API. Pfad 4 ist damit konkret realisierbar geworden, Pfade 1-3 entfallen für den Hauptweg. D.0 reduziert sich auf wenige zielgerichtete Fragen.
+**Update 2026-04-25:** Robin hat OfficeConnect identifiziert (siehe D.1.1) — das **ist** die offizielle MO-API. Pfad 4 ist damit konkret realisierbar, Pfade 1-3 entfallen für den Hauptweg.
 
-**OfficeConnect-spezifisch (Frank klärt am MO-PC):**
+**Wichtige Annahme korrigiert (2026-04-25):** Frank ist **nicht** der technische Ansprechpartner für diese Klärungen. Frank ist Vinyl-Operator (Inventur, POS, Versand) — keine technischen MO-/Netzwerk-Konfigurations-Kompetenzen. **Robin macht Discovery selbst** über folgende Wege.
 
-1. **Welche MO REWE Version läuft auf Franks PC?** OfficeConnect-Version-Match ist Pflicht (z.B. MO 23.x ↔ Connect 23.1.0). Wenn die laufende MO-Installation älter ist, brauchen wir entweder ein MO-Upgrade oder Pfad 1 (CSV) als Fallback.
-2. **macOS oder Windows?** OfficeConnect läuft auf beiden, aber Setup-Pfad ist anders (DMG vs. ZIP).
-3. **Lizenznummer-Status:** OfficeConnect ist kostenlos, braucht aber eine Registrierung im prosaldo-Online-Shop (= „persönliche Lizenznummer"). Hat Frank/Robin die schon, oder müssen wir sie zuerst beantragen? Lead-Time?
-4. **cubeSQL-Network-Setup:** OfficeConnect spricht mit MO über cubeSQL-Server (eingebettet in MO). Default-Port? Erreichbar nur lokal (`127.0.0.1`) oder kann der Server auf LAN-IP lauschen? Tunnel von VPS nötig?
-5. **MO-PC Uptime:** Läuft der MO-PC 24/7 oder schaltet Frank ihn abends aus? Beeinflusst Sync-Strategie (Live-Sync braucht 24/7 vs. Daily-Batch reicht bei Geschäftszeiten).
-6. **Marketing-Opt-In Feld:** Hat MO REWE ein dediziertes Feld für Newsletter-Consent pro Kunde? (Falls ja, muss das mit-importiert werden — DSGVO-relevant)
+#### D.0.1 Wer kann was beantworten
 
-**Datenmenge (für Performance-Planung):**
-7. Wie viele Kunden sind in MO REWE? (Erwartung: 5k-20k, mehr als die 7.890 Tape-Mag-Website-Käufer weil Offline-Kanäle dazukommen)
-8. Wie viele Rechnungen / Orders insgesamt? Über welchen Zeitraum? (Tape-Mag-Website-Daten gehen 2013-2026)
+| Frage | Wer kann's beantworten | Wie |
+|---|---|---|
+| MO-Version | **Robin via Remote-Zugriff** | Tailscale + Screen-Sharing-Session mit Frank (15min, Robin guidet, Frank klickt) ODER Frank schickt Screenshot vom „Über MonKey Office"-Dialog |
+| Plattform (macOS/Windows) | **Robin** | Bekannt, Frank hat Mac (siehe `frank-macbook-setup/` im Repo) |
+| OfficeConnect-Lizenznummer | **Robin selbst** | Im prosaldo-Online-Shop registrieren — `https://www.prosaldo.de/shop` (oder `monkey-office.de/shop`). Ist nicht Frank-relevant, ist eine reine Online-Registrierung. |
+| cubeSQL-Network-Setup | **Robin via Remote-Zugriff** | Nach OfficeConnect-Install: `lsof -iTCP -sTCP:LISTEN` auf MO-Mac → liefert Port. Default cubeSQL = 4430, Connect-API üblich auf 8082. Verifiziert per `curl` von einem zweiten Mac im selben LAN/Tailnet. |
+| MO-PC Uptime | **Robin/Frank** (operativ) | Frank's Mac läuft Geschäftszeiten ~10-19 Uhr. **Sync-Strategie nicht 24/7 — Daily-Batch oder Hourly-Pull genügt.** Wenn der MO-PC offline ist, holen wir beim nächsten Run nach (Polling-Delta-Pattern). |
+| Marketing-Opt-In Feld in MO | **Robin via OfficeConnect-Doku + Test-Pull** | Sobald Connect läuft: ein Sample-Customer pullen, JSON-Felder inspizieren. Doku unter `monkey-office.de/doc/Start.html`. |
+| Datenmenge (Customer-/Invoice-Zahlen) | **Robin via Test-Pull** | Connect-API `GET /addresses?count=true` (genaue Endpoint-Syntax aus Doku). Kein Frank-Input nötig. |
+| Email-Pflichtfeld in MO | **Robin via Test-Pull** | Sample-Customer ohne Email finden — `WHERE email IS NULL` Filter über Connect. |
+| Tape-Mag-Cross-Reference in MO | **Robin via Test-Pull + Frank-Bestätigung** | Robin sucht ein Field wie „Kundennr-Online" o.ä. im Customer-JSON. Wenn vorhanden: ein Stichprobe nehmen, Frank bestätigt ob das echte Cross-Refs sind. **Falls nicht vorhanden:** Email-Match ist die einzige Bridge — kein Beinbruch, der Tape-Mag-DB-Match in A.0 funktioniert auch so. |
+| Adress-Struktur (1 oder mehrere pro Kunde) | **Robin via Test-Pull** | JSON-Inspektion. |
+| Deaktivierte Kunden in MO | **Robin via Test-Pull** | Connect-Filter auf Status-Feld, falls vorhanden. |
+| Phase-Out vs. Continued-Sync | **Robin (strategisch)** | Empfehlung: **Continued-Sync** für mind. 1 Jahr. Frank's Steuerberater-Workflow soll sich nicht ändern — DSGVO-konformer CRM-Spiegel reicht. |
+| Sync-Richtung initial | **Robin (strategisch)** | Empfehlung: **Read-Only** Tag 1, Bidirectional Phase 2 nach Wave 1+ Erfahrung. |
 
-**Datenqualität:**
-9. Gibt es Kunden in MO **ohne** Email (Walk-in / Telefon-Bestellung)? Wie groß ist dieser Anteil?
-10. Gibt es Cross-Reference zwischen MO-Kundennummer und tape-mag-Website-Customer-ID? (Wenn ja: in welchem Feld? Falls nein: Email-Match ist alleinige Bridge.)
-11. Wie sind Adressen modelliert? Eine pro Kunde oder Liefer- vs. Rechnungsadresse separat?
-12. Was ist mit deaktivierten/gelöschten Kunden in MO? GoBD verbietet hartes Delete — MO archiviert wahrscheinlich. Mit oder ohne Marker importieren?
+#### D.0.2 Konkrete Schritte (Robin-Action-List)
 
-**Strategie:**
-13. **Phase-Out oder Sync?** Bleibt MO Source-of-Truth (Buchhaltung) und vod-auctions.com ist CRM-Spiegel + neuer Verkaufskanal? ODER soll vod-auctions.com nach 1-2 Jahren MO komplett ersetzen (eigener Rechnungsbestand + DATEV-Export für Steuerberater)?
-14. **Sync-Richtung initial:** Read-Only `MO → vod-auctions.com` (CRM-Spiegel) oder Bidirectional inkl. `vod-auctions.com → MO` (Auktions-Verkäufe als Rechnungen ins MO pushen)?
+**Schritt 1 — OfficeConnect-Lizenz beantragen (15min, today):**
+- Zu `https://www.prosaldo.de` (oder `monkey-office.de/shop`) gehen
+- Kostenloses Connect-Produkt registrieren mit `frank@vod-records.com` ODER `robin@seckler.de`
+- Lizenznummer in 1Password speichern unter „MonKey Office Connect Lizenz"
+- Erwartete Lead-Time: 1-3 Tage E-Mail-Bestätigung
+
+**Schritt 2 — Frank's MO-Version remote ermitteln (15min, today):**
+- Per Tailscale + macOS Screen-Sharing oder Zoom-Call mit Frank
+- Frank klickt: MonKey Office → Menü → „Über MonKey Office" / „About"
+- Robin macht Screenshot, notiert Version (z.B. „24.1.2 REWE")
+- Versions-Match-Tabelle prüfen (Connect-Hauptversion = MO-Hauptversion)
+
+**Schritt 3 — Tailscale auf MO-Mac sicherstellen (15min, today):**
+- Robin checkt im Tailscale-Admin-Console (`https://login.tailscale.com/admin/machines`) ob ein Device „frank-mac" o.ä. existiert
+- Falls **nicht:** Remote-Session mit Frank, `brew install --cask tailscale` + Tailscale-Login. Existing `frank-macbook-setup/`-Skripte erweitern um Tailscale-Bootstrap (analog Print-Bridge-Install).
+- Falls **ja:** Hostname notieren (`frank-mac.tailnet.ts.net`)
+
+**Schritt 4 — OfficeConnect installieren + Test-Pull (1h, sobald Lizenz da):**
+- Robin per Screen-Sharing auf Frank's Mac, OfficeConnect DMG installieren
+- Lizenznummer eingeben, MO REWE muss laufen
+- `curl -X GET https://localhost:8082/addresses?limit=1 -H "Auth: <license>"` (genaue Syntax aus Doku) — bestätigt API live ist
+- Von **Robin's Mac** (im selben Tailnet) wiederholt — bestätigt Remote-Erreichbarkeit
+- **Erst danach** macht D-Prep / D1+ Sinn
+
+#### D.0.3 Was wenn Schritt 2 zeigt: MO-Version zu alt für Connect 23+?
+
+- Pfad-A: MO upgraden (kostenpflichtig, Steuerberater muss Workflow re-validieren — kann blockieren)
+- Pfad-B: Pfad 1 (CSV-One-Shot) als Brücke für 1 Jahr, MO-Upgrade später ohne Zeitdruck
+- Pfad-C: ältere OfficeConnect-Version, falls existiert (zu prüfen)
+
+**Empfehlung: Pfad-B** — wir haben dann eine Stand-Snapshot-Migration, wartbar im Continued-Sync-Modell ab MO-Upgrade. Macht Plan robust gegen MO-Versions-Surprise.
+
+#### D.0.4 Frank-Bedarf — minimal
+
+Operativ braucht Frank für D.0 nur eine Sache: **Screen-Sharing-Termin (30-60min) zu vereinbaren**. Robin macht alles andere selbst. Frank's Inputs:
+- Screen-Share öffnen
+- Im Hintergrund weiterarbeiten
+- Bei Fragen Frank's Bestätigung holen („Ist das die Kundennummer auf Tape-Mag-Bestellungen?" etc.)
+
+Frank ist **nicht** Owner der Discovery, sondern Mitwirkender für 1-2 Stichproben. Robin koordiniert + dokumentiert.
 
 ### D.1 Implementierungs-Pfade — eine Wahl je nach D.0
 
@@ -1156,11 +1196,11 @@ Quelle: <https://www.monkey-office.de/products/officeconnect/index.php>
 ```
 
 **Network-Bridge zur Frage „wie kommt VPS an MO-PC":**
-- **Option α (empfohlen):** **Tailscale**. Frank installiert Tailscale-Client auf MO-PC, VPS hat schon Tailscale aus Stromportal-Projekt. MO-PC bekommt 100.x.x.x-IP, VPS adressiert OfficeConnect direkt über Tailscale-Hostname. Kein Port-Forwarding, keine öffentliche IP, keine Firewall-Regel nötig. Verschlüsselter Tunnel out-of-the-box.
-- **Option β:** OfficeConnect lokal auf MO-PC, **VPN-Cron-Pull**: Sync-Script läuft auf MO-PC selbst (Mac LaunchAgent oder Windows-Scheduler), pushed Deltas an VPS-Endpoint. Macht VPS unabhängig vom MO-PC-Erreichbarkeit, aber Frank muss den Job am Laufen halten.
+- **Option α (empfohlen):** **Tailscale**. **Robin** installiert Tailscale-Client auf MO-Mac (per Remote-Session mit Frank — analog zum bestehenden `frank-macbook-setup/`-Bootstrap-Pattern). VPS hat schon Tailscale aus Stromportal-Projekt. MO-Mac bekommt 100.x.x.x-IP, VPS adressiert OfficeConnect direkt über Tailscale-Hostname. Kein Port-Forwarding, keine öffentliche IP, keine Firewall-Regel nötig. Verschlüsselter Tunnel out-of-the-box.
+- **Option β:** OfficeConnect lokal auf MO-Mac, **VPN-Cron-Pull**: Sync-Script läuft auf MO-Mac selbst (LaunchAgent), pushed Deltas an VPS-Endpoint. Macht VPS unabhängig vom MO-Mac-Erreichbarkeit, aber LaunchAgent läuft im Hintergrund — Frank muss damit nicht aktiv interagieren (analog Print-Bridge auf Frank's MBA).
 - **Option γ:** ngrok / Cloudflare-Tunnel als Reverse-Proxy. Zusätzliche Service-Abhängigkeit, ich würde Tailscale bevorzugen (existiert schon im Stack).
 
-**Empfehlung:** **Option α mit Tailscale.** Frank's MO-PC ist eh schon im Tailscale-Netz (oder kann es trivial werden). Sync läuft als Cron auf VPS, ruft `https://franks-mac.tailnet:port/connect/...` ab.
+**Empfehlung:** **Option α mit Tailscale.** Robin koordiniert Setup analog zum existierenden `frank-macbook-setup/install.sh`-Pattern (15-30min Remote-Session). Sync läuft als Cron auf VPS, ruft `https://frank-mac.tailnet:port/connect/...` ab.
 
 #### D.1.3 Sync-Strategie (Pfad 4)
 
@@ -1434,8 +1474,8 @@ Mit OfficeConnect ist Continued-Sync **deutlich attraktiver als vorher gedacht**
 
 | Phase | Aufwand | Risiko | Mitigation |
 |---|---:|---|---|
-| D.0 Klärungs-Block (1 Termin mit Frank am MO-PC, MO-Version + Lizenz prüfen) | 0.5 Tag | OfficeConnect nicht installiert oder MO-Version zu alt | Lizenz-Beantragung läuft 1-3 Tage parallel; Pfade 1-2 als Fallback |
-| Tailscale-Setup auf MO-PC + Connect-Auth-Test (curl) | 0.5 Tag | Frank hat keinen Admin-Zugriff auf MO-PC | Robin koordiniert Termin |
+| D.0 Discovery (Robin selbst — Lizenz beantragen + Remote-Session mit Frank für MO-Version-Check + Tailscale-Setup) | 0.5 Tag + 1-3 Tage Lizenz-Lead-Time | OfficeConnect nicht installiert oder MO-Version zu alt | Pfad 1 (CSV) als Fallback dokumentiert in D.0.3 |
+| Tailscale-Setup auf MO-Mac + Connect-Auth-Test (curl) | 0.5 Tag (in derselben Remote-Session) | Frank's Mac hat Admin-Restriction | Bootstrap analog zum existierenden `frank-macbook-setup/`-Pattern |
 | OfficeConnect-Doku lesen + Endpoint-Map erstellen (Customers, Invoices, Items) | 1 Tag | Doku unvollständig | Sample-Probe mit 10 Records pro Endpoint |
 | `backend/src/lib/monkey-office.ts` HTTP-Client + Auth-Wrapper | 1 Tag | — | Type-Safe TS-Wrapper mit Retry-Logic |
 | D.2 Migration (Schema) | 1h | — | Idempotent, additive |
@@ -1470,7 +1510,7 @@ D wird **nach** Section A geschoben (A liefert die Customer-Bridge-Infrastruktur
 **Aktualisierte Gesamt-Dauer Phase 1 (vor Wave 1, ohne MO-Import):** ~9 Tage Code (C+A) = **~2 Arbeitswochen**.
 **Phase 1.5 (vor Wave 2 mit OfficeConnect-Sync):** + ~7 Tage MO (D-Prep + D1-D3) = **~3 Arbeitswochen gesamt**.
 
-**Tip:** D-Prep + D0 können **vollständig parallel** zu allen anderen Sprints laufen. Frank's Klärungs-Block + Lizenz-Beantragung blockieren gar nichts.
+**Tip:** D-Prep + D0 können **vollständig parallel** zu allen anderen Sprints laufen. Robin's Lizenz-Beantragung + Remote-Session mit Frank (1× 30-60min) blockieren gar nichts.
 
 ### D.10 Was Section D NICHT macht
 
@@ -1513,7 +1553,7 @@ Vor dem ersten Production-Import:
 
 **Begründung:**
 - **C ist Launch-Blocker.** Ohne `is_invited_user`-Server-Enforcement (C.2) sind die Bid/Buy-Endpoints nicht sicher gegen einen User der via Self-Register reinkommt. Das **muss** vor RSE-294 (Erste öffentliche Auktionen) live sein.
-- **D0 (Klärungs-Block für MO-Import) parallel.** Lange Lead-Time (Frank muss am MO-PC Sample-Export ziehen). Sollte sofort starten, blockiert aber nichts.
+- **D0 (Discovery für MO-Import) parallel.** Lange Lead-Time (OfficeConnect-Lizenz-Beantragung 1-3 Tage E-Mail-Bestätigung). Robin macht Discovery selbst — eine Remote-Session mit Frank (30-60min) für Tailscale-Setup + MO-Version-Check, alles andere ist Online-Registrierung + Test-Pulls. Sollte sofort starten, blockiert nichts.
 - **A liefert sofort Wert für Wave 1.** Wenn C live ist und Wave 1 die Top-100 nach `legacy_customers.total_spent` ansprechen soll, brauchen wir A.0+A.1 um diese überhaupt im Admin sehen + sortieren zu können. Forgot-Password-Flow (A.5.3) und Bridge-Helper (A.5.7) liefern den kanonischen Reaktivierungs-Pfad — kritisch für Wave-1-Conversion.
 - **D1+D2 (MO-Customer + Order-Import) nach A.** A liefert die Customer-Bridge-Infrastruktur (`metadata.source`, `monkey_office_customer_id`-Spalte etc.), D nutzt sie. Wave 1 kann bereits auf reine Tape-Mag-Daten gefahren werden — MO-Import erweitert die Top-Spender-Liste um Offline-Verkäufe für Wave 2+.
 - **B kann auf unbestimmte Zeit warten.** Option A's `metadata.legacy_customer_id`-Pattern ist **vorwärtskompatibel** mit B's Backfill-Schema. Wenn nach 4 Wochen Live klar wird dass „CRM zeigt €0 statt €X" zu schmerzhaft ist, kann B nachgezogen werden ohne A/D-Code zu ändern.
@@ -1522,7 +1562,7 @@ Vor dem ersten Production-Import:
 
 | Sprint | RC-Range | Inhalt | Aufwand |
 |---|---|---|---|
-| **Sprint D0** | parallel | D.0 Klärungs-Block (MO-Version, Tailscale, OfficeConnect-Lizenz beantragen) | 0.5 Tag + 1-3 Tage Lizenz-Lead-Time |
+| **Sprint D0** | parallel | D.0 Discovery (Robin selbst): Lizenz-Antrag + Remote-Session mit Frank für MO-Version + Tailscale + Connect-Install + erster Test-Pull | 0.5 Tag + 1-3 Tage Lizenz-Lead-Time |
 | **Sprint D-Prep** | parallel zu A1 | OfficeConnect-Doku, Endpoint-Map, `lib/monkey-office.ts` HTTP-Client | 2 Tage |
 | Sprint C1 | rc52.0–rc52.3 | C.1 Migration, C.2 Access-Gate, C.3 Redeem-Flag, C.6 Rate-Limit | ~3 Tage |
 | Sprint A1 | rc52.4–rc52.6 | A.0 Customers-Dedup, A.1 Legacy-API, A.2 POS-Search-UNION | ~2 Tage |
@@ -1555,8 +1595,8 @@ Vor dem ersten Production-Import:
 10. **`platform_mode='preview'`-Use-Case:** Soft-Open (Browse + Apply, kein Bid) — wollen wir das überhaupt? Wenn ja, muss C.2 Access-Gate auch `'preview'` als „Bid/Buy gegated, Browse offen" behandeln.
 11. **MO Phase-Out vs. Continued-Sync (Section D):** Bleibt Monkey Office Buchhaltungs-System nach Launch? Empfehlung mit OfficeConnect: **Continued-Sync** dauerhaft, kein Phase-Out-Druck mehr.
 12. **MO Sync-Richtung:** Read-Only (MO → vod-auctions, Tag 1) ist klarer Default. Bidirectional (Auctions → MO Rechnungen, Phase 2) erst wenn Tax-Workflow geklärt ist.
-13. **MO-Version + OfficeConnect-Lizenz (Section D.0):** Welche MO-Version läuft, ist Connect-kompatibel, wer beantragt die Lizenz? Lead-Time prüfen.
-14. **Tailscale-Setup auf MO-PC:** Hat Frank's MO-Mac/PC schon Tailscale? Falls nein: Robin koordiniert Termin (15min Setup).
+13. **MO-Version + OfficeConnect-Lizenz (Section D.0.2):** Robin beantragt Lizenz selbst online. MO-Version per Remote-Session mit Frank ermitteln. Frank hat **keine** technische Antwort-Kompetenz — Discovery muss von Robin geleitet werden.
+14. **Tailscale-Setup auf MO-Mac:** Robin koordiniert Remote-Session (30-60min, kombiniert mit MO-Version-Check + OfficeConnect-Install). Bootstrap analog zum existierenden `frank-macbook-setup/install.sh`-Pattern.
 15. **MO Marketing-Opt-In Datenpunkt:** Hat MO REWE ein Newsletter-Consent-Feld pro Kunde? Falls ja: muss mit-synced werden (DSGVO-relevant, RSE-78-Scope).
 16. **MO Article-Number-Mapping:** Können MO-`Artikelnummer` 1:1 auf unsere `Release.article_number` (Format `VOD-XXXXX`) gemapped werden? Wenn ja: Order-Items bekommen FK auf Release-Tabelle.
 17. **OfficeConnect-Doku detaillierte Endpoint-Liste:** Müssen wir aus der Live-Doku (`monkey-office.de/doc/Start.html`) extrahieren — Endpoint-Map, Pagination, Filter-Syntax, Webhook-Support. Sprint D-Prep blocker.
@@ -1572,11 +1612,16 @@ Vor dem ersten Production-Import:
 
 ---
 
-**Vorgeschlagener nächster Schritt:**
-1. **Sofort (parallel, Lead-Time-kritisch):** Sprint D0 starten — Frank fragen:
-   - Welche MO REWE Version läuft auf dem PC? (für OfficeConnect-Versions-Match)
-   - Ist Tailscale schon auf dem MO-PC oder müssen wir es installieren?
-   - Wer beantragt die OfficeConnect-Lizenz im prosaldo-Online-Shop? (kostenlos, aber Registrierung dauert ggf. 1-3 Tage)
-2. **Diese Woche:** Sprint C1 (rc52.0-rc52.3) als ersten Workstream in `docs/TODO.md` aufnehmen. C.1-Migration vorbereiten + auf Supabase-Branch oder lokal smoke-testen.
-3. **Parallel zu C1, sobald D0 grünes Licht gibt:** Sprint D-Prep — OfficeConnect-Doku lesen, Endpoint-Map erstellen, `lib/monkey-office.ts` HTTP-Client bauen.
-4. **Parallel:** Anwalt-Tickets (Re-DOI Brevo List 5, AGB, MO-Marketing-Consent-Übertragung, AVV intern für vod-records ↔ vod-auctions Datenfluss) zu RSE-78 ergänzen — die brauchen Lead-Time und blockieren Wave 1.
+**Vorgeschlagener nächster Schritt — Owner ist Robin, Frank ist nur passiver Mitwirkender (siehe D.0.4):**
+
+1. **Sofort (Robin selbst, ~15min, Lead-Time-kritisch):** OfficeConnect-Lizenz im prosaldo-Online-Shop beantragen. Lizenznummer in 1Password speichern. → 1-3 Tage E-Mail-Bestätigung läuft im Hintergrund.
+2. **Diese Woche (Robin koordiniert):** 30-60min Remote-Session mit Frank vereinbaren:
+   - macOS Screen-Sharing oder Zoom mit Bildschirm-Teilen
+   - Frank klickt: „Über MonKey Office" → Robin notiert MO-Version
+   - Robin checkt Tailscale-Status, ggf. installiert via existierendem `frank-macbook-setup/install.sh`-Pattern
+   - Sobald Lizenz da: OfficeConnect installieren, Test-`curl` von Frank's Mac + Robin's Mac (über Tailscale)
+3. **Parallel:** Sprint C1 (rc52.0-rc52.3) als ersten Workstream in `docs/TODO.md` aufnehmen. C.1-Migration vorbereiten + auf Supabase-Branch oder lokal smoke-testen.
+4. **Parallel zu C1, sobald D0 grünes Licht gibt:** Sprint D-Prep — OfficeConnect-Doku (`monkey-office.de/doc/Start.html`) lesen, Endpoint-Map erstellen, `lib/monkey-office.ts` HTTP-Client bauen.
+5. **Parallel:** Anwalt-Tickets (Re-DOI Brevo List 5, AGB, MO-Marketing-Consent-Übertragung, AVV intern für vod-records ↔ vod-auctions Datenfluss) zu RSE-78 ergänzen — die brauchen Lead-Time und blockieren Wave 1.
+
+**Owner-Klarstellung (wichtig):** Frank ist Vinyl-Operator (Inventur, POS, Versand) — keine MO-/Netzwerk-Konfigurations-Kompetenzen. Alle Discovery- und Setup-Tasks sind Robin-owned. Frank's Beitrag = 30-60min Bildschirm-Sharing + Bestätigung von 1-2 Stichproben.
