@@ -107,6 +107,7 @@ export async function GET(
           "Release.coverImage",
           "Release.shop_price",
           "Release.format",
+      "Release.format_v2",
           "Artist.name as artist_name"
         )
         .leftJoin("Artist", "Release.artistId", "Artist.id")
@@ -128,6 +129,7 @@ export async function GET(
           "Release.coverImage",
           "Release.shop_price",
           "Release.format",
+      "Release.format_v2",
           "Artist.name as artist_name"
         )
         .leftJoin("Artist", "Release.artistId", "Artist.id")
@@ -149,6 +151,7 @@ export async function GET(
           "Release.coverImage",
           "Release.shop_price",
           "Release.format",
+      "Release.format_v2",
           "Artist.name as artist_name"
         )
         .leftJoin("Artist", "Release.artistId", "Artist.id")

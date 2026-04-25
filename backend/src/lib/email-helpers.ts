@@ -2,6 +2,7 @@ import { Knex } from "knex"
 import { createHmac } from "crypto"
 import { sendEmailWithLog, APP_URL } from "./email"
 import { getTrackingUrl } from "./tracking"
+import { displayFormat, isValidFormat } from "./format-mapping"
 import { welcomeEmail } from "../emails/welcome"
 import { outbidEmail } from "../emails/outbid"
 import { bidWonEmail } from "../emails/bid-won"
@@ -545,6 +546,7 @@ export async function sendWatchlistReminderEmail(
       "Release.title",
       "Release.coverImage",
       "Release.format",
+      "Release.format_v2",
       "Release.year",
       "Artist.name as artist_name"
     )
@@ -571,7 +573,7 @@ export async function sendWatchlistReminderEmail(
     coverImage,
     lotNumber: blockItem.lot_number || undefined,
     currentPrice: Number(blockItem.current_price || blockItem.start_price || 0),
-    format: release.format || undefined,
+    format: (release.format_v2 && isValidFormat(release.format_v2) ? displayFormat(release.format_v2) : release.format) || undefined,
     year: release.year || undefined,
     bidUrl,
     customerId: customer.id,

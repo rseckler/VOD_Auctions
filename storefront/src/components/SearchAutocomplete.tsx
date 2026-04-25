@@ -5,12 +5,13 @@ import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { Search, X, Disc3 } from "lucide-react"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { displayFormat } from "@/lib/format-display"
 
 const MEDUSA_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
 const PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
 
 type SuggestResult = {
-  releases: { id: string; title: string; coverImage: string | null; artist_name: string | null; format: string | null; year: number | null }[]
+  releases: { id: string; title: string; coverImage: string | null; artist_name: string | null; format: string | null; format_v2?: string | null; year: number | null }[]
   artists: { name: string; slug: string }[]
   labels: { name: string; slug: string }[]
 }
@@ -142,7 +143,7 @@ export function SearchAutocomplete({ open, onClose }: { open: boolean; onClose: 
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium truncate">{release.title}</p>
                         <p className="text-xs text-muted-foreground truncate">
-                          {release.artist_name}{release.year ? ` · ${release.year}` : ""}{release.format ? ` · ${release.format}` : ""}
+                          {release.artist_name}{release.year ? ` · ${release.year}` : ""}{release.format_v2 ? ` · ${displayFormat(release.format_v2)}` : (release.format ? ` · ${release.format}` : "")}
                         </p>
                       </div>
                     </button>

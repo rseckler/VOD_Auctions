@@ -45,6 +45,8 @@ export type Release = {
   format_id?: number | null
   format_name?: string | null
   format_group?: string | null
+  format_v2?: string | null
+  format_descriptors?: string[] | null
   product_category?: string | null
   year: number | null
   country: string | null
@@ -210,6 +212,7 @@ export type CartItem = {
   title: string
   coverImage: string | null
   format: string
+  format_v2?: string | null
   sale_mode: string | null
   shop_price: number | null
   auction_status: string | null

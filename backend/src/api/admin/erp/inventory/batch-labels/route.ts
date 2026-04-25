@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { requireFeatureFlag } from "../../../../../lib/inventory"
 import { generateBatchLabelsPdf, type LabelData } from "../../../../../lib/barcode-label"
+import { displayFormat, isValidFormat } from "../../../../../lib/format-mapping"
 
 /**
  * GET /admin/erp/inventory/batch-labels
@@ -46,6 +47,7 @@ export async function GET(
       "ii.exemplar_price",
       "r.title",
       "r.format",
+      "r.format_v2",
       "r.year",
       "r.country",
       "r.legacy_condition",
@@ -77,7 +79,7 @@ export async function GET(
       artistName: item.artist_name || "Unknown",
       title: item.title || "Untitled",
       labelName: item.label_name || null,
-      format: item.format || "",
+      format: (item.format_v2 && isValidFormat(item.format_v2) ? displayFormat(item.format_v2) : item.format) || "",
       country: item.country || null,
       condition: effectiveCondition,
       year: item.year,

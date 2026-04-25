@@ -3,12 +3,14 @@
 import Image from "next/image"
 import Link from "next/link"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { pickFormatLabel } from "@/lib/format-display"
 
 type RelatedRelease = {
   id: string
   title: string
   slug: string
   format: string | null
+  format_v2?: string | null
   year: number | null
   country: string | null
   coverImage: string | null
@@ -155,7 +157,7 @@ function ReleaseTable({ releases }: { releases: RelatedRelease[] }) {
             <span
               className={`text-[11px] uppercase tracking-wide font-medium ${FORMAT_COLORS[r.format || ""] || "text-muted-foreground/60"}`}
             >
-              {r.format || "—"}
+              {pickFormatLabel(r as any) || "—"}
             </span>
             {/* Year */}
             <span className="text-xs text-muted-foreground/60 font-mono">

@@ -33,7 +33,7 @@ export async function GET(
       SELECT
         ii.id as inventory_item_id, ii.barcode, ii.copy_number,
         r.id as release_id, r.title, r."coverImage" as cover_image,
-        r.format, r."catalogNumber" as catalog_number, r.legacy_price,
+        r.format, r.format_v2, r."catalogNumber" as catalog_number, r.legacy_price,
         a.name as artist_name
       FROM erp_inventory_item ii
       JOIN "Release" r ON r.id = ii.release_id
@@ -63,6 +63,7 @@ export async function GET(
       title: r.title,
       cover_image: r.cover_image,
       format: r.format,
+      format_v2: r.format_v2,
       catalog_number: r.catalog_number,
       legacy_price: r.legacy_price != null ? Number(r.legacy_price) : null,
       artist_name: r.artist_name,

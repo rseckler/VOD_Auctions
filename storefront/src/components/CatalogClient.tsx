@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { staggerContainer, staggerItem } from "@/lib/motion"
 import { rudderTrack } from "@/lib/rudderstack"
+import { pickFormatLabel } from "@/lib/format-display"
 
 type CatalogRelease = {
   id: string
@@ -19,6 +20,7 @@ type CatalogRelease = {
   format: string
   format_name: string | null
   format_group: string | null
+  format_v2?: string | null
   product_category: string | null
   year: number | null
   country: string | null
@@ -477,9 +479,9 @@ export default function CatalogClient({ releases, total, pages }: CatalogClientP
                   )}
                 </div>
 
-                {(release.format_name || release.format) && (
+                {pickFormatLabel(release as any) && (
                   <span className={`inline-block text-[9px] uppercase tracking-[1px] font-medium mb-0.5 ${FORMAT_COLORS[release.format] ? FORMAT_COLORS[release.format].split(" ").find(c => c.startsWith("text-")) : "text-muted-foreground"}`}>
-                    {release.format_name || release.format}
+                    {pickFormatLabel(release as any)}
                   </span>
                 )}
                 <p className="text-xs text-muted-foreground truncate">

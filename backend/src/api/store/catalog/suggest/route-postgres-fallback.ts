@@ -40,6 +40,7 @@ export async function suggestGetPostgres(
               "Release.title",
               "Release.coverImage",
               "Release.format",
+      "Release.format_v2",
               "Release.year",
               "Artist.name as artist_name",
               "Artist.slug as artist_slug",

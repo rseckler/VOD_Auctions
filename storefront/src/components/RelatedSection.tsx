@@ -4,6 +4,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import type { BlockItem } from "@/types"
+import { pickFormatLabel } from "@/lib/format-display"
 
 type RelatedSectionProps = {
   blockSlug: string
@@ -243,7 +244,7 @@ function ItemTable({
             <span
               className={`text-[11px] uppercase tracking-wide font-medium ${FORMAT_COLORS[item.release?.format || ""] || "text-muted-foreground/60"}`}
             >
-              {item.release?.format || "—"}
+              {(item.release ? pickFormatLabel(item.release as any) : null) || "—"}
             </span>
             {/* Year */}
             <span className="text-xs text-muted-foreground/60 font-mono">

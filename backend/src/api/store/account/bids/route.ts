@@ -54,6 +54,7 @@ export async function GET(
         "Release.title",
         "Release.coverImage",
         "Release.format",
+      "Release.format_v2",
         "Artist.name as artist_name"
       )
       .leftJoin("Artist", "Release.artistId", "Artist.id")

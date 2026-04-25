@@ -10,6 +10,7 @@ import { Heart, Trash2, Disc3, ShoppingCart, Check, AlertTriangle } from "lucide
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { displayFormat } from "@/lib/format-display"
 import { toast } from "sonner"
 
 type SavedItem = {
@@ -19,6 +20,7 @@ type SavedItem = {
   title: string
   coverImage: string | null
   format: string | null
+  format_v2?: string | null
   artist_name: string | null
   sale_mode: string
   shop_price: number | null
@@ -242,7 +244,7 @@ export default function SavedPage() {
                     </span>
                   )}
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {item.format}
+                    {item.format_v2 ? displayFormat(item.format_v2) : item.format}
                     {canBuy ? ` · Available for purchase` : ""}
                   </p>
                 </div>

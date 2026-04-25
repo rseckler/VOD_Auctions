@@ -331,6 +331,7 @@ export interface LegacyReleaseShape {
   press_orga_slug: string | null
   format_name: string | null
   format_group: string | null
+  format_v2: string | null
   effective_price: number | null
   is_purchasable: boolean
   _highlight?: any

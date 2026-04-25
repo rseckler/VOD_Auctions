@@ -28,6 +28,7 @@ export async function GET(
       "Release.title",
       "Release.coverImage",
       "Release.format",
+      "Release.format_v2",
       "Release.sale_mode",
       "Release.shop_price",
       "Release.auction_status",

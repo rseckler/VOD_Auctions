@@ -10,6 +10,7 @@ import { ShoppingCart, Trash2, Disc3, AlertCircle, Heart } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { displayFormat } from "@/lib/format-display"
 import { toast } from "sonner"
 import type { CartItem } from "@/types"
 
@@ -223,7 +224,7 @@ export default function CartPage() {
                   {item.title}
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {item.format} · Direct Purchase
+                  {item.format_v2 ? displayFormat(item.format_v2) : item.format} · Direct Purchase
                 </p>
               </div>
 

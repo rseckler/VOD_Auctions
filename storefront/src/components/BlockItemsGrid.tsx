@@ -11,6 +11,7 @@ import { getToken } from "@/lib/auth"
 import { SaveForLaterButton } from "@/components/SaveForLaterButton"
 import { getTimeUrgency } from "@/lib/time-utils"
 import type { BlockItem } from "@/types"
+import { displayFormat } from "@/lib/format-display"
 
 const FORMAT_COLORS: Record<string, string> = {
   LP: "text-format-vinyl",
@@ -19,6 +20,14 @@ const FORMAT_COLORS: Record<string, string> = {
   "7\"": "text-format-vinyl",
   "10\"": "text-format-vinyl",
   "12\"": "text-format-vinyl",
+}
+
+function formatColorClass(release: { format?: string | null; format_v2?: string | null }): string {
+  const v = (release.format_v2 || release.format || "").toString().toUpperCase()
+  if (v.includes("CD")) return FORMAT_COLORS.CD
+  if (v.includes("CASS") || v.includes("TAPE")) return FORMAT_COLORS.CASSETTE
+  if (v.includes("VINYL") || v.includes("LP") || v.includes("FLEXI") || v.includes("LATHE") || v.includes("ACETATE")) return FORMAT_COLORS.LP
+  return "text-muted-foreground"
 }
 
 type SortOption = "lot" | "price_asc" | "price_desc" | "artist"
@@ -224,9 +233,9 @@ export function BlockItemsGrid({
 
                       {/* Info */}
                       <div className="p-3">
-                        {item.release?.format && (
-                          <span className={`inline-block text-[9px] uppercase tracking-[1px] font-medium mb-1 ${FORMAT_COLORS[item.release.format] || "text-muted-foreground"}`}>
-                            {item.release.format}
+                        {(item.release?.format_v2 || item.release?.format) && (
+                          <span className={`inline-block text-[9px] uppercase tracking-[1px] font-medium mb-1 ${formatColorClass(item.release as any)}`}>
+                            {item.release.format_v2 ? displayFormat(item.release.format_v2) : item.release.format}
                           </span>
                         )}
                         <p className="text-xs text-muted-foreground/60 truncate">
@@ -306,9 +315,9 @@ export function BlockItemsGrid({
 
                       {/* Info */}
                       <div className="p-3">
-                        {item.release?.format && (
-                          <span className={`inline-block text-[9px] uppercase tracking-[1px] font-medium mb-1 ${FORMAT_COLORS[item.release.format] || "text-muted-foreground"}`}>
-                            {item.release.format}
+                        {(item.release?.format_v2 || item.release?.format) && (
+                          <span className={`inline-block text-[9px] uppercase tracking-[1px] font-medium mb-1 ${formatColorClass(item.release as any)}`}>
+                            {item.release.format_v2 ? displayFormat(item.release.format_v2) : item.release.format}
                           </span>
                         )}
                         <p className="text-xs text-muted-foreground/60 truncate">

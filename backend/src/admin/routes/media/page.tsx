@@ -138,6 +138,7 @@ type GalleryRelease = {
   label_name: string | null
   format: string
   format_name: string | null
+  format_v2: string | null
   year: number | null
   coverImage: string
   discogs_lowest_price: number | null
