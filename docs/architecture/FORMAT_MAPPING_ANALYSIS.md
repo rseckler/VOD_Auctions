@@ -1,11 +1,30 @@
 # Format-Mapping Analyse & Migrationsplan
 
-**Status:** Draft v4 (nach Frank-Entscheidungen + Backfill-Dry-Run, 2026-04-25) · **Author:** Claude Opus 4.7
+**Status:** ✅ **PRODUCTION rc51.7 (2026-04-25)** · **Author:** Claude Opus 4.7
 **Begleitdokumente:**
-- `/Users/robin/Downloads/Formate_v4_FINAL.csv` — finale Mapping-Tabelle mit Internal/Display-Spalten
-- `backend/src/lib/format-mapping.ts` — Single-Source-of-Truth (Whitelist + Discogs-Klassifikator)
+- `/Users/robin/Downloads/Formate_v5_FINAL.csv` — finale Frank-Roundtrip-Tabelle mit Internal/Display-Spalten
+- `backend/src/lib/format-mapping.ts` — Single-Source-of-Truth (Whitelist + Discogs-Klassifikator + Display-Mapper)
 - `scripts/format_mapping.py` — Python-Spiegel
-- `scripts/backfill_format_v2_dry_run.py` — Dry-Run-Skript
+- `storefront/src/lib/format-display.ts` — Storefront-only Display-Spiegel
+- `scripts/backfill_format_v2_dry_run.py` — Dry-Run-Skript (Original)
+- `docs/architecture/CHANGELOG.md` → 2026-04-25 rc51.7 Entry (vollständige Release-Notes)
+
+## Production-Status (Stand 2026-04-25 rc51.7)
+
+| Bereich | Status | Counts |
+|---|---|---|
+| **DB-Schema** | live | `Release.format_v2 varchar(40)` + `format_descriptors jsonb` + CHECK-Constraint (71 Werte) + Index |
+| **Backfill** | done | **52.788 / 52.788 = 100% klassifiziert** · 9.794 mit `format_descriptors` · 20 in `Other` |
+| **Distinct Werte verwendet** | – | **57 von 71** (14 reserviert für Future-Imports) |
+| **Schreib-Pfade** | live | Cron `legacy_sync_v2.py`, Discogs-Import, Manual-Edit `media/[id]` PATCH |
+| **Lese-Pfade Backend-API** | live | 12 Storefront-Routes + 9 Admin-Routes mit `Release.format_v2` in SELECT |
+| **UI Admin** | live | Edit-Card + Listen + Auction-Blocks + Inventory + POS |
+| **UI Storefront** | live | Catalog/Auctions Detail + Listen + Related + Search + Account |
+| **Print-Labels** | live | `displayFormatCompact()` für Brother-QL 29×90mm (`LP×5`, `Tape×26`) |
+| **Email** | live | `displayFormat()` in `watchlistReminderEmail` |
+| **Meilisearch-Index** | live | `format_v2` filterable + displayed, Full-Rebuild durchgeführt, 57 Facets |
+
+**6 Commits:** `707778c` → `57867f6` → `e3bfd29` → `248c3e4` → `65eb504` → `4f663aa` → `0d08636`
 
 ## Update v4 (2026-04-25): Frank-Entscheidungen + Implementierung gestartet
 
@@ -67,18 +86,32 @@
 
 ### Schritt-Status
 
-- [x] Mapping-Lib `backend/src/lib/format-mapping.ts` (71 Werte nach Whitelist-Erweiterung, Discogs-Heuristik, Display-Mapper)
+- [x] Mapping-Lib `backend/src/lib/format-mapping.ts` (71 Werte, Discogs-Heuristik, Display-Mapper, Compact-Display)
 - [x] Python-Spiegel `scripts/format_mapping.py`
+- [x] Storefront-Display-Spiegel `storefront/src/lib/format-display.ts`
 - [x] Dry-Run-Skript `scripts/backfill_format_v2_dry_run.py`
 - [x] Dry-Run gegen Prod-DB ausgeführt — 99,8% Klassifikations-Quote
 - [x] Whitelist-Erweiterung um 9 Vinyl-Inch-Box-Werte (`Vinyl-12-Inch-2/3/4/12`, `Vinyl-7-Inch-4/5/10`, `Vinyl-10-Inch-3/4`)
 - [x] Schema-Migration applied (Phase 1: Spalten + Index, Phase 2: CHECK-Constraint nach Backfill)
 - [x] Backfill-Run (Wet) — Phase B (tape-mag, 41.538) + Phase A (Discogs, 11.231) + Orphans (19) → **52.788 / 52.788 = 100% klassifiziert**
-- [x] QC8 Final-Counts: 57 distinct Format-Werte verwendet, 9.794 mit Descriptors, 20 in Other-Bucket
+- [x] QC: Final-Counts 57 distinct Format-Werte, 9.794 mit Descriptors, 20 in Other-Bucket
 - [x] Bug-Fix: `Album` description als LP-Trigger (66 Items von `Vinyl-12-Inch*` → `Vinyl-LP*` korrigiert)
-- [ ] Sync- und Discogs-Import-Code umstellen (Feature-Flag `FORMAT_V2`) — **nächster Schritt**
-- [ ] UI-Updates Admin + Storefront + Meili-Index
-- [ ] Cutover (format = format_v2 setzen, alte Spalte droppen)
+- [x] Sync-Code umstellen (`legacy_sync_v2.py`) — Lock-aware via `format_id`-Key, rc49.4-Performance erhalten (~50s)
+- [x] Discogs-Import-Code umstellen (`commit/route.ts`) — `classifyFormatV2()` Helper über `lib/format-mapping.ts`
+- [x] Manual-Edit-Pfad (`media/[id]/route.ts` PATCH) — `format_v2` aus `format_id` deriviert bei Edit
+- [x] UI Admin: Edit-Card + Listen + Auction-Blocks + Inventory/Stocktake + POS
+- [x] UI Storefront: Catalog/Auctions Detail + Listen + Related + Search + Account
+- [x] Print-Labels: `displayFormatCompact()` für Brother-QL 29mm (4-Char-Werte wie `LP×5`)
+- [x] Email: `displayFormat()` in `watchlistReminderEmail`
+- [x] Meilisearch-Index: `format_v2` filterable + displayed, Full-Rebuild via Atomic-Swap
+- [x] Vollaudit aller Format-Display-Stellen (24 Files, +86/-30 Zeilen)
+- [x] CHANGELOG.md + CLAUDE.md + TODO.md aktualisiert
+- [ ] **Cutover** (`format` = `format_v2` rename, alte Spalte droppen) — bewusst zurückgehalten, nach 2-3 Wochen Live-Beobachtung re-evaluieren
+- [ ] **Storefront-UI Sub-Filter** (z.B. „nur 7\" Singles", „nur Box-Sets qty≥2") — Backend-Filter da, UX-Definition mit Frank offen
+- [ ] **Admin Edit-Card Format-Dropdown** — User-Wahl aus 71 Werten via Dropdown (gehört zu Stammdaten-Gap 1+2)
+- [ ] **`shared.py` Cleanup** — alte `FORMAT_MAP`/`LEGACY_FORMAT_ID_MAP` parallel zu `format_mapping.py`. Aufräumen nach Cutover
+- [ ] **Meili `wait_for_task`-Race fixen** — Skript crasht nach Atomic-Swap, kein Daten-Impact, kosmetisch
+- [ ] **Versand-Logik qty-aware** — LP-Box mit 5 Platten wiegt mehr als 1 LP, separater `shipping.ts`-Refactor
 
 ### Final Backfill-Counts (live, post-Migration)
 

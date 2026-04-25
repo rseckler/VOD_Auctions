@@ -17,7 +17,8 @@ Operative Aufgabenliste. Single Source of Truth für laufende Arbeit.
 
 Aktuell aktive Workstreams. Maximal 2-3 gleichzeitig.
 
-1. **Catalog Stammdaten-Editierbarkeit komplett live (rc50.0-rc50.4, 2026-04-24).** Phase 1-4 deployed. Frank kann ab jetzt Stammdaten von Discogs-Import-Releases editieren (~11k), Legacy (~41k) bleiben read-only. 4-Zonen-Modell, `release_audit_log`-Tabelle + 8 Routes, SourceBadge/LockBanner/PickerModals/AuditHistory/TrackManagement/RevertConfirmModal, Bulk-Edit-Skip-Logic. Doku: [`docs/optimizing/CATALOG_STAMMDATEN_EDITABILITY_KONZEPT.md`](optimizing/CATALOG_STAMMDATEN_EDITABILITY_KONZEPT.md), [`docs/optimizing/IMPLEMENTATION_PLAN.md`](optimizing/IMPLEMENTATION_PLAN.md). **Nächste Aktion:** Frank briefen auf neue UI (Edit-Card in Discogs-Release-Detail, History-Tab, Bulk-Stammdaten-Skip).
+1. **[x] Format-V2 komplett live (rc51.7, 2026-04-25).** 71-Wert-Whitelist (`Vinyl-LP-5`, `Tape-26`, `CD-16`, …) ersetzt das grobe 16-Wert-Enum, das Format-Typ × Anzahl-Tonträger ungewollt verschmolzen hatte. Backfill 52.788/52.788 = 100% klassifiziert, 9.794 mit `format_descriptors`. Single-Source `backend/src/lib/format-mapping.ts` + Python-Spiegel + Storefront-Lib. UI durchgängig (Admin-Edit-Card, Listen, Auction-Blocks, Inventory/Stocktake, POS, Storefront Catalog/Auctions Detail+Listen+Related+Search+Account, Print-Labels mit Compact-Display, Email). Sync + Discogs-Import + Manual-Edit schreiben format_v2 parallel zu format. Meili-Index erweitert + Full-Rebuild. **Bewusst zurückgehalten:** Cutover (`format` → `format_v2` rename) erst nach 2-3 Wochen Live-Beobachtung. Doku: [`docs/architecture/FORMAT_MAPPING_ANALYSIS.md`](architecture/FORMAT_MAPPING_ANALYSIS.md). 6 Commits 707778c→0d08636.
+2. **Catalog Stammdaten-Editierbarkeit komplett live (rc50.0-rc50.4, 2026-04-24).** Phase 1-4 deployed. Frank kann ab jetzt Stammdaten von Discogs-Import-Releases editieren (~11k), Legacy (~41k) bleiben read-only. 4-Zonen-Modell, `release_audit_log`-Tabelle + 8 Routes, SourceBadge/LockBanner/PickerModals/AuditHistory/TrackManagement/RevertConfirmModal, Bulk-Edit-Skip-Logic. Doku: [`docs/optimizing/CATALOG_STAMMDATEN_EDITABILITY_KONZEPT.md`](optimizing/CATALOG_STAMMDATEN_EDITABILITY_KONZEPT.md), [`docs/optimizing/IMPLEMENTATION_PLAN.md`](optimizing/IMPLEMENTATION_PLAN.md). **Nächste Aktion:** Frank briefen auf neue UI (Edit-Card in Discogs-Release-Detail, History-Tab, Bulk-Stammdaten-Skip).
 2. **[x] rc51.3 Big Bundle — alle Opus-Review-Follow-Ups live (2026-04-24).** 3 Bugs (B1-B3) + 5 Recommendations (R1-R5) als einzelnes Release deployed. Country-Picker mit 249 ISO-3166-1 Ländern + Flag + EN/DE-Search, Barcode UPC-A/EAN-13 Checksum-Validation, Field-Listen konsolidiert, Auto-Lock nur auf changed fields, unlock-field TOCTOU-Fix, upload-image + discogs-import schreiben lock'en jetzt ihre Writes. Plan: [`docs/optimizing/RC51_1_FOLLOWUP_PLAN.md`](optimizing/RC51_1_FOLLOWUP_PLAN.md).
 3. **Storefront Pricing-Cleanup abgeschlossen (rc49.6 + rc49.7, 2026-04-24).** `effective_price = shop_price` end-to-end im Storefront. `legacy_available` aus `is_purchasable`-Gate entfernt. 36 Releases mit `legacy_available=false` + verified-Bestand wieder sichtbar. Alle Code-Pfade (saved, wins, auction-detail, catalog-detail, catalog-fallback, recommendations, Meili-sync) konsistent nach PRICING_MODEL.md §Shop-Visibility-Gate. Plan: [`docs/optimizing/FRONTEND_PRICING_CLEANUP_PLAN.md`](optimizing/FRONTEND_PRICING_CLEANUP_PLAN.md).
 2. **Legacy-Sync + Meili-Sync strukturell stabil (rc49.2-rc49.4, 2026-04-24).** Root-Cause-Fix der 41k-Meili-Cascade. `ON CONFLICT DO UPDATE SET ... WHERE <semantic-diff>` kombiniert mit chunked Meili-Fetch + 5min statement_timeout + stale-cleanup. Dauer 180s→47s, Meili-Traffic −99.97%. Monitoring: 24h-Uptime-Stripe `meili_backlog` rollt automatisch von 64.3%→100% bis morgen 06:30 UTC.
@@ -29,7 +30,7 @@ Aktuell aktive Workstreams. Maximal 2-3 gleichzeitig.
 ## Next
 
 Kommt dran sobald ein Now-Slot frei wird oder ein Blocker sich löst.
-3a. **Stammdaten-Gaps Follow-up — Gap 3 ✅ done (rc51.6, 2026-04-25), Gap 1+2 noch offen.** Drei Lücken aus Robin-Review nach rc51.3. **(3) `article_number` Auto-Assign:** ✅ Live deployed via Migration `2026-04-25_release_article_number_auto_assign.sql`. 22.630 NULL-Rows backfilled, BEFORE-INSERT-Trigger greift in alle Insert-Pfade (legacy_sync + discogs-import + future manual-add) ohne Code-Touch. **(1) Format/Genre/Styles fehlen im Edit-Stammdaten-Card:** Backend bereit, nur Frontend-Inputs fehlen — wartet auf Robins parallel laufende Format-Struktur-Umbau. **(2) Format + Genre als Pflicht-Dropdown statt Freitext:** wartet auf gleichen Block. Plan: [`docs/optimizing/STAMMDATEN_GAPS_FOLLOWUP.md`](optimizing/STAMMDATEN_GAPS_FOLLOWUP.md). **Blocker für Gap 1+2:** Robin-Entscheidung zu Styles-Mode (a/b/c) + manuellem Add-Release-Endpoint ja/nein + Abschluss Format-Struktur-Umbau.
+3a. **Stammdaten-Gaps Follow-up — Gap 3 ✅ done (rc51.6), Format-V2-Foundation ✅ done (rc51.7), Gap 1+2 Frontend-Inputs noch offen.** Drei Lücken aus Robin-Review nach rc51.3. **(3) `article_number` Auto-Assign:** ✅ Live deployed via Migration `2026-04-25_release_article_number_auto_assign.sql`. 22.630 NULL-Rows backfilled, BEFORE-INSERT-Trigger greift in alle Insert-Pfade. **(Format-Foundation):** ✅ rc51.7 — `format_v2` + `format_descriptors` komplett live, 71-Wert-Whitelist via CHECK-Constraint, backfilled, durchgängig in UI. **(1) Format als Pflicht-Dropdown im Edit-Stammdaten-Card:** Backend hat jetzt definierte Whitelist, Display-Helper, sauberen Sync-Lock-Pfad — Frontend-Dropdown-Integration in `media/[id]/page.tsx` Edit-Card noch nicht gebaut (User soll `format_v2` aus 71 Werten wählen können, aktuell nur read-only). **(2) Genre + Styles als Pflicht-Dropdown statt Freitext:** Backend bereit (Strings in `Release.genres[]` / `styles[]`), Frontend-Multi-Select fehlt. Plan: [`docs/optimizing/STAMMDATEN_GAPS_FOLLOWUP.md`](optimizing/STAMMDATEN_GAPS_FOLLOWUP.md). **Verbleibende Blocker:** Robin-Entscheidung zu Styles-Mode (a/b/c) + manuellem Add-Release-Endpoint ja/nein.
 4. **Redis + Rate-Limiting + Datenschutz-Fix** — Launch-Blocker. Upstash-Infrastruktur wieder live (2026-04-23, `vod-auctions-prod` in eu-central-1), **Rate-Limit-Code im Backend noch zu implementieren** (Brute-Force-Schutz auf /apply, /gate, /account/login; DSGVO-Consistency-Fix)
 5. **Sendcloud-Integration** — Voraussetzungen vorhanden, Code pending
 6. **Sync Monitoring — weitgehend abgedeckt durch System Health P1-P3** (sync_log_freshness, meili_drift, meili_backlog Checks mit Alerting). Noch offen: Dead-Man-Switch für legacy_sync_v2 Script-Crash (wenn Script gar nicht läuft → sync_log-Row wird gar nicht erstellt → kein Alert)
@@ -572,6 +573,40 @@ Recommendations (**alle gefixt in rc51.3 Bundle, 2026-04-24**):
 - [x] **F.10 (R3)** `unlock-field` TOCTOU — Check moved inside Transaction mit `FOR UPDATE`
 - [x] **F.11 (R4)** Country-Picker (249 ISO-3166-1 Länder, Flag + EN/DE-Search, non-ISO Yellow-Warning) + Info-Card-Display mit Flag
 - [x] **F.12 (R5)** Barcode UPC-A (12) / EAN-13 (13) / EAN-8 (8) Length-Validation + GTIN-Checksum-Check
+
+---
+
+### 12. Format-V2
+
+**Status:** ✅ **rc51.7 komplett live (2026-04-25)** — Migration + Backfill + UI durchgängig + Print-Labels.
+
+**Ziel:** Tape-mag-Format-Verlust beheben — `Vinyl-Lp-5` (LP-Box mit 5 Platten), `Tape-7` (Cassette-Box mit 7), `Vinyl-7"-3` (3 7"-Singles in Box) wurden alle auf `LP`/`CASSETTE` kollabiert. Discogs-`formats[].qty` war im Cache, aber nicht persistiert.
+
+**Lösung umgesetzt:**
+- [x] Schema-Migration `Release.format_v2 varchar(40)` + `format_descriptors jsonb` + 71-Wert CHECK-Constraint + Index
+- [x] Backfill 100% (52.788/52.788): Phase B tape-mag (41.538), Phase A Discogs (11.231), Orphans (19 → Other)
+- [x] Single-Source-of-Truth `backend/src/lib/format-mapping.ts` + Python-Spiegel + Storefront-Lib
+- [x] Schreib-Pfade: `legacy_sync_v2.py` (Cron) + `discogs-import/commit/route.ts` + `media/[id]/route.ts` PATCH
+- [x] Lese-Pfade Backend-API: `store/{catalog,catalog/[id],catalog/suggest,band,label,press,auction-blocks/*,account/*}` + `admin/{media,media/[id],erp/inventory/*,auction-blocks/[id],pos/sessions/*}`
+- [x] UI Admin: Edit-Card + Listen + Auction-Blocks + Inventory/Stocktake + POS
+- [x] UI Storefront: Catalog/Auctions Detail+Listen+Related+Search+Account-Saved+Cart
+- [x] Print-Labels mit `displayFormatCompact()` (Brother-QL 29×90mm)
+- [x] Email mit `displayFormat()`
+- [x] Meilisearch-Index erweitert + Full-Rebuild via Atomic-Swap
+- [x] Album-Bug-Fix (`12" + Album` → `Vinyl-LP-2` statt `Vinyl-12-Inch-2`, 66 Items neu klassifiziert)
+
+**Bewusst zurückgehalten / Follow-Ups:**
+- [ ] **Cutover** `format` → `format_v2` rename + alte `format`-Spalte droppen — nach 2-3 Wochen Live-Beobachtung re-evaluieren
+- [ ] **Storefront-UI Sub-Filter** unter `format_group` (z.B. „nur 7\" Singles", „nur Box-Sets qty≥2"): Backend-Filter `format_v2: string | string[]` schon da, UX-Definition mit Frank offen
+- [ ] **Admin Edit-Card Format-Dropdown:** aktuell zeigt das Card `format_v2` read-only. User-Wahl aus 71 Werten via Dropdown noch nicht gebaut (gehört zu Stammdaten-Gap 1+2)
+- [ ] **`shared.py` Cleanup:** alte `FORMAT_MAP` + `LEGACY_FORMAT_ID_MAP` parallel zu `format_mapping.py`. Aufräumen nach Cutover
+- [ ] **Meili `wait_for_task`-Race fixen** (Skript crasht nach erfolgreichem Atomic-Swap — kein Daten-Impact, kosmetisch)
+- [ ] **Versand-Logik qty-aware:** LP-Box mit 5 Platten wiegt mehr als 1 LP — separate Refactor in `shipping.ts::format_group`-Mapping
+
+**Doku:**
+- [`docs/architecture/FORMAT_MAPPING_ANALYSIS.md`](architecture/FORMAT_MAPPING_ANALYSIS.md) (Plan-Doc, 5 Versionen, ~1100 Zeilen)
+- [`docs/architecture/CHANGELOG.md`](architecture/CHANGELOG.md) → 2026-04-25 rc51.7 Entry
+- `/Users/robin/Downloads/Formate_v5_FINAL.csv` (Frank-Roundtrip-Tabelle, 71 Werte)
 
 ---
 

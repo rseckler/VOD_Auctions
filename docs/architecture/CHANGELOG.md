@@ -11,6 +11,7 @@ Jeder Git-Tag entspricht einem Snapshot des Gesamtsystems. Feature Flags zeigen 
 | Version | Datum | Platform Mode | Feature Flags aktiv (prod) | Milestone / Inhalt |
 |---------|-------|--------------|---------------------------|-------------------|
 | **v1.0.0** | TBD | `live` | ERP: TBD | RSE-78: Erster öffentlicher Launch |
+| **v1.0.0-rc51.7** | 2026-04-25 | `beta_test` | `ERP_INVENTORY`, `SEARCH_MEILI_CATALOG`, `SEARCH_MEILI_ADMIN`, `SYSTEM_HEALTH_*` | **Format-V2: 71-Wert-Whitelist (`Vinyl-LP-5`, `Tape-26`, `CD-16`, …) + Backfill 52.788/52.788 Items + Schreib- und Lese-Pfade durchgängig (Sync, Discogs-Import, Admin-Edit-Card, Storefront-Detail+Listen, Inventory/Stocktake, POS, Print-Labels mit Compact-Display, Email, Meilisearch-Index).** |
 | **v1.0.0-rc51.6** | 2026-04-25 | `beta_test` | `ERP_INVENTORY`, `SEARCH_MEILI_CATALOG`, `SEARCH_MEILI_ADMIN`, `SYSTEM_HEALTH_*` | **`Release.article_number` Auto-Assign via `BEFORE INSERT`-Trigger + Backfill von 22.630 NULL-Rows.** Vorher wurde `article_number` nur durch das einmalige `scripts/generate_article_numbers.sql` (Cutover-Bulk) gesetzt — weder `legacy_sync_v2.py` noch `discogs-import/commit/route.ts` haben jemals eine Nummer vergeben. Konsequenz: jede neue Anlage (tape-mag NEW oder Discogs-Import) landete mit `article_number = NULL`. Pre-Migration-Stand: 52.788 Releases total, 30.158 mit Nummer (Cutover-Bestand), **22.630 NULL** (11.230 Discogs-Imports + 11.400 Legacy/Literatur die nach dem Cutover via Sync reingekommen sind). **Migration `2026-04-25_release_article_number_auto_assign.sql`:** (1) Sequence `release_article_number_seq` mit `setval(MAX(existing VOD-XXXXX))` → Startwert 30.158, keine Kollisionen. (2) PL/pgSQL-Funktion `assign_release_article_number()` setzt `NEW.article_number := 'VOD-' || LPAD(nextval(...)::TEXT, 5, '0')` nur wenn `IS NULL` (lässt explizite Werte unverändert). (3) `BEFORE INSERT TRIGGER trg_release_article_number` auf `Release` → greift automatisch in **alle** Insert-Pfade (`legacy_sync_v2.py`, `discogs-import/commit`, zukünftige manual-add-Endpoints) ohne Code-Touch. (4) Backfill via CTE `WITH to_fill AS (SELECT id, nextval(...) AS seq_val FROM "Release" WHERE article_number IS NULL ORDER BY "createdAt" ASC) UPDATE ...` — deterministisch, Sequence advanced in lockstep, alle 22.630 Rows backfilled von `VOD-30159` bis `VOD-52788`. (5) DO-Block-Verify wirft `EXCEPTION` bei restlichen NULL-Rows. **Smoke-Test:** Synthetic INSERT/ROLLBACK-Probe — Sequence advanced 52788 → 52789, beweist Trigger-Fire. Race-condition-frei (Sequence ist atomar), idempotent (gesamte Migration re-runnable). **Kein Code-Change nötig** — Trigger erschlägt alle Insert-Pfade automatisch. **Konzept-Doc-Anforderung erfüllt:** Zone-0 `article_number` "auto-vergeben bei Insert, danach immutable" via Sequence + bestehender Zone-0-LOCK aus rc51.x. Doku: [`STAMMDATEN_GAPS_FOLLOWUP.md`](../optimizing/STAMMDATEN_GAPS_FOLLOWUP.md) Gap 3. |
 | **v1.0.0-rc51.5** | 2026-04-25 | `beta_test` | `ERP_INVENTORY`, `SEARCH_MEILI_CATALOG`, `SEARCH_MEILI_ADMIN`, `SYSTEM_HEALTH_*` | **POS Cover-Image-URL-Fix + Storefront Hover-Zoom (Lupen-Funktion) entfernt.** **(1) POS Cover-Image (`backend/src/admin/routes/pos/page.tsx`):** Last-Scanned-Card und Cart-Mini-Cover zeigten broken-image-Placeholder. `Release.coverImage` ist im DB-Storage bereits voll-qualifizierte R2-CDN-URL (`https://pub-433520acd4174598939bc51f96e2b8b9.r2.dev/tape-mag/{standard,discogs}/...`), POS prependete aber hardcoded `https://bofblwqieuvmqybzxapx.supabase.co/storage/v1/object/public/images/` → resultierender Pfad doppelt-https und natürlich 404. Verifiziert via Supabase MCP gegen Legacy- und Discogs-Releases — alle coverImage-Werte sind voll-qualifizierte R2-URLs. Fix: `SUPABASE_URL`-Konstante entfernt, beide `<img>`-Stellen rendern `coverImage` direkt. Konsistent mit `/admin/erp/inventory` das schon immer `<img src={item.cover_image}>` direkt gerendert hat. **(2) Storefront Hover-Zoom (`storefront/src/components/ImageGallery.tsx`):** Catalog-Detail-Page (z.B. `/catalog/legacy-release-33263`) hatte beim Mouse-Over `transform: scale(2)` mit dynamic `transformOrigin` per mouse-position + `<ZoomIn>`-Icon-Overlay und `cursor-zoom-in`. User wollte einfache Klick-zur-Lightbox-Behavior (war ohnehin schon implementiert). Entfernt: `zoomActive`/`zoomOrigin` State, `mainImageRef`, `handleMouseMove`, `onMouseEnter/Leave/Move` props, transform-style, das `ZoomIn`-Icon-Overlay (mitsamt `group-hover:bg-black/20`-Backdrop), `cursor-zoom-in` → `cursor-pointer`. `ZoomIn`-Import aus lucide-react raus. `useState`/`useRef` für `isDesktop` bleibt (Mobile-Touch-Swipe-Gating). Lightbox-Trigger via onClick + Mobile-Touch-Swipe-Navigation funktional unverändert. |
 | **v1.0.0-rc51.4** | 2026-04-25 | `beta_test` | `ERP_INVENTORY`, `SEARCH_MEILI_CATALOG`, `SEARCH_MEILI_ADMIN`, `SYSTEM_HEALTH_*` | **POS + Inventur-Scanner: neues `000001VODe` Barcode-Format akzeptiert.** Bug-Report Frank: POS-Scan und Stocktake-Search verweigerten neue Exemplar-Barcodes (z.B. `000322VODe`) mit 400 "Invalid barcode format" bzw. fanden im Search-Endpoint nichts. Root-Cause: Beim rc37-Format-Wechsel (2026-04-22 von `VOD-XXXXXX` auf `000001VODe`) wurde der `barcode.startsWith("VOD-")`-Gate nur in der Inventur-Session-Page-Frontend umgestellt — POS-Backend, POS-Frontend-Buffer, Inventur-Scan-Endpoint und Inventur-Search-Fast-Path hatten den alten Prefix-Check noch. Fix: alle 5 Stellen akzeptieren beide Patterns (`/^\d+VODe$/i` ODER `/^VOD-\d+$/i`). **Files:** `backend/src/api/admin/pos/sessions/[id]/items/route.ts` (POST-Validation + Fehlermeldung), `backend/src/admin/routes/pos/page.tsx` (Scanner-Buffer-Enter-Trigger Z. 174 + Placeholder + Empty-State-Hint), `backend/src/api/admin/erp/inventory/scan/[barcode]/route.ts` (GET-Validation analog), `backend/src/api/admin/erp/inventory/search/route.ts` (Step 1a Fast-Path → Postgres-Path bei `\d+VODe` ODER `VOD-\d{6}` — Scanner-Input bleibt deterministic, kein Meili-Ranking), `backend/src/api/admin/erp/inventory/search/route-postgres-fallback.ts` (Step 1a Query analog erweitert; `WHERE UPPER(barcode) = UPPER(?)` ist case-insensitive). **Catalog-Search** (`/admin/media`) war nicht betroffen — Subquery via `UPPER(barcode) = UPPER(?)` ohne Format-Gate. **Smoke-Test:** API liefert 200, compiled JS enthält 3× `VODe` in der POS-Items-Route. |
@@ -116,6 +117,107 @@ Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Rel
 - **Patch Release** (`v1.0.x`): Kritische Bugfixes zwischen geplanten Releases
 - **Tagging-Workflow:** `git tag -a vX.Y.Z -m "Release vX.Y.Z: <Kurzname>"` → `git push origin vX.Y.Z`
 - **Tag-Zeitpunkt:** Direkt nach Deploy + Smoke-Test auf Production — nicht vor dem Deploy
+
+---
+
+## 2026-04-25 — Format-V2: 71-Wert-Whitelist + Backfill 52.788 Items + UI durchgängig (rc51.7)
+
+**Kontext:** Robin: „Wir müssen uns leider nochmals mit den Formaten beschäftigen. Wir haben einen Fehler gemacht bei der Übernahme der Formatdefinitionen von tape-mag.com — wir haben deutlich zu wenig Unterscheidungen in unserer DB. Das zeigt sich auch beim Discogs-Import." Der alte `ReleaseFormat`-Enum (16 Werte: `LP`, `CD`, `CASSETTE`, …) verschmolz zwei orthogonale Dimensionen ungewollt zu einer: (a) **Format-Typ** (Vinyl 7" / 10" / 12" / LP, MC, Reel, CD …) und (b) **Anzahl Tonträger** (Single-Disc vs. Box mit 2-32 Stück). Die `-N`-Suffixe in tape-mags `Format`-Tabelle (`Vinyl-Lp-5`, `Tape-26`, `Vinyl-7"-3`) waren ursprünglich keine Sortier-Hilfen, sondern bedeuteten **„LP-Box mit 5 Platten"**, **„26 Cassetten in Box"**, **„Box mit 3 7"-Singles"** — diese Information ging verloren, alle wurden auf `LP` oder `CASSETTE` kollabiert. Discogs liefert dieselbe Info als `formats[0].qty: "6"` (Anzeige `6× Vinyl, LP`), aber das `qty` wurde im `discogs_api_cache` nur abgelegt und nie auf `Release` durchgereicht.
+
+**Frank-Entscheidungen** (CSV-Roundtrip 4× gegen Discogs-Cache-Distribution):
+1. **Internal-Werte URL-safe** (kein `"`-Zeichen): `Vinyl-7-Inch` statt `Vinyl-7"`. Frontend rendert `Vinyl 7"` über `displayFormat()`-Helper.
+2. **Sub-Format-Tags** (Picture Disc, Test Pressing, Limited Edition, Reissue, Stereo, Mono) gehen in `Release.format_descriptors jsonb`, **nicht** als separate Format-Werte. Format-Wert bleibt `Vinyl-LP` etc.
+3. **Whitelist Option A:** alle 71 Werte vorab angelegt, auch die mit 0 Bestand — verhindert Crashes bei zukünftigen Discogs-Imports.
+
+**Migration `2026-04-25_format_v2_add_columns` + `format_v2_check_constraint`** (Phase 1+2 via Supabase MCP):
+- `Release.format_v2 varchar(40)` (nullable initially, später CHECK-Constrained gegen Whitelist)
+- `Release.format_descriptors jsonb` (Discogs-descriptions array)
+- `idx_release_format_v2` (partial WHERE NOT NULL)
+- `release_format_v2_whitelist` CHECK-Constraint mit allen 71 Werten (gesetzt **nach** Backfill)
+
+**Backfill (live, 100% Coverage):**
+- **Phase B (Tape-mag, deterministisch via `format_id`):** 41.538 Releases. SQL-CASE-WHEN-Mapping aus `LEGACY_FORMAT_ID_MAP` (39 IDs → 32 Format-Werte). Locked-Fields-aware (`NOT (locked_fields @> '"format"'::jsonb)`).
+- **Phase A (Discogs-only via `api_data.formats`):** 11.231 Releases. Heuristik in TS+Python-Lib: Container-Skip (`Box Set`, `All Media`), Vinyl-Sub-Format-Detection aus descriptions (`7"` > `10"` > `12"` ohne LP > `LP`/`Album` > Default `Vinyl-LP`), qty-Suffix-Validation gegen Whitelist.
+- **Phase C (Orphans):** 19 Items ohne Quelle (14 Press-Lit-Releases + 4 Discogs-Cache-Misses + 1 All-Media-only) → `Other`.
+- **Album-Bug-Fix:** initialer Lauf hatte `12" + Album` als `Vinyl-12-Inch-2` klassifiziert (Maxi-Single statt LP). Korrektur: 66 Items von `Vinyl-12-Inch*` → `Vinyl-LP*` umverteilt. TS+Python-Lib `detectVinylSize()` erweitert: `12" + Album` → LP, `12"` allein → Maxi.
+- **Whitelist-Erweiterung 9 Vinyl-Box-Werte** nach Discogs-Cache-Analyse: `Vinyl-12-Inch-2/3/4/12`, `Vinyl-7-Inch-4/5/10`, `Vinyl-10-Inch-3/4` (78+11+1+1+1+1+1+2+1 = 97 Items waren sonst `Other`).
+
+**Final-Counts (52.788 / 52.788 = 100% klassifiziert, 57 distinct Werte verwendet):**
+
+| Format | Items | Format | Items | Format | Items |
+|---|---:|---|---:|---|---:|
+| `Tape` | 21.789 | `Vinyl-LP-3` | 182 | `CD-2` | 11 |
+| `Magazin` | 10.929 | `CD` | 181 | `Vinyl-7-Inch-3` | 9 |
+| `Vinyl-LP` | 10.731 | `Reel` | 163 | `Tape-10` | 7 |
+| `Vinyl-7-Inch` | 2.859 | `Photo` | 143 | `Vinyl-12-Inch-3` | 6 |
+| `Vinyl-12-Inch` | 2.625 | `Vinyl-LP-4` | 83 | `DVD`, `DVDr`, `Tape-8/26`, `Acetate` | je 3-4 |
+| `Vinyl-LP-2` | 1.327 | `Vinyl-12-Inch-2` | 37 | (8 weitere ≤ 2) | je 1-2 |
+| `VHS` | 429 | `Vinyl-LP-5` | 58 | **`Other`** | **20** |
+| `Tape-2` | 291 | `Postcard` | 52 | | |
+| `Vinyl-10-Inch` | 290 | `Vinyl-7-Inch-2` | 50 | | |
+| `Poster` | 248 | `Flexi` | 41 | | |
+
+`format_descriptors`: 9.794 Items (Top: Album 5.292, Stereo 2.060, 45 RPM 2.034, Limited Edition 1.157, Reissue 1.043, 33 ⅓ RPM 839, Compilation 837, Numbered 426, Mono 373, …).
+
+**Schreib-Pfade auf format_v2:**
+- `scripts/legacy_sync_v2.py` (stündlicher Cron): `format_v2 = classify_tape_mag_format(format_id)` parallel zu `format`. Lock-aware via `format_id`-Key. UPSERT um `format_v2`-Spalte erweitert (Release- + Literatur-Pfad). Live-Test nach Deploy: 41.552 rows_written, 0 NULL, **rc49.4-Performance bleibt erhalten** (~50s).
+- `backend/src/api/admin/discogs-import/commit/route.ts`: neuer Helper `classifyFormatV2(cached)` über `lib/format-mapping.ts::classifyDiscogsFormat()`. Schreibt `format_v2` + `format_descriptors::jsonb` parallel zu `format`.
+- `backend/src/api/admin/media/[id]/route.ts` PATCH: bei `format_id`-Änderung wird `format_v2` automatisch via `classifyTapeMagFormat()` deriviert.
+
+**Single-Source-of-Truth:**
+- `backend/src/lib/format-mapping.ts` (TS, 412 Zeilen): `FORMAT_VALUES` (Whitelist Tuple, 71 Werte), `FORMAT_DISPLAY` (Display-Mapper für UI: `Vinyl 7"`, `5× Vinyl LP`), `FORMAT_DISPLAY_COMPACT` (Compact für Print-Labels: `7"`, `LP×5`), `LEGACY_FORMAT_ID_MAP` (39 Tape-mag-IDs), `classifyDiscogsFormat()` (Container-Skip + Vinyl-Sub-Format + qty-Suffix), `toFormatGroup()` (Storefront-Filter-Bucket), `displayFormat()`, `displayFormatCompact()`, `isValidFormat()`.
+- `scripts/format_mapping.py`: identischer Python-Spiegel für `legacy_sync_v2.py` und Backfill-Skripte.
+- `storefront/src/lib/format-display.ts`: Storefront-only Spiegel (Display-Mapper + `pickFormatLabel()` Helper).
+
+**Meilisearch-Index:**
+- `meilisearch_settings.json` erweitert: `format_v2` als `filterable` + `displayed`, `format_descriptors` als `displayed`.
+- Full-Rebuild via Atomic-Swap (53 Batches × 1000 Docs = 52.788 Docs gepusht). `wait_for_task`-Race-Condition (CLAUDE.md bekanntes Issue) crasht das Skript am Ende, aber Atomic-Swap ist erfolgreich — Live-Index hat alle format_v2-Daten.
+- `meilisearch_sync.py::transform_to_doc()` nimmt `format_v2` + `format_descriptors` aus SQL-SELECT.
+- `backend/src/lib/release-search-meili.ts`: `CatalogFilters.format_v2: string | string[]` (OR-Array-Filter), `AdminReleaseShape` + `LegacyReleaseShape` um `format_v2` erweitert.
+
+**UI-Durchgängigkeit (Vollaudit):**
+- **Admin-Edit-Card** (`/admin/media/[id]`): Subtitle + Info-Field „Format" zeigt `displayFormat(format_v2)` mit Descriptors-Suffix `(Picture Disc, Stereo)`.
+- **Admin-Listenansicht** (`/admin/media`, `GalleryRelease`): Format-Spalte mit Display-Helper.
+- **Admin Auction-Block-Edit** (`/admin/auction-blocks/[id]`): Format-Badge in Items-Liste + Search-Result.
+- **Admin Inventory-Hub** (`/admin/erp/inventory`) + **Stocktake-Session** (`/admin/erp/inventory/session`): SearchResult + ReleaseDetail mit Display-Helper.
+- **Admin POS** (`/admin/pos`): Cart-Items + Last-Scanned-Info.
+- **Storefront Catalog-Detail** (`/catalog/[id]`): Format-Badge + Detail-Tabelle + Meta-Description + ld+json.
+- **Storefront Auction-Item-Detail** (`/auctions/[slug]/[itemId]`): Format-Badge + Meta + ld+json.
+- **Storefront Catalog-Liste** (`CatalogClient.tsx`): Item-Card-Badge.
+- **Storefront Auction-Block-Detail** (`BlockItemsGrid.tsx`): Grid+List-View Format-Badge.
+- **Storefront Related-Sections** (`CatalogRelatedSection.tsx`, `RelatedSection.tsx`): Format-Spalte.
+- **Storefront Search-Autocomplete**: Format-Suffix in Search-Dropdown.
+- **Storefront Account** (Saved + Cart): Format-Zeile.
+- **Druck-Etiketten** (`items/[id]/label` + `batch-labels`): `displayFormatCompact()` für Brother-QL-29mm-Labels — `LP×5`, `Tape×26`, `CD×16`, `7"×2`, `12"`, `Lathe`, `BluRay`, `USB`. Length-Goal ≤8 chars in 95% der Fälle.
+- **Email** (`watchlistReminderEmail`): `displayFormat(format_v2)` in Mail-Body.
+
+**Backend-API Store-Routes (Release.format_v2 in SELECT, sed-patched):**
+`store/catalog`, `store/catalog/suggest`, `store/catalog/[id]` (+ related_by_artist/label), `store/auction-blocks/[slug]`, `store/auction-blocks/[slug]/items/[itemId]`, `store/band/[slug]`, `store/label/[slug]`, `store/press/[slug]`, `store/account/{saved,bids,cart,recommendations,wins}`. Plus `admin/erp/inventory/{search,browse,items/[id],scan/[barcode],missing-candidates,batch-labels,items/[id]/label}`, `admin/auction-blocks/[id]`, `admin/pos/sessions/[id]/items`.
+
+**Bewusst NICHT geändert:**
+- `discogs-import/page.tsx` + `history` (zeigt Vendor-Rohwerte, kein Display)
+- `sync/page.tsx` (Sync-Telemetrie mit aggregierten format-Counts; alte Group-By-Logik passt)
+- `shipping.ts::format_group`-Mapping (Versand-Klassen-Lookup; format_group ist die richtige Granularität für Versand-Kosten, nicht qty-aware — Multi-Disc-Box wiegt zwar mehr, aber das ist ein separater Versand-Logik-Refactor)
+
+**6 Commits:**
+- `707778c` Whitelist 71 Werte, Migration + Backfill (52.788/52.788)
+- `57867f6` Schreib-Pfade auf format_v2 + format_descriptors
+- `e3bfd29` UI + Meili integration
+- `248c3e4` Detail-Seiten Backend + Storefront
+- `65eb504` Inventory/Stocktake-Pfade auf format_v2
+- `4f663aa` Vollaudit — alle Storefront-Components + Email + Labels
+- `0d08636` `displayFormatCompact()` für Print-Labels
+
+**Begleit-Dokumente:**
+- `docs/architecture/FORMAT_MAPPING_ANALYSIS.md` (Plan-Doc, ~1100 Zeilen, 5 Versionen)
+- `/Users/robin/Downloads/Formate_v5_FINAL.csv` (Frank-Roundtrip-Tabelle, 71 Werte)
+
+**Noch offen (nicht-blockierend, ggf. spätere RCs):**
+1. **Cutover** `format` → `format_v2` rename + alte Spalte droppen — bewusst zurückgehalten, nach 2-3 Wochen Live-Beobachtung neu evaluieren.
+2. **Storefront-UI Sub-Filter** (z.B. unter „Vinyl" → „7\" Single", „Box-Set qty≥2"): Backend-Filter `format_v2` schon da, UX-Definition mit Frank offen.
+3. **`shared.py` Cleanup**: alte `FORMAT_MAP`/`LEGACY_FORMAT_ID_MAP` parallel zu `format_mapping.py`. Aufräumen nach Cutover.
+4. **Meili `wait_for_task`-Race fixen** (Skript crasht nach erfolgreichem Atomic-Swap — kein Daten-Impact, kosmetisch).
+5. **Versand-Logik qty-aware** (LP-Box mit 5 Platten wiegt mehr als 1 LP — separate Refactor in `shipping.ts`).
 
 ---
 
