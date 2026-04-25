@@ -64,8 +64,6 @@ const PAYMENT_OPTIONS: { value: PaymentProvider; label: string; icon: string }[]
   { value: "bank_transfer", label: "Überweisung", icon: "🏦" },
 ]
 
-const SUPABASE_URL = "https://bofblwqieuvmqybzxapx.supabase.co/storage/v1/object/public/images"
-
 // ─── Main POS Page ──────────────────────────────────────────────────────────
 
 function POSPage() {
@@ -523,7 +521,7 @@ function POSPage() {
                 }}>
                   {lastScannedItem.coverImage && (
                     <img
-                      src={`${SUPABASE_URL}/${lastScannedItem.coverImage}`}
+                      src={lastScannedItem.coverImage}
                       alt=""
                       style={{ width: 80, height: 80, objectFit: "cover" }}
                     />
@@ -641,7 +639,7 @@ function POSPage() {
                       }}>
                         {item.coverImage && (
                           <img
-                            src={`${SUPABASE_URL}/${item.coverImage}`}
+                            src={item.coverImage}
                             alt="" style={{ width: 36, height: 36, objectFit: "cover" }}
                           />
                         )}

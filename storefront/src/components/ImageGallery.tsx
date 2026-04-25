@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from "react"
 import Image from "next/image"
 import { motion, AnimatePresence } from "framer-motion"
-import { Disc3, ZoomIn, Grid3X3, X, ChevronLeft, ChevronRight } from "lucide-react"
+import { Disc3, Grid3X3, X, ChevronLeft, ChevronRight } from "lucide-react"
 
 const THUMBNAIL_LIMIT = 8
 
@@ -69,19 +69,7 @@ export function ImageGallery({
     setLightboxOpen(true)
   }
 
-  // Desktop zoom state for main image
-  const [zoomActive, setZoomActive] = useState(false)
-  const [zoomOrigin, setZoomOrigin] = useState({ x: 50, y: 50 })
-  const mainImageRef = useRef<HTMLButtonElement>(null)
-
-  function handleMouseMove(e: React.MouseEvent<HTMLButtonElement>) {
-    const rect = e.currentTarget.getBoundingClientRect()
-    const x = ((e.clientX - rect.left) / rect.width) * 100
-    const y = ((e.clientY - rect.top) / rect.height) * 100
-    setZoomOrigin({ x, y })
-  }
-
-  // Only enable zoom on desktop (1024px+)
+  // Desktop detection for touch-swipe gating (mobile only)
   const [isDesktop, setIsDesktop] = useState(false)
   useEffect(() => {
     const mql = window.matchMedia("(min-width: 1024px)")
@@ -124,14 +112,10 @@ export function ImageGallery({
       <div className="space-y-3">
         {/* Main Image */}
         <button
-          ref={mainImageRef}
           onClick={handleMainClick}
-          onMouseEnter={() => isDesktop && setZoomActive(true)}
-          onMouseLeave={() => { setZoomActive(false) }}
-          onMouseMove={isDesktop ? handleMouseMove : undefined}
           onTouchStart={!isDesktop && images.length > 1 ? handleMainTouchStart : undefined}
           onTouchEnd={!isDesktop && images.length > 1 ? handleMainTouchEnd : undefined}
-          className="relative group w-full aspect-square rounded-xl overflow-hidden bg-secondary border border-border cursor-zoom-in"
+          className="relative w-full aspect-square rounded-xl overflow-hidden bg-secondary border border-border cursor-pointer"
         >
           <AnimatePresence mode="wait">
             <motion.div
@@ -141,15 +125,6 @@ export function ImageGallery({
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
               className="w-full h-full"
-              style={
-                zoomActive && isDesktop
-                  ? {
-                      transform: "scale(2)",
-                      transformOrigin: `${zoomOrigin.x}% ${zoomOrigin.y}%`,
-                      transition: "transform-origin 0.1s ease",
-                    }
-                  : { transform: "scale(1)", transition: "transform 0.2s ease" }
-              }
             >
               <Image
                 src={images[selected]}
@@ -161,9 +136,6 @@ export function ImageGallery({
               />
             </motion.div>
           </AnimatePresence>
-          <div className={`absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center ${zoomActive ? "!bg-transparent" : ""}`}>
-            <ZoomIn className={`h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity ${zoomActive ? "!opacity-0" : ""}`} />
-          </div>
           {/* Mobile swipe chevrons */}
           {images.length > 1 && !isDesktop && (
             <>
