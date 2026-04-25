@@ -106,7 +106,7 @@
 - [x] Meilisearch-Index: `format_v2` filterable + displayed, Full-Rebuild via Atomic-Swap
 - [x] Vollaudit aller Format-Display-Stellen (24 Files, +86/-30 Zeilen)
 - [x] CHANGELOG.md + CLAUDE.md + TODO.md aktualisiert
-- [ ] **Cutover** (`format` = `format_v2` rename, alte Spalte droppen) — bewusst zurückgehalten, nach 2-3 Wochen Live-Beobachtung re-evaluieren
+- [ ] **Cutover** (`format` = `format_v2` rename, alte Spalte droppen) — bewusst zurückgehalten, automatischer Reminder am **2026-05-19** via `scripts/cutover_reminder.py` (Cron daily 09:00 UTC, Email mit Live-Status-Check + GO/NO-GO-Verdict)
 - [ ] **Storefront-UI Sub-Filter** (z.B. „nur 7\" Singles", „nur Box-Sets qty≥2") — Backend-Filter da, UX-Definition mit Frank offen
 - [ ] **Admin Edit-Card Format-Dropdown** — User-Wahl aus 71 Werten via Dropdown (gehört zu Stammdaten-Gap 1+2)
 - [ ] **`shared.py` Cleanup** — alte `FORMAT_MAP`/`LEGACY_FORMAT_ID_MAP` parallel zu `format_mapping.py`. Aufräumen nach Cutover

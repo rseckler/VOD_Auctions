@@ -224,11 +224,15 @@ OPENAI_API_KEY, LASTFM_API_KEY, YOUTUBE_API_KEY, BRAVE_API_KEY, SUPABASE_DB_URL,
 */30 * * * * . ~/VOD_Auctions/scripts/meili-cron-env.sh && cd ~/VOD_Auctions/scripts && venv/bin/python3 meilisearch_drift_check.py >> meilisearch_drift.log 2>&1
 0 4 * * *    . ~/VOD_Auctions/scripts/meili-cron-env.sh && curl -fsS -X POST -H "Authorization: Bearer $MEILI_MASTER_KEY" http://127.0.0.1:7700/dumps >> ~/VOD_Auctions/scripts/meili_dumps.log 2>&1 && find /root/meilisearch/dumps -mtime +7 -delete
 
+# Format-V2 Cutover-Reminder (rc51.7, 2026-04-25 → triggers 2026-05-19)
+0 9 * * *    cd ~/VOD_Auctions/scripts && venv/bin/python3 cutover_reminder.py >> cutover_reminder.log 2>&1
+
 # Scripts (scripts/venv aktivieren)
 python3 legacy_sync_v2.py [--dry-run] [--pg-url "$STAGING_URL"]
 python3 discogs_daily_sync.py [--chunk 2 --rate 25]
 python3 meilisearch_sync.py [--apply-settings|--full-rebuild|--cleanup|--dry-run]
 python3 meilisearch_drift_check.py
+python3 cutover_reminder.py [--dry-run|--force]
 python3 entity_overhaul/orchestrator.py --type artist --phase P2
 python3 validate_labels.py [--commit data/label_validation_review.csv]
 python3 crm_import.py --phase 2

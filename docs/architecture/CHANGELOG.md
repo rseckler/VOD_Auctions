@@ -212,8 +212,10 @@ Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Rel
 - `docs/architecture/FORMAT_MAPPING_ANALYSIS.md` (Plan-Doc, ~1100 Zeilen, 5 Versionen)
 - `/Users/robin/Downloads/Formate_v5_FINAL.csv` (Frank-Roundtrip-Tabelle, 71 Werte)
 
+**Cutover-Reminder eingerichtet:** `scripts/cutover_reminder.py` läuft täglich um 09:00 UTC via VPS-Cron (idempotent via Marker-File). Triggert am Stichtag **2026-05-19** (3.5 Wochen nach rc51.7) eine Email an `rseckler@gmail.com` mit Live-DB-Status-Check (NULL-Count, format vs format_v2 Drift, Top-15 Verteilung, Constraint-Status) und GO/NO-GO-Verdict + 7-Schritt-Cutover-Plan. Drift-Heuristik kennt `LP → Vinyl-*/Lathe-Cut[-2]/Flexi/Acetate/Shellac` als legitim. Manueller Override: `python3 cutover_reminder.py --force` (sofort senden) oder `--dry-run` (Status zeigen ohne Mail). Commits: `d63fca7` + `4606eff`.
+
 **Noch offen (nicht-blockierend, ggf. spätere RCs):**
-1. **Cutover** `format` → `format_v2` rename + alte Spalte droppen — bewusst zurückgehalten, nach 2-3 Wochen Live-Beobachtung neu evaluieren.
+1. **Cutover** `format` → `format_v2` rename + alte Spalte droppen — bewusst zurückgehalten, automatischer Reminder am 2026-05-19 (siehe oben).
 2. **Storefront-UI Sub-Filter** (z.B. unter „Vinyl" → „7\" Single", „Box-Set qty≥2"): Backend-Filter `format_v2` schon da, UX-Definition mit Frank offen.
 3. **`shared.py` Cleanup**: alte `FORMAT_MAP`/`LEGACY_FORMAT_ID_MAP` parallel zu `format_mapping.py`. Aufräumen nach Cutover.
 4. **Meili `wait_for_task`-Race fixen** (Skript crasht nach erfolgreichem Atomic-Swap — kein Daten-Impact, kosmetisch).

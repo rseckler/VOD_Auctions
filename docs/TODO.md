@@ -596,7 +596,7 @@ Recommendations (**alle gefixt in rc51.3 Bundle, 2026-04-24**):
 - [x] Album-Bug-Fix (`12" + Album` → `Vinyl-LP-2` statt `Vinyl-12-Inch-2`, 66 Items neu klassifiziert)
 
 **Bewusst zurückgehalten / Follow-Ups:**
-- [ ] **Cutover** `format` → `format_v2` rename + alte `format`-Spalte droppen — nach 2-3 Wochen Live-Beobachtung re-evaluieren
+- [ ] **Cutover** `format` → `format_v2` rename + alte `format`-Spalte droppen — automatischer Reminder via `scripts/cutover_reminder.py` (Cron daily 09:00 UTC, Stichtag **2026-05-19**, Email an rseckler@gmail.com mit Live-Status-Check + GO/NO-GO-Verdict + 7-Schritt-Cutover-Plan)
 - [ ] **Storefront-UI Sub-Filter** unter `format_group` (z.B. „nur 7\" Singles", „nur Box-Sets qty≥2"): Backend-Filter `format_v2: string | string[]` schon da, UX-Definition mit Frank offen
 - [ ] **Admin Edit-Card Format-Dropdown:** aktuell zeigt das Card `format_v2` read-only. User-Wahl aus 71 Werten via Dropdown noch nicht gebaut (gehört zu Stammdaten-Gap 1+2)
 - [ ] **`shared.py` Cleanup:** alte `FORMAT_MAP` + `LEGACY_FORMAT_ID_MAP` parallel zu `format_mapping.py`. Aufräumen nach Cutover
