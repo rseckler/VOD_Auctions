@@ -1036,46 +1036,162 @@ Vor Wave-1-Sendung:
 
 ### D.0 Voraussetzung — Klärungs-Block (vor jeder Code-Arbeit)
 
-Bevor irgendwas geschrieben wird, brauchen wir präzise Antworten auf folgende Punkte (Robin oder Frank klären):
+**Update 2026-04-25:** Robin hat OfficeConnect identifiziert (siehe D.1.1) — das **ist** die offizielle MO-API. Pfad 4 ist damit konkret realisierbar geworden, Pfade 1-3 entfallen für den Hauptweg. D.0 reduziert sich auf wenige zielgerichtete Fragen.
 
-**Datenmenge & Zeitraum:**
-1. Wie viele Kunden sind in MO REWE? (Erwartung: 5k-20k, mehr als die 7.890 Tape-Mag-Website-Käufer weil Offline-Kanäle dazukommen)
-2. Wie viele Rechnungen / Orders insgesamt? Über welchen Zeitraum? (Tape-Mag-Website-Daten gehen 2013-2026)
-3. Gibt es Kunden in MO **ohne** korrespondierende Email (z.B. nur Telefon, Walk-in mit Adresse)? Wie groß ist dieser Anteil?
+**OfficeConnect-spezifisch (Frank klärt am MO-PC):**
 
-**Export-Optionen:**
-4. Welches Export-Format kann Frank aus MO REWE rausziehen?
-   - **DATEV-Export** (Standard für Steuerberater, optimiert für Buchungssätze, Adressfelder oft nur in „Kontakt-Notiz"-Format)
-   - **CSV-Export Kundenstamm** (typisch verfügbar, Spalten variieren je MO-Version)
-   - **CSV-Export Rechnungsausgang** (Rechnungs-Header)
-   - **CSV-Export Rechnungspositionen** (Line-Items, manchmal nur als „Druck-Export" → schwierig zu parsen)
-   - **Direkter DB-Zugriff** (MO nutzt proprietäre DB — bei aktuellen Versionen MariaDB/MySQL-basiert, älter Sybase/SQL-Anywhere)
-   - **API/SOAP** (mir nicht bekannt für MO REWE — bitte prüfen)
-5. Encoding der Exports? MO ist Windows-Software → wahrscheinlich `Windows-1252` oder `UTF-8 BOM`. Müssen wir explizit transkodieren.
-6. Hat MO REWE einen „Marketing-Opt-In"-Datenpunkt pro Kunde? (Damit wir nicht versehentlich Newsletter an Kunden ohne Consent schicken)
+1. **Welche MO REWE Version läuft auf Franks PC?** OfficeConnect-Version-Match ist Pflicht (z.B. MO 23.x ↔ Connect 23.1.0). Wenn die laufende MO-Installation älter ist, brauchen wir entweder ein MO-Upgrade oder Pfad 1 (CSV) als Fallback.
+2. **macOS oder Windows?** OfficeConnect läuft auf beiden, aber Setup-Pfad ist anders (DMG vs. ZIP).
+3. **Lizenznummer-Status:** OfficeConnect ist kostenlos, braucht aber eine Registrierung im prosaldo-Online-Shop (= „persönliche Lizenznummer"). Hat Frank/Robin die schon, oder müssen wir sie zuerst beantragen? Lead-Time?
+4. **cubeSQL-Network-Setup:** OfficeConnect spricht mit MO über cubeSQL-Server (eingebettet in MO). Default-Port? Erreichbar nur lokal (`127.0.0.1`) oder kann der Server auf LAN-IP lauschen? Tunnel von VPS nötig?
+5. **MO-PC Uptime:** Läuft der MO-PC 24/7 oder schaltet Frank ihn abends aus? Beeinflusst Sync-Strategie (Live-Sync braucht 24/7 vs. Daily-Batch reicht bei Geschäftszeiten).
+6. **Marketing-Opt-In Feld:** Hat MO REWE ein dediziertes Feld für Newsletter-Consent pro Kunde? (Falls ja, muss das mit-importiert werden — DSGVO-relevant)
+
+**Datenmenge (für Performance-Planung):**
+7. Wie viele Kunden sind in MO REWE? (Erwartung: 5k-20k, mehr als die 7.890 Tape-Mag-Website-Käufer weil Offline-Kanäle dazukommen)
+8. Wie viele Rechnungen / Orders insgesamt? Über welchen Zeitraum? (Tape-Mag-Website-Daten gehen 2013-2026)
 
 **Datenqualität:**
-7. Wie sauber sind die Adressdaten? Strukturiert (Straße/PLZ/Ort separat) oder als Freitext? Mehrere Adressen pro Kunde (Liefer- vs. Rechnungsadresse)?
-8. Email-Pflichtfeld in MO oder optional? Wie wird ein Kunde ohne Email identifiziert (intern-ID? Nachname+PLZ?)
-9. Gibt es bereits einen `tape-mag-Website-customer-id` Cross-Reference in MO? D.h. wenn ein Kunde Online über tape-mag bestellt hat, ist er in MO **derselbe** Datensatz oder zwei? → kritisch für Deduplication.
-10. Was ist mit gelöschten/deaktivierten Kunden in MO? GoBD verbietet harten Delete von Buchhaltungs-Daten — MO archiviert wahrscheinlich nur. Sollen die mit oder ohne Marker importiert werden?
+9. Gibt es Kunden in MO **ohne** Email (Walk-in / Telefon-Bestellung)? Wie groß ist dieser Anteil?
+10. Gibt es Cross-Reference zwischen MO-Kundennummer und tape-mag-Website-Customer-ID? (Wenn ja: in welchem Feld? Falls nein: Email-Match ist alleinige Bridge.)
+11. Wie sind Adressen modelliert? Eine pro Kunde oder Liefer- vs. Rechnungsadresse separat?
+12. Was ist mit deaktivierten/gelöschten Kunden in MO? GoBD verbietet hartes Delete — MO archiviert wahrscheinlich. Mit oder ohne Marker importieren?
 
 **Strategie:**
-11. **Phase-Out oder Sync?** Soll vod-auctions.com nach Launch das Bestellungs-System auch für die Nicht-Auction-Items werden (= MO wird zum reinen Steuerberater-Export-Frontend) ODER bleibt MO Source-of-Truth und vod-auctions.com nur fürs Auktionsgeschäft?
-12. Wenn Sync: in welche Richtung? `vod-auctions.com → MO` (Auktions-Verkäufe als neue Rechnungen ins MO importieren) oder `MO → vod-auctions.com` (Offline-Verkäufe ins CRM spiegeln) oder beides?
-
-**Diese Antworten** entscheiden zwischen vier Implementierungs-Pfaden (D.1 unten).
+13. **Phase-Out oder Sync?** Bleibt MO Source-of-Truth (Buchhaltung) und vod-auctions.com ist CRM-Spiegel + neuer Verkaufskanal? ODER soll vod-auctions.com nach 1-2 Jahren MO komplett ersetzen (eigener Rechnungsbestand + DATEV-Export für Steuerberater)?
+14. **Sync-Richtung initial:** Read-Only `MO → vod-auctions.com` (CRM-Spiegel) oder Bidirectional inkl. `vod-auctions.com → MO` (Auktions-Verkäufe als Rechnungen ins MO pushen)?
 
 ### D.1 Implementierungs-Pfade — eine Wahl je nach D.0
 
+**Empfehlung nach Recherche 2026-04-25: Pfad 4 (OfficeConnect-API).** Pfade 1-3 entfallen außer als Fallback wenn OfficeConnect technisch nicht bereitsteht.
+
 | Pfad | Wenn… | Aufwand | Beschreibung |
 |---|---|---:|---|
-| **Pfad 1: One-Shot CSV-Import** | MO kann CSV-Export Kundenstamm + Rechnungen + Line-Items, Steuerberater bleibt Boss in MO | ~5 Tage | Manueller Export → Validation-Skript → Idempotenter Bulk-Import. Keine fortlaufende Sync. |
-| **Pfad 2: One-Shot + Periodic Re-Sync** | Wie Pfad 1, plus monatliches Refresh mit Delta | ~7 Tage | Pfad 1 + zusätzlich Cron-Job der monatlich neue MO-Exports einspielt (Idempotenz via `monkey_office_invoice_id` UNIQUE) |
-| **Pfad 3: Direct-DB-Sync** | MO ist eine MariaDB-/MySQL-basierte Version, wir bekommen Read-Only-DB-Credentials | ~10 Tage | Live-DB-Replikation via `pg_logical`-Style-Polling oder Custom-Sync-Script. Risiko: MO-DB-Schema undokumentiert, kann zwischen Versionen brechen. |
-| **Pfad 4: API-Bridge** | MO REWE hat eine dokumentierte API (mir unbekannt — bitte prüfen) | ~14 Tage | Dauerhafter Sync-Layer + GoBD-konforme bidirectional Sync. Höchste Investition. |
+| **Pfad 4: OfficeConnect-API-Bridge ⭐ Empfohlen** | MO-Version unterstützt OfficeConnect (Mainstream, kostenlos) | ~5-7 Tage | Saubere HTTP/JSON-API, idempotente CRUD via MO-native Record-IDs, bidirectional fähig, kein CSV-Encoding-Edge-Case |
+| Pfad 1: One-Shot CSV-Import (Fallback) | OfficeConnect nicht verfügbar / Version-Mismatch / Lizenz-Beschaffung dauert | ~5 Tage | Manueller Export → Validation → Bulk-Import. Keine Sync. |
+| Pfad 2: One-Shot + Periodic Re-Sync (Fallback) | Wie Pfad 1, plus monatliches Refresh | ~7 Tage | Pfad 1 + Cron-Job |
+| Pfad 3: Direct-DB-Sync (verworfen) | — | — | Nicht mehr nötig, OfficeConnect deckt DB-Zugriff offiziell ab |
 
-**Empfehlung ohne weitere Klärung:** Pfad 1 zuerst. Liefert sofort den 80%-Wert (komplette Customer-History) und ist der niedrigste Aufwand. Wenn nach 4 Wochen klar ist dass Offline-Verkäufe im CRM gebraucht werden, kann Pfad 2 nachgezogen werden. Pfad 3/4 nur bei klarem strategischen Need.
+#### D.1.1 OfficeConnect — was wir wissen (Stand 2026-04-25)
+
+Quelle: <https://www.monkey-office.de/products/officeconnect/index.php>
+
+**Architektur:**
+- Connect spricht mit MO über **cubeSQL-Server** (eingebettet in MO REWE)
+- Wire-Protokoll: **HTTP(S) + JSON**
+- Connect läuft als separater Prozess auf demselben oder einem anderen Host als MO
+- Bibliotheken offiziell verfügbar: **PHP** + **C++**. Wir nutzen die nicht direkt — wir bauen eigenen Node/TypeScript-Client gegen die HTTP/JSON-Schicht (analog zu wie wir Brevo + Stripe nutzen).
+
+**Daten (CRUD):**
+- Adressen (Customers): vollständig — abfragen / ändern / löschen / neu anlegen
+- Allgemein: „Daten neu anlegen, ändern oder löschen, ebenso Daten abfragen"
+- Genauer Umfang in der Connect-Doku (`monkey-office.de/doc/Start.html`) — **muss vor Code-Start gelesen werden** um zu wissen welche Endpunkte für Rechnungen + Rechnungspositionen + Artikel existieren
+
+**Authentifizierung:**
+- Persönliche Lizenznummer (kostenlos, Registrierung im prosaldo-Shop)
+- Login + Firmeninformationen werden übermittelt
+- **Kein OAuth, kein API-Key-Modell.** Wir müssen Credentials secret-managen wie aktuell DB-Passwords (1Password / `.env`).
+
+**Lizenz:** Kostenlos, registrierungspflichtig.
+
+**Plattformen:** macOS (10.14+, ARM/Intel), Windows 10/11 (x64). Linux nicht offiziell.
+
+**Versions-Pflicht:** Connect-Hauptversion = MO-Hauptversion (z.B. Connect 23.1.0 ↔ MO 23.x).
+
+**Sicherheits-Constraints:**
+- „Funktionalität kann vom Anwender nicht erweitert werden" → wir bekommen nur die Endpoints die MO offiziell exposed
+- Geschäftslogik wird erzwungen → Connect schützt Datenkonsistenz (z.B. wir können keine Rechnung ohne Kunde anlegen)
+- Rate-Limits: nicht erwähnt → wir messen selbst und implementieren backoff
+
+**Was die Doku-Seite NICHT verrät (muss bei Frank/Doku verifiziert werden):**
+- Genaue Endpoint-Namen + JSON-Schemas
+- Bulk-Endpoints (für initial 5k-20k-Customer-Backfill — paginieren wir 100/Call?)
+- Filterung/Pagination-Mechanismus
+- Webhook/Push-Support oder nur Pull?
+- Wie sicht Connect mit MO synchronisiert (Live-DB-Read vs. eventual-consistency)
+
+#### D.1.2 Architektur-Skizze (Pfad 4)
+
+```
+                       ┌─────────────────────────────────────┐
+                       │   Frank's MO-PC (macOS/Windows)     │
+                       │                                      │
+                       │   ┌────────────────────────────┐    │
+                       │   │ MonKey Office REWE 23.x    │    │
+                       │   │   ├── Kundenstamm          │    │
+                       │   │   ├── Rechnungsausgang     │    │
+                       │   │   └── Rechnungspositionen  │    │
+                       │   └────────┬───────────────────┘    │
+                       │            │ embedded               │
+                       │   ┌────────▼───────────────────┐    │
+                       │   │ cubeSQL-Server (Port ?)    │    │
+                       │   └────────┬───────────────────┘    │
+                       │            │                        │
+                       │   ┌────────▼───────────────────┐    │
+                       │   │ OfficeConnect (separater   │    │
+                       │   │  Prozess, HTTP/JSON-API)   │    │
+                       │   │  Port ?                    │    │
+                       │   └────────┬───────────────────┘    │
+                       └────────────┼─────────────────────────┘
+                                    │
+                                    │ HTTPS (Tailscale-Tunnel
+                                    │  oder ngrok-Reverse-Proxy)
+                                    │
+                       ┌────────────▼─────────────────────────┐
+                       │   VPS (Hostinger 72.62.148.205)     │
+                       │                                      │
+                       │   ┌────────────────────────────┐    │
+                       │   │ vodauction-backend (Medusa)│    │
+                       │   │  ├── lib/monkey-office.ts  │    │
+                       │   │  └── api/admin/mo-sync/    │    │
+                       │   └────────┬───────────────────┘    │
+                       │            │                        │
+                       │   ┌────────▼───────────────────┐    │
+                       │   │ Supabase (CRM-DB)          │    │
+                       │   │   ├── customers (plural)   │    │
+                       │   │   ├── orders               │    │
+                       │   │   └── customer (Medusa)    │    │
+                       │   └────────────────────────────┘    │
+                       └──────────────────────────────────────┘
+```
+
+**Network-Bridge zur Frage „wie kommt VPS an MO-PC":**
+- **Option α (empfohlen):** **Tailscale**. Frank installiert Tailscale-Client auf MO-PC, VPS hat schon Tailscale aus Stromportal-Projekt. MO-PC bekommt 100.x.x.x-IP, VPS adressiert OfficeConnect direkt über Tailscale-Hostname. Kein Port-Forwarding, keine öffentliche IP, keine Firewall-Regel nötig. Verschlüsselter Tunnel out-of-the-box.
+- **Option β:** OfficeConnect lokal auf MO-PC, **VPN-Cron-Pull**: Sync-Script läuft auf MO-PC selbst (Mac LaunchAgent oder Windows-Scheduler), pushed Deltas an VPS-Endpoint. Macht VPS unabhängig vom MO-PC-Erreichbarkeit, aber Frank muss den Job am Laufen halten.
+- **Option γ:** ngrok / Cloudflare-Tunnel als Reverse-Proxy. Zusätzliche Service-Abhängigkeit, ich würde Tailscale bevorzugen (existiert schon im Stack).
+
+**Empfehlung:** **Option α mit Tailscale.** Frank's MO-PC ist eh schon im Tailscale-Netz (oder kann es trivial werden). Sync läuft als Cron auf VPS, ruft `https://franks-mac.tailnet:port/connect/...` ab.
+
+#### D.1.3 Sync-Strategie (Pfad 4)
+
+**Initial-Backfill (One-Shot):**
+- Erste Vollmenge aller Customers + Invoices aus MO
+- Idempotent via `monkey_office_customer_id` + `monkey_office_invoice_id` UNIQUE-Indizes (D.2)
+- Re-runnable ohne Datenverlust
+- Erwartete Dauer: 1-2h für 20k Customers + 50k Invoices (abhängig von OfficeConnect-Performance — muss mit Sample gemessen werden)
+
+**Continued-Sync (täglich oder stündlich):**
+- Cron-Job auf VPS: `*/15 * * * *  python3 monkey_office_sync.py` (Beispiel: alle 15min)
+- Strategie: **Polling-Delta** — Connect-API mit `WHERE updatedAt > <last_sync_at>` (sofern Connect das unterstützt) ODER Full-Page-Pull mit Hash-Diff (analog zu Meilisearch-Sync rc40).
+- Watermark in `monkey_office_import_runs.last_synced_at`
+- Bei Fehler: Run wird als `failed` markiert, nächster Run versucht wieder (Watermark wird erst bei `done` advancen)
+
+**Bidirectional (deferred, Phase 2):**
+- vod-auctions.com erstellt eine Auktions-Order → ein Subscriber pushed via OfficeConnect eine neue MO-Rechnung
+- Mappings: vod-auctions.com `transaction.id` → MO `Rechnungsnr` (separates Feld in MO oder in MO-Notizfeld)
+- GoBD-Konform: MO bleibt das System-of-Record für Rechnungen, vod-auctions.com triggert nur die Erstellung
+- Komplexität: Tax-Berechnung muss in MO passieren (sonst weicht das DATEV-Output ab) → Storefront pushed nur Header + Items, MO rechnet Steuern
+
+#### D.1.4 Risiken Pfad 4
+
+| Risiko | Schweregrad | Mitigation |
+|---|---|---|
+| OfficeConnect-Doku unvollständig oder hat Edge-Cases | Mittel | Sample-Test mit 10 Customers + 10 Invoices vor Full-Backfill, Doku-Lesen vor Code-Start |
+| MO-Version-Upgrade alle 1-2 Jahre → Connect-Version-Pflicht | Niedrig | Connect ist kostenlos, Upgrade-Pfad dokumentiert. Sync-Code muss versioniert sein. |
+| Connect-API blockiert bei großen Bulk-Pulls (Rate-Limit oder Performance) | Mittel | Pagination + Backoff implementieren, initial Backfill in Chunks à 500 |
+| MO-PC offline → Sync-Lücke | Niedrig | Polling-Delta-Strategie — nächster erfolgreicher Run holt nach |
+| OfficeConnect-Auth-Credentials kompromittiert | Niedrig | 1Password-Store, in `.env` als secret, kein Commit |
+| Breaking-Changes in Connect zwischen MO-Hauptversionen | Mittel | Smoke-Tests nach jedem MO-Upgrade, separates Issue-Tracking |
 
 ### D.2 Schema-Erweiterungen (für alle Pfade)
 
@@ -1285,16 +1401,20 @@ Nach D.3 + D.4:
 
 ### D.6 Strategie-Entscheidung — MO-Phase-Out vs. Continued-Sync
 
-| Aspekt | MO-Phase-Out (vod-auctions.com wird Buchhaltungs-System) | Continued-Sync (MO bleibt Source-of-Truth) |
+| Aspekt | MO-Phase-Out (vod-auctions.com wird Buchhaltungs-System) | Continued-Sync via OfficeConnect (MO bleibt Source-of-Truth) |
 |---|---|---|
 | GoBD-Konformität | Selbst sicherstellen — Audit-Logs, 10-Jahre-Aufbewahrung, unveränderliche Rechnungen | MO macht's weiter |
 | Steuerberater-Workflow | Neuer Export-Pfad aus vod-auctions.com (DATEV-Export-Endpoint nötig) | Unverändert |
-| Aufwand | Hoch (Rechnungsnummern-Sequence, GoBD-Module, etc.) | Niedrig — ein zusätzlicher Daten-Sync |
+| Aufwand | Hoch (Rechnungsnummern-Sequence, GoBD-Module, etc.) | **Niedrig** — Connect ist kostenlos, Sync-Code ist klein |
 | Risiko | Hoch — Steuerberater muss neuen Workflow akzeptieren | Niedrig |
 | Marketing-Wert | Identisch | Identisch |
-| Realistisch | 6-12 Monate weiterer Workstream | Sofort umsetzbar |
+| Realistisch | 6-12 Monate weiterer Workstream | **Sofort umsetzbar mit OfficeConnect** |
 
-**Empfehlung:** **Continued-Sync** für mindestens das erste Jahr nach Launch. MO bleibt Buchhaltung, vod-auctions.com bekommt monatlich einen Export-Push (oder umgekehrt: vod-auctions.com schickt neue Auction-Verkäufe als „Rechnungen" zurück nach MO via DATEV-Format). Phase-Out ist ein eigener strategischer Workstream, kein Tag-1-Ziel.
+**Empfehlung:** **Continued-Sync via OfficeConnect** für mindestens das erste Jahr nach Launch. MO bleibt Buchhaltung, vod-auctions.com hat:
+- **Read-Sync (Tag 1):** alle 15min Pull von neuen/geänderten Customers + Invoices aus MO → CRM-DB
+- **Write-Sync (Tag 30+, Phase 2):** vod-auctions.com pushed neue Auktions-Verkäufe als Rechnungen zurück nach MO via OfficeConnect
+
+Mit OfficeConnect ist Continued-Sync **deutlich attraktiver als vorher gedacht**: kein monatlicher manueller CSV-Export mehr nötig, idempotente bidirectional Sync ist out-of-the-box möglich. Phase-Out bleibt strategischer Workstream, aber der Druck ist weg — MO+OfficeConnect+vod-auctions.com können dauerhaft koexistieren.
 
 ### D.7 GoBD- und steuerrechtliche Implikationen
 
@@ -1310,32 +1430,47 @@ Nach D.3 + D.4:
 - DSGVO-konforme Anonymisierung von MO-Customers in unserer Spiegel-DB
 - Auftragsverarbeitungs-Vertrag (AVV) zwischen vod-records (MO-Owner) und vod-auctions.com (CRM-Spiegel) — selbe juristische Person, aber andere Marken → ggf. Vertrag intern dokumentieren
 
-### D.8 Aufwand + Risiken
+### D.8 Aufwand + Risiken (Pfad 4 — OfficeConnect)
 
 | Phase | Aufwand | Risiko | Mitigation |
 |---|---:|---|---|
-| D.0 Klärungs-Block (1-2 Termine mit Frank am MO-PC) | 1 Tag | Antworten zeigen dass MO-Export schwieriger ist als gedacht | Pfad 3/4 als Fallback |
-| Pre-Validation eines Sample-Exports (10-Row-Test) | 0.5 Tag | Encoding/Schema-Surprises | Iterative Schema-Map-Anpassung |
-| D.2 Migration | 1h | — | Idempotent, additive |
-| D.3 Customer-Import-Skript + Trockenlauf | 2 Tage | Doppel-Email-Edge-Cases | Reject-Liste, Manual-Review |
-| D.4 Order + Item-Import | 2 Tage | Orphan-Orders, Produkt-Mapping unklar | Orphan-Liste, Produkt-Mapping als Phase-2 |
-| D.5 Reconciliation + Diff-Report | 0.5 Tag | — | — |
-| D.6 Continued-Sync (Pfad 2 nachträglich) | 2-3 Tage | Wenn MO-Schema zwischen Versionen ändert | Manueller Re-Run mit neuem Mapping |
+| D.0 Klärungs-Block (1 Termin mit Frank am MO-PC, MO-Version + Lizenz prüfen) | 0.5 Tag | OfficeConnect nicht installiert oder MO-Version zu alt | Lizenz-Beantragung läuft 1-3 Tage parallel; Pfade 1-2 als Fallback |
+| Tailscale-Setup auf MO-PC + Connect-Auth-Test (curl) | 0.5 Tag | Frank hat keinen Admin-Zugriff auf MO-PC | Robin koordiniert Termin |
+| OfficeConnect-Doku lesen + Endpoint-Map erstellen (Customers, Invoices, Items) | 1 Tag | Doku unvollständig | Sample-Probe mit 10 Records pro Endpoint |
+| `backend/src/lib/monkey-office.ts` HTTP-Client + Auth-Wrapper | 1 Tag | — | Type-Safe TS-Wrapper mit Retry-Logic |
+| D.2 Migration (Schema) | 1h | — | Idempotent, additive |
+| D.3 Customer-Pull + Import-Pipeline | 1.5 Tage | Pagination-Edge-Cases, Doppel-Emails | Chunk-basiert, Reject-Liste |
+| D.4 Invoice + Item-Pull + Import | 1.5 Tage | Orphan-Invoices, Item-Schema-Mismatch | Manual-Review-Liste |
+| D.5 Reconciliation + Cron-Setup (alle 15min Delta) | 1 Tag | Connect-Throughput unter Erwartung | Adjustable Chunk-Size + Backoff |
+| D.6 Continued-Sync stabilisieren + Monitoring | 0.5 Tag | Stale-Run-Detection wie bei legacy_sync_v2 | `monkey_office_import_runs.status='abandoned' WHERE started_at < NOW()-30min AND ended_at IS NULL` |
+| D.7 (Phase 2, deferred) Bidirectional Write-Sync | 3-5 Tage | Tax-Rounding-Diff, GoBD-Konsistenz | MO-Test-Mandant zum Üben |
 
-**Total Pfad 1 (One-Shot):** **~6 Tage** + 1 Tag Klärungs-Block davor = **~1.5 Wochen** für sauberen historischen Import.
+**Total Pfad 4 (Read-Sync, Initial-Backfill + Continued-Pull):** **~7 Tage** + 0.5 Tag Klärungs-Block + 1-3 Tage Lizenz-Lead-Time (parallel) = **~1.5 Wochen** für vollständig synchronisierten CRM-Spiegel.
+
+**Vergleich:**
+- Pfad 4 (OfficeConnect): ~7 Tage, **inklusive** Continued-Sync und ohne CSV-Edge-Cases
+- Pfad 1 (One-Shot CSV): ~6 Tage, **ohne** Continued-Sync, mit CSV-Edge-Cases
+- → Pfad 4 ist gleicher Aufwand, deutlich besseres Ergebnis. Klar empfohlen.
+
+**Fallback-Plan wenn OfficeConnect technisch nicht klappt:** Pfad 1 (CSV-One-Shot) startet, Pfad 4 wird in 4-8 Wochen nachgezogen wenn Lizenz/Version geklärt sind.
 
 ### D.9 Reihenfolge im Gesamt-Sprint-Plan
 
-D wird **nach** Section A geschoben (A liefert die Customer-Bridge-Infrastruktur, D nutzt sie). Concrete:
+D wird **nach** Section A geschoben (A liefert die Customer-Bridge-Infrastruktur, D nutzt sie). Mit OfficeConnect (Pfad 4) ist Continued-Sync **direkt** in den Initial-Sprint integriert — keine separate Phase 3 mehr nötig.
 
 | Sprint | Inhalt | Aufwand |
 |---|---|---:|
-| **Sprint D0** (parallel zu C1, kann sofort starten) | D.0 Klärungs-Block mit Frank, MO-Sample-Export anfordern | 1 Tag |
-| Sprint D1 (nach A1) | D.2 Migration + D.3 Customer-Import-Pipeline | 3 Tage |
-| Sprint D2 (nach D1) | D.4 Order + Item-Import + D.5 Reconciliation | 3 Tage |
-| Sprint D3 (deferred) | Continued-Sync (Pfad 2) | 3 Tage |
+| **Sprint D0** (parallel zu C1, kann sofort starten) | D.0 Klärungs-Block, MO-Version + Tailscale-Setup, OfficeConnect-Lizenz beantragen | 0.5 Tag + 1-3 Tage Lead-Time |
+| Sprint D-Prep (parallel zu A1) | OfficeConnect-Doku lesen, Endpoint-Map, `lib/monkey-office.ts` HTTP-Client | 2 Tage |
+| Sprint D1 (nach A1) | D.2 Migration + D.3 Customer-Pull + Import | 2 Tage |
+| Sprint D2 (nach D1) | D.4 Invoice + Item-Import + D.5 Reconciliation | 2 Tage |
+| Sprint D3 (nach D2) | D.6 Continued-Sync Cron + Monitoring | 1 Tag |
+| Sprint D4 (deferred, Phase 2) | D.7 Bidirectional Write-Sync (vod-auctions Auctions → MO Rechnungen) | 3-5 Tage |
 
-**Aktualisierte Gesamt-Dauer Phase 1 (vor Wave 1, mit MO-Import):** ~9 Tage Code (C+A) + ~6 Tage MO (D1+D2) = **~3 Arbeitswochen**. Wenn MO-Import auf nach Wave 1 verschoben wird: Phase 1 bleibt bei 2 Wochen.
+**Aktualisierte Gesamt-Dauer Phase 1 (vor Wave 1, ohne MO-Import):** ~9 Tage Code (C+A) = **~2 Arbeitswochen**.
+**Phase 1.5 (vor Wave 2 mit OfficeConnect-Sync):** + ~7 Tage MO (D-Prep + D1-D3) = **~3 Arbeitswochen gesamt**.
+
+**Tip:** D-Prep + D0 können **vollständig parallel** zu allen anderen Sprints laufen. Frank's Klärungs-Block + Lizenz-Beantragung blockieren gar nichts.
 
 ### D.10 Was Section D NICHT macht
 
@@ -1387,20 +1522,22 @@ Vor dem ersten Production-Import:
 
 | Sprint | RC-Range | Inhalt | Aufwand |
 |---|---|---|---|
-| **Sprint D0** | parallel | D.0 Klärungs-Block mit Frank, MO-Sample-Export anfordern | 1 Tag |
+| **Sprint D0** | parallel | D.0 Klärungs-Block (MO-Version, Tailscale, OfficeConnect-Lizenz beantragen) | 0.5 Tag + 1-3 Tage Lizenz-Lead-Time |
+| **Sprint D-Prep** | parallel zu A1 | OfficeConnect-Doku, Endpoint-Map, `lib/monkey-office.ts` HTTP-Client | 2 Tage |
 | Sprint C1 | rc52.0–rc52.3 | C.1 Migration, C.2 Access-Gate, C.3 Redeem-Flag, C.6 Rate-Limit | ~3 Tage |
 | Sprint A1 | rc52.4–rc52.6 | A.0 Customers-Dedup, A.1 Legacy-API, A.2 POS-Search-UNION | ~2 Tage |
 | Sprint A2 | rc53.0–rc53.2 | A.3 Auto-Stub, A.4 Admin-Tab Tape-Mag, A.5.3 Forgot-Password | ~2 Tage |
 | Sprint C2 | rc53.3–rc53.5 | C.4 Magic-Link, C.5 Admin-Wave-UI, C.8 Brevo-Waitlist-Liste | ~2 Tage |
 | **Wave 1 GO** | nach C2 | RSE-78 AGB-Anwalt + Re-DOI-Decision parallel | — |
-| Sprint D1 | rc54.0–rc54.2 | D.2 Migration + D.3 MO-Customer-Import | ~3 Tage |
-| Sprint D2 | rc54.3–rc54.5 | D.4 MO-Order-Import + D.5 Reconciliation | ~3 Tage |
-| **Wave 2+ GO** | nach D2 | Top-Spender-Liste vollständig (inkl. MO-Offline-Käufer) | — |
-| Sprint B (deferred) | rc55+ | B.1-B.7 Backfill + Bidirectional-Sync | ~2 Wochen |
-| Sprint D3 (deferred) | rc56+ | D.6 Continued-Sync (Pfad 2 monatlicher MO-Refresh) | ~3 Tage |
+| Sprint D1 | rc54.0–rc54.2 | D.2 Migration + D.3 MO-Customer-Pull (OfficeConnect) | ~2 Tage |
+| Sprint D2 | rc54.3–rc54.5 | D.4 MO-Invoice + Item-Import + D.5 Reconciliation | ~2 Tage |
+| Sprint D3 | rc54.6 | D.6 Continued-Sync Cron + Monitoring | ~1 Tag |
+| **Wave 2+ GO** | nach D3 | Top-Spender-Liste vollständig (inkl. MO-Offline-Käufer), live-aktuell | — |
+| Sprint B (deferred) | rc55+ | B.1-B.7 Backfill + Bidirectional-Brevo-Sync | ~2 Wochen |
+| Sprint D4 (deferred, Phase 2) | rc56+ | D.7 Write-Sync vod-auctions Auctions → MO Rechnungen | ~3-5 Tage |
 
 **Total Phase 1 (vor Wave 1):** ~9 Tage Code + 1 Tag QA + 1 Tag Deployments-Buffer = **~2 Arbeitswochen**.
-**Total Phase 1.5 (vor Wave 2 mit MO-History):** + ~6 Tage MO-Import = **~3 Arbeitswochen gesamt**.
+**Total Phase 1.5 (vor Wave 2 mit OfficeConnect-Sync):** + ~7 Tage MO (D-Prep + D1+D2+D3) = **~3 Arbeitswochen gesamt** (live-synchronisierter CRM-Spiegel statt einmaliger CSV-Snapshot).
 
 ---
 
@@ -1416,11 +1553,13 @@ Vor dem ersten Production-Import:
 8. **Magic-Link-Default an/aus:** Soll Magic-Link als Default-Login (Email-Field, dann optional Password) oder als sekundäre Option neben Password? Empfehlung: sekundär — Magic-Link-Mails landen oft im Spam.
 9. **Test-Account-Backfill:** Die 12 bestehenden `customer`-Rows sind alle Test-Accounts (`bidder1@test.de` etc.). Sollen die `is_invited_user=true` bekommen oder explizit abgesetzt werden? Empfehlung: alle auf `true` setzen damit Tests weiterlaufen, aber `metadata.is_test_account=true` als zusätzlicher Marker für Reports.
 10. **`platform_mode='preview'`-Use-Case:** Soft-Open (Browse + Apply, kein Bid) — wollen wir das überhaupt? Wenn ja, muss C.2 Access-Gate auch `'preview'` als „Bid/Buy gegated, Browse offen" behandeln.
-11. **MO Phase-Out vs. Continued-Sync (Section D Frage 11):** Bleibt Monkey Office Buchhaltungs-System nach Launch? Empfehlung: **Continued-Sync** für mind. 1 Jahr, dann re-evaluieren.
-12. **MO Sync-Richtung:** `vod-auctions.com → MO` (Auctions als Rechnungen ins MO importieren) oder `MO → vod-auctions.com` (Offline-Verkäufe ins CRM spiegeln) oder beides? Hat Steuerberater-Implikationen.
-13. **MO Export-Format:** DATEV vs. CSV vs. Direct-DB — D.0 Klärungs-Block mit Frank am MO-PC vor Code-Start.
-14. **MO Marketing-Opt-In Datenpunkt:** Hat MO REWE einen Marketing-Consent-Marker pro Kunde? Wenn ja, müssen wir den importieren um nicht versehentlich Werbung an Nicht-Consent-Kunden zu schicken (DSGVO-relevant, RSE-78-Scope).
-15. **MO Article-Number-Mapping:** Können MO-`Artikelnummer` 1:1 auf unsere `Release.article_number` (Format `VOD-XXXXX`) gemapped werden? Wenn ja: Order-Items bekommen FK auf Release-Tabelle. Wenn nicht: nur Strings.
+11. **MO Phase-Out vs. Continued-Sync (Section D):** Bleibt Monkey Office Buchhaltungs-System nach Launch? Empfehlung mit OfficeConnect: **Continued-Sync** dauerhaft, kein Phase-Out-Druck mehr.
+12. **MO Sync-Richtung:** Read-Only (MO → vod-auctions, Tag 1) ist klarer Default. Bidirectional (Auctions → MO Rechnungen, Phase 2) erst wenn Tax-Workflow geklärt ist.
+13. **MO-Version + OfficeConnect-Lizenz (Section D.0):** Welche MO-Version läuft, ist Connect-kompatibel, wer beantragt die Lizenz? Lead-Time prüfen.
+14. **Tailscale-Setup auf MO-PC:** Hat Frank's MO-Mac/PC schon Tailscale? Falls nein: Robin koordiniert Termin (15min Setup).
+15. **MO Marketing-Opt-In Datenpunkt:** Hat MO REWE ein Newsletter-Consent-Feld pro Kunde? Falls ja: muss mit-synced werden (DSGVO-relevant, RSE-78-Scope).
+16. **MO Article-Number-Mapping:** Können MO-`Artikelnummer` 1:1 auf unsere `Release.article_number` (Format `VOD-XXXXX`) gemapped werden? Wenn ja: Order-Items bekommen FK auf Release-Tabelle.
+17. **OfficeConnect-Doku detaillierte Endpoint-Liste:** Müssen wir aus der Live-Doku (`monkey-office.de/doc/Start.html`) extrahieren — Endpoint-Map, Pagination, Filter-Syntax, Webhook-Support. Sprint D-Prep blocker.
 
 ---
 
@@ -1434,6 +1573,10 @@ Vor dem ersten Production-Import:
 ---
 
 **Vorgeschlagener nächster Schritt:**
-1. **Sofort (parallel):** Sprint D0 starten — Frank fragen welche Export-Optionen MO REWE bietet, Sample-CSV (50-100 Rows Kunden + Rechnungen) anfordern. Lead-Time 1-3 Tage.
+1. **Sofort (parallel, Lead-Time-kritisch):** Sprint D0 starten — Frank fragen:
+   - Welche MO REWE Version läuft auf dem PC? (für OfficeConnect-Versions-Match)
+   - Ist Tailscale schon auf dem MO-PC oder müssen wir es installieren?
+   - Wer beantragt die OfficeConnect-Lizenz im prosaldo-Online-Shop? (kostenlos, aber Registrierung dauert ggf. 1-3 Tage)
 2. **Diese Woche:** Sprint C1 (rc52.0-rc52.3) als ersten Workstream in `docs/TODO.md` aufnehmen. C.1-Migration vorbereiten + auf Supabase-Branch oder lokal smoke-testen.
-3. **Parallel:** Anwalt-Tickets (Re-DOI Brevo List 5, AGB, MO-Marketing-Consent-Übertragung, AVV intern) zu RSE-78 ergänzen — die brauchen Lead-Time und blockieren Wave 1.
+3. **Parallel zu C1, sobald D0 grünes Licht gibt:** Sprint D-Prep — OfficeConnect-Doku lesen, Endpoint-Map erstellen, `lib/monkey-office.ts` HTTP-Client bauen.
+4. **Parallel:** Anwalt-Tickets (Re-DOI Brevo List 5, AGB, MO-Marketing-Consent-Übertragung, AVV intern für vod-records ↔ vod-auctions Datenfluss) zu RSE-78 ergänzen — die brauchen Lead-Time und blockieren Wave 1.
