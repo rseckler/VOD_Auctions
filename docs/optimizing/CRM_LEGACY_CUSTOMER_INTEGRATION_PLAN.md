@@ -1026,41 +1026,381 @@ Vor Wave-1-Sendung:
 
 ---
 
+## Section D — Monkey Office REWE Datenmigration
+
+**Ziel:** Historische Customer- + Order-Daten aus Monkey Office REWE (das aktuell **alle** vod-records-Bestellungen verarbeitet, nicht nur die der tape-mag-Website) in unser CRM importieren. Saubere History bauen, damit Marketing-Flows auf vollständige Customer-Lifetime-Value-Reports zugreifen können.
+
+**Status:** Konzept (2026-04-25). Vorab-Klärungen offen — siehe D.0.
+
+**Wichtige Annahme:** Monkey Office bleibt **vorerst** das Buchhaltungs-Tool für vod-records (GoBD-Konformität, Steuerberater-Anbindung, Rechnungslegung). Diese Section beschreibt zunächst einen **One-Shot-Historischen-Import** plus optional einen Continued-Sync. Migration-aus-MO-heraus ist ein separater strategischer Workstream und nicht Scope dieses Plans.
+
+### D.0 Voraussetzung — Klärungs-Block (vor jeder Code-Arbeit)
+
+Bevor irgendwas geschrieben wird, brauchen wir präzise Antworten auf folgende Punkte (Robin oder Frank klären):
+
+**Datenmenge & Zeitraum:**
+1. Wie viele Kunden sind in MO REWE? (Erwartung: 5k-20k, mehr als die 7.890 Tape-Mag-Website-Käufer weil Offline-Kanäle dazukommen)
+2. Wie viele Rechnungen / Orders insgesamt? Über welchen Zeitraum? (Tape-Mag-Website-Daten gehen 2013-2026)
+3. Gibt es Kunden in MO **ohne** korrespondierende Email (z.B. nur Telefon, Walk-in mit Adresse)? Wie groß ist dieser Anteil?
+
+**Export-Optionen:**
+4. Welches Export-Format kann Frank aus MO REWE rausziehen?
+   - **DATEV-Export** (Standard für Steuerberater, optimiert für Buchungssätze, Adressfelder oft nur in „Kontakt-Notiz"-Format)
+   - **CSV-Export Kundenstamm** (typisch verfügbar, Spalten variieren je MO-Version)
+   - **CSV-Export Rechnungsausgang** (Rechnungs-Header)
+   - **CSV-Export Rechnungspositionen** (Line-Items, manchmal nur als „Druck-Export" → schwierig zu parsen)
+   - **Direkter DB-Zugriff** (MO nutzt proprietäre DB — bei aktuellen Versionen MariaDB/MySQL-basiert, älter Sybase/SQL-Anywhere)
+   - **API/SOAP** (mir nicht bekannt für MO REWE — bitte prüfen)
+5. Encoding der Exports? MO ist Windows-Software → wahrscheinlich `Windows-1252` oder `UTF-8 BOM`. Müssen wir explizit transkodieren.
+6. Hat MO REWE einen „Marketing-Opt-In"-Datenpunkt pro Kunde? (Damit wir nicht versehentlich Newsletter an Kunden ohne Consent schicken)
+
+**Datenqualität:**
+7. Wie sauber sind die Adressdaten? Strukturiert (Straße/PLZ/Ort separat) oder als Freitext? Mehrere Adressen pro Kunde (Liefer- vs. Rechnungsadresse)?
+8. Email-Pflichtfeld in MO oder optional? Wie wird ein Kunde ohne Email identifiziert (intern-ID? Nachname+PLZ?)
+9. Gibt es bereits einen `tape-mag-Website-customer-id` Cross-Reference in MO? D.h. wenn ein Kunde Online über tape-mag bestellt hat, ist er in MO **derselbe** Datensatz oder zwei? → kritisch für Deduplication.
+10. Was ist mit gelöschten/deaktivierten Kunden in MO? GoBD verbietet harten Delete von Buchhaltungs-Daten — MO archiviert wahrscheinlich nur. Sollen die mit oder ohne Marker importiert werden?
+
+**Strategie:**
+11. **Phase-Out oder Sync?** Soll vod-auctions.com nach Launch das Bestellungs-System auch für die Nicht-Auction-Items werden (= MO wird zum reinen Steuerberater-Export-Frontend) ODER bleibt MO Source-of-Truth und vod-auctions.com nur fürs Auktionsgeschäft?
+12. Wenn Sync: in welche Richtung? `vod-auctions.com → MO` (Auktions-Verkäufe als neue Rechnungen ins MO importieren) oder `MO → vod-auctions.com` (Offline-Verkäufe ins CRM spiegeln) oder beides?
+
+**Diese Antworten** entscheiden zwischen vier Implementierungs-Pfaden (D.1 unten).
+
+### D.1 Implementierungs-Pfade — eine Wahl je nach D.0
+
+| Pfad | Wenn… | Aufwand | Beschreibung |
+|---|---|---:|---|
+| **Pfad 1: One-Shot CSV-Import** | MO kann CSV-Export Kundenstamm + Rechnungen + Line-Items, Steuerberater bleibt Boss in MO | ~5 Tage | Manueller Export → Validation-Skript → Idempotenter Bulk-Import. Keine fortlaufende Sync. |
+| **Pfad 2: One-Shot + Periodic Re-Sync** | Wie Pfad 1, plus monatliches Refresh mit Delta | ~7 Tage | Pfad 1 + zusätzlich Cron-Job der monatlich neue MO-Exports einspielt (Idempotenz via `monkey_office_invoice_id` UNIQUE) |
+| **Pfad 3: Direct-DB-Sync** | MO ist eine MariaDB-/MySQL-basierte Version, wir bekommen Read-Only-DB-Credentials | ~10 Tage | Live-DB-Replikation via `pg_logical`-Style-Polling oder Custom-Sync-Script. Risiko: MO-DB-Schema undokumentiert, kann zwischen Versionen brechen. |
+| **Pfad 4: API-Bridge** | MO REWE hat eine dokumentierte API (mir unbekannt — bitte prüfen) | ~14 Tage | Dauerhafter Sync-Layer + GoBD-konforme bidirectional Sync. Höchste Investition. |
+
+**Empfehlung ohne weitere Klärung:** Pfad 1 zuerst. Liefert sofort den 80%-Wert (komplette Customer-History) und ist der niedrigste Aufwand. Wenn nach 4 Wochen klar ist dass Offline-Verkäufe im CRM gebraucht werden, kann Pfad 2 nachgezogen werden. Pfad 3/4 nur bei klarem strategischen Need.
+
+### D.2 Schema-Erweiterungen (für alle Pfade)
+
+**Migration:** `backend/src/scripts/migrations/2026-04-25-monkey-office-import.sql`
+
+```sql
+-- (1) source-Spalte auf orders (Plural, Legacy)
+-- Existing tape-mag rows kriegen 'tape_mag_website', neue MO-Imports 'monkey_office_rewe'
+ALTER TABLE orders ADD COLUMN source text NULL;
+UPDATE orders SET source = 'tape_mag_website' WHERE source IS NULL;
+ALTER TABLE orders ALTER COLUMN source SET NOT NULL;
+CREATE INDEX idx_orders_source ON orders(source);
+
+-- (2) MO-Specific IDs (monkey_office_invoice_id für Idempotenz)
+ALTER TABLE orders ADD COLUMN monkey_office_invoice_id text NULL;
+ALTER TABLE orders ADD COLUMN monkey_office_invoice_number text NULL;  -- Frank's interne Rechnungsnummer
+CREATE UNIQUE INDEX idx_orders_mo_invoice_id ON orders(monkey_office_invoice_id)
+  WHERE monkey_office_invoice_id IS NOT NULL;
+
+-- (3) source-Spalte auf customers (Plural, Legacy)
+ALTER TABLE customers ADD COLUMN source text NULL;
+UPDATE customers SET source = 'tape_mag_website' WHERE source IS NULL;
+ALTER TABLE customers ALTER COLUMN source SET NOT NULL;
+ALTER TABLE customers ADD COLUMN monkey_office_customer_id text NULL;
+CREATE UNIQUE INDEX idx_customers_mo_customer_id ON customers(monkey_office_customer_id)
+  WHERE monkey_office_customer_id IS NOT NULL;
+
+-- (4) Import-Audit-Tabelle (für Reproduzierbarkeit + Rollback)
+CREATE TABLE IF NOT EXISTS monkey_office_import_runs (
+  id text PRIMARY KEY,
+  started_at timestamptz NOT NULL DEFAULT NOW(),
+  ended_at timestamptz NULL,
+  source_file text NULL,                     -- z.B. "MO_Kunden_Export_2026-04-25.csv"
+  customer_rows_imported int NULL,
+  customer_rows_updated int NULL,
+  order_rows_imported int NULL,
+  order_rows_updated int NULL,
+  order_item_rows_imported int NULL,
+  status text NOT NULL DEFAULT 'running',    -- running / done / failed
+  error_message text NULL,
+  imported_by text NULL                      -- admin user id
+);
+```
+
+**Idempotenz-Garantie:** `monkey_office_invoice_id` und `monkey_office_customer_id` sind UNIQUE. Ein Re-Import ändert UPDATEs statt INSERTs. Kein Datenverlust.
+
+### D.3 Customer-Import-Pipeline
+
+**Skript:** `scripts/monkey_office_import.py` (analog zu `legacy_sync_v2.py` Style)
+
+**Input:** CSV-File aus MO Kundenstamm-Export. Erwartete Spalten (zu validieren mit Frank's Real-Export):
+
+```
+Kundennr (= MO customer_id)
+Anrede / Titel / Vorname / Nachname
+Firma
+Strasse / PLZ / Ort / Land
+Telefon / Mobil / Fax
+Email
+Geburtsdatum (optional, kann für Marketing relevant sein)
+Marketing-Erlaubnis (Y/N)
+Erstellt-am / Geändert-am
+```
+
+**Pipeline:**
+
+```python
+def import_customer(row, conn):
+    mo_id = row['Kundennr']
+    email = (row.get('Email') or '').strip().lower() or None
+
+    # Step 1: Existing match via mo_customer_id?
+    existing = conn.execute(
+        "SELECT id FROM customers WHERE monkey_office_customer_id = %s",
+        (mo_id,)
+    ).fetchone()
+
+    if existing:
+        # Update existing MO-source row
+        conn.execute(
+            "UPDATE customers SET ... WHERE id = %s",
+            (..., existing['id'])
+        )
+        return 'updated'
+
+    # Step 2: Existing tape-mag-Website match via email?
+    if email:
+        same_email = conn.execute(
+            "SELECT id, source FROM customers WHERE LOWER(email) = %s",
+            (email,)
+        ).fetchone()
+        if same_email:
+            # Email-Match: hänge MO-ID an existing Tape-Mag-Row,
+            # ohne tape-mag-Daten zu überschreiben (only-fill-NULLs Strategy)
+            conn.execute("""
+                UPDATE customers
+                SET monkey_office_customer_id = %s,
+                    phone = COALESCE(phone, %s),
+                    -- weitere COALESCE-Felder ...
+                    updated_at = NOW()
+                WHERE id = %s
+            """, (mo_id, row.get('Telefon'), same_email['id']))
+            return 'merged'
+
+    # Step 3: Neuer Datensatz
+    conn.execute("""
+        INSERT INTO customers (
+            email, phone, source, monkey_office_customer_id, ...
+        ) VALUES (%s, %s, 'monkey_office_rewe', %s, ...)
+    """, (email, row.get('Telefon'), mo_id, ...))
+    return 'inserted'
+```
+
+**Adressen-Import:** parallel zu customers, nutzt `customer_addresses` (Plural). MO liefert wahrscheinlich nur eine Adresse pro Kunde — bei „Liefer- vs. Rechnungsadresse"-Differenz: zwei Rows mit `address_type='billing'` und `address_type='shipping'`, wenn vorhanden.
+
+**Edge-Cases die wir erwarten:**
+
+1. **Kunde ohne Email** (Walk-in/Telefon): `email IS NULL` ist erlaubt. Bridge zu Medusa-`customer` ist dann nur via Frank's manueller Verknüpfung möglich.
+2. **Doppelte Emails in MO** (Tippfehler, Familien-Account): Match-Fallback auf `mo_customer_id` first, dann Email. Wenn MO selbst zwei Kundennummern für dieselbe Email hat → beide importieren, manueller Merge im CRM-UI später.
+3. **Email-Casing/Whitespace**: `LOWER(TRIM())` immer.
+4. **Umlaut-Encoding**: Pre-Validation-Skript checked encoding via `chardet` und transkodiert nach UTF-8 wenn nötig.
+
+### D.4 Order + Line-Item Import
+
+**Inputs:** zwei CSV-Files aus MO REWE-Export — Rechnungs-Header + Rechnungs-Positionen (oder ein File mit Joined-View, je nach MO-Export-Konfiguration).
+
+**Header-Schema (erwartet):**
+```
+Rechnungsnr (= MO invoice_id)
+Kundennr → JOIN auf customers.monkey_office_customer_id
+Rechnungsdatum / Lieferdatum
+Netto / MwSt / Brutto / Versandkosten
+Status (offen / bezahlt / storniert)
+Zahlungsart
+Rechnungsnotiz
+```
+
+**Position-Schema:**
+```
+Rechnungsnr → FK
+Pos-Nr / Artikelnummer / Artikelbezeichnung
+Menge / Einzelpreis / Rabatt / Gesamtpreis
+```
+
+**Pipeline:**
+
+```python
+def import_order(row, conn):
+    mo_invoice_id = row['Rechnungsnr']
+    mo_customer_id = row['Kundennr']
+
+    # Customer muss zuerst importiert sein (D.3 läuft vor D.4)
+    customer = conn.execute(
+        "SELECT id FROM customers WHERE monkey_office_customer_id = %s",
+        (mo_customer_id,)
+    ).fetchone()
+
+    if not customer:
+        # MO-Daten-Inkonsistenz: Order ohne Customer
+        # → in Reject-Liste, manuell auflösen
+        return 'orphan'
+
+    # Idempotenz: existiert die Invoice schon?
+    existing = conn.execute(
+        "SELECT id FROM orders WHERE monkey_office_invoice_id = %s",
+        (mo_invoice_id,)
+    ).fetchone()
+
+    if existing:
+        # Update Header + Re-Insert Items (DELETE + INSERT)
+        ...
+        return 'updated'
+
+    order_id = generate_id()
+    conn.execute("""
+        INSERT INTO orders (
+            id, customer_id, source, monkey_office_invoice_id,
+            order_number, total, ordered_at, status, ...
+        ) VALUES (%s, %s, 'monkey_office_rewe', %s, %s, %s, %s, %s, ...)
+    """, (...))
+
+    # Items
+    for item in items_for_invoice(mo_invoice_id):
+        conn.execute("""
+            INSERT INTO order_items (order_id, product_name, quantity, ...)
+            VALUES (%s, %s, %s, ...)
+        """, (order_id, item['Artikelbezeichnung'], item['Menge'], ...))
+
+    return 'inserted'
+```
+
+**Wichtig — `legacy_id` vs. `monkey_office_invoice_id`:** Bestehende `orders`-Rows aus dem 2026-03-22-Tape-Mag-Import haben `legacy_id` gesetzt (= tape-mag-Website-Order-ID). Neue MO-Imports haben **`monkey_office_invoice_id`** stattdessen, **`legacy_id` bleibt NULL**. Das ist die saubere Trennung — Reports können nach `source` differenzieren.
+
+**Produkt-Mapping:** MO-Artikelnummer → unsere `Release.article_number` (Format `VOD-XXXXX`)? Wenn ja, könnte ein zweiter optionaler Pass jede `order_items.product_name` mit `Release` joinen. Wenn nicht (= Artikelnummern-Format anders), bleiben Items als reine String-Datensätze ohne FK.
+
+### D.5 Post-Import Reconciliation
+
+Nach D.3 + D.4:
+
+1. **Customer-Stats Recalc** für alle Customers mit MO-Daten — bestehender `recalc-stats`-Endpoint, plus Brevo-Upsert (B.6).
+2. **Brevo Sync** der MO-only-Kunden in eine **vierte Brevo-Liste** „vod-records-customers" (oder direkt in List 7 gemerged, je nach Marketing-Strategie).
+3. **Diff-Report** für Robin/Frank:
+   - Wie viele MO-Kunden waren schon via tape-mag (= merged)?
+   - Wie viele waren neu (= inserted)?
+   - Wie viele MO-Orders ergänzen Tape-Mag-History? (Total Order-Count vor/nach Import)
+   - Wie viele Orphan-Orders ohne Customer? → in Reject-Liste, brauchen Frank-Manual-Review
+
+### D.6 Strategie-Entscheidung — MO-Phase-Out vs. Continued-Sync
+
+| Aspekt | MO-Phase-Out (vod-auctions.com wird Buchhaltungs-System) | Continued-Sync (MO bleibt Source-of-Truth) |
+|---|---|---|
+| GoBD-Konformität | Selbst sicherstellen — Audit-Logs, 10-Jahre-Aufbewahrung, unveränderliche Rechnungen | MO macht's weiter |
+| Steuerberater-Workflow | Neuer Export-Pfad aus vod-auctions.com (DATEV-Export-Endpoint nötig) | Unverändert |
+| Aufwand | Hoch (Rechnungsnummern-Sequence, GoBD-Module, etc.) | Niedrig — ein zusätzlicher Daten-Sync |
+| Risiko | Hoch — Steuerberater muss neuen Workflow akzeptieren | Niedrig |
+| Marketing-Wert | Identisch | Identisch |
+| Realistisch | 6-12 Monate weiterer Workstream | Sofort umsetzbar |
+
+**Empfehlung:** **Continued-Sync** für mindestens das erste Jahr nach Launch. MO bleibt Buchhaltung, vod-auctions.com bekommt monatlich einen Export-Push (oder umgekehrt: vod-auctions.com schickt neue Auction-Verkäufe als „Rechnungen" zurück nach MO via DATEV-Format). Phase-Out ist ein eigener strategischer Workstream, kein Tag-1-Ziel.
+
+### D.7 GoBD- und steuerrechtliche Implikationen
+
+**Wichtig:** Ein importierter Bestand an Rechnungen in unserer DB ist **kein Buchhaltungs-System**. Unsere `orders`-Tabelle ist ein **CRM-Spiegel** für Reporting + Marketing. Originale Rechnungen + Buchhaltung bleiben in MO.
+
+**Praktische Konsequenzen:**
+- Wir dürfen importierte MO-Orders **nicht** verändern (kein UPDATE auf `total`, kein „Storno"-Flag-Toggle in unserer DB ohne Sync nach MO). Reine Read-View.
+- DSGVO-Auskunfts-Recht: wenn ein Kunde Auskunft will, muss `customer.metadata.monkey_office_customer_id` gesetzt sein damit wir auf MO-Original verweisen können.
+- DSGVO-Löschungs-Recht (Art. 17 GDPR): Buchhaltungsdaten haben **gesetzliche Aufbewahrungsfrist** (10 Jahre § 147 AO) — Customer kann nicht „gelöscht" werden, nur anonymisiert. Wir müssen `customer.metadata.gdpr_deleted_at` setzen + PII (Name/Email/Adresse) NULLen, MO-Customer-ID + monetäre Felder bleiben.
+
+**Anwalt-Themen für RSE-78:**
+- Carry-Over von tape-mag-DOI in vod-auctions Newsletter-Liste 7 (siehe A.5.4 + Open Decision 6)
+- DSGVO-konforme Anonymisierung von MO-Customers in unserer Spiegel-DB
+- Auftragsverarbeitungs-Vertrag (AVV) zwischen vod-records (MO-Owner) und vod-auctions.com (CRM-Spiegel) — selbe juristische Person, aber andere Marken → ggf. Vertrag intern dokumentieren
+
+### D.8 Aufwand + Risiken
+
+| Phase | Aufwand | Risiko | Mitigation |
+|---|---:|---|---|
+| D.0 Klärungs-Block (1-2 Termine mit Frank am MO-PC) | 1 Tag | Antworten zeigen dass MO-Export schwieriger ist als gedacht | Pfad 3/4 als Fallback |
+| Pre-Validation eines Sample-Exports (10-Row-Test) | 0.5 Tag | Encoding/Schema-Surprises | Iterative Schema-Map-Anpassung |
+| D.2 Migration | 1h | — | Idempotent, additive |
+| D.3 Customer-Import-Skript + Trockenlauf | 2 Tage | Doppel-Email-Edge-Cases | Reject-Liste, Manual-Review |
+| D.4 Order + Item-Import | 2 Tage | Orphan-Orders, Produkt-Mapping unklar | Orphan-Liste, Produkt-Mapping als Phase-2 |
+| D.5 Reconciliation + Diff-Report | 0.5 Tag | — | — |
+| D.6 Continued-Sync (Pfad 2 nachträglich) | 2-3 Tage | Wenn MO-Schema zwischen Versionen ändert | Manueller Re-Run mit neuem Mapping |
+
+**Total Pfad 1 (One-Shot):** **~6 Tage** + 1 Tag Klärungs-Block davor = **~1.5 Wochen** für sauberen historischen Import.
+
+### D.9 Reihenfolge im Gesamt-Sprint-Plan
+
+D wird **nach** Section A geschoben (A liefert die Customer-Bridge-Infrastruktur, D nutzt sie). Concrete:
+
+| Sprint | Inhalt | Aufwand |
+|---|---|---:|
+| **Sprint D0** (parallel zu C1, kann sofort starten) | D.0 Klärungs-Block mit Frank, MO-Sample-Export anfordern | 1 Tag |
+| Sprint D1 (nach A1) | D.2 Migration + D.3 Customer-Import-Pipeline | 3 Tage |
+| Sprint D2 (nach D1) | D.4 Order + Item-Import + D.5 Reconciliation | 3 Tage |
+| Sprint D3 (deferred) | Continued-Sync (Pfad 2) | 3 Tage |
+
+**Aktualisierte Gesamt-Dauer Phase 1 (vor Wave 1, mit MO-Import):** ~9 Tage Code (C+A) + ~6 Tage MO (D1+D2) = **~3 Arbeitswochen**. Wenn MO-Import auf nach Wave 1 verschoben wird: Phase 1 bleibt bei 2 Wochen.
+
+### D.10 Was Section D NICHT macht
+
+- **Kein Buchhaltungs-Replacement.** vod-auctions.com bleibt kein DATEV-Exporteur, MO bleibt Steuerberater-Frontend.
+- **Keine Live-DB-Replikation** (Pfad 3) ohne explizite Klärung der MO-DB-Schema-Stabilität.
+- **Keinen automatischen Marketing-Mailversand** an MO-Customers vor Re-DOI (siehe RSE-78 Anwalt-Frage).
+- **Keine Order-Modification** auf importierten MO-Orders (Read-Only-Spiegel).
+
+### D.11 Smoke-Test-Checkliste
+
+Vor dem ersten Production-Import:
+
+- [ ] Sample-CSV (50-100 Rows) wird sauber geparst, kein Encoding-Issue
+- [ ] D.2 Migration ist idempotent (2× Run testen)
+- [ ] D.3 Customer-Import auf Sample → erwartete `inserted` / `merged` / `updated`-Counts plausibel
+- [ ] Email-Match-Test: MO-Kunde mit bekannter tape-mag-Email landet als `merged`, nicht als `inserted`
+- [ ] D.4 Order-Import auf Sample → keine Orphans (alle Customers vorab importiert)
+- [ ] Customer-Detail-Page im Admin zeigt nach Import sowohl Tape-Mag-Orders (`source='tape_mag_website'`) als auch MO-Orders (`source='monkey_office_rewe'`) chronologisch
+- [ ] Customer-Stats-Recalc liefert korrekt aggregierte Totals über beide Quellen
+
+---
+
 ## Vergleich + Empfehlung
 
-| Aspekt | Option A | Option B | Section C |
-|---|---|---|---|
-| Aufwand | ~3 Tage | ~2 Wochen | ~3 Tage Phase 1 |
-| Daten-Sichtbarkeit | Eigene UI für Legacy, parallel zu Native | Vereint in bestehender CRM-UI | Bestehende Admin-Routes (Waitlist + Invites) erweitert |
-| Konversions-Tracking | On-Touch (POS-Checkout, Self-Register) | Proaktiv via Backfill | Hart enforced (`is_invited_user`-Gate auf Bid/Buy-API) |
-| Top-Spender-Reports | Brauchen JOIN über zwei Tabellen | Out-of-the-box korrekt | n/a |
-| Brevo-Sync | Bleibt Read-Only | Bidirectional verkabelt | Drei-Listen-Modell (tape-mag / vod-auctions / waitlist) |
-| Risiko | Niedrig (additiv) | Mittel | Niedrig (additiv + Migration idempotent) |
-| Reversibilität | Stub-Identifikation einfach | Stubs identifizierbar | Flag droppable, Tokens via Status revoke'bar |
-| Marketing-Wert | Mittel | Hoch | Hoch (Wellen-Mechanik + Funnel-Tracking) |
-| Launch-Blocker? | Nein | Nein | **Ja** — ohne C kann kein controlled Soft-Launch passieren |
+| Aspekt | Option A | Option B | Section C | Section D |
+|---|---|---|---|---|
+| Aufwand | ~3 Tage | ~2 Wochen | ~3 Tage Phase 1 | ~6 Tage + 1 Tag Klärung |
+| Daten-Sichtbarkeit | Eigene UI für Legacy, parallel zu Native | Vereint in bestehender CRM-UI | Bestehende Admin-Routes (Waitlist + Invites) erweitert | Existing Customer-Detail erweitert um MO-Orders |
+| Konversions-Tracking | On-Touch (POS-Checkout, Self-Register) | Proaktiv via Backfill | Hart enforced (`is_invited_user`-Gate auf Bid/Buy-API) | n/a (importiert nur History) |
+| Top-Spender-Reports | Brauchen JOIN über zwei Tabellen | Out-of-the-box korrekt | n/a | **Vollständig** — alle Kanäle inkl. Offline-Verkäufe |
+| Brevo-Sync | Bleibt Read-Only | Bidirectional verkabelt | Drei-Listen-Modell (tape-mag / vod-auctions / waitlist) | Vier-Listen (zusätzlich vod-records-customers) |
+| Risiko | Niedrig (additiv) | Mittel | Niedrig (additiv + Migration idempotent) | Mittel — abhängig von MO-Export-Qualität |
+| Reversibilität | Stub-Identifikation einfach | Stubs identifizierbar | Flag droppable, Tokens via Status revoke'bar | Re-Import idempotent (UNIQUE-Index auf MO-IDs) |
+| Marketing-Wert | Mittel | Hoch | Hoch (Wellen-Mechanik + Funnel-Tracking) | **Sehr hoch** — komplette Customer-Lifetime-Value sichtbar |
+| Launch-Blocker? | Nein | Nein | **Ja** — ohne C kann kein controlled Soft-Launch passieren | Nein — kann nach Launch nachgezogen |
 
 ### Reihenfolge
 
-**Empfehlung: C zuerst, dann A, dann B.**
+**Empfehlung: D0 + C zuerst (parallel), dann A, dann D1+D2, dann B.**
 
 **Begründung:**
 - **C ist Launch-Blocker.** Ohne `is_invited_user`-Server-Enforcement (C.2) sind die Bid/Buy-Endpoints nicht sicher gegen einen User der via Self-Register reinkommt. Das **muss** vor RSE-294 (Erste öffentliche Auktionen) live sein.
+- **D0 (Klärungs-Block für MO-Import) parallel.** Lange Lead-Time (Frank muss am MO-PC Sample-Export ziehen). Sollte sofort starten, blockiert aber nichts.
 - **A liefert sofort Wert für Wave 1.** Wenn C live ist und Wave 1 die Top-100 nach `legacy_customers.total_spent` ansprechen soll, brauchen wir A.0+A.1 um diese überhaupt im Admin sehen + sortieren zu können. Forgot-Password-Flow (A.5.3) und Bridge-Helper (A.5.7) liefern den kanonischen Reaktivierungs-Pfad — kritisch für Wave-1-Conversion.
-- **B kann auf unbestimmte Zeit warten.** Option A's `metadata.legacy_customer_id`-Pattern ist **vorwärtskompatibel** mit B's Backfill-Schema. Wenn nach 4 Wochen Live klar wird dass „CRM zeigt €0 statt €1.38M" zu schmerzhaft ist, kann B nachgezogen werden ohne A-Code zu ändern.
+- **D1+D2 (MO-Customer + Order-Import) nach A.** A liefert die Customer-Bridge-Infrastruktur (`metadata.source`, `monkey_office_customer_id`-Spalte etc.), D nutzt sie. Wave 1 kann bereits auf reine Tape-Mag-Daten gefahren werden — MO-Import erweitert die Top-Spender-Liste um Offline-Verkäufe für Wave 2+.
+- **B kann auf unbestimmte Zeit warten.** Option A's `metadata.legacy_customer_id`-Pattern ist **vorwärtskompatibel** mit B's Backfill-Schema. Wenn nach 4 Wochen Live klar wird dass „CRM zeigt €0 statt €X" zu schmerzhaft ist, kann B nachgezogen werden ohne A/D-Code zu ändern.
 
 ### Sprint-Vorschlag
 
 | Sprint | RC-Range | Inhalt | Aufwand |
 |---|---|---|---|
+| **Sprint D0** | parallel | D.0 Klärungs-Block mit Frank, MO-Sample-Export anfordern | 1 Tag |
 | Sprint C1 | rc52.0–rc52.3 | C.1 Migration, C.2 Access-Gate, C.3 Redeem-Flag, C.6 Rate-Limit | ~3 Tage |
 | Sprint A1 | rc52.4–rc52.6 | A.0 Customers-Dedup, A.1 Legacy-API, A.2 POS-Search-UNION | ~2 Tage |
 | Sprint A2 | rc53.0–rc53.2 | A.3 Auto-Stub, A.4 Admin-Tab Tape-Mag, A.5.3 Forgot-Password | ~2 Tage |
 | Sprint C2 | rc53.3–rc53.5 | C.4 Magic-Link, C.5 Admin-Wave-UI, C.8 Brevo-Waitlist-Liste | ~2 Tage |
 | **Wave 1 GO** | nach C2 | RSE-78 AGB-Anwalt + Re-DOI-Decision parallel | — |
+| Sprint D1 | rc54.0–rc54.2 | D.2 Migration + D.3 MO-Customer-Import | ~3 Tage |
+| Sprint D2 | rc54.3–rc54.5 | D.4 MO-Order-Import + D.5 Reconciliation | ~3 Tage |
+| **Wave 2+ GO** | nach D2 | Top-Spender-Liste vollständig (inkl. MO-Offline-Käufer) | — |
 | Sprint B (deferred) | rc55+ | B.1-B.7 Backfill + Bidirectional-Sync | ~2 Wochen |
+| Sprint D3 (deferred) | rc56+ | D.6 Continued-Sync (Pfad 2 monatlicher MO-Refresh) | ~3 Tage |
 
 **Total Phase 1 (vor Wave 1):** ~9 Tage Code + 1 Tag QA + 1 Tag Deployments-Buffer = **~2 Arbeitswochen**.
+**Total Phase 1.5 (vor Wave 2 mit MO-History):** + ~6 Tage MO-Import = **~3 Arbeitswochen gesamt**.
 
 ---
 
@@ -1076,6 +1416,11 @@ Vor Wave-1-Sendung:
 8. **Magic-Link-Default an/aus:** Soll Magic-Link als Default-Login (Email-Field, dann optional Password) oder als sekundäre Option neben Password? Empfehlung: sekundär — Magic-Link-Mails landen oft im Spam.
 9. **Test-Account-Backfill:** Die 12 bestehenden `customer`-Rows sind alle Test-Accounts (`bidder1@test.de` etc.). Sollen die `is_invited_user=true` bekommen oder explizit abgesetzt werden? Empfehlung: alle auf `true` setzen damit Tests weiterlaufen, aber `metadata.is_test_account=true` als zusätzlicher Marker für Reports.
 10. **`platform_mode='preview'`-Use-Case:** Soft-Open (Browse + Apply, kein Bid) — wollen wir das überhaupt? Wenn ja, muss C.2 Access-Gate auch `'preview'` als „Bid/Buy gegated, Browse offen" behandeln.
+11. **MO Phase-Out vs. Continued-Sync (Section D Frage 11):** Bleibt Monkey Office Buchhaltungs-System nach Launch? Empfehlung: **Continued-Sync** für mind. 1 Jahr, dann re-evaluieren.
+12. **MO Sync-Richtung:** `vod-auctions.com → MO` (Auctions als Rechnungen ins MO importieren) oder `MO → vod-auctions.com` (Offline-Verkäufe ins CRM spiegeln) oder beides? Hat Steuerberater-Implikationen.
+13. **MO Export-Format:** DATEV vs. CSV vs. Direct-DB — D.0 Klärungs-Block mit Frank am MO-PC vor Code-Start.
+14. **MO Marketing-Opt-In Datenpunkt:** Hat MO REWE einen Marketing-Consent-Marker pro Kunde? Wenn ja, müssen wir den importieren um nicht versehentlich Werbung an Nicht-Consent-Kunden zu schicken (DSGVO-relevant, RSE-78-Scope).
+15. **MO Article-Number-Mapping:** Können MO-`Artikelnummer` 1:1 auf unsere `Release.article_number` (Format `VOD-XXXXX`) gemapped werden? Wenn ja: Order-Items bekommen FK auf Release-Tabelle. Wenn nicht: nur Strings.
 
 ---
 
@@ -1083,8 +1428,12 @@ Vor Wave-1-Sendung:
 
 - [`docs/architecture/CUSTOMER_LIFECYCLE.md`](../architecture/CUSTOMER_LIFECYCLE.md) — verbindliche UX-Wording-Referenz für die 6 Online-Flows + Bridge-Logik (Pflicht-Lektüre für Storefront-Devs)
 - [`docs/architecture/INVITE_FLOW.md`](../architecture/INVITE_FLOW.md) — operative Spec für das gehärtete Invite-System inkl. Wave-Handling (TODO)
-- `docs/TODO.md` Workstream „CRM-Bridge + Pre-Launch-Hardening" mit Sprint-Tabelle aus oben
+- [`docs/architecture/MONKEY_OFFICE_INTEGRATION.md`](../architecture/MONKEY_OFFICE_INTEGRATION.md) — operative Spec für Section D inkl. CSV-Schema-Map, Pfad-Wahl, GoBD-Konformität (TODO nach D.0)
+- `docs/TODO.md` Workstream „CRM-Bridge + Pre-Launch-Hardening + MO-Import" mit Sprint-Tabelle aus oben
 
 ---
 
-**Vorgeschlagener nächster Schritt:** Sprint C1 (rc52.0-rc52.3) als ersten Workstream in `docs/TODO.md` aufnehmen. C.1-Migration vorbereiten + auf Supabase-Branch oder lokal smoke-testen. Anwalt-Tickets (Re-DOI Brevo List 5, AGB) parallel zu RSE-78 vorantreiben — die brauchen Lead-Time und blockieren Wave 1.
+**Vorgeschlagener nächster Schritt:**
+1. **Sofort (parallel):** Sprint D0 starten — Frank fragen welche Export-Optionen MO REWE bietet, Sample-CSV (50-100 Rows Kunden + Rechnungen) anfordern. Lead-Time 1-3 Tage.
+2. **Diese Woche:** Sprint C1 (rc52.0-rc52.3) als ersten Workstream in `docs/TODO.md` aufnehmen. C.1-Migration vorbereiten + auf Supabase-Branch oder lokal smoke-testen.
+3. **Parallel:** Anwalt-Tickets (Re-DOI Brevo List 5, AGB, MO-Marketing-Consent-Übertragung, AVV intern) zu RSE-78 ergänzen — die brauchen Lead-Time und blockieren Wave 1.
