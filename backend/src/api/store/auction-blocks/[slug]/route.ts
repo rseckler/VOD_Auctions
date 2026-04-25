@@ -47,6 +47,7 @@ export async function GET(
         "Release.title",
         "Release.slug",
         "Release.format",
+        "Release.format_v2",
         "Release.year",
         "Release.country",
         "Release.coverImage",

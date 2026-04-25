@@ -81,6 +81,8 @@ export async function GET(
       "Release.product_category",
       "Release.format",
       "Release.format_id",
+      "Release.format_v2",
+      "Release.format_descriptors",
       "Release.year",
       "Release.country",
       "Release.coverImage",

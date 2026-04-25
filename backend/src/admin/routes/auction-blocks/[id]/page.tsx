@@ -16,6 +16,7 @@ import React, { useEffect, useState, useRef, useCallback } from "react"
 import { useParams } from "react-router-dom"
 import RichTextEditor from "../../../components/rich-text-editor"
 import { useAdminNav } from "../../../components/admin-nav"
+import { displayFormat, type FormatValue } from "../../../../lib/format-mapping"
 
 type BlockItem = {
   id: string
@@ -67,6 +68,7 @@ type Release = {
   artist_name: string | null
   label_name: string | null
   format: string
+  format_v2: string | null
   year: number | null
   coverImage: string | null
   auction_status: string | null
@@ -2482,7 +2484,7 @@ const BlockDetailPage = () => {
 
                           {/* Format badge overlay */}
                           <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-black/70 text-white text-[10px] font-medium rounded">
-                            {r.format}
+                            {r.format_v2 ? displayFormat(r.format_v2 as FormatValue) : r.format}
                           </span>
 
                           {/* Year badge */}
@@ -2591,7 +2593,7 @@ const BlockDetailPage = () => {
                             <span className="text-xs text-ui-fg-subtle">{r.label_name || "—"}</span>
                           </Table.Cell>
                           <Table.Cell>
-                            <Badge>{r.format}</Badge>
+                            <Badge>{r.format_v2 ? displayFormat(r.format_v2 as FormatValue) : r.format}</Badge>
                           </Table.Cell>
                           <Table.Cell>{r.year || "—"}</Table.Cell>
                           <Table.Cell>

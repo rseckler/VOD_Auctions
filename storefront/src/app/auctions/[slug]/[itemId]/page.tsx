@@ -18,6 +18,7 @@ import type { AuctionBlock, BlockItem, ReleaseImage, TracklistEntry, VariousArti
 import { ConditionRow } from "@/components/ConditionBadge"
 import { BidHistoryTable } from "@/components/BidHistoryTable"
 import { BreadcrumbJsonLd } from "@/components/BreadcrumbJsonLd"
+import { displayFormat } from "@/lib/format-display"
 
 type BlockInfo = {
   id: string
@@ -68,12 +69,13 @@ const FORMAT_COLORS: Record<string, string> = {
   CASSETTE: "bg-format-cassette/15 text-format-cassette border-format-cassette/30",
 }
 
-function formatLabel(release: { format?: string | null; format_name?: string | null }): string | null {
+function formatLabel(release: { format?: string | null; format_name?: string | null; format_v2?: string | null }): string | null {
+  if (release.format_v2) return displayFormat(release.format_v2)
   return release.format_name || release.format || null
 }
 
-function formatColorKey(release: { format?: string | null; format_name?: string | null }): string {
-  const name = (release.format_name || release.format || "").toUpperCase()
+function formatColorKey(release: { format?: string | null; format_name?: string | null; format_v2?: string | null }): string {
+  const name = (release.format_v2 || release.format_name || release.format || "").toUpperCase()
   if (name.includes("CD")) return "CD"
   if (name.includes("CASS") || name.includes("TAPE")) return "CASSETTE"
   return "LP"
@@ -99,7 +101,7 @@ export async function generateMetadata({
     ? `${contextName} — ${r?.title}`
     : r?.title || `Lot ${item.lot_number}`
   const description = [
-    r ? (r.format_name || r.format) : null,
+    r ? formatLabel(r as any) : null,
     r?.label_name,
     r?.year,
     r?.country,
@@ -667,7 +669,7 @@ export default async function ItemDetailPage({
               : release?.title || `Lot ${item.lot_number}`,
             ...(images[0] ? { image: images[0] } : {}),
             description: [
-              release ? (release.format_name || release.format) : null,
+              release ? formatLabel(release as any) : null,
               release?.label_name,
               release?.year,
               release?.country,

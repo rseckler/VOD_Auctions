@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { useAdminNav } from "../../components/admin-nav"
 import { C, S, fmtMoney, BADGE_VARIANTS } from "../../components/admin-tokens"
 import { Btn, Toast, Modal, Alert, inputStyle } from "../../components/admin-ui"
+import { displayFormat, type FormatValue } from "../../../lib/format-mapping"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -14,6 +15,7 @@ interface CartItem {
   artist_name: string | null
   label_name: string | null
   format: string | null
+  format_v2: string | null
   coverImage: string | null
   catalogNumber: string | null
   legacy_price: number
@@ -538,7 +540,7 @@ function POSPage() {
                     {lastScannedItem.title}
                   </div>
                   <div style={{ fontSize: 12, color: C.muted }}>
-                    {[lastScannedItem.format, lastScannedItem.country, lastScannedItem.year, lastScannedItem.legacy_condition].filter(Boolean).join(" · ")}
+                    {[lastScannedItem.format_v2 ? displayFormat(lastScannedItem.format_v2 as FormatValue) : lastScannedItem.format, lastScannedItem.country, lastScannedItem.year, lastScannedItem.legacy_condition].filter(Boolean).join(" · ")}
                   </div>
                   {lastScannedItem.label_name && (
                     <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
@@ -650,7 +652,7 @@ function POSPage() {
                           {item.artist_name ? `${item.artist_name} — ` : ""}{item.title}
                         </div>
                         <div style={{ fontSize: 10, color: C.muted }}>
-                          {[item.format, item.legacy_condition].filter(Boolean).join(" · ")}
+                          {[item.format_v2 ? displayFormat(item.format_v2 as FormatValue) : item.format, item.legacy_condition].filter(Boolean).join(" · ")}
                         </div>
                       </div>
                       {/* Price */}

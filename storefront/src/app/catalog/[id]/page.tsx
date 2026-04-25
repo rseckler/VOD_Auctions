@@ -18,12 +18,14 @@ import type { Release } from "@/types"
 import { ConditionRow } from "@/components/ConditionBadge"
 import { CatalogViewTracker } from "@/components/CatalogViewTracker"
 import { BreadcrumbJsonLd } from "@/components/BreadcrumbJsonLd"
+import { displayFormat, pickFormatLabel } from "@/lib/format-display"
 
 type RelatedRelease = {
   id: string
   title: string
   slug: string
   format: string | null
+  format_v2?: string | null
   year: number | null
   country: string | null
   coverImage: string | null
@@ -74,8 +76,8 @@ const FORMAT_COLORS: Record<string, string> = {
   CASSETTE: "bg-format-cassette/15 text-format-cassette border-format-cassette/30",
 }
 
-function formatColorKey(release: { format?: string | null; format_name?: string | null }): string {
-  const name = (release.format_name || release.format || "").toUpperCase()
+function formatColorKey(release: { format?: string | null; format_name?: string | null; format_v2?: string | null }): string {
+  const name = (release.format_v2 || release.format_name || release.format || "").toUpperCase()
   if (name.includes("CD")) return "CD"
   if (name.includes("CASS") || name.includes("TAPE")) return "CASSETTE"
   return "LP"
@@ -98,7 +100,7 @@ export async function generateMetadata({
       : r.artist_name
   const title = rContextName ? `${rContextName} — ${r.title}` : r.title
   const description = [
-    r.format_name || r.format,
+    pickFormatLabel(r as any),
     r.label_name,
     r.year,
     r.country,
@@ -243,12 +245,12 @@ export default async function CatalogDetailPage({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 mt-4">
-            {(release.format_name || release.format) && (
+            {pickFormatLabel(release as any) && (
               <Badge
                 variant="outline"
                 className={FORMAT_COLORS[formatColorKey(release)] || "bg-secondary text-muted-foreground"}
               >
-                {release.format_name || release.format}
+                {pickFormatLabel(release as any)}
               </Badge>
             )}
             {release.year && (
@@ -392,7 +394,7 @@ export default async function CatalogDetailPage({
                 release.press_orga_name && { k: "Press / Org", v: release.press_orga_name, link: release.press_orga_slug ? `/press/${release.press_orga_slug}` : undefined },
                 release.catalogNumber && { k: "Catalog No.", v: release.catalogNumber, mono: true },
                 release.legacy_condition && { k: "Condition", v: release.legacy_condition, mono: true },
-                (release.format_name || release.legacy_format_detail) && { k: "Format", v: release.format_name || release.legacy_format_detail },
+                (pickFormatLabel(release as any) || release.legacy_format_detail) && { k: "Format", v: pickFormatLabel(release as any) || release.legacy_format_detail },
               ].filter(Boolean).map((row, i) => {
                 const { k, v, mono, link } = row as { k: string; v: string; mono?: boolean; link?: string }
                 return (
@@ -569,7 +571,7 @@ export default async function CatalogDetailPage({
             name: contextName ? `${contextName} — ${release.title}` : release.title,
             ...(images[0] ? { image: images[0] } : {}),
             description: [
-              release.format_name || release.format,
+              pickFormatLabel(release as any),
               release.label_name,
               release.year,
               release.country,

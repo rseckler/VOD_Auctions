@@ -35,6 +35,7 @@ export async function GET(
           "Release.id",
           "Release.title",
           "Release.format",
+          "Release.format_v2",
           "Release.coverImage",
           "Artist.name as artist_name"
         )
@@ -49,6 +50,7 @@ export async function GET(
           release_title: rel?.title || null,
           release_artist: rel?.artist_name || null,
           release_format: rel?.format || null,
+          release_format_v2: rel?.format_v2 || null,
           release_cover: rel?.coverImage || null,
         }
       })
