@@ -5,6 +5,8 @@
 **Scope:** `/admin/media` Detail-Seite — Feld-Editierbarkeit in Abhängigkeit von `Release.data_source`
 **Kontext:** Auf dem Catalog-Admin (https://admin.vod-auctions.com/app/media) sind Stammdaten heute für alle Rows read-only. Seit `/admin/discogs-import` neue Artikel direkt in die VOD-DB schreibt (nicht über die Legacy-MySQL), existieren zwei Release-Herkünfte mit unterschiedlichen Konsistenz-Anforderungen.
 
+> **Offene Lücken nach rc51.3:** Format/Genre/Styles fehlen im Edit-Card, `article_number` wird beim Discogs-Import nicht vergeben, Pflicht-Dropdowns für Format/Genre fehlen. Details + Fix-Plan: [`STAMMDATEN_GAPS_FOLLOWUP.md`](STAMMDATEN_GAPS_FOLLOWUP.md)
+
 ---
 
 ## 1. Ausgangslage — Zwei Quellen für `Release`-Rows
