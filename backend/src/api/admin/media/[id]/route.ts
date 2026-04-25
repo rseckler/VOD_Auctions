@@ -6,6 +6,7 @@ import { pushReleaseNow } from "../../../../lib/meilisearch-push"
 import { logEdit, HARD_STAMMDATEN_FIELDS, SYSTEM_ID_FIELDS, looseEqual } from "../../../../lib/release-audit"
 import { validateReleaseStammdaten } from "../../../../lib/release-validation"
 import { lockFields, getHardFieldsInBody } from "../../../../lib/release-locks"
+import { isValidFormat, isValidDescriptor } from "../../../../lib/format-mapping"
 
 // GET /admin/media/:id — Single release detail with sync history
 export async function GET(
@@ -236,12 +237,14 @@ export async function POST(
     "styles",
     "barcode",
     "credits",
+    "format_descriptors", // Picture Disc, Reissue, Limited Edition, … — never synced
     // Zone-1 Hard-Stammdaten (all releases — auto-locks on edit)
     // rc51.1 R1: `format` entfernt — Legacy-MySQL-owned, kein UI-Input, nicht in SYNC_PROTECTED_FIELDS.
     "title",
     "description",
     "year",
     "format_id",
+    "format_v2", // rc51.7+: 71-Wert-Whitelist, granularer als format_id (16 Werte). Lock-protected.
     "catalogNumber",
     "country",
     "artistId",
@@ -269,6 +272,40 @@ export async function POST(
   }
   if (body.genres !== undefined) releaseUpdates.genres = normalizeArray(body.genres)
   if (body.styles !== undefined) releaseUpdates.styles = normalizeArray(body.styles)
+
+  // format_v2 — strict whitelist (71 values from FORMAT_VALUES). Empty/null clears.
+  if (body.format_v2 !== undefined) {
+    const v = body.format_v2
+    if (v === null || v === "") {
+      releaseUpdates.format_v2 = null
+    } else if (typeof v === "string" && isValidFormat(v)) {
+      releaseUpdates.format_v2 = v
+    } else {
+      res.status(400).json({
+        error: "validation_failed",
+        message: `Invalid format_v2 value: "${String(v)}" — must be one of the 71 whitelisted FORMAT_VALUES`,
+      })
+      return
+    }
+  }
+
+  // format_descriptors — array, each entry must be in FORMAT_DESCRIPTOR_VALUES
+  if (body.format_descriptors !== undefined) {
+    const arr = normalizeArray(body.format_descriptors)
+    if (arr === null) {
+      releaseUpdates.format_descriptors = null
+    } else {
+      const invalid = arr.filter((d) => !isValidDescriptor(d))
+      if (invalid.length > 0) {
+        res.status(400).json({
+          error: "validation_failed",
+          message: `Invalid format_descriptors: ${invalid.join(", ")} — must be from FORMAT_DESCRIPTOR_VALUES`,
+        })
+        return
+      }
+      releaseUpdates.format_descriptors = arr
+    }
+  }
 
   // Q1(b): media_condition, sleeve_condition, inventory are now owned by
   // erp_inventory_item when one exists. These fields are written to erp first,
@@ -329,7 +366,9 @@ export async function POST(
 
   // rc51.7: When format_id is changed, derive format_v2 from LEGACY_FORMAT_ID_MAP
   // so the new value is consistent without a separate sync run.
-  if (releaseUpdates.format_id !== undefined) {
+  // BUT: if user explicitly set format_v2 directly, that wins (granular 71-value
+  // picker overrides the 16-value tape-mag mapping).
+  if (releaseUpdates.format_id !== undefined && body.format_v2 === undefined) {
     const { classifyTapeMagFormat } = await import("../../../../lib/format-mapping.js")
     const fid = releaseUpdates.format_id == null ? null : Number(releaseUpdates.format_id)
     releaseUpdates.format_v2 = classifyTapeMagFormat(Number.isFinite(fid as number) ? (fid as number) : null)
@@ -440,7 +479,7 @@ export async function POST(
     // Hard-Stammdaten (inkl. barcode seit R1-Merge) + Zone-2 Soft-Stammdaten
     const STAMMDATEN_AUDIT_FIELDS = Array.from(new Set([
       ...(HARD_STAMMDATEN_FIELDS as readonly string[]),
-      "credits", "genres", "styles",
+      "credits", "genres", "styles", "format_descriptors",
     ]))
     const auditFields: Record<string, { oldValue: unknown; newValue: unknown }> = {}
     for (const field of STAMMDATEN_AUDIT_FIELDS) {

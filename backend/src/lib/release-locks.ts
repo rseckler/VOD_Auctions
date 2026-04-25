@@ -15,6 +15,7 @@ export const SYNC_PROTECTED_FIELDS = [
   "labelId",
   "coverImage",
   "format_id",
+  "format_v2",
   "legacy_format_detail",
   "legacy_condition",
   "legacy_available",

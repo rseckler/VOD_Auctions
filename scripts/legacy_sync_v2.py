@@ -214,7 +214,7 @@ DIFF_FIELDS_LITERATURE = [
 HARD_STAMMDATEN_FIELDS = {
     "title", "year", "country", "catalogNumber", "barcode",
     "description", "artistId", "labelId", "coverImage",
-    "format_id", "legacy_format_detail", "legacy_condition",
+    "format_id", "format_v2", "legacy_format_detail", "legacy_condition",
     "legacy_available", "legacy_price",
 }
 
@@ -736,8 +736,11 @@ def sync_releases_v2(mysql_conn, pg_conn, run_id, dry_run=False):
                     year = CASE WHEN "Release".locked_fields @> '"year"'::jsonb
                                 THEN "Release".year ELSE EXCLUDED.year END,
                     format = EXCLUDED.format,
-                    -- rc51.7: format_v2 derived from format_id, locked together with `format_id`
+                    -- rc51.7: format_v2 derived from format_id, locked together with `format_id`.
+                    -- rc51.8: format_v2 also has its own granular lock — Admin-Edit can override
+                    -- the format_v2 picker with one of 71 values (more granular than format_id's 16).
                     format_v2 = CASE WHEN "Release".locked_fields @> '"format_id"'::jsonb
+                                       OR "Release".locked_fields @> '"format_v2"'::jsonb
                                      THEN "Release".format_v2 ELSE EXCLUDED.format_v2 END,
                     format_id = CASE WHEN "Release".locked_fields @> '"format_id"'::jsonb
                                      THEN "Release".format_id ELSE EXCLUDED.format_id END,
@@ -777,7 +780,9 @@ def sync_releases_v2(mysql_conn, pg_conn, run_id, dry_run=False):
                     OR (NOT "Release".locked_fields @> '"description"'::jsonb AND "Release".description IS DISTINCT FROM EXCLUDED.description)
                     OR (NOT "Release".locked_fields @> '"year"'::jsonb AND "Release".year IS DISTINCT FROM EXCLUDED.year)
                     OR "Release".format IS DISTINCT FROM EXCLUDED.format
-                    OR (NOT "Release".locked_fields @> '"format_id"'::jsonb AND "Release".format_v2 IS DISTINCT FROM EXCLUDED.format_v2)
+                    OR (NOT "Release".locked_fields @> '"format_id"'::jsonb
+                        AND NOT "Release".locked_fields @> '"format_v2"'::jsonb
+                        AND "Release".format_v2 IS DISTINCT FROM EXCLUDED.format_v2)
                     OR (NOT "Release".locked_fields @> '"format_id"'::jsonb AND "Release".format_id IS DISTINCT FROM EXCLUDED.format_id)
                     OR (NOT "Release".locked_fields @> '"catalogNumber"'::jsonb AND "Release"."catalogNumber" IS DISTINCT FROM EXCLUDED."catalogNumber")
                     OR (NOT "Release".locked_fields @> '"country"'::jsonb AND "Release".country IS DISTINCT FROM EXCLUDED.country)
@@ -1112,8 +1117,10 @@ def sync_literature_v2(mysql_conn, pg_conn, run_id, table, category,
                     year = CASE WHEN "Release".locked_fields @> '"year"'::jsonb
                                 THEN "Release".year ELSE EXCLUDED.year END,
                     format = EXCLUDED.format,
-                    -- rc51.7: format_v2 from format_id, locked together with `format`
+                    -- rc51.7: format_v2 from format_id, locked together with `format`.
+                    -- rc51.8: also respects own granular `format_v2` lock (Admin-Picker override).
                     format_v2 = CASE WHEN "Release".locked_fields @> '"format"'::jsonb
+                                       OR "Release".locked_fields @> '"format_v2"'::jsonb
                                      THEN "Release".format_v2 ELSE EXCLUDED.format_v2 END,
                     format_id = CASE WHEN "Release".locked_fields @> '"format_id"'::jsonb
                                      THEN "Release".format_id ELSE EXCLUDED.format_id END,
@@ -1146,7 +1153,9 @@ def sync_literature_v2(mysql_conn, pg_conn, run_id, table, category,
                     OR (NOT "Release".locked_fields @> '"description"'::jsonb AND "Release".description IS DISTINCT FROM EXCLUDED.description)
                     OR (NOT "Release".locked_fields @> '"year"'::jsonb AND "Release".year IS DISTINCT FROM EXCLUDED.year)
                     OR "Release".format IS DISTINCT FROM EXCLUDED.format
-                    OR (NOT "Release".locked_fields @> '"format_id"'::jsonb AND "Release".format_v2 IS DISTINCT FROM EXCLUDED.format_v2)
+                    OR (NOT "Release".locked_fields @> '"format_id"'::jsonb
+                        AND NOT "Release".locked_fields @> '"format_v2"'::jsonb
+                        AND "Release".format_v2 IS DISTINCT FROM EXCLUDED.format_v2)
                     OR (NOT "Release".locked_fields @> '"format_id"'::jsonb AND "Release".format_id IS DISTINCT FROM EXCLUDED.format_id)
                     OR (NOT "Release".locked_fields @> '"country"'::jsonb AND "Release".country IS DISTINCT FROM EXCLUDED.country)
                     OR (NOT "Release".locked_fields @> '"artistId"'::jsonb AND "Release"."artistId" IS DISTINCT FROM EXCLUDED."artistId")

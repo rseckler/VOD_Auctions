@@ -8,7 +8,7 @@ import { Badge, Btn, Toast, EmptyState, inputStyle, selectStyle } from "../../..
 import { printLabelAuto } from "../../../lib/print-client"
 import { SourceBadge } from "../../../components/release-detail/SourceBadge"
 import { LockBanner } from "../../../components/release-detail/LockBanner"
-import { ArtistPickerModal, LabelPickerModal, CountryPickerModal } from "../../../components/release-detail/PickerModals"
+import { ArtistPickerModal, LabelPickerModal, CountryPickerModal, FormatPickerModal, DescriptorPickerModal } from "../../../components/release-detail/PickerModals"
 import { findCountry, isValidIsoCode, flagFor } from "../../../data/country-iso"
 import { AuditHistory } from "../../../components/release-detail/AuditHistory"
 import { TrackManagement } from "../../../components/release-detail/TrackManagement"
@@ -631,8 +631,10 @@ const MediaDetailPage = () => {
   const [sdArtistName, setSdArtistName] = useState("")
   const [sdLabelId, setSdLabelId] = useState("")
   const [sdLabelName, setSdLabelName] = useState("")
+  const [sdFormatV2, setSdFormatV2] = useState<string>("")
+  const [sdDescriptors, setSdDescriptors] = useState<string[]>([])
   const [sdSaving, setSdSaving] = useState(false)
-  const [sdPicker, setSdPicker] = useState<"artist" | "label" | "country" | null>(null)
+  const [sdPicker, setSdPicker] = useState<"artist" | "label" | "country" | "format" | "descriptors" | null>(null)
   const [sdError, setSdError] = useState<string | null>(null)
   const [auditRefreshKey, setAuditRefreshKey] = useState(0)
 
@@ -740,6 +742,8 @@ const MediaDetailPage = () => {
     setSdArtistName(release.artist_name || "")
     setSdLabelId(release.labelId || "")
     setSdLabelName(release.label_name || "")
+    setSdFormatV2(release.format_v2 || "")
+    setSdDescriptors(Array.isArray(release.format_descriptors) ? release.format_descriptors : [])
     setSdError(null)
     setSdEditing(true)
   }
@@ -802,6 +806,8 @@ const MediaDetailPage = () => {
         catalogNumber: sdCatalogNumber || null,
         barcode: sdBarcode || null,
         description: sdDescription || null,
+        format_v2: sdFormatV2 || null,
+        format_descriptors: sdDescriptors,
       }
       if (sdArtistId) body.artistId = sdArtistId
       if (sdLabelId) body.labelId = sdLabelId
@@ -1270,6 +1276,99 @@ const MediaDetailPage = () => {
                   <FieldLabel text="Description" field="description" />
                   <textarea value={sdDescription} onChange={(e) => setSdDescription(e.target.value)} rows={4} style={{ ...localInputStyle, resize: "vertical" }} />
                 </div>
+
+                <div>
+                  <FieldLabel text="Format (71-Wert-Whitelist)" field="format_v2" />
+                  <div style={{ display: "flex", gap: S.gap.sm, alignItems: "center" }}>
+                    <button
+                      type="button"
+                      onClick={() => setSdPicker("format")}
+                      style={{
+                        ...localInputStyle,
+                        cursor: "pointer",
+                        flex: 1,
+                        textAlign: "left",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 6,
+                      } as React.CSSProperties}
+                      title="Click to select format from 71-value whitelist"
+                    >
+                      {sdFormatV2 ? (
+                        <>
+                          <span>{displayFormat(sdFormatV2 as FormatValue)}</span>
+                          <span style={{ ...T.small, color: C.muted, fontFamily: "monospace", fontSize: 11 }}>{sdFormatV2}</span>
+                        </>
+                      ) : (
+                        <span style={{ color: C.muted }}>Click to select…</span>
+                      )}
+                    </button>
+                    {sdFormatV2 && (
+                      <Btn
+                        label="×"
+                        variant="ghost"
+                        onClick={() => setSdFormatV2("")}
+                        style={{ padding: "8px 10px", fontSize: 13 }}
+                      />
+                    )}
+                  </div>
+                  <div style={{ ...T.micro, color: C.muted, marginTop: 2 }}>
+                    Granular: e.g. <code>Vinyl-LP-2</code> (2× LP Box), <code>Tape-7</code> (7-Cassette Box)
+                  </div>
+                </div>
+
+                <div>
+                  <FieldLabel text="Descriptors (Multi-Tag)" field="format_descriptors" />
+                  <div style={{ display: "flex", gap: S.gap.sm, alignItems: "center" }}>
+                    <button
+                      type="button"
+                      onClick={() => setSdPicker("descriptors")}
+                      style={{
+                        ...localInputStyle,
+                        cursor: "pointer",
+                        flex: 1,
+                        textAlign: "left",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        flexWrap: "wrap",
+                        minHeight: 38,
+                      } as React.CSSProperties}
+                      title="Click to manage descriptor tags"
+                    >
+                      {sdDescriptors.length > 0 ? (
+                        sdDescriptors.map((d) => (
+                          <span
+                            key={d}
+                            style={{
+                              background: C.subtle,
+                              border: `1px solid ${C.border}`,
+                              borderRadius: S.radius.sm,
+                              padding: "2px 8px",
+                              fontSize: 12,
+                            }}
+                          >
+                            {d}
+                          </span>
+                        ))
+                      ) : (
+                        <span style={{ color: C.muted }}>Click to add descriptors…</span>
+                      )}
+                    </button>
+                    {sdDescriptors.length > 0 && (
+                      <Btn
+                        label="×"
+                        variant="ghost"
+                        onClick={() => setSdDescriptors([])}
+                        style={{ padding: "8px 10px", fontSize: 13 }}
+                      />
+                    )}
+                  </div>
+                  <div style={{ ...T.micro, color: C.muted, marginTop: 2 }}>
+                    Picture Disc, Reissue, Limited Edition, Stereo, Mono, … (32 tags)
+                  </div>
+                </div>
               </div>
 
               <div style={{ display: "flex", gap: S.gap.md, marginTop: S.gap.lg, paddingTop: S.gap.lg, borderTop: `1px solid ${C.border}` }}>
@@ -1297,6 +1396,20 @@ const MediaDetailPage = () => {
       {sdPicker === "country" && (
         <CountryPickerModal
           onSelect={(country) => setSdCountry(country.code)}
+          onClose={() => setSdPicker(null)}
+        />
+      )}
+      {sdPicker === "format" && (
+        <FormatPickerModal
+          current={sdFormatV2 || null}
+          onSelect={(value) => setSdFormatV2(value)}
+          onClose={() => setSdPicker(null)}
+        />
+      )}
+      {sdPicker === "descriptors" && (
+        <DescriptorPickerModal
+          selected={sdDescriptors}
+          onSave={(values) => setSdDescriptors(values)}
           onClose={() => setSdPicker(null)}
         />
       )}

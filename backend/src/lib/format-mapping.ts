@@ -282,14 +282,89 @@ export type DiscogsClassifyResult = {
  * Descriptions that are NOT format-relevant — they go into Release.format_descriptors jsonb.
  * Frank (2026-04-25): Picture Disc, Test Pressing, Limited Edition, Reissue etc. are tags.
  */
-const DESCRIPTOR_ONLY = new Set([
+export const FORMAT_DESCRIPTOR_VALUES = [
   "Album", "Compilation", "Reissue", "Repress", "Limited Edition", "Numbered",
   "Stereo", "Mono", "Quadraphonic", "Picture Disc", "Test Pressing",
   "White Label", "Promo", "Remastered", "Unofficial Release", "Special Edition",
   "Misprint", "Club Edition", "Etched", "Coloured", "Gatefold", "Single Sided",
   "33 ⅓ RPM", "45 RPM", "78 RPM", "Special Cut", "Enhanced", "Copy Protected",
   "Chrome", "Metal", "Dolby B/C", "Dolby System", "Dolby HX", "Dolby HX Pro",
-])
+] as const
+
+export type FormatDescriptor = (typeof FORMAT_DESCRIPTOR_VALUES)[number]
+
+const DESCRIPTOR_ONLY = new Set<string>(FORMAT_DESCRIPTOR_VALUES)
+
+export function isValidDescriptor(v: string): v is FormatDescriptor {
+  return DESCRIPTOR_ONLY.has(v)
+}
+
+/**
+ * Grouped format values for the FormatPickerModal — display order matters,
+ * the UI renders these as collapsible sections so a long flat list of 71
+ * items is browsable. Counts are intentional (LP-12, Tape-32 etc. exist
+ * because Discogs has them, even when 0 inventory holds them today).
+ */
+export const FORMAT_GROUPS: Array<{ label: string; values: readonly FormatValue[] }> = [
+  {
+    label: "Vinyl LP (12\" Album)",
+    values: [
+      "Vinyl-LP", "Vinyl-LP-2", "Vinyl-LP-3", "Vinyl-LP-4", "Vinyl-LP-5",
+      "Vinyl-LP-6", "Vinyl-LP-7", "Vinyl-LP-8", "Vinyl-LP-9", "Vinyl-LP-10",
+      "Vinyl-LP-11", "Vinyl-LP-12",
+    ],
+  },
+  {
+    label: "Vinyl 7\"",
+    values: [
+      "Vinyl-7-Inch", "Vinyl-7-Inch-2", "Vinyl-7-Inch-3", "Vinyl-7-Inch-4",
+      "Vinyl-7-Inch-5", "Vinyl-7-Inch-10",
+    ],
+  },
+  {
+    label: "Vinyl 10\"",
+    values: ["Vinyl-10-Inch", "Vinyl-10-Inch-2", "Vinyl-10-Inch-3", "Vinyl-10-Inch-4"],
+  },
+  {
+    label: "Vinyl 12\" (Maxi-Single, kein LP)",
+    values: ["Vinyl-12-Inch", "Vinyl-12-Inch-2", "Vinyl-12-Inch-3", "Vinyl-12-Inch-4", "Vinyl-12-Inch-12"],
+  },
+  {
+    label: "Vinyl Sonderformate",
+    values: ["Flexi", "Lathe-Cut", "Lathe-Cut-2", "Acetate", "Shellac"],
+  },
+  {
+    label: "Cassette",
+    values: [
+      "Tape", "Tape-2", "Tape-3", "Tape-4", "Tape-5", "Tape-6", "Tape-7",
+      "Tape-8", "Tape-10", "Tape-12", "Tape-26", "Tape-32", "Tapes",
+    ],
+  },
+  {
+    label: "Reel-To-Reel",
+    values: ["Reel", "Reel-2"],
+  },
+  {
+    label: "CD",
+    values: ["CD", "CD-2", "CD-3", "CD-4", "CD-5", "CD-8", "CD-10", "CD-16", "CDr", "CDr-2", "CDV"],
+  },
+  {
+    label: "Video",
+    values: ["VHS", "DVD", "DVDr", "Blu-ray"],
+  },
+  {
+    label: "Digital",
+    values: ["File", "Memory-Stick"],
+  },
+  {
+    label: "Literatur / Merch",
+    values: ["Magazin", "Photo", "Postcard", "Poster", "Book", "T-Shirt"],
+  },
+  {
+    label: "Catch-all",
+    values: ["Other"],
+  },
+]
 
 /**
  * Format-influencing descriptions (size + sub-type indicators).
