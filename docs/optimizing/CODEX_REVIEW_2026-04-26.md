@@ -27,9 +27,27 @@ Alle 5 Findings wurden direkt nach dem Review umgesetzt. TypeScript-Check (`npx 
 - `backend/src/api/admin/media/bulk/route.ts` — `looseEqual`-Diff vor Audit-Push, `pushReleaseNow` nur für changed releases bei hard-fields-only Bulk, `skipped_count` semantisch befüllt
 - `backend/src/lib/release-audit.ts` — Revert mit jsonb-array-stringify für `format_descriptors`/`locked_fields`
 
+**Commit:** `d8f6818` "rc51.11 Big Bundle Post-Codex-Review: 4 Bugs + 1 Audit-Cleanup" auf `origin/main`.
+
 **Bewusst NICHT umgesetzt:**
 - Transform-Logik zwischen `meilisearch_sync.py` und `meilisearch-push.ts` zentralisieren (Codex-Empfehlung, separater Refactor-Task)
 - Paritäts-Test TS↔Python (Codex-Empfehlung, gehört zu CI-Workstream)
+
+## Deploy-Postmortem 2026-04-26
+
+Der VPS-Deploy für rc51.11 brauchte zwei Anläufe — beide Komplikationen sind dokumentiert weil die Pattern wiederkehren.
+
+**Anlauf 1 — `git pull` aborted:** Auf dem VPS existierten 6 untracked Files unter `scripts/backup/` (`_backup_common.sh`, `backup_brevo.sh`, `backup_r2_images.sh`, `backup_supabase.sh`, `backup_vps_databases.sh`, `.env.backup.example`). Diese stammten aus rc51.10's Backup-Pipeline, die Robin direkt auf dem VPS implementiert und Stunden später erst lokal committet hatte. Git verweigerte den Pull weil der Merge sie überschrieben hätte. **Verifikation:** `diff -q $f <(git show origin/main:$f)` für alle 6 Files zeigte byte-identisch — die committete Version und die VPS-Version waren gleich, das Löschen via `rm` war 0-Datenverlust.
+
+**Anlauf 2 — `set -e` brach nach `medusa build` ab:** Backend-TS-Check liefert seit rc40 pre-existing Errors (`whereIn(col, subquery)`-Pattern + missing `@sentry/node`-Modul). `npx medusa build` reportet "Backend build completed with errors" und returnt **exit 1**, schreibt aber korrekte `.medusa/server/`- und `public/admin/`-Artefakte. Mit `set -e` aktiviert wurden die letzten 3 Schritte (`rm -rf public/admin && cp -r .medusa/server/public/admin public/admin`, `.env`-symlink, `pm2 restart`) übersprungen. Das Backend lief ~30 Min mit altem Code weiter. **Manueller Abschluss:** die 3 fehlenden Schritte einzeln nachgezogen, PM2-Restart erfolgreich (PID 2627924, restart #35, uptime resetted, `/health` HTTP 200, Frank in Logs aktiv).
+
+**Erkannter Fehler beim ersten SSH-Call:** `ssh vps '...' 2>&1 | tee /tmp/log` — Bash returnt den exit code des **letzten** Pipeline-Commands (`tee`, immer 0). Der echte SSH-Exit wurde verschluckt. Die Background-Task-Notification reportete fälschlich "completed (exit code 0)" obwohl der Remote-Befehl mitten drin gecrasht war. Erst beim manuellen Tail des Logs ("Aborting") wurde das sichtbar.
+
+**Lessons Learned (in Memory festgehalten):**
+- [`feedback_pipefail_ssh_tee.md`](../../.claude/projects/-Users-robin-Documents-Claude-Work-PROJECTS-VOD-Auctions/memory/feedback_pipefail_ssh_tee.md) — `tee` schluckt SSH-Exit-Code; entweder `set -o pipefail` oder direkt `> /tmp/log 2>&1; echo "EXIT=$?"`
+- [`feedback_medusa_build_exit_nonzero.md`](../../.claude/projects/-Users-robin-Documents-Claude-Work-PROJECTS-VOD-Auctions/memory/feedback_medusa_build_exit_nonzero.md) — `medusa build` darf nicht in `set -e`-Block liegen, da pre-existing TS-Errors trotz funktionalem Build exit ≠ 0 erzeugen
+
+**Take-Away für Deploy-Skripte:** Build und Activate trennen. Build darf "errored" returnen (sofern Artefakte da sind), Activate-Schritte (admin-copy, symlink, pm2-restart) müssen unabhängig laufen. Plus: nach jedem Deploy `pm2 describe vodauction-backend` + `curl /health` als Verify, nicht der Background-Notification trauen.
 
 **Slices ohne Findings:** rc51.6 article_number-Trigger · rc51.4/5 POS-Fixes · frank-mba-setup · Cutover-Reminder.
 
