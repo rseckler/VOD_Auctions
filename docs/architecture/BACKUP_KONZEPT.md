@@ -1,8 +1,8 @@
 # Backup-Konzept (Cross-Projekt)
 
-**Erstellt:** 2026-04-26 · **Letztes Update:** 2026-04-26 (V5 — Tier-1 LIVE, Side-Issue Postmortem)
+**Erstellt:** 2026-04-26 · **Letztes Update:** 2026-04-26 (V6 — Tier-2 Phase 2.1–2.5 LIVE: Logical Replication aktiv, Backup-Egress 97% reduziert)
 **Scope:** Alle Datenquellen im Workspace
-**Status:** **Tier-1 LIVE** seit 2026-04-26 ~10:00 UTC. Tier-2 (Logical Replication etc.) noch offen.
+**Status:** **Tier-1 LIVE** seit 10:00 UTC + **Tier-2 Phase 2.1–2.5 LIVE** seit 13:48 UTC. Pending: 2.6 (n8n-Volume), 2.7 (InfluxDB), 2.8 (Stripe/PayPal-Quartals).
 
 ---
 
@@ -767,6 +767,78 @@ r2://vod-backups/
 
 ---
 
+## 9.5.5 · Tier-2 Phase 2.1–2.5 LIVE-Status (2026-04-26 ~13:48 UTC)
+
+### Logical Replication LIVE
+
+**Architektur:**
+- **PG17 Replica-Container** auf VPS (`pg17-replica`, `--network=host`, port 5433)
+  - Datadir Docker-Volume `pg17-replica-data` (persistent über Container-Restarts)
+  - Config in `/etc/pg17-replica/{postgresql.conf,pg_hba.conf}` (bind-mounted)
+  - Postgres-Pass auf VPS in `/root/pg17-replica-pass.txt` (chmod 600)
+- **Pro Source-DB eigene Replica-DB** (`vod_auctions_replica`, `blackfire_replica`) — ermöglicht später selektiven Restore
+- **Logical Subscription** mit `copy_data=true` initial → kontinuierlicher WAL-Stream danach
+- **Schema-Pull manuell pre-Subscription** via `pg_dump --schema-only --schema=public`, gefiltert (Supabase-eigene Schemas/Roles raus)
+
+**Subscription-Setup:**
+
+| Source-DB | Publication | Replication-Slot (Source) | Subscription (Replica) | Tabellen | Initial-Sync-Dauer |
+|---|---|---|---|---|---|
+| `vod-auctions` (Supabase) | `vod_auctions_pub` (FOR TABLES IN SCHEMA public) | `vod_auctions_replication_slot` | `vod_auctions_sub` | 243 | ~3 Min |
+| `blackfire-service` (Supabase) | `blackfire_pub` | `blackfire_replication_slot` | `blackfire_sub` | 38 | <1 Min |
+
+**Verifikation Source vs Replica (Stand 2026-04-26 ~12:00 UTC):**
+- vod-auctions: Releases 52.788, Artists 64.286, Labels 9.106, Inventory 13.463, Transaction 18, Bid 53, Auction-Block 5, Audit 106 — **alle match ✅**
+- blackfire: Companies 1.917, Stock-Prices 668, Sync-History 2.000 — **alle match ✅**
+- Replica DB-Größen: vod-auctions 649 MB, blackfire 60 MB
+
+**Replication-Lag:** typisch 1–10 Sekunden (gemessen via `pg_stat_subscription.latest_end_time`).
+
+**Backup-Pipeline auf Replica umgestellt** (`backup_supabase.sh` mit `REPLICA_<PROJECT>_URL`-Priority):
+- Replica wird als Backup-Source bevorzugt — fällt auf Supabase-Direct zurück bei Lag > `MAX_REPLICATION_LAG_SECONDS` (default 300s)
+- Egress-Saving: ~39 GB/Mo → ~1.5 GB/Mo (97% Reduktion vs Tier-1)
+- pg_dump-Dauer vod-auctions: 43s (Internet) → 29s (lokal) = 33% schneller
+
+**Health-Check `replication_health_check.sh`:**
+- Cron alle 5 Min, Push-Heartbeat zu Kuma (`KUMA_REPLICATION_LAG`)
+- Severity-Mapping: lag <300s = up · lag 300–1800s = degraded + warn · lag >1800s = down + critical email · subenabled=f = down + critical email
+- Bei Critical: Resend-Email mit Re-Enable-Befehl im Body
+
+### Schema-Migration-Discipline (Pflicht)
+
+**Bei jeder neuen Migration auf Supabase muss die DDL parallel auf der Replica laufen** — sonst bricht Logical Replication beim ersten Insert/Update auf eine "noch nicht existente" Spalte.
+
+**Manueller Workflow** (für jeden Migration-Apply):
+```bash
+# 1. Migration auf Supabase via MCP `apply_migration` (oder SQL Editor)
+# 2. Sofort danach auf Replica:
+ssh vps
+docker exec -u postgres pg17-replica psql -d vod_auctions_replica -c "<DDL hier>"
+# Oder bei größerer Migration:
+docker exec -u postgres -i pg17-replica psql -d vod_auctions_replica < migration.sql
+```
+
+**Bei Schema-Drift Recovery** (Replica out of sync):
+```bash
+# Subscription pausieren, Schema nachziehen, Subscription weiter
+docker exec -u postgres pg17-replica psql -d vod_auctions_replica -c "ALTER SUBSCRIPTION vod_auctions_sub DISABLE;"
+docker exec -u postgres pg17-replica psql -d vod_auctions_replica -c "<DDL>"
+docker exec -u postgres pg17-replica psql -d vod_auctions_replica -c "ALTER SUBSCRIPTION vod_auctions_sub ENABLE;"
+```
+
+### Failover-Pfad (Disaster-Recovery via Replica)
+
+Bei Supabase-Outage kann Medusa temporär zur VPS-Replica gepointed werden:
+
+1. App-Server: `DATABASE_URL` umstellen auf `postgres://postgres:PASS@127.0.0.1:5433/vod_auctions_replica`
+2. Read-Only sofort möglich (Subscription bleibt aktiv)
+3. Read-Write nach `pg_promote_role` (eigene Logical Replication beenden, Replica zur Master)
+4. Bei Recovery: neue Logical Replication zurück zu Supabase (umgekehrt) oder Cutover
+
+Detailliertes Runbook: `docs/runbooks/RESTORE_FROM_BACKUP.md` Sektion "Disaster Recovery".
+
+---
+
 ## 9.6 · Postmortem: Crontab-Overwrite (2026-04-25 ~20:00 UTC)
 
 **Während des Backup-Setups aufgefallen.** Vermutlich nicht kausal mit Backup-Arbeit, sondern älterer Vorfall.
@@ -817,6 +889,44 @@ Klassischer Cron-Update-Fehler: `crontab` mit `<` redirect statt `crontab -l > t
 **Goldene Regel:** Crontab nur via `crontab -l > /tmp/crontab.current && echo "NEW" >> /tmp/crontab.current && crontab /tmp/crontab.current` modifizieren. **Niemals** `echo "X" | crontab -` ohne expliziten `crontab -l > tmp;`-Schritt davor.
 
 **Detection:** ein Dead-Man-Switch-Check für `legacy_sync_v2` ist im TODO (System-Health P3-Followup) — würde so einen Vorfall in <2h via Resend-Email entdecken.
+
+---
+
+## 9.7 · Postmortem: Health-Check False-Positive Email-Spam (2026-04-26 ~11:14 UTC)
+
+**Symptom:** Robin bekam binnen 30 Min mehrere Email-Alerts `"Subscription 'X' is not enabled on pg17-replica"` obwohl beide Subscriptions tatsächlich enabled waren mit 3–10s Replication-Lag.
+
+**Root-Cause 1:** `psql -At -c "SELECT subname, subenabled::text"` returned `"true"` (Wort) statt `"t"` (Boolean-Char) für enabled Subscriptions. Mein Test war `[ "$enabled" != "t" ]` → für `"true"` immer DISABLED-detected → alert_email() pro Subscription pro Run.
+
+**Root-Cause 2:** Initial-Version des Scripts queryte `pg_stat_subscription` separat in beiden Replica-DBs, was 4 statt 2 Rows produzierte (cluster-wide-View ist DB-unabhängig). `for line in $REPORT $REPORT_BF` mit Bash-Word-Splitting hat dann pro fehlerhaft-erkannter Row eine Email gefeuert.
+
+**Fix:**
+- `subenabled` ohne `::text`-Cast → `"t"`/`"f"` Output
+- `pg_stat_subscription` nur einmal querien (cluster-wide)
+- `while IFS='|' read` statt `for line in` für robustes Newline-splitting
+- Test mit manuellem Run, dann erst Cron-Re-Enable
+
+**Email-Backlog-Erfahrung:** Resend hat Delivery-Latenz. Die ersten False-Positive-Emails wurden um 11:14 UTC dispatcht, kamen aber teilweise erst 30+ Min später bei Robin an. Das wirkte wie eine fortlaufende Spam-Welle, war aber ein endlicher Buffer-Drain.
+
+**Lesson:** Bei neuen Health-Checks immer manuell mit `bash -x` durchlaufen lassen + Sample-Daten mit `set -x` echo'en bevor Cron-Aktivierung. Plus: bei der ersten Email-Welle direkt den Cron disablen (nicht weiter debuggen während Spam läuft).
+
+---
+
+## 9.8 · Postmortem: r2-image-mirror False-Failure (2026-04-26 ~13:09 + 13:36 UTC)
+
+**Symptom:** Email-Alert `"Backup job 'r2-image-mirror' failed (exit 1)"` zweimal in Folge, obwohl Source und Mirror exakt identisch waren (227.019k Objects, 102.505 GiB).
+
+**Root-Cause:** rclone returnt manchmal `exit 1` (statt 0) wenn während des Sync-Runs **transiente HTTP-Fehler** auftraten (Cloudflare R2 returnt unter Last gelegentlich HTML-Error-Pages mit `Content-Type: text/html` statt der erwarteten S3-XML-Error-Response — rclone-Error: `expected element type <Error> but have <html>`). rclone retried automatisch (`Attempt 2/3 succeeded`) — der finale State ist korrekt — aber der Exit-Code bleibt non-zero.
+
+In `backup_r2_images.sh` lief `set -euo pipefail` → script crash auf rclone-exit-1 → trap_error → alert_email + Kuma-down.
+
+**Fix in `backup_r2_images.sh`:**
+- `set +e` um rclone-Aufruf, Exit-Code in `RCLONE_EXIT` capturen
+- Final-State-Verify: `rclone size r2-images:` vs `rclone size r2-backups:vod-backups/images-mirror/` — Object-Counts vergleichen
+- Wenn Counts matchen UND beide non-empty: Success (`KUMA_STATUS=up`), egal was rclone-rc war (mit Hinweis im KUMA-Msg "rclone-rc=$X after retries")
+- Wenn Counts nicht matchen: echtes Drift, Email-Alert
+
+**Lesson:** rclone-Exit-Codes sind **Retry-Noise-aware**, nicht **State-aware**. Wenn das Tool sagt "Attempt N/M succeeded" ist der State ok, der Exit-Code lügt. Bei Sync-Operations immer das **Endresultat** prüfen, nicht den Run-Status.
 
 ---
 

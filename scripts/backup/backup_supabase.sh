@@ -3,26 +3,41 @@
 # Usage: backup_supabase.sh <project-slug>
 #   project-slug: vod-auctions | blackfire
 #
-# Requires in .env.backup:
-#   SUPABASE_VOD_AUCTIONS_URL  postgres://postgres:PASS@db.<ref>.supabase.co:5432/postgres
-#   SUPABASE_BLACKFIRE_URL     postgres://postgres:PASS@db.lglvuiuwbrhiqvxcriwa.supabase.co:5432/postgres
-#   GPG_PASSPHRASE
-#   KUMA_BACKUP_VOD_AUCTIONS / KUMA_BACKUP_BLACKFIRE  Push-Heartbeat URLs
+# Connection priority (Tier-2: Logical Replication zu lokaler Replica reduziert Supabase-Egress auf 0):
+#   1. REPLICA_<PROJECT>_URL    Lokale VPS-Replica (bevorzugt, kein Supabase-Egress)
+#   2. SUPABASE_<PROJECT>_URL   Direct Connection zu Supabase (Fallback wenn Replica nicht verfügbar)
+#   3. DATABASE_URL             vod-auctions only, aus scripts/.env (Legacy-Fallback)
 #
-# Falls back to DATABASE_URL (from main scripts/.env) if SUPABASE_VOD_AUCTIONS_URL not set.
+# Replica-Lag-Guard: bei Lag > MAX_REPLICATION_LAG_SECONDS (default 300s) wird auf Source-DB
+# zurückgefallen statt stale Replica-Daten zu sichern.
+#
+# Requires in .env.backup:
+#   GPG_PASSPHRASE
+#   KUMA_BACKUP_VOD_AUCTIONS / KUMA_BACKUP_BLACKFIRE
+# Optional:
+#   REPLICA_VOD_AUCTIONS_URL    postgres://postgres:PASS@127.0.0.1:5433/vod_auctions_replica
+#   REPLICA_BLACKFIRE_URL       postgres://postgres:PASS@127.0.0.1:5433/blackfire_replica
+#   SUPABASE_VOD_AUCTIONS_URL   Direct Connection (Source-Fallback)
+#   SUPABASE_BLACKFIRE_URL      Direct Connection (Source-Fallback)
+#   MAX_REPLICATION_LAG_SECONDS default 300 (5 Min)
 
 set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/_backup_common.sh"
 
 PROJECT="${1:?usage: backup_supabase.sh <vod-auctions|blackfire>}"
+MAX_LAG=${MAX_REPLICATION_LAG_SECONDS:-300}
 
 case "$PROJECT" in
   vod-auctions)
-    DB_URL="${SUPABASE_VOD_AUCTIONS_URL:-${DATABASE_URL:-}}"
+    REPLICA_URL="${REPLICA_VOD_AUCTIONS_URL:-}"
+    SOURCE_URL="${SUPABASE_VOD_AUCTIONS_URL:-${DATABASE_URL:-}}"
+    SUB_NAME="vod_auctions_sub"
     KUMA="KUMA_BACKUP_VOD_AUCTIONS"
     ;;
   blackfire)
-    DB_URL="${SUPABASE_BLACKFIRE_URL:-}"
+    REPLICA_URL="${REPLICA_BLACKFIRE_URL:-}"
+    SOURCE_URL="${SUPABASE_BLACKFIRE_URL:-}"
+    SUB_NAME="blackfire_sub"
     KUMA="KUMA_BACKUP_BLACKFIRE"
     ;;
   *)
@@ -31,9 +46,31 @@ case "$PROJECT" in
     ;;
 esac
 
-[ -z "$DB_URL" ] && { log_error "DB_URL for $PROJECT not configured"; exit 3; }
+# Decide source: Replica if available + lag OK, otherwise Supabase direct.
+DB_URL=""
+DB_SOURCE="unknown"
+if [ -n "$REPLICA_URL" ]; then
+  # Check replica lag via pg_stat_subscription on the replica itself
+  LAG=$(docker run --rm --network=host postgres:17 \
+    psql "$REPLICA_URL" -t -c "SELECT COALESCE(EXTRACT(EPOCH FROM (now() - latest_end_time))::int, 0) FROM pg_stat_subscription WHERE subname = '$SUB_NAME';" 2>/dev/null | xargs)
+  if [ -z "$LAG" ]; then LAG=999999; fi
+  if [ "$LAG" -le "$MAX_LAG" ]; then
+    DB_URL="$REPLICA_URL"
+    DB_SOURCE="replica (lag=${LAG}s)"
+  else
+    log "[$PROJECT] Replica-Lag ${LAG}s > ${MAX_LAG}s — falling back to Supabase Direct"
+    DB_URL="$SOURCE_URL"
+    DB_SOURCE="supabase-direct (replica stale)"
+  fi
+fi
+if [ -z "$DB_URL" ]; then
+  DB_URL="$SOURCE_URL"
+  DB_SOURCE="supabase-direct (no replica configured)"
+fi
+[ -z "$DB_URL" ] && { log_error "DB_URL for $PROJECT not configured (REPLICA + SUPABASE both missing)"; exit 3; }
 
 setup_traps "supabase-$PROJECT" "$KUMA"
+log "[$PROJECT] backup source: $DB_SOURCE"
 
 DATE=$(ts_utc)
 WORK_DIR="$BACKUP_ROOT/supabase-$PROJECT-$DATE"

@@ -14,30 +14,57 @@ setup_traps "r2-image-mirror" "KUMA_BACKUP_R2_IMAGES"
 DATE=$(ts_utc)
 log "[r2-mirror] starting delta sync vod-images → vod-backups/images-mirror"
 
-# --fast-list: list each bucket once for efficient delta calculation
-# --transfers=8: parallel uploads
-# --checkers=16: parallel HEAD checks for delta detection
-# --no-update-modtime: don't rewrite metadata if file unchanged
-# --stats=30s: progress logging
-# Output is captured to a tmp file so we can extract counts for the heartbeat msg
+# Get source state for final-verify (used to convert transient rclone exit codes
+# into success/fail decision based on actual state-match, not retry-noise).
+SOURCE_OBJECTS=$(rclone size r2-images:vod-images 2>/dev/null | awk '/Total objects/ {print $3}')
+
 LOG_FILE="$BACKUP_ROOT/r2-mirror-$DATE.log"
+# rclone exit code can be 1/5 due to transient Cloudflare R2 503s ("expected
+# element type <Error> but have <html>") even when retry succeeds. We don't
+# fail the job based on rclone's exit alone — instead we verify final state.
+# `set +e` to capture exit code without aborting via pipefail.
+set +e
 rclone sync r2-images:vod-images r2-backups:vod-backups/images-mirror \
   --fast-list \
   --transfers=8 \
   --checkers=16 \
   --no-update-modtime \
+  --retries=5 \
   --stats=30s \
   --stats-one-line \
   > "$LOG_FILE" 2>&1
+RCLONE_EXIT=$?
+set -e
 
-# Final stats line
-TAIL_LINE=$(tail -20 "$LOG_FILE" | grep -E 'Transferred:|Errors:' | tail -2 | tr '\n' ' ')
+# Final-verify: source vs mirror object count
+MIRROR_OBJECTS=$(rclone size r2-backups:vod-backups/images-mirror 2>/dev/null | awk '/Total objects/ {print $3}')
 
-# Cleanup local rclone log after upload to R2 (so we have audit trail)
+if [ "$SOURCE_OBJECTS" = "$MIRROR_OBJECTS" ] && [ -n "$SOURCE_OBJECTS" ]; then
+  STATUS_MSG="OK src=$SOURCE_OBJECTS mirror=$MIRROR_OBJECTS"
+  if [ "$RCLONE_EXIT" -ne 0 ]; then
+    log "[r2-mirror] rclone exit=$RCLONE_EXIT but state matches (transient retries succeeded)"
+    STATUS_MSG="$STATUS_MSG (rclone-rc=$RCLONE_EXIT after retries)"
+  fi
+  KUMA_STATUS="up"
+elif [ -n "$SOURCE_OBJECTS" ] && [ -n "$MIRROR_OBJECTS" ]; then
+  DIFF=$((SOURCE_OBJECTS - MIRROR_OBJECTS))
+  STATUS_MSG="DRIFT src=$SOURCE_OBJECTS mirror=$MIRROR_OBJECTS diff=$DIFF rc=$RCLONE_EXIT"
+  log_error "[r2-mirror] state drift: $STATUS_MSG"
+  KUMA_STATUS="down"
+else
+  STATUS_MSG="UNKNOWN (size query failed) rc=$RCLONE_EXIT"
+  log_error "[r2-mirror] could not verify final state"
+  KUMA_STATUS="down"
+fi
+
+# Upload rclone log for audit trail
 gpg_encrypt < "$LOG_FILE" > "$LOG_FILE.gpg"
 r2_push "$LOG_FILE.gpg" "logs/r2-mirror/$DATE.log.gpg"
 rm "$LOG_FILE" "$LOG_FILE.gpg"
 
 local_retention_cleanup
-kuma_ping "KUMA_BACKUP_R2_IMAGES" "up" "OK $TAIL_LINE"
-log "[r2-mirror] DONE $TAIL_LINE"
+kuma_ping "KUMA_BACKUP_R2_IMAGES" "$KUMA_STATUS" "$STATUS_MSG"
+log "[r2-mirror] DONE $STATUS_MSG"
+
+# Exit success only if state matches; otherwise propagate failure to trigger trap_error + email alert
+[ "$KUMA_STATUS" = "up" ] || exit 1

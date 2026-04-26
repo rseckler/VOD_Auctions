@@ -35,8 +35,14 @@ BF_DB_PASS=$(op item get svuu4vwwzxbx6pkmfh45x7ou5q --vault=Persönlich --fields
 [ -z "$KUMA_REPL" ]  && { echo "KUMA_REPLICATION_LAG empty"; exit 2; }
 [ -z "$BF_DB_PASS" ] && { echo "Blackfire DB password not found in 1Password — check item 'Supabase Blackfire'"; exit 2; }
 
+# Local VPS-Replica password (Tier-2: Logical Replication target)
+# Item is on VPS at /root/pg17-replica-pass.txt — pull via SSH
+REPLICA_PASS=$(ssh vps 'cat /root/pg17-replica-pass.txt 2>/dev/null' || true)
+[ -z "$REPLICA_PASS" ] && { echo "VPS-Replica password not on VPS at /root/pg17-replica-pass.txt"; exit 2; }
+
 echo "  GPG passphrase: ${#GPG_PASS} chars"
 echo "  Blackfire DB password: ${#BF_DB_PASS} chars"
+echo "  Replica password: ${#REPLICA_PASS} chars"
 echo "  KUMA URLs: 6 of 6 fetched"
 
 TMP=$(mktemp /tmp/env.backup.XXXXXX)
@@ -45,8 +51,16 @@ trap "rm -f $TMP" EXIT
 cat > "$TMP" <<EOF
 # Auto-generated $(date -u +%Y-%m-%dT%H:%M:%SZ) — do not commit
 GPG_PASSPHRASE='${GPG_PASS}'
+
+# Source DB-URLs (Supabase Direct Connection — Fallback bei Replica-Lag)
 SUPABASE_VOD_AUCTIONS_URL=
 SUPABASE_BLACKFIRE_URL='postgres://postgres:${BF_DB_PASS}@db.lglvuiuwbrhiqvxcriwa.supabase.co:5432/postgres?sslmode=require'
+
+# Local VPS-Replica URLs (Tier-2: bevorzugte Backup-Source, kein Supabase-Egress)
+REPLICA_VOD_AUCTIONS_URL='postgres://postgres:${REPLICA_PASS}@127.0.0.1:5433/vod_auctions_replica'
+REPLICA_BLACKFIRE_URL='postgres://postgres:${REPLICA_PASS}@127.0.0.1:5433/blackfire_replica'
+MAX_REPLICATION_LAG_SECONDS=300
+
 LOCAL_RETENTION_DAYS=3
 BACKUP_ROOT=/root/backups
 BACKUP_ALERT_EMAIL='rseckler@gmail.com'
