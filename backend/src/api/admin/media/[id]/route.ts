@@ -397,7 +397,15 @@ export async function POST(
   await pgConnection.transaction(async (trx) => {
     if (Object.keys(releaseUpdates).length > 1) {
       // more than just updatedAt
-      await trx("Release").where("id", id).update(releaseUpdates)
+      // node-postgres serializes JS arrays as text[] literals ("{a,b}"), and
+      // PG has no implicit cast text[] → jsonb. Stringify JSONB-array fields
+      // so PG sees a JSON literal that the assignment-cast accepts.
+      // (genres/styles are PG text[] and stay as arrays.)
+      const updatePayload: Record<string, unknown> = { ...releaseUpdates }
+      if (Array.isArray(updatePayload.format_descriptors)) {
+        updatePayload.format_descriptors = JSON.stringify(updatePayload.format_descriptors)
+      }
+      await trx("Release").where("id", id).update(updatePayload)
     }
 
     // Auto-lock: any Zone-1 Hard-Stammdaten field that actually CHANGED gets
