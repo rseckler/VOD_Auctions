@@ -302,6 +302,89 @@ log_ok "$PROJECT" "$DATE" "$(stat -c%s "$OUT")"
 
 ---
 
+### 5.1 · Setup-Workflow (Initial-Deploy / Re-Setup nach Token-Rotation / Disaster-Recovery)
+
+**Wann nutzen:**
+- Initial-Deploy auf neuen VPS
+- Nach Token-Rotation (R2-Roll, GPG-Passphrase-Wechsel)
+- Nach Hostinger-VPS-Migration
+- Disaster-Recovery: alter VPS weg, neuer VPS + alle Credentials neu deployen
+
+**Voraussetzungen:**
+- 1Password CLI auf Robin's Mac installiert + eingeloggt: `eval $(op signin)` (TouchID)
+- Folgende Items existieren im **1Password Work-Vault** (Namen / UUIDs):
+  - `VOD Backup GPG Passphrase` → `u2wtf3nzhon4wk7mafty3mwebm` (password field)
+  - `VOD R2 Backup Token (write)` → `efs63hfeei5r5qadiriyei7ehu` (Access Key ID + Secret Access Key)
+  - `VOD R2 Images Token (read-only)` → `2pffsxceotwitwxrpvm3xtpmg4` (Access Key ID + Secret Access Key)
+  - `VOD Uptime-Kuma Heartbeats` → `oniyzboj6qrhh6swzfxb6k4igq` (6 Push-URLs)
+- 1Password **Persönlich**-Vault: `Supabase Blackfire` → `svuu4vwwzxbx6pkmfh45x7ou5q` (postgres-User-Password)
+- Cron-fähiger VPS, erreichbar via `ssh vps` (ControlMaster aus `~/.ssh/config`)
+- `rclone` installiert auf VPS, mit beiden R2-Profilen in `~/.config/rclone/rclone.conf` (`r2-backups` + `r2-images`)
+- Docker-Image `postgres:17` auf VPS (`docker pull postgres:17`)
+
+**Workflow:**
+
+```bash
+# 1. Lokal auf Mac (in VOD_Auctions Repo-Root)
+eval $(op signin)   # TouchID-Bestätigung
+
+# 2. .env.backup deployment script ausführen
+./scripts/backup/setup_env_backup_local.sh
+```
+
+Das Script:
+1. Pullt GPG-Passphrase + 6 Kuma-Heartbeat-URLs + Blackfire-DB-Password aus 1Password (Work + Persönlich)
+2. Sanity-Check: alle Werte non-empty
+3. Schreibt komplette `.env.backup`-Datei mit allen Credentials (Pro-Quote-Behandlung gegen `&` in URLs)
+4. SCP zu VPS: `/root/VOD_Auctions/scripts/backup/.env.backup` mit `chmod 600`
+5. Verifikations-Output: zeigt Längen / 60-char-Prefix der ankommenden Werte
+
+**Manueller Smoke-Test nach Setup:**
+
+```bash
+# Auf VPS — alle 4 schnellen Backup-Jobs laufen lassen
+ssh vps
+/root/VOD_Auctions/scripts/backup/backup_supabase.sh vod-auctions
+/root/VOD_Auctions/scripts/backup/backup_supabase.sh blackfire
+/root/VOD_Auctions/scripts/backup/backup_vps_databases.sh
+/root/VOD_Auctions/scripts/backup/backup_brevo.sh
+# R2 Image-Mirror (lange — initial 110 GB ~3h, läuft im Background)
+/root/VOD_Auctions/scripts/backup/backup_r2_images.sh
+```
+
+**Nach erfolgreichem Smoke-Test:**
+
+```bash
+# Cron-Jobs einrichten (siehe §3.5 für vollständige Cron-Schedule)
+crontab -l > /tmp/crontab.current   # WICHTIG: nicht überschreiben (siehe §9.6 Postmortem)
+cat >> /tmp/crontab.current <<'EOF'
+0 */2 * * *   /root/VOD_Auctions/scripts/backup/backup_supabase.sh vod-auctions    >> /root/backups/backup.log 2>&1
+30 */2 * * *  /root/VOD_Auctions/scripts/backup/backup_r2_images.sh                >> /root/backups/backup.log 2>&1
+30 3 * * *    /root/VOD_Auctions/scripts/backup/backup_supabase.sh blackfire       >> /root/backups/backup.log 2>&1
+0 3 * * *     /root/VOD_Auctions/scripts/backup/backup_vps_databases.sh            >> /root/backups/backup.log 2>&1
+0 4 * * *     /root/VOD_Auctions/scripts/backup/backup_brevo.sh                    >> /root/backups/backup.log 2>&1
+EOF
+crontab /tmp/crontab.current
+```
+
+**Token-Rotation-spezifisch (z.B. bei R2-Token-Roll):**
+
+```bash
+# 1. Cloudflare-Dashboard: Token rollen → neue Access Key ID + Secret notieren
+# 2. 1Password-Item updaten (z.B. via UI oder `op item edit`)
+# 3. Lokal: setup_env_backup_local.sh re-ausführen → deployt .env.backup neu
+# 4. Plus rclone.conf auf VPS aktualisieren:
+ssh vps "sed -i \"s|^secret_access_key = OLD|secret_access_key = NEW|\" ~/.config/rclone/rclone.conf"
+# 5. Smoke-Test ein Backup-Job, der den geänderten Token nutzt
+```
+
+**Anti-Pattern (wir hatten alle drei während des Initial-Deploys):**
+- `setup_env_backup_local.sh` aus Subagent-Bash-Subshell aufrufen — `op` Session ist Shell-lokal, Subshells erben sie nicht. Daher nur lokal von Robin's Terminal ausführen.
+- `.env.backup` auf VPS hand-editieren statt re-deploy — synchronisiert dann nicht mit 1Password. Bei nächstem Token-Roll fällt's auseinander.
+- 1Password-Item-Wert ändern, aber Setup-Script nicht re-ausführen — `.env.backup` ist stale.
+
+---
+
 ## 6 · Kosten
 
 | Position | Tier-1+2 | Tier-3 (Live) |
