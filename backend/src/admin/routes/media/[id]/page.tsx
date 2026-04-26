@@ -9,6 +9,7 @@ import { printLabelAuto } from "../../../lib/print-client"
 import { SourceBadge } from "../../../components/release-detail/SourceBadge"
 import { LockBanner } from "../../../components/release-detail/LockBanner"
 import { ArtistPickerModal, LabelPickerModal, CountryPickerModal, FormatPickerModal, DescriptorPickerModal, GenrePickerModal, StylesPickerModal } from "../../../components/release-detail/PickerModals"
+import { DiscogsReviewModal, type DiscogsPreviewResponse } from "../../../components/release-detail/DiscogsReviewModal"
 import { findCountry, isValidIsoCode, flagFor } from "../../../data/country-iso"
 import { AuditHistory } from "../../../components/release-detail/AuditHistory"
 import { TrackManagement } from "../../../components/release-detail/TrackManagement"
@@ -614,7 +615,9 @@ const MediaDetailPage = () => {
   const [genreInput, setGenreInput] = useState<string>("")
   const [stylesInput, setStylesInput] = useState<string>("")
   const [discogsLinkSaving, setDiscogsLinkSaving] = useState(false)
-  const [discogsRefetching, setDiscogsRefetching] = useState(false)
+  // rc51.9.2: Discogs preview/review modal state — replaces the old direct-refetch flow
+  const [discogsPreview, setDiscogsPreview] = useState<DiscogsPreviewResponse | null>(null)
+  const [discogsPreviewLoading, setDiscogsPreviewLoading] = useState(false)
 
   // Q2: unlock-price loading state (by inventory_item_id)
   const [unlockingPriceId, setUnlockingPriceId] = useState<string | null>(null)
@@ -846,12 +849,51 @@ const MediaDetailPage = () => {
     }
   }
 
-  // Q8a: Save Discogs linking fields (discogs_id, genre, styles)
+  // rc51.9.2: Open the Discogs review modal — fetches a diff against the
+  // candidate discogs_id without writing. Used by both the "Save Linking"
+  // (when discogs_id changed) and "Fetch from Discogs" buttons. The modal
+  // owns the apply step; we just gate on a successful fetch here.
+  const openDiscogsPreview = async (candidateId: string) => {
+    if (!id || !candidateId) return
+    setDiscogsPreviewLoading(true)
+    try {
+      const res = await fetch(`/admin/media/${id}/discogs-preview`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ discogs_id: candidateId }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setDiscogsPreview(data as DiscogsPreviewResponse)
+      } else {
+        setToast({ message: data.message || "Discogs preview failed", type: "error" })
+      }
+    } catch {
+      setToast({ message: "Network error", type: "error" })
+    } finally {
+      setDiscogsPreviewLoading(false)
+    }
+  }
+
+  // Q8a: Save Discogs linking fields (discogs_id, genre, styles).
+  // rc51.9.2: When discogs_id is changed, route through the preview/review
+  // modal instead of silently overwriting metadata. genre/styles-only edits
+  // still save inline.
   const handleSaveDiscogsLink = async () => {
     if (!id) return
+
+    const currentDiscogsIdStr = release?.discogs_id != null ? String(release.discogs_id) : ""
+    const candidate = discogsIdInput.trim()
+    const idChanged = candidate !== currentDiscogsIdStr
+
+    if (idChanged && candidate !== "") {
+      await openDiscogsPreview(candidate)
+      return
+    }
+
     setDiscogsLinkSaving(true)
     try {
-      // Convert comma-separated UI inputs back to TEXT[] arrays for Postgres
       const genresArr = genreInput
         ? genreInput.split(",").map((s) => s.trim()).filter(Boolean)
         : null
@@ -859,7 +901,7 @@ const MediaDetailPage = () => {
         ? stylesInput.split(",").map((s) => s.trim()).filter(Boolean)
         : null
       const body: Record<string, unknown> = {
-        discogs_id: discogsIdInput === "" ? null : discogsIdInput,
+        discogs_id: candidate === "" ? null : candidate,
         genres: genresArr,
         styles: stylesArr,
       }
@@ -884,34 +926,51 @@ const MediaDetailPage = () => {
     }
   }
 
-  // Q8a: Fetch fresh metadata + prices from Discogs API
+  // Q8a: Fetch fresh metadata + prices from Discogs API (same discogs_id).
+  // rc51.9.2: Routes through the same preview/review modal — no silent overwrite.
   const handleRefetchDiscogs = async () => {
-    if (!id) return
-    setDiscogsRefetching(true)
-    try {
-      const res = await fetch(`/admin/media/${id}/refetch-discogs`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-      })
-      if (res.ok) {
-        // Reload full release data
-        const d = await fetch(`/admin/media/${id}`, { credentials: "include" }).then((r) => r.json())
-        setRelease(d.release)
-        if (d.release) {
-          setGenreInput(Array.isArray(d.release.genres) ? d.release.genres.join(", ") : "")
-          setStylesInput(Array.isArray(d.release.styles) ? d.release.styles.join(", ") : "")
-        }
-        setToast({ message: "Refetched from Discogs", type: "success" })
-      } else {
-        const err = await res.json().catch(() => ({}))
-        setToast({ message: err.message || "Discogs refetch failed", type: "error" })
-      }
-    } catch {
-      setToast({ message: "Network error", type: "error" })
-    } finally {
-      setDiscogsRefetching(false)
+    if (!id || !release?.discogs_id) return
+    await openDiscogsPreview(String(release.discogs_id))
+  }
+
+  // rc51.9.2: Apply the selected proposed values from the review modal.
+  // Builds a partial body from preview.proposed for the chosen fields plus
+  // the new discogs_id, then POSTs through the standard Stammdaten path so
+  // audit-log + auto-lock + Meili-push run normally.
+  const handleApplyDiscogsPreview = async (selectedFields: string[]) => {
+    if (!id || !discogsPreview) return
+    const body: Record<string, unknown> = {
+      discogs_id: discogsPreview.discogs_id,
     }
+    for (const field of selectedFields) {
+      body[field] = discogsPreview.proposed[field]
+    }
+    const res = await fetch(`/admin/media/${id}`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      throw new Error(data.message || `Apply failed (HTTP ${res.status})`)
+    }
+    setRelease((prev) => prev ? { ...prev, ...data.release } : data.release)
+    if (data.release?.locked_fields !== undefined) {
+      setMeta((prev) => prev ? { ...prev, locked_fields: data.release.locked_fields || [] } : prev)
+    }
+    if (data.release) {
+      setGenreInput(Array.isArray(data.release.genres) ? data.release.genres.join(", ") : "")
+      setStylesInput(Array.isArray(data.release.styles) ? data.release.styles.join(", ") : "")
+      setDiscogsIdInput(data.release.discogs_id != null ? String(data.release.discogs_id) : "")
+    }
+    setAuditRefreshKey((k) => k + 1)
+    setToast({
+      message: selectedFields.length > 0
+        ? `Applied ${selectedFields.length} field${selectedFields.length === 1 ? "" : "s"} from Discogs`
+        : "discogs_id updated",
+      type: "success",
+    })
   }
 
   // Q2: unlock price lock on a specific exemplar
@@ -1538,6 +1597,17 @@ const MediaDetailPage = () => {
         />
       )}
 
+      {/* rc51.9.2: Discogs Review Modal — opens on discogs_id change or refetch.
+          Shows per-field diff with checkboxes; locked fields default to off. */}
+      {discogsPreview && (
+        <DiscogsReviewModal
+          preview={discogsPreview}
+          lockedFields={meta?.locked_fields || []}
+          onClose={() => setDiscogsPreview(null)}
+          onApply={handleApplyDiscogsPreview}
+        />
+      )}
+
       {/* Unlock Field Confirm Modal */}
       {unlockFieldPending && (
         <div style={{
@@ -1973,22 +2043,33 @@ const MediaDetailPage = () => {
         </div>
         <div style={{ display: "flex", gap: S.gap.md, marginTop: S.gap.lg }}>
           <Btn
-            label={discogsLinkSaving ? "Saving..." : "Save Linking"}
+            label={
+              discogsPreviewLoading
+                ? "Fetching from Discogs…"
+                : discogsLinkSaving
+                ? "Saving..."
+                : (discogsIdInput.trim() !== "" && discogsIdInput.trim() !== (release.discogs_id != null ? String(release.discogs_id) : ""))
+                ? "Fetch & Review"
+                : "Save Linking"
+            }
             variant="gold"
             onClick={handleSaveDiscogsLink}
-            disabled={discogsLinkSaving}
+            disabled={discogsLinkSaving || discogsPreviewLoading}
             style={{ padding: "8px 20px", fontSize: 13 }}
           />
           <Btn
-            label={discogsRefetching ? "Fetching..." : "Fetch from Discogs"}
+            label={discogsPreviewLoading ? "Fetching..." : "Refetch from Discogs"}
             variant="ghost"
             onClick={handleRefetchDiscogs}
-            disabled={discogsRefetching || !release.discogs_id}
+            disabled={discogsPreviewLoading || !release.discogs_id}
             style={{ padding: "8px 20px", fontSize: 13 }}
           />
           <div style={{ ...T.small, color: C.muted, alignSelf: "center" }}>
             Last sync: {formatDate(release.discogs_last_synced)}
           </div>
+        </div>
+        <div style={{ ...T.micro, color: C.muted, marginTop: S.gap.sm, textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>
+          Changing the Discogs ID opens a review with the new metadata before anything is written. Locked fields default to off.
         </div>
       </div>
 

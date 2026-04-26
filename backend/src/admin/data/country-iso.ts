@@ -294,6 +294,41 @@ export function findCountry(code: string | null | undefined): IsoCountry | undef
   return ISO_COUNTRIES.find((c) => c.code === code.toUpperCase())
 }
 
+/**
+ * Lookup by full country name (case-insensitive, EN or DE). Used to
+ * normalize Discogs-API country strings ("France", "Germany", "United States")
+ * into ISO-2 codes for storage. Returns undefined for unknown names.
+ *
+ * Common Discogs aliases handled inline: "UK"→GB, "USA"→US, "South Korea"→KR.
+ */
+export function findCountryByName(name: string | null | undefined): IsoCountry | undefined {
+  if (!name) return undefined
+  const q = name.trim().toLowerCase()
+  if (!q) return undefined
+  // 2-letter code first (Discogs sometimes returns ISO-2 directly)
+  if (q.length === 2) {
+    const byCode = findCountry(q)
+    if (byCode) return byCode
+  }
+  // Common aliases used by Discogs
+  const aliases: Record<string, string> = {
+    "uk": "GB",
+    "usa": "US",
+    "south korea": "KR",
+    "north korea": "KP",
+    "russia": "RU",
+    "vietnam": "VN",
+    "ivory coast": "CI",
+    "czech republic": "CZ",
+    "macedonia": "MK",
+    "burma": "MM",
+  }
+  if (aliases[q]) return findCountry(aliases[q])
+  return ISO_COUNTRIES.find(
+    (c) => c.nameEn.toLowerCase() === q || c.nameDe.toLowerCase() === q
+  )
+}
+
 /** Formats "🇩🇪 Germany (DE)" — fallback to just the code if unknown. */
 export function formatCountryLabel(code: string | null | undefined): string {
   if (!code) return ""

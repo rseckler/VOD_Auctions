@@ -225,16 +225,17 @@ interface ModalProps {
   children: ReactNode
   footer?: ReactNode
   onClose: () => void
+  maxWidth?: number
 }
 
-export function Modal({ title, subtitle, children, footer, onClose }: ModalProps) {
+export function Modal({ title, subtitle, children, footer, onClose, maxWidth = 540 }: ModalProps) {
   return (
     <>
       <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 10000 }} />
       <div style={{
         position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
         background: C.card, border: `1px solid ${C.border}`, borderRadius: 12,
-        width: "100%", maxWidth: 540, maxHeight: "80vh", overflow: "auto",
+        width: "100%", maxWidth, maxHeight: "80vh", overflow: "auto",
         boxShadow: "0 24px 80px rgba(0,0,0,0.15)", zIndex: 10001,
       }}>
         <div style={{ background: C.card, borderBottom: `1px solid ${C.border}`, padding: "18px 24px" }}>
