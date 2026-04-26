@@ -12,7 +12,15 @@ import crypto from "crypto"
 
 const R2_ENDPOINT = process.env.R2_ENDPOINT || "https://98bed59e4077ace876d8c5870be1ad39.r2.cloudflarestorage.com"
 const R2_BUCKET = process.env.R2_BUCKET || "vod-images"
-const R2_PUBLIC_URL = "https://pub-433520acd4174598939bc51f96e2b8b9.r2.dev"
+export const R2_PUBLIC_URL = "https://pub-433520acd4174598939bc51f96e2b8b9.r2.dev"
+
+/**
+ * Check if a URL is already hosted on our R2 bucket — used to skip
+ * unnecessary re-downloads when callers pass back R2 URLs.
+ */
+export function isR2Url(url: string): boolean {
+  return typeof url === "string" && url.startsWith(R2_PUBLIC_URL + "/")
+}
 
 let s3Client: S3Client | null = null
 

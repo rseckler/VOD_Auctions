@@ -31,6 +31,7 @@ type ProposedFields = {
   genres: string[] | null
   styles: string[] | null
   credits: string | null
+  coverImage: string | null
   discogs_lowest_price: number | null
   discogs_median_price: number | null
   discogs_highest_price: number | null
@@ -48,6 +49,14 @@ type DiscogsApiData = {
   identifiers?: Array<{ type?: string; value?: string }>
   labels?: Array<{ name?: string; catno?: string }>
   extraartists?: Array<{ name?: string; role?: string }>
+  images?: Array<{ type?: string; uri?: string; uri150?: string }>
+}
+
+/** Picks the Discogs primary image URL (first `type:primary`, fallback first image). */
+function pickPrimaryImage(images: DiscogsApiData["images"]): string | null {
+  if (!images?.length) return null
+  const primary = images.find((i) => i.type === "primary")
+  return primary?.uri || images[0]?.uri || null
 }
 
 function buildCreditsText(extraartists: DiscogsApiData["extraartists"]): string | null {
@@ -102,7 +111,7 @@ export async function POST(
     .select(
       "id", "title", "year", "country", "catalogNumber", "barcode",
       "description", "format_v2", "format_descriptors", "genres", "styles",
-      "credits", "discogs_id", "discogs_lowest_price", "discogs_median_price",
+      "credits", "coverImage", "discogs_id", "discogs_lowest_price", "discogs_median_price",
       "discogs_highest_price", "discogs_num_for_sale"
     )
     .first()
@@ -165,6 +174,7 @@ export async function POST(
     genres: Array.isArray(apiData.genres) && apiData.genres.length > 0 ? apiData.genres.map(String) : null,
     styles: Array.isArray(apiData.styles) && apiData.styles.length > 0 ? apiData.styles.map(String) : null,
     credits: buildCreditsText(apiData.extraartists),
+    coverImage: pickPrimaryImage(apiData.images),
     discogs_lowest_price: null,
     discogs_median_price: null,
     discogs_highest_price: null,
@@ -235,6 +245,7 @@ export async function POST(
     genres: Array.isArray(release.genres) ? release.genres : null,
     styles: Array.isArray(release.styles) ? release.styles : null,
     credits: release.credits ?? null,
+    coverImage: release.coverImage ?? null,
     discogs_lowest_price: release.discogs_lowest_price != null ? Number(release.discogs_lowest_price) : null,
     discogs_median_price: release.discogs_median_price != null ? Number(release.discogs_median_price) : null,
     discogs_highest_price: release.discogs_highest_price != null ? Number(release.discogs_highest_price) : null,

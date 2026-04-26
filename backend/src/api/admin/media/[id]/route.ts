@@ -9,6 +9,7 @@ import { validateReleaseStammdaten } from "../../../../lib/release-validation"
 import { lockFields, getHardFieldsInBody } from "../../../../lib/release-locks"
 import { isValidFormat, isValidDescriptor } from "../../../../lib/format-mapping"
 import { isValidGenre } from "../../../../admin/data/genre-styles"
+import { downloadOptimizeUpload, isR2Configured, isR2Url } from "../../../../lib/image-upload"
 
 // GET /admin/media/:id — Single release detail with sync history
 export async function GET(
@@ -393,6 +394,30 @@ export async function POST(
     releaseUpdates.format_v2 = classifyTapeMagFormat(Number.isFinite(fid as number) ? (fid as number) : null)
   }
 
+  // rc51.9.5: External coverImage URLs (e.g., from Discogs apply) → R2-Upload.
+  // Discogs serves images via i.discogs.com; hotlinking would break with their
+  // referer-restrictions. Mirror to R2 + create Image-row so the new cover
+  // shows up in the gallery. R2-URLs (already on our bucket) and null/clear
+  // pass through. R2-Failure: store the source URL as fallback (matches
+  // discogs-import/commit behavior).
+  let newImageRow: { id: string; url: string; releaseId: string } | null = null
+  if (
+    typeof releaseUpdates.coverImage === "string" &&
+    releaseUpdates.coverImage.startsWith("http") &&
+    !isR2Url(releaseUpdates.coverImage)
+  ) {
+    const sourceUrl = releaseUpdates.coverImage
+    if (isR2Configured()) {
+      const imageId = `media-edit-${id}-${Date.now()}`
+      const r2Url = await downloadOptimizeUpload(sourceUrl, id, imageId)
+      if (r2Url) {
+        releaseUpdates.coverImage = r2Url
+        newImageRow = { id: imageId, url: r2Url, releaseId: id }
+      }
+      // R2-Failure: fall through with sourceUrl as-is (hotlink fallback)
+    }
+  }
+
   releaseUpdates.updatedAt = new Date()
 
   await pgConnection.transaction(async (trx) => {
@@ -407,6 +432,20 @@ export async function POST(
         updatePayload.format_descriptors = JSON.stringify(updatePayload.format_descriptors)
       }
       await trx("Release").where("id", id).update(updatePayload)
+    }
+
+    // rc51.9.5: bei R2-Upload des coverImage zusätzlich Image-Row anlegen
+    // (rang=0 für die neue Cover-Position, höher als bisherige Bilder ist OK
+    // — der Catalog-Detail-Page sortiert nach rang ASC, id ASC). ON CONFLICT
+    // DO NOTHING falls die ID kollidiert (millisecond-collision unwahrscheinlich
+    // aber harmlos) — der Release.coverImage-Update-Wert bleibt davon unberührt.
+    if (newImageRow) {
+      await trx.raw(
+        `INSERT INTO "Image" (id, url, alt, "releaseId", rang, source, "createdAt")
+         VALUES (?, ?, ?, ?, 0, 'admin_edit', NOW())
+         ON CONFLICT (id) DO NOTHING`,
+        [newImageRow.id, newImageRow.url, "", newImageRow.releaseId]
+      )
     }
 
     // Auto-lock: any Zone-1 Hard-Stammdaten field that actually CHANGED gets

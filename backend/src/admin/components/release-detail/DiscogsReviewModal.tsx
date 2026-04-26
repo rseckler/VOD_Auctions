@@ -36,11 +36,14 @@ const FIELD_LABELS: Record<string, string> = {
   genres: "Genres",
   styles: "Styles",
   credits: "Credits",
+  coverImage: "Cover Image",
   discogs_lowest_price: "Discogs lowest price",
   discogs_median_price: "Discogs median price",
   discogs_highest_price: "Discogs highest price",
   discogs_num_for_sale: "Discogs # for sale",
 }
+
+const IMAGE_FIELDS = new Set(["coverImage"])
 
 function formatValue(v: unknown): string {
   if (v == null) return "—"
@@ -51,6 +54,25 @@ function formatValue(v: unknown): string {
   }
   if (typeof v === "number") return String(v)
   return JSON.stringify(v)
+}
+
+function ImageCell({ url }: { url: unknown }) {
+  if (typeof url !== "string" || !url) {
+    return <span style={{ ...T.small, color: C.muted }}>—</span>
+  }
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <img
+        src={url}
+        alt=""
+        style={{ width: 80, height: 80, objectFit: "cover", borderRadius: S.radius.sm, border: `1px solid ${C.border}` }}
+        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none" }}
+      />
+      <a href={url} target="_blank" rel="noopener noreferrer" style={{ ...T.micro, color: C.muted, textTransform: "none", letterSpacing: 0 }}>
+        open ↗
+      </a>
+    </div>
+  )
 }
 
 export function DiscogsReviewModal({ preview, lockedFields, onClose, onApply }: Props) {
@@ -104,7 +126,7 @@ export function DiscogsReviewModal({ preview, lockedFields, onClose, onApply }: 
         }
       >
         <div style={{ ...T.small, color: C.muted }}>
-          Nothing to apply. Cover image, artist, and label are not part of this preview — use the artist/label pickers to change those.
+          Nothing to apply. Artist and label are not part of this preview — use the dedicated pickers to change those.
         </div>
       </Modal>
     )
@@ -193,12 +215,20 @@ export function DiscogsReviewModal({ preview, lockedFields, onClose, onApply }: 
                   </span>
                 )}
               </span>
-              <span style={{ ...T.small, color: C.muted, wordBreak: "break-word" }}>
-                {formatValue(d.from)}
-              </span>
-              <span style={{ ...T.small, color: C.text, wordBreak: "break-word", fontWeight: checked ? 600 : 400 }}>
-                {formatValue(d.to)}
-              </span>
+              {IMAGE_FIELDS.has(key) ? (
+                <ImageCell url={d.from} />
+              ) : (
+                <span style={{ ...T.small, color: C.muted, wordBreak: "break-word" }}>
+                  {formatValue(d.from)}
+                </span>
+              )}
+              {IMAGE_FIELDS.has(key) ? (
+                <ImageCell url={d.to} />
+              ) : (
+                <span style={{ ...T.small, color: C.text, wordBreak: "break-word", fontWeight: checked ? 600 : 400 }}>
+                  {formatValue(d.to)}
+                </span>
+              )}
             </label>
           )
         })}
@@ -220,7 +250,8 @@ export function DiscogsReviewModal({ preview, lockedFields, onClose, onApply }: 
 
       <div style={{ ...T.micro, color: C.muted, marginTop: S.gap.md, textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>
         Locked fields default to off — uncheck or check explicitly.
-        Artist, label, and cover image are not part of this preview (use the dedicated pickers).
+        Cover image, when applied, is downloaded from Discogs, optimized to WebP, and uploaded to R2 (no hotlinking).
+        Artist and label are not part of this preview — use the dedicated pickers.
         Apply writes through the same audit-logged path as a manual edit; hard fields auto-lock.
       </div>
     </Modal>
