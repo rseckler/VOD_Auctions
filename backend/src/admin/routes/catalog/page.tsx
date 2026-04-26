@@ -96,12 +96,12 @@ function CatalogHub() {
   const [stats, setStats] = useState<CatalogStats | null>(null)
 
   useEffect(() => {
-    // Load quick stats from media endpoint
+    // Load quick stats from media endpoint (returns `count`, see api/admin/media/route.ts)
     fetch("/admin/media?limit=1")
       .then((r) => r.json())
       .then((d) => {
         setStats({
-          total_releases: d.total ?? 41529,
+          total_releases: d.count ?? d.total ?? 0,
           enriched_entities: 576,
           enriched_total: 3650,
           musicians: 897,
@@ -110,7 +110,7 @@ function CatalogHub() {
       })
       .catch(() => {
         setStats({
-          total_releases: 41529,
+          total_releases: 0,
           enriched_entities: 576,
           enriched_total: 3650,
           musicians: 897,
@@ -119,14 +119,14 @@ function CatalogHub() {
       })
   }, [])
 
-  const total = stats?.total_releases?.toLocaleString("en") ?? "41,529"
+  const total = stats?.total_releases?.toLocaleString("en") ?? "…"
   const enrichedPct = stats
     ? Math.round((stats.enriched_entities / stats.enriched_total) * 100)
     : 16
 
   return (
     <PageShell maxWidth={900}>
-      <PageHeader title="Catalog" subtitle="Browse and enrich the 41,529-release catalog — releases, artists, labels, press" />
+      <PageHeader title="Catalog" subtitle={`Browse and enrich the ${total}-release catalog — releases, artists, labels, press`} />
 
       {/* Stats bar */}
       <div style={{ display: "flex", gap: 12, marginBottom: 32, flexWrap: "wrap" }}>
@@ -162,9 +162,9 @@ function CatalogHub() {
         <HubCard
           icon="💿"
           title="Media Browser"
-          description="Browse all 41,500+ releases. Search by artist, label, format, country, or year. Set pricing and check Discogs data."
+          description={`Browse all ${total} releases. Search by artist, label, format, country, or year. Set pricing and check Discogs data.`}
           meta={`${total} releases · 97%+ cover images`}
-          badge="41.5k items"
+          badge={stats ? `${(stats.total_releases / 1000).toFixed(1)}k items` : "…"}
           badgeColor="blue"
           href="/app/media"
         />
