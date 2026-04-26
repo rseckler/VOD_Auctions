@@ -361,7 +361,7 @@ const ImageGalleryOverlay = ({ onClose }: { onClose: () => void }) => {
                 {lightboxImage.artist_name ? `${lightboxImage.artist_name} \u2014 ` : ""}{lightboxImage.title}
               </div>
               <div style={{ fontSize: "14px", color: C.muted, marginTop: "4px" }}>
-                {[lightboxImage.format_name || lightboxImage.format, lightboxImage.year, lightboxImage.label_name].filter(Boolean).join(" \u00B7 ")}
+                {[lightboxImage.format_v2 ? displayFormat(lightboxImage.format_v2 as FormatValue) : (lightboxImage.format_name || lightboxImage.format), lightboxImage.year, lightboxImage.label_name].filter(Boolean).join(" \u00B7 ")}
               </div>
               <div style={{ marginTop: "12px", display: "flex", gap: "12px", justifyContent: "center" }}>
                 <button
@@ -1387,7 +1387,7 @@ const MediaPage = () => {
                   <td style={tdStyle}>{r.artist_name || "\u2014"}</td>
                   <td style={{ ...tdStyle, fontWeight: 500 }}>{r.title || "\u2014"}</td>
                   <td style={tdStyle}>
-                    <span style={{ padding: "2px 8px", borderRadius: "4px", fontSize: "12px", background: C.hover, color: C.text }}>{r.format_name || r.format || "\u2014"}</span>
+                    <span style={{ padding: "2px 8px", borderRadius: "4px", fontSize: "12px", background: C.hover, color: C.text }}>{r.format_v2 ? displayFormat(r.format_v2 as FormatValue) : (r.format_name || r.format || "\u2014")}</span>
                     {(() => {
                       const cat = r.product_category === "release"
                         ? (r.format_kat === 2 ? "vinyl" : "tapes")
