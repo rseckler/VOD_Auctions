@@ -291,30 +291,46 @@ export async function maybeDispatchAlert(
   return { dispatched: true, channels }
 }
 
-// ─── P4-A A3: Auto-Resolve fired alerts when service returns to ok ─────────
+// ─── P4-A A3: Auto-Resolve fired alerts when service returns to non-firing ─
 //
 // Called from POST /health-sample after each sample batch. For each service
-// that has ≥ 3 consecutive recent `ok` samples, mark all `fired` rows for
-// that service as `auto_resolved`. Conservative — not triggered by single ok
-// to avoid flapping-resolve.
+// that has ≥ 3 consecutive recent NON-FIRING samples, mark all `fired` rows
+// for that service as `auto_resolved`. Conservative — not triggered by single
+// sample to avoid flapping-resolve.
+//
+// Non-firing severity: anything that does NOT pass the alert-dispatch gate.
+// Currently `ok` and `insufficient_signal`. The latter is critical for probes
+// like `last_order` — `insufficient_signal` in beta_test means the probe runs
+// fine but has no traffic to evaluate. A fired error alert that's now
+// returning `insufficient_signal` is no longer reproducing and should resolve.
+// Without this `last_order` (which fires once during a real DB-Lock-Storm
+// then drops to insufficient_signal as platform_mode stays beta_test) would
+// stay `fired` forever. Bug surfaced 2026-04-26 (rc51.9.4) — alert from
+// 2026-04-24 was still FIRED in alert-history despite the rc51.2 timeout-fix
+// having landed minutes later.
+//
+// Note: `degraded` is intentionally NOT in this set. Some probes (e.g.,
+// `supabase_realtime`) sit at `degraded` indefinitely and shouldn't quietly
+// resolve fired-error alerts — the fix is to flip the underlying state to
+// ok or for an operator to explicitly acknowledge.
 
-const AUTO_RESOLVE_OK_THRESHOLD = 3
+const AUTO_RESOLVE_THRESHOLD = 3
+const NON_FIRING_SEVERITIES = new Set(["ok", "insufficient_signal"])
 
 export async function maybeAutoResolveAlerts(pg: Knex, serviceNames: string[]): Promise<{ resolved_count: number; services_resolved: string[] }> {
   if (serviceNames.length === 0) return { resolved_count: 0, services_resolved: [] }
 
   const resolvedServices: string[] = []
   for (const service of serviceNames) {
-    // Last N samples
     const { rows } = await pg.raw(
       `SELECT severity FROM health_check_log
         WHERE service_name = ?
         ORDER BY checked_at DESC LIMIT ?`,
-      [service, AUTO_RESOLVE_OK_THRESHOLD]
+      [service, AUTO_RESOLVE_THRESHOLD]
     )
-    if (!rows || rows.length < AUTO_RESOLVE_OK_THRESHOLD) continue
-    const allOk = rows.every((r: any) => r.severity === "ok")
-    if (!allOk) continue
+    if (!rows || rows.length < AUTO_RESOLVE_THRESHOLD) continue
+    const allNonFiring = rows.every((r: any) => NON_FIRING_SEVERITIES.has(r.severity))
+    if (!allNonFiring) continue
     resolvedServices.push(service)
   }
 
