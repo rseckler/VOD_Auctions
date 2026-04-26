@@ -114,6 +114,15 @@ export async function POST(
   const actorEmail: string | null = (req as any).auth_context?.actor_email || null
 
   let updatedCount = 0
+  // 2026-04-26 codex-review: Releases where a hard-field actually changed.
+  // Used for auto-lock (already), audit-log (now diff-filtered), and meili push.
+  const changedHardIds = new Set<string>()
+  // True if non-hard fields (estimated_value, conditions, auction_status) are
+  // part of the update — we cannot diff them (no oldValues fetched), so any
+  // release in `ids` is treated as potentially changed for the meili push.
+  const hasNonHardUpdate = Object.keys(sanitized).some(
+    (k) => k !== "updatedAt" && !(HARD_STAMMDATEN_BULK as readonly string[]).includes(k)
+  )
 
   await pgConnection.transaction(async (trx) => {
     // Fetch current values for audit logging (only needed for stammdaten fields)
@@ -124,6 +133,18 @@ export async function POST(
         .whereIn("id", ids)
       for (const row of currentRows) {
         oldValues[row.id] = row
+      }
+
+      // Pre-compute changedHardIds once, reused for lock + audit + push.
+      for (const releaseId of ids) {
+        const old = oldValues[releaseId]
+        if (!old) continue
+        for (const field of hardFieldsInUpdate) {
+          if (!looseEqual(old[field], sanitized[field])) {
+            changedHardIds.add(releaseId)
+            break
+          }
+        }
       }
     }
 
@@ -158,7 +179,8 @@ export async function POST(
       }
     }
 
-    // Audit log: one row per release × per changed stammdaten field
+    // Audit log: one row per release × per changed stammdaten field.
+    // 2026-04-26 codex-review: diff-filtered — no audit row for no-op writes.
     if (hardFieldsInUpdate.length > 0) {
       const auditRows: Record<string, unknown>[] = []
       const now = new Date()
@@ -170,6 +192,7 @@ export async function POST(
         for (const field of hardFieldsInUpdate) {
           const oldValue = old[field]
           const newValue = sanitized[field]
+          if (looseEqual(oldValue, newValue)) continue
           auditRows.push({
             id: generateEntityId(),
             release_id: releaseId,
@@ -190,10 +213,23 @@ export async function POST(
     }
   })
 
-  res.json({ updated_count: updatedCount, skipped_count: 0 })
+  // skipped_count: hard-fields-only bulk where nothing actually diffed
+  const skippedCount =
+    hardFieldsInUpdate.length > 0 && !hasNonHardUpdate
+      ? ids.length - changedHardIds.size
+      : 0
 
-  // Fire-and-forget Meili reindex for all updated releases
-  for (const releaseId of ids) {
+  res.json({ updated_count: updatedCount, skipped_count: skippedCount })
+
+  // Fire-and-forget Meili reindex.
+  // 2026-04-26 codex-review: when only hard-fields are touched, push only
+  // releases that actually diffed. If non-hard fields are in play, fall back
+  // to pushing all ids because we don't have oldValues to diff them against.
+  const idsToPush =
+    hardFieldsInUpdate.length > 0 && !hasNonHardUpdate
+      ? Array.from(changedHardIds)
+      : ids
+  for (const releaseId of idsToPush) {
     pushReleaseNow(pgConnection, releaseId).catch((err) => {
       console.warn(
         JSON.stringify({

@@ -217,10 +217,12 @@ export async function catalogGetPostgres(
   }
 
   if (format && typeof format === "string") {
-    query = query.where("Release.format",
-      "Release.format_v2", format)
-    countQuery = countQuery.where("Release.format",
-      "Release.format_v2", format)
+    query = query.where(function () {
+      this.where("Release.format", format).orWhere("Release.format_v2", format)
+    })
+    countQuery = countQuery.where(function () {
+      this.where("Release.format", format).orWhere("Release.format_v2", format)
+    })
   }
 
   if (category && typeof category === "string") {
@@ -230,27 +232,31 @@ export async function catalogGetPostgres(
     switch (category) {
       case "tapes":
         query = query.where("Release.product_category", "release")
-          .whereNotIn("Release.format",
-      "Release.format_v2", ["CD", "VHS"])
+          .whereNotIn("Release.format", ["CD", "VHS"])
+          .whereNotIn("Release.format_v2", ["CD", "VHS"])
           .where(function () {
             this.where("Format.kat", 1)
               .orWhere(function () {
                 this.whereNull("Release.format_id")
-                  .whereIn("Release.format",
-      "Release.format_v2", discogsTapeFormats)
+                  .where(function () {
+                    this.whereIn("Release.format", discogsTapeFormats)
+                      .orWhereIn("Release.format_v2", discogsTapeFormats)
+                  })
               })
           })
         countQuery = countQuery
           .leftJoin("Format as F", "Release.format_id", "F.id")
           .where("Release.product_category", "release")
-          .whereNotIn("Release.format",
-      "Release.format_v2", ["CD", "VHS"])
+          .whereNotIn("Release.format", ["CD", "VHS"])
+          .whereNotIn("Release.format_v2", ["CD", "VHS"])
           .where(function () {
             this.where("F.kat", 1)
               .orWhere(function () {
                 this.whereNull("Release.format_id")
-                  .whereIn("Release.format",
-      "Release.format_v2", discogsTapeFormats)
+                  .where(function () {
+                    this.whereIn("Release.format", discogsTapeFormats)
+                      .orWhereIn("Release.format_v2", discogsTapeFormats)
+                  })
               })
           })
         break
@@ -260,8 +266,10 @@ export async function catalogGetPostgres(
             this.where("Format.kat", 2)
               .orWhere(function () {
                 this.whereNull("Release.format_id")
-                  .whereIn("Release.format",
-      "Release.format_v2", discogsVinylFormats)
+                  .where(function () {
+                    this.whereIn("Release.format", discogsVinylFormats)
+                      .orWhereIn("Release.format_v2", discogsVinylFormats)
+                  })
               })
           })
         countQuery = countQuery
@@ -271,22 +279,28 @@ export async function catalogGetPostgres(
             this.where("F.kat", 2)
               .orWhere(function () {
                 this.whereNull("Release.format_id")
-                  .whereIn("Release.format",
-      "Release.format_v2", discogsVinylFormats)
+                  .where(function () {
+                    this.whereIn("Release.format", discogsVinylFormats)
+                      .orWhereIn("Release.format_v2", discogsVinylFormats)
+                  })
               })
           })
         break
       case "cd":
-        query = query.where("Release.format",
-      "Release.format_v2", "CD")
-        countQuery = countQuery.where("Release.format",
-      "Release.format_v2", "CD")
+        query = query.where(function () {
+          this.where("Release.format", "CD").orWhere("Release.format_v2", "CD")
+        })
+        countQuery = countQuery.where(function () {
+          this.where("Release.format", "CD").orWhere("Release.format_v2", "CD")
+        })
         break
       case "vhs":
-        query = query.where("Release.format",
-      "Release.format_v2", "VHS")
-        countQuery = countQuery.where("Release.format",
-      "Release.format_v2", "VHS")
+        query = query.where(function () {
+          this.where("Release.format", "VHS").orWhere("Release.format_v2", "VHS")
+        })
+        countQuery = countQuery.where(function () {
+          this.where("Release.format", "VHS").orWhere("Release.format_v2", "VHS")
+        })
         break
       case "band_literature":
         query = query.where("Release.product_category", "band_literature")

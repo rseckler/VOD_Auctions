@@ -167,7 +167,10 @@ function transformToDoc(row: any): Record<string, unknown> {
   const hasVerifiedInventory = verifiedCount > 0
   const shopVisible = hasShopPrice && hasVerifiedInventory
   const effective = shopVisible ? shop : null
-  const isPurchasable = shopVisible && !!row.legacy_available
+  // 2026-04-26 codex-review: aligned with scripts/meilisearch_sync.py rc49.7 —
+  // legacy_available is not part of the purchasable gate (kept the 36 verified
+  // releases visible that tape-mag historically marked as sold).
+  const isPurchasable = shopVisible
 
   const year = row.year
   const decade = year ? Math.floor(year / 10) * 10 : null

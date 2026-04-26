@@ -1117,9 +1117,11 @@ def sync_literature_v2(mysql_conn, pg_conn, run_id, table, category,
                     year = CASE WHEN "Release".locked_fields @> '"year"'::jsonb
                                 THEN "Release".year ELSE EXCLUDED.year END,
                     format = EXCLUDED.format,
-                    -- rc51.7: format_v2 from format_id, locked together with `format`.
+                    -- rc51.7: format_v2 derived from format_id, locked together with `format_id`.
                     -- rc51.8: also respects own granular `format_v2` lock (Admin-Picker override).
-                    format_v2 = CASE WHEN "Release".locked_fields @> '"format"'::jsonb
+                    -- 2026-04-26 codex-review: Literature-UPSERT used wrong lock-key
+                    -- '"format"' (not in SYNC_PROTECTED_FIELDS). Aligned with music-release path.
+                    format_v2 = CASE WHEN "Release".locked_fields @> '"format_id"'::jsonb
                                        OR "Release".locked_fields @> '"format_v2"'::jsonb
                                      THEN "Release".format_v2 ELSE EXCLUDED.format_v2 END,
                     format_id = CASE WHEN "Release".locked_fields @> '"format_id"'::jsonb

@@ -289,10 +289,20 @@ export async function revertEntry(
     // 5. Write Release[field] = old_value (the value we're restoring).
     //    Note: Release uses camelCase updatedAt (legacy convention), not
     //    snake_case updated_at. (Codex review 2026-04-24)
+    //
+    //    2026-04-26 codex-review: jsonb-array fields need JSON.stringify before
+    //    update — node-postgres serializes JS arrays as text[] literals ('{a,b}')
+    //    which PG cannot implicit-cast to jsonb. Same pattern as rc51.9.1 in
+    //    media/[id]/route.ts. text[] fields (genres, styles) keep JS arrays.
+    const JSONB_ARRAY_FIELDS = new Set(["format_descriptors", "locked_fields"])
+    const restoreValue =
+      JSONB_ARRAY_FIELDS.has(original.field_name) && Array.isArray(original.old_value)
+        ? JSON.stringify(original.old_value)
+        : original.old_value
     await trx("Release")
       .where("id", original.release_id)
       .update({
-        [original.field_name]: original.old_value as any,
+        [original.field_name]: restoreValue as any,
         updatedAt: new Date(),
       })
 
