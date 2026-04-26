@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { createMovement } from "../../../../lib/inventory"
 import { pushReleaseNow } from "../../../../lib/meilisearch-push"
+import { revalidateReleaseCatalogPage } from "../../../../lib/storefront-revalidate"
 import { logEdit, HARD_STAMMDATEN_FIELDS, SYSTEM_ID_FIELDS, looseEqual } from "../../../../lib/release-audit"
 import { validateReleaseStammdaten } from "../../../../lib/release-validation"
 import { lockFields, getHardFieldsInBody } from "../../../../lib/release-locks"
@@ -598,4 +599,11 @@ export async function POST(
       })
     )
   })
+
+  // rc51.9.3: Storefront-Catalog-Detail nutzt ISR mit `revalidate: 60`. Ohne
+  // diesen Hook wäre ein Stammdaten-Edit für bis zu 60s nicht auf der
+  // Public-Page sichtbar — Frank konfundiert das mit "Apply hat nicht
+  // gegriffen". Fire-and-forget; schlägt der Call fehl, läuft die übliche
+  // 60s-ISR-Revalidation als Safety-Net.
+  revalidateReleaseCatalogPage(id)
 }
