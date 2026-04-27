@@ -77,13 +77,14 @@ Wenn ein Mac zwischen mehreren Standorten pendelt und an jedem Standort ein eige
 cd ~/VOD_Auctions/frank-macbook-setup
 bash print-bridge/install-bridge.sh \
   --printer-for ALPENSTRASSE=10.1.1.136 \
-  --printer-for EUGENSTRASSE=192.168.1.140 \
+  --printer-for EUGENSTRASSE=192.168.1.124 \
   --default-location ALPENSTRASSE
 ```
 
 **Wichtig:**
 - Der `CODE` in `--printer-for CODE=IP` muss **exakt** dem `warehouse_location.code` aus der DB entsprechen (uppercase, ohne Sonderzeichen). Tippfehler routen falsch.
 - `--default-location` muss eine der `--printer-for`-Codes sein. Ist sie nicht gesetzt, fällt die Bridge bei einem `/print` ohne `?location=` auf `--printer-ip` (single-printer fallback) zurück oder gibt einen Error.
+- **Statische IP per DHCP-Reservation Pflicht** — die IP des Druckers landet hardcoded in der LaunchAgent-plist. Bei DHCP-Lease-Renew kann der Router eine andere Adresse vergeben, dann bricht der Druck mit `OSError: [Errno 65] No route to host` ab (rc52-Lesson-Learned: Eugenstraße-Drucker rotierte 192.168.1.140 → 192.168.1.124 binnen Stunden). Lösung: im Router (z.B. Fritz!Box) eine **DHCP-Reservation** für die Drucker-MAC-Adresse anlegen, ODER am Drucker-LCD direkt eine statische IP konfigurieren (Menu → WLAN → IP-Einstellungen → Statisch).
 - Frontend setzt den aktiven Standort in localStorage (`vod.print.location`). Frank wechselt via Toolbar-Dropdown — Effekt ab dem nächsten Druck-Klick, kein Reload nötig.
 - Bei nur einer konfigurierten Location wird der Switcher automatisch ausgeblendet (nichts zu schalten).
 - Standort-Routing folgt **nicht** dem `warehouse_location_id` des Items — sondern dem physischen Standort des Macs. Wenn Frank in der Eugenstraße ein Item etikettiert das in der DB noch ALPENSTRASSE-Lager ist, geht das Label trotzdem auf den Eugenstrasse-Drucker (er hält das Item in der Hand).
@@ -96,7 +97,7 @@ curl -sk https://127.0.0.1:17891/health | python3 -m json.tool
 #   "default_location": "ALPENSTRASSE",
 #   "locations": [
 #     {"code":"ALPENSTRASSE","ip":"10.1.1.136","is_default":true},
-#     {"code":"EUGENSTRASSE","ip":"192.168.1.140","is_default":false}
+#     {"code":"EUGENSTRASSE","ip":"192.168.1.124","is_default":false}
 #   ]
 
 # Test-Druck explizit gegen Eugenstraße (umgeht localStorage):
@@ -124,7 +125,7 @@ Im Admin-UI (Safari Web-App): oben rechts muss Badge **„Silent Print"** stehen
 
 | Mac | Status | Mode | Drucker(s) |
 |---|---|---|---|
-| Franks MacBook Air M5 | ✅ Installiert | production (multi-printer seit 2026-04-27) | ALPENSTRASSE@10.1.1.136, EUGENSTRASSE@192.168.1.140 |
+| Franks MacBook Air M5 | ✅ Installiert | production (multi-printer seit 2026-04-27) | ALPENSTRASSE@10.1.1.136, EUGENSTRASSE@192.168.1.124 |
 | Franks Mac Studio | ⏳ Rollout ausstehend | production | (Alpenstrasse) |
 | Robins MacBook (Dev) | ✅ Installiert | DRY_RUN (kein Brother angeschlossen) | — |
 
@@ -133,7 +134,7 @@ Im Admin-UI (Safari Web-App): oben rechts muss Badge **„Silent Print"** stehen
 | Standort | warehouse_location.code | Drucker-IP | Modell | Inbetriebnahme | Notizen |
 |---|---|---|---|---|---|
 | Alpenstraße | `ALPENSTRASSE` | 10.1.1.136 | Brother QL-820NWB | 2026-04-11 | Hauptlager, Default-Standort |
-| Eugenstraße | `EUGENSTRASSE` | 192.168.1.140 | Brother QL-820NWB | 2026-04-27 | 2. Standort Frank, eigenes WLAN (192.168.1.0/24) |
+| Eugenstraße | `EUGENSTRASSE` | 192.168.1.124 | Brother QL-820NWB | 2026-04-27 | 2. Standort Frank, eigenes WLAN (192.168.1.0/24) |
 
 **Wichtig:** Die zwei Drucker sind in unterschiedlichen WLANs — kein gemeinsames Subnetz. Frank's MBA muss bei Standortwechsel ins jeweilige WLAN eingebucht sein, damit der Direct-TCP-Send (Port 9100) den Drucker erreicht. Die Bridge selbst läuft nur lokal (127.0.0.1:17891) und routet beim `/print`-Call anhand des aktiven Standorts (📍-Switcher in der Toolbar).
 
