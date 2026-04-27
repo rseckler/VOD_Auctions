@@ -85,16 +85,34 @@ interface WarehouseLocation {
   is_active: boolean
 }
 
-function pickDefaultLocationId(activeCode: string, locations: WarehouseLocation[]): string | null {
-  // 1. Match auf das aktive 📍-Lager (Code), wenn locations geladen
+function pickDefaultLocationId(
+  activeCode: string,
+  existingLocationId: string | null,
+  locations: WarehouseLocation[]
+): string | null {
+  // rc52.2.1: Priorität korrigiert nach Frank-Feedback.
+  //
+  // Die 📍-Auswahl oben (im Toolbar-Switcher) ist die PRIMÄRE Standort-Aussage:
+  // wenn Frank in der Eugenstraße steht und EUGENSTRASSE als Druckziel gewählt
+  // hat, soll auch das Lager im Edit-Form auf EUGENSTRASSE defaulten — selbst
+  // wenn das Item in der DB noch ALPENSTRASSE zugeordnet ist (er relocated es
+  // gerade physisch). Frank kann immer noch manuell im Dropdown übersteuern.
+  //
+  // Reihenfolge:
+  //   1. Match auf aktive 📍-Location (case-insensitive) — wins always
+  //   2. Existing warehouse_location_id des Items (nur wenn aktiv)
+  //   3. is_default=true Lager
+  //   4. Erstes aktives Lager
   if (activeCode) {
     const m = locations.find((l) => l.is_active && l.code.toUpperCase() === activeCode.toUpperCase())
     if (m) return m.id
   }
-  // 2. is_default=true Lager
+  if (existingLocationId) {
+    const e = locations.find((l) => l.is_active && l.id === existingLocationId)
+    if (e) return e.id
+  }
   const def = locations.find((l) => l.is_default && l.is_active)
   if (def) return def.id
-  // 3. Fallback: erstes aktives
   return locations.find((l) => l.is_active)?.id || null
 }
 
@@ -355,11 +373,15 @@ function StocktakeSessionPage() {
       : (releaseDetail?.legacy_price != null ? releaseDetail.legacy_price : null)
     setPriceValue(effective != null ? String(effective) : "")
     setNoteText(copy.notes || "")
-    // rc52.2: Lagerort — wenn Copy bereits zugewiesen, den behalten; sonst
-    // auf aktive 📍-Location matchen oder is_default fallen lassen.
+    // rc52.2.1: Aktive 📍-Location ist der primäre Default — User-Standort
+    // gewinnt über Item-DB-Lager. pickDefaultLocationId fällt automatisch
+    // auf das existierende warehouse_location_id zurück wenn keine 📍 gesetzt.
     setEditLocationId(
-      copy.warehouse_location_id ||
-        pickDefaultLocationId(getActiveLocation(), warehouseLocations)
+      pickDefaultLocationId(
+        getActiveLocation(),
+        copy.warehouse_location_id,
+        warehouseLocations
+      )
     )
   }
 
@@ -373,8 +395,8 @@ function StocktakeSessionPage() {
     setConditionSleeve(parsed.sleeve)
     setPriceValue(releaseDetail.legacy_price != null ? String(releaseDetail.legacy_price) : "")
     setNoteText("")
-    // rc52.2: Default = aktive 📍-Location
-    setEditLocationId(pickDefaultLocationId(getActiveLocation(), warehouseLocations))
+    // rc52.2: Default = aktive 📍-Location (oder is_default wenn keine 📍)
+    setEditLocationId(pickDefaultLocationId(getActiveLocation(), null, warehouseLocations))
   }
 
   // Auto-open first copy for editing if it's unverified
