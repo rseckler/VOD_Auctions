@@ -1,10 +1,16 @@
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { useAdminNav } from "../../../../components/admin-nav"
 import { C, T, S, fmtMoney } from "../../../../components/admin-tokens"
 import { PageHeader, PageShell } from "../../../../components/admin-layout"
 import { Btn, Toast, Modal, inputStyle, Badge } from "../../../../components/admin-ui"
 import { PrintLocationSwitcher } from "../../../../components/print-location-switcher"
-import { printerAvailable, printLabelAuto, getActiveLocation } from "../../../../lib/print-client"
+import {
+  printerAvailable,
+  printLabelAuto,
+  getActiveLocation,
+  getPrinterHealth,
+  type PrinterHealth,
+} from "../../../../lib/print-client"
 import { displayFormat, type FormatValue } from "../../../../../lib/format-mapping"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -223,6 +229,9 @@ function StocktakeSessionPage() {
   // als "Feld nicht im Body" behandelt (lädt Backend-Default).
   const [editLocationId, setEditLocationId] = useState<string | null>(null)
   const [warehouseLocations, setWarehouseLocations] = useState<WarehouseLocation[]>([])
+  // rc52.3: Health der Print-Bridge — wird gegen warehouseLocations gemappt
+  // um Drift zu erkennen (Bridge-Code != DB-Code).
+  const [printerHealth, setPrinterHealth] = useState<PrinterHealth | null>(null)
 
   // Stats
   const [stats, setStats] = useState<{ eligible: number; verified: number } | null>(null)
@@ -268,6 +277,8 @@ function StocktakeSessionPage() {
     } catch { /* storage quota / private browsing — best-effort */ }
 
     printerAvailable().then((ok) => setPrinterStatus(ok ? "connected" : "browser"))
+    // rc52.3: zusätzlich vollen Health-State holen für Bridge↔DB Code-Mismatch-Detection
+    getPrinterHealth().then(setPrinterHealth)
     apiFetch<any>("/admin/erp/inventory/stats").then((s) => {
       setStats({ eligible: s.eligible, verified: s.verified })
     }).catch(() => {})
@@ -711,6 +722,21 @@ function StocktakeSessionPage() {
     padding: S.gap.lg,
   }
 
+  // rc52.3: Drift-Detection — Bridge meldet z.B. EUGENSTRASSE als printer-location,
+  // aber DB hat keinen warehouse_location-Eintrag mit code='EUGENSTRASSE'.
+  // Konsequenz: Der Lagerort-Default beim Edit fällt nicht auf EUGENSTRASSE
+  // sondern auf den letzten Existing oder is_default. Das ist genau der rc52.x-Bug
+  // der Frank in der Eugenstraße getroffen hat (DB-Code war "EGSTR57/2").
+  // Wir warnen sichtbar damit das nicht stumm passiert.
+  const bridgeOrphanCodes = useMemo<string[]>(() => {
+    if (!printerHealth?.locations || printerHealth.locations.length === 0) return []
+    if (warehouseLocations.length === 0) return [] // noch nicht geladen
+    const dbCodes = new Set(warehouseLocations.map((l) => l.code.toUpperCase()))
+    return printerHealth.locations
+      .map((l) => l.code)
+      .filter((code) => !dbCodes.has(code.toUpperCase()))
+  }, [printerHealth, warehouseLocations])
+
   return (
     <PageShell>
       <PageHeader
@@ -728,6 +754,39 @@ function StocktakeSessionPage() {
           </div>
         }
       />
+
+      {/* rc52.3: Bridge↔DB Code-Mismatch Banner */}
+      {bridgeOrphanCodes.length > 0 && (
+        <div style={{
+          marginBottom: S.gap.lg,
+          padding: `${S.gap.md}px ${S.gap.lg}px`,
+          background: `${C.warning}15`,
+          border: `1px solid ${C.warning}40`,
+          borderRadius: S.radius.md,
+          color: C.text,
+          fontSize: 13,
+          lineHeight: 1.5,
+        }}>
+          <div style={{ fontWeight: 600, marginBottom: 4, color: C.warning }}>
+            ⚠️ Drucker-Standort{bridgeOrphanCodes.length > 1 ? "e" : ""} ohne passendes Lager
+          </div>
+          <div>
+            Die Print-Bridge kennt {bridgeOrphanCodes.length === 1 ? "den Code" : "die Codes"}{" "}
+            <strong>{bridgeOrphanCodes.join(", ")}</strong>, aber {bridgeOrphanCodes.length === 1 ? "es existiert kein" : "es existieren keine"}
+            {" "}<code>warehouse_location</code> mit{" "}
+            {bridgeOrphanCodes.length === 1 ? "diesem Code" : "diesen Codes"} in der DB.
+            Der Lagerort-Default beim Erfassen kippt deshalb auf das DB-Default-Lager statt auf den gewählten Drucker-Standort.{" "}
+            <strong>Fix:</strong>{" "}
+            <a
+              href="/app/erp/locations"
+              style={{ color: C.warning, textDecoration: "underline" }}
+            >
+              Lagerort-Code anpassen
+            </a>
+            {" "}oder Bridge mit dem DB-Code neu installieren.
+          </div>
+        </div>
+      )}
 
       {/* ── SEARCH BAR ── */}
       <div style={{ marginBottom: S.gap.lg }}>
