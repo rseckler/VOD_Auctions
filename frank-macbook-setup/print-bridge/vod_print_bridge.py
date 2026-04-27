@@ -35,9 +35,9 @@ import sys
 import tempfile
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
-VERSION = "2.0.0"
+VERSION = "2.1.0"
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("VOD_PRINT_BRIDGE_PORT", "17891"))
 DEFAULT_PRINTER = os.environ.get("VOD_PRINT_BRIDGE_PRINTER", "Brother_QL_820NWB")
@@ -53,12 +53,34 @@ KEY_PATH = os.environ.get("VOD_PRINT_BRIDGE_KEY", "")
 #     eingerichteten Brother-Treiber + socket://-Queue. Anfällig für
 #     AirPrint-Auto-Discovery-Probleme. Als Fallback erhalten.
 BACKEND = os.environ.get("VOD_PRINT_BRIDGE_BACKEND", "brother_ql").lower()
-# Drucker-IP für brother_ql Backend (TCP-Direct-Send)
+# Drucker-IP für brother_ql Backend (TCP-Direct-Send) — Single-Printer-Setup.
+# Bei Multi-Printer (PRINTERS_JSON gesetzt) ist das der Fallback wenn
+# /print ohne ?location= aufgerufen wird und kein DEFAULT_LOCATION matched.
 PRINTER_IP = os.environ.get("VOD_PRINT_BRIDGE_PRINTER_IP", "")
 # Brother-Modell für brother_ql (bestimmt Raster-Format + Label-Specs)
 PRINTER_MODEL = os.environ.get("VOD_PRINT_BRIDGE_MODEL", "QL-820NWB")
 # Label-Spec: "29" = DK-22210 continuous 29mm, "29x90" = DK-11201 die-cut
 LABEL_TYPE = os.environ.get("VOD_PRINT_BRIDGE_LABEL", "29")
+# Multi-Printer-Routing (rc52, 2026-04-27): Map warehouse_location.code → IP.
+# JSON-Format: {"ALPENSTRASSE":"10.1.1.136","EUGENSTRASSE":"192.168.1.140"}
+# Wenn gesetzt UND /print kommt mit ?location=<CODE>, wählt Bridge die
+# passende IP. Sonst Fallback auf PRINTER_IP. Codes case-insensitiv.
+def _parse_printers_json(raw: str) -> dict[str, str]:
+    if not raw or not raw.strip():
+        return {}
+    try:
+        parsed = json.loads(raw)
+        if not isinstance(parsed, dict):
+            return {}
+        # uppercase keys (warehouse_location.code is uppercase per insert)
+        return {str(k).strip().upper(): str(v).strip() for k, v in parsed.items() if v}
+    except (json.JSONDecodeError, ValueError, TypeError):
+        return {}
+PRINTERS = _parse_printers_json(os.environ.get("VOD_PRINT_BRIDGE_PRINTERS_JSON", ""))
+# Wenn /print kein ?location= kriegt und auch keinen Default-PRINTER_IP hat,
+# nutzt die Bridge dieses Default. Sollte üblicherweise dem Standort-Code
+# entsprechen wo der Mac physisch steht.
+DEFAULT_LOCATION = os.environ.get("VOD_PRINT_BRIDGE_DEFAULT_LOCATION", "").strip().upper()
 MAX_BODY_BYTES = 10 * 1024 * 1024  # 10 MB hard cap pro Job
 
 ADMIN_ORIGINS = {
@@ -166,17 +188,48 @@ def _check_brother_ql_deps() -> tuple[bool, str]:
     return True, ""
 
 
-def send_to_brother_ql(pdf_bytes: bytes, copies: int) -> dict:
+def resolve_target_ip(location: str | None) -> tuple[str, str]:
+    """Pick the printer IP for this print job.
+
+    Resolution order:
+      1. ?location=<CODE> in the request → PRINTERS map lookup (uppercased)
+      2. DEFAULT_LOCATION env → PRINTERS map lookup
+      3. PRINTER_IP env (single-printer fallback / pre-multi-printer setups)
+
+    Returns (ip, source) where source describes the resolution path for
+    logging/diagnostics. ip == "" means nothing matched.
+    """
+    if location:
+        code = location.strip().upper()
+        if code in PRINTERS:
+            return PRINTERS[code], f"location={code}"
+    if DEFAULT_LOCATION and DEFAULT_LOCATION in PRINTERS:
+        return PRINTERS[DEFAULT_LOCATION], f"default_location={DEFAULT_LOCATION}"
+    if PRINTER_IP:
+        return PRINTER_IP, "single_printer_fallback"
+    return "", "no_printer_configured"
+
+
+def send_to_brother_ql(pdf_bytes: bytes, copies: int, location: str | None = None) -> dict:
     """Brother QL backend — PDF → PNG → Raster → TCP direct.
 
     Nutzt pypdfium2 für PDF-Rendering (pure Python, MIT-lizenziert) und
     brother_ql für Raster-Protokoll + TCP-Send. Keine CUPS-Abhängigkeit,
     keine Drucker-Einrichtung in macOS Systemeinstellungen nötig.
 
-    Erwartet PRINTER_IP + PRINTER_MODEL (defaults: env-var gesteuert).
+    Routet via resolve_target_ip(location) zum passenden Drucker — entweder
+    aus PRINTERS-Map (Multi-Printer) oder PRINTER_IP (Single-Printer).
     """
-    if not PRINTER_IP and not DRY_RUN:
-        return {"ok": False, "error": "VOD_PRINT_BRIDGE_PRINTER_IP nicht gesetzt (brother_ql braucht direkte TCP-IP, z.B. 10.1.1.136)"}
+    target_ip, target_source = resolve_target_ip(location)
+    if not target_ip and not DRY_RUN:
+        return {
+            "ok": False,
+            "error": (
+                f"Kein Drucker konfiguriert (location={location!r}). "
+                f"Setze VOD_PRINT_BRIDGE_PRINTERS_JSON oder VOD_PRINT_BRIDGE_PRINTER_IP."
+            ),
+            "available_locations": sorted(PRINTERS.keys()),
+        }
 
     # Deferred imports: nur laden wenn dieses Backend aktiv ist, damit die
     # stdlib-Bridge (cups-backend-only) keine pip-deps braucht.
@@ -215,11 +268,12 @@ def send_to_brother_ql(pdf_bytes: bytes, copies: int) -> dict:
     if DRY_RUN:
         tmp = tempfile.NamedTemporaryFile(prefix="vod-label-", suffix=".png", delete=False)
         pil_image.save(tmp.name)
-        log.info("DRY_RUN (brother_ql): would have sent %d×%d PNG to %s:%s (saved: %s)",
-                 pil_image.size[0], pil_image.size[1], PRINTER_MODEL, PRINTER_IP or "?", tmp.name)
+        log.info("DRY_RUN (brother_ql): would have sent %d×%d PNG to %s:%s (resolved-from=%s, saved=%s)",
+                 pil_image.size[0], pil_image.size[1], PRINTER_MODEL, target_ip or "?", target_source, tmp.name)
         return {
             "ok": True, "job_id": "dry-run", "backend": "brother_ql",
-            "printer": f"{PRINTER_MODEL}@{PRINTER_IP}", "bytes": len(pdf_bytes),
+            "printer": f"{PRINTER_MODEL}@{target_ip}", "bytes": len(pdf_bytes),
+            "location": location, "resolved_from": target_source,
             "dry_run": True, "saved_to": tmp.name,
         }
 
@@ -244,9 +298,9 @@ def send_to_brother_ql(pdf_bytes: bytes, copies: int) -> dict:
         return {"ok": False, "error": f"brother_ql convert fehlgeschlagen: {e}"}
 
     # 4) TCP-Send an Drucker
-    target = f"tcp://{PRINTER_IP}"
-    log.info("brother_ql: sending %d raster bytes to %s (model=%s label=%s)",
-             len(instructions), target, PRINTER_MODEL, LABEL_TYPE)
+    target = f"tcp://{target_ip}"
+    log.info("brother_ql: sending %d raster bytes to %s (model=%s label=%s resolved-from=%s)",
+             len(instructions), target, PRINTER_MODEL, LABEL_TYPE, target_source)
     try:
         status = brother_send(
             instructions=instructions,
@@ -272,7 +326,9 @@ def send_to_brother_ql(pdf_bytes: bytes, copies: int) -> dict:
     return {
         "ok": True,
         "backend": "brother_ql",
-        "printer": f"{PRINTER_MODEL}@{PRINTER_IP}",
+        "printer": f"{PRINTER_MODEL}@{target_ip}",
+        "location": location,
+        "resolved_from": target_source,
         "bytes": len(pdf_bytes),
         "raster_bytes": len(instructions),
         "copies": copies,
@@ -366,18 +422,30 @@ class BridgeHandler(BaseHTTPRequestHandler):
 
         if path == "/health":
             if BACKEND == "brother_ql":
-                # brother_ql nutzt Direct-TCP zum Drucker. Wir checken ob PRINTER_IP
-                # gesetzt ist + ob brother_ql überhaupt importierbar ist (pip deps).
+                # brother_ql nutzt Direct-TCP zum Drucker. Wir checken ob mindestens
+                # ein Drucker konfiguriert ist (PRINTERS-Map ODER PRINTER_IP) + ob
+                # brother_ql überhaupt importierbar ist (pip deps).
                 deps_ok, dep_error = _check_brother_ql_deps()
+                has_printer = bool(PRINTERS) or bool(PRINTER_IP)
+                # Resolve default IP für die Toolbar-Anzeige (welcher Drucker wird
+                # bei einem Print ohne ?location= angesteuert?)
+                default_ip, default_source = resolve_target_ip(None)
                 return self._send_json(200, {
                     "ok": True,
                     "version": VERSION,
                     "backend": "brother_ql",
-                    "printer": f"{PRINTER_MODEL}@{PRINTER_IP}" if PRINTER_IP else PRINTER_MODEL,
-                    "printer_found": bool(PRINTER_IP) and deps_ok,
-                    "printer_ip": PRINTER_IP,
+                    "printer": f"{PRINTER_MODEL}@{default_ip}" if default_ip else PRINTER_MODEL,
+                    "printer_found": has_printer and deps_ok,
+                    "printer_ip": default_ip,
                     "printer_model": PRINTER_MODEL,
                     "label_type": LABEL_TYPE,
+                    "default_location": DEFAULT_LOCATION or None,
+                    "default_resolved_from": default_source,
+                    "locations": [
+                        {"code": code, "ip": ip, "is_default": code == DEFAULT_LOCATION}
+                        for code, ip in sorted(PRINTERS.items())
+                    ],
+                    "single_printer_ip": PRINTER_IP or None,  # Backwards-compat (rc < 52)
                     "dry_run": DRY_RUN,
                     "deps_ok": deps_ok,
                     "dep_error": dep_error,
@@ -396,20 +464,39 @@ class BridgeHandler(BaseHTTPRequestHandler):
 
         if path == "/printers":
             if BACKEND == "brother_ql":
-                # brother_ql kennt keine CUPS-Queues. Für UI-Kompat returnen wir
-                # unseren konfigurierten Ziel-Drucker als einzigen Eintrag.
+                # brother_ql kennt keine CUPS-Queues. Wir returnen alle aus der
+                # PRINTERS-Map plus den Single-Printer-Fallback (falls keine Map).
                 entries = []
-                if PRINTER_IP:
-                    entries.append({"name": f"{PRINTER_MODEL}@{PRINTER_IP}", "status": "configured"})
+                for code, ip in sorted(PRINTERS.items()):
+                    entries.append({
+                        "name": f"{PRINTER_MODEL}@{ip}",
+                        "status": "configured",
+                        "location": code,
+                        "ip": ip,
+                        "is_default": code == DEFAULT_LOCATION,
+                    })
+                if not PRINTERS and PRINTER_IP:
+                    entries.append({
+                        "name": f"{PRINTER_MODEL}@{PRINTER_IP}",
+                        "status": "configured",
+                        "location": None,
+                        "ip": PRINTER_IP,
+                        "is_default": True,
+                    })
                 return self._send_json(200, {"printers": entries})
             return self._send_json(200, {"printers": list_cups_printers()})
 
         return self._send_json(404, {"ok": False, "error": "not found"})
 
     def do_POST(self) -> None:
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        path = parsed.path
         if path != "/print":
             return self._send_json(404, {"ok": False, "error": "not found"})
+
+        # Query params: copies, printer, location (rc52)
+        qs = parse_qs(parsed.query)
+        location_qs: str | None = (qs.get("location") or [None])[0]
 
         # Read body (bounded)
         try:
@@ -425,9 +512,15 @@ class BridgeHandler(BaseHTTPRequestHandler):
         pdf_bytes: bytes | None = None
         copies = 1
         printer_pref = DEFAULT_PRINTER
+        location_body: str | None = None
 
         if "application/pdf" in content_type:
             pdf_bytes = body
+            # copies via query string
+            try:
+                copies = max(1, min(50, int((qs.get("copies") or ["1"])[0])))
+            except (ValueError, TypeError):
+                copies = 1
         elif "application/json" in content_type or body.lstrip()[:1] in (b"{", b"["):
             try:
                 payload = json.loads(body.decode("utf-8"))
@@ -442,15 +535,21 @@ class BridgeHandler(BaseHTTPRequestHandler):
                 return self._send_json(400, {"ok": False, "error": f"invalid base64: {e}"})
             copies = max(1, min(50, int(payload.get("copies") or 1)))
             printer_pref = str(payload.get("printer") or DEFAULT_PRINTER)
+            loc_raw = payload.get("location")
+            if loc_raw and isinstance(loc_raw, str):
+                location_body = loc_raw
         else:
             return self._send_json(400, {"ok": False, "error": f"unsupported content-type: {content_type}"})
 
         if not pdf_bytes or pdf_bytes[:4] != b"%PDF":
             return self._send_json(400, {"ok": False, "error": "payload is not a PDF"})
 
+        # Location-Resolution-Order: ?location=<X> > body.location > None (Bridge default)
+        location = location_qs or location_body
+
         # Backend-Auswahl: brother_ql (direct-TCP) vs cups (lp-Queue)
         if BACKEND == "brother_ql":
-            result = send_to_brother_ql(pdf_bytes, copies)
+            result = send_to_brother_ql(pdf_bytes, copies, location=location)
         else:
             printer = resolve_printer(printer_pref)
             if not printer and not DRY_RUN:
@@ -488,12 +587,22 @@ def main() -> None:
     if BACKEND == "brother_ql":
         deps_ok, dep_err = _check_brother_ql_deps()
         if deps_ok:
-            log.info("brother_ql backend: model=%s ip=%s label=%s",
-                     PRINTER_MODEL, PRINTER_IP or "<NOT SET>", LABEL_TYPE)
+            if PRINTERS:
+                log.info("brother_ql backend: model=%s label=%s — multi-printer mode (%d locations)",
+                         PRINTER_MODEL, LABEL_TYPE, len(PRINTERS))
+                for code, ip in sorted(PRINTERS.items()):
+                    is_def = " [default]" if code == DEFAULT_LOCATION else ""
+                    log.info("  • %s → %s%s", code, ip, is_def)
+                if not DEFAULT_LOCATION:
+                    log.warning("Keine DEFAULT_LOCATION gesetzt — /print ohne ?location= "
+                                "fällt auf PRINTER_IP=%s zurück", PRINTER_IP or "<NOT SET>")
+            else:
+                log.info("brother_ql backend: model=%s ip=%s label=%s — single-printer mode",
+                         PRINTER_MODEL, PRINTER_IP or "<NOT SET>", LABEL_TYPE)
         else:
             log.warning("brother_ql backend enabled but deps fehlen: %s", dep_err)
-        if not PRINTER_IP and not DRY_RUN:
-            log.warning("VOD_PRINT_BRIDGE_PRINTER_IP ist nicht gesetzt — Druckjobs schlagen fehl")
+        if not PRINTERS and not PRINTER_IP and not DRY_RUN:
+            log.warning("Weder PRINTERS_JSON noch PRINTER_IP gesetzt — Druckjobs schlagen fehl")
     else:
         printer = resolve_printer(DEFAULT_PRINTER)
         if printer:

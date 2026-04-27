@@ -7,7 +7,7 @@
 - **Rolle:** Brother DK-22210 (29mm × 30,48m weißes Endlosband)
 - **Scanner:** Inateck BCST-70 (USB HID, 1D Barcodes)
 
-**Silent-Print-Architektur (seit rc34, 2026-04-22):** QZ Tray ist komplett raus. Silent-Druck läuft über die **VOD Print Bridge** — Python stdlib LaunchAgent auf `127.0.0.1:17891` HTTPS (mkcert-Cert), Backend `brother_ql` (TCP-Direct-Send auf Drucker-Port 9100). Admin-UI pollt `/health`, druckt per `POST /print`. Kein Browser-Dialog, kein Java, kein Signing-Theater. Siehe [`frank-macbook-setup/print-bridge/README.md`](../../frank-macbook-setup/print-bridge/README.md).
+**Silent-Print-Architektur (seit rc34, 2026-04-22, multi-printer seit rc52, 2026-04-27):** QZ Tray ist komplett raus. Silent-Druck läuft über die **VOD Print Bridge** — Python stdlib LaunchAgent auf `127.0.0.1:17891` HTTPS (mkcert-Cert), Backend `brother_ql` (TCP-Direct-Send auf Drucker-Port 9100). Admin-UI pollt `/health`, druckt per `POST /print?location=<CODE>`. Kein Browser-Dialog, kein Java, kein Signing-Theater. Multi-Printer-Routing seit rc52: Bridge hält eine Map `warehouse_location.code → IP`, Frontend setzt den aktiven Standort via Toolbar-Switcher (📍, persistent in localStorage). Siehe [`frank-macbook-setup/print-bridge/README.md`](../../frank-macbook-setup/print-bridge/README.md) und §0 unten.
 
 ---
 
@@ -69,6 +69,45 @@ bash print-bridge/install-bridge.sh --printer Brother_QL_820NWB --printer-ip 10.
 bash print-bridge/install-bridge.sh --dry-run
 ```
 
+### Multi-Printer-Setup (rc52, seit 2026-04-27)
+
+Wenn ein Mac zwischen mehreren Standorten pendelt und an jedem Standort ein eigener Brother QL-820NWB steht, kann die Bridge im **Multi-Printer-Mode** mehrere IPs gleichzeitig kennen. Beim Druck wählt sie anhand des aktiven Standorts (im Frontend: 📍-Switcher in der Toolbar) den richtigen Drucker.
+
+```bash
+cd ~/VOD_Auctions/frank-macbook-setup
+bash print-bridge/install-bridge.sh \
+  --printer-for ALPENSTRASSE=10.1.1.136 \
+  --printer-for EUGENSTRASSE=192.168.1.140 \
+  --default-location ALPENSTRASSE
+```
+
+**Wichtig:**
+- Der `CODE` in `--printer-for CODE=IP` muss **exakt** dem `warehouse_location.code` aus der DB entsprechen (uppercase, ohne Sonderzeichen). Tippfehler routen falsch.
+- `--default-location` muss eine der `--printer-for`-Codes sein. Ist sie nicht gesetzt, fällt die Bridge bei einem `/print` ohne `?location=` auf `--printer-ip` (single-printer fallback) zurück oder gibt einen Error.
+- Frontend setzt den aktiven Standort in localStorage (`vod.print.location`). Frank wechselt via Toolbar-Dropdown — Effekt ab dem nächsten Druck-Klick, kein Reload nötig.
+- Bei nur einer konfigurierten Location wird der Switcher automatisch ausgeblendet (nichts zu schalten).
+- Standort-Routing folgt **nicht** dem `warehouse_location_id` des Items — sondern dem physischen Standort des Macs. Wenn Frank in der Eugenstraße ein Item etikettiert das in der DB noch ALPENSTRASSE-Lager ist, geht das Label trotzdem auf den Eugenstrasse-Drucker (er hält das Item in der Hand).
+
+**Verifikation:**
+
+```bash
+curl -sk https://127.0.0.1:17891/health | python3 -m json.tool
+# Erwartet:
+#   "default_location": "ALPENSTRASSE",
+#   "locations": [
+#     {"code":"ALPENSTRASSE","ip":"10.1.1.136","is_default":true},
+#     {"code":"EUGENSTRASSE","ip":"192.168.1.140","is_default":false}
+#   ]
+
+# Test-Druck explizit gegen Eugenstraße (umgeht localStorage):
+curl -sk -X POST 'https://127.0.0.1:17891/print?location=EUGENSTRASSE' \
+  -H 'Content-Type: application/pdf' \
+  --data-binary @/pfad/zum/test.pdf | python3 -m json.tool
+# Erwartet: "resolved_from": "location=EUGENSTRASSE", "outcome": "sent"
+```
+
+**Backwards-compat:** Single-Printer-Setups (`--printer-ip` allein) laufen unverändert weiter. Die Bridge erkennt anhand der env-Vars ob sie im Single- oder Multi-Mode startet — kein Code-Pfad-Bruch.
+
 ### Health-Check nach der Installation
 
 ```bash
@@ -81,13 +120,22 @@ tail -f ~/Library/Logs/vod-print-bridge.log
 
 Im Admin-UI (Safari Web-App): oben rechts muss Badge **„Silent Print"** stehen (nicht „Browser Print"). Falls „Browser Print": Bridge ist down — `curl` oben prüfen, ggf. `bash install-bridge.sh` erneut.
 
-### Rollout-Log (Stand 2026-04-24)
+### Rollout-Log (Stand 2026-04-27)
 
-| Mac | Status | Mode |
-|---|---|---|
-| Franks MacBook Air M5 | ⏳ Rollout ausstehend | production |
-| Franks Mac Studio | ⏳ Rollout ausstehend | production |
-| Robins MacBook (Dev) | ✅ Installiert | DRY_RUN (kein Brother angeschlossen) |
+| Mac | Status | Mode | Drucker(s) |
+|---|---|---|---|
+| Franks MacBook Air M5 | ✅ Installiert | production (multi-printer seit 2026-04-27) | ALPENSTRASSE@10.1.1.136, EUGENSTRASSE@192.168.1.140 |
+| Franks Mac Studio | ⏳ Rollout ausstehend | production | (Alpenstrasse) |
+| Robins MacBook (Dev) | ✅ Installiert | DRY_RUN (kein Brother angeschlossen) | — |
+
+### Drucker-Inventar (Stand 2026-04-27)
+
+| Standort | warehouse_location.code | Drucker-IP | Modell | Inbetriebnahme | Notizen |
+|---|---|---|---|---|---|
+| Alpenstraße | `ALPENSTRASSE` | 10.1.1.136 | Brother QL-820NWB | 2026-04-11 | Hauptlager, Default-Standort |
+| Eugenstraße | `EUGENSTRASSE` | 192.168.1.140 | Brother QL-820NWB | 2026-04-27 | 2. Standort Frank, eigenes WLAN (192.168.1.0/24) |
+
+**Wichtig:** Die zwei Drucker sind in unterschiedlichen WLANs — kein gemeinsames Subnetz. Frank's MBA muss bei Standortwechsel ins jeweilige WLAN eingebucht sein, damit der Direct-TCP-Send (Port 9100) den Drucker erreicht. Die Bridge selbst läuft nur lokal (127.0.0.1:17891) und routet beim `/print`-Call anhand des aktiven Standorts (📍-Switcher in der Toolbar).
 
 ---
 

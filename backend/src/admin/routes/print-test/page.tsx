@@ -3,6 +3,7 @@ import { useAdminNav } from "../../components/admin-nav"
 import { C, T, S } from "../../components/admin-tokens"
 import { PageHeader, PageShell, SectionHeader } from "../../components/admin-layout"
 import { Badge, Btn, Toast, inputStyle } from "../../components/admin-ui"
+import { PrintLocationSwitcher } from "../../components/print-location-switcher"
 import {
   getPrinterHealth,
   listPrinters,
@@ -159,6 +160,7 @@ function PrintTestPage() {
         title="Drucker-Test"
         subtitle="Hier kannst Du prüfen, ob der Etikettendruck funktioniert, und ein Test-Etikett drucken."
         badge={healthBadge}
+        actions={<PrintLocationSwitcher />}
       />
 
       {toast && <Toast message={toast.message} type={toast.type} onDone={() => setToast(null)} />}
@@ -223,6 +225,38 @@ function PrintTestPage() {
           </>
         )}
       </div>
+
+      {/* Multi-Printer-Locations (rc52) — nur sichtbar wenn Bridge eine PRINTERS_JSON-Map hat */}
+      {health?.locations && health.locations.length > 0 && (
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: S.gap.lg, marginBottom: S.gap.lg }}>
+          <SectionHeader title={`Konfigurierte Standorte (${health.locations.length})`} />
+          <p style={{ ...T.small, color: C.muted, marginBottom: S.gap.md }}>
+            Diese Bridge ist im Multi-Printer-Modus. Druckjobs gehen an den Drucker des aktuell
+            ausgewählten Standorts (oben rechts: 📍). Default wenn nichts gesetzt:{" "}
+            <strong>{health.default_location || "(keiner)"}</strong>.
+          </p>
+          <table style={{ width: "100%", borderCollapse: "collapse", ...T.body }}>
+            <thead>
+              <tr style={{ color: C.muted, textAlign: "left", borderBottom: `1px solid ${C.border}` }}>
+                <th style={{ padding: "6px 8px" }}>Standort</th>
+                <th style={{ padding: "6px 8px" }}>Drucker-IP</th>
+                <th style={{ padding: "6px 8px" }}>Default</th>
+              </tr>
+            </thead>
+            <tbody>
+              {health.locations.map((loc) => (
+                <tr key={loc.code} style={{ borderBottom: `1px solid ${C.border}` }}>
+                  <td style={{ padding: "6px 8px", fontWeight: 600 }}>{loc.code}</td>
+                  <td style={{ padding: "6px 8px", fontFamily: "ui-monospace, monospace" }}>{loc.ip}</td>
+                  <td style={{ padding: "6px 8px" }}>
+                    {loc.is_default && <Badge label="Default" variant="info" />}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Printers-Card */}
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: S.gap.lg, marginBottom: S.gap.lg }}>

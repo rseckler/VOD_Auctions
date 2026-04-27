@@ -21,6 +21,10 @@
         <string>__PRINTER_QUEUE__</string>
         <key>VOD_PRINT_BRIDGE_PRINTER_IP</key>
         <string>__PRINTER_IP__</string>
+        <key>VOD_PRINT_BRIDGE_PRINTERS_JSON</key>
+        <string>__PRINTERS_JSON__</string>
+        <key>VOD_PRINT_BRIDGE_DEFAULT_LOCATION</key>
+        <string>__DEFAULT_LOCATION__</string>
         <key>VOD_PRINT_BRIDGE_MODEL</key>
         <string>__PRINTER_MODEL__</string>
         <key>VOD_PRINT_BRIDGE_LABEL</key>

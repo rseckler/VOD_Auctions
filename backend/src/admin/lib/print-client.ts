@@ -28,17 +28,43 @@ const BRIDGE_TIMEOUT_MS = 2000
 const PRINT_TIMEOUT_MS = 15000
 const DEFAULT_PRINTER = "Brother_QL_820NWB"
 const PRINTER_KEY = "vod.print.printer"
+// rc52 (Multi-Printer): aktiver physischer Standort des Macs. Wird vom
+// Frontend als `?location=` an die Bridge mitgeschickt; Bridge resolved
+// die IP aus ihrer PRINTERS_JSON-Map. Wenn nicht gesetzt → Bridge nutzt
+// ihr eigenes default_location oder PRINTER_IP-Fallback.
+const LOCATION_KEY = "vod.print.location"
+
+export type PrinterLocation = {
+  code: string
+  ip: string
+  is_default: boolean
+}
 
 export type PrinterHealth = {
   ok: boolean
   version?: string
   printer?: string
   printer_found?: boolean
+  printer_ip?: string
+  printer_model?: string
   dry_run?: boolean
   cups_available?: boolean
+  // rc52 multi-printer:
+  default_location?: string | null
+  default_resolved_from?: string
+  locations?: PrinterLocation[]
+  single_printer_ip?: string | null
+  deps_ok?: boolean
+  dep_error?: string
 }
 
-export type PrinterEntry = { name: string; status: string }
+export type PrinterEntry = {
+  name: string
+  status: string
+  location?: string | null
+  ip?: string
+  is_default?: boolean
+}
 
 let cachedHealth: { at: number; value: PrinterHealth | null } | null = null
 const HEALTH_TTL_MS = 3000
@@ -98,11 +124,43 @@ export function setPreferredPrinter(name: string): void {
 }
 
 /**
+ * Aktiver physischer Standort des Macs (rc52, multi-printer).
+ * Frank kann zwischen Standorten switchen (Toolbar in Inventory-Session
+ * oder Operations-Hub). Persistiert in localStorage. Empty string = nutze
+ * Bridge-Default.
+ */
+export function getActiveLocation(): string {
+  if (typeof window === "undefined") return ""
+  return (window.localStorage.getItem(LOCATION_KEY) || "").trim().toUpperCase()
+}
+
+export function setActiveLocation(code: string): void {
+  if (typeof window === "undefined") return
+  const v = (code || "").trim().toUpperCase()
+  if (!v) window.localStorage.removeItem(LOCATION_KEY)
+  else window.localStorage.setItem(LOCATION_KEY, v)
+  // Notify subscribers (toolbar widget, session page) — same-tab events
+  // need a manual dispatch since localStorage event only fires cross-tab.
+  try {
+    window.dispatchEvent(new CustomEvent("vod-print-location-changed", { detail: v }))
+  } catch { /* noop */ }
+}
+
+/**
  * Silently print a barcode label for an inventory item.
  * Returns true on successful queue submit, false if bridge unavailable.
  * Throws on bridge-reached-but-failed (printer offline, CUPS error, etc.).
+ *
+ * `locationCode` (rc52): physischer Standort des Macs (z.B. "EUGENSTRASSE").
+ * Wenn weggelassen, wird der `getActiveLocation()`-Wert aus localStorage
+ * verwendet — Bridge fällt dann auf ihr eigenes default_location zurück
+ * wenn nichts gesetzt ist.
  */
-export async function printBarcodeLabel(inventoryItemId: string, copies = 1): Promise<boolean> {
+export async function printBarcodeLabel(
+  inventoryItemId: string,
+  copies = 1,
+  locationCode?: string
+): Promise<boolean> {
   const health = await getPrinterHealth(true)
   if (!health?.ok) return false
 
@@ -116,7 +174,13 @@ export async function printBarcodeLabel(inventoryItemId: string, copies = 1): Pr
   const pdfBlob = await labelResp.blob()
 
   // 2. POST PDF to bridge (raw body — kein base64 roundtrip nötig)
-  const printResp = await fetchWithTimeout(`${BRIDGE_URL}/print?copies=${copies}&printer=${encodeURIComponent(getPreferredPrinter())}`, {
+  const location = (locationCode ?? getActiveLocation()).trim()
+  const params = new URLSearchParams({
+    copies: String(copies),
+    printer: getPreferredPrinter(),
+  })
+  if (location) params.set("location", location)
+  const printResp = await fetchWithTimeout(`${BRIDGE_URL}/print?${params.toString()}`, {
     method: "POST",
     headers: { "Content-Type": "application/pdf" },
     body: pdfBlob,
@@ -146,10 +210,11 @@ export async function printBarcodeLabel(inventoryItemId: string, copies = 1): Pr
  */
 export async function printLabelAuto(
   inventoryItemId: string,
-  copies = 1
+  copies = 1,
+  locationCode?: string
 ): Promise<{ silent: boolean }> {
   try {
-    const silent = await printBarcodeLabel(inventoryItemId, copies)
+    const silent = await printBarcodeLabel(inventoryItemId, copies, locationCode)
     if (silent) return { silent: true }
   } catch (e) {
     // Bridge reached but something failed — surface in console, fall back.

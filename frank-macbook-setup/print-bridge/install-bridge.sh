@@ -10,10 +10,14 @@
 # Läuft beim Boot + restartet automatisch bei Crash.
 #
 # Usage:
-#   bash install-bridge.sh                    # default printer = Brother_QL_820NWB
-#   bash install-bridge.sh --printer "X"      # override queue name
-#   bash install-bridge.sh --dry-run          # Test-Mode: kein echter Druck
-#   bash install-bridge.sh --uninstall        # LaunchAgent entladen + löschen
+#   bash install-bridge.sh                                 # default printer = Brother_QL_820NWB
+#   bash install-bridge.sh --printer "X"                   # override CUPS queue name
+#   bash install-bridge.sh --printer-ip 10.1.1.136         # single-printer mode
+#   bash install-bridge.sh --printer-for ALPENSTRASSE=10.1.1.136 \
+#                          --printer-for EUGENSTRASSE=192.168.1.140 \
+#                          --default-location ALPENSTRASSE  # multi-printer mode
+#   bash install-bridge.sh --dry-run                       # Test-Mode: kein echter Druck
+#   bash install-bridge.sh --uninstall                     # LaunchAgent entladen + löschen
 
 set -u
 set -o pipefail
@@ -45,23 +49,79 @@ LABEL_TYPE="${VOD_PRINT_BRIDGE_LABEL:-29}"
 BACKEND="${VOD_PRINT_BRIDGE_BACKEND:-brother_ql}"   # NEW: default brother_ql
 DRY_RUN="0"
 MODE="install"
+# Multi-Printer (rc52, 2026-04-27): parallele Arrays, in install-Phase zu JSON
+# zusammengebaut. Jedes --printer-for CODE=IP hängt einen Eintrag an.
+PRINTERS_CODES=()
+PRINTERS_IPS=()
+DEFAULT_LOCATION="${VOD_PRINT_BRIDGE_DEFAULT_LOCATION:-}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --printer)      PRINTER_QUEUE="$2"; shift 2 ;;
     --printer-ip)   PRINTER_IP="$2"; shift 2 ;;
+    --printer-for)
+      # Format: CODE=IP, z.B. ALPENSTRASSE=10.1.1.136
+      pair="$2"
+      if [[ "$pair" != *"="* ]]; then
+        err "--printer-for braucht CODE=IP-Format, bekam: '$pair'"
+        exit 2
+      fi
+      code="${pair%%=*}"
+      ip="${pair#*=}"
+      if [[ -z "$code" || -z "$ip" ]]; then
+        err "--printer-for: CODE und IP dürfen nicht leer sein (got '$pair')"
+        exit 2
+      fi
+      # uppercase code for consistency with warehouse_location.code
+      code="$(echo "$code" | tr '[:lower:]' '[:upper:]')"
+      PRINTERS_CODES+=("$code")
+      PRINTERS_IPS+=("$ip")
+      shift 2
+      ;;
+    --default-location)
+      DEFAULT_LOCATION="$(echo "$2" | tr '[:lower:]' '[:upper:]')"
+      shift 2
+      ;;
     --backend)      BACKEND="$2"; shift 2 ;;
     --label)        LABEL_TYPE="$2"; shift 2 ;;
     --model)        PRINTER_MODEL="$2"; shift 2 ;;
     --dry-run)      DRY_RUN="1"; shift ;;
     --uninstall)    MODE="uninstall"; shift ;;
     -h|--help)
-      sed -n '1,20p' "$0"
+      sed -n '1,25p' "$0"
       exit 0
       ;;
     *) err "Unbekannte Option: $1"; exit 2 ;;
   esac
 done
+
+# JSON aus Code/IP-Arrays bauen. Pures bash, keine jq-Dep.
+build_printers_json() {
+  local n=${#PRINTERS_CODES[@]}
+  if [[ $n -eq 0 ]]; then echo ""; return; fi
+  local out="{" first=1 i
+  for ((i=0; i<n; i++)); do
+    if [[ $first -eq 1 ]]; then first=0; else out+=","; fi
+    # Naive JSON-Quoting — Codes sind [A-Z_], IPs sind dotted-decimal,
+    # also keine Specials zu escapen.
+    out+="\"${PRINTERS_CODES[$i]}\":\"${PRINTERS_IPS[$i]}\""
+  done
+  out+="}"
+  echo "$out"
+}
+PRINTERS_JSON="$(build_printers_json)"
+
+# Validieren: wenn DEFAULT_LOCATION gesetzt, muss sie in der Map sein
+if [[ -n "$DEFAULT_LOCATION" && -n "$PRINTERS_JSON" ]]; then
+  found=0
+  for c in "${PRINTERS_CODES[@]}"; do
+    if [[ "$c" == "$DEFAULT_LOCATION" ]]; then found=1; break; fi
+  done
+  if [[ $found -eq 0 ]]; then
+    err "--default-location $DEFAULT_LOCATION ist nicht in --printer-for Codes (${PRINTERS_CODES[*]})"
+    exit 2
+  fi
+fi
 
 uid="$(id -u)"
 domain="gui/${uid}"
@@ -218,7 +278,10 @@ fi
 
 # 3c. Drucker-IP für brother_ql-Backend (TCP-Direct-Send).
 #     Autodetect via Bonjour mdns, falls nicht via Flag/ENV gesetzt.
-if [[ "$BACKEND" == "brother_ql" && -z "$PRINTER_IP" && "$DRY_RUN" != "1" ]]; then
+#     Im Multi-Printer-Mode (PRINTERS_JSON gesetzt) ist Bonjour-Autodetect
+#     unsinnig — der User hat alle IPs explizit angegeben, ein einziger
+#     Bonjour-Default für PRINTER_IP würde nur Verwirrung stiften.
+if [[ "$BACKEND" == "brother_ql" && -z "$PRINTER_IP" && -z "$PRINTERS_JSON" && "$DRY_RUN" != "1" ]]; then
   step "Drucker-IP via Bonjour suchen"
   # dns-sd läuft timeout-frei → mit timeout wrapper
   PRINTER_IP=$(timeout 4 dns-sd -B _pdl-datastream._tcp local. 2>/dev/null | awk '/Brother/ {print $NF; exit}' || echo "")
@@ -237,20 +300,37 @@ if [[ "$BACKEND" == "brother_ql" && -z "$PRINTER_IP" && "$DRY_RUN" != "1" ]]; th
   fi
 fi
 
-if [[ "$BACKEND" == "brother_ql" && -n "$PRINTER_IP" ]]; then
-  ok "brother_ql-Config: model=$PRINTER_MODEL ip=$PRINTER_IP label=$LABEL_TYPE"
-elif [[ "$BACKEND" == "brother_ql" && -z "$PRINTER_IP" && "$DRY_RUN" == "1" ]]; then
+if [[ "$BACKEND" == "brother_ql" && -n "$PRINTERS_JSON" ]]; then
+  ok "brother_ql-Config (multi-printer): model=$PRINTER_MODEL label=$LABEL_TYPE"
+  for ((i=0; i<${#PRINTERS_CODES[@]}; i++)); do
+    is_def=""
+    [[ "${PRINTERS_CODES[$i]}" == "$DEFAULT_LOCATION" ]] && is_def=" [default]"
+    echo "    • ${PRINTERS_CODES[$i]} → ${PRINTERS_IPS[$i]}${is_def}"
+  done
+  if [[ -z "$DEFAULT_LOCATION" ]]; then
+    warn "Keine --default-location gesetzt — /print ohne ?location= scheitert (oder fällt auf --printer-ip $PRINTER_IP zurück, falls gesetzt)"
+  fi
+elif [[ "$BACKEND" == "brother_ql" && -n "$PRINTER_IP" ]]; then
+  ok "brother_ql-Config (single-printer): model=$PRINTER_MODEL ip=$PRINTER_IP label=$LABEL_TYPE"
+elif [[ "$BACKEND" == "brother_ql" && -z "$PRINTER_IP" && -z "$PRINTERS_JSON" && "$DRY_RUN" == "1" ]]; then
   warn "DRY_RUN ohne Drucker-IP — ok für Dev-Tests"
 fi
 
 # 4. plist rendern (Substitutionen — sed statt heredoc, damit Pfade mit Leerzeichen
 #    sauber escaped werden können)
+# Achtung: PRINTERS_JSON enthält `"` → muss in plist-XML `&quot;` werden.
+# Plus: in sed-Replacement-Strings ist `&` = "matched pattern" — wir brauchen
+# `\&` für ein literales `&`. Beide Zeichen escapen wir hier in einem Schritt.
+# JSON enthält kein literales `&` (nur ASCII-Klammern + ":,"), also reicht " → \&quot;
+PRINTERS_JSON_XML="$(printf '%s' "$PRINTERS_JSON" | sed 's/"/\\\&quot;/g')"
 tmp_plist="$(mktemp)"
 sed -e "s|__PYTHON_BIN__|$PYTHON_BIN|g" \
     -e "s|__BRIDGE_SCRIPT__|$INSTALL_DIR/vod_print_bridge.py|g" \
     -e "s|__BACKEND__|$BACKEND|g" \
     -e "s|__PRINTER_QUEUE__|$PRINTER_QUEUE|g" \
     -e "s|__PRINTER_IP__|$PRINTER_IP|g" \
+    -e "s|__PRINTERS_JSON__|$PRINTERS_JSON_XML|g" \
+    -e "s|__DEFAULT_LOCATION__|$DEFAULT_LOCATION|g" \
     -e "s|__PRINTER_MODEL__|$PRINTER_MODEL|g" \
     -e "s|__LABEL_TYPE__|$LABEL_TYPE|g" \
     -e "s|__DRY_RUN__|$DRY_RUN|g" \
@@ -276,7 +356,11 @@ mv "$tmp_plist" "$PLIST_PATH"
 ok "LaunchAgent plist: $PLIST_PATH"
 ok "Backend: $BACKEND"
 if [[ "$BACKEND" == "brother_ql" ]]; then
-  ok "Drucker: $PRINTER_MODEL @ ${PRINTER_IP:-<DRY_RUN>}"
+  if [[ -n "$PRINTERS_JSON" ]]; then
+    ok "Drucker: ${#PRINTERS_CODES[@]} Standorte (default: ${DEFAULT_LOCATION:-<keine>})"
+  else
+    ok "Drucker: $PRINTER_MODEL @ ${PRINTER_IP:-<DRY_RUN>}"
+  fi
 else
   ok "Drucker-Queue: $PRINTER_QUEUE"
 fi

@@ -3,6 +3,7 @@ import { useAdminNav } from "../../../../components/admin-nav"
 import { C, T, S, fmtMoney } from "../../../../components/admin-tokens"
 import { PageHeader, PageShell } from "../../../../components/admin-layout"
 import { Btn, Toast, Modal, inputStyle, Badge } from "../../../../components/admin-ui"
+import { PrintLocationSwitcher } from "../../../../components/print-location-switcher"
 import { printerAvailable, printLabelAuto } from "../../../../lib/print-client"
 import { displayFormat, type FormatValue } from "../../../../../lib/format-mapping"
 
@@ -650,6 +651,7 @@ function StocktakeSessionPage() {
         subtitle={stats ? `${stats.verified.toLocaleString()} verified · ${stats.eligible.toLocaleString()} im Inventar · ${(stats as any).total_releases?.toLocaleString() || "..."} im Katalog` : "Startet..."}
         actions={
           <div style={{ display: "flex", gap: S.gap.md, alignItems: "center" }}>
+            <PrintLocationSwitcher />
             <Badge
               label={printerStatus === "connected" ? "Silent Print" : "Browser Print"}
               variant={printerStatus === "connected" ? "success" : "info"}
