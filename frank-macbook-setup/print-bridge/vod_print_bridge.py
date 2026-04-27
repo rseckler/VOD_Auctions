@@ -37,7 +37,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
 from urllib.parse import parse_qs, urlparse
 
-VERSION = "2.1.0"
+VERSION = "2.1.1"
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("VOD_PRINT_BRIDGE_PORT", "17891"))
 DEFAULT_PRINTER = os.environ.get("VOD_PRINT_BRIDGE_PRINTER", "Brother_QL_820NWB")
@@ -309,7 +309,12 @@ def send_to_brother_ql(pdf_bytes: bytes, copies: int, location: str | None = Non
             blocking=True,
         )
     except Exception as e:
-        return {"ok": False, "error": f"brother_ql send fehlgeschlagen ({target}): {e}"}
+        # rc52.1: Exception-Type + Message + Traceback ins Log, damit
+        # "POST /print 500" nicht mehr leer im Log steht. Vorher musste
+        # man via Safari DevTools an die Response → friction für Frank.
+        err = f"brother_ql send fehlgeschlagen ({target}): {type(e).__name__}: {e}"
+        log.exception(err)
+        return {"ok": False, "error": err, "exception_type": type(e).__name__}
 
     # status ist ein dict mit 'outcome' ('sent' | 'error') etc.
     # WICHTIG: brother_ql liest nach dem Send eine Status-Response vom Drucker
@@ -321,6 +326,9 @@ def send_to_brother_ql(pdf_bytes: bytes, copies: int, location: str | None = Non
     # false-negatives liefern.
     outcome = status.get("outcome") if isinstance(status, dict) else None
     if outcome and outcome != "sent":
+        # rc52.1: status-dict ins Log so dass z.B. "printer_state.errors":[
+        # "Cover Open"] sichtbar wird statt nur generic "outcome=error".
+        log.warning("brother_ql non-sent outcome (%s): status=%s", outcome, status)
         return {"ok": False, "error": f"brother_ql outcome: {outcome}", "status": status}
 
     return {
