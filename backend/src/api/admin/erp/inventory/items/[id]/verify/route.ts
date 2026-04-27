@@ -34,7 +34,14 @@ export async function POST(
     condition_sleeve?: string
     exemplar_price?: number
     notes?: string
+    // rc52.2: explizite Lagerort-Wahl aus dem Inventur-UI. Wenn das Feld
+    // im Body steht (auch wenn null) → verwenden statt Default-on-NULL.
+    // Wenn Feld fehlt → bisherige Default-Logik.
+    warehouse_location_id?: string | null
   } | undefined
+  // Distinguish "Feld nicht im Body" vs. "Feld explizit null" — letzteres
+  // soll erlaubt sein wenn der User das Lager bewusst entfernt.
+  const warehouseExplicit = body !== undefined && Object.prototype.hasOwnProperty.call(body, "warehouse_location_id")
 
   const item = await pg("erp_inventory_item").where("id", inventoryItemId).first()
   if (!item) {
@@ -191,10 +198,36 @@ export async function POST(
     }
     if (body?.notes != null) updateFields.notes = body.notes || item.notes
 
-    // Warehouse-Default: wenn das Exemplar noch keine Location zugewiesen
-    // hat, beim ersten Verify auf die als default markierte Location setzen
-    // (aktuell ALPENSTRASSE). Wenn schon was drin steht — nie überschreiben.
-    if (!item.warehouse_location_id) {
+    // Warehouse-Resolution (rc52.2):
+    //   1. Wenn body.warehouse_location_id explizit (auch null) → nutzen.
+    //      Validierung: wenn non-null, muss die ID in warehouse_location existieren
+    //      und is_active=true sein. Sonst 400.
+    //   2. Sonst Fallback wie bisher: nur setzen wenn Item-Location NULL ist,
+    //      auf is_default=true.
+    if (warehouseExplicit) {
+      const newLocId = body?.warehouse_location_id ?? null
+      if (newLocId !== null) {
+        const loc = await trx("warehouse_location")
+          .where({ id: newLocId, is_active: true })
+          .select("id", "code")
+          .first()
+        if (!loc) {
+          // Hard-fail damit Frontend den Bug sieht statt stiller Fallback
+          throw new Error(`warehouse_location_id '${newLocId}' nicht gefunden oder inaktiv`)
+        }
+        if (item.warehouse_location_id !== loc.id) {
+          reference.old_warehouse_location_id = item.warehouse_location_id || null
+          reference.new_warehouse_location_id = loc.id
+          reference.new_warehouse_code = loc.code
+        }
+      } else if (item.warehouse_location_id !== null) {
+        reference.old_warehouse_location_id = item.warehouse_location_id
+        reference.new_warehouse_location_id = null
+      }
+      updateFields.warehouse_location_id = newLocId
+    } else if (!item.warehouse_location_id) {
+      // Default-on-NULL: wenn das Exemplar noch keine Location hat, beim
+      // ersten Verify auf die als default markierte Location setzen.
       const defaultLoc = await trx("warehouse_location")
         .where({ is_default: true, is_active: true })
         .select("id")

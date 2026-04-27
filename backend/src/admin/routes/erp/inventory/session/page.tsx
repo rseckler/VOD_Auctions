@@ -4,7 +4,7 @@ import { C, T, S, fmtMoney } from "../../../../components/admin-tokens"
 import { PageHeader, PageShell } from "../../../../components/admin-layout"
 import { Btn, Toast, Modal, inputStyle, Badge } from "../../../../components/admin-ui"
 import { PrintLocationSwitcher } from "../../../../components/print-location-switcher"
-import { printerAvailable, printLabelAuto } from "../../../../lib/print-client"
+import { printerAvailable, printLabelAuto, getActiveLocation } from "../../../../lib/print-client"
 import { displayFormat, type FormatValue } from "../../../../../lib/format-mapping"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -73,6 +73,29 @@ interface CopyItem {
   price_locked: boolean
   notes: string | null
   source: string | null
+  warehouse_location_id: string | null
+}
+
+// rc52.2: Lagerort-Auswahl in der Edit-Form
+interface WarehouseLocation {
+  id: string
+  code: string
+  name: string
+  is_default: boolean
+  is_active: boolean
+}
+
+function pickDefaultLocationId(activeCode: string, locations: WarehouseLocation[]): string | null {
+  // 1. Match auf das aktive 📍-Lager (Code), wenn locations geladen
+  if (activeCode) {
+    const m = locations.find((l) => l.is_active && l.code.toUpperCase() === activeCode.toUpperCase())
+    if (m) return m.id
+  }
+  // 2. is_default=true Lager
+  const def = locations.find((l) => l.is_default && l.is_active)
+  if (def) return def.id
+  // 3. Fallback: erstes aktives
+  return locations.find((l) => l.is_active)?.id || null
 }
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -178,6 +201,10 @@ function StocktakeSessionPage() {
   const [conditionSleeve, setConditionSleeve] = useState<Grade | null>(null)
   const [priceValue, setPriceValue] = useState("")
   const [noteText, setNoteText] = useState("")
+  // rc52.2: Lagerort pro Edit. null = "kein Lager", undefined wird beim Save
+  // als "Feld nicht im Body" behandelt (lädt Backend-Default).
+  const [editLocationId, setEditLocationId] = useState<string | null>(null)
+  const [warehouseLocations, setWarehouseLocations] = useState<WarehouseLocation[]>([])
 
   // Stats
   const [stats, setStats] = useState<{ eligible: number; verified: number } | null>(null)
@@ -226,6 +253,10 @@ function StocktakeSessionPage() {
     apiFetch<any>("/admin/erp/inventory/stats").then((s) => {
       setStats({ eligible: s.eligible, verified: s.verified })
     }).catch(() => {})
+    // rc52.2: Warehouse-Locations laden für Lagerort-Dropdown im Edit-Form
+    apiFetch<{ locations: WarehouseLocation[] }>("/admin/erp/locations")
+      .then((d) => setWarehouseLocations(d.locations || []))
+      .catch(() => {})
     // Recent Activity aus DB laden — damit Frank auch nach Page-Reload die
     // letzten bearbeiteten Platten sieht (war vorher nur in-memory State).
     apiFetch<{ items: Array<{
@@ -324,6 +355,12 @@ function StocktakeSessionPage() {
       : (releaseDetail?.legacy_price != null ? releaseDetail.legacy_price : null)
     setPriceValue(effective != null ? String(effective) : "")
     setNoteText(copy.notes || "")
+    // rc52.2: Lagerort — wenn Copy bereits zugewiesen, den behalten; sonst
+    // auf aktive 📍-Location matchen oder is_default fallen lassen.
+    setEditLocationId(
+      copy.warehouse_location_id ||
+        pickDefaultLocationId(getActiveLocation(), warehouseLocations)
+    )
   }
 
   const startNewCopy = () => {
@@ -336,6 +373,8 @@ function StocktakeSessionPage() {
     setConditionSleeve(parsed.sleeve)
     setPriceValue(releaseDetail.legacy_price != null ? String(releaseDetail.legacy_price) : "")
     setNoteText("")
+    // rc52.2: Default = aktive 📍-Location
+    setEditLocationId(pickDefaultLocationId(getActiveLocation(), warehouseLocations))
   }
 
   // Auto-open first copy for editing if it's unverified
@@ -372,6 +411,10 @@ function StocktakeSessionPage() {
           condition_media: conditionMedia || undefined,
           condition_sleeve: conditionSleeve || undefined,
           notes: noteText || undefined,
+          // rc52.2: Lagerort explizit mitsenden — auch null wenn User
+          // bewusst "kein Lager" gewählt hat. Backend distinguiert das
+          // über hasOwnProperty.
+          warehouse_location_id: editLocationId,
         }
         const price = parseFloat(priceValue.replace(",", "."))
         if (!isNaN(price) && price >= 0) body.exemplar_price = Math.round(price)
@@ -416,6 +459,8 @@ function StocktakeSessionPage() {
           condition_media: conditionMedia || undefined,
           condition_sleeve: conditionSleeve || undefined,
           notes: noteText || undefined,
+          // rc52.2: Lagerort explizit — auch null akzeptiert das Backend
+          warehouse_location_id: editLocationId,
         }
         // Preis immer senden wenn valid — Backend ist idempotent + mirror'd
         // auch exemplar_price für Copy #1 damit das Label den Wert zeigt.
@@ -1059,7 +1104,7 @@ function StocktakeSessionPage() {
                 </div>
               </div>
 
-              <div style={{ marginBottom: S.gap.lg }}>
+              <div style={{ marginBottom: S.gap.md }}>
                 <div style={{ ...T.small, color: C.muted, marginBottom: 4 }}>Notiz (optional)</div>
                 <input
                   type="text"
@@ -1069,6 +1114,39 @@ function StocktakeSessionPage() {
                   style={{ ...inputStyle, width: "100%" }}
                   placeholder="Freitext..."
                 />
+              </div>
+
+              {/* rc52.2: Lagerort — pro-Item-Override des aktiven 📍-Standorts.
+                  Defaultet auf das physische Lager (aus 📍-Switcher), kann aber
+                  pro Exemplar abweichen wenn z.B. ein Item für die andere
+                  Filiale gemeint ist. */}
+              <div style={{ marginBottom: S.gap.lg }}>
+                <div style={{ ...T.small, color: C.muted, marginBottom: 4 }}>Lagerort</div>
+                <select
+                  value={editLocationId || ""}
+                  onChange={(e) => setEditLocationId(e.target.value || null)}
+                  style={{ ...inputStyle, width: "100%" }}
+                >
+                  <option value="">— Kein Lager —</option>
+                  {warehouseLocations.filter((l) => l.is_active).map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.code} — {l.name}{l.is_default ? " (Default)" : ""}
+                    </option>
+                  ))}
+                </select>
+                {(() => {
+                  const activeCode = getActiveLocation()
+                  const chosen = warehouseLocations.find((l) => l.id === editLocationId)
+                  const chosenCode = chosen?.code?.toUpperCase() || null
+                  if (activeCode && chosenCode && chosenCode !== activeCode.toUpperCase()) {
+                    return (
+                      <div style={{ ...T.small, color: C.warning, marginTop: 4 }}>
+                        ⚠️ Druck geht auf <strong>{activeCode}</strong>, Lager wird aber <strong>{chosenCode}</strong> zugewiesen.
+                      </div>
+                    )
+                  }
+                  return null
+                })()}
               </div>
 
               <div style={{ display: "flex", gap: S.gap.md, flexWrap: "wrap" }}>

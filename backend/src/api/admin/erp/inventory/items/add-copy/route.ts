@@ -16,7 +16,8 @@ import { pushReleaseNow } from "../../../../../../lib/meilisearch-push"
  *   condition_media?: string,
  *   condition_sleeve?: string,
  *   exemplar_price?: number,
- *   notes?: string
+ *   notes?: string,
+ *   warehouse_location_id?: string | null   // rc52.2: explizite Lager-Wahl
  * }
  */
 export async function POST(
@@ -28,6 +29,11 @@ export async function POST(
 
   const body = req.body as Record<string, any>
   const { release_id, condition_media, condition_sleeve, exemplar_price, notes } = body
+  // rc52.2: distinguish "Feld nicht im Body" vs. "explizit null"
+  const warehouseExplicit = Object.prototype.hasOwnProperty.call(body, "warehouse_location_id")
+  const warehouseExplicitId: string | null | undefined = warehouseExplicit
+    ? (body.warehouse_location_id ?? null)
+    : undefined
 
   if (!release_id) {
     res.status(400).json({ message: "release_id is required" })
@@ -59,11 +65,29 @@ export async function POST(
   const itemId = generateEntityId()
 
   await pg.transaction(async (trx) => {
-    // Warehouse-Default: wenn keine Location explizit, auf is_default=true.
-    const defaultLoc = await trx("warehouse_location")
-      .where({ is_default: true, is_active: true })
-      .select("id")
-      .first()
+    // Warehouse-Resolution (rc52.2):
+    //   - body.warehouse_location_id explizit (auch null) → verwenden + validieren
+    //   - sonst Fallback auf is_default=true
+    let resolvedWarehouseId: string | null = null
+    if (warehouseExplicit) {
+      if (warehouseExplicitId !== null) {
+        const loc = await trx("warehouse_location")
+          .where({ id: warehouseExplicitId, is_active: true })
+          .select("id")
+          .first()
+        if (!loc) {
+          throw new Error(`warehouse_location_id '${warehouseExplicitId}' nicht gefunden oder inaktiv`)
+        }
+        resolvedWarehouseId = loc.id
+      }
+      // explizit null → resolvedWarehouseId bleibt null
+    } else {
+      const defaultLoc = await trx("warehouse_location")
+        .where({ is_default: true, is_active: true })
+        .select("id")
+        .first()
+      resolvedWarehouseId = defaultLoc?.id || null
+    }
 
     // Create the new exemplar
     await trx("erp_inventory_item").insert({
@@ -78,7 +102,7 @@ export async function POST(
       condition_media: condition_media || null,
       condition_sleeve: condition_sleeve || null,
       exemplar_price: exemplar_price != null ? exemplar_price : null,
-      warehouse_location_id: defaultLoc?.id || null,
+      warehouse_location_id: resolvedWarehouseId,
       notes: notes || null,
       price_locked: true,
       price_locked_at: new Date(),
@@ -125,6 +149,8 @@ export async function POST(
         condition_media: condition_media || null,
         condition_sleeve: condition_sleeve || null,
         exemplar_price: exemplar_price != null ? exemplar_price : null,
+        warehouse_location_id: resolvedWarehouseId,
+        warehouse_location_explicit: warehouseExplicit,
         mirrored_to_release: nextCopyNumber === 1,
       }),
     })
