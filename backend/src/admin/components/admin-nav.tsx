@@ -29,30 +29,49 @@ function injectShortcuts() {
 
   const path = window.location.pathname
 
-  // Anker: das Extensions-Collapsible (enthält Dashboard / Auction Blocks / …
-  // / POS). Wir hängen unsere Sektion als nächsten Sibling an.
-  const extensions = document.querySelector("nav [data-radix-collapsible-content]") as HTMLElement | null
-  if (!extensions) return
+  // Anker: ein bekannter Extensions-Item-Link. POS ist das letzte Item in der
+  // Extensions-Liste (vgl. Sidebar-Reihenfolge). Wir gehen vom Link zur
+  // Wrapper-Komponente (`<li>`, `<div>`, was Medusa gerade nutzt) und appenden
+  // unsere Shortcuts als Sibling in den selben Container.
+  //
+  // Fallback-Reihenfolge: pos → erp → dashboard. Falls Medusa die Routen-
+  // Reihenfolge ändert, finden wir trotzdem einen Anker.
+  const ANCHOR_HREFS = ["/app/pos", "/app/erp", "/app/dashboard"]
+  let anchorLink: HTMLElement | null = null
+  for (const href of ANCHOR_HREFS) {
+    anchorLink = document.querySelector<HTMLElement>(`a[href="${href}"]`)
+    if (anchorLink) break
+  }
+  if (!anchorLink) return
 
+  // Wrapper = nächste umschließende `<li>`, sonst direkter Parent (für DOM-
+  // Strukturen ohne `<ul><li>`-Schachtelung). itemsContainer ist der Container
+  // der alle Nav-Items hält — genau dort hängen wir hinten an.
+  const anchorWrapper =
+    (anchorLink.closest("li") as HTMLElement | null) || anchorLink.parentElement
+  if (!anchorWrapper || !anchorWrapper.parentElement) return
+
+  const itemsContainer = anchorWrapper.parentElement
   const existing = document.getElementById(SHORTCUTS_ID)
 
   // Idempotenz: state-key aus Path + Shortcuts-Hash. Path bestimmt Active-Highlight,
   // Hash invalidiert beim Code-Change (HMR / Deploy).
   const stateKey = `${path}::${SHORTCUTS.map((s) => s.href).join("|")}`
-  if (existing && existing.dataset.state === stateKey && existing.parentElement === extensions.parentElement) {
+  if (existing && existing.dataset.state === stateKey && existing.parentElement === itemsContainer) {
     return
   }
   existing?.remove()
 
-  const wrapper = document.createElement("div")
+  // Wrapper-Tag matcht den Anchor-Wrapper (li bleibt li, div bleibt div) —
+  // dadurch greifen Medusa's Layout-Styles auch für unsere Sektion.
+  const wrapper = document.createElement(anchorWrapper.tagName.toLowerCase())
   wrapper.id = SHORTCUTS_ID
   wrapper.dataset.state = stateKey
   wrapper.style.cssText = `
-    margin-top: 4px;
-    padding-top: 8px;
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 8px 12px 0;
     border-top: 1px dashed var(--vod-border, #e7e5e4);
-    margin-left: 12px;
-    margin-right: 12px;
   `
 
   const itemsHtml = SHORTCUTS.map((s) => {
@@ -97,11 +116,10 @@ function injectShortcuts() {
     <div style="display: flex; flex-direction: column;">${itemsHtml}</div>
   `
 
-  // Insert as next sibling of the Extensions content. Parent is meist das
-  // Container-<div> der Extensions-Collapsible — dadurch landen wir direkt
-  // unter dem letzten Item (POS), oberhalb von Settings (das in einem
-  // separaten Footer-Container sitzt).
-  extensions.parentElement?.insertBefore(wrapper, extensions.nextSibling)
+  // Append nach dem Anchor-Wrapper. Wenn anchorWrapper das letzte Item ist
+  // (POS), landen wir direkt am Ende der Items-Liste, oberhalb von Settings
+  // (das in einem separaten Footer-Container sitzt).
+  itemsContainer.insertBefore(wrapper, anchorWrapper.nextSibling)
 }
 
 // ─── Route → parent hub mapping ──────────────────────────────────────────────
