@@ -1,5 +1,109 @@
 import { useEffect } from "react"
 
+// ─── Sidebar Shortcuts (rc52+, 2026-04-28) ───────────────────────────────────
+// Eigene "Shortcuts"-Sektion unter Extensions, für die Routen die Frank gerade
+// am häufigsten klickt. Hardcoded TS-Array — erweitern = Eintrag dazu, kein
+// Build-System nötig. Items werden als Sibling NACH dem Extensions-Container
+// injiziert und stylen sich so, dass sie wie native Medusa-Nav-Items aussehen
+// (Größe / Padding / Hover via inline-styles).
+//
+// Active-State: wenn `pathname.startsWith(href)` → Gold-Akzent (b8860b),
+// damit Frank auch dann sieht wo er ist, wenn das Ziel parallel im Hauptmenü
+// existiert (z.B. Catalog).
+
+const SHORTCUTS_ID = "vod-shortcuts"
+
+// Heroicons (24/outline) — inline-SVG um keine zusätzliche Dep zu ziehen.
+// stroke="currentColor", fill="none" → erbt vom Parent <a>.
+const ICON_INVENTORY = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><path d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>`
+
+const ICON_CATALOG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="0.6" fill="currentColor"/></svg>`
+
+const SHORTCUTS: Array<{ href: string; label: string; icon: string }> = [
+  { href: "/app/erp/inventory", label: "Inventory Process", icon: ICON_INVENTORY },
+  { href: "/app/catalog", label: "Catalog", icon: ICON_CATALOG },
+]
+
+function injectShortcuts() {
+  if (!window.location) return
+
+  const path = window.location.pathname
+
+  // Anker: das Extensions-Collapsible (enthält Dashboard / Auction Blocks / …
+  // / POS). Wir hängen unsere Sektion als nächsten Sibling an.
+  const extensions = document.querySelector("nav [data-radix-collapsible-content]") as HTMLElement | null
+  if (!extensions) return
+
+  const existing = document.getElementById(SHORTCUTS_ID)
+
+  // Idempotenz: state-key aus Path + Shortcuts-Hash. Path bestimmt Active-Highlight,
+  // Hash invalidiert beim Code-Change (HMR / Deploy).
+  const stateKey = `${path}::${SHORTCUTS.map((s) => s.href).join("|")}`
+  if (existing && existing.dataset.state === stateKey && existing.parentElement === extensions.parentElement) {
+    return
+  }
+  existing?.remove()
+
+  const wrapper = document.createElement("div")
+  wrapper.id = SHORTCUTS_ID
+  wrapper.dataset.state = stateKey
+  wrapper.style.cssText = `
+    margin-top: 4px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--vod-border, #e7e5e4);
+    margin-left: 12px;
+    margin-right: 12px;
+  `
+
+  const itemsHtml = SHORTCUTS.map((s) => {
+    const isActive = path === s.href || path.startsWith(s.href + "/")
+    const activeBg = isActive ? "rgba(184, 134, 11, 0.10)" : "transparent"
+    const activeColor = isActive ? "#b8860b" : "var(--vod-text, #1a1714)"
+    const iconColor = isActive ? "#b8860b" : "var(--vod-muted, #78716c)"
+    return `
+      <a href="${s.href}"
+         data-shortcut="${s.href}"
+         style="
+           display: flex;
+           align-items: center;
+           gap: 10px;
+           padding: 7px 8px;
+           margin: 2px 0;
+           border-radius: 6px;
+           color: ${activeColor};
+           background: ${activeBg};
+           text-decoration: none;
+           font-size: 13px;
+           font-weight: ${isActive ? "600" : "500"};
+           transition: background 80ms ease;
+         "
+         onmouseover="if(!this.dataset.active)this.style.background='var(--vod-hover, #f5f4f3)'"
+         onmouseout="if(!this.dataset.active)this.style.background='transparent'"
+         ${isActive ? 'data-active="1"' : ""}>
+        <span style="display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 6px; color: ${iconColor}; flex-shrink: 0;">${s.icon}</span>
+        <span>${s.label}</span>
+      </a>
+    `
+  }).join("")
+
+  wrapper.innerHTML = `
+    <div style="
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--vod-muted, #78716c);
+      padding: 4px 8px 6px;
+      letter-spacing: 0.02em;
+    ">Shortcuts</div>
+    <div style="display: flex; flex-direction: column;">${itemsHtml}</div>
+  `
+
+  // Insert as next sibling of the Extensions content. Parent is meist das
+  // Container-<div> der Extensions-Collapsible — dadurch landen wir direkt
+  // unter dem letzten Item (POS), oberhalb von Settings (das in einem
+  // separaten Footer-Container sitzt).
+  extensions.parentElement?.insertBefore(wrapper, extensions.nextSibling)
+}
+
 // ─── Route → parent hub mapping ──────────────────────────────────────────────
 
 const PARENT_HUB: Record<string, { label: string; href: string }> = {
@@ -230,6 +334,9 @@ function startNavObserver() {
 
     // Inject back nav for sub-pages
     injectBackNav()
+
+    // Inject Shortcuts section under Extensions
+    injectShortcuts()
   }
 
   hide()
@@ -239,6 +346,7 @@ function startNavObserver() {
     if (window.location.pathname !== lastPath) {
       lastPath = window.location.pathname
       setTimeout(injectBackNav, 50)
+      setTimeout(injectShortcuts, 50)
       // Reset horizontal scroll on navigation so new page always starts at left edge
       const mainEl = document.querySelector<HTMLElement>("main")
       if (mainEl) {
