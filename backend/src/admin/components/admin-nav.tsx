@@ -20,7 +20,7 @@ const ICON_INVENTORY = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 
 const ICON_CATALOG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="0.6" fill="currentColor"/></svg>`
 
 const SHORTCUTS: Array<{ href: string; label: string; icon: string }> = [
-  { href: "/app/erp/inventory", label: "Inventory Process", icon: ICON_INVENTORY },
+  { href: "/app/erp/inventory", label: "Inventory", icon: ICON_INVENTORY },
   { href: "/app/media", label: "Catalog", icon: ICON_CATALOG },
 ]
 
