@@ -21,7 +21,7 @@ const ICON_CATALOG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24
 
 const SHORTCUTS: Array<{ href: string; label: string; icon: string }> = [
   { href: "/app/erp/inventory", label: "Inventory Process", icon: ICON_INVENTORY },
-  { href: "/app/catalog", label: "Catalog", icon: ICON_CATALOG },
+  { href: "/app/media", label: "Catalog", icon: ICON_CATALOG },
 ]
 
 function injectShortcuts() {
