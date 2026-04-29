@@ -165,11 +165,14 @@ export async function GET(
   const rawShop = release.shop_price != null ? Number(release.shop_price) : null
   const rawLegacy = release.legacy_price != null ? Number(release.legacy_price) : null
   const verifiedRow = await pgConnection("erp_inventory_item")
+    .select("id", "notes")
     .where("release_id", id)
     .whereNotNull("last_stocktake_at")
     .where("price_locked", true)
+    .orderBy("last_stocktake_at", "desc")
     .first()
   const isVerified = !!verifiedRow
+  const inventory_note = verifiedRow?.notes?.trim() || null
   const effective_price = rawShop != null && rawShop > 0 && isVerified ? rawShop : null
   // rc49.7: legacy_available nicht mehr im Gate — Franks Verify+price_locked
   // ist Authority. Siehe PRICING_MODEL.md §Shop-Visibility-Gate.
@@ -201,6 +204,7 @@ export async function GET(
       is_purchasable,
       effective_price,
       is_verified: isVerified,
+      inventory_note,
       auction_lot,
       tracks,
       images,

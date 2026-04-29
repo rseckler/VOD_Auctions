@@ -51,6 +51,7 @@ type CatalogRelease = Release & {
   effective_price?: number | null
   is_purchasable?: boolean
   is_verified?: boolean
+  inventory_note?: string | null
   shop_price?: number | null
   // rc50.0 Track Management: Track-Tabellen-Einträge (canonical für discogs-Releases)
   tracks?: { id: string; position: string | null; title: string; duration: string | null }[]
@@ -354,14 +355,6 @@ export default async function CatalogDetailPage({
               </div>
             )}
             */}
-            {release.estimated_value && (
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground text-sm">Estimated Value</span>
-                <span className="text-sm font-mono">
-                  &euro;{Number(release.estimated_value).toFixed(2)}
-                </span>
-              </div>
-            )}
           </div>
 
           {release.is_purchasable && (
@@ -383,6 +376,16 @@ export default async function CatalogDetailPage({
             </div>
           )}
 
+          {release.inventory_note && (
+            <div className="relative pl-4 mt-8 mb-7">
+              <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full bg-gradient-to-b from-primary via-primary/60 to-transparent" />
+              <h2 className="font-serif text-[15px] text-primary mb-3">Item Note</h2>
+              <p className="text-[13px] text-muted-foreground leading-relaxed whitespace-pre-line">
+                {release.inventory_note}
+              </p>
+            </div>
+          )}
+
           {/* Details — Concept C "Vinyl Groove" */}
           <div className="relative pl-4 mt-8 mb-7">
             <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full bg-gradient-to-b from-primary via-primary/60 to-transparent" />
@@ -393,7 +396,9 @@ export default async function CatalogDetailPage({
                 release.label_name && { k: "Label", v: release.label_name, link: release.label_slug ? `/label/${release.label_slug}` : undefined },
                 release.press_orga_name && { k: "Press / Org", v: release.press_orga_name, link: release.press_orga_slug ? `/press/${release.press_orga_slug}` : undefined },
                 release.catalogNumber && { k: "Catalog No.", v: release.catalogNumber, mono: true },
-                release.legacy_condition && { k: "Condition", v: release.legacy_condition, mono: true },
+                // legacy_condition nur als Fallback wenn keine strukturierten
+                // Conditions oben in der ConditionRow gerendert werden — sonst doppelt.
+                (!release.media_condition && !release.sleeve_condition && release.legacy_condition) && { k: "Condition", v: release.legacy_condition, mono: true },
                 (pickFormatLabel(release as any) || release.legacy_format_detail) && { k: "Format", v: pickFormatLabel(release as any) || release.legacy_format_detail },
               ].filter(Boolean).map((row, i) => {
                 const { k, v, mono, link } = row as { k: string; v: string; mono?: boolean; link?: string }
