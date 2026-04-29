@@ -362,17 +362,35 @@ def _compute_format_group(row):
     Spiegel der Postgres-Filterlogik in route-postgres-fallback.ts `category`
     switch. Wird für Meili's `format_group` verwendet.
 
+    rc52.5.2: format_v2 (71-Wert-Whitelist) gewinnt vor dem Legacy-`format`-
+    Enum, falls beide divergieren. Sonst bleibt z.B. ein VHS-Item das via
+    Discogs-Apply zu Vinyl-LP-2 korrigiert wurde in der VHS-Kategorie weil
+    der Legacy-`format`-Wert nicht mitgepflegt wurde.
+
     Wichtig (rc48 Parity-Fix): format_id kann NULL sein (Non-Discogs-Import-
     Pfad), dann fällt zurück auf format-enum-Match für CASSETTE/REEL → tapes
     bzw. LP → vinyl. Gleiches Verhalten wie Postgres:
       `(Format.kat=1 OR (format_id IS NULL AND format IN ('CASSETTE','REEL')))`
     """
     fmt_enum = (row["format"] or "").upper() if row["format"] else ""
+    v2 = row.get("format_v2") or ""
     kat = row["format_kat"]
     prod_cat = row["product_category"]
 
     if prod_cat in ("band_literature", "label_literature", "press_literature"):
         return prod_cat
+    # format_v2 wins over Legacy-format
+    if v2:
+        if v2.startswith("Vinyl-") or v2 == "Flexi" or v2.startswith("Lathe-Cut") or v2 == "Acetate" or v2 == "Shellac":
+            return "vinyl"
+        if v2.startswith("Tape"):
+            return "tapes"
+        if v2 in ("Reel", "Reel-2"):
+            return "tapes"
+        if v2.startswith("CD") and not v2.startswith("CDV"):
+            return "cd"  # CD, CDr, CD-2..16, CDr-2 → cd; CDV → vhs
+        if v2 in ("CDV", "VHS", "DVD", "DVDr", "Blu-ray"):
+            return "vhs"
     if kat == 2 or fmt_enum == "LP":
         return "vinyl"
     if fmt_enum == "CD":

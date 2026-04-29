@@ -132,10 +132,24 @@ function toFloat(v: unknown): number | null {
  */
 function computeFormatGroup(row: any): string {
   const fmt = (row.format || "").toUpperCase()
+  const v2 = (row.format_v2 || "")
   const kat = row.format_kat
   const cat = row.product_category
   if (cat === "band_literature" || cat === "label_literature" || cat === "press_literature") {
     return cat
+  }
+  // rc52.5.2: format_v2 (71-Wert-Whitelist) gewinnt vor dem Legacy-`format`-
+  // Enum, falls beide gesetzt sind und divergieren. Sonst zeigt z.B. ein
+  // Discogs-Apply der ein VHS-Item zu Vinyl-LP-2 korrigiert das Item
+  // weiterhin in der VHS-Kategorie weil der Legacy-`format`-Wert nicht
+  // mitgepflegt wurde. Reihenfolge der Checks ist relevant: format_v2
+  // erst nach product_category-Literatur-Override.
+  if (v2) {
+    if (v2.startsWith("Vinyl-") || v2 === "Flexi" || v2.startsWith("Lathe-Cut") || v2 === "Acetate" || v2 === "Shellac") return "vinyl"
+    if (v2.startsWith("Tape")) return "tapes"
+    if (v2 === "Reel" || v2 === "Reel-2") return "tapes"
+    if (v2.startsWith("CD") && !v2.startsWith("CDV")) return "cd" // CD, CDr, CD-2..16, CDr-2 → cd; CDV → vhs
+    if (v2 === "CDV" || v2 === "VHS" || v2 === "DVD" || v2 === "DVDr" || v2 === "Blu-ray") return "vhs"
   }
   if (kat === 2 || fmt === "LP") return "vinyl"
   if (fmt === "CD") return "cd"
