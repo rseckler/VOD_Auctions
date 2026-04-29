@@ -75,6 +75,35 @@ def optimize_image(buf: bytes, max_dim: int = 1200, quality: int = 80) -> bytes:
     return out.getvalue()
 
 
+DISCOGS_TOKEN = os.getenv("DISCOGS_TOKEN") or "SWyMfyEwsjuacHWNeMTpAdeqjnuNcnibIrqIBdbV"
+
+
+def fetch_fresh_discogs_image(discogs_id: int) -> str | None:
+    """Fallback: Discogs URL-Hashes verfallen mit der Zeit (i.discogs.com 404).
+    Holt die aktuelle primary-image URL via Discogs Releases-API."""
+    if not discogs_id:
+        return None
+    try:
+        resp = requests.get(
+            f"https://api.discogs.com/releases/{discogs_id}",
+            headers={
+                "Authorization": f"Discogs token={DISCOGS_TOKEN}",
+                "User-Agent": "VOD-Auctions/1.0",
+            },
+            timeout=15,
+        )
+        if resp.status_code != 200:
+            print(f"    ✗ discogs API ({resp.status_code}): release {discogs_id}")
+            return None
+        data = resp.json()
+        images = data.get("images") or []
+        primary = next((i for i in images if i.get("type") == "primary"), None) or (images[0] if images else None)
+        return primary.get("uri") if primary else None
+    except Exception as e:
+        print(f"    ✗ discogs API exception: {e}")
+        return None
+
+
 def download_optimize_upload(source_url: str, release_id: str, image_id: str) -> str | None:
     """Mirror of backend/src/lib/image-upload.ts::downloadOptimizeUpload.
     Returns public R2 URL or None on failure."""
@@ -122,7 +151,7 @@ def main():
     cur = conn.cursor()
 
     cur.execute("""
-        SELECT id, title, "coverImage"
+        SELECT id, title, "coverImage", discogs_id
         FROM "Release"
         WHERE "coverImage" LIKE 'https://i.discogs.com/%'
         ORDER BY "updatedAt" DESC
@@ -135,7 +164,7 @@ def main():
         return
 
     if args.dry_run:
-        for rid, title, cover in rows:
+        for rid, title, cover, discogs_id in rows:
             print(f"  • {rid:35s} {title[:50]:50s} {cover[:50]}")
         return
 
@@ -148,10 +177,16 @@ def main():
     failed = 0
     skipped = 0
 
-    for rid, title, source_url in rows:
+    for rid, title, source_url, discogs_id in rows:
         print(f"→ {rid} — {title[:60]}")
         image_id = f"backfill-{rid}-{int(time.time() * 1000)}"
         r2_url = download_optimize_upload(source_url, rid, image_id)
+        if not r2_url and discogs_id:
+            # Fallback: fetch fresh URL via Discogs API (URL-Hashes verfallen)
+            print(f"  ↻ fallback: discogs API for release {discogs_id}")
+            fresh_url = fetch_fresh_discogs_image(int(discogs_id))
+            if fresh_url:
+                r2_url = download_optimize_upload(fresh_url, rid, image_id)
         if not r2_url:
             print("  → skip (R2 upload failed)")
             failed += 1
