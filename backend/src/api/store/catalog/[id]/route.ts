@@ -164,15 +164,29 @@ export async function GET(
   // mindestens ein verifiziertes Exemplar existiert.
   const rawShop = release.shop_price != null ? Number(release.shop_price) : null
   const rawLegacy = release.legacy_price != null ? Number(release.legacy_price) : null
-  const verifiedRow = await pgConnection("erp_inventory_item")
-    .select("id", "notes")
+  // Multi-Copy aware: alle Exemplare des Releases laden, dann clientseitig
+  // ableiten — ein DB-Roundtrip statt zwei. Releases haben in der Regel 1-5
+  // Exemplare, die Filterung in JS ist vernachlässigbar.
+  const inventoryItems = await pgConnection("erp_inventory_item")
+    .select("notes", "status", "last_stocktake_at", "price_locked")
     .where("release_id", id)
-    .whereNotNull("last_stocktake_at")
-    .where("price_locked", true)
-    .orderBy("last_stocktake_at", "desc")
-    .first()
-  const isVerified = !!verifiedRow
-  const inventory_note = verifiedRow?.notes?.trim() || null
+  const verifiedItems = inventoryItems.filter(
+    (i) => i.price_locked && i.last_stocktake_at
+  )
+  const availableVerifiedItems = verifiedItems.filter(
+    (i) => i.status === "in_stock"
+  )
+  const isVerified = verifiedItems.length > 0
+  // Notiz aus dem zuletzt verifizierten Exemplar (notes, status egal —
+  // auch ein verkauftes Exemplar darf seine Notiz behalten).
+  const latestStocktake = verifiedItems
+    .slice()
+    .sort(
+      (a, b) =>
+        new Date(b.last_stocktake_at).getTime() -
+        new Date(a.last_stocktake_at).getTime()
+    )[0]
+  const inventory_note = latestStocktake?.notes?.trim() || null
   const effective_price = rawShop != null && rawShop > 0 && isVerified ? rawShop : null
   // rc49.7: legacy_available nicht mehr im Gate — Franks Verify+price_locked
   // ist Authority. Siehe PRICING_MODEL.md §Shop-Visibility-Gate.
@@ -180,6 +194,15 @@ export async function GET(
   // legacy_price bleibt als Info erhalten (Frontend kann "Legacy tape-mag
   // Preis" anzeigen wenn gewünscht) — aber NIE als Shop-Preis rendern.
   release.legacy_price = rawLegacy
+
+  // Release.inventory ist die alte Single-Copy-Spalte (per default 1) und
+  // spiegelt das Multi-Copy-ERP-Modell nicht. Override mit der echten Anzahl
+  // verifizierter, kaufbarer Exemplare. Wenn 0 → null (kein Stock-Badge),
+  // wenn >0 → echter Count (Storefront zeigt "Last copy" bei 1, "In Stock"
+  // bei >1).
+  release.inventory = availableVerifiedItems.length > 0
+    ? availableVerifiedItems.length
+    : null
 
   // Auction lot link — only for publicly visible blocks (preview/active)
   let auction_lot: { block_slug: string; block_item_id: string } | null = null
