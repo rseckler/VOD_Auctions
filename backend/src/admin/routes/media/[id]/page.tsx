@@ -15,6 +15,7 @@ import { AuditHistory } from "../../../components/release-detail/AuditHistory"
 import { TrackManagement } from "../../../components/release-detail/TrackManagement"
 import { ReleaseImageGallery, type GalleryImage } from "../../../components/release-image-gallery"
 import { ContributingArtistsSection, type ContributingArtist } from "../../../components/release-contributing-artists"
+import { ExemplarQuickEditModal, type ExemplarQuickEditTarget } from "../../../components/release-exemplar-quick-edit"
 import { validateReleaseStammdaten } from "../../../../lib/release-validation"
 import { displayFormat, FORMAT_VALUES, type FormatValue } from "../../../../lib/format-mapping"
 
@@ -113,10 +114,14 @@ type Release = {
 
 type InventoryItem = {
   inventory_item_id: string
+  copy_number?: number | null
   inventory_barcode: string | null
   inventory_status: string | null
   inventory_quantity: number | null
   inventory_source: string | null
+  exemplar_price?: number | string | null
+  erp_condition_media?: string | null
+  erp_condition_sleeve?: string | null
   price_locked: boolean | null
   price_locked_at: string | null
   last_stocktake_at: string | null
@@ -579,6 +584,7 @@ const MediaDetailPage = () => {
   }>>([])
   const [images, setImages] = useState<ImageEntry[]>([])
   const [contributingArtists, setContributingArtists] = useState<ContributingArtist[]>([])
+  const [editingExemplar, setEditingExemplar] = useState<InventoryItem | null>(null)
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([])
   const [inventoryMovements, setInventoryMovements] = useState<InventoryMovement[]>([])
   const [loading, setLoading] = useState(true)
@@ -715,6 +721,18 @@ const MediaDetailPage = () => {
       setRelease((prev) => (prev ? { ...prev, coverImage: r.release?.coverImage ?? null } : prev))
     } catch (e) {
       console.error("reloadImages failed", e)
+    }
+  }, [id])
+
+  const reloadInventory = useCallback(async () => {
+    if (!id) return
+    try {
+      const d = await fetch(`/admin/media/${id}`, { credentials: "include" }).then((r) => r.json())
+      setRelease(d.release)
+      setInventoryItems(d.inventory_items || [])
+      setInventoryMovements(d.inventory_movements || [])
+    } catch (e) {
+      console.error("reloadInventory failed", e)
     }
   }, [id])
 
@@ -1769,6 +1787,11 @@ const MediaDetailPage = () => {
                           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                             <button
                               style={{ background: "none", border: "none", color: C.gold, cursor: "pointer", fontSize: 12, textDecoration: "underline" }}
+                              onClick={() => setEditingExemplar(item)}
+                              title="Quick-Edit Preis · Zustand · Lagerort · Notiz"
+                            >Bearbeiten</button>
+                            <button
+                              style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 12, textDecoration: "underline" }}
                               onClick={() => window.location.href = `/app/erp/inventory/session?item_id=${item.inventory_item_id}`}
                             >Session</button>
                             <button
@@ -1830,6 +1853,14 @@ const MediaDetailPage = () => {
             )}
             {release.price_locked && (
               <Badge label="🔒 Preis gesperrt (Sync-Schutz aktiv)" variant="info" />
+            )}
+            {inventoryItems.length === 1 && (
+              <Btn
+                label="Bearbeiten"
+                variant="ghost"
+                onClick={() => setEditingExemplar(inventoryItems[0])}
+                style={{ marginLeft: "auto", padding: "4px 12px", fontSize: 12 }}
+              />
             )}
           </div>
 
@@ -2344,6 +2375,20 @@ const MediaDetailPage = () => {
             </div>
           )}
         </div>
+      )}
+
+      {/* Exemplar Quick-Edit Modal (rc52.6.3) */}
+      {editingExemplar && (
+        <ExemplarQuickEditModal
+          target={editingExemplar as ExemplarQuickEditTarget}
+          locations={locations.map((l) => ({ id: l.id, code: l.code, name: l.name }))}
+          onClose={() => setEditingExemplar(null)}
+          onSaved={async () => {
+            setEditingExemplar(null)
+            setToast({ message: "Exemplar gespeichert", type: "success" })
+            await reloadInventory()
+          }}
+        />
       )}
 
       {/* Toast */}
