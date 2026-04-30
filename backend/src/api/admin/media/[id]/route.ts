@@ -142,6 +142,21 @@ export async function GET(
     .orderBy("rang", "asc")
     .orderBy("id", "asc")
 
+  // Fetch contributing artists (rc52.6.1)
+  const contributing_artists = await pgConnection("ReleaseArtist")
+    .where("ReleaseArtist.releaseId", id)
+    .leftJoin("Artist", "ReleaseArtist.artistId", "Artist.id")
+    .select(
+      "ReleaseArtist.id as link_id",
+      "ReleaseArtist.artistId as artist_id",
+      "ReleaseArtist.role as role",
+      "ReleaseArtist.createdAt as created_at",
+      "Artist.name as artist_name",
+      "Artist.slug as artist_slug"
+    )
+    .orderBy("ReleaseArtist.createdAt", "asc")
+    .orderBy("ReleaseArtist.id", "asc")
+
   // Fetch import history — LEFT JOIN with import_session for collection metadata
   // A release can appear in multiple imports (inserted once, updated by later
   // runs) — return them ordered newest first.
@@ -177,7 +192,7 @@ export async function GET(
     locked_fields: release.locked_fields || [],
   }
 
-  res.json({ release, sync_history, images, import_history, inventory_items, inventory_movements, meta })
+  res.json({ release, sync_history, images, contributing_artists, import_history, inventory_items, inventory_movements, meta })
 }
 
 // POST /admin/media/:id — Update editable fields

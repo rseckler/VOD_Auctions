@@ -14,6 +14,7 @@ import { findCountry, isValidIsoCode, flagFor } from "../../../data/country-iso"
 import { AuditHistory } from "../../../components/release-detail/AuditHistory"
 import { TrackManagement } from "../../../components/release-detail/TrackManagement"
 import { ReleaseImageGallery, type GalleryImage } from "../../../components/release-image-gallery"
+import { ContributingArtistsSection, type ContributingArtist } from "../../../components/release-contributing-artists"
 import { validateReleaseStammdaten } from "../../../../lib/release-validation"
 import { displayFormat, FORMAT_VALUES, type FormatValue } from "../../../../lib/format-mapping"
 
@@ -577,6 +578,7 @@ const MediaDetailPage = () => {
     session_status: string | null
   }>>([])
   const [images, setImages] = useState<ImageEntry[]>([])
+  const [contributingArtists, setContributingArtists] = useState<ContributingArtist[]>([])
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([])
   const [inventoryMovements, setInventoryMovements] = useState<InventoryMovement[]>([])
   const [loading, setLoading] = useState(true)
@@ -678,6 +680,7 @@ const MediaDetailPage = () => {
         setSyncHistory(d.sync_history || [])
         setImportHistory(d.import_history || [])
         setImages(d.images || [])
+        setContributingArtists(d.contributing_artists || [])
         setInventoryItems(d.inventory_items || [])
         setInventoryMovements(d.inventory_movements || [])
         setShippingTypes(st.item_types || [])
@@ -712,6 +715,16 @@ const MediaDetailPage = () => {
       setRelease((prev) => (prev ? { ...prev, coverImage: r.release?.coverImage ?? null } : prev))
     } catch (e) {
       console.error("reloadImages failed", e)
+    }
+  }, [id])
+
+  const reloadContributingArtists = useCallback(async () => {
+    if (!id) return
+    try {
+      const r = await fetch(`/admin/media/${id}/contributing-artists`, { credentials: "include" }).then((r) => r.json())
+      setContributingArtists(r.contributing_artists || [])
+    } catch (e) {
+      console.error("reloadContributingArtists failed", e)
     }
   }, [id])
 
@@ -2115,6 +2128,21 @@ const MediaDetailPage = () => {
 
       {/* Notes + Tracklist (read-only, parsed from Release.tracklist/credits) */}
       <NotesAndTracklist credits={release.credits} tracklist={release.tracklist} description={release.description} />
+
+      {/* Contributing Artists — Mitwirkende mit Rolle (rc52.6.1) */}
+      <div style={{ ...cardStyle, marginBottom: S.sectionGap }}>
+        <SectionHeader title="Contributing Artists" count={contributingArtists.length} style={{ marginTop: 0 }} />
+        <div style={{ ...T.micro, color: C.muted, marginBottom: S.gap.md }}>
+          Bei Compilations / Various-Artists: Mitwirkende mit ihrer Rolle pflegen. Storefront zeigt sie unter „Contributing Artists".
+        </div>
+        {release && (
+          <ContributingArtistsSection
+            releaseId={release.id}
+            artists={contributingArtists}
+            onChanged={reloadContributingArtists}
+          />
+        )}
+      </div>
 
       {/* Track Management — edit/add/delete via Track DB table */}
       <div style={{ ...cardStyle, marginBottom: S.sectionGap }}>

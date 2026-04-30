@@ -30,6 +30,9 @@ export type AuditAction =
   | "image_add"
   | "image_delete"
   | "image_reorder"
+  | "contributing_artist_add"
+  | "contributing_artist_update"
+  | "contributing_artist_delete"
   | "field_unlocked"
 
 export type AuditEntry = {
