@@ -75,20 +75,27 @@ def is_duration(s: str) -> bool:
 
 def detect_pattern(items: list[dict]) -> str:
     """
-    Pattern 1: alle items haben non-empty position UND title.
-    Pattern 2: alle (oder fast alle) position sind leer; titles enthalten
-               Position-Marker als eigenes Item.
+    Pattern 1: items haben title + (meistens) non-empty position.
+    Pattern 2: titles enthalten Position-Marker als eigenes Item — Discogs-
+               Scrape-Artefakt mit 3-Item-Bursts.
+
+    Title-Marker dominieren: wenn Position-Marker als Title (>=2 Stück und
+    mindestens so viele wie position-Field-Werte) → pattern2. Sonst pattern1.
     """
     if not items:
         return "empty"
-    non_empty_pos = sum(1 for i in items if (i.get("position") or "").strip())
-    has_pos_markers = any(is_position_marker(i.get("title") or "") for i in items)
-    if non_empty_pos >= len(items) * 0.5:
-        return "pattern1"
-    if has_pos_markers and non_empty_pos == 0:
+    n = len(items)
+    pos_in_pos_field = sum(1 for i in items if (i.get("position") or "").strip())
+    pos_markers_in_title = sum(
+        1 for i in items if is_position_marker((i.get("title") or "").strip())
+    )
+
+    # Pattern 2 wenn Position-Marker im Title-Feld dominieren
+    if pos_markers_in_title >= 2 and pos_markers_in_title >= max(1, pos_in_pos_field):
         return "pattern2"
-    if non_empty_pos == 0 and not has_pos_markers:
-        # Nur Titles, keine Positions — wir nummerieren durch
+    if pos_in_pos_field >= n * 0.5:
+        return "pattern1"
+    if pos_in_pos_field == 0 and pos_markers_in_title == 0:
         return "pattern1_unpositioned"
     return "mixed"
 
