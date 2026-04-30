@@ -187,7 +187,7 @@ export function ExemplarQuickEditModal({ target, locations, onClose, onSaved }: 
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
-            placeholder="Optional — wird auf der Storefront unter „Item Note" angezeigt"
+            placeholder='Optional — wird auf der Storefront unter "Item Note" angezeigt'
             style={{
               width: "100%", padding: "8px 12px", fontSize: 13, fontFamily: "inherit",
               background: C.card, border: `1px solid ${C.border}`,
