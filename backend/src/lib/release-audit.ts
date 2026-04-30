@@ -29,6 +29,7 @@ export type AuditAction =
   | "track_delete"
   | "image_add"
   | "image_delete"
+  | "image_reorder"
   | "field_unlocked"
 
 export type AuditEntry = {

@@ -13,6 +13,7 @@ import { DiscogsReviewModal, type DiscogsPreviewResponse } from "../../../compon
 import { findCountry, isValidIsoCode, flagFor } from "../../../data/country-iso"
 import { AuditHistory } from "../../../components/release-detail/AuditHistory"
 import { TrackManagement } from "../../../components/release-detail/TrackManagement"
+import { ReleaseImageGallery, type GalleryImage } from "../../../components/release-image-gallery"
 import { validateReleaseStammdaten } from "../../../../lib/release-validation"
 import { displayFormat, FORMAT_VALUES, type FormatValue } from "../../../../lib/format-mapping"
 
@@ -149,8 +150,11 @@ type SyncEntry = {
 type ImageEntry = {
   id: string
   url: string
-  type: string | null
-  sort_order: number | null
+  alt?: string | null
+  rang?: number | null
+  source?: string | null
+  type?: string | null
+  sort_order?: number | null
 }
 
 // ─── HTML Cleaning & Tracklist Parsing (ported from storefront/src/lib/utils.ts) ─
@@ -630,6 +634,7 @@ const MediaDetailPage = () => {
   const [sdCatalogNumber, setSdCatalogNumber] = useState("")
   const [sdBarcode, setSdBarcode] = useState("")
   const [sdDescription, setSdDescription] = useState("")
+  const [sdCredits, setSdCredits] = useState("")
   const [sdArtistId, setSdArtistId] = useState("")
   const [sdArtistName, setSdArtistName] = useState("")
   const [sdLabelId, setSdLabelId] = useState("")
@@ -698,6 +703,18 @@ const MediaDetailPage = () => {
       })
   }, [id])
 
+  // Refetch nur Images + coverImage nach Galerie-Mutation (Upload/Reorder/Set-Cover/Delete)
+  const reloadImages = useCallback(async () => {
+    if (!id) return
+    try {
+      const r = await fetch(`/admin/media/${id}`, { credentials: "include" }).then((r) => r.json())
+      setImages(r.images || [])
+      setRelease((prev) => (prev ? { ...prev, coverImage: r.release?.coverImage ?? null } : prev))
+    } catch (e) {
+      console.error("reloadImages failed", e)
+    }
+  }, [id])
+
   const handleSave = async () => {
     if (!id) return
     setSaving(true)
@@ -743,6 +760,7 @@ const MediaDetailPage = () => {
     setSdCatalogNumber(release.catalogNumber || "")
     setSdBarcode(release.barcode || "")
     setSdDescription(release.description || "")
+    setSdCredits(release.credits || "")
     setSdArtistId(release.artistId || "")
     setSdArtistName(release.artist_name || "")
     setSdLabelId(release.labelId || "")
@@ -813,6 +831,7 @@ const MediaDetailPage = () => {
         catalogNumber: sdCatalogNumber || null,
         barcode: sdBarcode || null,
         description: sdDescription || null,
+        credits: sdCredits || null,
         format_v2: sdFormatV2 || null,
         format_descriptors: sdDescriptors,
         genres: sdGenres,
@@ -1116,55 +1135,14 @@ const MediaDetailPage = () => {
 
       {/* Image + Release Info */}
       <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: S.gap.xl, marginBottom: S.sectionGap }}>
-        {/* Cover Image */}
+        {/* Cover + Image-Galerie (rc52.6: Upload, Reorder, Set-Cover, Delete) */}
         <div>
-          {release.coverImage || images.length > 0 ? (
-            <div style={{ position: "relative", cursor: "pointer" }} onClick={() => setLightboxIndex(0)}>
-              <img
-                src={release.coverImage || images[0]?.url}
-                alt={release.title}
-                style={{ width: "100%", borderRadius: S.radius.lg, border: `1px solid ${C.border}`, aspectRatio: "1", objectFit: "cover" }}
-              />
-              {images.length > 1 && (
-                <span style={{
-                  position: "absolute", bottom: 8, right: 8,
-                  fontSize: 11, fontFamily: "monospace",
-                  background: "rgba(0,0,0,0.6)", color: "rgba(255,255,255,0.9)",
-                  padding: "2px 8px", borderRadius: 12, backdropFilter: "blur(4px)",
-                }}>
-                  1 / {images.length}
-                </span>
-              )}
-            </div>
-          ) : (
-            <div style={{
-              width: "100%", aspectRatio: "1", borderRadius: S.radius.lg,
-              background: C.card, border: `1px solid ${C.border}`,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 48, color: C.muted,
-            }}>
-              &#9835;
-            </div>
-          )}
-          {images.length > 1 && (
-            <>
-              <div style={{ ...T.small, marginTop: 8, marginBottom: 4 }}>{images.length} images</div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, maxHeight: 320, overflowY: "auto" }}>
-                {images.slice(1).map((img, i) => (
-                  <img
-                    key={img.id}
-                    src={img.url}
-                    alt=""
-                    style={{
-                      width: "100%", aspectRatio: "1", objectFit: "cover",
-                      borderRadius: S.radius.sm, border: `1px solid ${C.border}`, cursor: "pointer",
-                    }}
-                    onClick={() => setLightboxIndex(i + 1)}
-                  />
-                ))}
-              </div>
-            </>
-          )}
+          <ReleaseImageGallery
+            releaseId={id || ""}
+            images={images as GalleryImage[]}
+            onChanged={reloadImages}
+            onLightbox={(i) => setLightboxIndex(i)}
+          />
         </div>
 
         {/* Release Information Card */}
@@ -1340,6 +1318,17 @@ const MediaDetailPage = () => {
                 <div style={{ gridColumn: "1 / -1" }}>
                   <FieldLabel text="Description" field="description" />
                   <textarea value={sdDescription} onChange={(e) => setSdDescription(e.target.value)} rows={4} style={{ ...localInputStyle, resize: "vertical" }} />
+                </div>
+
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <FieldLabel text="Credits" field="credits" />
+                  <textarea
+                    value={sdCredits}
+                    onChange={(e) => setSdCredits(e.target.value)}
+                    rows={6}
+                    placeholder="z.B.&#10;Producer: Name&#10;Recorded at: Studio&#10;Mixed by: Engineer"
+                    style={{ ...localInputStyle, resize: "vertical", fontFamily: "monospace", fontSize: 12 }}
+                  />
                 </div>
 
                 <div>
