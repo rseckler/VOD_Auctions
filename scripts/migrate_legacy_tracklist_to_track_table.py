@@ -54,8 +54,8 @@ if not DB_URL:
 
 # Position-Marker für Pattern-2-Detect: A1/B2/.. oder reine Zahlen
 POSITION_RE = re.compile(r"^[A-Z]?\d+[a-z]?$")
-# Duration MM:SS oder M:SS oder H:MM:SS
-DURATION_RE = re.compile(r"^\d{1,2}:\d{2}(?::\d{2})?$")
+# Duration MM:SS oder M:SS oder H:MM:SS oder ":SS" (Discogs-Scrape stripped first digit)
+DURATION_RE = re.compile(r"^\d{0,2}:\d{2}(?::\d{2})?$")
 
 
 def gen_id(prefix: str = "track") -> str:
@@ -75,12 +75,16 @@ def is_duration(s: str) -> bool:
 
 def detect_pattern(items: list[dict]) -> str:
     """
-    Pattern 1: items haben title + (meistens) non-empty position.
-    Pattern 2: titles enthalten Position-Marker als eigenes Item — Discogs-
-               Scrape-Artefakt mit 3-Item-Bursts.
+    Pattern 1: items haben title + non-empty position. 1:1 Übernahme.
+    Pattern 2: Burst-Style — POS-Marker und/oder Duration-Strings als eigene
+               Title-Items (Discogs-Scrape-Artefakt). Tracks werden aus
+               aufeinanderfolgenden Items rekonstruiert.
 
-    Title-Marker dominieren: wenn Position-Marker als Title (>=2 Stück und
-    mindestens so viele wie position-Field-Werte) → pattern2. Sonst pattern1.
+    Heuristik: Pattern 2 greift wenn:
+      • >=2 POS-Markers als Title (klares Burst-Indiz), ODER
+      • >=1 POS-Marker UND >=1 Duration im Title (kurze Bursts wie Dan Lander), ODER
+      • >=20% der Titles sind Durations (Burst auch wenn position-Field gefüllt
+        ist, z.B. DK „Surface Tension")
     """
     if not items:
         return "empty"
@@ -89,10 +93,18 @@ def detect_pattern(items: list[dict]) -> str:
     pos_markers_in_title = sum(
         1 for i in items if is_position_marker((i.get("title") or "").strip())
     )
+    durations_in_title = sum(
+        1 for i in items if is_duration((i.get("title") or "").strip())
+    )
 
-    # Pattern 2 wenn Position-Marker im Title-Feld dominieren
+    # Pattern 2 — diverse Trigger
     if pos_markers_in_title >= 2 and pos_markers_in_title >= max(1, pos_in_pos_field):
         return "pattern2"
+    if pos_markers_in_title >= 1 and durations_in_title >= 1 and pos_in_pos_field <= pos_markers_in_title:
+        return "pattern2"
+    if durations_in_title >= max(2, n * 0.2):
+        return "pattern2"
+
     if pos_in_pos_field >= n * 0.5:
         return "pattern1"
     if pos_in_pos_field == 0 and pos_markers_in_title == 0:
@@ -114,27 +126,38 @@ def parse_pattern1(items: list[dict]) -> list[dict]:
 
 def parse_pattern2(items: list[dict]) -> list[dict]:
     """
-    3-Item-Burst Heuristik:
-      [pos-marker, optional artist (–prefix), title, optional duration]
-    Bursts werden durch nächste Position-Marker oder End-of-list begrenzt.
+    Dispatcher: wenn Mehrheit der position-Felder gefüllt ist, nutzen wir
+    diese als Track-Anker (DK „Surface Tension"-Style), sonst die Title-
+    POS-Marker (Anschluss/Dan-Lander-Style).
     """
-    out = []
+    n = len(items)
+    pos_in_pos_field = sum(1 for i in items if (i.get("position") or "").strip())
+    if n > 0 and pos_in_pos_field >= n * 0.5:
+        return _parse_pattern2_with_positions(items)
+    return _parse_pattern2_title_markers(items)
+
+
+def _parse_pattern2_title_markers(items: list[dict]) -> list[dict]:
+    """
+    Pattern2-Burst, position-Field leer:
+      [{pos:'', title:'A1'}, {pos:'', title:'–Artist'}, {pos:'', title:'TrackName'},
+       {pos:'', title:'3:45'}, {pos:'', title:'B1'}, ...]
+    Bursts werden durch POS-Marker im Title begrenzt.
+    """
+    out: list[dict] = []
     titles = [(i.get("title") or "").strip() for i in items]
     i = 0
     n = len(titles)
     while i < n:
-        # 1) Position-Marker
         if not is_position_marker(titles[i]):
             i += 1
             continue
         pos = titles[i]
         i += 1
-        # 2) optional Artist (– prefix)
         artist = None
         if i < n and titles[i].startswith("–"):
             artist = titles[i].lstrip("–").strip()
             i += 1
-        # 3) Title — alles bis zum nächsten Position-Marker oder Duration
         title_parts: list[str] = []
         duration: str | None = None
         while i < n and not is_position_marker(titles[i]):
@@ -150,11 +173,120 @@ def parse_pattern2(items: list[dict]) -> list[dict]:
             title = artist
             artist = None
         if not title:
-            # leere Burst überspringen
             continue
         full_title = f"{artist} – {title}" if artist else title
         out.append({"position": pos, "title": full_title, "duration": duration})
     return out
+
+
+def _parse_pattern2_with_positions(items: list[dict]) -> list[dict]:
+    """
+    Pattern2-Burst, position-Field gefüllt aber unsauber (z.B. DK):
+      [{pos:'1', title:'Urban Jungle'}, {pos:'3', title:':15'},
+       {pos:'2', title:'Scratched...'}, {pos:'3', title:':01'}, ...]
+    Heuristik: title-Items die wie Durations aussehen, hängen an den vorigen
+    Track an. position-Field-Werte werden als Track-Position genommen wenn
+    der Title kein Duration-String ist.
+    """
+    out: list[dict] = []
+    last: dict | None = None
+    for item in items:
+        pos_field = (item.get("position") or "").strip()
+        title = (item.get("title") or "").strip()
+        if not title:
+            continue
+        if is_duration(title):
+            if last is not None and not last.get("duration"):
+                last["duration"] = title
+            continue
+        # Echter Track-Title — position-Field nutzen falls da, sonst durchnummerieren
+        new_track = {
+            "position": pos_field or str(len(out) + 1),
+            "title": title,
+            "duration": None,
+        }
+        out.append(new_track)
+        last = new_track
+    return out
+
+
+# ─── Built-in tests gegen die problematischen Cases aus 1000-Lauf 2026-04-30 ─
+def _run_self_tests() -> int:
+    """Returns 0 if all tests pass, otherwise number of failures. Print details."""
+    tests = [
+        # legacy-release-11423 — Dan Lander (3 items: pos-marker + title + duration)
+        {
+            "name": "Dan Lander 3-burst",
+            "items": [
+                {"title": "1", "position": ""},
+                {"title": "Accommodation: Recordings From Home", "position": ""},
+                {"title": "26:17", "position": ""},
+            ],
+            "expected_pattern": "pattern2",
+            "expected_n_tracks": 1,
+            "expected_first": {"position": "1", "title": "Accommodation: Recordings From Home", "duration": "26:17"},
+        },
+        # legacy-release-11249 — DK Surface Tension (gefülltes position-Field + duration-titles)
+        {
+            "name": "DK Surface Tension burst-with-positions",
+            "items": [
+                {"title": "Urban Jungle Music", "position": "1"},
+                {"title": ":15", "position": "3"},
+                {"title": "Scratched My Face, So To Speak", "position": "2"},
+                {"title": ":01", "position": "3"},
+                {"title": "Floating In The Caribbean", "position": "3"},
+                {"title": ":12", "position": "5"},
+                {"title": "Radio Lung", "position": "4"},
+                {"title": ":03", "position": "4"},
+            ],
+            "expected_pattern": "pattern2",
+            "expected_n_tracks": 4,
+            "expected_first": {"position": "1", "title": "Urban Jungle Music", "duration": ":15"},
+        },
+        # legacy-release-10149 — Die Art (Pattern2 with title markers, all positions empty)
+        {
+            "name": "Die Art Pattern2 title-markers",
+            "items": [
+                {"title": "A1", "position": ""},
+                {"title": "Endlos", "position": ""},
+                {"title": "A2", "position": ""},
+                {"title": "Radio War", "position": ""},
+            ],
+            "expected_pattern": "pattern2",
+            "expected_n_tracks": 2,
+            "expected_first": {"position": "A1", "title": "Endlos", "duration": None},
+        },
+        # legacy-release-10576 — Max Goldt (sauberes Pattern1)
+        {
+            "name": "Max Goldt Pattern1 clean",
+            "items": [
+                {"title": "Nie Wieder Ischl", "position": "A1"},
+                {"title": "Kontakt Zu Jungen Leuten", "position": "A2"},
+            ],
+            "expected_pattern": "pattern1",
+            "expected_n_tracks": 2,
+            "expected_first": {"position": "A1", "title": "Nie Wieder Ischl", "duration": None},
+        },
+    ]
+    failures = 0
+    for t in tests:
+        pattern, parsed = parse_tracklist(t["items"])
+        ok_pattern = pattern == t["expected_pattern"]
+        ok_n = len(parsed) == t["expected_n_tracks"]
+        ok_first = (
+            parsed
+            and parsed[0].get("position") == t["expected_first"]["position"]
+            and parsed[0].get("title") == t["expected_first"]["title"]
+            and parsed[0].get("duration") == t["expected_first"]["duration"]
+        )
+        if ok_pattern and ok_n and ok_first:
+            print(f"  ✓ {t['name']}: pattern={pattern}, {len(parsed)} tracks")
+        else:
+            failures += 1
+            print(f"  ✗ {t['name']}:")
+            print(f"      expected pattern={t['expected_pattern']} n={t['expected_n_tracks']} first={t['expected_first']}")
+            print(f"      got      pattern={pattern} n={len(parsed)} first={parsed[0] if parsed else None}")
+    return failures
 
 
 def parse_tracklist(items: list[dict]) -> tuple[str, list[dict]]:
@@ -176,10 +308,17 @@ def main():
     parser.add_argument("--commit", action="store_true", help="Execute migration")
     parser.add_argument("--limit", type=int, default=0, help="Process only N releases (0=all)")
     parser.add_argument("--release-id", type=str, default=None, help="Single-release-Test")
+    parser.add_argument("--self-test", action="store_true", help="Run built-in parser tests + exit")
     args = parser.parse_args()
 
+    if args.self_test:
+        print("Running built-in parser tests:")
+        failures = _run_self_tests()
+        print(f"\n{'all pass' if failures == 0 else f'{failures} failures'}")
+        sys.exit(1 if failures else 0)
+
     if not args.dry_run and not args.commit:
-        print("Specify --dry-run or --commit", file=sys.stderr)
+        print("Specify --dry-run or --commit (or --self-test)", file=sys.stderr)
         sys.exit(2)
 
     pg = _ensure_psycopg2()
