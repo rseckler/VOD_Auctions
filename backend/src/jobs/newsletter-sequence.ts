@@ -20,7 +20,7 @@ export default async function newsletterSequence(container: MedusaContainer) {
       "id",
       "title",
       "subtitle",
-      "description",
+      "long_description as description",
       "slug",
       "status",
       "start_time",
