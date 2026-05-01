@@ -19,13 +19,13 @@ type LiveAuction = {
 type ServiceCheck = {
   name: string
   label: string
-  status: "ok" | "degraded" | "error" | "unconfigured"
+  status: "ok" | "degraded" | "warning" | "error" | "critical" | "insufficient_signal" | "unconfigured" | "rate_limited"
   message: string
   latency_ms: number | null
 }
 
 type SystemHealthData = {
-  summary: { total: number; ok: number; errors: number; unconfigured: number; degraded: number }
+  summary: { total: number; ok: number; errors: number; unconfigured: number; degraded: number; warning?: number; error?: number; critical?: number; insufficient_signal?: number }
   services: ServiceCheck[]
 }
 
@@ -154,16 +154,19 @@ function SystemHealthContent({ data, loading }: { data: SystemHealthData | null;
   }
 
   const { summary, services } = data
-  const allOk = summary.errors === 0 && summary.degraded === 0
-  const hasErrors = summary.errors > 0
-  const statusColor = hasErrors ? C.error : allOk ? C.success : C.warning
-  const statusText = `${summary.ok}/${summary.total} services OK`
+  // insufficient_signal is a non-firing severity (rc51.9.4) — degraded is informational
+  // (e.g. supabase_realtime in beta_test). Only warning/error/critical are real issues.
+  const issues = services.filter(
+    (s) => s.status === "warning" || s.status === "error" || s.status === "critical"
+  )
+  const hasErrors = issues.some((s) => s.status === "error" || s.status === "critical")
+  const hasWarnings = issues.some((s) => s.status === "warning")
+  const statusColor = hasErrors ? C.error : hasWarnings ? C.warning : C.success
+  const nonFiring = summary.ok + (summary.insufficient_signal ?? 0)
+  const statusText = `${nonFiring}/${summary.total} services healthy`
 
   // Display up to 9 services in the mini grid (show "important" ones first)
   const displayServices = services.slice(0, 9)
-
-  // Issues to warn about
-  const issues = services.filter((s) => s.status !== "ok" && s.status !== "unconfigured")
 
   return (
     <>
@@ -184,16 +187,20 @@ function SystemHealthContent({ data, loading }: { data: SystemHealthData | null;
           </div>
         ))}
       </div>
-      {/* Warning box for any non-ok service */}
-      {issues.map((s) => (
-        <div key={s.name} style={{
-          fontSize: 10, color: C.warning,
-          background: C.warning + "15", border: `1px solid ${C.warning}40`,
-          borderRadius: 4, padding: "4px 8px", marginBottom: 8,
-        }}>
-          ⚠ {s.label}: {s.message}
-        </div>
-      ))}
+      {/* Issue boxes — color by severity */}
+      {issues.map((s) => {
+        const isError = s.status === "error" || s.status === "critical"
+        const accent = isError ? C.error : C.warning
+        return (
+          <div key={s.name} style={{
+            fontSize: 10, color: accent,
+            background: accent + "15", border: `1px solid ${accent}40`,
+            borderRadius: 4, padding: "4px 8px", marginBottom: 8,
+          }}>
+            {isError ? "✕" : "⚠"} {s.label}: {s.message}
+          </div>
+        )
+      })}
     </>
   )
 }

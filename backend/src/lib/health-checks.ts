@@ -583,7 +583,7 @@ export const CHECKS: HealthCheckDefinition[] = [
     label: "Discogs API",
     category: "data_plane",
     check_class: "background",
-    severity_note: "ok if reachable with rate-limit-remaining > 30 · warning if 10-30 · error if < 10 or unreachable",
+    severity_note: "ok if remaining ≥ 40% of total · warning if 20-40% · error if < 20% or unreachable (Discogs unauth max = 25/min)",
     async run() {
       const start = Date.now()
       try {
@@ -595,10 +595,12 @@ export const CHECKS: HealthCheckDefinition[] = [
         const remaining = Number(r.headers.get("x-discogs-ratelimit-remaining") ?? NaN)
         const total = Number(r.headers.get("x-discogs-ratelimit") ?? NaN)
         const latency_ms = Date.now() - start
+        const ratio = Number.isFinite(remaining) && Number.isFinite(total) && total > 0 ? remaining / total : NaN
         const status: ServiceStatus =
           !Number.isFinite(remaining) ? "degraded" :
-          remaining < 10 ? "error" :
-          remaining < 30 ? "warning" :
+          !Number.isFinite(ratio) ? (remaining < 5 ? "error" : remaining < 10 ? "warning" : "ok") :
+          ratio < 0.20 ? "error" :
+          ratio < 0.40 ? "warning" :
           "ok"
         return {
           status,
