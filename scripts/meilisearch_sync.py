@@ -315,17 +315,26 @@ def fetch_all_rows(pg_conn):
 
 def fetch_delta_ids(pg_conn):
     """Phase 1 of chunked delta: cheap query returning only IDs of rows that
-    need reindex. Uses idx_release_search_indexed_at_null partial index for
-    the NULL branch; the LEFT JOIN + OR costs about 50-200ms on 52k rows.
+    need reindex. Uses idx_release_search_indexed_at_null partial index → ~4ms
+    on 52k rows.
+
+    Single-branch design (rc52.6.5+): the canonical reindex signal is
+    Release.search_indexed_at IS NULL — set by trigger_release_indexed_at_self
+    on whitelisted-field changes, by legacy_sync_v2.py explicit bumps, and by
+    every admin write-path. Older versions also OR'ed a LEFT JOIN to detect
+    orphan/state-stale cases, which forced a Seq Scan on Release+state (1.7s).
+    Those edge cases are now handled by:
+      • Orphan detect (Release without state row): meilisearch_drift_check.py
+        compares COUNT(*) against Meili every hour.
+      • State drift (state.indexed_at < release.search_indexed_at): not a
+        reindex signal at all — it just means a hash-unchanged path bumped
+        release.search_indexed_at without touching state. Harmless.
 
     Returns: list of Release.id strings, sorted for stable chunking."""
     sql = """
         SELECT r.id
         FROM "Release" r
-        LEFT JOIN meilisearch_index_state s ON s.release_id = r.id
         WHERE r.search_indexed_at IS NULL
-           OR s.release_id IS NULL
-           OR s.indexed_at < r.search_indexed_at
         ORDER BY r.id
     """
     cur = pg_conn.cursor()
