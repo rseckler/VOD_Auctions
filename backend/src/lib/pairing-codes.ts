@@ -21,7 +21,10 @@ export function generatePairingCode(): string {
   return `VOD-${groups.join("-")}`
 }
 
-const NORMALIZE_MAP: Record<string, string> = { "0": "O", "O": "0", "I": "1", "L": "1" }
+// Alphabet excludes both 0 AND O — beide sind ungültig, keine Normalisierung
+// (User-Tippfehler beim Code → 400, statt fälschlich auf einen falschen Code
+// zu mappen). I/L → 1 weil 1 die kanonische Wahl ist.
+const NORMALIZE_MAP: Record<string, string> = { "I": "1", "L": "1" }
 
 // User-Eingabe normalisieren: uppercase, Whitespace raus, häufige Verwechslungen
 // (0↔O, I↔1, L↔1) tolerieren — Crockford-Style. Entfernt VOD-Prefix wenn da.
