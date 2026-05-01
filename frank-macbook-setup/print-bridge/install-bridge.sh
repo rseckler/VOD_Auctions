@@ -16,6 +16,8 @@
 #   bash install-bridge.sh --printer-for ALPENSTRASSE=10.1.1.136 \
 #                          --printer-for EUGENSTRASSE=192.168.1.140 \
 #                          --default-location ALPENSTRASSE  # multi-printer mode
+#   bash install-bridge.sh --bridge-uuid <uuid>            # DB-Mode (Stage B+): lädt Config vom Backend
+#   bash install-bridge.sh --api-url https://...           # optional: override API-URL (default: api.vod-auctions.com)
 #   bash install-bridge.sh --dry-run                       # Test-Mode: kein echter Druck
 #   bash install-bridge.sh --uninstall                     # LaunchAgent entladen + löschen
 
@@ -54,11 +56,15 @@ MODE="install"
 PRINTERS_CODES=()
 PRINTERS_IPS=()
 DEFAULT_LOCATION="${VOD_PRINT_BRIDGE_DEFAULT_LOCATION:-}"
+BRIDGE_UUID="${VOD_BRIDGE_UUID:-}"
+BRIDGE_API_URL="${VOD_BRIDGE_API_URL:-https://api.vod-auctions.com}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --printer)      PRINTER_QUEUE="$2"; shift 2 ;;
     --printer-ip)   PRINTER_IP="$2"; shift 2 ;;
+    --bridge-uuid)  BRIDGE_UUID="$2"; shift 2 ;;
+    --api-url)      BRIDGE_API_URL="$2"; shift 2 ;;
     --printer-for)
       # Format: CODE=IP, z.B. ALPENSTRASSE=10.1.1.136
       pair="$2"
@@ -337,6 +343,8 @@ sed -e "s|__PYTHON_BIN__|$PYTHON_BIN|g" \
     -e "s|__LOG_PATH__|$LOG_PATH|g" \
     -e "s|__CERT_PATH__|$CERT_PATH|g" \
     -e "s|__KEY_PATH__|$KEY_PATH|g" \
+    -e "s|__BRIDGE_UUID__|$BRIDGE_UUID|g" \
+    -e "s|__BRIDGE_API_URL__|$BRIDGE_API_URL|g" \
     "$BRIDGE_DIR/com.vod-auctions.print-bridge.plist.template" > "$tmp_plist"
 
 # Validieren bevor wir schreiben

@@ -37,7 +37,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
 from urllib.parse import parse_qs, urlparse
 
-VERSION = "2.1.1"
+VERSION = "2.3.0"
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("VOD_PRINT_BRIDGE_PORT", "17891"))
 DEFAULT_PRINTER = os.environ.get("VOD_PRINT_BRIDGE_PRINTER", "Brother_QL_820NWB")
@@ -83,6 +83,20 @@ PRINTERS = _parse_printers_json(os.environ.get("VOD_PRINT_BRIDGE_PRINTERS_JSON",
 DEFAULT_LOCATION = os.environ.get("VOD_PRINT_BRIDGE_DEFAULT_LOCATION", "").strip().upper()
 MAX_BODY_BYTES = 10 * 1024 * 1024  # 10 MB hard cap pro Job
 
+# ─── Stage B: DB-Mode ─────────────────────────────────────────────────────────
+# Wenn VOD_BRIDGE_UUID gesetzt ist, holt die Bridge ihre Drucker-Config beim
+# Start vom Backend-API statt aus Env-Vars (DB-Mode). Fallback auf Env-Vars
+# wenn der API-Call fehlschlägt (graceful degradation).
+#
+# Frank/David: VOD_BRIDGE_UUID NICHT gesetzt → reines Env-Var-Mode (rc52-compat).
+# Kay/neue Macs: VOD_BRIDGE_UUID = ihre bridge_host.bridge_uuid aus der DB.
+BRIDGE_UUID = os.environ.get("VOD_BRIDGE_UUID", "").strip()
+BRIDGE_API_URL = os.environ.get("VOD_BRIDGE_API_URL", "https://api.vod-auctions.com").rstrip("/")
+
+# Gesetzt durch _load_config_from_api() beim Startup (wenn BRIDGE_UUID gesetzt).
+# "env" = Env-Var-Config aktiv, "api" = DB-Config geladen.
+CONFIG_SOURCE = "env"
+
 ADMIN_ORIGINS = {
     "https://admin.vod-auctions.com",
     "https://vod-auctions.com",
@@ -97,6 +111,93 @@ logging.basicConfig(
     stream=sys.stderr,
 )
 log = logging.getLogger("vod-print-bridge")
+
+
+def _load_config_from_api() -> bool:
+    """Fetch printer config from backend API using bridge_uuid (Stage B+).
+
+    On success: overwrites module-level PRINTERS, PRINTER_IP, PRINTER_MODEL,
+    LABEL_TYPE, DEFAULT_LOCATION, CONFIG_SOURCE globals.
+    On any failure: returns False, module-level vars unchanged (env-var fallback).
+
+    Pure stdlib — no pip deps.
+    """
+    import urllib.request
+    import urllib.error
+
+    global PRINTERS, PRINTER_IP, PRINTER_MODEL, LABEL_TYPE, DEFAULT_LOCATION, CONFIG_SOURCE
+
+    url = f"{BRIDGE_API_URL}/print/bridge-config?uuid={BRIDGE_UUID}"
+    log.info("DB-Mode: fetching config from %s", url)
+
+    try:
+        ctx = ssl.create_default_context()
+        req_obj = urllib.request.Request(
+            url, headers={"User-Agent": f"VODPrintBridge/{VERSION}"}
+        )
+        with urllib.request.urlopen(req_obj, timeout=8, context=ctx) as resp:
+            raw = resp.read()
+        data = json.loads(raw.decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        log.warning("DB-Mode: API returned HTTP %d — falling back to env vars", e.code)
+        return False
+    except urllib.error.URLError as e:
+        log.warning("DB-Mode: API unreachable (%s) — falling back to env vars", e.reason)
+        return False
+    except (json.JSONDecodeError, ValueError) as e:
+        log.warning("DB-Mode: invalid API response (%s) — falling back to env vars", e)
+        return False
+    except Exception as e:
+        log.warning("DB-Mode: unexpected error (%s: %s) — falling back to env vars", type(e).__name__, e)
+        return False
+
+    printers_raw: dict = data.get("printers") or {}
+    default_loc: str | None = data.get("default_location")
+
+    if not printers_raw:
+        log.warning("DB-Mode: API returned empty printers map — falling back to env vars")
+        return False
+
+    new_printers: dict[str, str] = {}
+    new_model = PRINTER_MODEL
+    new_label = LABEL_TYPE
+
+    for code, cfg in printers_raw.items():
+        if isinstance(cfg, dict) and cfg.get("ip"):
+            upper = code.strip().upper()
+            new_printers[upper] = cfg["ip"]
+            # Prefer model/label from default location; fall back to first entry
+            if upper == (default_loc or "").upper():
+                new_model = cfg.get("model") or new_model
+                new_label = cfg.get("label_type") or new_label
+
+    # If default location didn't match, take model/label from first printer
+    if new_model == PRINTER_MODEL and printers_raw:
+        first = next(iter(printers_raw.values()), {})
+        if isinstance(first, dict):
+            new_model = first.get("model") or new_model
+            new_label = first.get("label_type") or new_label
+
+    PRINTERS = new_printers
+    PRINTER_MODEL = new_model
+    LABEL_TYPE = new_label
+    DEFAULT_LOCATION = default_loc.strip().upper() if default_loc else DEFAULT_LOCATION
+
+    # Set PRINTER_IP so single-printer fallback (resolve_target_ip step 3) also works
+    if DEFAULT_LOCATION and DEFAULT_LOCATION in PRINTERS:
+        PRINTER_IP = PRINTERS[DEFAULT_LOCATION]
+    elif new_printers:
+        PRINTER_IP = next(iter(new_printers.values()))
+
+    CONFIG_SOURCE = "api"
+    log.info(
+        "DB-Mode: config loaded — %d printer(s), default=%s, model=%s, label=%s",
+        len(PRINTERS), DEFAULT_LOCATION or "none", PRINTER_MODEL, LABEL_TYPE,
+    )
+    for code, ip in sorted(PRINTERS.items()):
+        marker = " [default]" if code == DEFAULT_LOCATION else ""
+        log.info("  • %s → %s%s", code, ip, marker)
+    return True
 
 
 def list_cups_printers() -> list[dict]:
@@ -457,6 +558,8 @@ class BridgeHandler(BaseHTTPRequestHandler):
                     "dry_run": DRY_RUN,
                     "deps_ok": deps_ok,
                     "dep_error": dep_error,
+                    "config_source": CONFIG_SOURCE,
+                    "bridge_uuid": BRIDGE_UUID or None,
                 })
             # Default: cups-Backend
             printer = resolve_printer(DEFAULT_PRINTER)
@@ -591,6 +694,15 @@ def main() -> None:
         log.warning("TLS is OFF — Safari will block fetch() from https://admin.vod-auctions.com. "
                     "Install cert+key and set VOD_PRINT_BRIDGE_CERT / _KEY env vars. "
                     "Run frank-macbook-setup/print-bridge/install-bridge.sh to provision mkcert certs.")
+
+    # Stage B: DB-Mode — wenn VOD_BRIDGE_UUID gesetzt, Config aus API laden.
+    # Frank/David: kein BRIDGE_UUID → wird übersprungen, Env-Var-Config bleibt.
+    if BRIDGE_UUID:
+        log.info("DB-Mode: VOD_BRIDGE_UUID=%s…, API=%s", BRIDGE_UUID[:8], BRIDGE_API_URL)
+        if not _load_config_from_api():
+            log.warning("DB-Mode: API-Fetch fehlgeschlagen — weiter mit Env-Var-Config (graceful fallback)")
+    else:
+        log.info("Env-Var-Mode: VOD_BRIDGE_UUID nicht gesetzt — verwende Env-Var-Config (rc52-compat)")
 
     if BACKEND == "brother_ql":
         deps_ok, dep_err = _check_brother_ql_deps()

@@ -37,6 +37,10 @@
         <string>__CERT_PATH__</string>
         <key>VOD_PRINT_BRIDGE_KEY</key>
         <string>__KEY_PATH__</string>
+        <key>VOD_BRIDGE_UUID</key>
+        <string>__BRIDGE_UUID__</string>
+        <key>VOD_BRIDGE_API_URL</key>
+        <string>__BRIDGE_API_URL__</string>
         <key>PATH</key>
         <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     </dict>
