@@ -216,6 +216,33 @@ function ERPHub() {
 
       </div>
 
+      {/* Section: Hardware */}
+      <div style={{
+        fontSize: 11, fontWeight: 700, color: C.muted,
+        textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 12,
+      }}>
+        Hardware
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 14, marginBottom: 24 }}>
+
+        <HubCard
+          icon="🖨️"
+          title="Printers"
+          description="Manage Brother QL label printers per warehouse location. Test-print directly from the Admin UI."
+          href="/app/erp/printers"
+          actionLabel="Manage Printers →"
+        />
+
+        <HubCard
+          icon="💻"
+          title="Print Bridges"
+          description="Registered Mac Bridge hosts. Monitor online/offline status and manage per-Mac pairing."
+          href="/app/erp/bridges"
+          actionLabel="Manage Bridges →"
+        />
+
+      </div>
+
       {/* Section: Finance */}
       <div style={{
         fontSize: 11, fontWeight: 700, color: C.muted,

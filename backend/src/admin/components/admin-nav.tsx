@@ -146,6 +146,8 @@ const PARENT_HUB: Record<string, { label: string; href: string }> = {
   "/app/erp/shipping":   { label: "ERP",        href: "/app/erp" },
   "/app/erp/commission": { label: "ERP",        href: "/app/erp" },
   "/app/erp/tax":        { label: "ERP",        href: "/app/erp" },
+  "/app/erp/printers":   { label: "ERP",        href: "/app/erp" },
+  "/app/erp/bridges":    { label: "ERP",        href: "/app/erp" },
   "/app/waitlist":       { label: "Marketing",  href: "/app/marketing" },
 }
 

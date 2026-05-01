@@ -28,6 +28,17 @@ Die Bridge route per `/print?location=<CODE>` aus dieser JSON-Map zur passenden 
 | Brother QL-820NWB | Alpenstraße | `ALPENSTRASSE` | `10.1.1.136` | QL-820NWB |
 | Brother QL-820NWB | Eugenstraße | `EUGENSTRASSE` | `192.168.1.124` | QL-820NWB |
 
+**Aktive Macs / geplante Skalierung (2026-05-01):**
+
+| Mac | Person | Form-Faktor | Standort | Status |
+|---|---|---|---|---|
+| Frank-Mac-Studio | Frank | Mac Studio | Alpenstraße (stationär) | aktiv |
+| David-MBA | David | MacBook Air | variabel | aktiv |
+| Kays-MBA | Kay | MacBook Air | variabel | geplant |
+| (Person 4)-MBA | (TBD) | MacBook Air | variabel | geplant |
+
+→ Bei MBAs ist der Standort **per Session variabel** (Toolbar-Switcher), nicht per Mac-Identität fix. Damit wird die n:m-Realität "M Macs × N Drucker" mit unabhängiger Lebensdauer beider Seiten zur Pflicht — siehe §13 für das Datenmodell und §14 für das Onboarding über UI.
+
 **Schmerzen die wir hatten in rc52:**
 
 1. Frank legt `warehouse_location` mit Code `EGSTR57/2` an, ich bake Bridge mit `EUGENSTRASSE` → stilles Mismatch, Lagerort defaultet falsch (Drift-Banner gefixt, aber das Symptom hätte nie auftreten dürfen)
@@ -501,17 +512,16 @@ Keine SSH-Aktion auf irgendeinem Mac nötig. Erste echte Reduktion von Ops-Aufwa
 | Phase | Effort | Wert | Kann später? |
 |---|---|---|---|
 | **Phase 0** Token-Provisioning | 1h | Voraussetzung | nein |
-| **Phase 1** DB + Admin-CRUD | 1-2d | Zentraler View, **Drift bleibt** | wenn nur 2 Standorte: ja, aber Phase 2 baut darauf |
+| **Phase 1** DB + Admin-CRUD (Drucker) | 1-2d | Zentraler View, **Drift bleibt** | wenn nur 2 Standorte: ja, aber Phase 2 baut darauf |
 | **Phase 2** Bridge-Fetch + Cache | 1-2d | **Drift eliminiert**, IP-Drift selbstheilend | sehr empfohlen wenn 3+ Standorte |
+| **Phase 2.5** Multi-Mac-Modell + Pairing-UI (§13/§14) | 2-3d | Kay/Person-4-Onboarding ohne SSH, Audit-Trail pro Mac, mobile-MBA-Pattern | **Pflicht** sobald >2 Macs aktiv (Stand 2026-05-01: trifft schon jetzt zu mit Frank/David, wird mit Kay akut) |
 | **Phase 3** Live-Status + Push | 2-3d | Operations-Komfort | erst bei echtem Bedarf |
 
-**Empfehlung Stand 2026-04-27:**
+**Empfehlung Stand 2026-05-01:**
 
-Robin/Frank haben gerade rc52 erfolgreich deployed mit 2 Standorten + Drift-Banner. Aktuell tut nichts weh. Phase 1+2 lohnen erst wenn ein 3. Standort konkret ansteht (Werkstatt? Lager-Erweiterung? Pop-Up bei Festivals?). Dann ist die manuelle 3-Mac-Reinstall-Reibung das Trigger-Event für die Implementierung.
+Mit der Aussicht auf 4 Macs (2 aktiv, 2 in Pipeline) ist die Reinstall-via-SSH-Reibung jetzt das Trigger-Event. Kay onzuboarden ohne Pairing-UI heißt: Robin baut SSH-Zugang zu Kays MBA auf, läuft `install-bridge.sh` mit shared Token, dokumentiert manuell. Bei der 4. Person wiederholt sich das. Phase 1+2+2.5 sollten als ein Bundle kommen — Datenmodell ohne Mac-Awareness ist eine Halb-Lösung wenn 4 Macs realistisch sind.
 
-**Trigger-Kriterium:** 3. Standort konkret in Planung (z.B. Mietvertrag unterzeichnet, MAC-Adresse des dritten Druckers bekannt).
-
-Bis dahin: Konzept liegt griffbereit, nichts zu tun.
+**Trigger-Kriterium (revidiert):** *erfüllt.* Empfehlung: Bundle Phase 0+1+2+2.5 (~5-7 Tage) **vor** Kays Onboarding. Phase 3 (Live-Status) bleibt fakultativ.
 
 ---
 
@@ -524,11 +534,10 @@ Bis dahin: Konzept liegt griffbereit, nichts zu tun.
    - DB-Spalte `manufacturer` macht es offen, aber Bridge unterstützt heute nur `brother_ql`. Wenn POS-Belegdrucker dazukommt (z.B. Star Micronics ESC/POS), brauchen wir entweder einen 2. Bridge-Backend (`escpos`-Library) oder ein anderes Setup. Nicht in Phase 1+2.
    - Empfehlung: Spalte offen lassen, aber Bridge-Code nur `Brother + QL-*` initial. Erweiterung später.
 
-3. **Token-Rotation-Strategie:**
+3. **Token-Rotation-Strategie:** *(revidiert 2026-05-01 wegen geplanter 4-Mac-Skalierung)*
    - Heute (rc52): keine, plist hat keinen Token
-   - Phase 2: ein gemeinsamer Token, jährliche Rotation
-   - Strenger: per-Mac-Token mit individueller Sperrung möglich
-   - Empfehlung: Single Token + 1-Jahres-Rotation reicht, wenig Angriffsfläche (lokales Netzwerk)
+   - **Phase 2.5 (jetzt empfohlen):** per-Mac-Token via Pairing-Flow (§14) — bei verlorenem MBA kann ein einzelner Token ohne Reinstall der anderen Macs revoked werden
+   - Single-shared-Token-Modell aus §5.2 wird in §13/§14 ersetzt; §5.2-Beschreibung gilt nur für die rc52→Phase-2-Übergangsperiode
 
 4. **`use_for: ["labels", "receipts"]` — schon jetzt modellieren?**
    - Pro: future-proof, billig
@@ -584,4 +593,405 @@ Bis dahin: Konzept liegt griffbereit, nichts zu tun.
 
 ---
 
-**Autor-Notiz:** Dieser Konzept-Doc ist bewusst ohne Code geschrieben — Implementierung erst wenn ein 3. Standort konkret ansteht. Bis dahin liegt er als Plan griffbereit.
+## 13. Multi-Mac-Modell (Phase 2.5)
+
+**Motivation:** Bisher §1–§12 modellieren nur Drucker und Standorte. Macs/Bridges sind dort Stateless-Konsumenten — die `bridge_uuid` existiert nirgends, der Token ist shared, Heartbeat optional in Phase 3. Mit 4 geplanten Macs und mobilen MBAs (variabler Standort pro Session) wird die Mac-Identität zur First-Class-Entität.
+
+### 13.1 Datenmodell — Tabelle `bridge_host`
+
+```sql
+CREATE TABLE bridge_host (
+  id text PRIMARY KEY,                              -- ULID (generateEntityId)
+
+  -- Identität (vom Mac generiert beim allerersten install-bridge.sh)
+  bridge_uuid text UNIQUE NOT NULL,                 -- 32-byte hex random, persistiert auf
+                                                    -- Mac in ~/.local/lib/vod-print-bridge/bridge_id
+                                                    -- (chmod 600). Überlebt Token-Rotation.
+
+  -- Auth (per-Mac, ersetzt das shared BRIDGE_API_TOKEN aus §5.2)
+  api_token_hash text NOT NULL,                     -- sha256 des aktuellen Bearer-Tokens
+                                                    -- Klartext nur 1× zurückgegeben (beim Pair/Rotate)
+  api_token_issued_at timestamptz NOT NULL,
+  api_token_revoked_at timestamptz,                 -- NULL = aktiv
+
+  -- Beschriftung in der Admin-UI
+  person_label text NOT NULL,                       -- "Frank", "David", "Kay" — wer arbeitet damit
+  display_name text NOT NULL,                       -- "Frank-Mac-Studio" / "Davids MBA"
+  notes text,
+
+  -- Standort-Verhalten
+  is_mobile boolean NOT NULL DEFAULT false,         -- true = MBA, Standort variabel pro Session
+                                                    -- false = stationär (Mac Studio etc.)
+  default_location_id text REFERENCES warehouse_location(id),
+                                                    -- bei is_mobile=true typisch NULL → Toolbar-Pflicht
+                                                    -- bei is_mobile=false der physische Standort
+
+  -- Heartbeat-Telemetrie (in §13.3)
+  hostname text,                                    -- macOS hostname, z.B. "Frank-Mac-Studio.local"
+  mac_address text,                                 -- Wifi-MAC, für DHCP-Doku + Geräte-Identifikation
+  platform text,                                    -- "macOS 26.4 (arm64)"
+  bridge_version text,                              -- z.B. "2.3.0"
+  last_known_ip text,
+  last_seen_at timestamptz,                         -- Heartbeat-Update alle 5min
+  last_print_at timestamptz,                        -- vom Bridge-`/print`-Endpoint gemeldet
+  last_location_used text,                          -- letzter genutzter location_code
+
+  -- Lifecycle
+  paired_at timestamptz NOT NULL DEFAULT now(),
+  paired_by_admin_id text,                          -- FK auf admin user, wer hat genehmigt
+  is_active boolean NOT NULL DEFAULT true,          -- soft-disable
+
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_bridge_host_active ON bridge_host(is_active, last_seen_at DESC);
+CREATE INDEX idx_bridge_host_uuid ON bridge_host(bridge_uuid) WHERE is_active;
+```
+
+**Beziehung zu `printer` und `warehouse_location`:**
+
+```
+bridge_host.default_location_id ──► warehouse_location.id  (nullable, optional)
+                                          ▲
+                                          │
+                                  printer.warehouse_location_id
+
+(Keine direkte FK von bridge_host zu printer — n:m bleibt
+ implizit über location_code. Kein Mac "besitzt" Drucker.)
+```
+
+### 13.2 Stationär vs. mobil — UI-Pattern
+
+`is_mobile` steuert das Verhalten des Toolbar-📍-Switchers im Frontend:
+
+| Mac-Typ | `is_mobile` | `default_location_id` | 📍-Switcher zeigt | Pre-Selected |
+|---|---|---|---|---|
+| Frank-Mac-Studio | `false` | `ALPENSTRASSE` | nur Alpenstraße + "Override anderen Standort" | Alpenstraße |
+| Davids MBA (heute) | `true` | `EUGENSTRASSE` (bevorzugt) | alle Standorte | Eugenstraße als Hint, aber nicht-sticky |
+| Kays MBA | `true` | `NULL` | alle Standorte | nichts — Kay muss aktiv wählen |
+
+→ Robin/Frank wussten in rc52 noch nicht, dass MBAs den Standort wechseln. Der Switcher zeigt heute den Effective-Default an, schreibt aber nicht ungefragt localStorage (siehe `feedback_print_location_switcher_default`). In Phase 2.5 wird dieser Pattern formalisiert: bei `is_mobile=true` ist localStorage-Persist pro-Session statt pro-Mac.
+
+**Fallback ohne Auswahl:**
+- `is_mobile=false` + `default_location_id` gesetzt → druckt am Default
+- `is_mobile=true` + Toolbar nicht gewählt → 503 mit Liste verfügbarer Locations (UI promptet zur Auswahl)
+- Robustes Fail-Closed: nie auf einem fremden Drucker rauskommen
+
+### 13.3 Heartbeat-Endpoint
+
+```
+POST /api/print/bridges/heartbeat
+  Authorization: Bearer <PER_MAC_API_TOKEN>
+  Body: {
+    "bridge_uuid": "01HK9...",
+    "hostname": "David-MBA.local",
+    "platform": "macOS 26.4 (arm64)",
+    "bridge_version": "2.3.0",
+    "ip_address": "192.168.1.45",
+    "last_print_at": "2026-05-01T09:14:23Z",      // null wenn nie
+    "last_location_used": "EUGENSTRASSE"
+  }
+
+  Response: {
+    "ok": true,
+    "config_version": 17,                          // Hinweis dass /printers neu zu fetchen ist
+    "force_token_rotation": false                  // Admin kann Rotation forcen
+  }
+```
+
+- Frequenz: alle 5 Minuten von der Bridge
+- Backend updated `last_seen_at` und Telemetrie-Felder, lookup via `bridge_uuid`
+- Stale-Detection: `last_seen_at < NOW() - INTERVAL '30 minutes'` → UI-Status orange; `< 24h` → rot
+- Audit-Trail: bei `last_print_at`-Bump optional Eintrag in zukünftigem `print_log` (Phase 3, nicht in 2.5)
+
+### 13.4 Token-Rotation pro Mac
+
+- Admin in `/app/erp/bridges/:id` klickt **„Token rotieren"**
+- Backend setzt `api_token_revoked_at = NOW()` für aktiven Token, generiert neuen, gibt ihn 1× im Modal zurück
+- Bridge auf Mac muss neu pairen (siehe §14) ODER Admin pushed Token via SSH:
+  ```bash
+  ssh user@kays-mba "VOD_BRIDGE_API_TOKEN=NEU bash ~/install-bridge.sh --update-token"
+  ```
+- Verlorenes MBA: Token rotieren + Soft-Disable (`is_active=false`) — ohne andere Macs anzufassen
+
+### 13.5 Erweiterung von §5.2 — Bridge-Fetch mit per-Mac-Token
+
+Die Beschreibung in §5.2 (`shared BRIDGE_API_TOKEN`) wird durch §13/§14 ersetzt. Konkret:
+
+```
+GET /api/print/printers
+  Authorization: Bearer <PER_MAC_API_TOKEN>
+
+  Response: {
+    "version": 17,                                 // increments bei jeder /admin/erp/printers Mutation
+    "fetched_at": "...",
+    "printers": [...],                             // wie §5.2
+    "bridge": {
+      "id": "01ABC...",
+      "person_label": "Frank",
+      "is_mobile": false,
+      "default_location_code": "ALPENSTRASSE",
+      "config_version_acknowledged": 17
+    }
+  }
+```
+
+Backend identifiziert per Token-Hash → `bridge_host`-Row → enricht Response mit Mac-Kontext. So weiß die Bridge welche `default_location` für sie gilt, und das Frontend (über die Bridge `/health`) weiß ob es mobile-Pattern oder stationary-Pattern rendern soll.
+
+### 13.6 Migration aus rc52 / Phase-2-Vorgängern
+
+Wenn Phase 2 schon mit shared Token live ist:
+1. `bridge_host`-Tabelle anlegen, eine Row pro existierendem Mac manuell vom Admin angelegt (mit `bridge_uuid` aus dem Mac, abgefragt via `cat ~/.local/lib/vod-print-bridge/bridge_id`)
+2. Per-Mac-Token generieren, jedem Mac via `install-bridge.sh --update-token` zugewiesen
+3. Shared Token deaktivieren (Backend-Endpoint rejected es)
+4. Backwards-Compat: 14 Tage Grace-Period in der Bridge-Auth (akzeptiert beide), dann hard-cutover
+
+Wenn direkt von rc52 → Phase 2.5: nichts zu migrieren — alle Macs werden via §14 gepairt.
+
+---
+
+## 14. Mac-Onboarding über die Oberfläche (Phase 2.5)
+
+**Ziel:** Kay kommt mit seinem MBA an, Frank/Robin pairen ihn in 60 Sekunden über die Admin-UI ohne SSH, ohne 1Password-Token-Sharing, ohne Robin's Mac.
+
+### 14.1 Pairing-Flow (Sicht des Admins)
+
+```
+┌─ Macs / Bridges ─────────────────────────── [+ Neuen Mac pairen] ──┐
+│                                                                    │
+│ Bridges · 2 aktiv · 1 wartend                                      │
+│                                                                    │
+│ ┌────────────────────────────────────────────────────────────────┐ │
+│ │ Person   Hostname              Default-Lager   Mobile  Status │ │
+│ ├────────────────────────────────────────────────────────────────┤ │
+│ │ Frank    Frank-Mac-Studio      ALPENSTRASSE    ✗       ●      │ │
+│ │ David    David-MBA             EUGENSTRASSE    ✓       ●      │ │
+│ │ Kay      —                     —               ✓       ⏳     │ │
+│ │                                                pairing pending  │ │
+│ └────────────────────────────────────────────────────────────────┘ │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+**Klick auf „+ Neuen Mac pairen":**
+
+```
+┌─ Neuen Mac pairen ─────────────────────────────────────────────────┐
+│                                                                    │
+│ Person:           [Kay                                           ] │
+│ Display-Name:     [Kays MBA                                      ] │
+│ Mobil (Standort variabel):  [✓]                                    │
+│ Default-Standort: [— bei mobilen Macs leer lassen —            ▼] │
+│ Notizen:          [                                              ] │
+│                                                                    │
+│ [Pairing-Code generieren]   [Abbrechen]                            │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+**Nach Klick:**
+
+```
+┌─ Pairing-Code für Kay ─────────────────────────────────────────────┐
+│                                                                    │
+│  ╔════════════════════════════════════════════╗                    │
+│  ║                                            ║                    │
+│  ║       VOD-A7K9-3MX2-N8PQ                   ║   gültig: 29:54   │
+│  ║                                            ║                    │
+│  ╚════════════════════════════════════════════╝                    │
+│                                                                    │
+│ Auf Kays MBA:                                                      │
+│                                                                    │
+│   curl -fsSL https://api.vod-auctions.com/install-bridge.sh \      │
+│     | bash -s -- --pair                                            │
+│                                                                    │
+│ → Skript fragt nach Code → Kay tippt VOD-A7K9-3MX2-N8PQ            │
+│ → Diese Seite zeigt automatisch ✓ wenn fertig (Auto-Refresh 5s)    │
+│                                                                    │
+│                                  [Code kopieren]  [Abbrechen]      │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+Sobald Kays MBA gepairt hat, flippt der Status in der Liste auf grün und der Detail-View zeigt Hostname/MAC/Version.
+
+### 14.2 Pairing-Token-Tabelle
+
+```sql
+CREATE TABLE bridge_pairing_token (
+  id text PRIMARY KEY,
+  pairing_code text UNIQUE NOT NULL,                -- z.B. "VOD-A7K9-3MX2-N8PQ"
+                                                    -- Crockford-Base32, 12 Chars (ohne 0/O/I/L),
+                                                    -- ~60 bit Entropie, 4er-Gruppen für Lesbarkeit
+
+  -- Pre-fill für die zu erzeugende bridge_host-Row
+  person_label text NOT NULL,
+  display_name text NOT NULL,
+  is_mobile boolean NOT NULL DEFAULT false,
+  default_location_id text REFERENCES warehouse_location(id),
+  notes text,
+
+  -- Lifecycle
+  expires_at timestamptz NOT NULL,                  -- now() + INTERVAL '30 minutes'
+  used_at timestamptz,                              -- NULL = unused, gesetzt beim Pair
+  used_by_bridge_uuid text,                         -- der bridge_uuid der erfolgreich gepaired hat
+  created_at timestamptz NOT NULL DEFAULT now(),
+  created_by_admin_id text NOT NULL
+);
+
+CREATE INDEX idx_pairing_active ON bridge_pairing_token(pairing_code)
+  WHERE used_at IS NULL AND expires_at > now();
+```
+
+### 14.3 Endpoints
+
+```
+POST /admin/erp/bridges/pairing-tokens
+  cookie-auth (Admin)
+  Body: { person_label, display_name, is_mobile, default_location_id?, notes? }
+  Response: { pairing_code, expires_at, token_id }
+
+GET /admin/erp/bridges/pairing-tokens/:id
+  Response: { status: "pending"|"consumed"|"expired", bridge_host_id? }
+  → Frontend polled das alle 5s während Modal offen
+
+POST /api/print/bridges/pair                     ← öffentlich erreichbar, kein Bearer
+  Body: {
+    "pairing_code": "VOD-A7K9-3MX2-N8PQ",
+    "bridge_uuid": "01HK9...",                    // vom Mac generiert
+    "hostname": "Kays-MBA.local",
+    "mac_address": "aa:bb:cc:dd:ee:ff",
+    "platform": "macOS 26.4 (arm64)",
+    "bridge_version": "2.3.0"
+  }
+  Response: {
+    "api_token": "<32-byte-hex>",                 // Klartext, nur 1×
+    "bridge_host_id": "01ABC...",
+    "default_location_code": null,
+    "printer_seed": [...]                         // initial-Cache, identisch zu /api/print/printers
+  }
+
+  Backend-Logik:
+  1. SELECT FOR UPDATE auf bridge_pairing_token WHERE pairing_code=$1 AND used_at IS NULL AND expires_at > now()
+  2. Wenn nicht gefunden → 404
+  3. INSERT bridge_host mit den Pre-fill-Feldern + bridge_uuid + hostname + mac
+  4. Generate api_token (32 byte random hex), hash + store
+  5. UPDATE bridge_pairing_token SET used_at=now(), used_by_bridge_uuid=$2
+  6. Return Klartext-Token + Seed
+
+POST /admin/erp/bridges/:id/rotate-token
+  cookie-auth (Admin)
+  Response: { api_token: "<new-clear>" }
+
+PATCH /admin/erp/bridges/:id
+  cookie-auth (Admin)
+  Body: { person_label?, display_name?, is_mobile?, default_location_id?, notes?, is_active? }
+
+DELETE /admin/erp/bridges/:id                    → soft-delete (is_active=false + revoke token)
+```
+
+### 14.4 `install-bridge.sh --pair` (neuer Modus)
+
+```bash
+#!/bin/bash
+# Auszug — neue --pair-Logik
+
+if [[ "$1" == "--pair" ]]; then
+  # 1. Existierenden bridge_uuid wiederverwenden falls vorhanden,
+  #    sonst neu generieren
+  BRIDGE_ID_FILE="$HOME/.local/lib/vod-print-bridge/bridge_id"
+  if [[ -f "$BRIDGE_ID_FILE" ]]; then
+    BRIDGE_UUID=$(cat "$BRIDGE_ID_FILE")
+  else
+    BRIDGE_UUID=$(python3 -c "import secrets; print(secrets.token_hex(16))")
+    mkdir -p "$(dirname "$BRIDGE_ID_FILE")"
+    echo "$BRIDGE_UUID" > "$BRIDGE_ID_FILE"
+    chmod 600 "$BRIDGE_ID_FILE"
+  fi
+
+  # 2. Pairing-Code abfragen
+  read "PAIRING_CODE?Pairing-Code (Format VOD-XXXX-XXXX-XXXX): "
+  # ↑ zsh-syntax für macOS-Default-Shell
+
+  # 3. Telemetrie sammeln
+  HOSTNAME=$(hostname)
+  MAC_ADDRESS=$(ifconfig en0 | awk '/ether/{print $2}')
+  PLATFORM="macOS $(sw_vers -productVersion) ($(uname -m))"
+  BRIDGE_VERSION="2.3.0"
+
+  # 4. POST /api/print/bridges/pair
+  RESPONSE=$(curl -fsS -X POST https://api.vod-auctions.com/api/print/bridges/pair \
+    -H "Content-Type: application/json" \
+    -d "{\"pairing_code\":\"$PAIRING_CODE\",\"bridge_uuid\":\"$BRIDGE_UUID\",\"hostname\":\"$HOSTNAME\",\"mac_address\":\"$MAC_ADDRESS\",\"platform\":\"$PLATFORM\",\"bridge_version\":\"$BRIDGE_VERSION\"}")
+
+  API_TOKEN=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['api_token'])")
+  DEFAULT_LOC=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('default_location_code') or '')")
+
+  # 5. plist schreiben (LaunchAgent), Cache-Seed schreiben, Bridge starten
+  install_plist_with_token "$API_TOKEN" "$DEFAULT_LOC"
+  write_printer_cache_seed "$RESPONSE"
+  launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.vod-auctions.print-bridge.plist
+fi
+```
+
+Idempotenz: wenn `bridge_id` schon existiert (Re-Pair nach Token-Rotation), wird derselbe `bridge_uuid` gesendet → Backend matched die existierende `bridge_host`-Row und rotiert nur den Token statt eine neue Row zu erzeugen.
+
+### 14.5 Sicherheits-Profil
+
+| Aspekt | Maßnahme |
+|---|---|
+| Pairing-Code-Bruteforce | Crockford-Base32, 12 Chars = 32^12 ≈ 1.2 × 10^18 Möglichkeiten. Plus Rate-Limit auf `/api/print/bridges/pair`: 5/min/IP, 50/min global. Plus 30min-TTL. Praktisch unattackbar. |
+| Verlorenes MBA | Admin: `is_active=false` + Token-Revoke → Mac kann weder fetchen noch heartbeaten noch drucken |
+| MITM während Pair | TLS auf api.vod-auctions.com Pflicht (existiert), Pairing-Code + bridge_uuid sind Einmal-Werte, ein gestohlener Code ist nach 30 min wertlos |
+| Token-Leak in plist | plist liegt in `~/Library/LaunchAgents/`, chmod 600. Bridge-UUID liegt chmod 600. Kein Klartext-Token im Backend (nur sha256-hash) |
+| Bridge-Token-Reuse zwischen Macs | Nicht möglich — Token + bridge_uuid sind im Backend gepaart, fremder bridge_uuid mit korrektem Token wird abgewiesen |
+| Pairing-Code in Slack/Mail | Funktional erlaubt (Admin-Wahl), aber TTL 30 min limitiert Schaden. Best Practice: Code im persönlichen Gespräch / 1Password Item Sharing |
+
+### 14.6 Edge-Cases
+
+1. **Mac-Reset / Re-install:** alter `bridge_id` ist weg → neuer `bridge_uuid` → muss erneut pairen. Admin sieht zwei Rows mit gleichem `person_label` ("Kay-alt", "Kay-neu") → alte soft-disablen.
+
+2. **Re-Pair eines existierenden Macs (z.B. Token komplett verloren):** wenn `~/.local/lib/vod-print-bridge/bridge_id` noch da ist und derselbe `bridge_uuid` mit neuem Pairing-Code kommt → Backend updated existierende Row, generiert neuen Token, alte `bridge_pairing_token`-Row wird verbraucht. Kein Duplikat.
+
+3. **Pairing-Token bleibt unbenutzt:** läuft nach 30 min ab. Admin kann erneut "Pairing-Code generieren" auf derselben Pre-fill-Form. Alte Token-Row bleibt zur Audit, ist aber nicht mehr verwendbar.
+
+4. **Mac wechselt physisch zwischen Personen:** UI erlaubt `PATCH person_label`. `bridge_uuid` bleibt gleich, Audit-Trail zeigt den Wechsel über `updated_at` + Audit-Log (Phase 3).
+
+5. **MBA fährt zwischen Standorten:** kein Pair-Event nötig. Toolbar-Switcher reicht. `last_location_used` aus Heartbeat tracked die Drift.
+
+### 14.7 Was das nicht löst
+
+- **Nicht-LAN-Drucker:** wenn Kay seinen MBA nach Hause nimmt und der Eugenstraße-Drucker nicht erreichbar ist, druckt es nicht. Toolbar-Switcher kann zu einem nicht-erreichbaren Standort wechseln → Bridge meldet `printer_unreachable`. UI muss das im 📍-Switcher klar kommunizieren (z.B. "EUGENSTRASSE • offline" wenn Heartbeat-Reachability ausgegraut). Phase 3 / nicht in 2.5.
+- **Drucken vom Storefront aus (Kunde druckt selbst):** weiterhin nicht. Bleibt Backend-orchestriert.
+- **Cross-Mac-Druck:** Frank's Mac sendet Job an Kays MBA's Bridge. Nicht implementiert, kein Use-Case bekannt.
+
+---
+
+## 15. Sichere Einführung — Strangler-Pattern in 7 Stages
+
+**Problem:** Frank druckt jeden Tag Etiketten, ein Mittwoch-Mittag-Ausfall ist nicht akzeptabel. Big-Bang-Migration ist tabu.
+
+**Lösung:** Bridge bleibt **dual-mode** während des gesamten Rollouts. Kay onboardet als erster auf dem neuen System, soakt 1-2 Wochen, **dann** erst werden Frank/David migriert. An jedem Punkt ist Rollback in <2 Minuten möglich.
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│                                                                    │
+│   A   B   C   D ───── soak 1-2 Wochen ─────► E   F   (G optional) │
+│   │   │   │   │                              │   │                │
+│   DB  Bridge Pair  Kay-Pilot                Frank David  Cleanup  │
+│                                                                    │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+**Kernprinzip pro Stage:**
+- Stages A-C: Backend/Bridge-Updates, **Frank/David sind nicht angefasst** und merken nichts
+- Stage D: Kay isoliert auf neuem Modus, Frank/David weiter im rc52-Modus
+- Stage E/F: Cutover-Momente — Opus-Modell, ruhige Tagesstunden, Robin live dabei, Rollback-Snippet parat
+
+**Modell-Empfehlung:** Sonnet 4.6 für Pattern-Arbeit (A, B, D, F, G), Opus 4.7 für Sicherheits-Code (C) und Cutover-Stunden (E).
+
+**Notfall-Schalter:** zwei Feature-Flags in `site_config.features` — `pairing_enabled` und `printer_db_fetch_enabled`. Beide sind im laufenden System ohne Bridge-Reinstall toggleable.
+
+→ **Vollständiger abhakbarer Rollout-Plan mit Pre-Flight-Checks, Rollback-Snippets pro Stage, Post-Cutover-Verifikation:** [`docs/runbooks/MAC_ONBOARDING_ROLLOUT.md`](../runbooks/MAC_ONBOARDING_ROLLOUT.md)
+
+---
+
+**Autor-Notiz:** Dieser Konzept-Doc ist bewusst ohne Code geschrieben — Implementierung (jetzt revidiert auf Phase 0+1+2+2.5 als Bundle) ansteht sobald Kays MBA-Onboarding terminiert wird. §13/§14 wurden 2026-05-01 ergänzt nachdem klar wurde dass 4 Macs realistisch sind und mobile MBAs den Standort pro Session wechseln. §15 + Runbook wurden 2026-05-01 ergänzt nach Robins Bedenken um den laufenden Druckbetrieb.
