@@ -1,6 +1,7 @@
 import { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { sendBidEndingSoonEmail } from "../lib/email-helpers"
+import { getSiteConfig } from "../lib/site-config"
 import { BidEndingReminderType } from "../emails/bid-ending-soon"
 
 // Time windows: send reminder when lot_end_time is within this range from now.
@@ -20,19 +21,16 @@ export default async function bidEndingReminder(container: MedusaContainer) {
   const pgConnection = container.resolve(
     ContainerRegistrationKeys.PG_CONNECTION
   )
+
+  // Gate: only run when explicitly enabled AND platform is live. In beta_test
+  // there are no real bidders, so even with the flag on we don't want to send.
+  // Tracking table is provisioned via migration 2026-05-01_bid_ending_reminder_table.sql.
+  const siteConfig = await getSiteConfig(pgConnection)
+  if (!siteConfig.bid_ending_reminders_enabled || siteConfig.platform_mode !== "live") {
+    return
+  }
+
   const now = new Date()
-
-  // Ensure tracking table exists (idempotent)
-  await pgConnection.raw(`
-    CREATE TABLE IF NOT EXISTS bid_ending_reminder (
-      block_item_id text NOT NULL,
-      user_id       text NOT NULL,
-      reminder_type text NOT NULL,
-      sent_at       timestamptz NOT NULL DEFAULT now(),
-      PRIMARY KEY (block_item_id, user_id, reminder_type)
-    )
-  `)
-
   let totalSent = 0
 
   for (const window of REMINDER_WINDOWS) {
