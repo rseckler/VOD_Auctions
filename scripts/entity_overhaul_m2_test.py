@@ -641,7 +641,7 @@ def main() -> int:
             score = r["score_result"]["total_score"]
             dec   = r["score_result"]["decision"]
             emoji = {"accept": "✅", "revise": "🟡", "reject": "❌"}.get(dec, "⚠️")
-            print(f"  {name[:42]:<42}  {emoji}  {score:3d}/100  {dec}")
+            print(f"  {name[:42]:<42}  {emoji}  {score:5.1f}/100  {dec}")
     print("──────────────────────────────────────────────────────────────")
 
     return 0
