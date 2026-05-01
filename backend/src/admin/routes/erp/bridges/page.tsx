@@ -681,7 +681,7 @@ function BridgeRow({
   return (
     <div style={{
       display: "grid",
-      gridTemplateColumns: "200px 160px 130px 120px 110px 1fr 160px",
+      gridTemplateColumns: "200px 160px 130px 120px 110px minmax(140px, 1fr) 130px",
       alignItems: "center",
       gap: 8,
       padding: "10px 16px",
@@ -741,17 +741,6 @@ function BridgeRow({
       {/* Actions */}
       <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
         <button
-          disabled
-          title="Verfügbar in Stage C / Phase 2.5"
-          style={{
-            padding: "5px 10px", borderRadius: 5, fontSize: 11, fontWeight: 600,
-            border: `1px solid ${C.border}`, background: "transparent",
-            color: C.muted, cursor: "not-allowed", opacity: 0.55,
-          }}
-        >
-          Pair Code
-        </button>
-        <button
           onClick={() => onEdit(bridge)}
           style={{
             padding: "5px 10px", borderRadius: 5, fontSize: 11, fontWeight: 600,
@@ -788,7 +777,7 @@ function TableHeader() {
   return (
     <div style={{
       display: "grid",
-      gridTemplateColumns: "200px 160px 130px 120px 110px 1fr 160px",
+      gridTemplateColumns: "200px 160px 130px 120px 110px minmax(140px, 1fr) 130px",
       gap: 8,
       padding: "8px 16px",
       borderBottom: `1px solid ${C.border}`,
