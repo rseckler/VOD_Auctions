@@ -5,7 +5,7 @@ Runs Write + Score pipeline for N entities using MiniMax-M2 instead of GPT-4o/mi
 NO DB writes. Results → docs/operations/entity_overhaul_m2_test_results.md for Frank's review.
 
 Pipeline:
-  Enrich (no LLM) → Profile (GPT-4o-mini, unchanged) → Write (M2) → Score (M2) → .md
+  Enrich (no LLM) → Profile (M2 fallback if no OPENAI_API_KEY) → Write (M2) → Score (M2) → .md
 
 Usage (on VPS):
     cd /root/VOD_Auctions/scripts && source venv/bin/activate
@@ -40,11 +40,110 @@ MINIMAX_API_KEY = os.environ.get("MINIMAX_API_KEY", "")
 
 from minimax_client import m2_chat, strip_thinking, M2Error
 from enricher import enrich_entity
-from profiler import profile_entity
-from tone_mapping import TONE_MAP
+from tone_mapping import TONE_MAP, classify_tone
 from config import TONE_EXAMPLES_DIR, WORD_TARGETS, QUALITY_ACCEPT_THRESHOLD, QUALITY_REVISE_THRESHOLD
 
+# Try importing the GPT-4o-mini profiler; fall back to M2 if OPENAI_API_KEY missing
+_OPENAI_KEY = os.environ.get("OPENAI_API_KEY", "")
+if _OPENAI_KEY:
+    from profiler import profile_entity as _gpt_profile
+    _USE_M2_PROFILER = False
+else:
+    print("[init] OPENAI_API_KEY not set — using M2 for profiling", flush=True)
+    _USE_M2_PROFILER = True
+
 OUT_PATH = _SCRIPT_DIR.parent / "docs" / "operations" / "entity_overhaul_m2_test_results.md"
+
+
+# ── M2 Profiler (fallback when OPENAI_API_KEY not set) ───────────────────────
+
+def profile_entity_m2(enriched: dict) -> dict:
+    """M2-based profiler — classifies tone, genre, significance tier."""
+    entity = enriched["entity"]
+    internal = enriched.get("internal") or {}
+    mb = enriched.get("musicbrainz") or {}
+    wiki = enriched.get("wikipedia") or {}
+    lastfm = enriched.get("lastfm") or {}
+    merged_genres = enriched.get("merged_genres", [])
+
+    # Rule-based tone as starting point
+    tone_key = classify_tone(merged_genres)
+
+    release_count = internal.get("release_count", 0)
+    if release_count > 10:
+        priority = "P1"
+    elif release_count >= 3:
+        priority = "P2"
+    else:
+        priority = "P3"
+
+    context_lines = [
+        f"Entity: {entity['name']} (type: {entity['type']})",
+        f"Releases in archive: {release_count}",
+    ]
+    if merged_genres:
+        context_lines.append(f"Genre tags: {', '.join(merged_genres[:15])}")
+    if mb.get("area"):
+        context_lines.append(f"Location: {mb['area']}")
+    if mb.get("begin"):
+        context_lines.append(f"Active from: {mb['begin']}")
+    if lastfm.get("similar_artists"):
+        context_lines.append(f"Similar artists: {', '.join(lastfm['similar_artists'][:8])}")
+    if wiki.get("extract"):
+        context_lines.append(f"Wikipedia: {wiki['extract'][:300]}")
+    for rel in internal.get("releases", [])[:6]:
+        parts = [rel.get("title", "")]
+        if rel.get("year"):
+            parts.append(f"({rel['year']})")
+        context_lines.append(f"Release: {' '.join(parts)}")
+
+    prompt = f"""Classify this music entity for a specialist industrial/experimental music platform.
+
+DATA:
+{chr(10).join(context_lines)}
+
+Initial tone classification: {tone_key}
+
+Return ONLY valid JSON:
+{{
+  "primary_genre": "single most accurate genre",
+  "secondary_genres": ["2-3 secondary genres"],
+  "tone_directive": "{tone_key} or corrected tone from: dark_ambient/power_electronics/industrial/noise/minimal_synth/experimental/neofolk/death_industrial/drone/ebm",
+  "significance_tier": "iconic/significant/notable/obscure",
+  "descriptors": ["3-5 style descriptors"],
+  "emphasis": ["2-3 things to emphasize in writing"],
+  "avoid": ["1-2 things to avoid"],
+  "key_talking_points": ["2-3 concrete talking points from the data"]
+}}"""
+
+    try:
+        result = m2_chat([{"role": "user", "content": prompt}], max_tokens=800, log_reasoning=False)
+        clean = strip_thinking(result["content"])
+        clean = re.sub(r"```(?:json)?", "", clean).strip()
+        data = json.loads(clean)
+        data["priority"] = priority
+        # Extract member data from MusicBrainz (same as original profiler)
+        data["member_data"] = [
+            {"name": m.get("name"), "roles": m.get("roles", []),
+             "begin": m.get("begin"), "end": m.get("end")}
+            for m in mb.get("members", [])[:10]
+        ]
+        return data
+    except Exception as e:
+        # Minimal fallback — writing still works
+        return {
+            "tone_directive": tone_key, "primary_genre": merged_genres[0] if merged_genres else "experimental",
+            "secondary_genres": merged_genres[1:3], "significance_tier": "obscure",
+            "descriptors": [], "emphasis": [], "avoid": [],
+            "key_talking_points": [], "priority": priority, "member_data": [],
+        }
+
+
+def profile_entity(enriched: dict) -> dict:
+    """Route to GPT-4o-mini or M2 profiler depending on key availability."""
+    if _USE_M2_PROFILER:
+        return profile_entity_m2(enriched)
+    return _gpt_profile(enriched)
 
 
 # ── M2 Writer ─────────────────────────────────────────────────────────────────
@@ -243,7 +342,7 @@ Return ONLY valid JSON (no markdown fences):
 }}"""
 
     try:
-        result = m2_chat([{"role": "user", "content": prompt}], max_tokens=800, log_reasoning=True)
+        result = m2_chat([{"role": "user", "content": prompt}], max_tokens=1500, log_reasoning=True)
         clean = strip_thinking(result["content"])
         clean = re.sub(r"```(?:json)?", "", clean).strip()
         data = json.loads(clean)
@@ -321,7 +420,7 @@ def write_md(all_results: list[dict]) -> Path:
         f"**Date:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}  ",
         f"**Entities tested:** {len(all_results)}  ",
         f"**Total tokens:** {total_tokens:,} · **Kosten: €0** (Token Plan)  ",
-        f"**Writer:** MiniMax-M2 · **Quality Scorer:** MiniMax-M2 · **Profiler:** GPT-4o-mini (Tone-Klassifikation)  ",
+        f"**Writer:** MiniMax-M2 · **Quality Scorer:** MiniMax-M2 · **Profiler:** {'MiniMax-M2' if _USE_M2_PROFILER else 'GPT-4o-mini'}  ",
         "",
         "> **Frank — bitte kurz reviewen:**",
         "> Für jede Entity am Ende deinen Daumen hinterlassen (👍 = veröffentlichbar / 👎 = nicht gut genug / 🤔 = geht so).",
