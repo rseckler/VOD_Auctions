@@ -932,6 +932,26 @@ export const CHECKS: HealthCheckDefinition[] = [
       return { status: "ok", message: `API key configured (Claude Haiku — Admin AI Chat)`, latency_ms: null }
     },
   },
+  {
+    name: "minimax_m2",
+    label: "MiniMax M2 (LLM)",
+    category: "ai",
+    check_class: "background",
+    severity_note: "ok < 3s · degraded 3-8s · error > 8s or auth failure · unconfigured if MINIMAX_API_KEY not set",
+    async run({ env }) {
+      if (!env.MINIMAX_API_KEY) return { status: "unconfigured", message: "MINIMAX_API_KEY not set", latency_ms: null }
+      const { m2Ping } = await import("./minimax.js")
+      const result = await m2Ping()
+      if (!result.ok) return { status: "error", message: result.error ?? "no response", latency_ms: result.latency_ms }
+      const status = result.latency_ms > 8000 ? "error" : result.latency_ms > 3000 ? "degraded" : "ok"
+      return {
+        status,
+        message: `${result.latency_ms}ms · reasoning_tokens=${result.reasoning_tokens ?? 0}`,
+        latency_ms: result.latency_ms,
+        metadata: { reasoning_tokens: result.reasoning_tokens },
+      }
+    },
+  },
 ]
 
 // ─── Lookups ────────────────────────────────────────────────────────────────
