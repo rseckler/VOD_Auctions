@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 #
 # VPS cron wrapper for POST /health-sample
-# Usage (from crontab):
-#   * * * * *   . ~/VOD_Auctions/scripts/health-sampler.sh fast        >> ~/VOD_Auctions/scripts/health_sampler.log 2>&1
-#   */5 * * * * . ~/VOD_Auctions/scripts/health-sampler.sh background  >> ~/VOD_Auctions/scripts/health_sampler.log 2>&1
-#   */15 * * * * . ~/VOD_Auctions/scripts/health-sampler.sh synthetic synthetic_cron >> ~/VOD_Auctions/scripts/health_sampler.log 2>&1
+# Usage (from crontab) — DIRECT INVOCATION, never source-mode (`. script.sh`):
+# Cron's /bin/sh is dash on Ubuntu, which rejects `set -o pipefail` → use direct
+# invocation so the `#!/usr/bin/env bash` shebang takes effect (rc52.10 lesson).
+#
+#   * * * * *    /root/VOD_Auctions/scripts/health-sampler.sh fast                  >> /root/VOD_Auctions/scripts/health_sampler.log 2>&1
+#   */5 * * * *  /root/VOD_Auctions/scripts/health-sampler.sh background            >> /root/VOD_Auctions/scripts/health_sampler.log 2>&1
+#   */15 * * * * /root/VOD_Auctions/scripts/health-sampler.sh synthetic synthetic_cron >> /root/VOD_Auctions/scripts/health_sampler.log 2>&1
+#   30 3 * * *   /root/VOD_Auctions/scripts/health-sampler.sh cleanup               >> /root/VOD_Auctions/scripts/health_cleanup.log 2>&1
+#   0 8 * * *    /root/VOD_Auctions/scripts/health-sampler.sh digest                >> /root/VOD_Auctions/scripts/health_digest.log 2>&1
 #
 # HEALTH_SAMPLER_TOKEN is read from backend/.env (same secret the API route verifies).
 

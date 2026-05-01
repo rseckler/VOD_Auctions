@@ -436,6 +436,21 @@ Rollback-Pfade:
 
 ---
 
+## 11. Post-rc52.10 Backlog (Self-Watch + Restore-Discipline)
+
+Nach dem 5,6-Tage-Sampler-Outage (2026-04-25 → 2026-05-01) — vollständiger Postmortem in [`docs/operations/SYSTEM_HEALTH_OUTAGE_2026-05-01.md`](../operations/SYSTEM_HEALTH_OUTAGE_2026-05-01.md) — sind diese Tasks neu auf der Liste, keiner war Teil von P1-P4:
+
+| ID | Task | Begründung | Aufwand |
+|----|------|------------|---------|
+| **B1** | Dead-Man-Switch für Sampler — Heartbeat aus `health-sampler.sh` an externen Watchdog (Uptime-Kuma Push, separater pg_cron, oder VPS-side cron der `MAX(checked_at) FROM health_check_log < NOW() - INTERVAL '10 min'` pollt). | Sampler ist die Detection-Schicht — fällt er aus, fehlt Detection seiner eigenen Stille (Observer Self-Reference). | klein (~30min) |
+| **B2** | Crontab-as-Code: Soll-Zustand in `scripts/crontab.production.txt` committen, Deploy-Skript diffed gegen `crontab -l` mit Reminder zur Sync. | rc51.7-Wipe + rc51.10-unvollständiger-Restore wären strukturell ausgeschlossen. | mittel (~2h, inkl. einmaligem Sync) |
+| **B3** | Sampler-Header korrigieren — `scripts/health-sampler.sh` Zeilen 5-9 zeigen Direktaufruf statt Source-Mode. | Künftiger Restore aus dem Header wird korrekt. | **done 2026-05-01 (rc52.10)** |
+| **B4** | Pre-Deploy-Smoke für Sampler — kurzer `POST /health-sample?class=fast`-Curl direkt nach `pm2 restart`, exit ≠ 0 wenn DB-Row binnen 30s ausbleibt. | Fängt sowohl Sampler-Crash als auch Token-Drift früh. | klein (~20min) |
+
+B1 + B2 sind Foundation für jede künftige Multi-Tenant- oder Multi-Region-Erweiterung. B4 sollte in den Standard-Deploy-Pfad eingebaut werden bevor das ERP größer wird.
+
+---
+
 ## 10. Freigabe-Checklist
 
 Vor P1-Start muss geklärt sein:
