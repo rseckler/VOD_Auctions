@@ -1,15 +1,20 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
+import { ENV_VAR_MODE_HASH, extractBearerToken, tokenMatches } from "../../../lib/api-tokens"
+import { getClientIp } from "../../../lib/rate-limiter"
 
 /**
  * GET /print/bridge-config?uuid=<bridge_uuid>
  *
- * Called by the Print Bridge agent on startup (Stage B+) to fetch its printer
+ * Called by the Print Bridge agent on startup to fetch its printer
  * configuration from the database instead of relying on env vars.
  *
- * No admin auth required — bridge_uuid identifies the caller.
- * Stage C adds Bearer-token verification (api_token_hash) on top of this.
+ * Auth (Stage C+):
+ *   - Bridges mit echtem api_token_hash: Authorization: Bearer <token> Pflicht
+ *   - Bridges mit Placeholder-Hash 'rc52-env-var-mode' (Frank/David vor
+ *     Stage E/F): kein Bearer nötig — rc52-Compat
+ *   - Bridges mit api_token_revoked_at != NULL: 401, auch mit korrektem Token
  *
  * Returns all active printers so the Bridge can route to any location,
  * not just its default. Useful for mobile Macs (Kay, David) that may
@@ -34,6 +39,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse): Promise<void
         "b.is_mobile",
         "b.is_active",
         "b.api_token_hash",
+        "b.api_token_revoked_at",
         "wl.code as default_location_code"
       )
       .where("b.bridge_uuid", uuid)
@@ -49,10 +55,30 @@ export async function GET(req: MedusaRequest, res: MedusaResponse): Promise<void
       return
     }
 
-    // Stage B: any known active UUID gets config.
-    // Stage C will enforce: api_token_hash must match Bearer token.
-    // Pre-pair placeholder values ('rc52-env-var-mode') intentionally excluded
-    // from DB-mode usage — Frank/David use env vars and won't set VOD_BRIDGE_UUID.
+    // Auth-Layer:
+    //   ENV_VAR_MODE_HASH-Placeholder → Stage-B-Compat, kein Bearer nötig
+    //   echter Hash → Bearer Pflicht, sha256(input) muss matchen
+    //   revoked → 401 selbst mit altem Token
+    if (bridge.api_token_hash && bridge.api_token_hash !== ENV_VAR_MODE_HASH) {
+      if (bridge.api_token_revoked_at) {
+        res.set("WWW-Authenticate", 'Bearer error="token_revoked"')
+        res.status(401).json({ message: "Bridge token has been revoked" })
+        return
+      }
+      const presented = extractBearerToken(req.headers.authorization as string | undefined)
+      if (!presented || !tokenMatches(presented, bridge.api_token_hash)) {
+        res.set("WWW-Authenticate", 'Bearer error="invalid_token"')
+        res.status(401).json({ message: "Invalid or missing Bearer token" })
+        return
+      }
+    }
+
+    // last_seen_at + last_known_ip aktualisieren (best-effort, blockiert die
+    // Response nicht — Bridge nutzt das als Health-Heartbeat)
+    void pg("bridge_host")
+      .where("bridge_uuid", uuid)
+      .update({ last_seen_at: new Date(), last_known_ip: getClientIp(req) })
+      .catch(() => undefined)
 
     const printers = await pg("printer as p")
       .join("warehouse_location as wl", "p.warehouse_location_id", "wl.id")

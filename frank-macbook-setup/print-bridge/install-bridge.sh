@@ -18,6 +18,8 @@
 #                          --default-location ALPENSTRASSE  # multi-printer mode
 #   bash install-bridge.sh --bridge-uuid <uuid>            # DB-Mode (Stage B+): lädt Config vom Backend
 #   bash install-bridge.sh --api-url https://...           # optional: override API-URL (default: api.vod-auctions.com)
+#   bash install-bridge.sh --pair                          # Stage C: interaktiver Pair-Modus, fragt Code ab
+#   bash install-bridge.sh --pairing-code VOD-XXXX-XXXX-XXXX  # non-interaktiv (z.B. für CI)
 #   bash install-bridge.sh --dry-run                       # Test-Mode: kein echter Druck
 #   bash install-bridge.sh --uninstall                     # LaunchAgent entladen + löschen
 
@@ -58,6 +60,9 @@ PRINTERS_IPS=()
 DEFAULT_LOCATION="${VOD_PRINT_BRIDGE_DEFAULT_LOCATION:-}"
 BRIDGE_UUID="${VOD_BRIDGE_UUID:-}"
 BRIDGE_API_URL="${VOD_BRIDGE_API_URL:-https://api.vod-auctions.com}"
+BRIDGE_API_TOKEN="${VOD_BRIDGE_API_TOKEN:-}"
+PAIRING_CODE=""
+PAIR_MODE="0"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -65,6 +70,8 @@ while [[ $# -gt 0 ]]; do
     --printer-ip)   PRINTER_IP="$2"; shift 2 ;;
     --bridge-uuid)  BRIDGE_UUID="$2"; shift 2 ;;
     --api-url)      BRIDGE_API_URL="$2"; shift 2 ;;
+    --pair)         PAIR_MODE="1"; shift ;;
+    --pairing-code) PAIRING_CODE="$2"; PAIR_MODE="1"; shift 2 ;;
     --printer-for)
       # Format: CODE=IP, z.B. ALPENSTRASSE=10.1.1.136
       pair="$2"
@@ -154,6 +161,87 @@ uninstall_all() {
 if [[ "$MODE" == "uninstall" ]]; then
   uninstall_all
   exit 0
+fi
+
+# ─── Pair-Modus (Stage C) ─────────────────────────────────────────────────
+# Der Mac generiert einen stabilen bridge_uuid (oder reused einen existierenden),
+# fragt den Pairing-Code ab, ruft POST /print/bridges/pair und persistiert
+# bridge_uuid + api_token für die plist. Danach läuft die übliche Install-Phase.
+BRIDGE_ID_FILE="$INSTALL_DIR/bridge_id"
+
+if [[ "$PAIR_MODE" == "1" ]]; then
+  step "Pair-Modus aktiv"
+
+  mkdir -p "$INSTALL_DIR"
+
+  # 1. bridge_uuid: existierende ID wiederverwenden (Re-Pair) oder neu generieren
+  if [[ -f "$BRIDGE_ID_FILE" ]]; then
+    BRIDGE_UUID=$(cat "$BRIDGE_ID_FILE")
+    ok "Existierende bridge_uuid wiederverwendet: ${BRIDGE_UUID:0:8}…"
+  else
+    BRIDGE_UUID=$(/usr/bin/python3 -c 'import secrets; print(secrets.token_hex(16))')
+    echo "$BRIDGE_UUID" > "$BRIDGE_ID_FILE"
+    chmod 600 "$BRIDGE_ID_FILE"
+    ok "Neue bridge_uuid generiert: ${BRIDGE_UUID:0:8}… (gespeichert chmod 600)"
+  fi
+
+  # 2. Pairing-Code abfragen (zsh-safe printf+read)
+  if [[ -z "$PAIRING_CODE" ]]; then
+    printf "%s" "${BOLD}? Pairing-Code (Format VOD-XXXX-XXXX-XXXX): ${RESET}"
+    read -r PAIRING_CODE
+  fi
+  if [[ -z "$PAIRING_CODE" ]]; then
+    err "Kein Pairing-Code angegeben — Abbruch"
+    exit 2
+  fi
+
+  # 3. Telemetrie sammeln
+  HOSTNAME_VAL="$(hostname)"
+  MAC_ADDRESS_VAL="$(ifconfig en0 2>/dev/null | awk '/ether/{print $2; exit}')"
+  PLATFORM_VAL="macOS $(sw_vers -productVersion 2>/dev/null) ($(uname -m))"
+  BRIDGE_VERSION_VAL="2.4.0"
+
+  # 4. POST /print/bridges/pair (pure stdlib via /usr/bin/python3 — kein curl-jq-Eiertanz)
+  PAIR_PAYLOAD=$(/usr/bin/python3 -c "
+import json, sys
+print(json.dumps({
+  'pairing_code': sys.argv[1],
+  'bridge_uuid': sys.argv[2],
+  'hostname': sys.argv[3],
+  'mac_address': sys.argv[4],
+  'platform': sys.argv[5],
+  'bridge_version': sys.argv[6],
+}))" "$PAIRING_CODE" "$BRIDGE_UUID" "$HOSTNAME_VAL" "$MAC_ADDRESS_VAL" "$PLATFORM_VAL" "$BRIDGE_VERSION_VAL")
+
+  step "Pairing-Request an $BRIDGE_API_URL/print/bridges/pair"
+  PAIR_RESPONSE=$(curl -fsS -X POST "$BRIDGE_API_URL/print/bridges/pair" \
+    -H "Content-Type: application/json" \
+    -d "$PAIR_PAYLOAD" 2>&1) || {
+      err "Pairing fehlgeschlagen: $PAIR_RESPONSE"
+      exit 1
+    }
+
+  # 5. Token aus Response ziehen
+  BRIDGE_API_TOKEN=$(/usr/bin/python3 -c "
+import json, sys
+d = json.loads(sys.stdin.read())
+print(d.get('api_token', ''))" <<< "$PAIR_RESPONSE")
+
+  if [[ -z "$BRIDGE_API_TOKEN" ]]; then
+    err "Pair-Response enthielt kein api_token: $PAIR_RESPONSE"
+    exit 1
+  fi
+  ok "Pairing erfolgreich — api_token erhalten (${#BRIDGE_API_TOKEN} Bytes)"
+
+  # 6. Default-Location aus Response übernehmen (überschreibt CLI-Wert)
+  PAIR_DEFAULT_LOC=$(/usr/bin/python3 -c "
+import json, sys
+d = json.loads(sys.stdin.read())
+print(d.get('default_location') or '')" <<< "$PAIR_RESPONSE")
+  if [[ -n "$PAIR_DEFAULT_LOC" ]]; then
+    DEFAULT_LOCATION="$PAIR_DEFAULT_LOC"
+    ok "default_location aus Pair-Response: $DEFAULT_LOCATION"
+  fi
 fi
 
 # ─── Install ──────────────────────────────────────────────────────────────
@@ -345,6 +433,7 @@ sed -e "s|__PYTHON_BIN__|$PYTHON_BIN|g" \
     -e "s|__KEY_PATH__|$KEY_PATH|g" \
     -e "s|__BRIDGE_UUID__|$BRIDGE_UUID|g" \
     -e "s|__BRIDGE_API_URL__|$BRIDGE_API_URL|g" \
+    -e "s|__BRIDGE_API_TOKEN__|$BRIDGE_API_TOKEN|g" \
     "$BRIDGE_DIR/com.vod-auctions.print-bridge.plist.template" > "$tmp_plist"
 
 # Validieren bevor wir schreiben

@@ -37,7 +37,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
 from urllib.parse import parse_qs, urlparse
 
-VERSION = "2.3.0"
+VERSION = "2.4.0"
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("VOD_PRINT_BRIDGE_PORT", "17891"))
 DEFAULT_PRINTER = os.environ.get("VOD_PRINT_BRIDGE_PRINTER", "Brother_QL_820NWB")
@@ -92,6 +92,9 @@ MAX_BODY_BYTES = 10 * 1024 * 1024  # 10 MB hard cap pro Job
 # Kay/neue Macs: VOD_BRIDGE_UUID = ihre bridge_host.bridge_uuid aus der DB.
 BRIDGE_UUID = os.environ.get("VOD_BRIDGE_UUID", "").strip()
 BRIDGE_API_URL = os.environ.get("VOD_BRIDGE_API_URL", "https://api.vod-auctions.com").rstrip("/")
+# Stage C: paired Bridges send Authorization: Bearer <token> when fetching config.
+# Frank/David ohne Token → fallen weiter unter rc52-env-var-mode-Compat im Backend.
+BRIDGE_API_TOKEN = os.environ.get("VOD_BRIDGE_API_TOKEN", "").strip()
 
 # Gesetzt durch _load_config_from_api() beim Startup (wenn BRIDGE_UUID gesetzt).
 # "env" = Env-Var-Config aktiv, "api" = DB-Config geladen.
@@ -130,16 +133,25 @@ def _load_config_from_api() -> bool:
     url = f"{BRIDGE_API_URL}/print/bridge-config?uuid={BRIDGE_UUID}"
     log.info("DB-Mode: fetching config from %s", url)
 
+    headers = {"User-Agent": f"VODPrintBridge/{VERSION}"}
+    if BRIDGE_API_TOKEN:
+        headers["Authorization"] = f"Bearer {BRIDGE_API_TOKEN}"
+
     try:
         ctx = ssl.create_default_context()
-        req_obj = urllib.request.Request(
-            url, headers={"User-Agent": f"VODPrintBridge/{VERSION}"}
-        )
+        req_obj = urllib.request.Request(url, headers=headers)
         with urllib.request.urlopen(req_obj, timeout=8, context=ctx) as resp:
             raw = resp.read()
         data = json.loads(raw.decode("utf-8"))
     except urllib.error.HTTPError as e:
-        log.warning("DB-Mode: API returned HTTP %d — falling back to env vars", e.code)
+        if e.code == 401:
+            log.error(
+                "DB-Mode: HTTP 401 — Bearer-Token ungültig oder revoked. "
+                "Pairen Sie diesen Mac neu (install-bridge.sh --pair). "
+                "Falle auf Env-Var-Mode zurück."
+            )
+        else:
+            log.warning("DB-Mode: API returned HTTP %d — falling back to env vars", e.code)
         return False
     except urllib.error.URLError as e:
         log.warning("DB-Mode: API unreachable (%s) — falling back to env vars", e.reason)
@@ -560,6 +572,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
                     "dep_error": dep_error,
                     "config_source": CONFIG_SOURCE,
                     "bridge_uuid": BRIDGE_UUID or None,
+                    "auth_mode": "bearer" if BRIDGE_API_TOKEN else ("env-var-compat" if BRIDGE_UUID else "none"),
                 })
             # Default: cups-Backend
             printer = resolve_printer(DEFAULT_PRINTER)

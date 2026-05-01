@@ -46,16 +46,21 @@ export async function PATCH(req: MedusaRequest, res: MedusaResponse): Promise<vo
 
 /**
  * DELETE /admin/erp/bridges/:id
- * Soft-disable: is_active=false. Token bleibt in DB für Audit-Trail.
- * Stage C fügt Token-Revoke (api_token_revoked_at) hinzu.
+ * Soft-disable: is_active=false + Token revoken. Hash bleibt zur Audit-Trail
+ * in DB, Bridge kann mit altem Token aber nicht mehr authen.
  */
 export async function DELETE(req: MedusaRequest, res: MedusaResponse): Promise<void> {
   const pg: Knex = req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
   const { id } = req.params
   try {
+    const now = new Date()
     const count = await pg("bridge_host")
       .where("id", id)
-      .update({ is_active: false, updated_at: new Date() })
+      .update({
+        is_active: false,
+        api_token_revoked_at: now,
+        updated_at: now,
+      })
     if (!count) {
       res.status(404).json({ message: "Bridge not found" })
       return

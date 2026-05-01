@@ -41,6 +41,8 @@
         <string>__BRIDGE_UUID__</string>
         <key>VOD_BRIDGE_API_URL</key>
         <string>__BRIDGE_API_URL__</string>
+        <key>VOD_BRIDGE_API_TOKEN</key>
+        <string>__BRIDGE_API_TOKEN__</string>
         <key>PATH</key>
         <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     </dict>
