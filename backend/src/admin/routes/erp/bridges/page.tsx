@@ -681,7 +681,7 @@ function BridgeRow({
   return (
     <div style={{
       display: "grid",
-      gridTemplateColumns: "200px 160px 130px 120px 110px minmax(140px, 1fr) 130px",
+      gridTemplateColumns: "180px 140px 110px 110px 90px 1fr 120px",
       alignItems: "center",
       gap: 8,
       padding: "10px 16px",
@@ -777,7 +777,7 @@ function TableHeader() {
   return (
     <div style={{
       display: "grid",
-      gridTemplateColumns: "200px 160px 130px 120px 110px minmax(140px, 1fr) 130px",
+      gridTemplateColumns: "180px 140px 110px 110px 90px 1fr 120px",
       gap: 8,
       padding: "8px 16px",
       borderBottom: `1px solid ${C.border}`,
