@@ -56,7 +56,7 @@ Bewusst geparkt. Wird bei Bedarf nach Next gezogen.
 
 **[ ] MiniMax Phase 5 — Genre/Style-Bulk-Backfill (ready, wartet auf Robin-Freigabe).** Dry-run vom 2026-05-01 abgeschlossen — 5 Releases getestet, alle korrekt klassifiziert (Erasure → Synth-pop/Electropop, Executive Slacks → Industrial/Noise, Monochrome Set → New Wave/Post-Punk, English Boy On The Loveranch → Italo-Disco/Hi-NRG). Kostenfreiheit via Token Plan bestätigt. DB nur vom VPS aus erreichbar (Pattern etabliert: Script auf VPS starten, Ergebnisse per scp ziehen). **Nächste Aktion:** `scripts/backfill_genre_styles_minimax.py` schreiben (Batch 100 Releases/Call, Dry-run + Commit-Mode, Audit-Log per Release). Danach: Stichprobe reviewen + Commit für 22.630 NULL-Cases. Vollständige Doku: [`PROJECTS/docs/MINIMAX_INTEGRATION.md`](../../../docs/MINIMAX_INTEGRATION.md) §7 Phase 5 + §10. Ergebnisse Dry-run: [`docs/operations/minimax_phase5_test_results.md`](operations/minimax_phase5_test_results.md).
 
-8. Entity Content Overhaul (Budget-Freigabe nötig)
+8. **Entity Content Overhaul (RSE-227) — auf Eis.** MiniMax M2 Pilot (2026-05-01) getestet: 3/5 accept, aber 2 kritische Faktenfehler — TG-Auflösung mit 1995 statt 1981 halluziniert, Psychic TV Gründer unvollständig (Sleazy Christopherson fehlt). Frank: „so macht es keinen Sinn." → M2 fällt für Entity-Content weg. Pipeline bleibt auf OpenAI (gpt-4o Writer + gpt-4o-mini), Budget ist einziger Blocker. Pilot-Ergebnisse: `docs/operations/entity_overhaul_m2_test_results.md`. Konzept: `docs/optimizing/ENTITY_OVERHAUL_LLM_MIGRATION.md`.
 9. CRM Rudderstack-Integration
 10. Admin UI Hub-Refactoring
 11. ERP Invoicing (easybill + StB)
