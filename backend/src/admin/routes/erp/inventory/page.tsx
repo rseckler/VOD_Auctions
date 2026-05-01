@@ -16,6 +16,8 @@ interface Stats {
   remaining: number
   additional_copies: number
   avg_verified_price: number
+  verified_value: number
+  projected_remaining_value: number
   today: { verified: number; copies_added: number; price_changed: number }
   format_breakdown: Array<{ format_group: string; total: number; verified: number }>
   bulk_status: {
@@ -209,6 +211,13 @@ function InventoryHubPage() {
     : 0
   const statPlaceholder = "—"
 
+  const formatEur = (n: number) => {
+    if (n >= 1_000_000) return `€${(n / 1_000_000).toFixed(2)}M`
+    if (n >= 10_000) return `€${Math.round(n / 1_000)}k`
+    if (n >= 1_000) return `€${(n / 1_000).toFixed(1)}k`
+    return `€${Math.round(n).toLocaleString("de-DE")}`
+  }
+
   const totalPages = Math.ceil(browseTotal / BROWSE_LIMIT)
   const currentPage = Math.floor(browseOffset / BROWSE_LIMIT) + 1
 
@@ -257,8 +266,18 @@ function InventoryHubPage() {
           stats={[
             { label: "Katalog gesamt", value: stats?.total_releases?.toLocaleString() ?? statPlaceholder },
             { label: "Im Inventar", value: stats?.eligible?.toLocaleString() ?? statPlaceholder, color: C.gold },
-            { label: "Verifiziert", value: stats?.verified?.toLocaleString() ?? statPlaceholder, color: C.success },
-            { label: "Ausstehend", value: stats?.remaining?.toLocaleString() ?? statPlaceholder, color: stats && stats.remaining > 0 ? C.warning : C.success },
+            {
+              label: "Verifiziert",
+              value: stats?.verified?.toLocaleString() ?? statPlaceholder,
+              subtitle: stats ? `${formatEur(stats.verified_value)} Wert` : undefined,
+              color: C.success,
+            },
+            {
+              label: "Ausstehend",
+              value: stats?.remaining?.toLocaleString() ?? statPlaceholder,
+              subtitle: stats && stats.remaining > 0 ? `≈ ${formatEur(stats.projected_remaining_value)} Hochrechnung` : undefined,
+              color: stats && stats.remaining > 0 ? C.warning : C.success,
+            },
           ]}
         />
       </>

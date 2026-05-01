@@ -47,7 +47,12 @@ export async function GET(
         COUNT(*) FILTER (WHERE ii.copy_number > 1) AS additional_copies,
         COALESCE(AVG(ii.exemplar_price) FILTER (
           WHERE ii.last_stocktake_at IS NOT NULL AND ii.exemplar_price IS NOT NULL
-        ), 0) AS avg_verified_price
+        ), 0) AS avg_verified_price,
+        COALESCE(SUM(ii.exemplar_price) FILTER (
+          WHERE ii.last_stocktake_at IS NOT NULL
+            AND ii.price_locked = true
+            AND ii.exemplar_price IS NOT NULL
+        ), 0) AS verified_value
       FROM erp_inventory_item ii
       WHERE ii.source = 'frank_collection'
     `),
@@ -118,15 +123,21 @@ export async function GET(
   const today = todayStats.rows[0]
   const missing = missingCount.rows[0]
 
+  const avgVerified = Number(row.avg_verified_price)
+  const remaining = Number(row.remaining)
+  const projectedRemainingValue = avgVerified * remaining
+
   res.json({
     total_releases: Number(total.total),
     eligible: Number(row.eligible),
     distinct_releases: Number(row.distinct_releases),
     verified: Number(row.verified),
     missing: Number(missing.missing),
-    remaining: Number(row.remaining),
+    remaining: remaining,
     additional_copies: Number(row.additional_copies),
-    avg_verified_price: Number(Number(row.avg_verified_price).toFixed(2)),
+    avg_verified_price: Number(avgVerified.toFixed(2)),
+    verified_value: Number(Number(row.verified_value).toFixed(2)),
+    projected_remaining_value: Number(projectedRemainingValue.toFixed(2)),
     today: {
       verified: Number(today.today_verified),
       copies_added: Number(today.today_copies_added),
