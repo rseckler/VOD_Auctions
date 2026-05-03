@@ -53,7 +53,8 @@ export async function GET(
       "r.legacy_condition",
       "r.legacy_price",
       "r.shop_price",
-      "a.name as artist_name",
+      // RSE-320: prefer multi-artist display string for label printing
+      pg.raw('COALESCE(r.artist_display_name, a.name) AS artist_name'),
       "l.name as label_name"
     )
 

@@ -39,7 +39,7 @@ export async function inventorySearchGetPostgres(
         r."catalogNumber", r.year, r.country, r.legacy_condition,
         r.discogs_id, r.discogs_lowest_price, r.discogs_median_price,
         r.discogs_highest_price, r.discogs_num_for_sale,
-        a.name as artist_name, l.name as label_name,
+        COALESCE(r.artist_display_name, a.name) as artist_name, l.name as label_name,
         ii.id as inventory_item_id, ii.barcode, ii.copy_number,
         ii.condition_media, ii.condition_sleeve, ii.exemplar_price,
         ii.last_stocktake_at, ii.price_locked
@@ -95,7 +95,7 @@ export async function inventorySearchGetPostgres(
         r.id as release_id, r.title, r."coverImage", r.legacy_price, r.format, r.format_v2,
         r."catalogNumber", r.article_number, r.year, r.country,
         r.discogs_median_price, r.discogs_id,
-        a.name as artist_name, l.name as label_name,
+        COALESCE(r.artist_display_name, a.name) as artist_name, l.name as label_name,
         COUNT(ii.id)::int as exemplar_count,
         COUNT(ii.id) FILTER (WHERE ii.last_stocktake_at IS NOT NULL)::int as verified_count
       FROM "Release" r
@@ -159,7 +159,7 @@ export async function inventorySearchGetPostgres(
       r.id as release_id, r.title, r."coverImage", r.legacy_price, r.format,
       r."catalogNumber", r.article_number, r.year, r.country,
       r.discogs_median_price, r.discogs_id,
-      a.name as artist_name, l.name as label_name,
+      COALESCE(r.artist_display_name, a.name) as artist_name, l.name as label_name,
       COUNT(ii.id)::int as exemplar_count,
       COUNT(ii.id) FILTER (WHERE ii.last_stocktake_at IS NOT NULL)::int as verified_count
     FROM "Release" r

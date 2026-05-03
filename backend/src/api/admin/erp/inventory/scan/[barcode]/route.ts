@@ -59,7 +59,7 @@ export async function GET(
       r.discogs_median_price,
       r.discogs_highest_price,
       r.discogs_num_for_sale,
-      a.name AS artist_name,
+      COALESCE(r.artist_display_name, a.name) AS artist_name,
       l.name AS label_name,
       CASE
         WHEN r.format = 'LP' THEN 1

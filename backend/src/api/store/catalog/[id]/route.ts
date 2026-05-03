@@ -50,7 +50,9 @@ export async function GET(
       "Release.artistId",
       "Release.labelId",
       "Release.pressOrgaId",
-      "Artist.name as artist_name",
+      "Release.artist_display_name",
+      // RSE-320: storefront-Detail prefers multi-artist display string
+      pgConnection.raw('COALESCE("Release".artist_display_name, "Artist".name) AS artist_name'),
       "Artist.slug as artist_slug",
       "Label.name as label_name",
       "Label.slug as label_slug",

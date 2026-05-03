@@ -34,7 +34,7 @@ export async function GET(
         ii.id as inventory_item_id, ii.barcode, ii.copy_number,
         r.id as release_id, r.title, r."coverImage" as cover_image,
         r.format, r.format_v2, r."catalogNumber" as catalog_number, r.legacy_price,
-        a.name as artist_name
+        COALESCE(r.artist_display_name, a.name) as artist_name
       FROM erp_inventory_item ii
       JOIN "Release" r ON r.id = ii.release_id
       LEFT JOIN "Artist" a ON a.id = r."artistId"

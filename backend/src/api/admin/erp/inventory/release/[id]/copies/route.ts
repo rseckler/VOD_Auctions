@@ -37,7 +37,8 @@ export async function GET(
       "Release.discogs_median_price",
       "Release.discogs_highest_price",
       "Release.discogs_num_for_sale",
-      "Artist.name as artist_name",
+      // RSE-320: prefer Release.artist_display_name (multi-artist composed string) over Artist.name
+      pg.raw('COALESCE("Release".artist_display_name, "Artist".name) AS artist_name'),
       "Label.name as label_name"
     )
     .leftJoin("Artist", "Release.artistId", "Artist.id")

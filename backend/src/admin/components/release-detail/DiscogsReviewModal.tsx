@@ -26,6 +26,7 @@ type Props = {
 const FIELD_LABELS: Record<string, string> = {
   discogs_id: "Discogs ID",
   title: "Title",
+  artist_display_name: "Artist Display",
   year: "Year",
   country: "Country",
   catalogNumber: "Catalog No.",

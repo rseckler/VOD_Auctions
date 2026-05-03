@@ -266,6 +266,7 @@ export async function POST(
     "catalogNumber",
     "country",
     "artistId",
+    "artist_display_name", // rc52.12 RSE-320: composed multi-artist display string. NULL = use Artist.name fallback.
     "labelId",
     "coverImage",
     "legacy_format_detail",

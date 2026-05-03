@@ -279,8 +279,13 @@ async function runFetchLoop(
         title: data.title || "",
         year: data.year || 0,
         country: data.country || "",
+        // RSE-320: store anv (artist name variant for this release) and join (separator
+        // to next artist) so multi-artist releases can be displayed correctly. Pre-rendered
+        // artists_sort comes from Discogs's release header. Pre-rc52.12 caches lack these
+        // fields — see scripts/backfill_artist_display_name.py for backfill flow.
+        artists_sort: data.artists_sort || "",
         artists: ((data.artists || []) as Array<Record<string, unknown>>).map((a) => ({
-          name: a.name || "", id: a.id,
+          name: a.name || "", id: a.id, anv: a.anv || "", join: a.join || "",
         })),
         extraartists: ((data.extraartists || []) as Array<Record<string, unknown>>).map((a) => ({
           name: a.name || "", id: a.id, role: a.role || "",

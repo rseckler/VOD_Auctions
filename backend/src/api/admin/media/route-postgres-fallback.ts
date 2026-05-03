@@ -106,7 +106,8 @@ export async function adminMediaGetPostgres(
       "Release.discogs_last_synced",
       "Release.inventory",
       "Release.legacy_last_synced",
-      "Artist.name as artist_name",
+      // RSE-320: prefer multi-artist display string over single Artist.name
+      pgConnection.raw('COALESCE("Release".artist_display_name, "Artist".name) AS artist_name'),
       "Label.name as label_name",
       "Format.name as format_name",
       "Format.format_group",

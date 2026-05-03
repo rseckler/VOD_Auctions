@@ -39,7 +39,8 @@ export async function POST(
       "Release.discogs_lowest_price",
       "Release.discogs_median_price",
       "Release.inventory",
-      "Artist.name as artist_name",
+      // RSE-320: CSV export uses multi-artist display string
+      pgConnection.raw('COALESCE("Release".artist_display_name, "Artist".name) AS artist_name'),
       "Label.name as label_name",
       "Format.name as format_name",
       "Format.format_group"

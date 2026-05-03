@@ -20,6 +20,7 @@ import {
 import { isR2Configured, downloadOptimizeUpload } from "../../../../lib/image-upload"
 import { lockFields } from "../../../../lib/release-locks"
 import { classifyDiscogsFormat } from "../../../../lib/format-mapping"
+import { pickArtistDisplayName, type DiscogsArtistEntry } from "../../../../lib/artist-display"
 
 // ─── POST /admin/discogs-import/commit ───────────────────────────────────────
 // SSE Stream with phase-based progress:
@@ -687,6 +688,11 @@ export async function POST(
         const formatV2 = classifyFormatV2(cached)
         const creditsText = buildCreditsText(cached)
         const additionalLabels = getAdditionalLabels(cached)
+        // RSE-320: composed display string for multi-artist releases. NULL when single artist.
+        const artistDisplayName = pickArtistDisplayName(
+          (cached?.artists_sort as string | undefined) || null,
+          (cached?.artists as DiscogsArtistEntry[] | undefined) || null
+        )
 
         // NOTE: These NOT NULL columns have DB defaults and are omitted:
         //   viewCount (0), ratingCount (0), favoriteCount (0),
@@ -697,7 +703,7 @@ export async function POST(
         // for Discogs imports.
         await trx.raw(
           `INSERT INTO "Release" (
-            id, title, slug, "artistId", "labelId",
+            id, title, slug, "artistId", "labelId", artist_display_name,
             "catalogNumber", year, country, format, legacy_format_detail,
             format_v2, format_descriptors,
             description, credits, genres, styles,
@@ -708,7 +714,7 @@ export async function POST(
             discogs_price_history, additional_labels, data_source,
             legacy_available, product_category, "createdAt", "updatedAt"
           ) VALUES (
-            ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?::"ReleaseFormat", ?,
             ?, ?::jsonb,
             ?, ?, ?, ?,
@@ -726,6 +732,7 @@ export async function POST(
             buildImportSlug(row.artist, row.title, did),
             artistId,
             labelId,
+            artistDisplayName,
             row.catalog_number,
             (cached?.year as number) || row.year,
             (cached?.country as string) || "",

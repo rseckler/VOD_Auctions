@@ -214,7 +214,9 @@ _MAIN_SELECT = """
         r.media_condition,
         r.sleeve_condition,
         r."updatedAt"          AS updated_at,
-        a.name                 AS artist_name,
+        -- RSE-320: prefer multi-artist composed display string when set, fall back to canonical Artist.name
+        COALESCE(r.artist_display_name, a.name)  AS artist_name,
+        a.name                 AS artist_canonical_name,
         a.slug                 AS artist_slug,
         l.name                 AS label_name,
         l.slug                 AS label_slug,

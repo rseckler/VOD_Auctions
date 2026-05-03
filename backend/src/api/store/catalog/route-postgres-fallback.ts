@@ -192,7 +192,8 @@ export async function catalogGetPostgres(
       "Release.auction_status",
       "Release.sale_mode",
       "Release.shop_price",
-      "Artist.name as artist_name",
+      // RSE-320: storefront-list prefers multi-artist display string
+      pgConnection.raw('COALESCE("Release".artist_display_name, "Artist".name) AS artist_name'),
       "Artist.slug as artist_slug",
       "Label.name as label_name",
       "Label.slug as label_slug",

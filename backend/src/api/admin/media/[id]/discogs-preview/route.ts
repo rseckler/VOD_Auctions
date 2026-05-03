@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { classifyDiscogsFormat } from "../../../../../lib/format-mapping"
 import { findCountryByName, isValidIsoCode } from "../../../../../admin/data/country-iso"
+import { pickArtistDisplayName, type DiscogsArtistEntry } from "../../../../../lib/artist-display"
 
 /**
  * POST /admin/media/:id/discogs-preview
@@ -21,6 +22,7 @@ import { findCountryByName, isValidIsoCode } from "../../../../../admin/data/cou
 type ProposedFields = {
   discogs_id: number | null
   title: string | null
+  artist_display_name: string | null
   year: number | null
   country: string | null
   catalogNumber: string | null
@@ -48,6 +50,8 @@ type DiscogsApiData = {
   formats?: Array<{ name?: string; descriptions?: string[]; qty?: string }>
   identifiers?: Array<{ type?: string; value?: string }>
   labels?: Array<{ name?: string; catno?: string }>
+  artists?: DiscogsArtistEntry[]
+  artists_sort?: string
   extraartists?: Array<{ name?: string; role?: string }>
   images?: Array<{ type?: string; uri?: string; uri150?: string }>
 }
@@ -109,7 +113,7 @@ export async function POST(
   const release = await pg("Release")
     .where("id", id)
     .select(
-      "id", "title", "year", "country", "catalogNumber", "barcode",
+      "id", "title", "artist_display_name", "year", "country", "catalogNumber", "barcode",
       "description", "format_v2", "format_descriptors", "genres", "styles",
       "credits", "coverImage", "discogs_id", "discogs_lowest_price", "discogs_median_price",
       "discogs_highest_price", "discogs_num_for_sale"
@@ -164,6 +168,11 @@ export async function POST(
   const proposed: ProposedFields = {
     discogs_id: discogsId,
     title: apiData.title?.trim() || null,
+    // RSE-320: composed display string for multi-artist releases.
+    artist_display_name: pickArtistDisplayName(
+      apiData.artists_sort || null,
+      apiData.artists || null
+    ),
     year: typeof apiData.year === "number" && apiData.year > 0 ? apiData.year : null,
     country: normalizeCountry(apiData.country),
     catalogNumber: apiData.labels?.[0]?.catno?.trim() || null,
