@@ -27,6 +27,44 @@ interface Stats {
     percentage?: number
     affected_rows?: number
   }
+  per_user?: Array<{
+    user_key: string
+    display_name: string
+    email: string | null
+    today: number
+    last_7_days: number
+    all_time: number
+    last_active_at: string | null
+    items_per_hour_today: number
+  }>
+  per_warehouse?: Array<{
+    warehouse_code: string
+    warehouse_name: string
+    today: number
+    last_7_days: number
+    all_time: number
+    last_active_at: string | null
+    items_per_hour_today: number
+    current_rate_per_hour: number
+  }>
+  throughput?: {
+    today_hourly: Array<{ hour_utc: number; verified: number }>
+    today_hourly_by_warehouse: Array<{ hour_utc: number; by_warehouse: Record<string, number> }>
+    current_rate_per_hour: number
+    today_avg_per_active_hour: number
+    today_active_hours: number
+    today_peak_hour_utc: number | null
+    today_peak_count: number
+  }
+}
+
+// Mapping warehouse_code → freundlicher Person-Name. David hat keinen
+// eigenen User-Account; beide arbeiten unter Frank's Login. Lager ist
+// daher der einzige zuverlässige Frank/David-Indikator (Stand 2026-05-04).
+const WAREHOUSE_PERSON: Record<string, { person: string; color: string }> = {
+  ALPENSTRASSE: { person: "Frank (Alpenstrasse)", color: "#d4a54a" },
+  EUGENSTRASSE: { person: "David (Eugenstrasse)", color: "#3b82f6" },
+  UNASSIGNED: { person: "Ohne Lager", color: "#94a3b8" },
 }
 
 interface BrowseItem {
@@ -64,6 +102,121 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
     throw new Error(`${res.status}: ${text}`)
   }
   return res.json()
+}
+
+// ─── Throughput Helpers ─────────────────────────────────────────────────────
+
+// UTC-Stunde → lokale Stunde (Browser-TZ). Backend liefert immer UTC.
+function utcHourToLocal(hourUtc: number): number {
+  const d = new Date()
+  d.setUTCHours(hourUtc, 0, 0, 0)
+  return d.getHours()
+}
+
+// "vor 3 Min" / "vor 2h" / "gestern" — kompakte Relativ-Zeit ohne i18n-Lib.
+function formatRelativeTime(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime()
+  const diffMin = Math.floor(diffMs / 60_000)
+  if (diffMin < 1) return "jetzt"
+  if (diffMin < 60) return `vor ${diffMin} Min`
+  const diffH = Math.floor(diffMin / 60)
+  if (diffH < 24) return `vor ${diffH}h`
+  const diffD = Math.floor(diffH / 24)
+  if (diffD === 1) return "gestern"
+  return `vor ${diffD}d`
+}
+
+// Mini-Bar-Chart der heute-pro-Stunde-Verifizierungen, gestackt nach
+// Warehouse. Reine SVG, keine Chart-Lib. Stunden 0-23 voll abdecken
+// (auch leere). Lokale Zeit auf der X-Achse.
+function renderHourlyBars(stats: Stats, C: any): JSX.Element {
+  const series = stats.throughput?.today_hourly_by_warehouse || []
+  if (series.length === 0) {
+    return (
+      <div style={{ height: 80, display: "flex", alignItems: "center", justifyContent: "center", color: C.muted, fontSize: 12 }}>
+        Heute noch keine Verifizierungen
+      </div>
+    )
+  }
+  // Map UTC-Hour → local-Hour
+  const byLocalHour = new Map<number, Record<string, number>>()
+  for (const row of series) {
+    const localH = utcHourToLocal(row.hour_utc)
+    const existing = byLocalHour.get(localH) || {}
+    for (const [code, n] of Object.entries(row.by_warehouse)) {
+      existing[code] = (existing[code] || 0) + n
+    }
+    byLocalHour.set(localH, existing)
+  }
+  // Erstelle volle 0-23 Reihe damit die x-Achse stabil bleibt (statt nur
+  // aktive Stunden zu zeigen — sonst springt die Skalierung)
+  const hourTotals = Array.from({ length: 24 }, (_, h) => {
+    const stack = byLocalHour.get(h) || {}
+    const total = Object.values(stack).reduce((s, n) => s + n, 0)
+    return { hour: h, total, stack }
+  })
+  const maxTotal = Math.max(1, ...hourTotals.map((h) => h.total))
+
+  // Render als horizontaler Streifen 24 Bars. Erste sichtbare Stunde ist die
+  // mit dem ersten Eintrag — aber Skala bleibt 0-23 für stabile Layout.
+  const firstActive = hourTotals.findIndex((h) => h.total > 0)
+  const lastActive = 23 - [...hourTotals].reverse().findIndex((h) => h.total > 0)
+  const visibleStart = Math.max(0, firstActive >= 0 ? firstActive - 1 : 6)
+  const visibleEnd = Math.min(23, lastActive >= 0 ? lastActive + 1 : 20)
+  const visibleHours = hourTotals.slice(visibleStart, visibleEnd + 1)
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 80 }}>
+        {visibleHours.map((h) => {
+          const heightPct = (h.total / maxTotal) * 100
+          // Stack-Reihenfolge: stable insertion order
+          const stackKeys = Object.keys(h.stack).sort()
+          let stackedSoFar = 0
+          return (
+            <div
+              key={h.hour}
+              style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}
+              title={
+                h.total === 0
+                  ? `${h.hour}:00 — keine Verifizierungen`
+                  : `${h.hour}:00 — ${h.total} gesamt\n` +
+                    stackKeys.map((k) => `  ${WAREHOUSE_PERSON[k]?.person || k}: ${h.stack[k]}`).join("\n")
+              }
+            >
+              <div style={{ height: 80, width: "100%", display: "flex", flexDirection: "column-reverse", justifyContent: "flex-start" }}>
+                {h.total > 0 && stackKeys.map((code) => {
+                  const segPct = (h.stack[code] / maxTotal) * 100
+                  const meta = WAREHOUSE_PERSON[code] || { person: code, color: C.muted }
+                  stackedSoFar += segPct
+                  return (
+                    <div
+                      key={code}
+                      style={{
+                        height: `${segPct}%`,
+                        background: meta.color,
+                        borderRadius: stackedSoFar >= heightPct - 0.5 ? "2px 2px 0 0" : 0,
+                      }}
+                    />
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      <div style={{ display: "flex", gap: 3, marginTop: 4 }}>
+        {visibleHours.map((h) => (
+          <div
+            key={h.hour}
+            style={{ flex: 1, fontSize: 9, color: C.muted, textAlign: "center" }}
+          >
+            {h.hour % 2 === 0 ? `${h.hour}` : ""}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 // ─── Main Page ──────────────────────────────────────────────────────────────
@@ -305,19 +458,46 @@ function InventoryHubPage() {
             {/* Today's stats */}
             <div style={{ ...cardStyle, flex: 1, marginBottom: 0 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", marginBottom: 8 }}>Heute</div>
-              <div style={{ display: "flex", gap: 20 }}>
+              <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
                 <div>
-                  <div style={{ fontSize: 22, fontWeight: 700, color: C.fg }}>{stats.today.verified}</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: C.text }}>{stats.today.verified}</div>
                   <div style={{ ...T.small, color: C.muted }}>verifiziert</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 22, fontWeight: 700, color: C.fg }}>{stats.today.copies_added}</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: C.text }}>{stats.today.copies_added}</div>
                   <div style={{ ...T.small, color: C.muted }}>neue Kopien</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 22, fontWeight: 700, color: C.fg }}>{stats.today.price_changed}</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: C.text }}>{stats.today.price_changed}</div>
                   <div style={{ ...T.small, color: C.muted }}>Preise geändert</div>
                 </div>
+                {stats.throughput && (
+                  <>
+                    <div style={{ borderLeft: `1px solid ${C.border}`, height: 36, alignSelf: "center" }} />
+                    <div title="Verifizierungen in den letzten 60 Minuten — rolling window">
+                      <div style={{ fontSize: 22, fontWeight: 700, color: C.gold }}>
+                        {stats.throughput.current_rate_per_hour}
+                      </div>
+                      <div style={{ ...T.small, color: C.muted }}>Items/h jetzt</div>
+                    </div>
+                    <div title={`Durchschnitt über ${stats.throughput.today_active_hours} aktive Stunden heute`}>
+                      <div style={{ fontSize: 22, fontWeight: 700, color: C.text }}>
+                        {stats.throughput.today_avg_per_active_hour}
+                      </div>
+                      <div style={{ ...T.small, color: C.muted }}>Items/h Ø heute</div>
+                    </div>
+                    <div title="Stärkste Stunde heute (lokale Zeit)">
+                      <div style={{ fontSize: 22, fontWeight: 700, color: C.text }}>
+                        {stats.throughput.today_peak_hour_utc != null
+                          ? `${utcHourToLocal(stats.throughput.today_peak_hour_utc)}h`
+                          : "—"}
+                      </div>
+                      <div style={{ ...T.small, color: C.muted }}>
+                        Peak ({stats.throughput.today_peak_count} Items)
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -340,6 +520,85 @@ function InventoryHubPage() {
               })}
             </div>
           </div>
+
+          {/* ── Pro Person (Lager-Proxy) + Verlauf heute ── */}
+          {stats.per_warehouse && stats.per_warehouse.length > 0 && (
+            <div style={{ display: "flex", gap: S.gap.lg, marginBottom: S.sectionGap }}>
+              {/* Pro Person */}
+              <div style={{ ...cardStyle, flex: 1, marginBottom: 0 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase" }}>Pro Person</div>
+                  <div style={{ ...T.small, color: C.muted }} title="David hat noch keinen eigenen Account — Zuordnung über Lagerort: Frank=Alpenstrasse, David=Eugenstrasse">
+                    via Lagerort
+                  </div>
+                </div>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr>
+                      <th style={{ ...thStyle, padding: "6px 8px" }}>Person</th>
+                      <th style={{ ...thStyle, padding: "6px 8px", textAlign: "right" }}>Heute</th>
+                      <th style={{ ...thStyle, padding: "6px 8px", textAlign: "right" }}>Items/h</th>
+                      <th style={{ ...thStyle, padding: "6px 8px", textAlign: "right" }}>Jetzt</th>
+                      <th style={{ ...thStyle, padding: "6px 8px", textAlign: "right" }}>7 Tage</th>
+                      <th style={{ ...thStyle, padding: "6px 8px", textAlign: "right" }}>Gesamt</th>
+                      <th style={{ ...thStyle, padding: "6px 8px", textAlign: "right" }}>Zuletzt</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stats.per_warehouse.map((w) => {
+                      const meta = WAREHOUSE_PERSON[w.warehouse_code] || {
+                        person: w.warehouse_name,
+                        color: C.muted,
+                      }
+                      return (
+                        <tr key={w.warehouse_code}>
+                          <td style={{ ...tdStyle, padding: "8px" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <div style={{
+                                width: 8, height: 8, borderRadius: "50%", background: meta.color,
+                              }} />
+                              <span style={{ fontWeight: 500 }}>{meta.person}</span>
+                            </div>
+                          </td>
+                          <td style={{ ...tdStyle, padding: "8px", textAlign: "right", fontWeight: 600 }}>{w.today}</td>
+                          <td style={{ ...tdStyle, padding: "8px", textAlign: "right", color: C.muted }}>
+                            {w.items_per_hour_today || "—"}
+                          </td>
+                          <td style={{ ...tdStyle, padding: "8px", textAlign: "right", color: w.current_rate_per_hour > 0 ? C.gold : C.muted }}>
+                            {w.current_rate_per_hour || "—"}
+                          </td>
+                          <td style={{ ...tdStyle, padding: "8px", textAlign: "right", color: C.muted }}>{w.last_7_days}</td>
+                          <td style={{ ...tdStyle, padding: "8px", textAlign: "right", color: C.muted }}>{w.all_time.toLocaleString("de-DE")}</td>
+                          <td style={{ ...tdStyle, padding: "8px", textAlign: "right", color: C.muted }}>
+                            {w.last_active_at ? formatRelativeTime(w.last_active_at) : "—"}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Verlauf heute — gestackte mini-bars by warehouse */}
+              <div style={{ ...cardStyle, flex: 1, marginBottom: 0 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase" }}>Verlauf heute</div>
+                  <div style={{ display: "flex", gap: 12, ...T.small, color: C.muted }}>
+                    {stats.per_warehouse.map((w) => {
+                      const meta = WAREHOUSE_PERSON[w.warehouse_code] || { person: w.warehouse_name, color: C.muted }
+                      return (
+                        <div key={w.warehouse_code} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          <div style={{ width: 8, height: 8, borderRadius: 2, background: meta.color }} />
+                          <span>{meta.person.split(" ")[0]}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+                {renderHourlyBars(stats, C)}
+              </div>
+            </div>
+          )}
         </>
       )}
 
