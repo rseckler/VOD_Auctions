@@ -243,7 +243,7 @@ def main() -> int:
                     """
                     UPDATE crm_pull_run
                     SET finished_at = NOW(),
-                        status = 'ok',
+                        status = 'done',
                         files_total = 1,
                         files_ok = 1,
                         rows_inserted = %s,
