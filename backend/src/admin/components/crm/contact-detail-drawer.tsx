@@ -1,6 +1,7 @@
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useMemo } from "react"
 import { C, S, T, fmtMoney, fmtNum, relativeTime } from "../admin-tokens"
 import { Badge, Btn, EmptyState, inputStyle, selectStyle, Modal } from "../admin-ui"
+import { ISO_COUNTRIES, flagFor, findCountry } from "../../data/country-iso"
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -1565,6 +1566,157 @@ const inputRow: React.CSSProperties = { display: "flex", flexDirection: "column"
 const inputLabel: React.CSSProperties = { ...T.micro, color: C.muted }
 const fullInput: React.CSSProperties = { ...inputStyle, width: "100%" }
 
+// ── Country Picker ─────────────────────────────────────────────────────────
+
+function CountryPicker({ value, onChange }: { value: string; onChange: (code: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState("")
+  const selected = findCountry(value)
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return ISO_COUNTRIES
+    return ISO_COUNTRIES.filter((c) =>
+      c.nameEn.toLowerCase().includes(q) ||
+      c.nameDe.toLowerCase().includes(q) ||
+      c.code.toLowerCase().includes(q)
+    )
+  }, [search])
+
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        style={{
+          ...fullInput,
+          textAlign: "left",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
+        {selected ? (
+          <>
+            <span style={{ fontSize: 16 }}>{flagFor(selected.code)}</span>
+            <span>{selected.nameEn}</span>
+            <span style={{ color: C.muted, marginLeft: "auto" }}>{selected.code}</span>
+          </>
+        ) : (
+          <span style={{ color: C.muted }}>— Select country —</span>
+        )}
+        <span style={{ color: C.muted, marginLeft: selected ? 8 : "auto" }}>▾</span>
+      </button>
+
+      {open && (
+        <>
+          {/* Click-outside backdrop */}
+          <div
+            onClick={() => setOpen(false)}
+            style={{ position: "fixed", inset: 0, zIndex: 200 }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              top: "calc(100% + 4px)",
+              left: 0,
+              right: 0,
+              background: C.card,
+              border: `1px solid ${C.border}`,
+              borderRadius: S.radius.md,
+              boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
+              zIndex: 201,
+              maxHeight: 320,
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+            }}
+          >
+            <input
+              autoFocus
+              type="search"
+              placeholder="Search country (EN/DE/ISO)…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{
+                ...inputStyle,
+                borderRadius: 0,
+                border: "none",
+                borderBottom: `1px solid ${C.border}`,
+                width: "100%",
+              }}
+            />
+            <div style={{ overflowY: "auto", flex: 1 }}>
+              {selected && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChange("")
+                    setOpen(false)
+                    setSearch("")
+                  }}
+                  style={{
+                    ...countryRowStyle(false),
+                    color: C.muted,
+                    fontStyle: "italic",
+                  }}
+                >
+                  ✕ Clear selection
+                </button>
+              )}
+              {filtered.length === 0 ? (
+                <div style={{ padding: 16, fontSize: 13, color: C.muted, textAlign: "center" }}>
+                  No matches
+                </div>
+              ) : (
+                filtered.map((c) => (
+                  <button
+                    key={c.code}
+                    type="button"
+                    onClick={() => {
+                      onChange(c.code)
+                      setOpen(false)
+                      setSearch("")
+                    }}
+                    style={countryRowStyle(c.code === value)}
+                  >
+                    <span style={{ fontSize: 16 }}>{flagFor(c.code)}</span>
+                    <span>{c.nameEn}</span>
+                    {c.nameEn !== c.nameDe && (
+                      <span style={{ color: C.muted, fontSize: 11 }}>· {c.nameDe}</span>
+                    )}
+                    <span style={{ color: C.muted, marginLeft: "auto", fontSize: 12, fontFamily: "monospace" }}>
+                      {c.code}
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function countryRowStyle(active: boolean): React.CSSProperties {
+  return {
+    width: "100%",
+    padding: "8px 12px",
+    background: active ? C.subtle : "transparent",
+    border: "none",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    fontSize: 13,
+    color: C.text,
+    textAlign: "left",
+    borderBottom: `1px solid ${C.border}20`,
+  }
+}
+
 // ── Master Edit Modal ──────────────────────────────────────────────────────
 
 const TIER_OPTIONS = ["", "platinum", "gold", "silver", "bronze", "standard", "dormant"] as const
@@ -1762,8 +1914,10 @@ function AddressEditModal({
   const [postalCode, setPostalCode] = useState(address?.postal_code || "")
   const [city, setCity] = useState(address?.city || "")
   const [region, setRegion] = useState(address?.region || "")
-  const [country, setCountry] = useState(address?.country || "")
-  const [countryCode, setCountryCode] = useState(address?.country_code || "")
+  const initialCode = (address?.country_code || "").toUpperCase()
+    || findCountry(address?.country)?.code
+    || ""
+  const [countryCode, setCountryCode] = useState(initialCode)
   const [setPrimary, setSetPrimary] = useState(false)
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -1772,12 +1926,14 @@ function AddressEditModal({
     setSaving(true)
     setErr(null)
     try {
+      const selected = findCountry(countryCode)
       const body: Record<string, unknown> = {
         type, salutation, company,
         first_name: firstName, last_name: lastName,
         street, street_2: street2,
         postal_code: postalCode, city, region,
-        country, country_code: countryCode.trim().toUpperCase() || null,
+        country: selected ? selected.nameEn : null,
+        country_code: selected ? selected.code : null,
       }
       if (setPrimary || !isEdit) body.is_primary = true
       const url = isEdit
@@ -1866,15 +2022,9 @@ function AddressEditModal({
             <input style={fullInput} value={region} onChange={(e) => setRegion(e.target.value)} />
           </div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 100px", gap: 12 }}>
-          <div style={inputRow}>
-            <label style={inputLabel}>Country</label>
-            <input style={fullInput} value={country} onChange={(e) => setCountry(e.target.value)} />
-          </div>
-          <div style={inputRow}>
-            <label style={inputLabel}>ISO-2</label>
-            <input style={fullInput} value={countryCode} onChange={(e) => setCountryCode(e.target.value.toUpperCase())} maxLength={2} placeholder="DE" />
-          </div>
+        <div style={inputRow}>
+          <label style={inputLabel}>Country</label>
+          <CountryPicker value={countryCode} onChange={setCountryCode} />
         </div>
         {isEdit && (
           <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, cursor: "pointer" }}>
