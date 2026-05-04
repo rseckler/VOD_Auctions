@@ -2599,8 +2599,119 @@ function MasterEditModal({
             </div>
           )}
         </Subsection>
+
+        {/* GDPR Section: Export + Anonymize */}
+        <DangerZone master={master} onAnonymized={onSaved} />
       </div>
     </Modal>
+  )
+}
+
+// ── DangerZone — GDPR Right-to-Access + Right-to-Anonymize ─────────────────
+
+function DangerZone({ master, onAnonymized }: { master: Master; onAnonymized: () => void }) {
+  const [confirming, setConfirming] = useState(false)
+  const [confirmText, setConfirmText] = useState("")
+  const [reason, setReason] = useState("")
+  const [working, setWorking] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const exportData = () => {
+    window.open(`/admin/crm/contacts/${master.id}/gdpr-export`, "_blank")
+  }
+
+  const anonymize = async () => {
+    if (confirmText !== "ANONYMIZE") {
+      setErr("Type ANONYMIZE to confirm")
+      return
+    }
+    setWorking(true)
+    setErr(null)
+    try {
+      const r = await fetch(`/admin/crm/contacts/${master.id}/anonymize`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ confirm: "ANONYMIZE", reason: reason.trim() || undefined }),
+      })
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}))
+        throw new Error(d.error || `HTTP ${r.status}`)
+      }
+      onAnonymized()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  return (
+    <div style={{ borderTop: `2px solid ${C.error}30`, paddingTop: 12, marginTop: 8 }}>
+      <div style={{ ...T.micro, color: C.error, marginBottom: 8 }}>⚠ Danger Zone — GDPR</div>
+      <div style={{
+        background: C.error + "10",
+        border: `1px solid ${C.error}30`,
+        borderRadius: S.radius.md,
+        padding: 12,
+        display: "flex",
+        flexDirection: "column",
+        gap: 12,
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 600, fontSize: 13 }}>Export data (Art. 15)</div>
+            <div style={T.small}>Download all data we have on this contact as JSON.</div>
+          </div>
+          <Btn label="Export JSON" variant="ghost" onClick={exportData} />
+        </div>
+        <div style={{ borderTop: `1px solid ${C.error}30` }} />
+        {!confirming ? (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 600, fontSize: 13 }}>Anonymize (Art. 17)</div>
+              <div style={T.small}>
+                Removes all PII (name/email/phone/address/notes). Lifetime-revenue and
+                transactions remain anonymized for accounting. Irreversible.
+              </div>
+            </div>
+            <Btn label="Anonymize…" variant="danger" onClick={() => setConfirming(true)} />
+          </div>
+        ) : (
+          <div>
+            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8, color: C.error }}>
+              Confirm anonymization
+            </div>
+            <div style={{ ...T.small, marginBottom: 10 }}>
+              This action cannot be undone. Type <b>ANONYMIZE</b> below to confirm.
+            </div>
+            {err && <div style={{ color: C.error, fontSize: 12, marginBottom: 8 }}>{err}</div>}
+            <input
+              autoFocus
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder="ANONYMIZE"
+              style={{ ...fullInput, marginBottom: 8 }}
+            />
+            <input
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Reason (optional, for audit log)"
+              style={{ ...fullInput, marginBottom: 8 }}
+            />
+            <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+              <Btn label="Cancel" variant="ghost" onClick={() => { setConfirming(false); setConfirmText(""); setErr(null) }} />
+              <Btn
+                label={working ? "Anonymizing…" : "Confirm anonymize"}
+                variant="danger"
+                onClick={anonymize}
+                disabled={working || confirmText !== "ANONYMIZE"}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 

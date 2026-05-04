@@ -395,8 +395,8 @@ export function ContactsTab() {
         <FilterPills active={filter} onChange={(f) => { setExtFilter({ filter: f }); setActiveSavedId(null) }} />
       </div>
 
-      {/* Result counter + Save filter button */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+      {/* Result counter + Save filter / Export buttons */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, gap: 8 }}>
         <div style={T.small}>
           {loading && !data ? "Loading…" : `${fmtNum(total)} contacts`}
           {data && total > 0 && (
@@ -406,22 +406,43 @@ export function ContactsTab() {
             </span>
           )}
         </div>
-        {!activeSavedId && (filter !== "all" || extFilter.tier || extFilter.lifecycle_stage || extFilter.rfm_segment || debouncedQ) && (
-          <button
-            onClick={() => setShowSaveFilterModal(true)}
+        <div style={{ display: "flex", gap: 6 }}>
+          {!activeSavedId && (filter !== "all" || extFilter.tier || extFilter.lifecycle_stage || extFilter.rfm_segment || debouncedQ) && (
+            <button
+              onClick={() => setShowSaveFilterModal(true)}
+              style={{
+                fontSize: 12,
+                background: "transparent",
+                color: C.gold,
+                border: `1px solid ${C.gold}`,
+                padding: "4px 10px",
+                borderRadius: S.radius.md,
+                cursor: "pointer",
+              }}
+            >
+              ⭐ Save as filter
+            </button>
+          )}
+          <a
+            href={`/admin/crm/contacts/export?${buildParams().toString()}&format=csv`}
+            target="_blank"
+            rel="noopener"
             style={{
               fontSize: 12,
               background: "transparent",
-              color: C.gold,
-              border: `1px solid ${C.gold}`,
+              color: C.text,
+              border: `1px solid ${C.border}`,
               padding: "4px 10px",
               borderRadius: S.radius.md,
               cursor: "pointer",
+              textDecoration: "none",
+              display: "inline-flex",
+              alignItems: "center",
             }}
           >
-            ⭐ Save as filter
-          </button>
-        )}
+            ⬇ Export CSV
+          </a>
+        </div>
       </div>
 
       {/* Error */}
