@@ -130,6 +130,31 @@ export async function GET(
       sort: sortMeili,
     })
 
+    // Meili-Index hat (noch) kein last_stocktake_warehouse — fuer die UI-
+    // Personen-Spalte holen wir das per kleiner PG-Query auf die maximal
+    // 100 sichtbaren release_ids. Kosten ~5-10ms via PK + Index, akzeptabel
+    // bevor wir den Index um das Feld erweitern.
+    const releaseIds = (result.hits as any[]).map((h) => h.release_id).filter(Boolean)
+    const warehouseByRelease = new Map<string, string>()
+    if (releaseIds.length > 0) {
+      const whRows = await pg.raw(
+        `
+        SELECT
+          ii.release_id,
+          (ARRAY_AGG(wl.code ORDER BY ii.last_stocktake_at DESC NULLS LAST))[1] AS code
+        FROM erp_inventory_item ii
+        LEFT JOIN warehouse_location wl ON wl.id = ii.warehouse_location_id
+        WHERE ii.source = 'frank_collection'
+          AND ii.release_id = ANY(?)
+        GROUP BY ii.release_id
+        `,
+        [releaseIds]
+      )
+      for (const row of whRows.rows as any[]) {
+        if (row.code) warehouseByRelease.set(row.release_id, row.code)
+      }
+    }
+
     // Response-Shape matcht den Browse-Response der Postgres-Route
     const items = (result.hits as any[]).map((hit) => ({
       release_id: hit.release_id,
@@ -148,6 +173,7 @@ export async function GET(
       last_verified_at: hit.last_stocktake_at
         ? new Date(hit.last_stocktake_at * 1000).toISOString()
         : null,
+      last_verified_warehouse_code: warehouseByRelease.get(hit.release_id) ?? null,
     }))
 
     res.json({

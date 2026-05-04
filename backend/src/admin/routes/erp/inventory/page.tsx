@@ -80,6 +80,7 @@ interface BrowseItem {
   exemplar_count: number
   verified_count: number
   last_verified_at: string | null
+  last_verified_warehouse_code: string | null
 }
 
 interface BulkPreview {
@@ -455,45 +456,48 @@ function InventoryHubPage() {
 
           {/* Today + Format Breakdown */}
           <div style={{ display: "flex", gap: S.gap.lg, marginBottom: S.sectionGap }}>
-            {/* Today's stats */}
-            <div style={{ ...cardStyle, flex: 1, marginBottom: 0 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", marginBottom: 8 }}>Heute</div>
-              <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+            {/* Today's stats — kompakt: 6 KPIs in 1 Zeile via grid, kleinere Schrift. */}
+            <div style={{ ...cardStyle, flex: 1, marginBottom: 0, padding: "12px 16px" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", marginBottom: 6 }}>Heute</div>
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: stats.throughput ? "repeat(6, 1fr)" : "repeat(3, 1fr)",
+                gap: 10,
+              }}>
                 <div>
-                  <div style={{ fontSize: 22, fontWeight: 700, color: C.text }}>{stats.today.verified}</div>
-                  <div style={{ ...T.small, color: C.muted }}>verifiziert</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: C.text, lineHeight: 1.1 }}>{stats.today.verified}</div>
+                  <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>verifiziert</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 22, fontWeight: 700, color: C.text }}>{stats.today.copies_added}</div>
-                  <div style={{ ...T.small, color: C.muted }}>neue Kopien</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: C.text, lineHeight: 1.1 }}>{stats.today.copies_added}</div>
+                  <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>neue Kopien</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 22, fontWeight: 700, color: C.text }}>{stats.today.price_changed}</div>
-                  <div style={{ ...T.small, color: C.muted }}>Preise geändert</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: C.text, lineHeight: 1.1 }}>{stats.today.price_changed}</div>
+                  <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>Preise geändert</div>
                 </div>
                 {stats.throughput && (
                   <>
-                    <div style={{ borderLeft: `1px solid ${C.border}`, height: 36, alignSelf: "center" }} />
                     <div title="Verifizierungen in den letzten 60 Minuten — rolling window">
-                      <div style={{ fontSize: 22, fontWeight: 700, color: C.gold }}>
+                      <div style={{ fontSize: 18, fontWeight: 700, color: C.gold, lineHeight: 1.1 }}>
                         {stats.throughput.current_rate_per_hour}
                       </div>
-                      <div style={{ ...T.small, color: C.muted }}>Items/h jetzt</div>
+                      <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>Items/h jetzt</div>
                     </div>
                     <div title={`Durchschnitt über ${stats.throughput.today_active_hours} aktive Stunden heute`}>
-                      <div style={{ fontSize: 22, fontWeight: 700, color: C.text }}>
+                      <div style={{ fontSize: 18, fontWeight: 700, color: C.text, lineHeight: 1.1 }}>
                         {stats.throughput.today_avg_per_active_hour}
                       </div>
-                      <div style={{ ...T.small, color: C.muted }}>Items/h Ø heute</div>
+                      <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>Items/h Ø heute</div>
                     </div>
                     <div title="Stärkste Stunde heute (lokale Zeit)">
-                      <div style={{ fontSize: 22, fontWeight: 700, color: C.text }}>
+                      <div style={{ fontSize: 18, fontWeight: 700, color: C.text, lineHeight: 1.1 }}>
                         {stats.throughput.today_peak_hour_utc != null
                           ? `${utcHourToLocal(stats.throughput.today_peak_hour_utc)}h`
                           : "—"}
                       </div>
-                      <div style={{ ...T.small, color: C.muted }}>
-                        Peak ({stats.throughput.today_peak_count} Items)
+                      <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>
+                        Peak · {stats.throughput.today_peak_count}
                       </div>
                     </div>
                   </>
@@ -679,6 +683,7 @@ function InventoryHubPage() {
                   <th style={thStyle}>Preis</th>
                   <th style={thStyle}>Ex.</th>
                   <th style={thStyle}>Verifiziert</th>
+                  <th style={thStyle}>Person</th>
                   <th style={thStyle}>Status</th>
                 </tr>
               </thead>
@@ -691,7 +696,7 @@ function InventoryHubPage() {
                       <td style={tdStyle}>
                         <div style={{ width: 36, height: 36, background: C.subtle, borderRadius: 3 }} />
                       </td>
-                      {Array.from({ length: 7 }).map((__, j) => (
+                      {Array.from({ length: 8 }).map((__, j) => (
                         <td key={j} style={tdStyle}>
                           <div style={{ height: 12, background: C.subtle, borderRadius: 2, width: `${50 + ((i * 7 + j) % 4) * 10}%` }} />
                         </td>
@@ -732,6 +737,25 @@ function InventoryHubPage() {
                             minute: "2-digit",
                           })
                         : "—"}
+                    </td>
+                    <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>
+                      {(() => {
+                        if (!item.last_verified_warehouse_code) {
+                          return <span style={{ ...T.small, color: C.muted }}>—</span>
+                        }
+                        const meta = WAREHOUSE_PERSON[item.last_verified_warehouse_code] || {
+                          person: item.last_verified_warehouse_code,
+                          color: C.muted,
+                        }
+                        // Nur den Vornamen rendern damit die Spalte kompakt bleibt
+                        const firstName = meta.person.split(" ")[0]
+                        return (
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }} title={meta.person}>
+                            <div style={{ width: 8, height: 8, borderRadius: "50%", background: meta.color }} />
+                            <span style={{ ...T.small }}>{firstName}</span>
+                          </div>
+                        )
+                      })()}
                     </td>
                     <td style={tdStyle}>
                       {item.verified_count >= item.exemplar_count

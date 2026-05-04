@@ -71,6 +71,8 @@ export async function inventoryBrowseGetPostgres(
 
   // Single query: CTE aggregates per release on erp_inventory_item alone,
   // then joins Release/Artist/Label, with COUNT(*) OVER() for pagination total.
+  // last_verified_warehouse_id = warehouse der zuletzt verifizierten Copy
+  // (ARRAY_AGG ORDER BY trick = "lateral DISTINCT ON" ohne extra subquery).
   const sql = `
     WITH per_release AS MATERIALIZED (
       SELECT
@@ -78,7 +80,8 @@ export async function inventoryBrowseGetPostgres(
         COUNT(*)::int AS exemplar_count,
         COUNT(*) FILTER (WHERE ii.last_stocktake_at IS NOT NULL)::int AS verified_count,
         MAX(ii.last_stocktake_at) AS last_verified_at,
-        MAX(ii.updated_at) AS last_updated_at
+        MAX(ii.updated_at) AS last_updated_at,
+        (ARRAY_AGG(ii.warehouse_location_id ORDER BY ii.last_stocktake_at DESC NULLS LAST))[1] AS last_verified_warehouse_id
       FROM erp_inventory_item ii
       ${cteWhere}
       GROUP BY ii.release_id
@@ -89,11 +92,13 @@ export async function inventoryBrowseGetPostgres(
       r."catalogNumber" AS catalog_number, r.legacy_price, r.year, r.country,
       a.name AS artist_name, l.name AS label_name,
       pr.exemplar_count, pr.verified_count, pr.last_verified_at,
+      wl.code AS last_verified_warehouse_code,
       COUNT(*) OVER() AS _total_count
     FROM per_release pr
     JOIN "Release" r ON r.id = pr.release_id
     LEFT JOIN "Artist" a ON a.id = r."artistId"
     LEFT JOIN "Label" l ON l.id = r."labelId"
+    LEFT JOIN warehouse_location wl ON wl.id = pr.last_verified_warehouse_id
     ${outerWhere}
     ORDER BY ${orderBy}
     LIMIT ${limit} OFFSET ${offset}
@@ -119,6 +124,7 @@ export async function inventoryBrowseGetPostgres(
       exemplar_count: r.exemplar_count,
       verified_count: r.verified_count,
       last_verified_at: r.last_verified_at,
+      last_verified_warehouse_code: r.last_verified_warehouse_code,
     })),
     total,
     limit,
