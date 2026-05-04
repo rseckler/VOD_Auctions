@@ -114,19 +114,87 @@ def select_folder_readonly(imap: imaplib.IMAP4_SSL, folder: str) -> None:
         imap.select(folder, readonly=True)
 
 
+def decode_body_text(raw_text: str, content_type_hint: str | None = None) -> str:
+    """Extrahiere lesbaren text/plain-Inhalt aus einem MIME-multipart-Body.
+
+    Strategie:
+    1. Parse als email.message via parser
+    2. Walk durch alle parts, suche text/plain (sonst text/html → strip-tags)
+    3. Decode quoted-printable + base64
+    4. Fallback: raw text wenn nicht parseable
+    """
+    # Wenn das schon flat-text ist (kein MIME-boundary), nimm direkt
+    if not raw_text.lstrip().startswith("--==") and "Content-Type:" not in raw_text[:200]:
+        return raw_text
+
+    # Synth ein Mock-Header voraus, damit der Parser den Body als multipart erkennt
+    # (BODY[TEXT] liefert nur den Body OHNE Top-Level-Headers)
+    mock_header = "MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"___MOCK___\"\r\n\r\n"
+
+    # Versuche das raw als parsing-fähiges email zu interpretieren
+    try:
+        # Direct parse (wenn der Body schon multipart-Header hat)
+        msg = email.message_from_string(raw_text)
+        if not msg.is_multipart() and not msg.get_content_type():
+            return raw_text
+    except Exception:
+        return raw_text
+
+    text_parts: list[str] = []
+    html_parts: list[str] = []
+    try:
+        for part in msg.walk():
+            ctype = part.get_content_type()
+            if part.get_content_maintype() == "multipart":
+                continue
+            try:
+                payload = part.get_payload(decode=True)
+                if not payload:
+                    continue
+                charset = part.get_content_charset() or "utf-8"
+                text = payload.decode(charset, errors="replace")
+                if ctype == "text/plain":
+                    text_parts.append(text)
+                elif ctype == "text/html":
+                    html_parts.append(text)
+            except Exception:
+                continue
+    except Exception:
+        pass
+
+    if text_parts:
+        return "\n\n".join(text_parts).strip()
+
+    # Fallback: text/html → strip tags pragmatisch
+    if html_parts:
+        html = "\n\n".join(html_parts)
+        # Naive tag-strip (gut genug für Token-Match)
+        stripped = re.sub(r"<[^>]+>", " ", html)
+        stripped = re.sub(r"&nbsp;", " ", stripped)
+        stripped = re.sub(r"&amp;", "&", stripped)
+        stripped = re.sub(r"&lt;", "<", stripped)
+        stripped = re.sub(r"&gt;", ">", stripped)
+        stripped = re.sub(r"&quot;", '"', stripped)
+        stripped = re.sub(r"\s+", " ", stripped)
+        return stripped.strip()
+
+    return raw_text
+
+
 def fetch_bodies_for_uids(
     imap: imaplib.IMAP4_SSL,
     uids: list[str],
 ) -> dict[str, str]:
-    """Fetcht für eine UID-Liste die ersten 5120 Bytes von BODY[TEXT].
+    """Fetcht für eine UID-Liste die ersten 32k Bytes von BODY[TEXT] und decoded.
 
-    Returns {uid: body_text}
+    Returns {uid: decoded_body_text}
     """
     if not uids:
         return {}
     uid_set = ",".join(uids)
     try:
-        typ, data = imap.uid("FETCH", uid_set, "(BODY.PEEK[TEXT]<0.5120>)")
+        # 32kb statt 5kb damit MIME-multipart komplett reinkommt
+        typ, data = imap.uid("FETCH", uid_set, "(BODY.PEEK[TEXT]<0.32768>)")
     except Exception as e:
         print(f"[backfill] FETCH error: {e}", file=sys.stderr)
         return {}
@@ -134,8 +202,6 @@ def fetch_bodies_for_uids(
         return {}
 
     results: dict[str, str] = {}
-    # Pattern: [(b'<seq> (UID <n> BODY[TEXT]<0> {<size>}', b'<body-bytes>'), b')']
-    # Bei nur EINER Section pro Mail ist das stable
     for entry in data:
         if isinstance(entry, tuple) and len(entry) == 2:
             meta_b, payload_b = entry
@@ -144,10 +210,12 @@ def fetch_bodies_for_uids(
             if m_uid and isinstance(payload_b, (bytes, bytearray)):
                 uid = m_uid.group(1)
                 try:
-                    text = payload_b.decode("utf-8", errors="replace")
+                    raw = payload_b.decode("utf-8", errors="replace")
                 except Exception:
-                    text = payload_b.decode("latin-1", errors="replace")
-                results[uid] = text
+                    raw = payload_b.decode("latin-1", errors="replace")
+                # MIME-decode → text/plain extrahieren
+                decoded = decode_body_text(raw)
+                results[uid] = decoded
     return results
 
 
