@@ -201,9 +201,26 @@ export async function GET(
 //   - is_test change → 'is_test_set' / 'is_test_unset'
 //   - tags array diff → 'tag_added' / 'tag_removed' per tag
 type PatchBody = {
+  // Naming
   display_name?: string
+  first_name?: string | null
+  last_name?: string | null
+  company?: string | null
+  salutation?: string | null
+  title?: string | null
+  // Classification
   contact_type?: "person" | "business" | null
   tier?: "platinum" | "gold" | "silver" | "bronze" | "standard" | "dormant" | null
+  lifecycle_stage?: "lead" | "active" | "engaged" | "at_risk" | "dormant" | "churned" | "lost" | null
+  // Profile
+  preferred_language?: string | null
+  avatar_url?: string | null
+  birthday?: string | null  // ISO date
+  // Acquisition
+  acquisition_channel?: string | null
+  acquisition_campaign?: string | null
+  acquisition_date?: string | null
+  // Status
   is_test?: boolean
   is_blocked?: boolean
   blocked_reason?: string | null
@@ -216,6 +233,19 @@ const ALLOWED_TIERS = new Set([
 ])
 const ALLOWED_REVIEW = new Set(["auto", "pending", "reviewed", "rejected"])
 const ALLOWED_CONTACT_TYPES = new Set(["person", "business"])
+const ALLOWED_LIFECYCLE = new Set([
+  "lead", "active", "engaged", "at_risk", "dormant", "churned", "lost",
+])
+
+// Simple-String-Felder, die direkt mit before-Wert verglichen werden können
+const SIMPLE_STRING_FIELDS = [
+  "first_name", "last_name", "company", "salutation", "title",
+  "preferred_language", "avatar_url",
+  "acquisition_channel", "acquisition_campaign",
+] as const
+
+// Date-Felder (input als ISO-string, gespeichert als date)
+const DATE_FIELDS = ["birthday", "acquisition_date"] as const
 
 export async function PATCH(
   req: MedusaRequest<PatchBody, { id?: string }>,
@@ -250,6 +280,53 @@ export async function PATCH(
       if (v !== before.display_name) {
         updates.display_name = v
         fieldsChanged.push("display_name")
+      }
+    }
+
+    // Simple String-Felder: trim, "" → null
+    for (const f of SIMPLE_STRING_FIELDS) {
+      if ((payload as Record<string, unknown>)[f] !== undefined) {
+        const raw = (payload as Record<string, unknown>)[f]
+        const v = raw === null || raw === "" ? null : String(raw).trim() || null
+        if (v !== (before as Record<string, unknown>)[f]) {
+          updates[f] = v
+          fieldsChanged.push(f)
+        }
+      }
+    }
+
+    // Date-Felder
+    for (const f of DATE_FIELDS) {
+      if ((payload as Record<string, unknown>)[f] !== undefined) {
+        const raw = (payload as Record<string, unknown>)[f]
+        const v = raw === null || raw === "" ? null : String(raw).trim() || null
+        // Date-Compare: stringify before-Wert
+        const beforeVal = (before as Record<string, unknown>)[f]
+        const beforeStr = beforeVal instanceof Date
+          ? beforeVal.toISOString().slice(0, 10)
+          : beforeVal === null || beforeVal === undefined
+            ? null
+            : String(beforeVal).slice(0, 10)
+        if (v !== beforeStr) {
+          updates[f] = v
+          fieldsChanged.push(f)
+        }
+      }
+    }
+
+    // Lifecycle-Stage (mit Validierung + Auto-Setzen lifecycle_changed_at)
+    if (payload.lifecycle_stage !== undefined) {
+      const v = payload.lifecycle_stage === null || payload.lifecycle_stage === ""
+        ? null
+        : payload.lifecycle_stage
+      if (v !== null && !ALLOWED_LIFECYCLE.has(v)) {
+        res.status(400).json({ ok: false, error: "invalid lifecycle_stage" })
+        return
+      }
+      if (v !== before.lifecycle_stage) {
+        updates.lifecycle_stage = v
+        updates.lifecycle_changed_at = pgConnection.fn.now()
+        fieldsChanged.push("lifecycle_stage")
       }
     }
     if (payload.contact_type !== undefined) {
@@ -351,6 +428,15 @@ export async function PATCH(
         master_id: id,
         action: "tier_set",
         details: { from: before.tier, to: updates.tier },
+        source: "admin_ui",
+        admin_email: admin,
+      })
+    }
+    if (fieldsChanged.includes("lifecycle_stage")) {
+      auditEntries.push({
+        master_id: id,
+        action: "lifecycle_stage_changed",
+        details: { from: before.lifecycle_stage, to: updates.lifecycle_stage },
         source: "admin_ui",
         admin_email: admin,
       })

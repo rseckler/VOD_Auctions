@@ -8,6 +8,13 @@ import { ISO_COUNTRIES, flagFor, findCountry } from "../../data/country-iso"
 type Master = {
   id: string
   display_name: string
+  // Naming (S6.5)
+  first_name: string | null
+  last_name: string | null
+  company: string | null
+  salutation: string | null
+  title: string | null
+  // Classification
   contact_type: string | null
   primary_email: string | null
   primary_email_lower: string | null
@@ -23,6 +30,28 @@ type Master = {
   medusa_customer_id: string | null
   tier: string | null
   tier_calculated_at: string | null
+  // Lifecycle (S6.5)
+  lifecycle_stage: string | null
+  lifecycle_changed_at: string | null
+  // RFM (S6.5)
+  rfm_recency_score: number | null
+  rfm_frequency_score: number | null
+  rfm_monetary_score: number | null
+  rfm_segment: string | null
+  rfm_calculated_at: string | null
+  // Health (S6.5)
+  health_score: number | null
+  health_calculated_at: string | null
+  // Acquisition (S6.5)
+  acquisition_channel: string | null
+  acquisition_campaign: string | null
+  acquisition_date: string | null
+  // Profile (S6.5)
+  preferred_language: string | null
+  avatar_url: string | null
+  birthday: string | null
+  notable_dates: unknown
+  // Status
   tags: string[]
   is_test: boolean
   is_blocked: boolean
@@ -219,6 +248,60 @@ function tierBadge(tier: string | null) {
   return <Badge label={tier} variant={variantMap[tier] || "neutral"} />
 }
 
+// Lifecycle-Badges nach Klaviyo
+const LIFECYCLE_LABELS: Record<string, { label: string; variant: "success" | "info" | "warning" | "error" | "purple" | "neutral" }> = {
+  lead:     { label: "lead",     variant: "info" },
+  active:   { label: "active",   variant: "success" },
+  engaged:  { label: "engaged",  variant: "purple" },
+  at_risk:  { label: "at risk",  variant: "warning" },
+  dormant:  { label: "dormant",  variant: "neutral" },
+  churned:  { label: "churned",  variant: "neutral" },
+  lost:     { label: "lost",     variant: "error" },
+}
+
+function lifecycleBadge(stage: string | null) {
+  if (!stage) return null
+  const cfg = LIFECYCLE_LABELS[stage]
+  if (!cfg) return <Badge label={stage} variant="neutral" />
+  return <Badge label={cfg.label} variant={cfg.variant} />
+}
+
+// RFM-Segment-Badges nach Klaviyo (Icon + Label + Color)
+const RFM_LABELS: Record<string, { label: string; icon: string; variant: "success" | "info" | "warning" | "error" | "purple" | "neutral" }> = {
+  champions:           { label: "Champions",            icon: "💎", variant: "purple" },
+  loyal_customers:     { label: "Loyal",                icon: "💜", variant: "purple" },
+  potential_loyalists: { label: "Potential Loyalist",   icon: "🌱", variant: "success" },
+  new_customers:       { label: "New",                  icon: "🆕", variant: "info" },
+  promising:           { label: "Promising",            icon: "⭐", variant: "info" },
+  needs_attention:     { label: "Needs Attention",      icon: "👀", variant: "warning" },
+  at_risk:             { label: "At Risk",              icon: "⚠️", variant: "warning" },
+  cant_lose:           { label: "Can't Lose Them",      icon: "🚨", variant: "error" },
+  hibernating:         { label: "Hibernating",          icon: "😴", variant: "neutral" },
+  lost:                { label: "Lost",                 icon: "💤", variant: "neutral" },
+}
+
+function rfmBadge(seg: string | null) {
+  if (!seg) return null
+  const cfg = RFM_LABELS[seg]
+  if (!cfg) return <Badge label={seg} variant="neutral" />
+  return <Badge label={`${cfg.icon} ${cfg.label}`} variant={cfg.variant} />
+}
+
+function healthColor(score: number | null): string {
+  if (score === null) return C.muted
+  if (score >= 80) return C.success
+  if (score >= 60) return C.gold
+  if (score >= 40) return C.warning
+  return C.error
+}
+
+function initials(displayName: string): string {
+  const parts = displayName.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return "?"
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
+
 function fmtRev(v: number | string | null): string {
   if (v === null || v === undefined) return "—"
   const n = typeof v === "string" ? parseFloat(v) : v
@@ -333,39 +416,59 @@ export function ContactDetailDrawer({
             gap: 16,
           }}
         >
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ ...T.micro, marginBottom: 4 }}>Master Contact</div>
-            <div
-              style={{
-                ...T.pageTitle,
-                fontSize: 20,
-                wordBreak: "break-word",
-                marginBottom: 8,
-              }}
-            >
-              {data?.master.display_name || "Loading…"}
-            </div>
+          <div style={{ minWidth: 0, flex: 1, display: "flex", gap: 14, alignItems: "flex-start" }}>
+            {/* Avatar (Initials oder URL) */}
             {data && (
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-                {tierBadge(data.master.tier)}
-                {data.master.is_test && <Badge label="test" variant="warning" />}
-                {data.master.is_blocked && <Badge label="blocked" variant="error" />}
-                {data.master.tags
-                  .filter((t) => t !== "internal_owner")
-                  .map((t) => (
-                    <Badge key={t} label={t} variant="neutral" />
-                  ))}
-                {data.master.tags.includes("internal_owner") && (
-                  <Badge label="internal" variant="purple" />
-                )}
-                {data.master.medusa_customer_id && (
-                  <Badge label="vod-auctions linked" variant="success" />
-                )}
-                {data.master.contact_type && (
-                  <Badge label={data.master.contact_type} variant="neutral" />
-                )}
-              </div>
+              <Avatar master={data.master} />
             )}
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ ...T.micro, marginBottom: 4 }}>Master Contact</div>
+              <div
+                style={{
+                  ...T.pageTitle,
+                  fontSize: 20,
+                  wordBreak: "break-word",
+                  marginBottom: 4,
+                }}
+              >
+                {data?.master.display_name || "Loading…"}
+              </div>
+              {data && (data.master.company || data.master.preferred_language) && (
+                <div style={{ ...T.small, marginBottom: 8 }}>
+                  {data.master.company && data.master.company !== data.master.display_name && (
+                    <span>{data.master.company}</span>
+                  )}
+                  {data.master.contact_type && (
+                    <span style={{ color: C.muted }}>
+                      {data.master.company ? " · " : ""}{data.master.contact_type}
+                    </span>
+                  )}
+                  {data.master.preferred_language && (
+                    <span style={{ color: C.muted }}> · {data.master.preferred_language.toUpperCase()}</span>
+                  )}
+                </div>
+              )}
+              {data && (
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                  {tierBadge(data.master.tier)}
+                  {rfmBadge(data.master.rfm_segment)}
+                  {lifecycleBadge(data.master.lifecycle_stage)}
+                  {data.master.is_test && <Badge label="test" variant="warning" />}
+                  {data.master.is_blocked && <Badge label="blocked" variant="error" />}
+                  {data.master.tags
+                    .filter((t) => t !== "internal_owner")
+                    .map((t) => (
+                      <Badge key={t} label={t} variant="neutral" />
+                    ))}
+                  {data.master.tags.includes("internal_owner") && (
+                    <Badge label="internal" variant="purple" />
+                  )}
+                  {data.master.medusa_customer_id && (
+                    <Badge label="vod-auctions linked" variant="success" />
+                  )}
+                </div>
+              )}
+            </div>
           </div>
           <div style={{ display: "flex", gap: 6 }}>
             {data && (
@@ -501,13 +604,16 @@ export function ContactDetailDrawer({
 
 function OverviewTab({ data }: { data: DetailData }) {
   const m = data.master
+  const aov = m.total_transactions > 0
+    ? m.lifetime_revenue / m.total_transactions
+    : 0
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       {/* Stats */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
           gap: 12,
         }}
       >
@@ -517,6 +623,15 @@ function OverviewTab({ data }: { data: DetailData }) {
           accent={m.lifetime_revenue > 0 ? C.gold : C.muted}
         />
         <StatCard label="Transactions" value={fmtNum(m.total_transactions)} />
+        <StatCard
+          label="Avg order value"
+          value={aov > 0 ? fmtRev(aov) : "—"}
+        />
+        <StatCard
+          label="Health score"
+          value={m.health_score !== null ? `${m.health_score}/100` : "—"}
+          accent={healthColor(m.health_score)}
+        />
         <StatCard
           label="First seen"
           value={m.first_seen_at ? new Date(m.first_seen_at).toLocaleDateString("en-GB", { year: "numeric", month: "short" }) : "—"}
@@ -529,6 +644,44 @@ function OverviewTab({ data }: { data: DetailData }) {
         <StatCard label="Activity events" value={fmtNum(
           data.transactions.length + data.bids.length + data.orders.length + data.imap_messages.length
         )} />
+      </div>
+
+      {/* RFM-Scores Mini-Visual */}
+      {m.rfm_segment && (
+        <RfmCard master={m} />
+      )}
+
+      {/* Profile (S6.5: structured names + acquisition + birthday + language) */}
+      <div>
+        <div style={T.sectionHead}>Profile</div>
+        <div
+          style={{
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: S.radius.md,
+            padding: "14px 16px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+            fontSize: 13,
+          }}
+        >
+          <KV label="Salutation" value={[m.salutation, m.title].filter(Boolean).join(" ") || "—"} />
+          <KV label="First name" value={m.first_name || "—"} />
+          <KV label="Last name" value={m.last_name || "—"} />
+          <KV label="Company" value={m.company || "—"} />
+          <KV label="Language" value={m.preferred_language || "—"} />
+          <KV
+            label="Birthday"
+            value={m.birthday ? new Date(m.birthday).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "—"}
+          />
+          <KV
+            label="Acquired"
+            value={m.acquisition_channel
+              ? `${m.acquisition_channel}${m.acquisition_date ? ` · ${new Date(m.acquisition_date).toLocaleDateString("en-GB", { year: "numeric", month: "short" })}` : ""}`
+              : "—"}
+          />
+        </div>
       </div>
 
       {/* Primary Contact */}
@@ -1566,6 +1719,118 @@ const inputRow: React.CSSProperties = { display: "flex", flexDirection: "column"
 const inputLabel: React.CSSProperties = { ...T.micro, color: C.muted }
 const fullInput: React.CSSProperties = { ...inputStyle, width: "100%" }
 
+// ── RfmCard — visualisiert R/F/M-Scores als Mini-Bars + Segment-Badge ──────
+
+function RfmCard({ master }: { master: Master }) {
+  const r = master.rfm_recency_score
+  const f = master.rfm_frequency_score
+  const m = master.rfm_monetary_score
+  const seg = master.rfm_segment
+  const cfg = seg ? RFM_LABELS[seg] : null
+
+  return (
+    <div>
+      <div style={T.sectionHead}>RFM Segmentation</div>
+      <div
+        style={{
+          background: C.card,
+          border: `1px solid ${C.border}`,
+          borderRadius: S.radius.md,
+          padding: "14px 16px",
+        }}
+      >
+        {cfg && (
+          <div style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 24 }}>{cfg.icon}</span>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>{cfg.label}</div>
+              <div style={T.small}>R{r ?? "?"}·F{f ?? "?"}·M{m ?? "?"}</div>
+            </div>
+          </div>
+        )}
+        <RfmBar label="Recency"   score={r} hint="how recently they purchased" />
+        <RfmBar label="Frequency" score={f} hint="how often they purchase" />
+        <RfmBar label="Monetary"  score={m} hint="how much they spend" />
+      </div>
+    </div>
+  )
+}
+
+function RfmBar({ label, score, hint }: { label: string; score: number | null; hint: string }) {
+  const pct = score !== null ? (score / 5) * 100 : 0
+  const color = score === null ? C.muted
+              : score >= 4 ? C.success
+              : score >= 3 ? C.gold
+              : score >= 2 ? C.warning
+              : C.error
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+      <div style={{ width: 80, fontSize: 12, fontWeight: 500 }}>{label}</div>
+      <div style={{ flex: 1, height: 8, background: C.subtle, borderRadius: 4, overflow: "hidden" }}>
+        <div style={{
+          width: `${pct}%`,
+          height: "100%",
+          background: color,
+          transition: "width 200ms ease",
+        }} />
+      </div>
+      <div style={{ width: 40, textAlign: "right", fontSize: 12, color: C.muted }}>
+        {score !== null ? `${score}/5` : "—"}
+      </div>
+    </div>
+  )
+}
+
+// ── Avatar ─────────────────────────────────────────────────────────────────
+
+function Avatar({ master }: { master: Master }) {
+  const size = 56
+  if (master.avatar_url) {
+    return (
+      <img
+        src={master.avatar_url}
+        alt={master.display_name}
+        style={{
+          width: size,
+          height: size,
+          borderRadius: "50%",
+          objectFit: "cover",
+          background: C.subtle,
+          border: `1px solid ${C.border}`,
+          flexShrink: 0,
+        }}
+      />
+    )
+  }
+  // Initials-Circle
+  const ini = initials(master.display_name)
+  // Hash from id for deterministic color
+  let h = 0
+  for (let i = 0; i < master.id.length; i++) h = (h * 31 + master.id.charCodeAt(i)) | 0
+  const palette = [C.gold, C.blue, C.purple, C.success, C.warning]
+  const bg = palette[Math.abs(h) % palette.length]
+  return (
+    <div
+      style={{
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        background: bg,
+        color: "#fff",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 20,
+        fontWeight: 700,
+        flexShrink: 0,
+        userSelect: "none",
+      }}
+    >
+      {ini}
+    </div>
+  )
+}
+
 // ── Country Picker ─────────────────────────────────────────────────────────
 
 function CountryPicker({ value, onChange }: { value: string; onChange: (code: string) => void }) {
@@ -1721,6 +1986,21 @@ function countryRowStyle(active: boolean): React.CSSProperties {
 
 const TIER_OPTIONS = ["", "platinum", "gold", "silver", "bronze", "standard", "dormant"] as const
 
+const LIFECYCLE_OPTIONS = ["", "lead", "active", "engaged", "at_risk", "dormant", "churned", "lost"] as const
+const ACQUISITION_OPTIONS = [
+  "", "mo_pdf", "webshop_db1", "webshop_db2013", "tape_mag",
+  "newsletter", "discogs_referral", "invite", "imap_match", "manual",
+] as const
+const LANGUAGE_OPTIONS = [
+  { code: "", label: "— unknown —" },
+  { code: "de", label: "Deutsch" },
+  { code: "en", label: "English" },
+  { code: "fr", label: "Français" },
+  { code: "it", label: "Italiano" },
+  { code: "es", label: "Español" },
+  { code: "ja", label: "日本語" },
+] as const
+
 function MasterEditModal({
   master,
   onClose,
@@ -1730,15 +2010,53 @@ function MasterEditModal({
   onClose: () => void
   onSaved: () => void
 }) {
+  // Naming
   const [displayName, setDisplayName] = useState(master.display_name)
+  const [firstName, setFirstName] = useState(master.first_name || "")
+  const [lastName, setLastName] = useState(master.last_name || "")
+  const [company, setCompany] = useState(master.company || "")
+  const [salutation, setSalutation] = useState(master.salutation || "")
+  const [title, setTitle] = useState(master.title || "")
+  // Classification
   const [contactType, setContactType] = useState(master.contact_type || "")
   const [tier, setTier] = useState(master.tier || "")
+  const [lifecycle, setLifecycle] = useState(master.lifecycle_stage || "")
+  // Profile
+  const [preferredLanguage, setPreferredLanguage] = useState(master.preferred_language || "")
+  const [avatarUrl, setAvatarUrl] = useState(master.avatar_url || "")
+  const [birthday, setBirthday] = useState(master.birthday ? master.birthday.slice(0, 10) : "")
+  // Acquisition
+  const [acquisitionChannel, setAcquisitionChannel] = useState(master.acquisition_channel || "")
+  const [acquisitionDate, setAcquisitionDate] = useState(master.acquisition_date ? master.acquisition_date.slice(0, 10) : "")
+  // Status
   const [isTest, setIsTest] = useState(master.is_test)
   const [isBlocked, setIsBlocked] = useState(master.is_blocked)
   const [blockedReason, setBlockedReason] = useState(master.blocked_reason || "")
   const [tagsInput, setTagsInput] = useState((master.tags || []).join(", "))
+
+  const [autoCompose, setAutoCompose] = useState(false)
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+
+  // Auto-compose display_name aus Name+Company wenn aktiviert
+  const composeName = () => {
+    if (contactType === "business") {
+      return company.trim() || displayName
+    }
+    const personPart = [firstName.trim(), lastName.trim()].filter(Boolean).join(" ")
+    if (!personPart && !company.trim()) return displayName
+    if (!company.trim()) return personPart
+    if (!personPart) return company.trim()
+    return `${personPart} (${company.trim()})`
+  }
+
+  // Auto-compose triggern wenn Toggle aktiv und einer der Compose-Felder ändert
+  useEffect(() => {
+    if (autoCompose) {
+      setDisplayName(composeName())
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoCompose, firstName, lastName, company, contactType])
 
   const save = async () => {
     setSaving(true)
@@ -1746,8 +2064,19 @@ function MasterEditModal({
     try {
       const body: Record<string, unknown> = {
         display_name: displayName.trim(),
+        first_name: firstName.trim() || null,
+        last_name: lastName.trim() || null,
+        company: company.trim() || null,
+        salutation: salutation.trim() || null,
+        title: title.trim() || null,
         contact_type: contactType || null,
         tier: tier || null,
+        lifecycle_stage: lifecycle || null,
+        preferred_language: preferredLanguage || null,
+        avatar_url: avatarUrl.trim() || null,
+        birthday: birthday || null,
+        acquisition_channel: acquisitionChannel || null,
+        acquisition_date: acquisitionDate || null,
         is_test: isTest,
         is_blocked: isBlocked,
         blocked_reason: isBlocked ? blockedReason.trim() || null : null,
@@ -1776,7 +2105,7 @@ function MasterEditModal({
       title="Edit master contact"
       subtitle={master.display_name}
       onClose={onClose}
-      maxWidth={560}
+      maxWidth={680}
       footer={
         <>
           <Btn label="Cancel" variant="ghost" onClick={onClose} />
@@ -1786,50 +2115,147 @@ function MasterEditModal({
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         {err && <div style={{ color: C.error, fontSize: 12 }}><b>Error:</b> {err}</div>}
-        <div style={inputRow}>
-          <label style={inputLabel}>Display name</label>
-          <input style={fullInput} value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <div style={inputRow}>
-            <label style={inputLabel}>Contact type</label>
-            <select style={selectStyle} value={contactType} onChange={(e) => setContactType(e.target.value)}>
-              <option value="">— unknown —</option>
-              <option value="person">Person</option>
-              <option value="business">Business</option>
-            </select>
+
+        {/* Section: Name */}
+        <Subsection title="Name">
+          <div style={{ display: "grid", gridTemplateColumns: "120px 1fr 1fr", gap: 12 }}>
+            <div style={inputRow}>
+              <label style={inputLabel}>Salutation</label>
+              <input style={fullInput} value={salutation} onChange={(e) => setSalutation(e.target.value)} placeholder="Herr / Frau / Mr" />
+            </div>
+            <div style={inputRow}>
+              <label style={inputLabel}>First name</label>
+              <input style={fullInput} value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+            </div>
+            <div style={inputRow}>
+              <label style={inputLabel}>Last name</label>
+              <input style={fullInput} value={lastName} onChange={(e) => setLastName(e.target.value)} />
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={inputRow}>
+              <label style={inputLabel}>Title</label>
+              <input style={fullInput} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Dr. / Prof. / CEO" />
+            </div>
+            <div style={inputRow}>
+              <label style={inputLabel}>Company</label>
+              <input style={fullInput} value={company} onChange={(e) => setCompany(e.target.value)} />
+            </div>
           </div>
           <div style={inputRow}>
-            <label style={inputLabel}>Tier</label>
-            <select style={selectStyle} value={tier} onChange={(e) => setTier(e.target.value)}>
-              {TIER_OPTIONS.map((t) => (
-                <option key={t} value={t}>{t || "— none —"}</option>
-              ))}
-            </select>
+            <label style={inputLabel}>Display name (shown in lists)</label>
+            <input style={fullInput} value={displayName} onChange={(e) => setDisplayName(e.target.value)} disabled={autoCompose} />
+            <label style={{ ...T.small, display: "flex", gap: 6, alignItems: "center", marginTop: 4, cursor: "pointer" }}>
+              <input type="checkbox" checked={autoCompose} onChange={(e) => setAutoCompose(e.target.checked)} />
+              Auto-compose from name + company
+            </label>
           </div>
-        </div>
-        <div style={inputRow}>
-          <label style={inputLabel}>Tags (comma separated)</label>
-          <input style={fullInput} value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} placeholder="vip, newsletter, internal_owner" />
-        </div>
-        <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
-          <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, cursor: "pointer" }}>
-            <input type="checkbox" checked={isTest} onChange={(e) => setIsTest(e.target.checked)} />
-            Test account
-          </label>
-          <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, cursor: "pointer" }}>
-            <input type="checkbox" checked={isBlocked} onChange={(e) => setIsBlocked(e.target.checked)} />
-            Blocked
-          </label>
-        </div>
-        {isBlocked && (
+        </Subsection>
+
+        {/* Section: Classification */}
+        <Subsection title="Classification">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+            <div style={inputRow}>
+              <label style={inputLabel}>Contact type</label>
+              <select style={selectStyle} value={contactType} onChange={(e) => setContactType(e.target.value)}>
+                <option value="">— unknown —</option>
+                <option value="person">Person</option>
+                <option value="business">Business</option>
+              </select>
+            </div>
+            <div style={inputRow}>
+              <label style={inputLabel}>Tier</label>
+              <select style={selectStyle} value={tier} onChange={(e) => setTier(e.target.value)}>
+                {TIER_OPTIONS.map((t) => (
+                  <option key={t} value={t}>{t || "— none —"}</option>
+                ))}
+              </select>
+            </div>
+            <div style={inputRow}>
+              <label style={inputLabel}>Lifecycle stage</label>
+              <select style={selectStyle} value={lifecycle} onChange={(e) => setLifecycle(e.target.value)}>
+                {LIFECYCLE_OPTIONS.map((s) => (
+                  <option key={s} value={s}>{s || "— none —"}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </Subsection>
+
+        {/* Section: Profile */}
+        <Subsection title="Profile">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={inputRow}>
+              <label style={inputLabel}>Language</label>
+              <select style={selectStyle} value={preferredLanguage} onChange={(e) => setPreferredLanguage(e.target.value)}>
+                {LANGUAGE_OPTIONS.map((l) => (
+                  <option key={l.code} value={l.code}>{l.label}</option>
+                ))}
+              </select>
+            </div>
+            <div style={inputRow}>
+              <label style={inputLabel}>Birthday</label>
+              <input style={fullInput} type="date" value={birthday} onChange={(e) => setBirthday(e.target.value)} />
+            </div>
+          </div>
           <div style={inputRow}>
-            <label style={inputLabel}>Block reason</label>
-            <input style={fullInput} value={blockedReason} onChange={(e) => setBlockedReason(e.target.value)} placeholder="Why is this contact blocked?" />
+            <label style={inputLabel}>Avatar URL</label>
+            <input style={fullInput} value={avatarUrl} onChange={(e) => setAvatarUrl(e.target.value)} placeholder="https://…" />
           </div>
-        )}
+        </Subsection>
+
+        {/* Section: Acquisition */}
+        <Subsection title="Acquisition">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={inputRow}>
+              <label style={inputLabel}>Channel</label>
+              <select style={selectStyle} value={acquisitionChannel} onChange={(e) => setAcquisitionChannel(e.target.value)}>
+                {ACQUISITION_OPTIONS.map((c) => (
+                  <option key={c} value={c}>{c || "— unknown —"}</option>
+                ))}
+              </select>
+            </div>
+            <div style={inputRow}>
+              <label style={inputLabel}>Acquired date</label>
+              <input style={fullInput} type="date" value={acquisitionDate} onChange={(e) => setAcquisitionDate(e.target.value)} />
+            </div>
+          </div>
+        </Subsection>
+
+        {/* Section: Status */}
+        <Subsection title="Status & Tags">
+          <div style={inputRow}>
+            <label style={inputLabel}>Tags (comma separated)</label>
+            <input style={fullInput} value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} placeholder="vip, newsletter, internal_owner" />
+          </div>
+          <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+            <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, cursor: "pointer" }}>
+              <input type="checkbox" checked={isTest} onChange={(e) => setIsTest(e.target.checked)} />
+              Test account
+            </label>
+            <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, cursor: "pointer" }}>
+              <input type="checkbox" checked={isBlocked} onChange={(e) => setIsBlocked(e.target.checked)} />
+              Blocked
+            </label>
+          </div>
+          {isBlocked && (
+            <div style={inputRow}>
+              <label style={inputLabel}>Block reason</label>
+              <input style={fullInput} value={blockedReason} onChange={(e) => setBlockedReason(e.target.value)} placeholder="Why is this contact blocked?" />
+            </div>
+          )}
+        </Subsection>
       </div>
     </Modal>
+  )
+}
+
+function Subsection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
+      <div style={{ ...T.micro, marginBottom: 8 }}>{title}</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{children}</div>
+    </div>
   )
 }
 
