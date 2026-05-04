@@ -26,6 +26,7 @@ set -eo pipefail
 PY_URL="https://raw.githubusercontent.com/rseckler/VOD_Auctions/main/frank-mac-studio-setup/find_old_emails.py"
 TARGET="$HOME/Documents/VOD Mails Suche"
 TSV="$TARGET/_scan-results.tsv"
+JSONL="$TARGET/vod-mails-export.jsonl.gz"
 CACHE_DIR="$HOME/.cache/vod-mail-scan"
 PY_LOCAL="$CACHE_DIR/find_old_emails.py"
 
@@ -115,6 +116,7 @@ for r in "${ROOTS[@]}"; do
   ARGS+=(--root "$r")
 done
 ARGS+=(--output "$TSV")
+ARGS+=(--jsonl "$JSONL")
 
 # Run
 /usr/bin/python3 "$PY_LOCAL" "${ARGS[@]}"
@@ -125,10 +127,31 @@ bold "5) Fertig"
 if [ -s "$TSV" ]; then
   LINES=$(wc -l < "$TSV" | tr -d ' ')
   RELEVANT=$(grep -c $'\tYES$' "$TSV" 2>/dev/null || echo 0)
-  echo "  Total Zeilen:       $LINES"
-  echo "  VOD-relevant:       $RELEVANT"
-  echo "  TSV-Pfad:           $TSV"
+  echo "  Catalog (TSV):      $TSV"
+  echo "    Total mails:      $LINES"
+  echo "    VOD-relevant:     $RELEVANT"
+  if [ -s "$JSONL" ]; then
+    JSONL_SIZE=$(du -h "$JSONL" | cut -f1)
+    echo "  Export (JSONL.gz):  $JSONL"
+    echo "    Größe:            $JSONL_SIZE"
+  fi
   echo
+  bold "6) Nächster Schritt"
+  cat <<EOF
+  Schick die JSONL.gz-Datei an Robin:
+
+    Datei:  $JSONL
+
+  Optionen (such Dir die einfachste aus):
+    • iCloud Drive: Datei reinziehen, Sharing-Link an Robin
+    • WeTransfer:   wetransfer.com → Datei hochladen → Link an Robin
+    • Dropbox:      Datei reinziehen, Share-Link an Robin
+    • AirDrop:      Wenn Robin nahe ist — direkt.
+
+  Robin lädt die Datei runter, kopiert sie auf den VPS und startet
+  das Import-Skript. Du musst nichts weiter tun.
+
+EOF
   info "Im Finder öffnen…"
   open "$TARGET"
 else
