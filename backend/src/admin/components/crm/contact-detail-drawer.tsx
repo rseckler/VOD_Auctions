@@ -2073,6 +2073,28 @@ function CommunicationTab({ data, onChange }: { data: DetailData; onChange: () =
 
   const [busy, setBusy] = useState<string | null>(null)
 
+  // Phase 5 (rc53.4): Brevo-Sync-Status für email_marketing aus Audit-Log
+  // ableiten. Backend (Phase 4) schreibt nach jedem Drawer-Toggle einen
+  // brevo_sync_success oder brevo_sync_failed. Wir lesen den jüngsten
+  // brevo_sync_*-Eintrag und zeigen einen Badge wenn der letzte fehlgeschlagen
+  // ist — Frank kann dann manuell retriggern (gleicher Toggle erneut).
+  const brevoSync = (() => {
+    const audit = data.audit_log || []
+    for (const a of audit) {
+      if (a.action === "brevo_sync_success") {
+        return { status: "success" as const, at: a.created_at }
+      }
+      if (a.action === "brevo_sync_failed") {
+        return {
+          status: "failed" as const,
+          at: a.created_at,
+          error: ((a.details as Record<string, unknown> | null)?.error as string) || null,
+        }
+      }
+    }
+    return null
+  })()
+
   const toggle = async (channel: string, optedIn: boolean) => {
     setBusy(channel)
     try {
@@ -2102,18 +2124,53 @@ function CommunicationTab({ data, onChange }: { data: DetailData; onChange: () =
           const pref = prefByChannel[c.key]
           const optedIn = pref ? pref.opted_in : c.default
           const isBusy = busy === c.key
+          const isNewsletter = c.key === "email_marketing"
           return (
             <Card key={c.key}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
                 <div style={{ display: "flex", gap: 10, alignItems: "center", minWidth: 0, flex: 1 }}>
                   <span style={{ fontSize: 18 }}>{c.icon}</span>
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 500, fontSize: 13 }}>{c.label}</div>
+                    <div style={{ fontWeight: 500, fontSize: 13 }}>
+                      {c.label}
+                      {isNewsletter && (
+                        <span style={{ ...T.small, marginLeft: 8, fontWeight: 400, color: C.muted }}>
+                          synced with Brevo
+                        </span>
+                      )}
+                    </div>
                     {pref?.opted_out_at && (
                       <div style={T.small}>opted out {relativeTime(pref.opted_out_at)}</div>
                     )}
                     {pref?.opted_in_at && optedIn && (
                       <div style={T.small}>opted in {relativeTime(pref.opted_in_at)}</div>
+                    )}
+                    {/* Brevo sync status — only on email_marketing */}
+                    {isNewsletter && brevoSync && (
+                      <div style={{ ...T.small, marginTop: 4, display: "flex", alignItems: "center", gap: 6 }}>
+                        {brevoSync.status === "success" ? (
+                          <Badge label={`✓ Brevo synced ${relativeTime(brevoSync.at)}`} variant="success" />
+                        ) : (
+                          <>
+                            <Badge label="⚠ Brevo sync failed" variant="error" />
+                            <span style={{ color: C.muted, fontSize: 11 }}>
+                              {relativeTime(brevoSync.at)}
+                              {brevoSync.error && ` · ${brevoSync.error.slice(0, 80)}`}
+                              {" · "}
+                              <button
+                                onClick={() => toggle(c.key, optedIn)}
+                                style={{
+                                  background: "none", border: "none", color: C.gold,
+                                  textDecoration: "underline", cursor: "pointer", padding: 0,
+                                  fontSize: 11,
+                                }}
+                              >
+                                Retry sync
+                              </button>
+                            </span>
+                          </>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>

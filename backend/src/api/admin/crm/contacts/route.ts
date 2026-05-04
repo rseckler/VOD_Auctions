@@ -7,6 +7,7 @@ import { Knex } from "knex"
 // Query-Params:
 //   q          — Volltext-Suche auf display_name + primary_email_lower (ILIKE)
 //   filter     — alle | with_email | only_webshop | only_mo_pdf | test | internal_owner | blocked
+//                | newsletter_subscribers | newsletter_unsubscribed | newsletter_only_leads
 //   tier       — bronze | silver | gold | platinum (wenn gesetzt)
 //   sort       — lifetime_revenue | last_seen_at | total_transactions | created_at
 //   order      — asc | desc (default desc)
@@ -116,6 +117,24 @@ export async function GET(
       query = query.whereRaw("'internal_owner' = ANY(mc.tags)")
     } else if (filter === "blocked") {
       query = query.where("mc.is_blocked", true)
+    } else if (filter === "newsletter_subscribers") {
+      // Newsletter↔CRM Hybrid (rc53.4): EXISTS-subquery on partial-index
+      // idx_crm_comm_pref_channel_optedin
+      query = query.whereExists(function (this: any) {
+        this.select(1).from("crm_master_communication_pref as p")
+          .whereRaw("p.master_id = mc.id")
+          .where("p.channel", "email_marketing")
+          .where("p.opted_in", true)
+      })
+    } else if (filter === "newsletter_unsubscribed") {
+      query = query.whereExists(function (this: any) {
+        this.select(1).from("crm_master_communication_pref as p")
+          .whereRaw("p.master_id = mc.id")
+          .where("p.channel", "email_marketing")
+          .where("p.opted_in", false)
+      })
+    } else if (filter === "newsletter_only_leads") {
+      query = query.whereRaw("'newsletter_only' = ANY(mc.tags)")
     }
     // "all" → no filter
 
