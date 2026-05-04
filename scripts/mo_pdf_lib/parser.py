@@ -1,7 +1,11 @@
-"""MO-Invoice-Parser für Layout `mo-2019-2026`.
+"""MO-Invoice-Parser — multi-layout dispatcher.
 
 Eingabe: pdftotext -layout Output (str).
 Ausgabe: dict mit invoice-, customer-, items-, totals-Daten oder None bei Parse-Failure.
+
+Supported layouts:
+  - mo-2019-2026  (VOD-Records • Alpenstrasse 25/1, RG-YYYY-NNNNNN, ADR-XXXXXX)
+  - mo-2010-2018  (Vinyl on Demand, Alpenstrasse 25/1, RE-YYYYMM/NNNNN, num-CustNr)
 """
 
 from __future__ import annotations
@@ -19,19 +23,22 @@ from .regex_patterns import (
     RE_ARTICLE_PARTS, SHIPPING_KEYWORDS,
     parse_de_amount, parse_de_date,
 )
+from .parser_v0 import detect_v0, parse_invoice_v0
 
 
 def detect_layout(text: str) -> str | None:
-    """Layout-Version erkennen.
+    """Layout-Version erkennen — v1 (2019-2026) hat Vorrang vor v0 (2010-2018)
+    weil VOD_HEADER strenger ist (mit Bullets) und v0 in Hybrid-PDFs (z.B.
+    Storno einer 2019er Rechnung) nicht greifen sollte.
 
-    Mo-2019-2026 wird erkannt durch VOD-Header + (Position-Header ODER Rechnungs-Nr).
-    Leere Rechnungen (storniert/manuell gelöscht) haben keine Position-Tabelle aber
-    trotzdem das mo-2019-2026 Layout.
+    Returns 'mo-2019-2026' / 'mo-2010-2018' / None (= unknown_layout).
     """
     if RE_VOD_HEADER.search(text) and (
         RE_POSITION_HEADER.search(text) or RE_INVOICE_NO.search(text)
     ):
         return "mo-2019-2026"
+    if detect_v0(text):
+        return "mo-2010-2018"
     return None
 
 
@@ -202,6 +209,8 @@ def parse_invoice(text: str, layout: str | None = None,
     """
     if layout is None:
         layout = detect_layout(text)
+    if layout == "mo-2010-2018":
+        return parse_invoice_v0(text, filename=filename)
     if layout != "mo-2019-2026":
         return None
 
