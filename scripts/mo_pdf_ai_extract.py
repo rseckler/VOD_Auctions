@@ -140,6 +140,16 @@ def build_eligible_query(filter_mode: int | None, limit: int) -> str:
         AND length(sc.raw_payload->>'raw_customer_block') > 20
     """
 
+    # Filter 5: street looks like person-name (firstname lastname, no digit) —
+    # Lieferanschrift-Overlap-Bug: parser hat name als street verwendet
+    f5 = """
+        EXISTS (SELECT 1 FROM crm_staging_address sa
+          WHERE sa.staging_contact_id = sc.id
+            AND sa.street IS NOT NULL
+            AND sa.street ~* '^[A-Z][a-z]+ [A-Z][a-z]+'
+            AND sa.street !~* '\\d')
+    """
+
     if filter_mode == 1:
         where_clauses.append(f1)
     elif filter_mode == 2:
@@ -148,8 +158,10 @@ def build_eligible_query(filter_mode: int | None, limit: int) -> str:
         where_clauses.append(f3)
     elif filter_mode == 4:
         where_clauses.append(f4)
+    elif filter_mode == 5:
+        where_clauses.append(f5)
     else:
-        where_clauses.append(f"({f1} OR {f2} OR {f3} OR {f4})")
+        where_clauses.append(f"({f1} OR {f2} OR {f3} OR {f4} OR {f5})")
 
     return f"""
         SELECT sc.id, sc.display_name, sc.first_name, sc.last_name, sc.company,
