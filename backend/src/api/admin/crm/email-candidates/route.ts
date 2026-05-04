@@ -24,10 +24,16 @@ export async function GET(
         "mc.tier as master_tier",
         "mc.primary_email as master_primary_email"
       )
+      // band priority high → mid → shared → other; client-side filter still works
+      .orderByRaw(`
+        CASE ec.match_evidence->>'band'
+          WHEN 'high' THEN 0 WHEN 'mid' THEN 1 WHEN 'shared' THEN 2 ELSE 3
+        END
+      `)
       .orderBy("ec.confidence", "desc")
       .orderBy("ec.created_at", "asc")
-      .limit(500)
-    res.json({ candidates })
+      .limit(2000)
+    res.json({ candidates, total: candidates.length })
   } catch (err) {
     res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) })
   }

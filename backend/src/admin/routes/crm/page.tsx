@@ -4,6 +4,7 @@ import { C } from "../../components/admin-tokens"
 import { PageHeader, PageShell } from "../../components/admin-layout"
 import { SourcesTab } from "../../components/crm/sources-tab"
 import { ContactsTab } from "../../components/crm/contacts-tab"
+import { EmailCandidatesTab } from "../../components/crm/email-candidates-tab"
 
 class ErrorBoundary extends Component<{children: React.ReactNode},{error:string|null}> {
   state = { error: null }
@@ -2136,11 +2137,11 @@ function CRMDashboardTab() {
 
 // ── Main Page ────────────────────────────────────────────────────────────────
 
-type CrmActiveTab = "overview" | "contacts" | "customers" | "sources"
+type CrmActiveTab = "overview" | "contacts" | "customers" | "sources" | "email_review"
 
 const CustomersPage = () => {
   useAdminNav()
-  // Decision 3A — 4 Tabs: Overview / Contacts / Customers / Sources
+  // Decision 3A — 5 Tabs: Overview / Contacts / Customers / Sources / Email Review
   const [activeTab, setActiveTab] = useState<CrmActiveTab>("overview")
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -2177,6 +2178,9 @@ const CustomersPage = () => {
         <button style={tabStyle(activeTab === "sources")} onClick={() => setActiveTab("sources")}>
           Sources
         </button>
+        <button style={tabStyle(activeTab === "email_review")} onClick={() => setActiveTab("email_review")}>
+          Email Review
+        </button>
       </div>
 
       {/* Tab Content */}
@@ -2186,6 +2190,7 @@ const CustomersPage = () => {
         <CustomersListTab key={refreshKey} onSelectCustomer={setSelectedCustomerId} />
       )}
       {activeTab === "sources" && <SourcesTab />}
+      {activeTab === "email_review" && <EmailCandidatesTab />}
 
       {/* Customer Detail Drawer */}
       <CustomerDetailDrawer
