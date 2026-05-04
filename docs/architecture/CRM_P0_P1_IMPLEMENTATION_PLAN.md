@@ -381,15 +381,97 @@ crm_saved_filter                             ← P0 NEU
 
 ---
 
-## 5. Open Questions vor Sign-off
+## 5. Klarstellungen (Robin 2026-05-04, abgezeichnet)
 
-1. **Lifecycle-Stages OK?** Klaviyo-Standard übernehmen (`lead/active/engaged/at_risk/dormant/churned/lost`) oder eigene?
-2. **RFM-Segments OK?** 10 Klaviyo-Standard-Buckets (Champions, Loyal, At-Risk, etc.)?
-3. **Tab-Reihenfolge OK?** `Overview · Contact Info · Activity · Tasks · Notes · Sources · Audit` (+ conditional Wishlist/Comm/Relations)?
-4. **Tasks single- oder multi-user?** Aktuell single-admin. Plan: Tasks haben `assigned_to` schon vorgesehen, später erweiterbar.
-5. **Health-Score-Formel:** 40% Recency + 30% Engagement + 20% Monetary + 10% Issues — angemessen?
-6. **Reminder-Channel:** Email-only (Resend) oder auch Slack/Push?
-7. **Inline-Edit komplett oder Hybrid:** alle Header-Felder klickbar (Attio) oder nur einfache (Folk)?
+1. ✅ **Lifecycle-Stages:** Klaviyo-Standard `lead/active/engaged/at_risk/dormant/churned/lost`
+2. ✅ **RFM-Segments:** 10 Klaviyo-Buckets (Champions/Loyal/Potential Loyalists/New/Promising/Needs Attention/At Risk/Can't Lose Them/Hibernating/Lost)
+3. ✅ **Tab-Reihenfolge:** an Marktführer angepasst (siehe §5.1)
+4. ✅ **Tasks:** **multi-user-ready** — `assigned_to` mit Admin-User-Lookup, nicht single-admin-fallback
+5. ✅ **Health-Score:** 40% Recency + 30% Engagement + 20% Monetary + 10% Issues
+6. ✅ **Reminder-Channel:** Email zuerst (Resend), **Push als P2-Erweiterung** vorbereiten (Web-Push-Subscription-Schema schon im Notification-Service-Layer einplanen)
+7. ✅ **Inline-Edit:** **Hybrid** mit extensiblem Component-Framework. Reusable `<InlineEditable>`-Component für simple Felder (Text/Date/Select), Modal für komplexe Forms (Address mit Country-Picker, Communication-Preferences). Pattern designed für spätere Custom-Fields / Erweiterungen.
+8. ✅ **IMAP-Body-Re-Run** parallel mit Bug-Fix
+9. ✅ **Newsletter + Login-History** als zusätzliche Sources migrieren
+
+### 5.1 Tab-Reihenfolge — angelehnt an HubSpot/Salesforce/Klaviyo
+
+**Vergleich Marktführer:**
+
+| CRM | Default-Tab | Tab-Order |
+|---|---|---|
+| HubSpot | Overview | Overview · Activities · Notes · Emails · Calls · Tasks · Meetings · Files |
+| Salesforce | Details | Details · Related · Activity · Chatter · News |
+| Klaviyo | Activity Feed | Overview · Activity Feed · Profile Properties · Segments · Predictive |
+| Attio | Overview | Overview · Lists · Records · Activity · Comments |
+| Pipedrive | Details | Details · Activities · Deals · Notes · Files · Emails |
+
+**Beobachtung:**
+- **Overview/Details ist überall an Position 1** ✓ (zentrale Daten zuerst)
+- **Activity-Timeline ist primär** (meist Position 2, Klaviyo macht's sogar zur Default-Tab)
+- **Tasks separat & prominent** — gehört vor Notes
+- **Sources / Audit-Log** ist NIE in Top-Tabs bei Standard-CRMs. Multi-Source ist unser Spezial — als sekundäre Sicht.
+- **Files** ist überall present — wir haben's noch nicht, P2
+
+**Unsere neue Tab-Hierarchie:**
+
+```
+Primary tabs (always visible, immer in dieser Reihenfolge):
+1. Overview          (Header + Stats + Profile-Card)
+2. Activity          (Timeline mit Type-Filter — DEFAULT-TAB)
+3. Tasks             (mit Counter-Badge)
+4. Notes             (mit Counter-Badge)
+5. Contact Info      (Emails/Addresses/Phones — CRUD)
+
+Conditional tabs (sichtbar wenn relevant):
+6. Communications    (P1, wenn Communication-Prefs gesetzt)
+7. Wishlist          (P1, wenn medusa_customer_id verlinkt + saved_items > 0)
+8. Relationships     (P1, wenn ≥1 relationship)
+
+Hidden im "..." More-Menu (admin/audit, nicht primär):
+- Sources            (Source-Links + Match-Confidence)
+- Audit              (Audit-Log)
+```
+
+**Default-Tab-Logik:** Activity (was hat der Customer zuletzt getan), nicht Overview. HubSpot zeigt Overview default, aber für B2C-Auctions ist Customer-Activity die wichtigere Information.
+
+### 5.2 Multi-User-Pattern für Tasks + Audit
+
+- **Tasks:** `assigned_to` referenziert Medusa-User-ID. Default beim Anlegen = current admin via `req.scope.resolve("authentication")`. UI: "Assigned to" Dropdown mit Admin-Liste (List-Endpoint `/admin/crm/admins`).
+- **Notes:** `author_email` schon vorhanden, multi-author OK. UI zeigt Avatar + Name pro Note.
+- **Audit-Log:** `admin_email` schon vorhanden. UI zeigt "by Robin" / "by Frank".
+- **Wenn ein Admin Tasks anlegen kann für einen anderen** (z.B. Robin assigned Frank): Resend-Reminder an `assigned_to`-Email statt creator-Email.
+
+### 5.3 Hybrid Inline-Edit Pattern (extensibel)
+
+**Reusable Component-Framework:**
+
+```tsx
+<InlineEditable
+  value={contact.first_name}
+  type="text"                            // text | textarea | date | select | tags
+  options={...}                          // for select
+  onSave={async (v) => patch({ first_name: v })}
+  validate={(v) => v.trim().length > 0}
+  placeholder="Add first name"
+/>
+```
+
+- **Hover** zeigt subtle edit-pencil-icon
+- **Click** öffnet Input in-place (kein Modal)
+- **Tab/Enter** speichert mit optimistic-update
+- **Esc** bricht ab
+- **Visual-feedback:** loading-spinner während save, success-tick, error-toast
+
+**Wann Modal statt Inline:**
+- Komplexe Forms (Address: 13 Felder + Country-Picker)
+- Bulk-Operations
+- Destruktive Actions (Anonymize, Delete)
+- Multi-Step-Workflows (geplant für später: Merge-Confirm, GDPR-Export)
+
+**Extensibilität für Custom-Fields (P2):**
+- `InlineEditable` nimmt `field_definition`-Object aus eigener Tabelle (geplant `crm_custom_field`)
+- Renderer-Map: text → text-Input, number → number-Input, date → date-picker, etc.
+- Heute schon designed: jeder neue Feld-Typ ist 1 Renderer-Function in `inline-editable.tsx`
 
 ---
 

@@ -1,15 +1,76 @@
 # CRM Legacy Customer Integration Plan
 
-**Status:** Planung (2026-04-25)
-**Ziel:** Tape-mag-Bestandsdaten (3.580 Brevo-Kontakte + 7.890 Legacy-Kunden + 7.881 historische Orders / €1.38M GMV) im Admin-CRM nutzbar machen, damit POS, Storefront und Marketing damit arbeiten können — und damit Konversionen automatisch wieder zugeordnet werden.
-**Quelle:** Analyse-Session 2026-04-25 (CRM-Tab-Audit + Schema-Investigation via Supabase MCP)
-**Verwandte Docs:** [`POS_WALK_IN_KONZEPT.md`](POS_WALK_IN_KONZEPT.md), [`POST_AUCTION_MARKETING_FUNNEL.md`](POST_AUCTION_MARKETING_FUNNEL.md), `backend/src/lib/crm-sync.ts`, `backend/src/lib/brevo.ts`
+**Status:** Planung (2026-04-25 · Sektionen D–H erweitert 2026-05-03 · Cross-Reference-Sweep 2026-05-03)
+**Ziel:** **Aus allen verfügbaren Legacy-Quellen einen einheitlichen, tiefen Customer-View bauen** — und damit die ~5–7 Jahre Beziehungs-Historie nutzbar machen, die in PDFs, MySQL-DBs und Frank's Postfächern verteilt liegen. Das Vorhandene konsolidieren, **nicht** mit Brave/Discogs/o.ä. neu anreichern. Auf dieser Basis Wellen-Launch (siehe `PRE_LAUNCH_KONZEPT.md`) fahren — verfeinert um Tier-basierte Reihenfolge innerhalb der Wellen.
+
+> **Wichtige Klarstellung (2026-05-03):** vod-auctions.com ist **noch nicht live** — keine echten Kunden, keine echten Transaktionen. Die 12 `customer`-Rows + 21 Brevo-List-7-Kontakte sind alle Test/Dev. **Alle echten Bestandsdaten kommen aus Legacy:**
+> - **Brevo List 5** (3.580 Kontakte, „tape-mag") — wurde 2026-03-22 aus tape-mag.com importiert
+> - **`vodtapes.3wadmin_extranet_user`** (3.632 Members) — tape-mag.com Member-Login
+> - **`maier_db1/11/2013.3wadmin_shop_kunden`** (~14.214 Customers + 17.315 Adressen) — vod-records.com / vinyl-on-demand.com Webshop-Bestand
+> - **10.575 MO-PDFs** (2019-2026) — Buchhaltungs-Sicht über alle Kanäle (Online + Telefon + Messen + POS)
+> - **80-120k IMAP-Mails** in zwei Frank-Postfächern — 5-7 Jahre Customer-Korrespondenz
+>
+> **Konsequenz:** Das gesamte Tier-Modell (Section G) wird aus diesen Legacy-Quellen gespeist, nicht aus vod-auctions-eigenen Bestelldaten. Bevor der erste echte Kunde auf vod-auctions kauft, muss der Master-Resolver (Section H) ein konsolidiertes Bild der Bestandskunden produziert haben — sonst startet der erste Live-Kunde mit leerer Tier-Klassifikation.
+**Quelle:** Analyse-Session 2026-04-25 (CRM-Tab-Audit + Schema-Investigation via Supabase MCP) · Codex-Analyse 2026-05-03 ([`Monkey Office/rechnungs-extraktion-crm-konzept.md`](../../Monkey%20Office/rechnungs-extraktion-crm-konzept.md))
+**Verwandte Docs:**
+- [`docs/architecture/CRM_SYSTEM_VOD_AUCTIONS.md`](../architecture/CRM_SYSTEM_VOD_AUCTIONS.md) — **IST-Zustand**: bestehende `customer_stats`-Tabelle, Subscriber, Brevo-Sync, Admin-`/app/crm` (P1 produktiv seit 2026-03-30)
+- [`docs/architecture/CRM_CUSTOMER_MANAGEMENT_KONZEPT_2026.md`](../architecture/CRM_CUSTOMER_MANAGEMENT_KONZEPT_2026.md) — strategisches Konzept (P1 done, P1.5 Rudderstack offen, P2 Notes/Tags offen, P3 Growth offen)
+- [`docs/architecture/LEGACY_MYSQL_DATABASES.md`](../architecture/LEGACY_MYSQL_DATABASES.md) — vollständiges Legacy-DB-Inventar (vodtapes, maier_db1/11/2013)
+- [`Monkey Office/rechnungs-extraktion-crm-konzept.md`](../../Monkey%20Office/rechnungs-extraktion-crm-konzept.md) — Codex-Konzept PDF-Extraktion + IMAP-Match
+- [`POS_WALK_IN_KONZEPT.md`](POS_WALK_IN_KONZEPT.md), [`POST_AUCTION_MARKETING_FUNNEL.md`](POST_AUCTION_MARKETING_FUNNEL.md)
+- Code: `backend/src/lib/crm-sync.ts`, `backend/src/lib/brevo.ts`, `backend/src/jobs/customer-stats-recalc.ts`, `backend/src/subscribers/customer-created.ts`
+
+**Verzahnung mit bestehender Infrastruktur (Pflicht-Lektüre vor Implementation):**
+
+Dieser Plan steht **nicht** im luftleeren Raum. Folgendes ist im Codebase bereits implementiert (Code-Stand 2026-05-03 — wartet aber auf echte Daten, weil vod-auctions.com nicht live ist):
+
+**Pflicht-Doks vor Plan-Lektüre:**
+1. [`PRE_LAUNCH_KONZEPT.md`](../PRE_LAUNCH_KONZEPT.md) — **Wellen-Strategie ist hier konkret** (4 Wellen + Wartelisten-Schema + Token-Format + E-Mail-Templates). Section C+G dieses Plans **erweitert** das nur um Tier-Sortierung **innerhalb** Welle 1, ersetzt nichts.
+2. [`USER_MANAGEMENT_KONZEPT_2026.md`](../architecture/USER_MANAGEMENT_KONZEPT_2026.md) — **P1-P3-Plan für Customer-Detail-Drawer** (Edit-Stammdaten, Tags, `customer_note`, Activity-Timeline, `customer_audit_log`, Account-Sperre). Section A.4 dieses Plans hängt sich daran an.
+3. [`CRM_SYSTEM_VOD_AUCTIONS.md`](../architecture/CRM_SYSTEM_VOD_AUCTIONS.md) — IST-Zustand (`customer_stats`, Recalc-Cron, 2-Tab-CRM, GDPR-Export).
+4. [`CRM_CUSTOMER_MANAGEMENT_KONZEPT_2026.md`](../architecture/CRM_CUSTOMER_MANAGEMENT_KONZEPT_2026.md) — Strategisches Konzept + Marktvergleich.
+5. [`marketing/Email-Content.md`](../marketing/Email-Content.md) — alle E-Mail-Templates (Welcome, Outbid, Won, Payment, Shipping, Feedback + 4 Newsletter-Stages).
+6. [`RUDDERSTACK_SETUP.md`](../architecture/RUDDERSTACK_SETUP.md) — Setup-Guide (NICHT live, Backlog).
+7. [`LEGACY_MYSQL_DATABASES.md`](../architecture/LEGACY_MYSQL_DATABASES.md) — vollständiges Legacy-DB-Schema-Inventar.
+
+**Bereits im Codebase (Phase-1-Done):**
+
+| Komponente | Datei | Was es macht |
+|---|---|---|
+| `customer_stats` Tabelle | Migration live in Supabase | `total_spent`, `total_purchases`, `total_bids`, `total_wins`, `last_*_at`, `tags TEXT[]`, `is_vip`, `is_dormant`, `updated_at` — **noch leer, weil keine echten Customers** |
+| Recalc-Cron | `backend/src/jobs/customer-stats-recalc.ts` | Stündlicher Job — aggregiert aus `transaction` + `bid`, setzt `is_vip=true` ab `total_spent>=500`, `is_dormant=true` ab `last_purchase_at<-90d` |
+| 6 weitere Cron-Jobs | `backend/src/jobs/` | `auction-lifecycle.ts`, `bid-ending-reminder.ts`, `feedback-email.ts`, `newsletter-sequence.ts`, `payment-deadline.ts`, `watchlist-reminder.ts` |
+| Customer-Created Subscriber | `backend/src/subscribers/customer-created.ts` | Idempotenter `customer_stats`-Insert + `crmSyncRegistration()` für jede neue `customer`-Row (egal ob Storefront-Signup oder Admin-Create) |
+| Invite-Created Subscriber | `backend/src/subscribers/invite-created.ts` | Sendet automatisch Invite-Mail via Notification Module bei `invite.created`/`invite.resent` |
+| Password-Reset Subscriber | `backend/src/subscribers/password-reset.ts` | Reset-Mail-Flow |
+| Brevo-Sync (outbound) | `backend/src/lib/crm-sync.ts` | 5 Lifecycle-Funktionen (Registration, Bid, Won, Payment, Shipping) — alle fire-and-forget |
+| **Brevo-Webhook (inbound)** | `backend/src/api/webhooks/brevo/route.ts` | Bidirectional schon teilweise live: handelt `unsubscribed`, `hardBounce`, `softBounce`, `complaint`, `delivered`, `opened`, `click` — **bidirectional Brevo-Sync ist also nicht greenfield** |
+| Manual-Brevo-Sync per Customer | `backend/src/api/admin/customers/[id]/brevo-sync/route.ts` | Force-Resync-Button im Customer-Detail |
+| Admin-CRM | `backend/src/admin/routes/crm/page.tsx` | 2 Tabs: „Overview" (Brevo-Aggregate) + „Customers" (lokale Liste mit Search/Filter/Sort) + Customer-Detail-Drawer |
+| Newsletter-Admin | `backend/src/admin/routes/newsletter/`, `backend/src/api/admin/newsletter/` | Newsletter-Block-Sequenz-Verwaltung |
+| Waitlist-Admin | `backend/src/admin/routes/waitlist/`, `backend/src/api/admin/waitlist/` | Wartelisten-Approval (Welleneinteilung manuell) |
+| Invite-Token-Admin | `backend/src/admin/routes/invite-tokens/` (geplant), `backend/src/api/admin/invite-tokens/` | Token-Management |
+| Pre-Launch-Schema | `waitlist_applications` + `invite_tokens` + `invite_token_attempts` | **Wave-Feld + Source-Feld + Ref-Code schon im Schema** (siehe `PRE_LAUNCH_KONZEPT.md` §5.1) |
+| Store-Routes | `backend/src/api/store/{newsletter,invite,waitlist,account/{newsletter,gdpr-export,send-welcome}}` | Storefront-CRM-Endpoints |
+| GDPR-Export | `/store/account/gdpr-export` | JSON-Download mit Profil + Orders + Bids + Saved-Items |
+| **Brevo-Listen (echte Daten)** | List 5 (`tape-mag`, **3.580 — echte Bestandskunden seit 2026-03 Import**) | Hauptdatenquelle für Welle 1 nach `PRE_LAUNCH_KONZEPT.md` |
+| **Brevo-Listen (Test-Daten)** | List 4/7 (`vod-auctions`, ~21 — alle Test/Dev) | nicht für echtes Marketing nutzbar bis Launch |
+
+**Folge für diesen Plan:**
+- **Section A (Surface & Bridge)** ergänzt einen DRITTEN Tab „Tape-Mag Legacy" zu den bestehenden „Overview" + „Customers" — keine neue Admin-Route bauen. Edit-Funktionen, Tags, Notes folgen `USER_MANAGEMENT_KONZEPT_2026.md` P1
+- **Section C (Pre-Launch-Hardening)** ergänzt nur die **Server-Side-Enforcement** (`is_invited_user`-Gate auf Bid/Buy) und Rate-Limiting zu dem bereits existierenden Wartelisten-/Invite-Token-System aus `PRE_LAUNCH_KONZEPT.md`. Schema (`waitlist_applications` + `invite_tokens`) ist **schon da**, Welleneinteilung ist **schon definiert**
+- **Section G (Tiering)** ERWEITERT `customer_stats` mit `tier`, `lifetime_revenue_decayed`, `tier_calculated_at` — keine neue Tabelle. Existierender Recalc-Cron wird um Tier-Berechnung erweitert. `is_vip`-Schwelle €500 wird durch Bronze/Silver/Gold/Platinum-Schwellen ergänzt (nicht ersetzt — `is_vip` bleibt als Boolean kompatibel). **Tier-Sortierung ist eine Verfeinerung von Welle 1** in `PRE_LAUNCH_KONZEPT.md` (welche Tape-mag-Bestandskäufer kommen zuerst dran), keine Ersetzung der Wellen-Logik
+- **Section A.5.1 (Self-Register-Bridge)** hängt sich an den bestehenden `customer-created.ts`-Subscriber an — nicht parallel
+- **Brevo-Bidirectional (B.6)** ist Erweiterung von `crm-sync.ts` + `webhooks/brevo`, nicht neues Modul. **Inbound (Unsubscribe/Bounce) ist schon live**
+- **Rudderstack-Integration** (R1-R4 aus dem alten Plan, dokumentiert in `RUDDERSTACK_SETUP.md`) ist Phase 2 dieses Plans — bleibt offen, kein Launch-Blocker
 
 ---
 
 ## Kontext: Was gerade existiert
 
-### Drei Datenquellen, keine vereinte Sicht
+### Datensilo-Übersicht — sieben Quellen, keine vereinte Sicht
+
+**Online (bereits in unserer DB):**
 
 | Quelle | Wo | Zeilen | Was drin | Im Admin sichtbar? |
 |---|---|---:|---|---|
@@ -19,6 +80,16 @@
 | **`customers`** (Legacy, int PK) | Unsere DB | 15.780 / 7.890 unique | tape-mag Kunden-Stammdaten + 9.393 Adressen | **Nirgendwo** |
 | **`orders`** (Legacy) | Unsere DB | 7.881 | Historische Bestellungen 2013-2026, **€1.38M GMV**, 12.899 Line-Items | **Nirgendwo** |
 | **`newsletter_subscribers`** (Legacy) | Unsere DB | 3.567 | Lokale Spiegelkopie der tape-mag-Newsletter | **Nirgendwo** |
+
+**Bisher unerschlossen (außerhalb unserer DB):**
+
+| Quelle | Wo | Volumen | Was drin | Status |
+|---|---|---:|---|---|
+| **MonKey-Office-Rechnungen** (PDF) | `Monkey Office/Rechnungen/<Jahr>/*.pdf` (lokal) | **10.575 PDFs**, 2019-2026 | Vollständige Kunden-/Adressdaten + Rechnungspositionen + Beträge — Buchhaltungs-Sicht über alle Kanäle (Online + Telefon + Messen + POS) | Stabiles Layout, `pdftotext` funktioniert für alle, **keine OCR nötig**. Codex-Konzept liegt vor (Section D) |
+| **`vodtapes` MySQL** (= **tape-mag.com + record-price-guide.org** Member-CMS) | dedi99.your-server.de (IP `213.133.106.99`). 1Password Work: `Legacy MySQL tape-mag` (`eajngb2kdtjlkaw7ztrf45xupe`), MySQL R/O über User `maier1_2_r` aus Item `s5e7ebssyfyvtx4n3ehqirjtem`. FTP-Backup: `lpqjisznyhropc7q5c6cqgscue` | **Catalog:** 30.179 Releases · 12.455 Artists · 3.081 Labels · 1.982 Press & Org (= Quelle der bestehenden 41.529 Releases in unserer Supabase via `legacy_sync_v2.py`). **Members:** 3.632 in `3wadmin_extranet_user` | tape-mag CMS mit Member-Login (kein Kassen-Shop). Catalog-Tabellen `3wadmin_tapes_*` + Member-Login `3wadmin_extranet_user`. **Keine** `3wadmin_shop_*`-Kassentabellen | Catalog seit 2026-04 in Supabase via `legacy_sync_v2.py` cron, Members noch nicht in CRM importiert |
+| **`maier_db1`/`maier_db11`/`maier_db2013` MySQL** (= **vod-records.com + vinyl-on-demand.com** Webshop) | dedi99.your-server.de (gleiche IP). 1Password Work: SSH `u74qt347j7myu7sqmgy4vcwzn4`, db1 `bxedowvg33lzphnmrvty56j5zy`, db11 `hox5f3mgfezjzeca3b5d45c3yq`, db2013 `ml4lcccpje4ocgxxvnjrojbtlm` | Discovery 2026-05-03: db1 3.114 Customers · db11 2.556 (Schema-identisch mit db1, vermutlich Backup) · db2013 8.544 Customers + 17.315 strukturierte Adressen + 3.097 `_kunden_alt` | 3wadmin-Webshop-Stack (URL-Pattern `SHOP-1-6.htm`, AJAX-Endpoint `shop/ajax_warenkorb.php`, Session-Login). Customer-Tabellen `3wadmin_shop_kunden` + Adressen + Bestellungen + Items. **Welche DB ist live?** noch zu klären — vermutlich db1 = current, db11 = Backup, db2013 = älteres Schema/Archiv | Credentials da, Schema discovered, Pull bisher nicht durchgeführt (Section E) |
+| **Frank IMAP — `frank@vod-records.com`** | Hetzner Mailbox-Hosting `mail.your-server.de:993` (IMAPS) — 1Password Work Item `mfcjmrompkjjxap6il5nbsd7pa` | **>100k Mails** geschätzt | 5–7 Jahre Korrespondenz mit Kunden — Bestellbestätigungen, Versandfragen, Reklamationen, persönliche Kontakte | Bisher nicht indexiert (Section F) |
+| **Frank IMAP — `frank@vinyl-on-demand.com`** | Hetzner Mailbox-Hosting `mail.your-server.de:993` (IMAPS) — 1Password Work Item `7fos2enccq4p7moqnpkcjdlpgi` | tbd, mehrere zehntausend | Älteres Postfach mit VOD-Records-Kontaktgeschichte | Bisher nicht indexiert (Section F) |
 
 ### Schmerzpunkte
 
@@ -30,6 +101,55 @@
 6. **`orders.billing_address` / `shipping_address` sind freie Text-Strings ohne Separator.** Z.B. `"Mrmaster seckler RobinBrückenstr. 888097 EriskirchDeutschland"`. Kein JSON, kein FK auf `customer_addresses`. Adress-Anzeige im Admin braucht Parsing oder JOIN auf `customer_addresses`.
 7. **`order_items.product_name` enthält HTML** (`<br>`, Promo-Prefixes). Strip nötig vor Anzeige.
 8. **Schema-Bridge fehlt.** Keine FK zwischen `customer` (text PK) ↔ `customers` (int PK). Einziger Bridge-Kandidat: `email` (case-insensitive, beide Tabellen `varchar`).
+9. **Offline-Verkäufe + VOD-Records-Kanal komplett blind.** Alle MonKey-Office-Rechnungen (10.575 PDFs) und der `vodrecords.com`-Webshop-Bestand sind **nirgendwo in unserer DB**. Top-Spender-Reports können bisher nur über die ~4.465 tape-mag-Website-Käufer rechnen — alle Telefon-/Messen-/Direktverkäufe und der zweite Webshop fehlen vollständig.
+10. **Email-Adressen fehlen für viele Bestandskunden.** PDFs enthalten Adressen aber keine Emails. Die einzige Quelle für historische Email-Adressen sind Frank's Postfächer (>100k Mails) — bislang nicht indexiert, also kein automatisches Newsletter-Reactivation auf Kunden möglich, die nur per Brief/Telefon bestellt haben.
+
+### Daten-Pipeline-Übersicht (Soll-Zustand nach D–G)
+
+```
+            ┌────────────────────┐
+            │ MO PDFs (10.575)   │  Section D — pdftotext + Parser → contacts/transactions
+            └─────────┬──────────┘
+                      │
+            ┌─────────▼──────────┐
+            │ tape-mag MySQL     │  Section E.1 — FTP-Dump-Pull, idempotente Upserts
+            │ (Legacy FTP+SQL)   │
+            └─────────┬──────────┘
+                      │
+            ┌─────────▼──────────┐
+            │ vodrecords.com DB  │  Section E.2 — Hetzner-DB-Pull, eigene Kunden-Stammdaten
+            │ (2. Webshop)       │
+            └─────────┬──────────┘
+                      │
+            ┌─────────▼──────────┐
+            │ frank@vod-records  │  Section F.1 — IMAP-Index, Email→Kontakt-Match
+            │ + frank@vinyl…     │
+            └─────────┬──────────┘
+                      │
+            ┌─────────▼──────────┐
+            │ STAGING (Postgres) │  alle Quellen normalisiert in unified contacts/transactions
+            │ contacts + tx +    │  + email_candidates mit Confidence Score
+            │ email_candidates   │  Source-Spalte: 'mo_pdf' | 'tape_mag_db' | 'vodrecords_db' | 'imap_<acct>'
+            └─────────┬──────────┘
+                      │ Resolver (Email > MO-CustomerNo > Name+Adresse-Hash)
+                      │
+            ┌─────────▼──────────┐
+            │ DEDUPED MASTER     │  ein Master-Datensatz pro echte Person/Firma
+            │ (canonical_contact)│  inkl. lifetime_revenue, last_purchase, source-Liste
+            └─────────┬──────────┘
+                      │ G — Tier-Berechnung (Bronze/Silver/Gold/Platinum)
+                      │
+            ┌─────────▼──────────┐
+            │ customer (Medusa)  │  Stub-Backfill (wie B.2) inkl. metadata.tier + .legacy_sources
+            │ + customer_stats   │  Brevo-Sync mit TIER-Attribut
+            └─────────┬──────────┘
+                      │
+            ┌─────────▼──────────┐
+            │ Wave-Strategy (C5) │  Wave 1 = Gold-Kunden zuerst, Wave 2 = Silber, etc.
+            └────────────────────┘
+```
+
+**Kernprinzip:** Erst sauber **alle** Quellen ins Staging extrahieren, dann **dort** dedupen und tieren — und erst dann ins Produktiv-CRM (`customer`-Tabelle) backfilen. Ohne Staging-Layer würden die Source-Konflikte (z.B. derselbe Kunde in tape-mag-MySQL UND VOD-Records-MySQL UND MO-PDFs UND zweimal in IMAP-Headern) den `customer`-Datenraum vermüllen.
 
 ---
 
@@ -235,7 +355,7 @@ if (!medusaCustomer) {
 
 ### A.4 Frontend — Neuer Admin-Tab „Tape-Mag Legacy"
 
-**Datei:** `backend/src/admin/routes/crm/page.tsx` — dritter Tab neben „Customers" und „CRM Dashboard".
+**Datei:** `backend/src/admin/routes/crm/page.tsx` — DRITTER Tab neben den bestehenden „Overview" (Brevo-Aggregate) und „Customers" (lokale Liste). Bestehende Tabs unverändert lassen.
 
 Spalten der Liste:
 - **Email** (sortable)
@@ -1026,611 +1146,716 @@ Vor Wave-1-Sendung:
 
 ---
 
-## Section D — Monkey Office REWE Datenmigration ⏸️ DEFERRED
+## Section D — MonKey-Office-Rechnungen aus PDF (PRIMÄRPFAD, ACTIVE)
 
-**Status:** **Zurückgestellt am 2026-04-25** — wird in einem späteren Schritt aufgenommen, nicht in der ersten Phase. Robin's Entscheidung: Section A + C reichen für Wave 1, MO-Sync hat keinen Launch-Blocker-Charakter.
+**Status:** **Aktiviert 2026-05-03.** Section D wird damit zur **historischen Daten-Hauptquelle** für Phase 1, **vor** der Bridge-Arbeit aus Section A. Begründung: ohne MO-PDF-Import sehen Top-Spender-Reports nur die ~4.465 tape-mag-Website-Käufer — alle Telefon-/Messen-/POS-Verkäufe + der gesamte vodrecords.com-Bestand fehlen. Wave-1-Tiering (Section G) braucht die vollständige Lifetime-Revenue, sonst sind die Bronze/Silver/Gold-Schwellen falsch kalibriert.
 
-**Inhalte unten bleiben erhalten** als Discovery-Vorarbeit für den späteren Pickup. Wenn Section D wieder aktuell wird, ist Sprint D0 (Lizenz-Antrag + Remote-Session mit Frank für MO-Version-Check) der erste Schritt.
+**Inputs:** 10.575 PDFs unter `Monkey Office/Rechnungen/<Jahr>/*.pdf` (Stand 2026-05-03):
 
-**Ziel (für späteren Pickup):** Historische Customer- + Order-Daten aus Monkey Office REWE (das aktuell **alle** vod-records-Bestellungen verarbeitet, nicht nur die der tape-mag-Website) in unser CRM importieren. Saubere History bauen, damit Marketing-Flows auf vollständige Customer-Lifetime-Value-Reports zugreifen können.
+| Jahr | PDFs | Prefix-Verteilung |
+|---:|---:|---|
+| 2019 | 1.839 | RG: ~1.836, KR: ~3 |
+| 2020 | 1.784 | RG: ~1.780, KR: ~4 |
+| 2021 | 1.638 | RG: ~1.635, KR: ~3 |
+| 2022 | 1.098 | RG: ~1.095, KR: ~3 |
+| 2023 | 1.564 | RG: ~1.555, KR: ~7, PR: ~2 |
+| 2024 | 1.090 | RG: ~1.080, KR: ~10 |
+| 2025 | 1.307 | RG: ~1.295, KR: ~10, PR: ~2, AR: 1 |
+| 2026 | 255 | RG-only |
+| **Σ** | **10.575** | RG 10.525 · KR 37 · PR 12 · AR 1 |
 
-**Konsequenz für Sprint-Plan:** D-Prep + D0 + D1-D3 fallen aus Phase 1 raus. Phase 1 reduziert sich auf C + A. Top-Spender-Reports zeigen vorläufig nur tape-mag-Website-Bestellungen (Option A) — Offline-MO-Verkäufe fehlen, das ist akzeptiert. Wave 1 fokussiert auf Top-Spender aus den 4.465 Tape-Mag-Käufern.
+**Wichtige Eigenschaft:** MO-Layout ist stabil über alle Jahre 2019-2026. `pdftotext -layout` funktioniert für **alle** geprüften Dateien aus diesem Zeitraum. **Keine OCR im Scope** (Robin-Entscheidung 2026-05-03) → Pipeline ist deterministisch und reproduzierbar.
 
-**Wichtige Annahme:** Monkey Office bleibt **vorerst** das Buchhaltungs-Tool für vod-records (GoBD-Konformität, Steuerberater-Anbindung, Rechnungslegung). Diese Section beschreibt zunächst einen **One-Shot-Historischen-Import** plus optional einen Continued-Sync. Migration-aus-MO-heraus ist ein separater strategischer Workstream und nicht Scope dieses Plans.
+**Erweiterung 2026-05-03:** Der Bestand reicht bis 2003 zurück, nicht nur 2019. Heißt: der Service muss **Multi-Vintage-Layouts** unterstützen — MO hat zwischen 2003 und 2026 sicher mehrfach das Rechnungs-Template geändert. Strategie:
 
-### D.0 Voraussetzung — Discovery-Plan (vor jeder Code-Arbeit)
+- **Versionierter Template-Parser:** Layouts wie `mo-2003-2010`, `mo-2011-2018`, `mo-2019-2026` als initiale Cuts. Cut-Off-Daten werden bei Sichtung der ersten 50 alten PDFs verifiziert + ggf. nachjustiert
+- **Layout-Drift-Detection:** Unbekannte Templates landen in `crm_layout_review_queue` statt zu crashen. Manual-Review fügt neuen Regelsatz hinzu
+- **Reine Native-PDFs:** Wir gehen davon aus, dass alle 2003-2026-Rechnungen aus MO heraus als native (text-extrahierbare) PDFs erzeugt wurden — wenn beim ersten Sichten Scan-PDFs auftauchen, ist das ein **Stop-the-Line-Moment** und wir entscheiden separat. Aktuell **kein OCR-Code in der Pipeline**
 
-**Update 2026-04-25:** Robin hat OfficeConnect identifiziert (siehe D.1.1) — das **ist** die offizielle MO-API. Pfad 4 ist damit konkret realisierbar, Pfade 1-3 entfallen für den Hauptweg.
+**Wo die 2003-2018-PDFs liegen:** Sobald die älteren Bestände beschafft sind, werden sie ebenfalls in `Monkey Office/Rechnungen/<Jahr>/` abgelegt (gleiche Ordnerstruktur wie aktuell 2019-2026). Robin-Bestätigung 2026-05-03. Service watcht den Pfad rekursiv — kommen 2018er PDFs rein, werden sie automatisch indexiert.
 
-**Wichtige Annahme korrigiert (2026-04-25):** Frank ist **nicht** der technische Ansprechpartner für diese Klärungen. Frank ist Vinyl-Operator (Inventur, POS, Versand) — keine technischen MO-/Netzwerk-Konfigurations-Kompetenzen. **Robin macht Discovery selbst** über folgende Wege.
+**Quelle:** Codex-Analyse 2026-05-03, dokumentiert in [`Monkey Office/rechnungs-extraktion-crm-konzept.md`](../../Monkey%20Office/rechnungs-extraktion-crm-konzept.md). Diese Section setzt das Codex-Konzept in den Kontext des Gesamt-CRM-Plans und definiert die Verzahnung mit Section E (Legacy-DBs), F (IMAP) und G (Tiering).
 
-#### D.0.1 Wer kann was beantworten
+### D.1 Was extrahiert wird (siehe Codex-Konzept §3 für Detail-Schema)
 
-| Frage | Wer kann's beantworten | Wie |
-|---|---|---|
-| MO-Version | **Robin via Remote-Zugriff** | Tailscale + Screen-Sharing-Session mit Frank (15min, Robin guidet, Frank klickt) ODER Frank schickt Screenshot vom „Über MonKey Office"-Dialog |
-| Plattform (macOS/Windows) | **Robin** | Bekannt, Frank hat Mac (siehe `frank-macbook-setup/` im Repo) |
-| OfficeConnect-Lizenznummer | **Robin selbst** | Im prosaldo-Online-Shop registrieren — `https://www.prosaldo.de/shop` (oder `monkey-office.de/shop`). Ist nicht Frank-relevant, ist eine reine Online-Registrierung. |
-| cubeSQL-Network-Setup | **Robin via Remote-Zugriff** | Nach OfficeConnect-Install: `lsof -iTCP -sTCP:LISTEN` auf MO-Mac → liefert Port. Default cubeSQL = 4430, Connect-API üblich auf 8082. Verifiziert per `curl` von einem zweiten Mac im selben LAN/Tailnet. |
-| MO-PC Uptime | **Robin/Frank** (operativ) | Frank's Mac läuft Geschäftszeiten ~10-19 Uhr. **Sync-Strategie nicht 24/7 — Daily-Batch oder Hourly-Pull genügt.** Wenn der MO-PC offline ist, holen wir beim nächsten Run nach (Polling-Delta-Pattern). |
-| Marketing-Opt-In Feld in MO | **Robin via OfficeConnect-Doku + Test-Pull** | Sobald Connect läuft: ein Sample-Customer pullen, JSON-Felder inspizieren. Doku unter `monkey-office.de/doc/Start.html`. |
-| Datenmenge (Customer-/Invoice-Zahlen) | **Robin via Test-Pull** | Connect-API `GET /addresses?count=true` (genaue Endpoint-Syntax aus Doku). Kein Frank-Input nötig. |
-| Email-Pflichtfeld in MO | **Robin via Test-Pull** | Sample-Customer ohne Email finden — `WHERE email IS NULL` Filter über Connect. |
-| Tape-Mag-Cross-Reference in MO | **Robin via Test-Pull + Frank-Bestätigung** | Robin sucht ein Field wie „Kundennr-Online" o.ä. im Customer-JSON. Wenn vorhanden: ein Stichprobe nehmen, Frank bestätigt ob das echte Cross-Refs sind. **Falls nicht vorhanden:** Email-Match ist die einzige Bridge — kein Beinbruch, der Tape-Mag-DB-Match in A.0 funktioniert auch so. |
-| Adress-Struktur (1 oder mehrere pro Kunde) | **Robin via Test-Pull** | JSON-Inspektion. |
-| Deaktivierte Kunden in MO | **Robin via Test-Pull** | Connect-Filter auf Status-Feld, falls vorhanden. |
-| Phase-Out vs. Continued-Sync | **Robin (strategisch)** | Empfehlung: **Continued-Sync** für mind. 1 Jahr. Frank's Steuerberater-Workflow soll sich nicht ändern — DSGVO-konformer CRM-Spiegel reicht. |
-| Sync-Richtung initial | **Robin (strategisch)** | Empfehlung: **Read-Only** Tag 1, Bidirectional Phase 2 nach Wave 1+ Erfahrung. |
+**Pro Rechnung (Header):**
+- `invoice_no`, `document_type` (RG/KR/PR/AR), `invoice_date`, `delivery_date`, `customer_no` (z.B. `ADR-015786`), `currency` (EUR), `total_net`, `total_tax`, `total_gross`, `payment_terms`, `tax_note`, `correction_for_invoice_no` (bei KR), `source_pdf_path`, `source_pdf_hash`, `raw_text`, `extraction_status`, `extraction_warnings`
 
-#### D.0.2 Konkrete Schritte (Robin-Action-List)
+**Pro Position (~4-7 Items pro Rechnung erwartet, 50-70k Items total):**
+- `position_no`, `article_no`, `article_name`, `quantity`, `unit_price`, `vat_rate`, `line_total`, `is_shipping`, `raw_line`
 
-**Schritt 1 — OfficeConnect-Lizenz beantragen (15min, today):**
-- Zu `https://www.prosaldo.de` (oder `monkey-office.de/shop`) gehen
-- Kostenloses Connect-Produkt registrieren mit `frank@vod-records.com` ODER `robin@seckler.de`
-- Lizenznummer in 1Password speichern unter „MonKey Office Connect Lizenz"
-- Erwartete Lead-Time: 1-3 Tage E-Mail-Bestätigung
+**Pro Kunde (kanonische Stammdatenzeile, dedupliziert über alle Rechnungen):**
+- `customer_no` (MO-Schlüssel `ADR-XXXXXX`), `raw_name`, `first_name`, `last_name`, `display_name`, `company_name`, `raw_address`, `address_line_1/2`, `postal_code`, `city`, `region`, `country`, `country_code`
 
-**Schritt 2 — Frank's MO-Version remote ermitteln (15min, today):**
-- Per Tailscale + macOS Screen-Sharing oder Zoom-Call mit Frank
-- Frank klickt: MonKey Office → Menü → „Über MonKey Office" / „About"
-- Robin macht Screenshot, notiert Version (z.B. „24.1.2 REWE")
-- Versions-Match-Tabelle prüfen (Connect-Hauptversion = MO-Hauptversion)
+### D.2 Pipeline-Architektur
 
-**Schritt 3 — Tailscale auf MO-Mac sicherstellen (15min, today):**
-- Robin checkt im Tailscale-Admin-Console (`https://login.tailscale.com/admin/machines`) ob ein Device „frank-mac" o.ä. existiert
-- Falls **nicht:** Remote-Session mit Frank, `brew install --cask tailscale` + Tailscale-Login. Existing `frank-macbook-setup/`-Skripte erweitern um Tailscale-Bootstrap (analog Print-Bridge-Install).
-- Falls **ja:** Hostname notieren (`frank-mac.tailnet.ts.net`)
+```
+Monkey Office/Rechnungen/<Jahr>/*.pdf   (lokal, nicht in git committed)
+                │
+                ▼
+   ┌──────────────────────┐
+   │ PDF Importer         │  pdftotext -layout, Datei-Hash, Skip-if-known
+   └──────────┬───────────┘
+              ▼
+   ┌──────────────────────┐
+   │ Invoice Parser       │  Regex auf MO-Layout (Header, Adress-Block,
+   │                      │  Positionen, Summen, Steuer-Hinweise)
+   └──────────┬───────────┘
+              ▼
+   ┌──────────────────────┐
+   │ Name Normalizer      │  Vorname/Nachname-Split, Firma-Detection,
+   │                      │  raw_name + best-guess + confidence
+   └──────────┬───────────┘
+              ▼
+   ┌──────────────────────┐
+   │ STAGING (Postgres)   │  contacts + transactions + transaction_items
+   │                      │  + extraction_runs (Audit) + extraction_warnings
+   └──────────────────────┘
+```
 
-**Schritt 4 — OfficeConnect installieren + Test-Pull (1h, sobald Lizenz da):**
-- Robin per Screen-Sharing auf Frank's Mac, OfficeConnect DMG installieren
-- Lizenznummer eingeben, MO REWE muss laufen
-- `curl -X GET https://localhost:8082/addresses?limit=1 -H "Auth: <license>"` (genaue Syntax aus Doku) — bestätigt API live ist
-- Von **Robin's Mac** (im selben Tailnet) wiederholt — bestätigt Remote-Erreichbarkeit
-- **Erst danach** macht D-Prep / D1+ Sinn
+**Tabellen-Set im Staging-Schema** (siehe Codex-Konzept §5 für volle Spaltenlisten):
+- `mo_contacts` — kanonische Kunden-Stammdaten aus PDFs (Kundennummer-keyed)
+- `mo_transactions` — Rechnungs-Header (Rechnungsnummer-keyed)
+- `mo_transaction_items` — Positionen (FK auf Rechnungsnummer)
+- `mo_email_candidates` — vorgesehen für Email-Match aus Section F (Confidence-Score je Kandidat)
+- `mo_extraction_runs` — Pro-Run-Audit (Pfad, Hash, Status, Warnungen)
+- `mo_crm_export_log` — Idempotenz-Tracking beim Promotion ins Produktiv-CRM
 
-#### D.0.3 Was wenn Schritt 2 zeigt: MO-Version zu alt für Connect 23+?
+**Wichtig:** Alle MO-Tabellen-Namen mit Prefix `mo_` (siehe Section D + E Konvention) — separate Schema-Domäne, damit der Bridge-Resolver in Phase 2 (Master-Resolver, siehe Section H unten) klar zwischen den Quellen unterscheiden kann.
 
-- Pfad-A: MO upgraden (kostenpflichtig, Steuerberater muss Workflow re-validieren — kann blockieren)
-- Pfad-B: Pfad 1 (CSV-One-Shot) als Brücke für 1 Jahr, MO-Upgrade später ohne Zeitdruck
-- Pfad-C: ältere OfficeConnect-Version, falls existiert (zu prüfen)
+### D.3 Sprint-Plan (PDF-Pipeline)
 
-**Empfehlung: Pfad-B** — wir haben dann eine Stand-Snapshot-Migration, wartbar im Continued-Sync-Modell ab MO-Upgrade. Macht Plan robust gegen MO-Versions-Surprise.
-
-#### D.0.4 Frank-Bedarf — minimal
-
-Operativ braucht Frank für D.0 nur eine Sache: **Screen-Sharing-Termin (30-60min) zu vereinbaren**. Robin macht alles andere selbst. Frank's Inputs:
-- Screen-Share öffnen
-- Im Hintergrund weiterarbeiten
-- Bei Fragen Frank's Bestätigung holen („Ist das die Kundennummer auf Tape-Mag-Bestellungen?" etc.)
-
-Frank ist **nicht** Owner der Discovery, sondern Mitwirkender für 1-2 Stichproben. Robin koordiniert + dokumentiert.
-
-### D.1 Implementierungs-Pfade — eine Wahl je nach D.0
-
-**Empfehlung nach Recherche 2026-04-25: Pfad 4 (OfficeConnect-API).** Pfade 1-3 entfallen außer als Fallback wenn OfficeConnect technisch nicht bereitsteht.
-
-| Pfad | Wenn… | Aufwand | Beschreibung |
+| Sprint | Inhalt | Aufwand | Output |
 |---|---|---:|---|
-| **Pfad 4: OfficeConnect-API-Bridge ⭐ Empfohlen** | MO-Version unterstützt OfficeConnect (Mainstream, kostenlos) | ~5-7 Tage | Saubere HTTP/JSON-API, idempotente CRUD via MO-native Record-IDs, bidirectional fähig, kein CSV-Encoding-Edge-Case |
-| Pfad 1: One-Shot CSV-Import (Fallback) | OfficeConnect nicht verfügbar / Version-Mismatch / Lizenz-Beschaffung dauert | ~5 Tage | Manueller Export → Validation → Bulk-Import. Keine Sync. |
-| Pfad 2: One-Shot + Periodic Re-Sync (Fallback) | Wie Pfad 1, plus monatliches Refresh | ~7 Tage | Pfad 1 + Cron-Job |
-| Pfad 3: Direct-DB-Sync (verworfen) | — | — | Nicht mehr nötig, OfficeConnect deckt DB-Zugriff offiziell ab |
+| **D1.0 Lokaler Prototyp** | SQLite-Staging (für lokale Entwicklung), Parser auf 100 zufälligen PDFs aus 2019/2022/2025, Validierungs-Warnungen | 1 Tag | Funktionierender Parser, Sample-Report mit Edge-Cases |
+| **D1.1 Vollextraktion** | Parser gegen alle 10.575 PDFs, Fehler-/Warnreport, Sonderfälle nachschärfen (AR-2025-000001, KR-Korrekturen) | 1 Tag | CSV + JSON Bulk-Export, <5% mit Warnungen erwartet |
+| **D1.2 Postgres-Migration** | Staging-Tabellen `mo_*` in Supabase anlegen (Migration `2026-05-03-mo-staging.sql`), Bulk-Insert aus JSON | 0.5 Tag | Postgres-Tabellen befüllt, idempotent re-runnable |
+| **D1.3 Name-Normalisierung** | Vorname/Nachname-Split, Firmen-Erkennung, Confidence-Marker für unsichere Fälle | 0.5 Tag | `first_name`/`last_name`/`company_name`-Felder befüllt mit ≥0.8 Confidence-Threshold |
+| **D1.4 Validierung + QA-Report** | Plausibilitäts-Checks (Summen, Pflichtfelder, Doubletten), Frank-Review-Liste für ambigue Namen | 0.5 Tag | QA-Report-Markdown, Reject-Liste für manuelle Korrektur |
 
-#### D.1.1 OfficeConnect — was wir wissen (Stand 2026-04-25)
+**Total D1: ~4 Tage** für vollständig befülltes MO-Staging im Postgres.
 
-Quelle: <https://www.monkey-office.de/products/officeconnect/index.php>
+### D.4 Service-Deployment (VPS, Phase 2)
 
-**Architektur:**
-- Connect spricht mit MO über **cubeSQL-Server** (eingebettet in MO REWE)
-- Wire-Protokoll: **HTTP(S) + JSON**
-- Connect läuft als separater Prozess auf demselben oder einem anderen Host als MO
-- Bibliotheken offiziell verfügbar: **PHP** + **C++**. Wir nutzen die nicht direkt — wir bauen eigenen Node/TypeScript-Client gegen die HTTP/JSON-Schicht (analog zu wie wir Brevo + Stripe nutzen).
+Wenn D1 lokal läuft → auf VPS deployen damit MO-PDFs aus dem `Monkey Office/Rechnungen/`-Ordner automatisch verarbeitet werden, sobald Frank neue PDFs ablegt:
 
-**Daten (CRUD):**
-- Adressen (Customers): vollständig — abfragen / ändern / löschen / neu anlegen
-- Allgemein: „Daten neu anlegen, ändern oder löschen, ebenso Daten abfragen"
-- Genauer Umfang in der Connect-Doku (`monkey-office.de/doc/Start.html`) — **muss vor Code-Start gelesen werden** um zu wissen welche Endpunkte für Rechnungen + Rechnungspositionen + Artikel existieren
+- **Sync-Mechanismus:** Frank legt PDFs lokal in seinen `Monkey Office/Rechnungen/<Jahr>/`-Ordner ab. Dieser Ordner wird via rsync/iCloud/Resilio Sync auf den VPS gespiegelt (Robin entscheidet später — initial reicht manueller `scp`-Push 1× pro Woche).
+- **Cron auf VPS:** `0 4 * * *  python3 mo_pdf_pipeline.py --incremental` — verarbeitet nur PDFs, deren Datei-Hash noch nicht im `mo_extraction_runs`-Audit ist.
+- **Reporting:** Tagesreport via Email an `support@vod-auctions.com` mit Counts (neue Rechnungen, Warnings, Errors).
+- **Dashboard:** `/admin/crm/legacy/mo-status` zeigt letzte Runs, Warnings, Reject-Liste.
 
-**Authentifizierung:**
-- Persönliche Lizenznummer (kostenlos, Registrierung im prosaldo-Shop)
-- Login + Firmeninformationen werden übermittelt
-- **Kein OAuth, kein API-Key-Modell.** Wir müssen Credentials secret-managen wie aktuell DB-Passwords (1Password / `.env`).
+**Aufwand D2 (deployment + monitoring): ~1 Tag.**
 
-**Lizenz:** Kostenlos, registrierungspflichtig.
+### D.5 OfficeConnect (deferred, strategischer Phase-3-Workstream)
 
-**Plattformen:** macOS (10.14+, ARM/Intel), Windows 10/11 (x64). Linux nicht offiziell.
+Der ursprüngliche Section-D-Inhalt (OfficeConnect-API-Integration für **bidirectional** Sync zwischen MO und vod-auctions.com) bleibt **strategisch wertvoll**, ist aber **kein** Launch-Blocker für die Daten-Konsolidierung. Folgende Logik:
 
-**Versions-Pflicht:** Connect-Hauptversion = MO-Hauptversion (z.B. Connect 23.1.0 ↔ MO 23.x).
+- **PDF-Pipeline (D1+D2)** liefert die historische 7-Jahres-Sicht aller Rechnungen. **Read-only**, idempotent, ohne MO-Eingriff.
+- **OfficeConnect (D3, später)** kommt erst, wenn Frank in **beide Richtungen** synchronisieren will — also wenn vod-auctions.com Auktions-Verkäufe automatisch als MO-Rechnungen anlegen soll. Das ist GoBD-relevant und deutlich komplexer.
 
-**Sicherheits-Constraints:**
-- „Funktionalität kann vom Anwender nicht erweitert werden" → wir bekommen nur die Endpoints die MO offiziell exposed
-- Geschäftslogik wird erzwungen → Connect schützt Datenkonsistenz (z.B. wir können keine Rechnung ohne Kunde anlegen)
-- Rate-Limits: nicht erwähnt → wir messen selbst und implementieren backoff
+Die ursprünglichen Sections D.0-D.11 zu OfficeConnect-Discovery, Lizenz-Antrag, Tailscale-Setup etc. werden **als Phase-3-Referenz** unten konserviert, aber nicht in Phase 1 angegangen.
 
-**Was die Doku-Seite NICHT verrät (muss bei Frank/Doku verifiziert werden):**
-- Genaue Endpoint-Namen + JSON-Schemas
-- Bulk-Endpoints (für initial 5k-20k-Customer-Backfill — paginieren wir 100/Call?)
-- Filterung/Pagination-Mechanismus
-- Webhook/Push-Support oder nur Pull?
-- Wie sicht Connect mit MO synchronisiert (Live-DB-Read vs. eventual-consistency)
+**Trigger für D3-Pickup:** Wenn Frank's „Auktion verkauft → MO-Rechnung erzeugen"-Workflow manuell wird (Doppelarbeit), ist der Punkt erreicht. Bis dahin reicht der einseitige PDF-Import vollständig.
 
-#### D.1.2 Architektur-Skizze (Pfad 4)
+### D.6 Was Section D liefert (Phase 1)
 
-```
-                       ┌─────────────────────────────────────┐
-                       │   Frank's MO-PC (macOS/Windows)     │
-                       │                                      │
-                       │   ┌────────────────────────────┐    │
-                       │   │ MonKey Office REWE 23.x    │    │
-                       │   │   ├── Kundenstamm          │    │
-                       │   │   ├── Rechnungsausgang     │    │
-                       │   │   └── Rechnungspositionen  │    │
-                       │   └────────┬───────────────────┘    │
-                       │            │ embedded               │
-                       │   ┌────────▼───────────────────┐    │
-                       │   │ cubeSQL-Server (Port ?)    │    │
-                       │   └────────┬───────────────────┘    │
-                       │            │                        │
-                       │   ┌────────▼───────────────────┐    │
-                       │   │ OfficeConnect (separater   │    │
-                       │   │  Prozess, HTTP/JSON-API)   │    │
-                       │   │  Port ?                    │    │
-                       │   └────────┬───────────────────┘    │
-                       └────────────┼─────────────────────────┘
-                                    │
-                                    │ HTTPS (Tailscale-Tunnel
-                                    │  oder ngrok-Reverse-Proxy)
-                                    │
-                       ┌────────────▼─────────────────────────┐
-                       │   VPS (Hostinger 72.62.148.205)     │
-                       │                                      │
-                       │   ┌────────────────────────────┐    │
-                       │   │ vodauction-backend (Medusa)│    │
-                       │   │  ├── lib/monkey-office.ts  │    │
-                       │   │  └── api/admin/mo-sync/    │    │
-                       │   └────────┬───────────────────┘    │
-                       │            │                        │
-                       │   ┌────────▼───────────────────┐    │
-                       │   │ Supabase (CRM-DB)          │    │
-                       │   │   ├── customers (plural)   │    │
-                       │   │   ├── orders               │    │
-                       │   │   └── customer (Medusa)    │    │
-                       │   └────────────────────────────┘    │
-                       └──────────────────────────────────────┘
-```
+- **10.575 Rechnungen + ~50-70k Line-Items** aus 7 Jahren Geschäftshistorie im Staging
+- **~5.000-8.000 unique Kunden-Stammdatensätze** mit kanonischer MO-Kundennummer (`ADR-XXXXXX`)
+- **Lifetime-Revenue pro Kunde** über die kompletten 2019-2026 — Basis für Tiering (Section G)
+- **Auditierbarer Pfad** von jeder Rechnung zurück zur PDF-Datei (Hash + Pfad)
+- **Idempotente Re-Runs** — wenn der Parser nachgeschärft wird, kann die ganze Extraktion ohne Datenverlust wiederholt werden
 
-**Network-Bridge zur Frage „wie kommt VPS an MO-PC":**
-- **Option α (empfohlen):** **Tailscale**. **Robin** installiert Tailscale-Client auf MO-Mac (per Remote-Session mit Frank — analog zum bestehenden `frank-macbook-setup/`-Bootstrap-Pattern). VPS hat schon Tailscale aus Stromportal-Projekt. MO-Mac bekommt 100.x.x.x-IP, VPS adressiert OfficeConnect direkt über Tailscale-Hostname. Kein Port-Forwarding, keine öffentliche IP, keine Firewall-Regel nötig. Verschlüsselter Tunnel out-of-the-box.
-- **Option β:** OfficeConnect lokal auf MO-Mac, **VPN-Cron-Pull**: Sync-Script läuft auf MO-Mac selbst (LaunchAgent), pushed Deltas an VPS-Endpoint. Macht VPS unabhängig vom MO-Mac-Erreichbarkeit, aber LaunchAgent läuft im Hintergrund — Frank muss damit nicht aktiv interagieren (analog Print-Bridge auf Frank's MBA).
-- **Option γ:** ngrok / Cloudflare-Tunnel als Reverse-Proxy. Zusätzliche Service-Abhängigkeit, ich würde Tailscale bevorzugen (existiert schon im Stack).
-
-**Empfehlung:** **Option α mit Tailscale.** Robin koordiniert Setup analog zum existierenden `frank-macbook-setup/install.sh`-Pattern (15-30min Remote-Session). Sync läuft als Cron auf VPS, ruft `https://frank-mac.tailnet:port/connect/...` ab.
-
-#### D.1.3 Sync-Strategie (Pfad 4)
-
-**Initial-Backfill (One-Shot):**
-- Erste Vollmenge aller Customers + Invoices aus MO
-- Idempotent via `monkey_office_customer_id` + `monkey_office_invoice_id` UNIQUE-Indizes (D.2)
-- Re-runnable ohne Datenverlust
-- Erwartete Dauer: 1-2h für 20k Customers + 50k Invoices (abhängig von OfficeConnect-Performance — muss mit Sample gemessen werden)
-
-**Continued-Sync (täglich oder stündlich):**
-- Cron-Job auf VPS: `*/15 * * * *  python3 monkey_office_sync.py` (Beispiel: alle 15min)
-- Strategie: **Polling-Delta** — Connect-API mit `WHERE updatedAt > <last_sync_at>` (sofern Connect das unterstützt) ODER Full-Page-Pull mit Hash-Diff (analog zu Meilisearch-Sync rc40).
-- Watermark in `monkey_office_import_runs.last_synced_at`
-- Bei Fehler: Run wird als `failed` markiert, nächster Run versucht wieder (Watermark wird erst bei `done` advancen)
-
-**Bidirectional (deferred, Phase 2):**
-- vod-auctions.com erstellt eine Auktions-Order → ein Subscriber pushed via OfficeConnect eine neue MO-Rechnung
-- Mappings: vod-auctions.com `transaction.id` → MO `Rechnungsnr` (separates Feld in MO oder in MO-Notizfeld)
-- GoBD-Konform: MO bleibt das System-of-Record für Rechnungen, vod-auctions.com triggert nur die Erstellung
-- Komplexität: Tax-Berechnung muss in MO passieren (sonst weicht das DATEV-Output ab) → Storefront pushed nur Header + Items, MO rechnet Steuern
-
-#### D.1.4 Risiken Pfad 4
-
-| Risiko | Schweregrad | Mitigation |
-|---|---|---|
-| OfficeConnect-Doku unvollständig oder hat Edge-Cases | Mittel | Sample-Test mit 10 Customers + 10 Invoices vor Full-Backfill, Doku-Lesen vor Code-Start |
-| MO-Version-Upgrade alle 1-2 Jahre → Connect-Version-Pflicht | Niedrig | Connect ist kostenlos, Upgrade-Pfad dokumentiert. Sync-Code muss versioniert sein. |
-| Connect-API blockiert bei großen Bulk-Pulls (Rate-Limit oder Performance) | Mittel | Pagination + Backoff implementieren, initial Backfill in Chunks à 500 |
-| MO-PC offline → Sync-Lücke | Niedrig | Polling-Delta-Strategie — nächster erfolgreicher Run holt nach |
-| OfficeConnect-Auth-Credentials kompromittiert | Niedrig | 1Password-Store, in `.env` als secret, kein Commit |
-| Breaking-Changes in Connect zwischen MO-Hauptversionen | Mittel | Smoke-Tests nach jedem MO-Upgrade, separates Issue-Tracking |
-
-### D.2 Schema-Erweiterungen (für alle Pfade)
-
-**Migration:** `backend/src/scripts/migrations/2026-04-25-monkey-office-import.sql`
-
-```sql
--- (1) source-Spalte auf orders (Plural, Legacy)
--- Existing tape-mag rows kriegen 'tape_mag_website', neue MO-Imports 'monkey_office_rewe'
-ALTER TABLE orders ADD COLUMN source text NULL;
-UPDATE orders SET source = 'tape_mag_website' WHERE source IS NULL;
-ALTER TABLE orders ALTER COLUMN source SET NOT NULL;
-CREATE INDEX idx_orders_source ON orders(source);
-
--- (2) MO-Specific IDs (monkey_office_invoice_id für Idempotenz)
-ALTER TABLE orders ADD COLUMN monkey_office_invoice_id text NULL;
-ALTER TABLE orders ADD COLUMN monkey_office_invoice_number text NULL;  -- Frank's interne Rechnungsnummer
-CREATE UNIQUE INDEX idx_orders_mo_invoice_id ON orders(monkey_office_invoice_id)
-  WHERE monkey_office_invoice_id IS NOT NULL;
-
--- (3) source-Spalte auf customers (Plural, Legacy)
-ALTER TABLE customers ADD COLUMN source text NULL;
-UPDATE customers SET source = 'tape_mag_website' WHERE source IS NULL;
-ALTER TABLE customers ALTER COLUMN source SET NOT NULL;
-ALTER TABLE customers ADD COLUMN monkey_office_customer_id text NULL;
-CREATE UNIQUE INDEX idx_customers_mo_customer_id ON customers(monkey_office_customer_id)
-  WHERE monkey_office_customer_id IS NOT NULL;
-
--- (4) Import-Audit-Tabelle (für Reproduzierbarkeit + Rollback)
-CREATE TABLE IF NOT EXISTS monkey_office_import_runs (
-  id text PRIMARY KEY,
-  started_at timestamptz NOT NULL DEFAULT NOW(),
-  ended_at timestamptz NULL,
-  source_file text NULL,                     -- z.B. "MO_Kunden_Export_2026-04-25.csv"
-  customer_rows_imported int NULL,
-  customer_rows_updated int NULL,
-  order_rows_imported int NULL,
-  order_rows_updated int NULL,
-  order_item_rows_imported int NULL,
-  status text NOT NULL DEFAULT 'running',    -- running / done / failed
-  error_message text NULL,
-  imported_by text NULL                      -- admin user id
-);
-```
-
-**Idempotenz-Garantie:** `monkey_office_invoice_id` und `monkey_office_customer_id` sind UNIQUE. Ein Re-Import ändert UPDATEs statt INSERTs. Kein Datenverlust.
-
-### D.3 Customer-Import-Pipeline
-
-**Skript:** `scripts/monkey_office_import.py` (analog zu `legacy_sync_v2.py` Style)
-
-**Input:** CSV-File aus MO Kundenstamm-Export. Erwartete Spalten (zu validieren mit Frank's Real-Export):
-
-```
-Kundennr (= MO customer_id)
-Anrede / Titel / Vorname / Nachname
-Firma
-Strasse / PLZ / Ort / Land
-Telefon / Mobil / Fax
-Email
-Geburtsdatum (optional, kann für Marketing relevant sein)
-Marketing-Erlaubnis (Y/N)
-Erstellt-am / Geändert-am
-```
-
-**Pipeline:**
-
-```python
-def import_customer(row, conn):
-    mo_id = row['Kundennr']
-    email = (row.get('Email') or '').strip().lower() or None
-
-    # Step 1: Existing match via mo_customer_id?
-    existing = conn.execute(
-        "SELECT id FROM customers WHERE monkey_office_customer_id = %s",
-        (mo_id,)
-    ).fetchone()
-
-    if existing:
-        # Update existing MO-source row
-        conn.execute(
-            "UPDATE customers SET ... WHERE id = %s",
-            (..., existing['id'])
-        )
-        return 'updated'
-
-    # Step 2: Existing tape-mag-Website match via email?
-    if email:
-        same_email = conn.execute(
-            "SELECT id, source FROM customers WHERE LOWER(email) = %s",
-            (email,)
-        ).fetchone()
-        if same_email:
-            # Email-Match: hänge MO-ID an existing Tape-Mag-Row,
-            # ohne tape-mag-Daten zu überschreiben (only-fill-NULLs Strategy)
-            conn.execute("""
-                UPDATE customers
-                SET monkey_office_customer_id = %s,
-                    phone = COALESCE(phone, %s),
-                    -- weitere COALESCE-Felder ...
-                    updated_at = NOW()
-                WHERE id = %s
-            """, (mo_id, row.get('Telefon'), same_email['id']))
-            return 'merged'
-
-    # Step 3: Neuer Datensatz
-    conn.execute("""
-        INSERT INTO customers (
-            email, phone, source, monkey_office_customer_id, ...
-        ) VALUES (%s, %s, 'monkey_office_rewe', %s, ...)
-    """, (email, row.get('Telefon'), mo_id, ...))
-    return 'inserted'
-```
-
-**Adressen-Import:** parallel zu customers, nutzt `customer_addresses` (Plural). MO liefert wahrscheinlich nur eine Adresse pro Kunde — bei „Liefer- vs. Rechnungsadresse"-Differenz: zwei Rows mit `address_type='billing'` und `address_type='shipping'`, wenn vorhanden.
-
-**Edge-Cases die wir erwarten:**
-
-1. **Kunde ohne Email** (Walk-in/Telefon): `email IS NULL` ist erlaubt. Bridge zu Medusa-`customer` ist dann nur via Frank's manueller Verknüpfung möglich.
-2. **Doppelte Emails in MO** (Tippfehler, Familien-Account): Match-Fallback auf `mo_customer_id` first, dann Email. Wenn MO selbst zwei Kundennummern für dieselbe Email hat → beide importieren, manueller Merge im CRM-UI später.
-3. **Email-Casing/Whitespace**: `LOWER(TRIM())` immer.
-4. **Umlaut-Encoding**: Pre-Validation-Skript checked encoding via `chardet` und transkodiert nach UTF-8 wenn nötig.
-
-### D.4 Order + Line-Item Import
-
-**Inputs:** zwei CSV-Files aus MO REWE-Export — Rechnungs-Header + Rechnungs-Positionen (oder ein File mit Joined-View, je nach MO-Export-Konfiguration).
-
-**Header-Schema (erwartet):**
-```
-Rechnungsnr (= MO invoice_id)
-Kundennr → JOIN auf customers.monkey_office_customer_id
-Rechnungsdatum / Lieferdatum
-Netto / MwSt / Brutto / Versandkosten
-Status (offen / bezahlt / storniert)
-Zahlungsart
-Rechnungsnotiz
-```
-
-**Position-Schema:**
-```
-Rechnungsnr → FK
-Pos-Nr / Artikelnummer / Artikelbezeichnung
-Menge / Einzelpreis / Rabatt / Gesamtpreis
-```
-
-**Pipeline:**
-
-```python
-def import_order(row, conn):
-    mo_invoice_id = row['Rechnungsnr']
-    mo_customer_id = row['Kundennr']
-
-    # Customer muss zuerst importiert sein (D.3 läuft vor D.4)
-    customer = conn.execute(
-        "SELECT id FROM customers WHERE monkey_office_customer_id = %s",
-        (mo_customer_id,)
-    ).fetchone()
-
-    if not customer:
-        # MO-Daten-Inkonsistenz: Order ohne Customer
-        # → in Reject-Liste, manuell auflösen
-        return 'orphan'
-
-    # Idempotenz: existiert die Invoice schon?
-    existing = conn.execute(
-        "SELECT id FROM orders WHERE monkey_office_invoice_id = %s",
-        (mo_invoice_id,)
-    ).fetchone()
-
-    if existing:
-        # Update Header + Re-Insert Items (DELETE + INSERT)
-        ...
-        return 'updated'
-
-    order_id = generate_id()
-    conn.execute("""
-        INSERT INTO orders (
-            id, customer_id, source, monkey_office_invoice_id,
-            order_number, total, ordered_at, status, ...
-        ) VALUES (%s, %s, 'monkey_office_rewe', %s, %s, %s, %s, %s, ...)
-    """, (...))
-
-    # Items
-    for item in items_for_invoice(mo_invoice_id):
-        conn.execute("""
-            INSERT INTO order_items (order_id, product_name, quantity, ...)
-            VALUES (%s, %s, %s, ...)
-        """, (order_id, item['Artikelbezeichnung'], item['Menge'], ...))
-
-    return 'inserted'
-```
-
-**Wichtig — `legacy_id` vs. `monkey_office_invoice_id`:** Bestehende `orders`-Rows aus dem 2026-03-22-Tape-Mag-Import haben `legacy_id` gesetzt (= tape-mag-Website-Order-ID). Neue MO-Imports haben **`monkey_office_invoice_id`** stattdessen, **`legacy_id` bleibt NULL**. Das ist die saubere Trennung — Reports können nach `source` differenzieren.
-
-**Produkt-Mapping:** MO-Artikelnummer → unsere `Release.article_number` (Format `VOD-XXXXX`)? Wenn ja, könnte ein zweiter optionaler Pass jede `order_items.product_name` mit `Release` joinen. Wenn nicht (= Artikelnummern-Format anders), bleiben Items als reine String-Datensätze ohne FK.
-
-### D.5 Post-Import Reconciliation
-
-Nach D.3 + D.4:
-
-1. **Customer-Stats Recalc** für alle Customers mit MO-Daten — bestehender `recalc-stats`-Endpoint, plus Brevo-Upsert (B.6).
-2. **Brevo Sync** der MO-only-Kunden in eine **vierte Brevo-Liste** „vod-records-customers" (oder direkt in List 7 gemerged, je nach Marketing-Strategie).
-3. **Diff-Report** für Robin/Frank:
-   - Wie viele MO-Kunden waren schon via tape-mag (= merged)?
-   - Wie viele waren neu (= inserted)?
-   - Wie viele MO-Orders ergänzen Tape-Mag-History? (Total Order-Count vor/nach Import)
-   - Wie viele Orphan-Orders ohne Customer? → in Reject-Liste, brauchen Frank-Manual-Review
-
-### D.6 Strategie-Entscheidung — MO-Phase-Out vs. Continued-Sync
-
-| Aspekt | MO-Phase-Out (vod-auctions.com wird Buchhaltungs-System) | Continued-Sync via OfficeConnect (MO bleibt Source-of-Truth) |
-|---|---|---|
-| GoBD-Konformität | Selbst sicherstellen — Audit-Logs, 10-Jahre-Aufbewahrung, unveränderliche Rechnungen | MO macht's weiter |
-| Steuerberater-Workflow | Neuer Export-Pfad aus vod-auctions.com (DATEV-Export-Endpoint nötig) | Unverändert |
-| Aufwand | Hoch (Rechnungsnummern-Sequence, GoBD-Module, etc.) | **Niedrig** — Connect ist kostenlos, Sync-Code ist klein |
-| Risiko | Hoch — Steuerberater muss neuen Workflow akzeptieren | Niedrig |
-| Marketing-Wert | Identisch | Identisch |
-| Realistisch | 6-12 Monate weiterer Workstream | **Sofort umsetzbar mit OfficeConnect** |
-
-**Empfehlung:** **Continued-Sync via OfficeConnect** für mindestens das erste Jahr nach Launch. MO bleibt Buchhaltung, vod-auctions.com hat:
-- **Read-Sync (Tag 1):** alle 15min Pull von neuen/geänderten Customers + Invoices aus MO → CRM-DB
-- **Write-Sync (Tag 30+, Phase 2):** vod-auctions.com pushed neue Auktions-Verkäufe als Rechnungen zurück nach MO via OfficeConnect
-
-Mit OfficeConnect ist Continued-Sync **deutlich attraktiver als vorher gedacht**: kein monatlicher manueller CSV-Export mehr nötig, idempotente bidirectional Sync ist out-of-the-box möglich. Phase-Out bleibt strategischer Workstream, aber der Druck ist weg — MO+OfficeConnect+vod-auctions.com können dauerhaft koexistieren.
-
-### D.7 GoBD- und steuerrechtliche Implikationen
-
-**Wichtig:** Ein importierter Bestand an Rechnungen in unserer DB ist **kein Buchhaltungs-System**. Unsere `orders`-Tabelle ist ein **CRM-Spiegel** für Reporting + Marketing. Originale Rechnungen + Buchhaltung bleiben in MO.
-
-**Praktische Konsequenzen:**
-- Wir dürfen importierte MO-Orders **nicht** verändern (kein UPDATE auf `total`, kein „Storno"-Flag-Toggle in unserer DB ohne Sync nach MO). Reine Read-View.
-- DSGVO-Auskunfts-Recht: wenn ein Kunde Auskunft will, muss `customer.metadata.monkey_office_customer_id` gesetzt sein damit wir auf MO-Original verweisen können.
-- DSGVO-Löschungs-Recht (Art. 17 GDPR): Buchhaltungsdaten haben **gesetzliche Aufbewahrungsfrist** (10 Jahre § 147 AO) — Customer kann nicht „gelöscht" werden, nur anonymisiert. Wir müssen `customer.metadata.gdpr_deleted_at` setzen + PII (Name/Email/Adresse) NULLen, MO-Customer-ID + monetäre Felder bleiben.
-
-**Anwalt-Themen für RSE-78:**
-- Carry-Over von tape-mag-DOI in vod-auctions Newsletter-Liste 7 (siehe A.5.4 + Open Decision 6)
-- DSGVO-konforme Anonymisierung von MO-Customers in unserer Spiegel-DB
-- Auftragsverarbeitungs-Vertrag (AVV) zwischen vod-records (MO-Owner) und vod-auctions.com (CRM-Spiegel) — selbe juristische Person, aber andere Marken → ggf. Vertrag intern dokumentieren
-
-### D.8 Aufwand + Risiken (Pfad 4 — OfficeConnect)
-
-| Phase | Aufwand | Risiko | Mitigation |
-|---|---:|---|---|
-| D.0 Discovery (Robin selbst — Lizenz beantragen + Remote-Session mit Frank für MO-Version-Check + Tailscale-Setup) | 0.5 Tag + 1-3 Tage Lizenz-Lead-Time | OfficeConnect nicht installiert oder MO-Version zu alt | Pfad 1 (CSV) als Fallback dokumentiert in D.0.3 |
-| Tailscale-Setup auf MO-Mac + Connect-Auth-Test (curl) | 0.5 Tag (in derselben Remote-Session) | Frank's Mac hat Admin-Restriction | Bootstrap analog zum existierenden `frank-macbook-setup/`-Pattern |
-| OfficeConnect-Doku lesen + Endpoint-Map erstellen (Customers, Invoices, Items) | 1 Tag | Doku unvollständig | Sample-Probe mit 10 Records pro Endpoint |
-| `backend/src/lib/monkey-office.ts` HTTP-Client + Auth-Wrapper | 1 Tag | — | Type-Safe TS-Wrapper mit Retry-Logic |
-| D.2 Migration (Schema) | 1h | — | Idempotent, additive |
-| D.3 Customer-Pull + Import-Pipeline | 1.5 Tage | Pagination-Edge-Cases, Doppel-Emails | Chunk-basiert, Reject-Liste |
-| D.4 Invoice + Item-Pull + Import | 1.5 Tage | Orphan-Invoices, Item-Schema-Mismatch | Manual-Review-Liste |
-| D.5 Reconciliation + Cron-Setup (alle 15min Delta) | 1 Tag | Connect-Throughput unter Erwartung | Adjustable Chunk-Size + Backoff |
-| D.6 Continued-Sync stabilisieren + Monitoring | 0.5 Tag | Stale-Run-Detection wie bei legacy_sync_v2 | `monkey_office_import_runs.status='abandoned' WHERE started_at < NOW()-30min AND ended_at IS NULL` |
-| D.7 (Phase 2, deferred) Bidirectional Write-Sync | 3-5 Tage | Tax-Rounding-Diff, GoBD-Konsistenz | MO-Test-Mandant zum Üben |
-
-**Total Pfad 4 (Read-Sync, Initial-Backfill + Continued-Pull):** **~7 Tage** + 0.5 Tag Klärungs-Block + 1-3 Tage Lizenz-Lead-Time (parallel) = **~1.5 Wochen** für vollständig synchronisierten CRM-Spiegel.
-
-**Vergleich:**
-- Pfad 4 (OfficeConnect): ~7 Tage, **inklusive** Continued-Sync und ohne CSV-Edge-Cases
-- Pfad 1 (One-Shot CSV): ~6 Tage, **ohne** Continued-Sync, mit CSV-Edge-Cases
-- → Pfad 4 ist gleicher Aufwand, deutlich besseres Ergebnis. Klar empfohlen.
-
-**Fallback-Plan wenn OfficeConnect technisch nicht klappt:** Pfad 1 (CSV-One-Shot) startet, Pfad 4 wird in 4-8 Wochen nachgezogen wenn Lizenz/Version geklärt sind.
-
-### D.9 Reihenfolge im Gesamt-Sprint-Plan
-
-D wird **nach** Section A geschoben (A liefert die Customer-Bridge-Infrastruktur, D nutzt sie). Mit OfficeConnect (Pfad 4) ist Continued-Sync **direkt** in den Initial-Sprint integriert — keine separate Phase 3 mehr nötig.
-
-| Sprint | Inhalt | Aufwand |
-|---|---|---:|
-| **Sprint D0** (parallel zu C1, kann sofort starten) | D.0 Klärungs-Block, MO-Version + Tailscale-Setup, OfficeConnect-Lizenz beantragen | 0.5 Tag + 1-3 Tage Lead-Time |
-| Sprint D-Prep (parallel zu A1) | OfficeConnect-Doku lesen, Endpoint-Map, `lib/monkey-office.ts` HTTP-Client | 2 Tage |
-| Sprint D1 (nach A1) | D.2 Migration + D.3 Customer-Pull + Import | 2 Tage |
-| Sprint D2 (nach D1) | D.4 Invoice + Item-Import + D.5 Reconciliation | 2 Tage |
-| Sprint D3 (nach D2) | D.6 Continued-Sync Cron + Monitoring | 1 Tag |
-| Sprint D4 (deferred, Phase 2) | D.7 Bidirectional Write-Sync (vod-auctions Auctions → MO Rechnungen) | 3-5 Tage |
-
-**Aktualisierte Gesamt-Dauer Phase 1 (vor Wave 1, ohne MO-Import):** ~9 Tage Code (C+A) = **~2 Arbeitswochen**.
-**Phase 1.5 (vor Wave 2 mit OfficeConnect-Sync):** + ~7 Tage MO (D-Prep + D1-D3) = **~3 Arbeitswochen gesamt**.
-
-**Tip:** D-Prep + D0 können **vollständig parallel** zu allen anderen Sprints laufen. Robin's Lizenz-Beantragung + Remote-Session mit Frank (1× 30-60min) blockieren gar nichts.
-
-### D.10 Was Section D NICHT macht
-
-- **Kein Buchhaltungs-Replacement.** vod-auctions.com bleibt kein DATEV-Exporteur, MO bleibt Steuerberater-Frontend.
-- **Keine Live-DB-Replikation** (Pfad 3) ohne explizite Klärung der MO-DB-Schema-Stabilität.
-- **Keinen automatischen Marketing-Mailversand** an MO-Customers vor Re-DOI (siehe RSE-78 Anwalt-Frage).
-- **Keine Order-Modification** auf importierten MO-Orders (Read-Only-Spiegel).
-
-### D.11 Smoke-Test-Checkliste
-
-Vor dem ersten Production-Import:
-
-- [ ] Sample-CSV (50-100 Rows) wird sauber geparst, kein Encoding-Issue
-- [ ] D.2 Migration ist idempotent (2× Run testen)
-- [ ] D.3 Customer-Import auf Sample → erwartete `inserted` / `merged` / `updated`-Counts plausibel
-- [ ] Email-Match-Test: MO-Kunde mit bekannter tape-mag-Email landet als `merged`, nicht als `inserted`
-- [ ] D.4 Order-Import auf Sample → keine Orphans (alle Customers vorab importiert)
-- [ ] Customer-Detail-Page im Admin zeigt nach Import sowohl Tape-Mag-Orders (`source='tape_mag_website'`) als auch MO-Orders (`source='monkey_office_rewe'`) chronologisch
-- [ ] Customer-Stats-Recalc liefert korrekt aggregierte Totals über beide Quellen
+**Was Section D NICHT liefert (das macht Section F):** Email-Adressen pro MO-Kunde. PDFs enthalten zwar manchmal eine Notiz-Email, aber primär Adress-Daten. Email-Anreicherung passiert in Section F via IMAP-Match.
 
 ---
 
+## Section E — Legacy-Datenbank-Konsolidierung (NEW)
+
+**Status:** Discovery 2026-05-03 abgeschlossen, Implementation pending.
+**Ziel:** Vier Legacy-Web-Shop-Datenbanken in unser Staging übernehmen, damit jeder dort registrierte Online-Kunde im neuen CRM auffindbar ist — auch wenn er nie über tape-mag.com gekauft hat.
+**Reference:** [`docs/architecture/LEGACY_MYSQL_DATABASES.md`](../architecture/LEGACY_MYSQL_DATABASES.md) — vollständiges Schema-Inventar, Tabellen-Counts, Cross-DB-Beziehungen, Pull-Cheatsheet.
+
+### E.0 Datenbank-Inventar (Discovery 2026-05-03, korrigiert mit Site-Hosting-Befunden)
+
+**Hosting-Realität (alle vier Domains auf `213.133.106.99` = dedi99.your-server.de):**
+
+| Domain | Plattform | DB | Customer-Tabelle | Counts |
+|---|---|---|---|---|
+| `tape-mag.com` + `record-price-guide.org` (Mirror) | 3wadmin Member-CMS | `vodtapes` | `3wadmin_extranet_user` | 3.632 Members |
+| `vod-records.com` + `vinyl-on-demand.com` | 3wadmin Webshop | `maier_db1` (live?) | `3wadmin_shop_kunden` | 3.114 Customers |
+| (gleicher Shop, älteres Schema) | 3wadmin Webshop (Archiv) | `maier_db2013` | `3wadmin_shop_kunden` + `_kunden_adresse` | 8.544 Customers + 17.315 Adressen |
+
+**Relevante Quelle aus `scripts/crm_import.py` (geschrieben 2026-03):**
+- Phase 1: `vod-auctions.com` (Medusa native, 12 customers heute)
+- Phase 2: `tape-mag.com` (`vodtapes.3wadmin_extranet_user` — 3.632 Members)
+- Phase 3: `vod-records.com` Kommentar sagt „WooCommerce — CSV import, manual" — **dieser Kommentar ist veraltet**, der Shop läuft 2026-05-03 nachweislich auf 3wadmin, nicht WooCommerce. Die `maier_db*`-DBs sind die echte Quelle.
+
+**Drei vod-records.com / vinyl-on-demand.com DBs auf `dedi99.your-server.de:3306`** (Hetzner-Dedi, Custom-PHP-Shop „3wadmin"):
+
+| DB | kunden | bestellungen | bestellungen_artikel | newsletter | Schema-Hash | Charakter |
+|---|---:|---:|---:|---:|---|---|
+| `maier_db1` | **3.114** | 3.062 | 4.701 | 30 | `fc951d…` | Aktueller VOD-Records-Webshop (kompaktes Schema) |
+| `maier_db11` | 2.556 | 2.501 | 3.772 | 20 | `fc951d…` (= db1) | Backup/Fork von db1 — gleiches Schema, weniger Daten |
+| `maier_db2013` | **8.544** | 8.230 | 13.617 | 42 | `dffe66…` | **Reichhaltiges Archiv** — separate `_kunden_adresse` (17.315 Rows) + `_kunden_alt` (3.097) + `_personen`-Konzept. Vermutlich der ursprüngliche 2010-2013-Shop bevor das Schema vereinfacht wurde |
+
+**Plus `vodtapes` (tape-mag.com Member-DB)** — Credentials in 1Password Work: `Legacy MySQL tape-mag` Item `eajngb2kdtjlkaw7ztrf45xupe` (R/O User `maier1_2_r`, Password im Item `s5e7ebssyfyvtx4n3ehqirjtem` Feld `maier1_2_r Passwort`). Schema **anders** als die `maier_db*`-Webshops:
+- `3wadmin_extranet_user` (3.632 Members) — Login-Tabelle (id, name, vorname, email UNIQUE, pwd, tel, position, aktiv)
+- `3wadmin_tapes_releases/_band/_labels/_pressorga/_formate/_katalog` — **Catalog**, NICHT Customer-Bestellungen
+- **Keine** `3wadmin_shop_*`-Tabellen → tape-mag.com hat keinen Kassen-Shop, nur Member-Login + Catalog-Browse
+
+→ tape-mag-Customer-Daten sind dünner als gedacht (3.632 Members ohne Order-History). Order-History kommt aus den `maier_db*`-Shops + MO-PDFs.
+
+**Hetzner-Dedi-Credentials in 1Password Work (Stand 2026-05-03):**
+
+| Zweck | 1Password-Item-Title | ID |
+|---|---|---|
+| SSH-Zugang `maier@dedi99.your-server.de:222` | `SSH-ZUGANG Hetzner` | `u74qt347j7myu7sqmgy4vcwzn4` |
+| MySQL Root + R/W (`maier`/`maier_w`) + **R/O (`maier_r`)** für `maier_db1` | `maier_db1` | `bxedowvg33lzphnmrvty56j5zy` |
+| MySQL Root + R/W + **R/O (`maier_db11_r`)** für `maier_db11` | `maier_db11` | `hox5f3mgfezjzeca3b5d45c3yq` |
+| MySQL Root + R/W + **R/O (`maier_2013_r`)** für `maier_db2013` | `maier_db2013` | `ml4lcccpje4ocgxxvnjrojbtlm` |
+
+**Pull-Pattern:** Das Skript zieht via `op item get <id> --vault Work --fields label="R/O Passwort"` direkt die R/O-Credentials. Niemals R/W-Credentials nutzen — die Pipeline ist read-only.
+
+**Total Legacy-Web-Shop-Bestand: ~14.214 Kunden + ~7.890 tape-mag = ~22.000 Kunden vor Deduplizierung.** Tatsächlich erwartet weniger nach Email-/Adress-Match: viele Kunden haben über mehrere Shops gekauft.
+
+**Schema-Übersicht (db2013, kompletteste Version):**
+
+```
+3wadmin_shop_kunden:           id, wid, email, tel, fax, pwd, nick, datum (datetime),
+                               kundentyp, preisliste, liquide, sprache, …
+
+3wadmin_shop_kunden_adresse:   id, kid (FK), typ (1=Rech/2=Liefer),
+                               anrede, titel, firma, vorname, name,
+                               strasse, plz, ort, staat, land (FK auf countries), datum
+
+3wadmin_shop_bestellungen:     id, kunde (FK), kundentyp, lieferid,
+                               rechadr (TEXT free-form), lieferadr (TEXT free-form),
+                               datum (datetime), zahlungsart, zalung_gebuehr,
+                               anmerkung, bezahlt, versand, versandkosten,
+                               versand_steuer, gesamtpreis, gutschein, status, paketnr
+
+3wadmin_shop_bestellungen_artikel:  id, bestell_id (FK), artikel_id, menge,
+                                    preis, steuer, …
+```
+
+**db1/db11 sind kompakter:** keine separate `_kunden_adresse`-Tabelle — Adressen liegen direkt in den Bestell-Text-Feldern `rechadr`/`lieferadr`. Schwerer zu parsen, aber machbar (gleiches Pattern wie unsere bestehenden `orders.billing_address`-Strings).
+
+### E.1 Pipeline (`scripts/legacy_db_pull.py`)
+
+**Approach:** Python-Skript via `pymysql`/`mysql-connector-python` direkt auf `dedi99.your-server.de:3306` mit den **R/O-Accounts** (`maier_r`, `maier_db11_r`, `maier_2013_r`). Credentials aus 1Password Work via `op` CLI gezogen — **niemals in git committed**.
+
+```bash
+# Skript-Bootstrap (Beispiel)
+export MAIER_DB1_PASS=$(op item get bxedowvg33lzphnmrvty56j5zy --vault Work --fields label="R/O Passwort" --reveal)
+export MAIER_DB11_PASS=$(op item get hox5f3mgfezjzeca3b5d45c3yq --vault Work --fields label="R/O Passwort" --reveal)
+export MAIER_2013_PASS=$(op item get ml4lcccpje4ocgxxvnjrojbtlm --vault Work --fields label="R/O Passwort" --reveal)
+python3 scripts/legacy_db_pull.py --source vod_records_db2013
+```
+
+```
+For each (DB, R/O-User):
+  1. Pull 3wadmin_shop_kunden → mo_legacy_contacts (Source-Tag: 'vod_records_db1' / 'vod_records_db11' / 'vod_records_db2013' / 'tape_mag_legacy')
+  2. Pull 3wadmin_shop_kunden_adresse (wenn vorhanden) → mo_legacy_addresses
+  3. Pull 3wadmin_shop_bestellungen → mo_legacy_orders
+     + Parse rechadr/lieferadr Free-Text wenn keine separate Adress-Tabelle
+  4. Pull 3wadmin_shop_bestellungen_artikel → mo_legacy_order_items
+  5. Pull newsletter → mo_legacy_newsletter
+```
+
+**Connection-Pattern (lokal getestet 2026-05-03):**
+```python
+import pymysql
+conn = pymysql.connect(
+    host='dedi99.your-server.de', port=3306,
+    user=os.environ['DB_USER'],     # maier_r / maier_db11_r / maier_2013_r
+    password=os.environ['DB_PASS'], # via 1Password
+    database=os.environ['DB_NAME'], # maier_db1 / maier_db11 / maier_db2013
+    ssl={'ssl_mode': 'PREFERRED'},  # SSL bevorzugt, kein cert-pinning
+    charset='utf8mb4',
+)
+```
+
+**Sicherheits-Constraint:** `pwd`-Spalte (Customer-Passwort-Hashes) **niemals** ziehen oder loggen. Die Hashes bleiben in der Quell-DB und werden in unsere Staging-DB nicht übernommen — wir machen keinen Auth-Bridge auf alten Hashes (würde DSGVO-Risiken einführen + Hash-Algorithmus von 2010 ist ohnehin schwach).
+
+### E.2 Schema-Mapping (Quell → Staging)
+
+**Source-Spalte ist Pflicht** auf jeder Staging-Zeile damit Resolver nachvollziehen kann, woher die Zeile kam:
+
+| Source-Tag | Quelle |
+|---|---|
+| `vod_records_db1` | maier_db1 (current Webshop) |
+| `vod_records_db11` | maier_db11 (Backup, vermutlich subset von db1) |
+| `vod_records_db2013` | maier_db2013 (Archiv 2010-2013) |
+| `tape_mag_legacy_mysql` | tape-mag MySQL (1Password) |
+| `tape_mag_existing_db` | bestehende `customers`/`orders`-Tabellen in unserer Supabase (Re-Source-Tagging) |
+| `mo_pdf` | Section D PDF-Pipeline |
+| `imap_<account>` | Section F Email-Mining |
+
+### E.3 Charset + Encoding-Edge-Cases
+
+Die DBs sind aus PHP4/MySQL5-Ära — mögliche Issues:
+- **Charset-Drift:** Manche Tabellen sind `utf8mb4`, andere `latin1` oder `cp1252` — beim Pull immer `convert_unicode=True` und `charset='utf8mb4'` angeben, aber **stichprobenartig** prüfen ob z.B. Umlaute korrekt ankommen (Pre-Migration-Script: SELECT firma FROM kunden_adresse WHERE name LIKE '%ü%' UNION '%ä%' UNION '%ö%' LIMIT 20).
+- **Doppelt-Encoding:** Wenn Müller als „MÃ¼ller" ankommt → der Original-Datensatz war already mojibake und braucht `ftfy.fix_text()` zum Repair.
+- **NULL vs. leerer String:** PHP4-Konvention `''` statt `NULL` für „nicht gesetzt" → Normalisierung im Staging.
+
+### E.4 Adress-Parsing für db1/db11 (kein structured `_kunden_adresse`)
+
+`db1.bestellungen.rechadr` ist Free-Text, ähnlich wie unsere bestehende `orders.billing_address`. Beispiel-Annahme: Mehrzeilig mit `\n`-Trenner, oder Kommagetrennt. **Erst nach Sample-Inspektion entscheiden** ob ein eigener Parser nötig ist oder ob wir einfach ein „raw_address"-Feld lassen und Tag-1 nicht parsen.
+
+**Pragmatische Empfehlung:** db2013 (mit strukturierter Adress-Tabelle) ist der Hauptwert — 8.544 Kunden + 17.315 Adressen. db1/db11 haben zusammen ~5.670 Kunden, davon vermutlich >50% Email-Match mit db2013 oder MO-PDFs. Wir starten mit db2013 + Email-basiertem Backfill aus db1/db11 (= db1/db11-Kunden, die nicht in db2013 sind, kriegen ihre Adresse aus dem letzten `bestellungen.rechadr`-Eintrag geparst).
+
+### E.5 Sprint-Plan
+
+| Sprint | Inhalt | Aufwand |
+|---|---|---:|
+| **E1.0 Schema-Discovery** | Vollständige `DESCRIBE` aller 4 Quellen, Sample-Daten (10 Rows pro Kerntabelle), Charset-Audit | 0.5 Tag |
+| **E1.1 Pull db2013 (reichste Quelle)** | `legacy_db_pull.py` für maier_db2013 schreiben + ausführen, Staging-Tabellen `mo_legacy_*` befüllen | 1 Tag |
+| **E1.2 Pull db1 + db11** | Same script, andere Connection-Configs. Adressen aus Bestellungs-Text-Feldern parsen | 1 Tag |
+| **E1.3 Pull tape-mag MySQL** | Wenn Schema vergleichbar: gleiche Pipeline. Wenn anders: dedizierter Parser | 1 Tag |
+| **E1.4 De-Dup-Sweep** | Email-basiertes Pre-Match zwischen den 4 Quellen — wie viele Kunden sind in mehreren DBs? Cross-Source-Counts in `mo_legacy_dedup_report` | 0.5 Tag |
+
+**Total E1: ~4 Tage** für vollständig konsolidiertes Legacy-DB-Staging.
+
+### E.6 Was Section E NICHT macht
+
+- **Kein Pull der `pwd`-Spalten.** Customer-Authentication aus den alten Shops wird nicht übernommen — Bestandskunden müssen via Forgot-Password-Flow (siehe A.5.3) neu setzen.
+- **Kein Pull der Produkte / Artikel-Stammdaten** aus den Legacy-DBs. Unser Release-Bestand ist anders strukturiert (Discogs-basiert via legacy_sync_v2.py), Vermischung wäre destruktiv.
+- **Kein Bidirectional-Sync.** Die Quell-DBs werden read-only behandelt — wir spiegeln, schreiben nicht zurück.
+- **Keine Migration der Zahlungsdaten** (`zahlungsart`, Bankdaten in `_kunden_bank` von db2013). PCI-irrelevant da Daten alt + nicht aktuell, aber wir vermeiden sie sicherheitshalber.
+
+---
+
+## Section F — IMAP-Email-Mining (NEW)
+
+**Status:** Konzept 2026-05-03, Implementation pending.
+**Ziel:** Aus Frank's zwei Postfächern (>100k Mails) eine **Email-Adresse pro Bestandskunde** rekonstruieren — primär für die Bestandskunden, die nur PDF-Rechnungen + postalische Adresse haben (kein DB-Online-Login). Ohne diese Anreicherung kann das Tier-Marketing (Section G) nur ~70% der Top-Spender erreichen.
+
+### F.0 Quellen + Volumen
+
+**Hosting:** Beide Postfächer auf **Hetzner Mailbox-Hosting**, Server `mail.your-server.de` (`78.46.5.205`), **IMAPS Port 993** (TLS via DigiCert, 2026-05-03 Connect-Probe ok). SMTP `mail.your-server.de` (Standard 587 STARTTLS oder 465 SSL — wir lesen nur, kein SMTP-Use-Case). Credentials in 1Password Work, **niemals in git**.
+
+**Account 1: `frank@vod-records.com`** — 1Password Item `mfcjmrompkjjxap6il5nbsd7pa`
+- Geschätzt 60-80k Mails (Bestellbestätigungen, Versandfragen, Reklamationen, persönliche Korrespondenz)
+- ~5-7 Jahre Historie
+- Inbox + Gesendet beide relevant — Reply-To / To-Felder enthalten Customer-Email
+
+**Account 2: `frank@vinyl-on-demand.com`** — 1Password Item `7fos2enccq4p7moqnpkcjdlpgi`
+- Geschätzt 20-40k Mails
+- Älteres Postfach, vermutlich kleinere Aktivität
+- Überlappt mit Account 1 (gleiche Customer schreiben an beide Adressen über die Jahre — Resolver in H.1 dedupliziert)
+
+**Total:** geschätzt 80-120k Mails. **Müssen einmalig indexiert werden, nicht durchsucht pro Kunde** — sonst ist die Match-Operation O(N×M) mit N=Kunden (20k), M=Mails (100k) = 2 Mrd. Operationen.
+
+**Connection-Pattern (Python `imaplib`, getestet 2026-05-03):**
+```python
+import imaplib, ssl
+ctx = ssl.create_default_context()
+imap = imaplib.IMAP4_SSL('mail.your-server.de', 993, ssl_context=ctx)
+imap.login(os.environ['MAIL_USER'], os.environ['MAIL_PASS'])
+imap.select('INBOX', readonly=True)  # niemals modifizieren
+typ, uids = imap.uid('SEARCH', None, 'ALL')
+# Iter UIDs in Chunks à 200, FETCH(BODY.PEEK[HEADER] BODY.PEEK[TEXT]<0.5120>)
+```
+
+**Wichtig — `BODY.PEEK[…]` nutzen, nicht `BODY[…]`** — `PEEK` setzt das `\Seen`-Flag NICHT. Frank's Postfach soll nach dem Index-Run aussehen wie davor (sonst kommt er zurück und sieht 100k „ungelesen" → vermutlich neue Mails verpasst).
+
+### F.1 Pipeline-Architektur
+
+```
+                IMAP (frank@vod-records.com)        IMAP (frank@vinyl-on-demand.com)
+                              │                                  │
+                              └──────────────┬───────────────────┘
+                                             ▼
+                              ┌──────────────────────────────┐
+                              │ IMAP Indexer (one-shot)      │
+                              │  - Connect IMAPS:993         │
+                              │  - Iter alle Folder + UIDs   │
+                              │  - Parse Header (From/To/    │
+                              │     Reply-To/Cc/Subject/Date)│
+                              │  - Extract first 2-5kb body  │
+                              │  - Extract emails (regex)    │
+                              │  - Extract Customer-Refs     │
+                              │     (ADR-XXXXXX, RG-XXXXXX)  │
+                              └──────────┬───────────────────┘
+                                         ▼
+                              ┌──────────────────────────────┐
+                              │ STAGING: imap_messages       │
+                              │  Spalten: msg_id, folder,    │
+                              │  from_email, to_emails (JSON)│
+                              │  subject, date, body_excerpt,│
+                              │  detected_emails (JSON),     │
+                              │  detected_customer_refs (JSON│
+                              │  detected_invoice_refs (JSON)│
+                              └──────────┬───────────────────┘
+                                         ▼
+                              ┌──────────────────────────────┐
+                              │ Contact Matcher              │
+                              │  Joinen contacts (D+E) gegen │
+                              │  imap_messages auf:          │
+                              │   1. customer_no Match       │
+                              │   2. invoice_no Match        │
+                              │   3. Name Exact Match        │
+                              │   4. Name Fuzzy + Address    │
+                              │   5. Domain Match (Firma)    │
+                              └──────────┬───────────────────┘
+                                         ▼
+                              ┌──────────────────────────────┐
+                              │ STAGING: contact_emails      │
+                              │  contact_id, email,          │
+                              │  matched_by, confidence,     │
+                              │  source_msg_id, accepted     │
+                              └──────────────────────────────┘
+```
+
+### F.2 Confidence-Score-Modell (Codex-Konzept §8.2-8.3)
+
+| Signal | Confidence-Beitrag |
+|---|---:|
+| Kundennummer `ADR-XXXXXX` im Mail-Body/Subject | +0.50 |
+| Rechnungsnummer `RG-/KR-/PR-XXXXXX` im Mail-Body/Subject | +0.50 |
+| Voller Name (Vorname + Nachname) im From-Header | +0.30 |
+| Voller Name in Mailtext + Match in Adress-Stadt/PLZ | +0.25 |
+| Nachname + Land-ISO-Code | +0.15 |
+| Firma-Name + Email-Domain Match (z.B. `Müller GmbH` ↔ `*@mueller-gmbh.de`) | +0.20 |
+| Generische Adresse (`info@`, `sales@`, `kontakt@`, `office@`) | -0.30 (Penalty) |
+
+**Threshold-Banding:**
+- ≥0.90: Auto-Accept (Email wird als `email_primary` gespeichert)
+- 0.70-0.89: Manual-Review-Queue (Frank bestätigt einzeln)
+- 0.40-0.69: Kandidat behalten, nicht aktiv nutzen
+- <0.40: Ignorieren
+
+### F.3 Sicherheits- und Rechts-Constraints
+
+- **Mailtexte nicht volltext speichern** — nur Metadaten + erste 2-5kb Body-Auszug. Rest auf-demand re-fetchen wenn Frank manuell prüfen will.
+- **Index lokal/VPS** — niemals Mail-Inhalte in Brevo/Anthropic/OpenAI pushen.
+- **Logs** ohne Email-Inhalte — nur `msg_id` + Match-Resultat in extraction_runs.
+- **Lösch-Policy:** Nach Abschluss des Match-Runs werden die Body-Auszüge nach 90 Tagen anonymisiert (nur Metadaten bleiben für spätere Re-Runs).
+- **DSGVO-Auskunft:** Wenn ein Customer Auskunft will, müssen wir sagen können „aus Email an X vom Y haben wir Email-Adresse Z extrahiert". Daher `source_msg_id` und `matched_by` zwingend speichern.
+
+### F.4 Sprint-Plan
+
+| Sprint | Inhalt | Aufwand |
+|---|---|---:|
+| **F1.0 IMAP-Probe** | Test-Connect zu beiden Accounts, Folder-Liste, Mail-Counts pro Folder, Sample-Header-Inspektion | 0.5 Tag |
+| **F1.1 Indexer** | `imap_indexer.py` — iteriert UIDs, schreibt nach Postgres `imap_messages`. Inkrementell (UIDVALIDITY-Tracking) | 1.5 Tage |
+| **F1.2 Initial-Index-Run** | One-shot Vollindex auf beide Accounts. Geschätzte Dauer: 4-8h pro Account (IMAP ist langsam für 100k Mails) | Background-Run, kein aktiver Aufwand |
+| **F1.3 Contact-Matcher** | Match-Pipeline auf Staging-Contacts (D + E zusammen), Confidence-Score-Berechnung, Output in `contact_emails` | 1 Tag |
+| **F1.4 Review-Queue** | Admin-UI `/admin/crm/email-review` — listet 0.70-0.89-Kandidaten, Frank klickt accept/reject | 1 Tag |
+
+**Total F1: ~4 Tage Code + Background-Run-Wartezeit.**
+
+### F.5 Erwartete Resultate
+
+**Annahmen:**
+- ~5.000-8.000 unique MO-Customers nach Section D
+- ~14.000 unique Legacy-DB-Customers nach Section E (vor Cross-DB-Dedup)
+- Erwartete Cross-Source-Dedup-Rate: 30-50% (ein Kunde kann in MO + db2013 + db1 + Email parallel vorkommen)
+- Resulting unique-canonical Bestand nach D+E+F: **~12.000-18.000 Bestandskunden**
+
+**Email-Match-Rate-Erwartung:**
+- Auto-Accept (≥0.90): 40-60% der Customers (Customers mit klarer Bestell-Email-History)
+- Manual-Review (0.70-0.89): 15-25%
+- No-Match (<0.70): 20-40% (offline-only Customers ohne digitale Spur — bleiben für Postversand-Marketing reserviert)
+
+### F.6 Was Section F NICHT macht
+
+- **Kein Mail-Versand** über die Mailboxen. Read-only Indexierung.
+- **Keine AI-Klassifizierung** der Mail-Inhalte (z.B. „ist das eine Reklamation?"). Reines Header-/Email-Extraktions-Mining. AI-Klassifikation kann Phase 2 sein.
+- **Keine Newsletter-DOI-Inferenz.** Wenn ein Customer historisch eine Bestellbestätigung bekommen hat, heißt das **nicht**, dass er Newsletter-Consent gegeben hat. Newsletter-Consent muss separat über DOI gehen (siehe A.5.4 + RSE-78).
+
+---
+
+## Section G — Bronze/Silver/Gold/Platinum-Tiering + Wave-Integration (NEW)
+
+**Status:** Konzept 2026-05-03, knüpft an Section C5 (Wave-Strategie).
+**Ziel:** Aus dem konsolidierten Lifetime-Revenue (D + E + F + bestehende `orders`) eine **kanonische Tier-Klassifikation** pro Customer berechnen, die Wave-Reihenfolge und Marketing-Priorisierung steuert. **Gute Kunden bekommen guten Stoff zuerst.**
+
+### G.1 Tier-Definition
+
+**Datenquelle:** `customer_stats.lifetime_revenue` (rebuilt nach D+E+F+bestehende-Orders-Konsolidierung) und `customer_stats.last_purchase_at`.
+
+| Tier | Lifetime-Revenue | Activity-Boost | Beispiel-Anteil (geschätzt) |
+|---|---:|---|---:|
+| **Platinum** | ≥ €5.000 | letzte 24 Monate aktiv | ~1-3% (Top-200) |
+| **Gold** | €1.500 — €4.999 | letzte 24 Monate aktiv | ~5-10% (~800-1.500 Customers) |
+| **Silver** | €500 — €1.499 | letzte 36 Monate aktiv | ~15-25% (~2.500-4.000 Customers) |
+| **Bronze** | €100 — €499 | letzte 60 Monate aktiv | ~30-40% (~5.000-7.000 Customers) |
+| **Standard** | < €100 oder nur 1 Bestellung | beliebig | ~20-30% |
+| **Dormant** | beliebig | letzter Kauf >60 Monate | ~10-20% — Reactivation-Kandidaten |
+
+**Regeln (verbindlich):**
+- Schwellen sind **Approximationen** und sollen nach D+E+F-Konsolidierung mit echten Histogrammen kalibriert werden. Frank entscheidet final über die Zahlen.
+- Tier-Berechnung ist **deterministisch + reproduzierbar** — Cron rechnet täglich `recalc_customer_tiers.py`, schreibt `customer_stats.tier`, `customer_stats.tier_calculated_at`, `customer_stats.tier_reason`.
+- Tier-Aufstieg ist **sticky 30 Tage** — wenn ein Customer von Silver→Gold rutscht, bleibt er mindestens 30 Tage Gold (verhindert Bouncing zwischen Tiers bei großen Einzelkäufen).
+- Tier-Abstieg ist **gleitend** — Lifetime-Revenue wird mit „Recency-Decay" gewichtet (Käufe vor >24 Monaten zählen mit 0.7×, vor >48 Monaten mit 0.4×). Verhindert dass ein Top-Käufer von 2019 ewig Gold bleibt obwohl seit 5 Jahren tot.
+
+### G.2 Tier in Schema + Brevo
+
+**Schema-Erweiterung — additiv zu bestehender `customer_stats`** (siehe `CRM_SYSTEM_VOD_AUCTIONS.md` §3 für die existierenden Spalten):
+```sql
+-- Bestehende Spalten in customer_stats: customer_id, total_spent, total_purchases,
+-- total_bids, total_wins, last_*_at, tags[], is_vip, is_dormant, updated_at
+-- (NICHT überschreiben, NICHT ersetzen)
+
+ALTER TABLE customer_stats ADD COLUMN tier text NULL;
+ALTER TABLE customer_stats ADD COLUMN tier_calculated_at timestamptz NULL;
+ALTER TABLE customer_stats ADD COLUMN tier_reason text NULL;
+ALTER TABLE customer_stats ADD COLUMN lifetime_revenue_decayed numeric(10,2) NULL;
+CREATE INDEX idx_customer_stats_tier ON customer_stats(tier);
+
+-- is_vip bleibt als boolean-Spiegel kompatibel:
+-- nach Tier-Berechnung: is_vip = (tier IN ('gold', 'platinum'))
+-- Existierende Konsumenten von is_vip funktionieren weiter
+```
+
+**Recalc-Integration:** Statt eigenem Cron erweitern wir den bestehenden stündlichen Job in `backend/src/jobs/customer-stats-recalc.ts`. Neue Logik:
+1. Bestehende Aggregat-Logik (total_spent, last_purchase_at etc.) bleibt unverändert
+2. Zusätzlich: `lifetime_revenue_decayed = SUM(transaction.total * recency_weight)` mit `recency_weight = CASE WHEN months_since <= 24 THEN 1.0 WHEN months_since <= 48 THEN 0.7 ELSE 0.4 END`
+3. `tier` und `tier_reason` aus `lifetime_revenue_decayed` + `last_purchase_at` ableiten
+4. `is_vip = (tier IN ('gold', 'platinum'))` setzen — Backward-Compat
+5. `is_dormant`-Logik unverändert (>90d ohne Purchase)
+
+**Brevo-Sync:** Customer-Attribut `TIER` (`platinum`/`gold`/`silver`/`bronze`/`standard`/`dormant`) wird bei jedem Tier-Update mit-gesynced (Hook in B.6).
+
+**Anti-Pattern (vermeiden):**
+- Tier **nicht** als Boolean-Flag pro Tier (`is_gold`, `is_silver`) — single-source-of-truth ist das `tier`-Enum
+- Tier **nicht** im Customer-PII-Bereich anzeigen (Storefront-Account-Page) — interne Marketing-Klassifikation, nicht für Customer-Sicht. „You are a Gold member" kommt erst, wenn Frank ein bewusstes Loyalty-Programm aufzieht.
+
+### G.3 Wave-Strategie — Tier-Sortierung INNERHALB der existierenden Wellen
+
+**Wichtig:** Die Wellen-Definition kommt aus [`PRE_LAUNCH_KONZEPT.md`](../PRE_LAUNCH_KONZEPT.md) §3 (4 Wellen + Launch). Section G fügt **Tier-basierte Reihenfolge** innerhalb von Welle 1 hinzu, ersetzt **nicht** die Welleneinteilung selbst.
+
+**Mapping zwischen den Modellen:**
+
+| `PRE_LAUNCH_KONZEPT.md` Welle | Zielgruppe | Tier-Sortierung (Section G) |
+|---|---|---|
+| **Welle 0** (T+0 sofort, RSE-77) | Interne Tester | n/a — direkte Admin-Einladung |
+| **Welle 1** (T+0 öffentlicher Launch) | Tape-mag-Bestandskäufer aus Brevo List 5 + Legacy DB | **Platinum zuerst (≥€5k)**, dann Gold (€1.5k-€5k), dann Silver (€500-€1.5k) — gestaffelt über 3-7 Tage. Bronze (€100-€500) folgt am Tag 7. Standard ohne Order-Historie aus Tape-mag bekommt Welle-1-Mail aber ohne Tier-Bevorzugung |
+| **Welle 2** (T+7) | Tape-mag-Newsletter ohne Käufe | Apply-Aufforderung mit Auto-Approval. Tier nicht relevant (keine Kaufhistorie zum Sortieren) |
+| **Welle 3** (T+14) | Organisch (Social, Discogs-Forum) | /apply-Bewerbung + Admin-Review. Tier nicht relevant für initiales Onboarding, kommt erst zum Tragen sobald sie kaufen |
+| **Launch** (T+X) | Alle | Public-Open, `platform_mode='live'` |
+
+**Tier-spezifischer Mehrwert in Welle 1 (was Tiering ergänzt):**
+- **Platinum + Gold:** Auktions-Block-Visibility-Gate (`block.visibility_tier`) gibt 24-48h Vor-Bid-Zeit vor jeder Auktion (keine bevorzugte Sichtbarkeit der Plattform — sondern bevorzugter Auktions-Zugang innerhalb der Plattform)
+- **Silver + Bronze:** standard Auktions-Zugang nach den Vor-Bid-Stunden
+- **Standard + Dormant:** Auktion sichtbar zu öffentlicher Live-Zeit
+
+**Kommunikations-Hinweis:** Die E-Mail-Templates aus `PRE_LAUNCH_KONZEPT.md` §4 bleiben unverändert für alle Welle-1-Empfänger. **Personalisierung passiert via Brevo-Attribut `TIER`** im Template (z.B. „Sie sind als Gold-Sammler eingeladen — 24h Vor-Bid auf den Erstausgaben-Block"). Keine separaten E-Mails pro Tier nötig.
+
+**Operative Konsequenzen:**
+- Auktions-Block hat `visibility_tier`-Flag (`platinum`/`gold`/`silver`/`bronze`/`all`)
+- Storefront-Filter: `WHERE block.visibility_tier <= customer.tier_rank`
+- Bid-API: Access-Gate (C.2) erweitert um Tier-Check — wenn `block.visibility_tier > customer.tier_rank`, return `403 access_locked` mit Hint „Available to all members in 5 days"
+- Admin-UI im Auktions-Block-Editor: Dropdown „Visible to" → Tier-Selection
+
+### G.4 Sprint-Plan (Tiering)
+
+| Sprint | Inhalt | Aufwand |
+|---|---|---:|
+| **G1.0 Schema** | Migration `2026-05-XX-customer-tier.sql`, Recalc-Skript | 0.5 Tag |
+| **G1.1 Initial-Recalc** | Nach D+E+F-Konsolidierung: Histogramm-Audit mit Frank, Schwellen kalibrieren, Initial-Set für alle Customers | 0.5 Tag |
+| **G1.2 Brevo-Sync** | TIER-Attribut hochpushen, Brevo-Filter für Wave-1-Newsletter erstellen | 0.5 Tag |
+| **G1.3 Auktions-Block-Tier-Gate** | Backend-Logik + Admin-UI-Dropdown + Access-Gate-Erweiterung | 1.5 Tage |
+| **G1.4 Storefront-Sichtbarkeit** | Tier-Filter im Block-Listing + Tooltip „Available to all in N days" | 1 Tag |
+
+**Total G1: ~4 Tage.** Block-Tier-Gate (G1.3) ist Launch-Blocker für Wave 1, alles davor ist Vorarbeit.
+
+### G.5 Was Section G NICHT macht (Phase 1)
+
+- **Kein Customer-facing „Sie sind Gold-Member"-UI.** Tier ist intern. Wenn Loyalty-Programm später kommt, eigener Workstream.
+- **Keine Tier-basierten Rabatte.** Phase 1 = nur **Reihenfolge-Vorteile** (Wave-Slot, Vor-Bid-Zeit). Discount-Mechanik kann Phase 2 sein.
+- **Keine ML-basierte Tier-Berechnung.** Pure Revenue-Schwelle + Recency-Decay. Phase 3 (wenn jemals): RFM-Modell mit Behavior-Features.
+
+---
+
+## Section H — Master-Resolver (Cross-Source Dedup)
+
+**Status:** Konzept-Skizze 2026-05-03. Wird kritisch nach D+E+F, weil dann **derselbe physische Kunde** in bis zu 6 Quellen vorkommt:
+
+1. tape-mag MySQL (E.1)
+2. vod-records db1 (E.2)
+3. vod-records db11 (E.2)
+4. vod-records db2013 (E.2)
+5. MO-PDF-Rechnungen (D)
+6. IMAP-extrahierte Email-Adressen (F)
+7. Bestehende `customers`/`orders` in unserer Supabase
+
+### H.1 Resolver-Algorithmus
+
+**Match-Pipeline (in dieser Reihenfolge):**
+
+```
+1. Email-Match (case-insensitive, getrimmt)
+   - Alle Source-Rows mit identischer LOWER(TRIM(email)) → ein Cluster
+   - 70-80% der Dedups passieren hier
+
+2. MO-Customer-No-Match (ADR-XXXXXX)
+   - Nur PDF-Quelle hat das, aber wenn dieselbe ADR über mehrere Rechnungen → ein Cluster
+   - 100% sicher (MO-Schlüssel ist kanonisch)
+
+3. Adress-Hash-Match
+   - Hash aus normalisierter Adresse: lower(strasse + plz + ort + land)
+   - Catches: Kunde A bestellt unter Email1, Customer-No-X, andere Bestellung mit Email2, Customer-No-Y, gleiche Adresse → wahrscheinlich derselbe Mensch
+   - Confidence 0.7-0.85 (wegen WG/Familien-Edge-Cases)
+
+4. Name + PLZ + Land-Match
+   - Vorname + Nachname (lower, ASCII-folded) + PLZ → Cluster
+   - Confidence 0.6-0.8
+
+5. Phone-Match (wenn vorhanden in beiden Quellen)
+   - Confidence 0.85
+```
+
+**Output:** `master_contacts`-Tabelle mit:
+- `master_id` (UUID)
+- `canonical_email`, `canonical_name`, `canonical_address`
+- `source_links` (JSON): `[{source: 'mo_pdf', source_id: 'ADR-015786'}, {source: 'vod_records_db2013', source_id: 4523}, ...]`
+- `merge_confidence` (overall)
+- `manually_reviewed` (boolean — Frank hat einzeln bestätigt)
+- `lifetime_revenue` (sum across all sources)
+- `first_seen_at`, `last_seen_at`
+
+### H.2 Konflikt-Auflösung
+
+**Bei Daten-Konflikten** (z.B. zwei Quellen haben unterschiedliche Vornamen für gleichen Email):
+- **Recency-Wins:** Neuere `datum` gewinnt
+- **Source-Priority:** MO-PDF (Frank's Buchhaltung) > VOD-Records-DB > tape-mag-MySQL > IMAP-extrahiert
+- **Manual-Review-Queue** für Konflikte mit Confidence-Diff <0.1
+
+### H.3 Sprint-Plan
+
+| Sprint | Inhalt | Aufwand |
+|---|---|---:|
+| **H1.0 Schema** | `master_contacts` + Migration | 0.5 Tag |
+| **H1.1 Resolver-Pipeline** | Match-Algorithmus, alle 5 Match-Stufen | 2 Tage |
+| **H1.2 Manual-Review-UI** | Admin-Tab „Customer-Merge-Queue" für ambigue Cluster | 1 Tag |
+| **H1.3 Promotion ins Produktiv-CRM** | Stub-Customer-Backfill (Option B B.2) basierend auf `master_contacts` statt Source-Tabellen direkt | 1 Tag |
+
+**Total H1: ~4.5 Tage.** Läuft NACH D+E+F.
+
+---
+
+
 ## Vergleich + Empfehlung
 
-| Aspekt | Option A | Option B | Section C | Section D ⏸️ |
-|---|---|---|---|---|
-| Aufwand | ~3 Tage | ~2 Wochen | ~3 Tage Phase 1 | ~7 Tage (deferred) |
-| Daten-Sichtbarkeit | Eigene UI für Legacy, parallel zu Native | Vereint in bestehender CRM-UI | Bestehende Admin-Routes (Waitlist + Invites) erweitert | Existing Customer-Detail erweitert um MO-Orders |
-| Konversions-Tracking | On-Touch (POS-Checkout, Self-Register) | Proaktiv via Backfill | Hart enforced (`is_invited_user`-Gate auf Bid/Buy-API) | n/a (importiert nur History) |
-| Top-Spender-Reports | Brauchen JOIN über zwei Tabellen | Out-of-the-box korrekt | n/a | **Vollständig** — alle Kanäle inkl. Offline-Verkäufe |
-| Brevo-Sync | Bleibt Read-Only | Bidirectional verkabelt | Drei-Listen-Modell (tape-mag / vod-auctions / waitlist) | Vier-Listen (zusätzlich vod-records-customers) |
-| Risiko | Niedrig (additiv) | Mittel | Niedrig (additiv + Migration idempotent) | Mittel — abhängig von OfficeConnect-Setup |
-| Reversibilität | Stub-Identifikation einfach | Stubs identifizierbar | Flag droppable, Tokens via Status revoke'bar | Re-Import idempotent (UNIQUE-Index auf MO-IDs) |
-| Marketing-Wert | Mittel | Hoch | Hoch (Wellen-Mechanik + Funnel-Tracking) | **Sehr hoch** (langfristig) — komplette Customer-Lifetime-Value sichtbar |
-| Launch-Blocker? | Nein | Nein | **Ja** — ohne C kann kein controlled Soft-Launch passieren | Nein — **deferred bis nach Phase 1** |
-| Status | Phase 1 nach C | Deferred | Phase 1 (Launch-Blocker) | **Deferred 2026-04-25** |
+### Aktive Bausteine (nach Update 2026-05-03)
 
-### Reihenfolge
+| Baustein | Aufwand | Was es liefert | Status |
+|---|---:|---|---|
+| **Section D — MO-PDF-Pipeline** | ~5 Tage | 10.575 Rechnungen + 7-Jahres-Lifetime-Revenue für ~5-8k Customers im Staging | **Phase 1 — Voraussetzung für G** |
+| **Section E — Legacy-DB-Konsolidierung** | ~4 Tage | 4 DBs (db1/db11/db2013/tape-mag) zu ~14k Online-Kunden im Staging | **Phase 1 — parallel zu D** |
+| **Section F — IMAP-Email-Mining** | ~4 Tage Code + 8-16h Background-Indexing | Email-Adressen für Bestandskunden mit Confidence-Scoring | **Phase 1 — nach D+E** |
+| **Section H — Master-Resolver** | ~4.5 Tage | Cross-Source-Dedup, ein Master-Datensatz pro echter Person | **Phase 1 — nach D+E+F** |
+| **Section G — Tier-Engine + Wave-Gate** | ~4 Tage | Bronze/Silver/Gold/Platinum-Klassifikation, Auktions-Block-Tier-Visibility-Gate | **Phase 1 — Launch-Blocker für Wave 1** |
+| **Section C — Pre-Launch-Hardening** | ~3 Tage | `is_invited_user`-Gate auf Bid/Buy, Wellen-Admin-UI, Magic-Link, Rate-Limit | **Phase 1 — Launch-Blocker** |
+| **Section A — Surface & Bridge** | ~3 Tage | Legacy-Customer-Tab, POS-Search-UNION, Forgot-Password-Bridge | **Phase 1 — UX-Sichtbarkeit** |
+| Section B — Unified Customer Backfill | ~2 Wochen | Stubs für ALLE Bestandskunden in `customer`-Tabelle, Brevo-Bidirectional | **Phase 2 — kann nach Wave 1 nachgezogen werden** |
+| Section D.5 — OfficeConnect-Bidirectional-Sync | ~5-7 Tage | vod-auctions → MO Rechnungs-Push, GoBD-konform | **Phase 3 — strategisch, deferred** |
 
-**Empfehlung: C zuerst, dann A. B + D deferred.**
+### Reihenfolge (überarbeitet 2026-05-03)
 
-**Begründung:**
-- **C ist Launch-Blocker.** Ohne `is_invited_user`-Server-Enforcement (C.2) sind die Bid/Buy-Endpoints nicht sicher gegen einen User der via Self-Register reinkommt. Das **muss** vor RSE-294 (Erste öffentliche Auktionen) live sein.
-- **A liefert sofort Wert für Wave 1.** Wenn C live ist und Wave 1 die Top-100 nach `legacy_customers.total_spent` ansprechen soll, brauchen wir A.0+A.1 um diese überhaupt im Admin sehen + sortieren zu können. Forgot-Password-Flow (A.5.3) und Bridge-Helper (A.5.7) liefern den kanonischen Reaktivierungs-Pfad — kritisch für Wave-1-Conversion.
-- **B kann auf unbestimmte Zeit warten.** Option A's `metadata.legacy_customer_id`-Pattern ist **vorwärtskompatibel** mit B's Backfill-Schema. Wenn nach 4 Wochen Live klar wird dass „CRM zeigt €0 statt €X" zu schmerzhaft ist, kann B nachgezogen werden ohne A-Code zu ändern.
-- **D ⏸️ deferred (2026-04-25).** Monkey-Office-Sync wird nicht in Phase 1 angegangen. Wave 1 fokussiert auf die 4.465 tape-mag-Website-Käufer aus dem bestehenden `customers`-/`orders`-Bestand. MO-Offline-Käufer (Brevo List 5: 3.580 Newsletter-Kontakte) bleiben erreichbar via Re-DOI-Kampagne — historische Order-Daten in unserer DB sind nicht Voraussetzung für Wave-1-Versand. Section D bleibt im Dokument als Discovery-Vorarbeit für späteren Pickup.
+**Neue Empfehlung: D + E parallel zuerst → F → H → G → C → A → Wave 1.**
 
-### Sprint-Vorschlag
+**Begründung der Umkehr (vs. ursprünglich „C zuerst, dann A"):**
+- **D + E + F + H sind die Daten-Grundlage.** Ohne sie sind die Tier-Schwellen in G geraten, die Wave-Strategie wird willkürlich, und Top-Spender-Reports zeigen nur 4.465 statt ~12-18k echte Customers. **Falsche Tiers killen die Wave-Wirkung.**
+- **G ist Launch-Blocker für Wave-Mechanik.** Ohne Tier-Visibility-Gate auf Auktions-Blöcken kann „Gold sieht zuerst" nicht enforced werden — wir müssten alles per Email-Liste-Selektion kuratieren statt produkt-seitig differenzieren.
+- **C bleibt Launch-Blocker** für die Generic-Auth-Härtung — kommt aber nach G, weil Tier-Gating die wichtigste Differenzierung ist und Tier-Berechnung zuerst korrekt sein muss.
+- **A liefert Operative Sichtbarkeit** für Frank/Robin im Admin. Ist nicht Code-blockierend für Wave 1, aber stark wertvoll für die ersten Wochen Operations.
+- **B + D.5 deferred.** Stub-Backfill (B) lohnt erst, wenn der Master-Resolver-Output stabil ist. OfficeConnect-Bidirectional (D.5) erst, wenn Frank Doppelarbeit zwischen vod-auctions.com und MO spürt.
+
+### Sprint-Vorschlag (erneuert 2026-05-03)
 
 | Sprint | RC-Range | Inhalt | Aufwand |
-|---|---|---|---|
-| Sprint C1 | rc52.0–rc52.3 | C.1 Migration, C.2 Access-Gate, C.3 Redeem-Flag, C.6 Rate-Limit | ~3 Tage |
-| Sprint A1 | rc52.4–rc52.6 | A.0 Customers-Dedup, A.1 Legacy-API, A.2 POS-Search-UNION | ~2 Tage |
-| Sprint A2 | rc53.0–rc53.2 | A.3 Auto-Stub, A.4 Admin-Tab Tape-Mag, A.5.3 Forgot-Password | ~2 Tage |
-| Sprint C2 | rc53.3–rc53.5 | C.4 Magic-Link, C.5 Admin-Wave-UI, C.8 Brevo-Waitlist-Liste | ~2 Tage |
-| **Wave 1 GO** | nach C2 | RSE-78 AGB-Anwalt + Re-DOI-Decision parallel | — |
-| Sprint B (deferred) | rc55+ | B.1-B.7 Backfill + Bidirectional-Brevo-Sync | ~2 Wochen |
-| **Sprint D (deferred ⏸️)** | tba | D-Prep + D1-D3 OfficeConnect-Sync. Pickup-Trigger: wenn Top-Spender-Reports merklich unvollständig wirken (= reine Tape-Mag-Sicht reicht nicht mehr) ODER MO-Phase-Out strategisch entschieden wird | ~7 Tage |
-| Sprint D4 (deferred, Phase 3) | tba | D.7 Bidirectional Write-Sync vod-auctions → MO | ~3-5 Tage |
+|---|---|---|---:|
+| **Sprint D1** | rc53.0–rc53.2 | D1.0 Prototyp + D1.1 Vollextraktion + D1.2 Postgres-Migration + D1.3 Name-Norm + D1.4 QA | ~4 Tage |
+| **Sprint E1** | parallel zu D1 | E1.0 Schema-Discovery + E1.1 db2013-Pull + E1.2 db1/db11-Pull + E1.3 tape-mag-Pull + E1.4 Cross-Source-Dedup-Audit | ~4 Tage |
+| **Sprint F1** | nach D1+E1 | F1.0 IMAP-Probe + F1.1 Indexer-Code + F1.2 Initial-Run (8-16h Background) + F1.3 Matcher + F1.4 Review-Queue | ~4 Tage |
+| **Sprint H1** | nach F1 | H1.0 Schema + H1.1 Resolver + H1.2 Manual-Review-UI | ~3.5 Tage |
+| **Sprint G1** | nach H1 | G1.0-G1.4 Tier-Schema + Recalc + Brevo + Block-Tier-Gate + Storefront-Filter | ~4 Tage |
+| **Sprint C1** | nach G1 | C.1 Migration + C.2 Access-Gate + C.3 Redeem-Flag + C.6 Rate-Limit | ~3 Tage |
+| **Sprint A1** | nach C1 | A.0 Customers-Dedup + A.1 Legacy-API + A.2 POS-Search-UNION + A.4 Admin-Tab | ~2 Tage |
+| **Sprint A2** | nach A1 | A.3 Auto-Stub + A.5.3 Forgot-Password-Bridge + A.5.7 Bridge-UI | ~2 Tage |
+| **Sprint C2** | nach A2 | C.4 Magic-Link + C.5 Admin-Wave-UI + C.8 Brevo-Waitlist-Liste | ~2 Tage |
+| **Wave 1 GO** | nach C2 | Voraussetzung: RSE-78 (AGB) + Re-DOI-Entscheidung geklärt | — |
+| Sprint B (Phase 2, deferred) | tba | B.1-B.7 Stub-Backfill + Bidirectional-Brevo | ~2 Wochen |
+| Sprint D.5 (Phase 3, deferred) | tba | OfficeConnect-API-Bridge — bidirectional Auktion → MO-Rechnung | ~5-7 Tage |
 
-**Total Phase 1 (vor Wave 1):** ~9 Tage Code + 1 Tag QA + 1 Tag Deployments-Buffer = **~2 Arbeitswochen**.
+**Total Phase 1 (vor Wave 1):** ~32-35 Tage Code + 1 Tag QA + Buffer = **~7 Arbeitswochen**.
 
-**Was Phase 1 ohne Section D NICHT liefert:**
-- Top-Spender-Liste zeigt nur Tape-Mag-Website-Käufer. Offline-/Telefon-/POS-Stammkunden aus MO sind nicht im CRM sichtbar.
-- Customer-Detail-Page eines Tape-Mag-Käufers zeigt nur Website-Orders, nicht die MO-Verkäufe ab Migration auf MO.
-- Marketing-Segmentierung „Top-Spender aller Zeiten" geht nur über die ~4.465 Website-Käufer, nicht über alle ~5-20k MO-Kunden.
+**Wesentliche Verschiebung:** Vorher 2 Wochen, jetzt 7 Wochen. Begründung: konsolidiertes Datenfundament + Tiering werden vorgezogen statt nachgereicht. Ohne diese Investition wäre die Wave-Strategie ein Lottoschein.
 
-Diese Lücken sind akzeptiert — Wave 1 funktioniert auf Tape-Mag-Daten und Brevo List 5. Section D wird gezogen, sobald die Lücke schmerzhaft wird.
+**Beschleunigungs-Hebel (falls 7 Wochen zu lang):**
+- D1 + E1 echt parallel laufen lassen (verschiedene Skripte, kein Code-Konflikt) → spart ~4 Tage
+- F1.2 Background-Run startet sobald F1.1 Code da ist, parallel zu H1+G1 → spart ~1 Tag
+- Tier-Schwellen mit „Best-Effort" (ohne Frank-Kalibrierung) initial setzen, später nachjustieren → kein Tag gespart, aber reduziert Wartezeit auf Frank-Verfügbarkeit
+
+→ Realistic Crash-Plan: **~5 Wochen** wenn parallelisiert.
 
 ---
 
 ## Open Decisions
 
-1. **Newsletter-Subscribers-Tabelle:** Cleanup oder belassen? Aktuell unsichtbar, Brevo hat dieselbe Liste.
-2. **`customers` (Plural) Lifecycle:** Nach B-Backfill — Read-Only-Archiv oder Drop nach 90 Tagen? FK auf `orders` muss bleiben → Drop nicht trivial.
-3. **Stub-VIP-Threshold:** B.3 nimmt €500 als VIP-Schwelle. Frank's Definition?
-4. **Brevo-Plan:** Aktueller Free-Tier reicht für 11k Contacts? (Sends/Tag-Limit checken)
-5. **Email-Casing:** `customers.email` enthält gemischte Casings. Migration auf `LOWER()` als kanonisch?
-6. **Re-DOI für Brevo List 5 (3.580):** Anwalt-Frage. Carry-Over-OK oder Re-DOI-Pflicht? Geht in RSE-78-Scope.
-7. **Wave-1-Strategie:** Top-100-`total_spent` Bestandskunden ODER Top-100 Wartelistenger nach Apply-Quality? Empfehlung: Bestandskunden zuerst (höhere Conversion-Wahrscheinlichkeit + bessere Conversion-Story für Tag-1-Reports).
-8. **Magic-Link-Default an/aus:** Soll Magic-Link als Default-Login (Email-Field, dann optional Password) oder als sekundäre Option neben Password? Empfehlung: sekundär — Magic-Link-Mails landen oft im Spam.
-9. **Test-Account-Backfill:** Die 12 bestehenden `customer`-Rows sind alle Test-Accounts (`bidder1@test.de` etc.). Sollen die `is_invited_user=true` bekommen oder explizit abgesetzt werden? Empfehlung: alle auf `true` setzen damit Tests weiterlaufen, aber `metadata.is_test_account=true` als zusätzlicher Marker für Reports.
-10. **`platform_mode='preview'`-Use-Case:** Soft-Open (Browse + Apply, kein Bid) — wollen wir das überhaupt? Wenn ja, muss C.2 Access-Gate auch `'preview'` als „Bid/Buy gegated, Browse offen" behandeln.
-**Section-D-bezogene Decisions (deferred — werden geklärt wenn Section D aufgenommen wird):**
+**Daten-Konsolidierung (D + E + F + H):**
 
-11. **MO Phase-Out vs. Continued-Sync:** Empfehlung Continued-Sync dauerhaft mit OfficeConnect, aber Klärung erst bei Section-D-Pickup.
-12. **MO Sync-Richtung:** Read-Only Tag 1, Bidirectional als Phase 3.
-13. **MO-Version + OfficeConnect-Lizenz:** Robin beantragt Lizenz online + ermittelt MO-Version per Remote-Session mit Frank. Erst relevant bei D-Pickup.
-14. **Tailscale-Setup auf MO-Mac:** Robin koordiniert Remote-Session. Erst relevant bei D-Pickup.
-15. **MO Marketing-Opt-In Datenpunkt:** Newsletter-Consent-Feld in MO? DSGVO-relevant, RSE-78-Scope. Klären bei D-Pickup.
-16. **MO Article-Number-Mapping:** MO-`Artikelnummer` → `Release.article_number` (`VOD-XXXXX`)? Klären bei D-Pickup via Test-Pull.
-17. **OfficeConnect-Doku detaillierte Endpoint-Liste:** Aus Live-Doku extrahieren. Sprint D-Prep blocker, aber irrelevant solange D deferred.
+1. **MO-Customer-No als Master-Schlüssel?** Wenn ein Kunde in MO `ADR-015786` ist und in db2013 `id=4523`, ist die `ADR`-No der kanonische Identifier — oder doch die Email? Empfehlung: **Email primary, ADR als Cross-Ref** in `master_contacts.source_links`.
+2. **`maier_db1` vs `maier_db11` — was ist wirklich der Unterschied?** Schema identisch (md5 gleich), Row-Count differiert. Ist db11 ein eingefrorener Schnappschuss von db1? Frage an Frank klärbar (oder via `MAX(datum)` Vergleich nach Pull). Wenn db11 echtes Subset von db1 ist: skip db11, sonst dedup-Output verschmutzt.
+3. **db2013 `_kunden_alt` (3.097 Rows):** Was sind das? Alte Kunden vor 2013? Pre-Migration-Bestand? Vor Pull klären — wenn nur Test-Daten: ignorieren.
+4. **Charset-Repair für tape-mag MySQL:** Wenn der Original-Dump schon Mojibake enthielt, brauchen wir `ftfy.fix_text()`-Pass im Pull. Stichproben-Test vor Vollpull.
+5. **IMAP-Body-Speicher-Strategie:** 100k Mails × 5kb Body = ~500MB Staging-Volumen. Akzeptabel? Alternative: nur indexierte Header + on-demand Body-Refetch.
+6. **IMAP-Folder-Whitelist:** Sollen wir `Gesendet`, `Inbox`, `Archive`, `Spam`, `Papierkorb` indexieren? Empfehlung: Inbox + Sent + Archive, **nicht** Spam/Papierkorb (Privatpersonen-Schreiben aus diesen Foldern sind PII-Risiko ohne Bestell-Bezug).
+7. **Master-Resolver-Threshold:** Wenn Email-Match + Adress-Hash-Match konfligieren (zwei Customers mit gleicher Email aber unterschiedlicher Adresse), wer gewinnt? Empfehlung: Email + Manual-Review-Queue.
+
+**Tiering (G):**
+
+8. **Tier-Schwellen final:** €5k/€1.5k/€500/€100 sind Vorschlag. Frank-Kalibrierung mit echtem Histogramm nach D+E+F. Erwartung: könnten je nach Customer-Verteilung um Faktor 2-3 angepasst werden.
+9. **Recency-Decay-Faktoren:** 0.7× ab 24m, 0.4× ab 48m sind Vorschlag. Alternative: lineare Decay (`weight = max(0, 1 - months/60)`).
+10. **Tier-Visibility auf Storefront:** Soll der Customer sein Tier sehen? Empfehlung Phase 1: **nein**, internes Marketing-Tool.
+
+**Bestehende (von 2026-04-25):**
+
+11. **Newsletter-Subscribers-Tabelle:** Cleanup oder belassen? Aktuell unsichtbar, Brevo hat dieselbe Liste.
+12. **`customers` (Plural) Lifecycle:** Nach Master-Resolver — Read-Only-Archiv oder Drop nach 90 Tagen? FK auf `orders` muss bleiben → Drop nicht trivial.
+13. **Brevo-Plan:** Free-Tier reicht für 12-18k Contacts? Pre-Check Plan-Limits vor F+G+B-Sync.
+14. **Re-DOI für Brevo List 5 (3.580):** Anwalt-Frage. Carry-Over-OK oder Re-DOI-Pflicht? Geht in RSE-78-Scope.
+15. **Magic-Link-Default an/aus:** Empfehlung: sekundär — Magic-Link-Mails landen oft im Spam.
+16. **Test-Account-Backfill:** Die 12 bestehenden `customer`-Rows sind alle Test-Accounts. Sollen die `is_invited_user=true` bekommen + `metadata.is_test_account=true` Marker?
+17. **`platform_mode='preview'`-Use-Case:** Soft-Open (Browse + Apply, kein Bid) — wollen wir das?
+
+**Section-D-Phase-3-Decisions (deferred — OfficeConnect):**
+
+18. **MO Phase-Out vs. Continued-Sync:** Empfehlung Continued-Sync dauerhaft mit OfficeConnect, aber erst wenn bidirectional Sync gewünscht.
+19. **OfficeConnect-Lizenz:** Robin beantragt online im prosaldo-Shop, sobald Phase 3 ansteht.
 
 ---
 
 ## Verwandte Docs (zu erstellen / pflegen)
 
+- [`docs/architecture/LEGACY_MYSQL_DATABASES.md`](../architecture/LEGACY_MYSQL_DATABASES.md) — vollständiges MySQL-DB-Inventar (vodtapes, maier_db1/11/2013) inkl. Schema, Counts, Cross-Source-Beziehungen
+- [`Monkey Office/rechnungs-extraktion-crm-konzept.md`](../../Monkey%20Office/rechnungs-extraktion-crm-konzept.md) — Codex-Konzept (Section-D-Quelle), volle Schema-Listen für `contacts`/`transactions`/`transaction_items`/`email_candidates`
 - [`docs/architecture/CUSTOMER_LIFECYCLE.md`](../architecture/CUSTOMER_LIFECYCLE.md) — verbindliche UX-Wording-Referenz für die 6 Online-Flows + Bridge-Logik (Pflicht-Lektüre für Storefront-Devs)
 - [`docs/architecture/INVITE_FLOW.md`](../architecture/INVITE_FLOW.md) — operative Spec für das gehärtete Invite-System inkl. Wave-Handling (TODO)
-- [`docs/architecture/MONKEY_OFFICE_INTEGRATION.md`](../architecture/MONKEY_OFFICE_INTEGRATION.md) — operative Spec für Section D inkl. CSV-Schema-Map, Pfad-Wahl, GoBD-Konformität (TODO nach D.0)
-- `docs/TODO.md` Workstream „CRM-Bridge + Pre-Launch-Hardening + MO-Import" mit Sprint-Tabelle aus oben
+- [`docs/architecture/MONKEY_OFFICE_PDF_PIPELINE.md`](../architecture/MONKEY_OFFICE_PDF_PIPELINE.md) — operative Spec für Section D PDF-Extraktion (TODO nach D1.0)
+- [`docs/architecture/LEGACY_DB_PULL.md`](../architecture/LEGACY_DB_PULL.md) — operative Spec für Section E Legacy-DB-Konsolidierung (TODO nach E1.0)
+- [`docs/architecture/IMAP_INDEXER.md`](../architecture/IMAP_INDEXER.md) — operative Spec für Section F IMAP-Pipeline + Match-Algorithmen (TODO nach F1.0)
+- [`docs/architecture/CUSTOMER_TIERING.md`](../architecture/CUSTOMER_TIERING.md) — Tier-Engine (Section G) + Wave-Visibility-Gate-Spec (TODO nach G1.0)
+- `docs/TODO.md` Workstream „CRM Legacy Konsolidierung" mit Sprint-Tabelle aus oben
 
 ---
 
-**Vorgeschlagener nächster Schritt:**
+**Vorgeschlagener nächster Schritt (überarbeitet 2026-05-03):**
 
-1. **Diese Woche:** Sprint C1 (rc52.0-rc52.3) als ersten Workstream in `docs/TODO.md` aufnehmen. C.1-Migration vorbereiten + auf Supabase-Branch oder lokal smoke-testen.
-2. **Parallel:** Anwalt-Tickets (Re-DOI Brevo List 5, AGB) zu RSE-78 ergänzen — die brauchen Lead-Time und blockieren Wave 1.
-3. **Nach C1:** Sprint A1 + A2 — Tape-Mag-Bestand sichtbar im Admin + Forgot-Password als Reaktivierungs-Pfad.
-4. **Nach C2:** Wave 1 GO — kuratiert auf die Top-Spender aus `customers`-Tabelle (4.465 Käufer aus tape-mag-Website-Bestand).
+1. **Diese Woche:** Sprint D1 starten — lokaler Prototyp `mo_pdf_pipeline.py` auf 100 Sample-PDFs aus 2019/2022/2025 (D1.0). Sobald die Parser-Robustheit auf Sample steht, Vollextraktion in den Hintergrund-Run schicken.
+2. **Parallel:** Sprint E1 — `legacy_db_pull.py` mit `pymysql` gegen `dedi99.your-server.de:3306` (R/O-Accounts). db2013 zuerst (reichhaltigste Quelle, 8.544 Customers + 17.315 Adressen). Tape-mag MySQL parallel via 1Password-Credentials.
+3. **3-Credentials-Hygiene:** Bevor irgendein Code committed wird — alle drei Hetzner-DB-Credentials + SSH-maier in 1Password Work ablegen (`Hetzner dedi99 SSH (maier)`, `Legacy MySQL maier_db1 (R/O)`, etc.). Skripte ziehen via `op` oder `.env` (nie git).
+4. **Nach D1+E1:** Sprint F1 IMAP-Indexer. Background-Run startet sobald `imap_indexer.py` steht, 8-16h Laufzeit pro Account.
+5. **Nach F1:** Master-Resolver (H1) → Tiering (G1) → Pre-Launch-Hardening (C1+C2) → Surface (A1+A2) → Wave 1 GO.
 
-**Section D (Monkey Office Sync) ⏸️ deferred 2026-04-25.** Pickup erst wenn:
-- Top-Spender-Reports merklich unvollständig wirken (= reine Tape-Mag-Sicht reicht nicht), ODER
-- Marketing strategisch entscheidet dass MO-Offline-Kunden ins CRM gehören, ODER
-- MO-Phase-Out konkret wird (langfristige strategische Entscheidung)
+**Anwalt-Parallel-Track:** RSE-78 (AGB + Re-DOI Brevo List 5 + DSGVO für IMAP-Mining) so früh wie möglich starten — Lead-Time mehrere Wochen. **Speziell für Section F:** Anwalt muss bestätigen, dass das Indexieren von Frank's geschäftlicher Mail-Korrespondenz mit Kunden zum Zweck der CRM-Anreicherung im Rahmen des berechtigten Interesses (Art. 6 (1) f) zulässig ist + Lösch-Policy nach 90 Tagen für Body-Auszüge.
 
-Wenn der Pickup kommt: Section D ist vollständig dokumentiert (D.0-D.11), Robin startet bei D.0.2 Schritt 1 (Lizenz-Antrag).
+**Owner-Klarstellung:** Frank ist Vinyl-Operator. Sein Input wird gebraucht für:
+- Manual-Review der ambigue Master-Resolver-Cluster (Section H1.2) — geschätzt 100-300 Cases
+- Tier-Schwellen-Kalibrierung mit echtem Revenue-Histogramm (Section G1.1) — 30min Session
+- Wave-1-Strategie-Bestätigung (welche Top-Spender werden persönlich kontaktiert?) — 30min Session
 
-**Owner-Klarstellung:** Frank ist Vinyl-Operator (Inventur, POS, Versand) — wird in Phase 1 nicht aktiv eingebunden außer bei der Stub-VIP-Threshold-Frage (B.3 Open Decision) und der Wave-1-Strategie-Bestätigung. Bei späterem D-Pickup: 30-60min Remote-Session mit Robin als Owner.
+Robin koordiniert Discovery, Implementation, Auswahl der Match-Patterns, Anwalt-Briefing, Phase-3-Strategie.

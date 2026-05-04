@@ -56,3 +56,25 @@ __pycache__/
 
 # Local pending-deploy markers (Claude Code workflow — state file, not for commits)
 .pending-deploy-*.md
+
+# Runtime noise — logs, backups, virtualenvs, test outputs
+# These get produced on VPS by cronjobs and on Mac by ad-hoc runs;
+# they were polluting `git status` with hundreds of untracked rows.
+*.log
+*.bak
+*.bak.*
+venv/
+scripts/venv/
+scripts/entity_overhaul/logs/
+scripts/r2_sync_progress.json
+test-results/
+tests/test-history.json
+
+# Scratch workspace (Claude Code / ad-hoc experiments)
+scratch/
+
+# Build admin bundle (regenerated on each deploy via medusa build)
+backend/public/admin/
+
+# Top-level package-lock.json — repo uses pnpm workspaces, this is a stub
+/package-lock.json
