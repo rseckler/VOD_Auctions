@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
+import { applyLocalCommPrefChange } from "../../../../../../lib/crm-newsletter-sync"
 
 const ADMIN = "admin@vod-auctions.com"
 const CHANNELS = new Set(["email_marketing", "email_transactional", "sms", "phone", "postal", "push"])
@@ -39,6 +40,18 @@ export async function POST(
   }
   const optedIn = body.opted_in !== false
   try {
+    // Newsletter (channel='email_marketing') goes through the hybrid sync
+    // helper — local prefs + newsletter_subscribers + audit + async Brevo call.
+    if (channel === "email_marketing") {
+      const { prefId, brevoQueued } = await applyLocalCommPrefChange(
+        pgConnection, id, optedIn, ADMIN, body.source as never || "admin_ui"
+      )
+      const pref = await pgConnection("crm_master_communication_pref")
+        .where({ id: prefId }).first()
+      res.json({ pref, brevo_queued: brevoQueued })
+      return
+    }
+
     const result = await pgConnection.transaction(async (trx) => {
       const existing = await trx("crm_master_communication_pref")
         .where({ master_id: id, channel }).first()

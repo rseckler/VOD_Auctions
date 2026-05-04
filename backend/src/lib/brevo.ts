@@ -143,6 +143,28 @@ export async function getListContactCount(listId: number): Promise<number> {
   return data.uniqueSubscribers
 }
 
+/**
+ * Add a contact to a list (additive — does not overwrite other list memberships).
+ * Brevo creates the contact if it doesn't exist yet.
+ */
+export async function addContactToList(email: string, listId: number): Promise<void> {
+  await brevoFetch(`/contacts/lists/${listId}/contacts/add`, {
+    method: "POST",
+    body: { emails: [email] },
+  })
+}
+
+/**
+ * Remove a contact from a list. Contact stays in Brevo with all attributes,
+ * just no longer a member of this specific list.
+ */
+export async function removeContactFromList(email: string, listId: number): Promise<void> {
+  await brevoFetch(`/contacts/lists/${listId}/contacts/remove`, {
+    method: "POST",
+    body: { emails: [email] },
+  })
+}
+
 // --- Newsletter: Campaigns ---
 
 /**
