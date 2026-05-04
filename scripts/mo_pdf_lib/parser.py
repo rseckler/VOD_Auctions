@@ -24,14 +24,16 @@ from .regex_patterns import (
     parse_de_amount, parse_de_date,
 )
 from .parser_v0 import detect_v0, parse_invoice_v0
+from .parser_v_minus1 import detect_v_minus1, parse_invoice_v_minus1
 
 
 def detect_layout(text: str) -> str | None:
-    """Layout-Version erkennen — v1 (2019-2026) hat Vorrang vor v0 (2010-2018)
-    weil VOD_HEADER strenger ist (mit Bullets) und v0 in Hybrid-PDFs (z.B.
-    Storno einer 2019er Rechnung) nicht greifen sollte.
+    """Layout-Version erkennen — Reihenfolge nach Spezifität:
+      v1 (2019-2026): VOD-Records-Header mit Bullets, RG-YYYY-NNNNNN
+      v0 (2010-2018): "Vinyl on Demand," (TitleCase) + Alpenstrasse, RE-YYYYMM/NNNNN
+      v-1 (2007-2010): "vinyl-on-demand" (lowercase) + Frank Maier, RE-YYYYMM/NNNNN
 
-    Returns 'mo-2019-2026' / 'mo-2010-2018' / None (= unknown_layout).
+    Returns 'mo-2019-2026' / 'mo-2010-2018' / 'mo-2007-2010' / None.
     """
     if RE_VOD_HEADER.search(text) and (
         RE_POSITION_HEADER.search(text) or RE_INVOICE_NO.search(text)
@@ -39,6 +41,8 @@ def detect_layout(text: str) -> str | None:
         return "mo-2019-2026"
     if detect_v0(text):
         return "mo-2010-2018"
+    if detect_v_minus1(text):
+        return "mo-2007-2010"
     return None
 
 
@@ -211,6 +215,8 @@ def parse_invoice(text: str, layout: str | None = None,
         layout = detect_layout(text)
     if layout == "mo-2010-2018":
         return parse_invoice_v0(text, filename=filename)
+    if layout == "mo-2007-2010":
+        return parse_invoice_v_minus1(text, filename=filename)
     if layout != "mo-2019-2026":
         return None
 
