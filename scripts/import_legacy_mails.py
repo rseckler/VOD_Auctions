@@ -102,13 +102,17 @@ def extract_emails_from_body(body: str, max_count: int = 50) -> list[str]:
     return seen
 
 
-def import_one(cur, rec: dict) -> str:
-    """INSERT one mail. Returns 'inserted' / 'skipped_duplicate' / 'error'."""
+def import_one(cur, rec: dict, run_id: str) -> str:
+    """INSERT one mail. Returns 'inserted' / 'skipped_duplicate' / 'skipped_no_date' / 'error'."""
     msg_id = rec.get("message_id") or ""
     if not msg_id:
         # Fallback: hash des subject+date+from
         seed = f"{rec.get('subject','')}|{rec.get('date','')}|{rec.get('from','')}"
         msg_id = "synthetic:" + hashlib.sha256(seed.encode()).hexdigest()[:16]
+
+    date_header = parse_iso_date(rec.get("date", ""))
+    if not date_header:
+        return "skipped_no_date"
 
     # Dedup: identische message_id_header schon da?
     cur.execute(
@@ -136,23 +140,26 @@ def import_one(cur, rec: dict) -> str:
     cur.execute(
         """
         INSERT INTO crm_imap_message (
+            pull_run_id,
             account, msg_uid, uid_validity, folder,
             message_id_header, date_header,
-            from_email, from_email_lower, from_name,
+            from_email, from_name,
             to_emails, cc_emails,
             subject, body_excerpt,
             detected_emails
-        ) VALUES (%s, %s, 0, 'LEGACY_ARCHIVE',
+        ) VALUES (%s,
+                  %s, %s, 0, 'LEGACY_ARCHIVE',
                   %s, %s,
-                  %s, %s, %s,
+                  %s, %s,
                   %s, %s,
                   %s, %s,
                   %s)
         """,
         (
+            run_id,
             account, fake_uid,
-            msg_id, parse_iso_date(rec.get("date", "")),
-            from_email, from_email.lower(), from_name,
+            msg_id, date_header,
+            from_email, from_name,
             to_emails, cc_emails,
             (rec.get("subject") or "")[:500], body_excerpt,
             detected,
@@ -177,9 +184,24 @@ def main() -> int:
     print(f"[import] Mode: {'COMMIT' if args.commit else 'DRY-RUN'}")
 
     conn = get_pg_connection()
-    counts = {"inserted": 0, "skipped_duplicate": 0, "error": 0, "total": 0}
+    counts = {"inserted": 0, "skipped_duplicate": 0, "skipped_no_date": 0, "error": 0, "total": 0}
+    run_id = None
 
     try:
+        if args.commit:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO crm_pull_run (source, pipeline, parser_version, status, notes)
+                    VALUES ('legacy_mail_archive', 'import_legacy_mails', '1.0', 'running', %s)
+                    RETURNING id
+                    """,
+                    (f"src={src.name}",),
+                )
+                run_id = cur.fetchone()[0]
+                conn.commit()
+            print(f"[import] pull_run_id: {run_id}")
+
         with gzip.open(str(src), "rt", encoding="utf-8") as f:
             with conn.cursor() as cur:
                 for i, line in enumerate(f, 1):
@@ -197,7 +219,7 @@ def main() -> int:
 
                     if args.commit:
                         try:
-                            result = import_one(cur, rec)
+                            result = import_one(cur, rec, run_id)
                             counts[result] += 1
                         except Exception as e:
                             counts["error"] += 1
@@ -214,6 +236,23 @@ def main() -> int:
 
                 if args.commit:
                     conn.commit()
+
+        if args.commit and run_id:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE crm_pull_run
+                    SET finished_at = NOW(),
+                        status = 'ok',
+                        files_total = 1,
+                        files_ok = 1,
+                        rows_inserted = %s,
+                        rows_skipped = %s
+                    WHERE id = %s
+                    """,
+                    (counts["inserted"], counts["skipped_duplicate"] + counts["skipped_no_date"], run_id),
+                )
+                conn.commit()
     finally:
         conn.close()
 
