@@ -217,6 +217,39 @@ type ImapRow = {
   body_excerpt: string | null
 }
 
+type CommPrefRow = {
+  id: string
+  channel: string
+  opted_in: boolean
+  opted_in_at: string | null
+  opted_out_at: string | null
+  source: string | null
+  notes: string | null
+}
+
+type RelationshipRow = {
+  id: string
+  person_master_id: string
+  company_master_id: string
+  role: string | null
+  is_primary: boolean
+  started_at: string | null
+  ended_at: string | null
+  other_name: string | null
+  other_type: string | null
+}
+
+type SavedItemRow = {
+  id: string
+  created_at: string
+  release_id: string | null
+  auction_block_id: string | null
+  release_title: string | null
+  release_cat: string | null
+  block_title: string | null
+  block_slug: string | null
+}
+
 type DetailData = {
   master: Master
   emails: EmailRow[]
@@ -230,6 +263,10 @@ type DetailData = {
   bids: BidRow[]
   orders: OrderRow[]
   imap_messages: ImapRow[]
+  communication_prefs?: CommPrefRow[]
+  relationships_as_person?: RelationshipRow[]
+  relationships_as_company?: RelationshipRow[]
+  saved_items?: SavedItemRow[]
 }
 
 type DrawerTab =
@@ -238,6 +275,9 @@ type DrawerTab =
   | "tasks"
   | "notes"
   | "contact"
+  | "wishlist"
+  | "communication"
+  | "relationships"
   | "sources"
   | "audit"
 
@@ -549,14 +589,16 @@ export function ContactDetailDrawer({
           }}
         >
           {(
-            // Tab-Reihenfolge nach Marktstandard (HubSpot/Salesforce/Klaviyo):
-            // Overview (Profile/Stats) · Activity (default) · Tasks · Notes · Contact Info · Sources · Audit
+            // Tab-Reihenfolge nach Marktstandard
             [
               { key: "overview" as DrawerTab, label: "Overview" },
               { key: "activity" as DrawerTab, label: "Activity" },
               { key: "tasks" as DrawerTab, label: "Tasks" },
               { key: "notes" as DrawerTab, label: "Notes" },
               { key: "contact" as DrawerTab, label: "Contact Info" },
+              { key: "wishlist" as DrawerTab, label: "Wishlist" },
+              { key: "communication" as DrawerTab, label: "Communication" },
+              { key: "relationships" as DrawerTab, label: "Relationships" },
               { key: "sources" as DrawerTab, label: "Sources" },
               { key: "audit" as DrawerTab, label: "Audit" },
             ] as const
@@ -619,6 +661,9 @@ export function ContactDetailDrawer({
             <NotesTab data={data} onChange={load} />
           )}
           {data && tab === "contact" && <ContactInfoTab data={data} onChange={load} />}
+          {data && tab === "wishlist" && <WishlistTab data={data} />}
+          {data && tab === "communication" && <CommunicationTab data={data} onChange={load} />}
+          {data && tab === "relationships" && <RelationshipsTab data={data} onChange={load} />}
           {data && tab === "sources" && <SourcesTabContent data={data} />}
           {data && tab === "audit" && <AuditTab data={data} />}
         </div>
@@ -1965,6 +2010,208 @@ function SourcesTabContent({ data }: { data: DetailData }) {
             </div>
           </Card>
         ))
+      )}
+    </div>
+  )
+}
+
+// ── Tab: Wishlist (S7.1) ───────────────────────────────────────────────────
+
+function WishlistTab({ data }: { data: DetailData }) {
+  const items = data.saved_items || []
+
+  if (!data.master.medusa_customer_id) {
+    return <EmptyState title="Not linked to vod-auctions" description="Wishlist requires a linked Medusa customer." />
+  }
+  if (items.length === 0) {
+    return <EmptyState title="No wishlist items" description="Customer hasn't saved any items yet." />
+  }
+
+  return (
+    <div>
+      <div style={T.sectionHead}>Saved items ({items.length})</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {items.map((it) => (
+          <Card key={it.id}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 500, fontSize: 13 }}>
+                  {it.release_title || it.block_title || "(unknown)"}
+                </div>
+                {(it.release_cat || it.block_slug) && (
+                  <div style={T.small}>
+                    {it.release_cat && <span>{it.release_cat}</span>}
+                    {it.block_slug && <span>auction: {it.block_slug}</span>}
+                  </div>
+                )}
+              </div>
+              <div style={T.small}>{relativeTime(it.created_at)}</div>
+            </div>
+          </Card>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Tab: Communication-Preferences (S7.2) ──────────────────────────────────
+
+const COMM_CHANNELS = [
+  { key: "email_marketing", label: "Email — Marketing", icon: "📧", default: true },
+  { key: "email_transactional", label: "Email — Transactional", icon: "📨", default: true },
+  { key: "sms", label: "SMS", icon: "📱", default: false },
+  { key: "phone", label: "Phone", icon: "☎️", default: false },
+  { key: "postal", label: "Postal mail", icon: "✉️", default: true },
+  { key: "push", label: "Push notifications", icon: "🔔", default: false },
+] as const
+
+function CommunicationTab({ data, onChange }: { data: DetailData; onChange: () => void }) {
+  const masterId = data.master.id
+  const prefs = data.communication_prefs || []
+  const prefByChannel: Record<string, CommPrefRow> = {}
+  for (const p of prefs) prefByChannel[p.channel] = p
+
+  const [busy, setBusy] = useState<string | null>(null)
+
+  const toggle = async (channel: string, optedIn: boolean) => {
+    setBusy(channel)
+    try {
+      const r = await fetch(`/admin/crm/contacts/${masterId}/communication-prefs`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ channel, opted_in: optedIn, source: "admin_ui" }),
+      })
+      if (!r.ok) throw new Error(`HTTP ${r.status}`)
+      onChange()
+    } catch (e) {
+      alert(`Failed: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <div>
+      <div style={T.sectionHead}>Communication preferences</div>
+      <div style={{ ...T.small, marginBottom: 12 }}>
+        Controls which channels this customer wants to be contacted on. GDPR consent is tracked per channel.
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {COMM_CHANNELS.map((c) => {
+          const pref = prefByChannel[c.key]
+          const optedIn = pref ? pref.opted_in : c.default
+          const isBusy = busy === c.key
+          return (
+            <Card key={c.key}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                <div style={{ display: "flex", gap: 10, alignItems: "center", minWidth: 0, flex: 1 }}>
+                  <span style={{ fontSize: 18 }}>{c.icon}</span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 500, fontSize: 13 }}>{c.label}</div>
+                    {pref?.opted_out_at && (
+                      <div style={T.small}>opted out {relativeTime(pref.opted_out_at)}</div>
+                    )}
+                    {pref?.opted_in_at && optedIn && (
+                      <div style={T.small}>opted in {relativeTime(pref.opted_in_at)}</div>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => toggle(c.key, !optedIn)}
+                  disabled={isBusy}
+                  style={{
+                    padding: "5px 14px",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    background: optedIn ? C.success : "transparent",
+                    color: optedIn ? "#fff" : C.muted,
+                    border: `1px solid ${optedIn ? C.success : C.border}`,
+                    borderRadius: 16,
+                    cursor: isBusy ? "wait" : "pointer",
+                    minWidth: 80,
+                  }}
+                >
+                  {isBusy ? "…" : optedIn ? "Opted in" : "Opted out"}
+                </button>
+              </div>
+            </Card>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ── Tab: Relationships (S7.3) ──────────────────────────────────────────────
+
+function RelationshipsTab({ data, onChange }: { data: DetailData; onChange: () => void }) {
+  const masterId = data.master.id
+  const asPerson = data.relationships_as_person || []
+  const asCompany = data.relationships_as_company || []
+
+  const remove = async (relId: string) => {
+    if (!confirm("Remove this relationship?")) return
+    try {
+      const r = await fetch(`/admin/crm/contacts/${masterId}/relationships/${relId}`, {
+        method: "DELETE", credentials: "include",
+      })
+      if (!r.ok) throw new Error(`HTTP ${r.status}`)
+      onChange()
+    } catch (e) {
+      alert(`Failed: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+
+  if (asPerson.length === 0 && asCompany.length === 0) {
+    return <EmptyState title="No relationships yet" description="Link this contact to a company or person they work with." />
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {asPerson.length > 0 && (
+        <div>
+          <div style={T.sectionHead}>Works at / Linked to companies</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {asPerson.map((r) => (
+              <Card key={r.id}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontWeight: 500 }}>{r.other_name || "(unknown)"}</div>
+                    <div style={T.small}>
+                      {r.role ? <span>as {r.role}</span> : <span>linked</span>}
+                      {r.is_primary && <Badge label="primary" variant="success" />}
+                      {r.started_at && <span> · since {new Date(r.started_at).toLocaleDateString("en-GB", { year: "numeric", month: "short" })}</span>}
+                      {r.ended_at && <span> · ended {new Date(r.ended_at).toLocaleDateString("en-GB", { year: "numeric", month: "short" })}</span>}
+                    </div>
+                  </div>
+                  <button onClick={() => remove(r.id)} style={iconBtnStyle()} title="Remove">×</button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+      {asCompany.length > 0 && (
+        <div>
+          <div style={T.sectionHead}>People at this company</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {asCompany.map((r) => (
+              <Card key={r.id}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontWeight: 500 }}>{r.other_name || "(unknown)"}</div>
+                    <div style={T.small}>
+                      {r.role ? <span>{r.role}</span> : <span>contact</span>}
+                      {r.is_primary && <Badge label="primary" variant="success" />}
+                    </div>
+                  </div>
+                  <button onClick={() => remove(r.id)} style={iconBtnStyle()} title="Remove">×</button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   )

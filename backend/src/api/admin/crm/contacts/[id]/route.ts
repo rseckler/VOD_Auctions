@@ -38,7 +38,7 @@ export async function GET(
       return
     }
 
-    const [emails, addresses, phones, sources, notes, auditLog, tasks, transactions] =
+    const [emails, addresses, phones, sources, notes, auditLog, tasks, transactions, communicationPrefs, relationshipsAsPerson, relationshipsAsCompany] =
       await Promise.all([
         pgConnection("crm_master_email")
           .where({ master_id: id })
@@ -117,7 +117,43 @@ export async function GET(
            ORDER BY doc_date DESC, doc_number DESC NULLS LAST`,
           [id]
         ),
+        // Communication-Prefs (S7.2)
+        pgConnection("crm_master_communication_pref")
+          .where({ master_id: id })
+          .orderBy("channel"),
+        // Relationships als Person (S7.3)
+        pgConnection("crm_master_relationship as r")
+          .leftJoin("crm_master_contact as mc", "mc.id", "r.company_master_id")
+          .where("r.person_master_id", id)
+          .select("r.*", "mc.display_name as other_name", "mc.contact_type as other_type"),
+        // Relationships als Company
+        pgConnection("crm_master_relationship as r")
+          .leftJoin("crm_master_contact as mc", "mc.id", "r.person_master_id")
+          .where("r.company_master_id", id)
+          .select("r.*", "mc.display_name as other_name", "mc.contact_type as other_type"),
       ])
+
+    // Wishlist (saved_items) — wenn medusa_customer_id gesetzt
+    let savedItems: unknown[] = []
+    if (master.medusa_customer_id) {
+      try {
+        const r = await pgConnection.raw(
+          `SELECT si.id, si.created_at, si.release_id, si.auction_block_id,
+                  rel.title as release_title, rel."catalogNumber" as release_cat,
+                  ab.title as block_title, ab.slug as block_slug
+           FROM saved_item si
+           LEFT JOIN "Release" rel ON rel.id = si.release_id
+           LEFT JOIN auction_block ab ON ab.id = si.auction_block_id
+           WHERE si.customer_id = ?
+           ORDER BY si.created_at DESC
+           LIMIT 100`,
+          [master.medusa_customer_id]
+        )
+        savedItems = (r as { rows?: unknown[] }).rows || (r as unknown[])
+      } catch {
+        savedItems = []
+      }
+    }
 
     // Activity-Timeline: UNION über Transactions + Bids + Orders + IMAP-Mails
     const masterEmails = (emails as Array<{ email_lower: string }>)
@@ -189,6 +225,10 @@ export async function GET(
       bids,
       orders,
       imap_messages: imapMessages,
+      communication_prefs: communicationPrefs,
+      relationships_as_person: relationshipsAsPerson,
+      relationships_as_company: relationshipsAsCompany,
+      saved_items: savedItems,
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)

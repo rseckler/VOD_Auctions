@@ -23,6 +23,11 @@ export async function GET(
   const lifecycleStage = req.query.lifecycle_stage as string | undefined
   const rfmSegment = req.query.rfm_segment as string | undefined
   const acquisitionChannel = req.query.acquisition_channel as string | undefined
+  const acquiredYear = req.query.acquired_year ? Number(req.query.acquired_year) : undefined
+  const revenueMin = req.query.revenue_min ? Number(req.query.revenue_min) : undefined
+  const revenueMax = req.query.revenue_max ? Number(req.query.revenue_max) : undefined
+  const countryCode = req.query.country_code as string | undefined
+  const contactType = req.query.contact_type as string | undefined
   const sortInput = (req.query.sort as string) || "lifetime_revenue"
   const order = (req.query.order as string) === "asc" ? "asc" : "desc"
   const format = (req.query.format as string) === "json" ? "json" : "csv"
@@ -79,6 +84,16 @@ export async function GET(
     if (lifecycleStage) query = query.where("mc.lifecycle_stage", lifecycleStage)
     if (rfmSegment) query = query.where("mc.rfm_segment", rfmSegment)
     if (acquisitionChannel) query = query.where("mc.acquisition_channel", acquisitionChannel)
+    if (acquiredYear && Number.isFinite(acquiredYear) && acquiredYear > 1990 && acquiredYear < 2100) {
+      query = query.whereRaw(
+        "(EXTRACT(YEAR FROM mc.acquisition_date) = ? OR (mc.acquisition_date IS NULL AND EXTRACT(YEAR FROM mc.first_seen_at) = ?))",
+        [acquiredYear, acquiredYear]
+      )
+    }
+    if (revenueMin !== undefined && Number.isFinite(revenueMin)) query = query.where("mc.lifetime_revenue", ">=", revenueMin)
+    if (revenueMax !== undefined && Number.isFinite(revenueMax)) query = query.where("mc.lifetime_revenue", "<=", revenueMax)
+    if (countryCode) query = query.where("mc.primary_country_code", countryCode.toUpperCase())
+    if (contactType && (contactType === "person" || contactType === "business")) query = query.where("mc.contact_type", contactType)
 
     const rows = await query
       .select(

@@ -208,6 +208,11 @@ type ExtendedFilter = {
   lifecycle_stage?: string
   rfm_segment?: string
   acquisition_channel?: string
+  acquired_year?: number
+  revenue_min?: number
+  revenue_max?: number
+  country_code?: string
+  contact_type?: "person" | "business"
 }
 
 export function ContactsTab() {
@@ -294,6 +299,11 @@ export function ContactsTab() {
     if (extFilter.lifecycle_stage) params.set("lifecycle_stage", extFilter.lifecycle_stage)
     if (extFilter.rfm_segment) params.set("rfm_segment", extFilter.rfm_segment)
     if (extFilter.acquisition_channel) params.set("acquisition_channel", extFilter.acquisition_channel)
+    if (extFilter.acquired_year) params.set("acquired_year", String(extFilter.acquired_year))
+    if (extFilter.revenue_min !== undefined) params.set("revenue_min", String(extFilter.revenue_min))
+    if (extFilter.revenue_max !== undefined) params.set("revenue_max", String(extFilter.revenue_max))
+    if (extFilter.country_code) params.set("country_code", extFilter.country_code)
+    if (extFilter.contact_type) params.set("contact_type", extFilter.contact_type)
     return params
   }, [debouncedQ, filter, extFilter, sort, order])
 
@@ -402,7 +412,7 @@ export function ContactsTab() {
         />
         <input
           type="search"
-          placeholder="Search name or email…"
+          placeholder="Search name, email, phone, company, city, tag…"
           value={q}
           onChange={(e) => { setQ(e.target.value); setActiveSavedId(null) }}
           style={{ ...inputStyle, flex: "1 1 240px", minWidth: 200 }}
@@ -430,9 +440,15 @@ export function ContactsTab() {
       </div>
 
       {/* Filter pills */}
-      <div style={{ marginBottom: 16 }}>
-        <FilterPills active={filter} onChange={(f) => { setExtFilter({ filter: f }); setActiveSavedId(null) }} />
+      <div style={{ marginBottom: 12 }}>
+        <FilterPills active={filter} onChange={(f) => { setExtFilter({ ...extFilter, filter: f }); setActiveSavedId(null) }} />
       </div>
+
+      {/* Erweiterte Filter (Year/Revenue/Country/Type) */}
+      <AdvancedFilters
+        value={extFilter}
+        onChange={(next) => { setExtFilter(next); setActiveSavedId(null) }}
+      />
 
       {/* Result counter + Save filter / Export buttons */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, gap: 8 }}>
@@ -505,8 +521,13 @@ export function ContactsTab() {
             border: `1px solid ${C.border}`,
             borderRadius: S.radius.lg,
             overflowX: "auto",
-            overflowY: "hidden",
+            overflowY: "auto",
             maxWidth: "100%",
+            // Höhe so, dass Pagination + Action-Bar immer sichtbar bleiben.
+            // Top-Offset ~360px (PageHeader+Tabs+Filter+Pills+ResultCounter)
+            // Bottom-Offset ~80px (Pagination + Padding)
+            maxHeight: "calc(100vh - 380px)",
+            minHeight: 320,
           }}
         >
           <table style={{ width: "100%", minWidth: 880, borderCollapse: "collapse", fontSize: 13, tableLayout: "fixed" }}>
@@ -521,7 +542,7 @@ export function ContactsTab() {
               <col style={{ width: 100 }} />
               <col style={{ width: 90 }} />
             </colgroup>
-            <thead>
+            <thead style={{ position: "sticky", top: 0, zIndex: 1, background: C.card }}>
               <tr style={{ background: C.subtle }}>
                 <th style={{ ...thStyle, padding: "10px 0 10px 14px" }}>
                   <input
@@ -825,6 +846,188 @@ const thStyle: React.CSSProperties = {
 const tdStyle: React.CSSProperties = {
   padding: S.cellPadding,
   verticalAlign: "middle",
+}
+
+// ── AdvancedFilters: Year / Revenue-Range / Country / Type ─────────────────
+
+function AdvancedFilters({
+  value,
+  onChange,
+}: {
+  value: ExtendedFilter
+  onChange: (next: ExtendedFilter) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [revMin, setRevMin] = useState(value.revenue_min !== undefined ? String(value.revenue_min) : "")
+  const [revMax, setRevMax] = useState(value.revenue_max !== undefined ? String(value.revenue_max) : "")
+
+  // Years 2003 .. current year
+  const currentYear = new Date().getFullYear()
+  const years: number[] = []
+  for (let y = currentYear; y >= 2003; y--) years.push(y)
+
+  const activeCount = [
+    value.acquired_year, value.revenue_min !== undefined ? 1 : null,
+    value.revenue_max !== undefined ? 1 : null,
+    value.country_code, value.contact_type,
+  ].filter(Boolean).length
+
+  const applyRevenue = () => {
+    const min = revMin.trim() === "" ? undefined : Number(revMin)
+    const max = revMax.trim() === "" ? undefined : Number(revMax)
+    onChange({
+      ...value,
+      revenue_min: min !== undefined && Number.isFinite(min) ? min : undefined,
+      revenue_max: max !== undefined && Number.isFinite(max) ? max : undefined,
+    })
+  }
+
+  const clearAll = () => {
+    setRevMin("")
+    setRevMax("")
+    onChange({
+      filter: value.filter,
+      acquired_year: undefined,
+      revenue_min: undefined,
+      revenue_max: undefined,
+      country_code: undefined,
+      contact_type: undefined,
+      tier: value.tier,
+      lifecycle_stage: value.lifecycle_stage,
+      rfm_segment: value.rfm_segment,
+      acquisition_channel: value.acquisition_channel,
+    })
+  }
+
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <button
+        onClick={() => setOpen(!open)}
+        style={{
+          background: "transparent",
+          border: `1px solid ${C.border}`,
+          borderRadius: S.radius.md,
+          padding: "5px 12px",
+          fontSize: 12,
+          color: activeCount > 0 ? C.gold : C.muted,
+          cursor: "pointer",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+        }}
+      >
+        {open ? "▼" : "▶"} More filters
+        {activeCount > 0 && (
+          <span style={{
+            background: C.gold,
+            color: "#fff",
+            fontSize: 10,
+            fontWeight: 700,
+            padding: "1px 6px",
+            borderRadius: 8,
+          }}>{activeCount}</span>
+        )}
+      </button>
+
+      {open && (
+        <div style={{
+          marginTop: 8,
+          padding: "12px 14px",
+          background: C.card,
+          border: `1px solid ${C.border}`,
+          borderRadius: S.radius.md,
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gap: 10,
+          alignItems: "end",
+        }}>
+          {/* Year */}
+          <div>
+            <label style={{ ...T.micro, display: "block", marginBottom: 3 }}>Customer since (year)</label>
+            <select
+              value={value.acquired_year || ""}
+              onChange={(e) => onChange({ ...value, acquired_year: e.target.value ? Number(e.target.value) : undefined })}
+              style={{ ...selectStyle, width: "100%" }}
+            >
+              <option value="">— any —</option>
+              {years.map((y) => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+
+          {/* Revenue Range */}
+          <div>
+            <label style={{ ...T.micro, display: "block", marginBottom: 3 }}>Revenue from (€)</label>
+            <input
+              type="number"
+              value={revMin}
+              onChange={(e) => setRevMin(e.target.value)}
+              onBlur={applyRevenue}
+              placeholder="0"
+              style={{ ...inputStyle, width: "100%" }}
+            />
+          </div>
+          <div>
+            <label style={{ ...T.micro, display: "block", marginBottom: 3 }}>Revenue to (€)</label>
+            <input
+              type="number"
+              value={revMax}
+              onChange={(e) => setRevMax(e.target.value)}
+              onBlur={applyRevenue}
+              placeholder="∞"
+              style={{ ...inputStyle, width: "100%" }}
+            />
+          </div>
+
+          {/* Country */}
+          <div>
+            <label style={{ ...T.micro, display: "block", marginBottom: 3 }}>Country (ISO-2)</label>
+            <input
+              type="text"
+              value={value.country_code || ""}
+              onChange={(e) => onChange({ ...value, country_code: e.target.value.toUpperCase().slice(0, 2) || undefined })}
+              placeholder="DE / US / GB"
+              maxLength={2}
+              style={{ ...inputStyle, width: "100%", textTransform: "uppercase" }}
+            />
+          </div>
+
+          {/* Contact type */}
+          <div>
+            <label style={{ ...T.micro, display: "block", marginBottom: 3 }}>Type</label>
+            <select
+              value={value.contact_type || ""}
+              onChange={(e) => onChange({ ...value, contact_type: (e.target.value || undefined) as "person" | "business" | undefined })}
+              style={{ ...selectStyle, width: "100%" }}
+            >
+              <option value="">— any —</option>
+              <option value="person">Person (private)</option>
+              <option value="business">Business</option>
+            </select>
+          </div>
+
+          {activeCount > 0 && (
+            <div>
+              <button
+                onClick={clearAll}
+                style={{
+                  background: "transparent",
+                  border: `1px solid ${C.border}`,
+                  color: C.muted,
+                  borderRadius: S.radius.md,
+                  padding: "6px 12px",
+                  fontSize: 12,
+                  cursor: "pointer",
+                  width: "100%",
+                }}
+              >
+                Clear all
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function SortableTh({

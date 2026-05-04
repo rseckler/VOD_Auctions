@@ -28,6 +28,11 @@ export async function GET(
   const lifecycleStage = req.query.lifecycle_stage as string | undefined
   const rfmSegment = req.query.rfm_segment as string | undefined
   const acquisitionChannel = req.query.acquisition_channel as string | undefined
+  const acquiredYear = req.query.acquired_year ? Number(req.query.acquired_year) : undefined
+  const revenueMin = req.query.revenue_min ? Number(req.query.revenue_min) : undefined
+  const revenueMax = req.query.revenue_max ? Number(req.query.revenue_max) : undefined
+  const countryCode = req.query.country_code as string | undefined
+  const contactType = req.query.contact_type as string | undefined
   const idsOnly = req.query.ids_only === "true"
   const sortInput = (req.query.sort as string) || "lifetime_revenue"
   const order = (req.query.order as string) === "asc" ? "asc" : "desc"
@@ -57,14 +62,23 @@ export async function GET(
       "mc.deleted_at"
     )
 
-    // Search
+    // Volltext-Suche über mehrere Felder + alle Emails / Phones / Adressen
     if (q) {
       const like = `%${q.toLowerCase()}%`
       query = query.where((b: any) => {
-        b.whereRaw("LOWER(mc.display_name) LIKE ?", [like]).orWhereRaw(
-          "LOWER(mc.primary_email_lower) LIKE ?",
-          [like]
-        )
+        b.whereRaw("LOWER(mc.display_name) LIKE ?", [like])
+          .orWhereRaw("LOWER(COALESCE(mc.first_name,'')) LIKE ?", [like])
+          .orWhereRaw("LOWER(COALESCE(mc.last_name,'')) LIKE ?", [like])
+          .orWhereRaw("LOWER(COALESCE(mc.company,'')) LIKE ?", [like])
+          .orWhereRaw("LOWER(COALESCE(mc.primary_email_lower,'')) LIKE ?", [like])
+          .orWhereRaw("LOWER(COALESCE(mc.primary_phone,'')) LIKE ?", [like])
+          .orWhereRaw("LOWER(COALESCE(mc.primary_city,'')) LIKE ?", [like])
+          .orWhereRaw("LOWER(COALESCE(mc.primary_postal_code,'')) LIKE ?", [like])
+          .orWhereRaw("LOWER(COALESCE(mc.primary_country_code,'')) LIKE ?", [like])
+          .orWhereRaw("EXISTS (SELECT 1 FROM crm_master_email me WHERE me.master_id = mc.id AND LOWER(me.email_lower) LIKE ?)", [like])
+          .orWhereRaw("EXISTS (SELECT 1 FROM crm_master_phone mp WHERE mp.master_id = mc.id AND LOWER(COALESCE(mp.phone_normalized, mp.phone_raw)) LIKE ?)", [like])
+          .orWhereRaw("EXISTS (SELECT 1 FROM crm_master_address ma WHERE ma.master_id = mc.id AND (LOWER(COALESCE(ma.city,'')) LIKE ? OR LOWER(COALESCE(ma.company,'')) LIKE ? OR LOWER(COALESCE(ma.postal_code,'')) LIKE ?))", [like, like, like])
+          .orWhereRaw("EXISTS (SELECT 1 FROM unnest(COALESCE(mc.tags, '{}'::text[])) tag WHERE LOWER(tag) LIKE ?)", [like])
       })
     }
 
@@ -116,6 +130,24 @@ export async function GET(
     }
     if (acquisitionChannel) {
       query = query.where("mc.acquisition_channel", acquisitionChannel)
+    }
+    if (acquiredYear && Number.isFinite(acquiredYear) && acquiredYear > 1990 && acquiredYear < 2100) {
+      query = query.whereRaw(
+        "(EXTRACT(YEAR FROM mc.acquisition_date) = ? OR (mc.acquisition_date IS NULL AND EXTRACT(YEAR FROM mc.first_seen_at) = ?))",
+        [acquiredYear, acquiredYear]
+      )
+    }
+    if (revenueMin !== undefined && Number.isFinite(revenueMin)) {
+      query = query.where("mc.lifetime_revenue", ">=", revenueMin)
+    }
+    if (revenueMax !== undefined && Number.isFinite(revenueMax)) {
+      query = query.where("mc.lifetime_revenue", "<=", revenueMax)
+    }
+    if (countryCode) {
+      query = query.where("mc.primary_country_code", countryCode.toUpperCase())
+    }
+    if (contactType && (contactType === "person" || contactType === "business")) {
+      query = query.where("mc.contact_type", contactType)
     }
 
     // Wenn nur IDs gewünscht (für "Select all matching") — kürzerer Pfad
