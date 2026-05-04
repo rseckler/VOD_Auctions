@@ -2,6 +2,8 @@ import { Component, useEffect, useState, useCallback, useRef } from "react"
 import { useAdminNav } from "../../components/admin-nav"
 import { C } from "../../components/admin-tokens"
 import { PageHeader, PageShell } from "../../components/admin-layout"
+import { SourcesTab } from "../../components/crm/sources-tab"
+import { ContactsTab } from "../../components/crm/contacts-tab"
 
 class ErrorBoundary extends Component<{children: React.ReactNode},{error:string|null}> {
   state = { error: null }
@@ -2132,9 +2134,12 @@ function CRMDashboardTab() {
 
 // ── Main Page ────────────────────────────────────────────────────────────────
 
+type CrmActiveTab = "overview" | "contacts" | "customers" | "sources"
+
 const CustomersPage = () => {
   useAdminNav()
-  const [activeTab, setActiveTab] = useState<"crm" | "customers">("customers")
+  // Decision 3A — 4 Tabs: Overview / Contacts / Customers / Sources
+  const [activeTab, setActiveTab] = useState<CrmActiveTab>("overview")
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
 
@@ -2154,23 +2159,31 @@ const CustomersPage = () => {
 
   return (
     <PageShell>
-      <PageHeader title="Customers" subtitle="Customer management and CRM" />
+      <PageHeader title="CRM" subtitle="Customer relationship management" />
 
-      {/* Tabs */}
+      {/* Tabs — Decision 3A */}
       <div style={{ borderBottom: `1px solid ${C.border}`, marginBottom: "24px", display: "flex" }}>
+        <button style={tabStyle(activeTab === "overview")} onClick={() => setActiveTab("overview")}>
+          Overview
+        </button>
+        <button style={tabStyle(activeTab === "contacts")} onClick={() => setActiveTab("contacts")}>
+          Contacts
+        </button>
         <button style={tabStyle(activeTab === "customers")} onClick={() => setActiveTab("customers")}>
           Customers
         </button>
-        <button style={tabStyle(activeTab === "crm")} onClick={() => setActiveTab("crm")}>
-          CRM Dashboard
+        <button style={tabStyle(activeTab === "sources")} onClick={() => setActiveTab("sources")}>
+          Sources
         </button>
       </div>
 
       {/* Tab Content */}
+      {activeTab === "overview" && <CRMDashboardTab />}
+      {activeTab === "contacts" && <ContactsTab />}
       {activeTab === "customers" && (
         <CustomersListTab key={refreshKey} onSelectCustomer={setSelectedCustomerId} />
       )}
-      {activeTab === "crm" && <CRMDashboardTab />}
+      {activeTab === "sources" && <SourcesTab />}
 
       {/* Customer Detail Drawer */}
       <CustomerDetailDrawer
