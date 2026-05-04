@@ -328,14 +328,21 @@ def stage1b_attach_addresses_and_phones(conn, run_id: str) -> dict:
 # ---------------------------------------------------------------------------
 
 def _addr_hash(street: str | None, postal_code: str | None, city: str | None, country: str | None) -> str:
-    """Address-Hash für Match-Lookup. Country bewusst RAUS gelassen (2026-05-04):
-    existing data hat country mal NULL, mal volles deutsches Label, mal ISO-2;
-    parser_v0/v_minus1 normalisieren auf ISO-2 → drei Wege zur Hash-Inkonsistenz.
-    street+plz+city ist diskriminierend genug (eindeutige Anschrift). Falls in
-    der Praxis Fehlmatches auftreten (z.B. gleiche Strasse+PLZ in Nachbarländern),
-    kann später ein post-merge-review-Schritt eingebaut werden.
+    """Address-Hash für Match-Lookup — MUSS exact die DB-Generation-Expression
+    auf crm_master_address.address_hash matchen, sonst 0 matches.
+
+    DB-Formula nach Migration 2026-05-04 (no country):
+        lower(regexp_replace(
+          COALESCE(street,'') || '|' || COALESCE(postal_code,'') || '|' || COALESCE(city,''),
+          '\\s+', '', 'g'))
+
+    country wird IGNORIERT (Bug aus rc53.0: existing data hatte country mal
+    NULL, mal volles Label 'Finnland', mal ISO-2; parser_v0/v_minus1 normalisierten
+    auf ISO-2 → drei Wege zur Hash-Inkonsistenz). street+plz+city ist
+    diskriminierend genug.
     """
-    s = " ".join(filter(None, [street, postal_code, city]))
+    parts = [street or "", postal_code or "", city or ""]
+    s = "|".join(parts)
     return re.sub(r"\s+", "", s.lower())
 
 
