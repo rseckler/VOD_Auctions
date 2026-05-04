@@ -3,6 +3,36 @@ import { C, S, T, fmtMoney, fmtNum, relativeTime } from "../admin-tokens"
 import { Badge, Btn, EmptyState, inputStyle, selectStyle, Modal } from "../admin-ui"
 import { ContactDetailDrawer } from "./contact-detail-drawer"
 
+// Inject CSS für always-visible horizontal scrollbar (browser-overlay-default
+// versteckt die scrollbar bis zum hover, was nicht discoverable ist)
+const SCROLL_CSS = `
+.vod-scroll-x {
+  scrollbar-color: rgba(0,0,0,0.35) transparent;
+  scrollbar-width: thin;
+}
+.vod-scroll-x::-webkit-scrollbar {
+  height: 12px;
+  background: rgba(0,0,0,0.04);
+}
+.vod-scroll-x::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.32);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.vod-scroll-x::-webkit-scrollbar-thumb:hover {
+  background: rgba(0,0,0,0.55);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+`
+if (typeof document !== "undefined" && !document.getElementById("vod-scrollbar-css")) {
+  const s = document.createElement("style")
+  s.id = "vod-scrollbar-css"
+  s.textContent = SCROLL_CSS
+  document.head.appendChild(s)
+}
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 type Contact = {
@@ -469,15 +499,17 @@ export function ContactsTab() {
         />
       ) : (
         <div
+          className="vod-scroll-x"
           style={{
             background: C.card,
             border: `1px solid ${C.border}`,
             borderRadius: S.radius.lg,
-            overflow: "auto",        // horizontal scrollbar wenn nötig
+            overflowX: "scroll",      // forciert always-visible scrollbar
+            overflowY: "hidden",
             maxWidth: "100%",
           }}
         >
-          <table style={{ width: "100%", minWidth: 1080, borderCollapse: "collapse", fontSize: 13 }}>
+          <table style={{ width: "100%", minWidth: 1180, borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ background: C.subtle }}>
                 <th style={{ ...thStyle, width: 30, padding: "10px 0 10px 14px" }}>

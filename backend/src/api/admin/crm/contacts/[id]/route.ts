@@ -38,7 +38,7 @@ export async function GET(
       return
     }
 
-    const [emails, addresses, phones, sources, notes, auditLog, transactions, tasks] =
+    const [emails, addresses, phones, sources, notes, auditLog, tasks, transactions] =
       await Promise.all([
         pgConnection("crm_master_email")
           .where({ master_id: id })
