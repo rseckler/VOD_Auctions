@@ -21,22 +21,28 @@ from .parser_v0 import normalize_country
 
 # ─── Detection ────────────────────────────────────────────────────────────────
 
-# Lowercase "vinyl-on-demand" + Frank Maier (konstant über Hochstr/Alpenstr Versionen).
-# Spalten-Layout variiert: in manchen PDFs steht "vinyl-on-demand" links und
-# "Frank Maier" rechts daneben (≥3 spaces), pdftotext liefert dann "Frank Maier
-# ... vinyl-on-demand" oder "vinyl-on-demand ... Frank Maier" je nach Layout-
-# Render. Bidirektionaler Match.
-RE_VOD_HEADER_VMINUS1 = re.compile(
-    r"(?:vinyl-on-demand[\s\S]{0,200}Frank\s+Maier"
-    r"|Frank\s+Maier[\s\S]{0,200}vinyl-on-demand)",
-    re.IGNORECASE,
+# Lowercase "vinyl-on-demand" — präziser Anchor weil unique zu VOD und alle
+# v-1-Sub-Varianten 2004-2010 enthalten ihn. "Frank Maier" ist NICHT immer da
+# (z.B. 2004 hat nur "vinyl-on-demand * Hochstr. 25 * 88045 Friedrichshafen").
+# Detail-Sub-Varianten:
+#   - 2004-2006: "vinyl-on-demand * Hochstr. 25" (Sterne als Trenner)
+#   - 2007-2008: "vinyl-on-demand" + "Frank Maier * Hochstr. 25" (2-Spalten)
+#   - 2009-2010: "vinyl-on-demand" + "Frank Maier *Alpenstr.25/1" (2-Spalten)
+RE_VOD_HEADER_VMINUS1 = re.compile(r"vinyl-on-demand", re.IGNORECASE)
+
+# Invoice-Nr — Field-Label variiert über Sub-Vintages:
+#   "Rechnung-Nr.: RE-..." (2007-2010)
+#   "Rechnung Nummer: RE-..." (2004-2006)
+RE_INVOICE_NO_VMINUS1 = re.compile(
+    r"(?:Rechnung-Nr\.?|Nummer):?\s+(RE-\d{6}/\d{4,5})"
 )
 
-# Invoice-Nr (im Body, nach "Rechnung-Nr.:")
-RE_INVOICE_NO_VMINUS1 = re.compile(r"Rechnung-Nr\.:?\s+(RE-\d{6}/\d{4,5})")
-
-# Customer-Nr
-RE_CUSTOMER_NO_VMINUS1 = re.compile(r"Kunden-Nr\.:?\s+(\d{3,8})")
+# Customer-Nr — Field-Label variiert:
+#   "Kunden-Nr.: 1234" (2007-2010)
+#   "Ihre Nummer: 1234" (2004-2006)
+RE_CUSTOMER_NO_VMINUS1 = re.compile(
+    r"(?:Kunden-Nr\.?|Ihre\s+Nummer):?\s+(\d{3,8})"
+)
 
 # Datum (kein "Rechnungsdatum" — nur "Datum:")
 RE_INVOICE_DATE_VMINUS1 = re.compile(r"Datum:?\s+(\d{2}\.\d{2}\.\d{4})")
@@ -111,16 +117,23 @@ def _parse_customer_block_v_minus1(text: str) -> dict[str, Any]:
 
     Customer-Daten links, Bank-Info rechts. Splittel an ≥3 Spaces.
     """
-    # Suche nach der Trenn-Zeile: "vinyl-on-demand Hochstr. 25 88045..." oder
-    # "vinyl-on-demand Alpenstr.25/1 88045..."
+    # Suche nach der Trenn-Zeile (zweites Vorkommen mit Adresse + 88045).
+    # Sub-Varianten:
+    #   "vinyl-on-demand Hochstr. 25 88045 Friedrichshafen" (no stars)
+    #   "vinyl-on-demand * Hochstr. 25 * 88045 Friedrichshafen" (mit Sternen, 2004-2006)
+    #   "vinyl-on-demand Alpenstr.25/1 88045 Friedrichshafen"
     m_sep = re.search(
-        r"vinyl-on-demand\s+(?:Hochstr|Alpenstr)\.?\s*\d.*?88045\s+Friedrichshafen",
+        r"vinyl-on-demand[\s\*]+(?:Hochstr|Alpenstr)\.?[\s\*]*\d[^\n]*88045\s+Friedrichshafen",
         text,
         re.IGNORECASE,
     )
     if not m_sep:
         return {}
-    m_inv_anchor = re.search(r"\bRechnung\b\s+Rechnung-Nr\.", text[m_sep.end():])
+    # Anchor nach Customer-Block: 'Rechnung Rechnung-Nr.' (v-1) oder 'Rechnung Nummer:' (2004-2006)
+    m_inv_anchor = re.search(
+        r"\bRechnung\b\s+(?:Rechnung-Nr\.|Nummer:)",
+        text[m_sep.end():],
+    )
     if not m_inv_anchor:
         return {}
     block = text[m_sep.end():m_sep.end() + m_inv_anchor.start()]
