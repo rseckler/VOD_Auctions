@@ -145,17 +145,17 @@ def import_one(cur, rec: dict) -> str:
         ) VALUES (%s, %s, 0, 'LEGACY_ARCHIVE',
                   %s, %s,
                   %s, %s, %s,
-                  %s::jsonb, %s::jsonb,
                   %s, %s,
-                  %s::jsonb)
+                  %s, %s,
+                  %s)
         """,
         (
             account, fake_uid,
             msg_id, parse_iso_date(rec.get("date", "")),
             from_email, from_email.lower(), from_name,
-            json.dumps(to_emails), json.dumps(cc_emails),
+            to_emails, cc_emails,
             (rec.get("subject") or "")[:500], body_excerpt,
-            json.dumps(detected),
+            detected,
         ),
     )
     return "inserted"
