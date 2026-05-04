@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react"
 import { C, S, T, fmtMoney, fmtNum, relativeTime } from "../admin-tokens"
 import { Badge, EmptyState, inputStyle, selectStyle } from "../admin-ui"
+import { ContactDetailDrawer } from "./contact-detail-drawer"
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -156,6 +157,7 @@ export function ContactsTab() {
   const [data, setData] = useState<ContactsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const [q, setQ] = useState("")
   const [filter, setFilter] = useState<FilterKey>("all")
@@ -294,12 +296,22 @@ export function ContactsTab() {
             </thead>
             <tbody>
               {data?.contacts.map((c) => (
-                <ContactRow key={c.id} c={c} />
+                <ContactRow key={c.id} c={c} onClick={() => setSelectedId(c.id)} />
               ))}
             </tbody>
           </table>
         </div>
       )}
+
+      {/* Detail Drawer */}
+      <ContactDetailDrawer
+        contactId={selectedId}
+        onClose={() => {
+          setSelectedId(null)
+          // refresh list (e.g. after note add) — cheap reload
+          load()
+        }}
+      />
 
       {/* Pagination */}
       {totalPages > 1 && (
@@ -337,16 +349,10 @@ export function ContactsTab() {
   )
 }
 
-function ContactRow({ c }: { c: Contact }) {
-  const handleClick = () => {
-    // TODO S6: open detail drawer
-    alert(
-      `Contact detail drawer comes in Sprint S6.\n\n${c.display_name}\n${c.primary_email || "(no email)"}\nID: ${c.id}`
-    )
-  }
+function ContactRow({ c, onClick }: { c: Contact; onClick: () => void }) {
   return (
     <tr
-      onClick={handleClick}
+      onClick={onClick}
       style={{
         borderTop: `1px solid ${C.border}`,
         cursor: "pointer",
