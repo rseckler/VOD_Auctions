@@ -583,12 +583,15 @@ export const CHECKS: HealthCheckDefinition[] = [
     label: "Discogs API",
     category: "data_plane",
     check_class: "background",
-    severity_note: "ok if remaining ≥ 40% of total · warning if 20-40% · error if < 20% or unreachable (Discogs unauth max = 25/min)",
-    async run() {
+    severity_note: "Authenticated via DISCOGS_TOKEN (60/min/token bucket). ok if remaining ≥ 40% of total · warning if 20-40% · error if < 20% or unreachable. Without token, falls back to unauth bucket (25/min/IP) which is fragile when the IP also runs daily price sync.",
+    async run({ env }) {
       const start = Date.now()
+      const token = env.DISCOGS_TOKEN
       try {
+        const headers: Record<string, string> = { "User-Agent": "VOD-Auctions-Health/1.0" }
+        if (token) headers["Authorization"] = `Discogs token=${token}`
         const r = await fetch("https://api.discogs.com/database/search?q=test&per_page=1", {
-          headers: { "User-Agent": "VOD-Auctions-Health/1.0" },
+          headers,
           signal: AbortSignal.timeout(4500),
         })
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
@@ -605,10 +608,14 @@ export const CHECKS: HealthCheckDefinition[] = [
         return {
           status,
           message: Number.isFinite(remaining)
-            ? `rate-limit ${remaining}/${total} remaining`
-            : "reachable (no rate-limit header)",
+            ? `rate-limit ${remaining}/${total} remaining (${token ? "auth" : "unauth"})`
+            : `reachable (no rate-limit header, ${token ? "auth" : "unauth"})`,
           latency_ms,
-          metadata: { rate_limit_remaining: Number.isFinite(remaining) ? remaining : null, rate_limit_total: Number.isFinite(total) ? total : null },
+          metadata: {
+            rate_limit_remaining: Number.isFinite(remaining) ? remaining : null,
+            rate_limit_total: Number.isFinite(total) ? total : null,
+            authenticated: Boolean(token),
+          },
         }
       } catch (e: any) {
         return { status: "error", message: e?.message || "unreachable", latency_ms: Date.now() - start }
