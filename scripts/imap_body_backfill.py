@@ -114,29 +114,39 @@ def select_folder_readonly(imap: imaplib.IMAP4_SSL, folder: str) -> None:
         imap.select(folder, readonly=True)
 
 
-def decode_body_text(raw_text: str, content_type_hint: str | None = None) -> str:
+def decode_body_text(raw_text: str) -> str:
     """Extrahiere lesbaren text/plain-Inhalt aus einem MIME-multipart-Body.
 
-    Strategie:
-    1. Parse als email.message via parser
-    2. Walk durch alle parts, suche text/plain (sonst text/html → strip-tags)
-    3. Decode quoted-printable + base64
-    4. Fallback: raw text wenn nicht parseable
+    BODY[TEXT] liefert NUR den Body (ohne Top-Level-Header), aber bei multipart
+    enthält der Body die Part-Header (Content-Type pro Part) + Boundaries.
+    Wir wrap den raw-Body mit einem synthesized multipart-Header damit der
+    email-Parser walk() korrekt durchläuft.
     """
-    # Wenn das schon flat-text ist (kein MIME-boundary), nimm direkt
-    if not raw_text.lstrip().startswith("--==") and "Content-Type:" not in raw_text[:200]:
+    raw_stripped = raw_text.lstrip()
+
+    # Pfad 1: schon flat-text (kein MIME-multipart erkennbar)
+    starts_with_boundary = raw_stripped.startswith("--==") or raw_stripped.startswith("--_")
+    has_mime_header = ("Content-Type:" in raw_text[:300] and "Content-Transfer-Encoding:" in raw_text[:600])
+    if not starts_with_boundary and not has_mime_header:
         return raw_text
 
-    # Synth ein Mock-Header voraus, damit der Parser den Body als multipart erkennt
-    # (BODY[TEXT] liefert nur den Body OHNE Top-Level-Headers)
-    mock_header = "MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"___MOCK___\"\r\n\r\n"
+    # Pfad 2: multipart — extract boundary
+    # Boundary-Format: erste Zeile beginnt mit "--<boundary>"
+    boundary = None
+    if starts_with_boundary:
+        first_line = raw_stripped.split("\r\n", 1)[0].split("\n", 1)[0]
+        boundary = first_line.lstrip("-").rstrip("-").strip()
 
-    # Versuche das raw als parsing-fähiges email zu interpretieren
+    # Wrap mit Mock-Top-Level-Header damit der Parser das als multipart erkennt
+    if boundary:
+        mock = f"MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"{boundary}\"\r\n\r\n"
+        wrapped = mock + raw_text
+    else:
+        # Single-part-Mail mit Header (z.B. nur Content-Type + Body)
+        wrapped = raw_text
+
     try:
-        # Direct parse (wenn der Body schon multipart-Header hat)
-        msg = email.message_from_string(raw_text)
-        if not msg.is_multipart() and not msg.get_content_type():
-            return raw_text
+        msg = email.message_from_string(wrapped)
     except Exception:
         return raw_text
 
@@ -152,7 +162,10 @@ def decode_body_text(raw_text: str, content_type_hint: str | None = None) -> str
                 if not payload:
                     continue
                 charset = part.get_content_charset() or "utf-8"
-                text = payload.decode(charset, errors="replace")
+                try:
+                    text = payload.decode(charset, errors="replace")
+                except (LookupError, TypeError):
+                    text = payload.decode("utf-8", errors="replace")
                 if ctype == "text/plain":
                     text_parts.append(text)
                 elif ctype == "text/html":
@@ -168,7 +181,6 @@ def decode_body_text(raw_text: str, content_type_hint: str | None = None) -> str
     # Fallback: text/html → strip tags pragmatisch
     if html_parts:
         html = "\n\n".join(html_parts)
-        # Naive tag-strip (gut genug für Token-Match)
         stripped = re.sub(r"<[^>]+>", " ", html)
         stripped = re.sub(r"&nbsp;", " ", stripped)
         stripped = re.sub(r"&amp;", "&", stripped)
