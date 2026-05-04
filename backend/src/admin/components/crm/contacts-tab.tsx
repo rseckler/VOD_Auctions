@@ -504,15 +504,26 @@ export function ContactsTab() {
             background: C.card,
             border: `1px solid ${C.border}`,
             borderRadius: S.radius.lg,
-            overflowX: "scroll",      // forciert always-visible scrollbar
+            overflowX: "auto",
             overflowY: "hidden",
             maxWidth: "100%",
           }}
         >
-          <table style={{ width: "100%", minWidth: 1180, borderCollapse: "collapse", fontSize: 13 }}>
+          <table style={{ width: "100%", minWidth: 880, borderCollapse: "collapse", fontSize: 13, tableLayout: "fixed" }}>
+            <colgroup>
+              <col style={{ width: 32 }} />
+              <col />
+              <col style={{ width: 200 }} />
+              <col style={{ width: 130 }} />
+              <col style={{ width: 100 }} />
+              <col style={{ width: 50 }} />
+              <col style={{ width: 80 }} />
+              <col style={{ width: 100 }} />
+              <col style={{ width: 90 }} />
+            </colgroup>
             <thead>
               <tr style={{ background: C.subtle }}>
-                <th style={{ ...thStyle, width: 30, padding: "10px 0 10px 14px" }}>
+                <th style={{ ...thStyle, padding: "10px 0 10px 14px" }}>
                   <input
                     type="checkbox"
                     checked={!!data && data.contacts.length > 0 && data.contacts.every((c) => selectedIds.has(c.id))}
@@ -528,7 +539,6 @@ export function ContactsTab() {
                 <SortableTh label="RFM"       sortKey="rfm_segment"    sort={sort} order={order} onSort={(k) => toggleSort(k)} />
                 <SortableTh label="Last seen" sortKey="last_seen_at"   sort={sort} order={order} onSort={(k) => toggleSort(k)} />
                 <th style={thStyle}>Sources</th>
-                <th style={thStyle}>Tags</th>
               </tr>
             </thead>
             <tbody>
@@ -675,10 +685,25 @@ function ContactRow({ c, selected, onToggle, onClick }: {
         />
       </td>
       <td style={tdStyle}>
-        <div style={{ fontWeight: 500 }}>{c.display_name}</div>
-        {c.medusa_customer_id && (
-          <div style={{ ...T.small, fontSize: 10 }}>linked to vod-auctions</div>
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+          <div style={{
+            fontWeight: 500,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            flex: 1,
+            minWidth: 0,
+          }}>
+            {c.display_name}
+          </div>
+          <div style={{ display: "inline-flex", gap: 3, flexShrink: 0 }}>
+            {c.tier && tierBadge(c.tier)}
+            {c.is_test && <span title="Test account" style={statusDot(C.warning)}>T</span>}
+            {c.is_blocked && <span title="Blocked" style={statusDot(C.error)}>B</span>}
+            {c.tags.includes("internal_owner") && <span title="Internal" style={statusDot(C.purple)}>I</span>}
+            {c.medusa_customer_id && <span title="Linked to vod-auctions" style={statusDot(C.success)}>✓</span>}
+          </div>
+        </div>
       </td>
       <td style={{ ...tdStyle, maxWidth: 220 }}>
         {c.primary_email ? (
@@ -701,10 +726,16 @@ function ContactRow({ c, selected, onToggle, onClick }: {
       </td>
       <td style={tdStyle}>
         {c.primary_country_code || c.primary_city ? (
-          <span style={{ fontSize: 12 }}>
-            {[c.primary_postal_code, c.primary_city].filter(Boolean).join(" ")}
-            {c.primary_country_code && (
-              <span style={{ color: C.muted }}> · {c.primary_country_code}</span>
+          <span style={{
+            fontSize: 12,
+            display: "block",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }} title={[c.primary_postal_code, c.primary_city, c.primary_country_code].filter(Boolean).join(" ")}>
+            {c.primary_city || c.primary_postal_code || c.primary_country_code}
+            {c.primary_country_code && (c.primary_city || c.primary_postal_code) && (
+              <span style={{ color: C.muted, marginLeft: 4 }}>{c.primary_country_code}</span>
             )}
           </span>
         ) : (
@@ -736,7 +767,15 @@ function ContactRow({ c, selected, onToggle, onClick }: {
       </td>
       <td style={tdStyle}>
         {c.last_seen_at ? (
-          <span style={{ fontSize: 12 }}>{relativeTime(c.last_seen_at)}</span>
+          <span style={{
+            fontSize: 12,
+            display: "block",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }} title={new Date(c.last_seen_at).toLocaleString("en-GB")}>
+            {compactDate(c.last_seen_at)}
+          </span>
         ) : (
           <span style={{ color: C.muted, fontSize: 12 }}>—</span>
         )}
@@ -744,16 +783,33 @@ function ContactRow({ c, selected, onToggle, onClick }: {
       <td style={tdStyle}>
         <SourceBadges sources={c.sources} />
       </td>
-      <td style={tdStyle}>
-        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
-          {c.tier && tierBadge(c.tier)}
-          {c.is_test && <Badge label="test" variant="warning" />}
-          {c.is_blocked && <Badge label="blocked" variant="error" />}
-          {c.tags.includes("internal_owner") && <Badge label="internal" variant="purple" />}
-        </div>
-      </td>
     </tr>
   )
+}
+
+function statusDot(color: string): React.CSSProperties {
+  return {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    background: color + "20",
+    color: color,
+    fontSize: 9,
+    fontWeight: 700,
+    cursor: "help",
+  }
+}
+
+function compactDate(iso: string): string {
+  const d = new Date(iso)
+  const now = new Date()
+  const diff = (now.getTime() - d.getTime()) / 86400000
+  if (diff < 1) return relativeTime(iso)
+  if (diff < 365) return d.toLocaleDateString("de-DE", { day: "2-digit", month: "short" })
+  return d.toLocaleDateString("de-DE", { day: "2-digit", month: "short", year: "2-digit" })
 }
 
 const thStyle: React.CSSProperties = {
