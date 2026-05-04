@@ -2,7 +2,7 @@
 
 **Purpose:** Auktionsplattform für ~41.500 Produkte (Industrial Music Tonträger + Literatur/Merch) — eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Beta Test (`platform_mode: beta_test`) · Storefront+Admin-UI: Englisch
-**Last Updated:** 2026-05-03 — **rc52.12** (RSE-320 Multi-Artist Display für Discogs-Releases, Option A: 1.175 betroffene Releases per Backfill korrigiert). Vollständige Release-Historie in [`docs/architecture/CHANGELOG.md`](docs/architecture/CHANGELOG.md).
+**Last Updated:** 2026-05-04 — **CRM Architektur-Decisions + Sprint-S1 Quick-Wins ✅** — 6 Decisions abgezeichnet (1B/2C/3A/4B/5A/6B). Schema-Erweiterung `crm_master_note` + `crm_master_audit_log` live (5A: Notes/Audit/Tags ab S1). Lifetime-Revenue für 9.876 Master aggregiert (€5.27M auf 21.733 Txns, Top-Spender Nube Srl €338k). 3 Test-Accounts is_test=true gesetzt, Frank's Owner-Account mit Tag `internal_owner`. Sprint-Reihenfolge S1-S7 in [`docs/TODO.md`](docs/TODO.md) §13. Doku: [`docs/architecture/CRM_DATA_ARCHITECTURE_DECISIONS.md`](docs/architecture/CRM_DATA_ARCHITECTURE_DECISIONS.md). Vorher 2026-05-03: CRM Phase 1+2 Stage 1+2 (14.449 Master-Contacts, 22.341 Roh-Erscheinungen aus 5 Quellen) — Session-Log [`docs/sessions/2026-05-03_crm_phase1_data_foundation.md`](docs/sessions/2026-05-03_crm_phase1_data_foundation.md). Vorher 2026-05-03: rc52.12 (RSE-320 Multi-Artist Display, 1.175 Releases via Backfill korrigiert). Vollständige Release-Historie in [`docs/architecture/CHANGELOG.md`](docs/architecture/CHANGELOG.md).
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
 
@@ -307,12 +307,13 @@ docs/
 → Operative Liste: [`docs/TODO.md`](docs/TODO.md) · → Vollständige Release-Historie: [`CHANGELOG.md`](docs/architecture/CHANGELOG.md)
 
 **Aktive Workstreams:**
-1. **AGB-Anwalt beauftragen** (RSE-78, **High**) — Launch-Blocker für die ersten öffentlichen Auktionen.
-2. **Frank-MBA-Rollout** für rc52.x Catalog-Edit-UI (Edit-Stammdaten für ALLE Releases, per-Field 🔒-Icons + Unlock-Modal, Country-Picker, Barcode-GTIN, Discogs-Review-Modal, Storefront-Updates ~1s nach Edit). Briefing ausstehend.
-3. **POS P0 Dry-Run** — Frank testet Scan→Cart→Checkout mit `TSE='DRY_RUN'`. P1 wartet auf Steuerberater-Freigabe.
-4. **MiniMax Phasen 3-5** geplant (Foundation rc52.7 done): Hailuo Auction-Block-Teaser-Videos, `image-01` Cover-Placeholder für ~3.500 Releases ohne Cover, M2-Bulk-Backfill für 22.630 NULL-Genre/Style-Cases. Phasen 3-4 brauchen OpenClaw-Top-up; DSGVO-Check für AI-Chat-Tools (Haiku) vor Switch zu M2 nötig. Doku: [`PROJECTS/docs/MINIMAX_INTEGRATION.md`](../docs/MINIMAX_INTEGRATION.md).
-5. **RSE-321 Tape-mag-Multi-Artist** (2026-05-03 angelegt, Backlog) — `legacy_sync_v2.py:624` packt Komma-haltige `band_name`-Strings als ein Artist; ~133 Komma-Cases + 18 Featuring + 12 Vs. zur manuellen Klassifikation. Folgt RSE-320 Option A (Discogs-Pfad rc52.12 done).
-6. **`supabase_realtime: degraded`** (non-blocker) — Realtime-Service aktivieren sobald Live-Bidding live geht.
+1. **CRM Phase 2-3** (Sprint S1 startet, [`docs/TODO.md`](docs/TODO.md) §13) — 14.449 Master-Contacts mit Lifetime-Revenue stehen, Decisions abgezeichnet. Nächste Aktion: Sources-Tab + Contacts-Tab Skelett im Admin-UI bauen, parallel Stage 4 IMAP-Email-Anreicherung für 3.350 mo_pdf-only Master.
+2. **AGB-Anwalt beauftragen** (RSE-78, **High**) — Launch-Blocker für die ersten öffentlichen Auktionen.
+3. **Frank-MBA-Rollout** für rc52.x Catalog-Edit-UI (Edit-Stammdaten für ALLE Releases, per-Field 🔒-Icons + Unlock-Modal, Country-Picker, Barcode-GTIN, Discogs-Review-Modal, Storefront-Updates ~1s nach Edit). Briefing ausstehend.
+4. **POS P0 Dry-Run** — Frank testet Scan→Cart→Checkout mit `TSE='DRY_RUN'`. P1 wartet auf Steuerberater-Freigabe.
+5. **MiniMax Phasen 3-5** geplant (Foundation rc52.7 done): Hailuo Auction-Block-Teaser-Videos, `image-01` Cover-Placeholder für ~3.500 Releases ohne Cover, M2-Bulk-Backfill für 22.630 NULL-Genre/Style-Cases. Phasen 3-4 brauchen OpenClaw-Top-up; DSGVO-Check für AI-Chat-Tools (Haiku) vor Switch zu M2 nötig. Doku: [`PROJECTS/docs/MINIMAX_INTEGRATION.md`](../docs/MINIMAX_INTEGRATION.md).
+6. **RSE-321 Tape-mag-Multi-Artist** (2026-05-03 angelegt, Backlog) — `legacy_sync_v2.py:624` packt Komma-haltige `band_name`-Strings als ein Artist; ~133 Komma-Cases + 18 Featuring + 12 Vs. zur manuellen Klassifikation. Folgt RSE-320 Option A (Discogs-Pfad rc52.12 done).
+7. **`supabase_realtime: degraded`** (non-blocker) — Realtime-Service aktivieren sobald Live-Bidding live geht.
 
 **Arbeitsregeln:**
 - Keine Task-Listen hier pflegen — `docs/TODO.md` nutzen
