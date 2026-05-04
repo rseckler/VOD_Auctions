@@ -567,9 +567,9 @@ export function ContactDetailDrawer({
               if (t.key === "activity") {
                 counter = data.transactions.length + data.bids.length + data.orders.length + data.imap_messages.length
               } else if (t.key === "tasks") {
-                counter = data.tasks.filter((x) => x.status === "open").length
+                counter = (data.tasks || []).filter((x) => x.status === "open").length
               } else if (t.key === "notes") {
-                counter = data.notes.length
+                counter = (data.notes || []).length
               }
             }
             return (
@@ -1439,8 +1439,9 @@ function TasksTab({ data, onChange }: { data: DetailData; onChange: () => void }
   const [editing, setEditing] = useState<TaskRow | null>(null)
   const [showDone, setShowDone] = useState(false)
 
-  const open = data.tasks.filter((t) => t.status === "open")
-  const done = data.tasks.filter((t) => t.status !== "open")
+  const tasks = data.tasks || []
+  const open = tasks.filter((t) => t.status === "open")
+  const done = tasks.filter((t) => t.status !== "open")
 
   const toggleDone = async (task: TaskRow) => {
     try {

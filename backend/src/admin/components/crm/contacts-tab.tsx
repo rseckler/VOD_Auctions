@@ -196,7 +196,7 @@ export function ContactsTab() {
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([])
   const [activeSavedId, setActiveSavedId] = useState<string | null>(null)
   const [showSaveFilterModal, setShowSaveFilterModal] = useState(false)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false)
 
   // Multi-Select für Bulk-Actions
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -353,34 +353,29 @@ export function ContactsTab() {
   const totalPages = Math.ceil(total / PAGE_SIZE)
   const currentPage = Math.floor(offset / PAGE_SIZE) + 1
 
-  return (
-    <div style={{
-      display: "grid",
-      gridTemplateColumns: sidebarCollapsed ? "32px 1fr" : "180px 1fr",
-      gap: sidebarCollapsed ? 8 : 16,
-      alignItems: "flex-start",
-      transition: "grid-template-columns 200ms ease",
-    }}>
-      {/* Sidebar: Saved Filters / Smart Lists */}
-      <SmartListsSidebar
-        filters={savedFilters}
-        activeId={activeSavedId}
-        collapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-        onApply={applySavedFilter}
-        onSaveNew={() => setShowSaveFilterModal(true)}
-        onDeleted={reloadSavedFilters}
-      />
+  const activeFilter = savedFilters.find((f) => f.id === activeSavedId) || null
 
-      <div style={{ minWidth: 0 }}>
-      {/* Search + Sort */}
-      <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
+  return (
+    <div>
+      {/* Filter row: Saved-Filter dropdown + Search */}
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12, flexWrap: "wrap", position: "relative" }}>
+        <SavedFilterDropdown
+          filters={savedFilters}
+          active={activeFilter}
+          open={filtersOpen}
+          onToggle={() => setFiltersOpen(!filtersOpen)}
+          onClose={() => setFiltersOpen(false)}
+          onApply={(f) => { applySavedFilter(f); setFiltersOpen(false) }}
+          onClear={() => { setActiveSavedId(null); setExtFilter({ filter: "all" }); setQ(""); setFiltersOpen(false) }}
+          onSaveNew={() => { setFiltersOpen(false); setShowSaveFilterModal(true) }}
+          onDeleted={reloadSavedFilters}
+        />
         <input
           type="search"
           placeholder="Search name or email…"
           value={q}
           onChange={(e) => { setQ(e.target.value); setActiveSavedId(null) }}
-          style={{ ...inputStyle, flex: "1 1 280px", minWidth: 240 }}
+          style={{ ...inputStyle, flex: "1 1 240px", minWidth: 200 }}
         />
         <select
           value={`${sort}_${order}`}
@@ -390,14 +385,15 @@ export function ContactsTab() {
             setOrder(o)
             setActiveSavedId(null)
           }}
-          style={{ ...selectStyle, width: 240 }}
+          style={{ ...selectStyle, width: 220 }}
+          title="Sort by"
         >
           <option value="lifetime_revenue_desc">Revenue (high → low)</option>
           <option value="lifetime_revenue_asc">Revenue (low → high)</option>
-          <option value="health_score_desc">Health score (high → low)</option>
+          <option value="health_score_desc">Health score</option>
           <option value="last_seen_at_desc">Last seen (recent)</option>
           <option value="last_seen_at_asc">Last seen (oldest)</option>
-          <option value="total_transactions_desc">Transactions (most)</option>
+          <option value="total_transactions_desc">Transactions</option>
           <option value="created_at_desc">Created (newest)</option>
           <option value="display_name_asc">Name (A → Z)</option>
         </select>
@@ -560,8 +556,6 @@ export function ContactsTab() {
           </button>
         </div>
       )}
-
-      </div> {/* /right-column */}
 
       {/* Floating-Action-Bar (Shopify-Pattern) */}
       {selectedIds.size > 0 && (
@@ -789,49 +783,29 @@ function paginationBtnStyle(disabled: boolean): React.CSSProperties {
   }
 }
 
-// ── SmartListsSidebar (Klaviyo/HubSpot pattern) ────────────────────────────
+// ── SavedFilterDropdown (HubSpot/Shopify "Views"-Pattern) ──────────────────
 
-function SmartListsSidebar({
+function SavedFilterDropdown({
   filters,
-  activeId,
-  collapsed,
-  onToggleCollapse,
+  active,
+  open,
+  onToggle,
+  onClose,
   onApply,
+  onClear,
   onSaveNew,
   onDeleted,
 }: {
   filters: SavedFilter[]
-  activeId: string | null
-  collapsed: boolean
-  onToggleCollapse: () => void
+  active: SavedFilter | null
+  open: boolean
+  onToggle: () => void
+  onClose: () => void
   onApply: (f: SavedFilter) => void
+  onClear: () => void
   onSaveNew: () => void
   onDeleted: () => void
 }) {
-  if (collapsed) {
-    return (
-      <button
-        onClick={onToggleCollapse}
-        title="Show saved filters"
-        style={{
-          background: "transparent",
-          border: `1px solid ${C.border}`,
-          borderRadius: S.radius.md,
-          padding: "8px 6px",
-          cursor: "pointer",
-          fontSize: 14,
-          color: C.muted,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          height: 32,
-          marginTop: 4,
-        }}
-      >
-        ☰
-      </button>
-    )
-  }
   const pinned = filters.filter((f) => f.is_pinned)
   const others = filters.filter((f) => !f.is_pinned)
 
@@ -847,19 +821,17 @@ function SmartListsSidebar({
     } catch (err) { alert(err instanceof Error ? err.message : String(err)) }
   }
 
-  const renderFilterItem = (f: SavedFilter) => {
+  const renderItem = (f: SavedFilter) => {
     const isSystem = f.created_by === "system"
-    const isActive = activeId === f.id
+    const isActive = active?.id === f.id
     return (
       <div
         key={f.id}
         onClick={() => onApply(f)}
         style={{
           padding: "6px 10px",
-          borderRadius: S.radius.md,
           cursor: "pointer",
           background: isActive ? C.gold + "15" : "transparent",
-          border: `1px solid ${isActive ? C.gold : "transparent"}`,
           fontSize: 12.5,
           display: "flex",
           alignItems: "center",
@@ -894,66 +866,106 @@ function SmartListsSidebar({
   }
 
   return (
-    <div style={{
-      position: "sticky",
-      top: 0,
-      paddingTop: 4,
-      borderRight: `1px solid ${C.border}`,
-      paddingRight: 12,
-      maxHeight: "calc(100vh - 200px)",
-      overflowY: "auto",
-    }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-        <span style={T.micro}>Saved Filters</span>
-        <button
-          onClick={onToggleCollapse}
-          title="Collapse sidebar"
-          style={{
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            color: C.muted,
-            fontSize: 14,
-            padding: 0,
-          }}
-        >
-          ←
-        </button>
-      </div>
-      {pinned.length > 0 && (
-        <div style={{ marginBottom: 12, display: "flex", flexDirection: "column", gap: 2 }}>
-          {pinned.map(renderFilterItem)}
-        </div>
-      )}
-      {others.length > 0 && (
+    <div style={{ position: "relative" }}>
+      <button
+        onClick={onToggle}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          fontSize: 13,
+          padding: "6px 12px",
+          background: active ? C.gold + "15" : "transparent",
+          border: `1px solid ${active ? C.gold : C.border}`,
+          borderRadius: S.radius.md,
+          color: active ? C.gold : C.text,
+          cursor: "pointer",
+          minWidth: 180,
+          justifyContent: "space-between",
+        }}
+      >
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {active ? active.name : "All contacts"}
+        </span>
+        <span style={{ fontSize: 10, color: C.muted }}>▾</span>
+      </button>
+
+      {open && (
         <>
-          <div style={{ ...T.micro, marginBottom: 6, marginTop: 12 }}>All</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            {others.map(renderFilterItem)}
+          <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 50 }} />
+          <div
+            style={{
+              position: "absolute",
+              top: "calc(100% + 4px)",
+              left: 0,
+              minWidth: 240,
+              maxHeight: 420,
+              background: C.card,
+              border: `1px solid ${C.border}`,
+              borderRadius: S.radius.md,
+              boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
+              zIndex: 51,
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+            }}
+          >
+            <div style={{ padding: "8px 10px", borderBottom: `1px solid ${C.border}`, ...T.micro }}>
+              Saved Filters
+            </div>
+            <div style={{ overflowY: "auto", flex: 1 }}>
+              {/* Reset / All */}
+              <div
+                onClick={onClear}
+                style={{
+                  padding: "6px 10px",
+                  cursor: "pointer",
+                  background: !active ? C.gold + "15" : "transparent",
+                  fontSize: 12.5,
+                  color: !active ? C.gold : C.text,
+                  borderBottom: `1px solid ${C.border}80`,
+                }}
+                onMouseEnter={(e) => { if (active) e.currentTarget.style.background = C.subtle }}
+                onMouseLeave={(e) => { if (active) e.currentTarget.style.background = "transparent" }}
+              >
+                ☰ All contacts
+              </div>
+              {pinned.length > 0 && (
+                <>
+                  <div style={{ ...T.micro, padding: "8px 10px 4px" }}>Pinned</div>
+                  {pinned.map(renderItem)}
+                </>
+              )}
+              {others.length > 0 && (
+                <>
+                  <div style={{ ...T.micro, padding: "8px 10px 4px", marginTop: 4 }}>All</div>
+                  {others.map(renderItem)}
+                </>
+              )}
+              {filters.length === 0 && (
+                <div style={{ ...T.small, fontStyle: "italic", color: C.muted, padding: 12 }}>
+                  No saved filters yet
+                </div>
+              )}
+            </div>
+            <button
+              onClick={onSaveNew}
+              style={{
+                padding: "8px 10px",
+                background: "transparent",
+                border: "none",
+                borderTop: `1px solid ${C.border}`,
+                cursor: "pointer",
+                fontSize: 12,
+                color: C.gold,
+                textAlign: "left",
+              }}
+            >
+              + Save current as filter
+            </button>
           </div>
         </>
       )}
-      {filters.length === 0 && (
-        <div style={{ ...T.small, fontStyle: "italic", color: C.muted }}>
-          No saved filters yet
-        </div>
-      )}
-      <button
-        onClick={onSaveNew}
-        style={{
-          marginTop: 16,
-          width: "100%",
-          padding: "6px 10px",
-          background: "transparent",
-          border: `1px dashed ${C.border}`,
-          borderRadius: S.radius.md,
-          cursor: "pointer",
-          fontSize: 12,
-          color: C.muted,
-        }}
-      >
-        + Save current as filter
-      </button>
     </div>
   )
 }
