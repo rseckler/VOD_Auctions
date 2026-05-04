@@ -83,7 +83,9 @@ echo
 ls /Volumes 2>/dev/null | sed 's/^/  /'
 echo
 echo "Welches Volume zusätzlich scannen? (Name aus der Liste oben, oder Enter zum Überspringen):"
-read -r VOL || VOL=""
+# WICHTIG: < /dev/tty — bei curl|bash würde read sonst aus dem Pipe-Stream
+# lesen (= nächste Zeile dieses Skripts), nicht von Frank's Terminal.
+read -r VOL < /dev/tty || VOL=""
 VOL=$(echo "$VOL" | tr -d '"' | xargs)  # strip quotes + whitespace
 
 if [ -n "$VOL" ]; then
@@ -92,6 +94,52 @@ if [ -n "$VOL" ]; then
     ROOTS+=("/Volumes/$VOL")
   else
     warn "/Volumes/$VOL existiert nicht — überspringe"
+  fi
+fi
+
+# ─── Full Disk Access Check ──────────────────────────────────────────────────
+
+bold "3b) macOS-Berechtigung prüfen"
+# Apple Mail-Verzeichnisse sind ohne Full Disk Access nicht lesbar — selbst
+# wenn ~/Library/Mail/V* existiert, gibt os.walk() leeren Listing.
+# Ein einzelner Test: schau ob V<N>/MailData/ etc lesbar ist.
+PERM_OK=true
+for p in "${ROOTS[@]}"; do
+  case "$p" in
+    *Library/Mail*|*Library/Containers/com.apple.mail*)
+      # Probe: zähle Dateien rekursiv (limit 5)
+      count=$(find "$p" -type f 2>/dev/null | head -5 | wc -l | tr -d ' ')
+      if [ "$count" = "0" ]; then
+        # Erstes Anzeichen: Verzeichnis existiert, aber 0 Files lesbar
+        if [ -d "$p" ]; then
+          warn "Kann '$p' nicht lesen (vermutlich macOS Full Disk Access fehlt)"
+          PERM_OK=false
+        fi
+      fi
+      ;;
+  esac
+done
+
+if [ "$PERM_OK" = "false" ]; then
+  cat <<'EOF'
+
+  ⚠️  macOS blockiert Zugriff auf ~/Library/Mail/ ohne Full Disk Access.
+      Das Terminal/iTerm braucht diese Permission um Mail-Daten zu lesen.
+
+  Bitte einmalig erlauben:
+    1. Apple-Menü → Systemeinstellungen → Datenschutz & Sicherheit
+    2. → Festplattenvollzugriff (Full Disk Access)
+    3. → "+" klicken → Programme → Terminal.app (oder iTerm.app) hinzufügen
+    4. Terminal komplett schließen und neu öffnen
+    5. Dieses Skript erneut starten:
+       curl -fsSL https://raw.githubusercontent.com/rseckler/VOD_Auctions/main/frank-mac-studio-setup/scan-old-emails.sh | bash
+
+EOF
+  echo "Trotzdem fortfahren? (j = ja, alles andere = abbrechen):"
+  read -r CONT < /dev/tty || CONT=""
+  if [ "$CONT" != "j" ] && [ "$CONT" != "y" ] && [ "$CONT" != "yes" ]; then
+    info "Abgebrochen. Erst Full Disk Access erteilen, dann erneut starten."
+    exit 0
   fi
 fi
 
