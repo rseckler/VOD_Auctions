@@ -409,7 +409,7 @@ export function ContactDetailDrawer({
   const [data, setData] = useState<DetailData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [tab, setTab] = useState<DrawerTab>("activity")  // Klaviyo-Pattern: Activity-Feed als Default
+  const [tab, setTab] = useState<DrawerTab>("overview")  // Default: Overview (Profil + Primary Contact zuerst)
   const [editMaster, setEditMaster] = useState(false)
 
   const load = useCallback(() => {
@@ -429,7 +429,7 @@ export function ContactDetailDrawer({
     if (contactId) {
       setData(null)
       setError(null)
-      setTab("activity")
+      setTab("overview")
       load()
     }
   }, [contactId, load])
@@ -592,10 +592,10 @@ export function ContactDetailDrawer({
             // Tab-Reihenfolge nach Marktstandard
             [
               { key: "overview" as DrawerTab, label: "Overview" },
+              { key: "contact" as DrawerTab, label: "Contact Info" },
               { key: "activity" as DrawerTab, label: "Activity" },
               { key: "tasks" as DrawerTab, label: "Tasks" },
               { key: "notes" as DrawerTab, label: "Notes" },
-              { key: "contact" as DrawerTab, label: "Contact Info" },
               { key: "wishlist" as DrawerTab, label: "Wishlist" },
               { key: "communication" as DrawerTab, label: "Communication" },
               { key: "relationships" as DrawerTab, label: "Relationships" },
@@ -681,6 +681,70 @@ function OverviewTab({ data }: { data: DetailData }) {
     : 0
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      {/* Profile — first/last/company prominent oben (User-Wunsch 2026-05-04) */}
+      <div>
+        <div style={T.sectionHead}>Profile</div>
+        <div
+          style={{
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: S.radius.md,
+            padding: "14px 16px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+            fontSize: 13,
+          }}
+        >
+          <KV label="First name" value={m.first_name || "—"} />
+          <KV label="Last name" value={m.last_name || "—"} />
+          <KV label="Company" value={m.company || "—"} />
+          <KV label="Salutation" value={[m.salutation, m.title].filter(Boolean).join(" ") || "—"} />
+          <KV label="Language" value={m.preferred_language || "—"} />
+          <KV
+            label="Birthday"
+            value={m.birthday ? new Date(m.birthday).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "—"}
+          />
+          <KV
+            label="Acquired"
+            value={m.acquisition_channel
+              ? `${m.acquisition_channel}${m.acquisition_date ? ` · ${new Date(m.acquisition_date).toLocaleDateString("en-GB", { year: "numeric", month: "short" })}` : ""}`
+              : "—"}
+          />
+        </div>
+      </div>
+
+      {/* Primary Contact — email/phone direkt unter Profile */}
+      <div>
+        <div style={T.sectionHead}>Primary Contact</div>
+        <div
+          style={{
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: S.radius.md,
+            padding: "14px 16px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+            fontSize: 13,
+          }}
+        >
+          <KV label="Email" value={m.primary_email || "—"} />
+          <KV label="Phone" value={m.primary_phone || "—"} />
+          <KV
+            label="City"
+            value={
+              [m.primary_postal_code, m.primary_city, m.primary_country_code]
+                .filter(Boolean)
+                .join(" · ") || "—"
+            }
+          />
+          {m.medusa_customer_id && (
+            <KV label="vod-auctions ID" value={m.medusa_customer_id} mono />
+          )}
+        </div>
+      </div>
+
       {/* Stats */}
       <div
         style={{
@@ -722,70 +786,6 @@ function OverviewTab({ data }: { data: DetailData }) {
       {m.rfm_segment && (
         <RfmCard master={m} />
       )}
-
-      {/* Profile (S6.5: structured names + acquisition + birthday + language) */}
-      <div>
-        <div style={T.sectionHead}>Profile</div>
-        <div
-          style={{
-            background: C.card,
-            border: `1px solid ${C.border}`,
-            borderRadius: S.radius.md,
-            padding: "14px 16px",
-            display: "flex",
-            flexDirection: "column",
-            gap: 10,
-            fontSize: 13,
-          }}
-        >
-          <KV label="Salutation" value={[m.salutation, m.title].filter(Boolean).join(" ") || "—"} />
-          <KV label="First name" value={m.first_name || "—"} />
-          <KV label="Last name" value={m.last_name || "—"} />
-          <KV label="Company" value={m.company || "—"} />
-          <KV label="Language" value={m.preferred_language || "—"} />
-          <KV
-            label="Birthday"
-            value={m.birthday ? new Date(m.birthday).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "—"}
-          />
-          <KV
-            label="Acquired"
-            value={m.acquisition_channel
-              ? `${m.acquisition_channel}${m.acquisition_date ? ` · ${new Date(m.acquisition_date).toLocaleDateString("en-GB", { year: "numeric", month: "short" })}` : ""}`
-              : "—"}
-          />
-        </div>
-      </div>
-
-      {/* Primary Contact */}
-      <div>
-        <div style={T.sectionHead}>Primary Contact</div>
-        <div
-          style={{
-            background: C.card,
-            border: `1px solid ${C.border}`,
-            borderRadius: S.radius.md,
-            padding: "14px 16px",
-            display: "flex",
-            flexDirection: "column",
-            gap: 10,
-            fontSize: 13,
-          }}
-        >
-          <KV label="Email" value={m.primary_email || "—"} />
-          <KV label="Phone" value={m.primary_phone || "—"} />
-          <KV
-            label="City"
-            value={
-              [m.primary_postal_code, m.primary_city, m.primary_country_code]
-                .filter(Boolean)
-                .join(" · ") || "—"
-            }
-          />
-          {m.medusa_customer_id && (
-            <KV label="vod-auctions ID" value={m.medusa_customer_id} mono />
-          )}
-        </div>
-      </div>
 
       {/* Tags */}
       {m.tags.length > 0 && (
