@@ -25,9 +25,15 @@ export async function GET(
   const q = ((req.query.q as string) || "").trim()
   const filter = (req.query.filter as string) || "all"
   const tier = req.query.tier as string | undefined
+  const lifecycleStage = req.query.lifecycle_stage as string | undefined
+  const rfmSegment = req.query.rfm_segment as string | undefined
+  const acquisitionChannel = req.query.acquisition_channel as string | undefined
+  const idsOnly = req.query.ids_only === "true"
   const sortInput = (req.query.sort as string) || "lifetime_revenue"
   const order = (req.query.order as string) === "asc" ? "asc" : "desc"
-  const limit = Math.min(Number(req.query.limit) || 50, 200)
+  const limit = idsOnly
+    ? Math.min(Number(req.query.limit) || 5000, 10000)
+    : Math.min(Number(req.query.limit) || 50, 200)
   const offset = Math.max(Number(req.query.offset) || 0, 0)
 
   const sortColumn =
@@ -95,6 +101,31 @@ export async function GET(
     if (tier) {
       query = query.where("mc.tier", tier)
     }
+    if (lifecycleStage) {
+      query = query.where("mc.lifecycle_stage", lifecycleStage)
+    }
+    if (rfmSegment) {
+      query = query.where("mc.rfm_segment", rfmSegment)
+    }
+    if (acquisitionChannel) {
+      query = query.where("mc.acquisition_channel", acquisitionChannel)
+    }
+
+    // Wenn nur IDs gewünscht (für "Select all matching") — kürzerer Pfad
+    if (idsOnly) {
+      const idRows = await query.select("mc.id").limit(limit).offset(offset)
+      const idsCountRow = await query
+        .clone()
+        .clearSelect()
+        .clearOrder()
+        .count("mc.id as total")
+        .first()
+      res.json({
+        ids: (idRows as Array<{ id: string }>).map((r) => r.id),
+        total: Number(idsCountRow?.total || 0),
+      })
+      return
+    }
 
     // Count
     const countResult = await query
@@ -110,6 +141,9 @@ export async function GET(
       .select(
         "mc.id",
         "mc.display_name",
+        "mc.first_name",
+        "mc.last_name",
+        "mc.company",
         "mc.contact_type",
         "mc.primary_email",
         "mc.primary_email_lower",
@@ -125,6 +159,11 @@ export async function GET(
         "mc.last_seen_at",
         "mc.medusa_customer_id",
         "mc.tier",
+        "mc.lifecycle_stage",
+        "mc.rfm_segment",
+        "mc.health_score",
+        "mc.acquisition_channel",
+        "mc.avatar_url",
         pgConnection.raw("COALESCE(mc.tags, '{}') as tags"),
         pgConnection.raw("COALESCE(mc.is_test, false) as is_test"),
         pgConnection.raw("COALESCE(mc.is_blocked, false) as is_blocked"),
@@ -149,6 +188,9 @@ export async function GET(
       contacts: (contacts as Array<Record<string, unknown>>).map((c) => ({
         id: c.id as string,
         display_name: c.display_name as string,
+        first_name: c.first_name as string | null,
+        last_name: c.last_name as string | null,
+        company: c.company as string | null,
         contact_type: c.contact_type as string | null,
         primary_email: c.primary_email as string | null,
         primary_phone: c.primary_phone as string | null,
@@ -165,6 +207,11 @@ export async function GET(
           : null,
         medusa_customer_id: c.medusa_customer_id as string | null,
         tier: c.tier as string | null,
+        lifecycle_stage: c.lifecycle_stage as string | null,
+        rfm_segment: c.rfm_segment as string | null,
+        health_score: c.health_score !== null && c.health_score !== undefined ? Number(c.health_score) : null,
+        acquisition_channel: c.acquisition_channel as string | null,
+        avatar_url: c.avatar_url as string | null,
         tags: (c.tags as string[]) || [],
         is_test: Boolean(c.is_test),
         is_blocked: Boolean(c.is_blocked),

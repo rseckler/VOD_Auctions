@@ -1,6 +1,6 @@
-import { useEffect, useState, useCallback, useRef } from "react"
+import { useEffect, useState, useCallback, useRef, useMemo } from "react"
 import { C, S, T, fmtMoney, fmtNum, relativeTime } from "../admin-tokens"
-import { Badge, EmptyState, inputStyle, selectStyle } from "../admin-ui"
+import { Badge, Btn, EmptyState, inputStyle, selectStyle, Modal } from "../admin-ui"
 import { ContactDetailDrawer } from "./contact-detail-drawer"
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -8,6 +8,9 @@ import { ContactDetailDrawer } from "./contact-detail-drawer"
 type Contact = {
   id: string
   display_name: string
+  first_name: string | null
+  last_name: string | null
+  company: string | null
   contact_type: string | null
   primary_email: string | null
   primary_phone: string | null
@@ -20,6 +23,11 @@ type Contact = {
   last_seen_at: string | null
   medusa_customer_id: string | null
   tier: string | null
+  lifecycle_stage: string | null
+  rfm_segment: string | null
+  health_score: number | null
+  acquisition_channel: string | null
+  avatar_url: string | null
   tags: string[]
   is_test: boolean
   is_blocked: boolean
@@ -27,6 +35,17 @@ type Contact = {
   created_at: string | null
   sources: string[]
   source_link_count: number
+}
+
+type SavedFilter = {
+  id: string
+  name: string
+  description: string | null
+  query_json: Record<string, string>
+  icon: string | null
+  shared: boolean
+  is_pinned: boolean
+  created_by: string
 }
 
 type ContactsResponse = {
@@ -153,6 +172,14 @@ function SourceBadges({ sources }: { sources: string[] }) {
 
 const PAGE_SIZE = 50
 
+type ExtendedFilter = {
+  filter: FilterKey
+  tier?: string
+  lifecycle_stage?: string
+  rfm_segment?: string
+  acquisition_channel?: string
+}
+
 export function ContactsTab() {
   const [data, setData] = useState<ContactsResponse | null>(null)
   const [loading, setLoading] = useState(true)
@@ -160,10 +187,22 @@ export function ContactsTab() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const [q, setQ] = useState("")
-  const [filter, setFilter] = useState<FilterKey>("all")
+  const [extFilter, setExtFilter] = useState<ExtendedFilter>({ filter: "all" })
   const [sort, setSort] = useState("lifetime_revenue")
   const [order, setOrder] = useState<"asc" | "desc">("desc")
   const [offset, setOffset] = useState(0)
+
+  // Saved Filters
+  const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([])
+  const [activeSavedId, setActiveSavedId] = useState<string | null>(null)
+  const [showSaveFilterModal, setShowSaveFilterModal] = useState(false)
+
+  // Multi-Select für Bulk-Actions
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [allSelectedCount, setAllSelectedCount] = useState<number | null>(null) // wenn "Select all matching" geklickt
+  const [bulkAction, setBulkAction] = useState<{ type: string; openModal: boolean } | null>(null)
+
+  const filter = extFilter.filter
 
   // Debounce search
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -179,18 +218,59 @@ export function ContactsTab() {
   // Reset offset when filter / search changes
   useEffect(() => {
     setOffset(0)
-  }, [debouncedQ, filter, sort, order])
+    setSelectedIds(new Set())
+    setAllSelectedCount(null)
+  }, [debouncedQ, extFilter, sort, order])
 
-  const load = useCallback(() => {
-    setLoading(true)
+  // Saved-Filters laden
+  useEffect(() => {
+    fetch("/admin/crm/saved-filters", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : Promise.reject(`HTTP ${r.status}`)))
+      .then((d) => setSavedFilters(d.filters || []))
+      .catch(() => { /* silent */ })
+  }, [])
+
+  const reloadSavedFilters = useCallback(() => {
+    fetch("/admin/crm/saved-filters", { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => setSavedFilters(d.filters || []))
+      .catch(() => {})
+  }, [])
+
+  const applySavedFilter = (f: SavedFilter) => {
+    const qj = f.query_json || {}
+    setExtFilter({
+      filter: (qj.filter as FilterKey) || "all",
+      tier: qj.tier,
+      lifecycle_stage: qj.lifecycle_stage,
+      rfm_segment: qj.rfm_segment,
+      acquisition_channel: qj.acquisition_channel,
+    })
+    if (qj.sort) setSort(qj.sort)
+    if (qj.order === "asc" || qj.order === "desc") setOrder(qj.order)
+    if (qj.q !== undefined) setQ(qj.q)
+    setActiveSavedId(f.id)
+  }
+
+  const buildParams = useCallback(() => {
     const params = new URLSearchParams({
-      limit: String(PAGE_SIZE),
-      offset: String(offset),
       sort,
       order,
       filter,
     })
     if (debouncedQ) params.set("q", debouncedQ)
+    if (extFilter.tier) params.set("tier", extFilter.tier)
+    if (extFilter.lifecycle_stage) params.set("lifecycle_stage", extFilter.lifecycle_stage)
+    if (extFilter.rfm_segment) params.set("rfm_segment", extFilter.rfm_segment)
+    if (extFilter.acquisition_channel) params.set("acquisition_channel", extFilter.acquisition_channel)
+    return params
+  }, [debouncedQ, filter, extFilter, sort, order])
+
+  const load = useCallback(() => {
+    setLoading(true)
+    const params = buildParams()
+    params.set("limit", String(PAGE_SIZE))
+    params.set("offset", String(offset))
 
     fetch(`/admin/crm/contacts?${params}`, { credentials: "include" })
       .then(async (r) => {
@@ -203,25 +283,81 @@ export function ContactsTab() {
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false))
-  }, [debouncedQ, filter, sort, order, offset])
+  }, [buildParams, offset])
 
   useEffect(() => {
     load()
   }, [load])
+
+  const toggleId = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+    setAllSelectedCount(null)
+  }
+
+  const togglePage = () => {
+    if (!data) return
+    const visible = new Set(data.contacts.map((c) => c.id))
+    const allSelected = data.contacts.every((c) => selectedIds.has(c.id))
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (allSelected) {
+        for (const id of visible) next.delete(id)
+      } else {
+        for (const id of visible) next.add(id)
+      }
+      return next
+    })
+    setAllSelectedCount(null)
+  }
+
+  const selectAllMatching = async () => {
+    const params = buildParams()
+    params.set("ids_only", "true")
+    params.set("limit", "10000")
+    try {
+      const r = await fetch(`/admin/crm/contacts?${params}`, { credentials: "include" })
+      const d = await r.json()
+      const next = new Set<string>(d.ids || [])
+      setSelectedIds(next)
+      setAllSelectedCount(next.size)
+    } catch (e) {
+      alert(`Failed: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+
+  const clearSelection = () => {
+    setSelectedIds(new Set())
+    setAllSelectedCount(null)
+  }
 
   const total = data?.total || 0
   const totalPages = Math.ceil(total / PAGE_SIZE)
   const currentPage = Math.floor(offset / PAGE_SIZE) + 1
 
   return (
-    <div>
+    <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 20, alignItems: "flex-start" }}>
+      {/* Sidebar: Saved Filters / Smart Lists */}
+      <SmartListsSidebar
+        filters={savedFilters}
+        activeId={activeSavedId}
+        onApply={applySavedFilter}
+        onSaveNew={() => setShowSaveFilterModal(true)}
+        onDeleted={reloadSavedFilters}
+      />
+
+      <div>
       {/* Search + Sort */}
       <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
         <input
           type="search"
           placeholder="Search name or email…"
           value={q}
-          onChange={(e) => setQ(e.target.value)}
+          onChange={(e) => { setQ(e.target.value); setActiveSavedId(null) }}
           style={{ ...inputStyle, flex: "1 1 280px", minWidth: 240 }}
         />
         <select
@@ -230,11 +366,13 @@ export function ContactsTab() {
             const [s, o] = e.target.value.split("_") as [string, "asc" | "desc"]
             setSort(s)
             setOrder(o)
+            setActiveSavedId(null)
           }}
           style={{ ...selectStyle, width: 240 }}
         >
           <option value="lifetime_revenue_desc">Revenue (high → low)</option>
           <option value="lifetime_revenue_asc">Revenue (low → high)</option>
+          <option value="health_score_desc">Health score (high → low)</option>
           <option value="last_seen_at_desc">Last seen (recent)</option>
           <option value="last_seen_at_asc">Last seen (oldest)</option>
           <option value="total_transactions_desc">Transactions (most)</option>
@@ -245,17 +383,35 @@ export function ContactsTab() {
 
       {/* Filter pills */}
       <div style={{ marginBottom: 16 }}>
-        <FilterPills active={filter} onChange={setFilter} />
+        <FilterPills active={filter} onChange={(f) => { setExtFilter({ filter: f }); setActiveSavedId(null) }} />
       </div>
 
-      {/* Result counter */}
-      <div style={{ ...T.small, marginBottom: 12 }}>
-        {loading && !data ? "Loading…" : `${fmtNum(total)} contacts`}
-        {data && total > 0 && (
-          <span style={{ color: C.muted }}>
-            {" "}
-            · showing {offset + 1}–{Math.min(offset + PAGE_SIZE, total)}
-          </span>
+      {/* Result counter + Save filter button */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <div style={T.small}>
+          {loading && !data ? "Loading…" : `${fmtNum(total)} contacts`}
+          {data && total > 0 && (
+            <span style={{ color: C.muted }}>
+              {" "}
+              · showing {offset + 1}–{Math.min(offset + PAGE_SIZE, total)}
+            </span>
+          )}
+        </div>
+        {!activeSavedId && (filter !== "all" || extFilter.tier || extFilter.lifecycle_stage || extFilter.rfm_segment || debouncedQ) && (
+          <button
+            onClick={() => setShowSaveFilterModal(true)}
+            style={{
+              fontSize: 12,
+              background: "transparent",
+              color: C.gold,
+              border: `1px solid ${C.gold}`,
+              padding: "4px 10px",
+              borderRadius: S.radius.md,
+              cursor: "pointer",
+            }}
+          >
+            ⭐ Save as filter
+          </button>
         )}
       </div>
 
@@ -284,11 +440,20 @@ export function ContactsTab() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ background: C.subtle }}>
+                <th style={{ ...thStyle, width: 30, padding: "10px 0 10px 14px" }}>
+                  <input
+                    type="checkbox"
+                    checked={!!data && data.contacts.length > 0 && data.contacts.every((c) => selectedIds.has(c.id))}
+                    onChange={togglePage}
+                    style={{ cursor: "pointer" }}
+                  />
+                </th>
                 <th style={thStyle}>Name</th>
                 <th style={thStyle}>Email</th>
                 <th style={thStyle}>Location</th>
                 <th style={{ ...thStyle, textAlign: "right" }}>Revenue</th>
                 <th style={{ ...thStyle, textAlign: "right" }}>Txns</th>
+                <th style={thStyle}>RFM</th>
                 <th style={thStyle}>Last seen</th>
                 <th style={thStyle}>Sources</th>
                 <th style={thStyle}>Tags</th>
@@ -296,7 +461,13 @@ export function ContactsTab() {
             </thead>
             <tbody>
               {data?.contacts.map((c) => (
-                <ContactRow key={c.id} c={c} onClick={() => setSelectedId(c.id)} />
+                <ContactRow
+                  key={c.id}
+                  c={c}
+                  selected={selectedIds.has(c.id)}
+                  onToggle={() => toggleId(c.id)}
+                  onClick={() => setSelectedId(c.id)}
+                />
               ))}
             </tbody>
           </table>
@@ -345,21 +516,94 @@ export function ContactsTab() {
           </button>
         </div>
       )}
+
+      </div> {/* /right-column */}
+
+      {/* Floating-Action-Bar (Shopify-Pattern) */}
+      {selectedIds.size > 0 && (
+        <BulkActionBar
+          count={selectedIds.size}
+          totalAvailable={total}
+          allMatched={allSelectedCount !== null}
+          onSelectAll={selectAllMatching}
+          onClear={clearSelection}
+          onAction={(type) => setBulkAction({ type, openModal: true })}
+        />
+      )}
+
+      {/* Save-Filter-Modal */}
+      {showSaveFilterModal && (
+        <SaveFilterModal
+          query={{
+            filter,
+            ...(extFilter.tier ? { tier: extFilter.tier } : {}),
+            ...(extFilter.lifecycle_stage ? { lifecycle_stage: extFilter.lifecycle_stage } : {}),
+            ...(extFilter.rfm_segment ? { rfm_segment: extFilter.rfm_segment } : {}),
+            ...(extFilter.acquisition_channel ? { acquisition_channel: extFilter.acquisition_channel } : {}),
+            ...(debouncedQ ? { q: debouncedQ } : {}),
+            sort,
+            order,
+          }}
+          onClose={() => setShowSaveFilterModal(false)}
+          onSaved={() => { setShowSaveFilterModal(false); reloadSavedFilters() }}
+        />
+      )}
+
+      {/* Bulk-Action-Modal */}
+      {bulkAction?.openModal && (
+        <BulkActionModal
+          action={bulkAction.type}
+          ids={Array.from(selectedIds)}
+          onClose={() => setBulkAction(null)}
+          onApplied={() => {
+            setBulkAction(null)
+            clearSelection()
+            load()
+          }}
+        />
+      )}
     </div>
   )
 }
 
-function ContactRow({ c, onClick }: { c: Contact; onClick: () => void }) {
+const RFM_ROW_LABELS: Record<string, { icon: string; short: string }> = {
+  champions:           { icon: "💎", short: "Champ" },
+  loyal_customers:     { icon: "💜", short: "Loyal" },
+  potential_loyalists: { icon: "🌱", short: "Potl." },
+  new_customers:       { icon: "🆕", short: "New" },
+  promising:           { icon: "⭐", short: "Promis." },
+  needs_attention:     { icon: "👀", short: "Attn." },
+  at_risk:             { icon: "⚠️", short: "Risk" },
+  cant_lose:           { icon: "🚨", short: "Can't lose" },
+  hibernating:         { icon: "😴", short: "Hibern." },
+  lost:                { icon: "💤", short: "Lost" },
+}
+
+function ContactRow({ c, selected, onToggle, onClick }: {
+  c: Contact
+  selected: boolean
+  onToggle: () => void
+  onClick: () => void
+}) {
   return (
     <tr
       onClick={onClick}
       style={{
         borderTop: `1px solid ${C.border}`,
         cursor: "pointer",
+        background: selected ? C.subtle : "transparent",
       }}
-      onMouseEnter={(e) => (e.currentTarget.style.background = C.hover)}
-      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+      onMouseEnter={(e) => { if (!selected) e.currentTarget.style.background = C.hover }}
+      onMouseLeave={(e) => { if (!selected) e.currentTarget.style.background = "transparent" }}
     >
+      <td style={{ ...tdStyle, width: 30, padding: "10px 0 10px 14px" }} onClick={(e) => e.stopPropagation()}>
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={onToggle}
+          style={{ cursor: "pointer" }}
+        />
+      </td>
       <td style={tdStyle}>
         <div style={{ fontWeight: 500 }}>{c.display_name}</div>
         {c.medusa_customer_id && (
@@ -397,6 +641,15 @@ function ContactRow({ c, onClick }: { c: Contact; onClick: () => void }) {
           fmtNum(c.total_transactions)
         ) : (
           <span style={{ color: C.muted }}>—</span>
+        )}
+      </td>
+      <td style={tdStyle}>
+        {c.rfm_segment ? (
+          <span title={c.rfm_segment} style={{ fontSize: 12 }}>
+            {RFM_ROW_LABELS[c.rfm_segment]?.icon || "•"} {RFM_ROW_LABELS[c.rfm_segment]?.short || c.rfm_segment.slice(0, 6)}
+          </span>
+        ) : (
+          <span style={{ color: C.muted, fontSize: 12 }}>—</span>
         )}
       </td>
       <td style={tdStyle}>
@@ -446,4 +699,436 @@ function paginationBtnStyle(disabled: boolean): React.CSSProperties {
     color: disabled ? C.muted : C.text,
     fontSize: 12,
   }
+}
+
+// ── SmartListsSidebar (Klaviyo/HubSpot pattern) ────────────────────────────
+
+function SmartListsSidebar({
+  filters,
+  activeId,
+  onApply,
+  onSaveNew,
+  onDeleted,
+}: {
+  filters: SavedFilter[]
+  activeId: string | null
+  onApply: (f: SavedFilter) => void
+  onSaveNew: () => void
+  onDeleted: () => void
+}) {
+  const pinned = filters.filter((f) => f.is_pinned)
+  const others = filters.filter((f) => !f.is_pinned)
+
+  const handleDelete = async (f: SavedFilter, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!confirm(`Delete filter "${f.name}"?`)) return
+    try {
+      const r = await fetch(`/admin/crm/saved-filters/${f.id}`, {
+        method: "DELETE", credentials: "include",
+      })
+      if (r.ok) onDeleted()
+      else alert((await r.json().catch(() => ({}))).error || `HTTP ${r.status}`)
+    } catch (err) { alert(err instanceof Error ? err.message : String(err)) }
+  }
+
+  const renderFilterItem = (f: SavedFilter) => {
+    const isSystem = f.created_by === "system"
+    const isActive = activeId === f.id
+    return (
+      <div
+        key={f.id}
+        onClick={() => onApply(f)}
+        style={{
+          padding: "6px 10px",
+          borderRadius: S.radius.md,
+          cursor: "pointer",
+          background: isActive ? C.gold + "15" : "transparent",
+          border: `1px solid ${isActive ? C.gold : "transparent"}`,
+          fontSize: 12.5,
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          color: isActive ? C.gold : C.text,
+        }}
+        onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = C.subtle }}
+        onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent" }}
+      >
+        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {f.name}
+        </span>
+        {!isSystem && (
+          <button
+            onClick={(e) => handleDelete(f, e)}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: C.muted,
+              cursor: "pointer",
+              fontSize: 14,
+              opacity: 0.5,
+              padding: 0,
+            }}
+            title="Delete filter"
+          >
+            ×
+          </button>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div style={{
+      position: "sticky",
+      top: 0,
+      paddingTop: 4,
+      borderRight: `1px solid ${C.border}`,
+      paddingRight: 16,
+      maxHeight: "calc(100vh - 200px)",
+      overflowY: "auto",
+    }}>
+      <div style={{ ...T.micro, marginBottom: 8 }}>Saved Filters</div>
+      {pinned.length > 0 && (
+        <div style={{ marginBottom: 12, display: "flex", flexDirection: "column", gap: 2 }}>
+          {pinned.map(renderFilterItem)}
+        </div>
+      )}
+      {others.length > 0 && (
+        <>
+          <div style={{ ...T.micro, marginBottom: 6, marginTop: 12 }}>All</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            {others.map(renderFilterItem)}
+          </div>
+        </>
+      )}
+      {filters.length === 0 && (
+        <div style={{ ...T.small, fontStyle: "italic", color: C.muted }}>
+          No saved filters yet
+        </div>
+      )}
+      <button
+        onClick={onSaveNew}
+        style={{
+          marginTop: 16,
+          width: "100%",
+          padding: "6px 10px",
+          background: "transparent",
+          border: `1px dashed ${C.border}`,
+          borderRadius: S.radius.md,
+          cursor: "pointer",
+          fontSize: 12,
+          color: C.muted,
+        }}
+      >
+        + Save current as filter
+      </button>
+    </div>
+  )
+}
+
+// ── BulkActionBar (Floating, Shopify-Pattern) ─────────────────────────────
+
+function BulkActionBar({
+  count,
+  totalAvailable,
+  allMatched,
+  onSelectAll,
+  onClear,
+  onAction,
+}: {
+  count: number
+  totalAvailable: number
+  allMatched: boolean
+  onSelectAll: () => void
+  onClear: () => void
+  onAction: (type: string) => void
+}) {
+  return (
+    <div style={{
+      position: "fixed",
+      bottom: 24,
+      left: "50%",
+      transform: "translateX(-50%)",
+      background: C.card,
+      border: `1px solid ${C.border}`,
+      borderRadius: S.radius.lg,
+      boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
+      padding: "10px 16px",
+      display: "flex",
+      gap: 12,
+      alignItems: "center",
+      fontSize: 13,
+      zIndex: 50,
+    }}>
+      <span style={{ fontWeight: 600 }}>{count} selected</span>
+      {!allMatched && totalAvailable > count && (
+        <button
+          onClick={onSelectAll}
+          style={{
+            background: "transparent",
+            border: "none",
+            color: C.gold,
+            cursor: "pointer",
+            fontSize: 12,
+            textDecoration: "underline",
+          }}
+        >
+          Select all {fmtNum(totalAvailable)} matching
+        </button>
+      )}
+      <div style={{ width: 1, height: 24, background: C.border }} />
+      <button onClick={() => onAction("tag_add")} style={bulkBtnStyle()}>+ Tag</button>
+      <button onClick={() => onAction("tag_remove")} style={bulkBtnStyle()}>− Tag</button>
+      <button onClick={() => onAction("tier_set")} style={bulkBtnStyle()}>Set tier</button>
+      <button onClick={() => onAction("lifecycle_set")} style={bulkBtnStyle()}>Set lifecycle</button>
+      <button onClick={() => onAction("is_test_set")} style={bulkBtnStyle()}>Test flag</button>
+      <button onClick={() => onAction("block")} style={{ ...bulkBtnStyle(), color: C.error }}>Block</button>
+      <button onClick={() => onAction("unblock")} style={bulkBtnStyle()}>Unblock</button>
+      <div style={{ width: 1, height: 24, background: C.border }} />
+      <button onClick={onClear} style={{ ...bulkBtnStyle(), color: C.muted }}>Clear</button>
+    </div>
+  )
+}
+
+function bulkBtnStyle(): React.CSSProperties {
+  return {
+    background: "transparent",
+    border: `1px solid ${C.border}`,
+    borderRadius: S.radius.md,
+    padding: "4px 10px",
+    fontSize: 12,
+    cursor: "pointer",
+    color: C.text,
+  }
+}
+
+// ── BulkActionModal — Konkretisiert die Action mit Value + Confirm ─────────
+
+const BULK_TIERS = ["", "platinum", "gold", "silver", "bronze", "standard", "dormant"]
+const BULK_LIFECYCLE = ["", "lead", "active", "engaged", "at_risk", "dormant", "churned", "lost"]
+
+function BulkActionModal({
+  action,
+  ids,
+  onClose,
+  onApplied,
+}: {
+  action: string
+  ids: string[]
+  onClose: () => void
+  onApplied: () => void
+}) {
+  const [textValue, setTextValue] = useState("")
+  const [boolValue, setBoolValue] = useState(false)
+  const [running, setRunning] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const titles: Record<string, string> = {
+    tag_add: "Add tag to selected",
+    tag_remove: "Remove tag from selected",
+    tier_set: "Set tier for selected",
+    lifecycle_set: "Set lifecycle stage for selected",
+    is_test_set: "Set test-flag for selected",
+    block: "Block selected contacts",
+    unblock: "Unblock selected contacts",
+  }
+
+  const apply = async () => {
+    setRunning(true)
+    setErr(null)
+    try {
+      let value: unknown = textValue
+      if (action === "is_test_set") value = boolValue
+      else if (action === "block") value = { reason: textValue }
+      else if (action === "unblock") value = null
+
+      const r = await fetch("/admin/crm/contacts/bulk", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ids, action, value }),
+      })
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}))
+        throw new Error(d.error || `HTTP ${r.status}`)
+      }
+      onApplied()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  return (
+    <Modal
+      title={titles[action] || "Bulk action"}
+      subtitle={`${ids.length} contacts`}
+      onClose={onClose}
+      maxWidth={420}
+      footer={
+        <>
+          <Btn label="Cancel" variant="ghost" onClick={onClose} />
+          <Btn
+            label={running ? "Applying…" : "Apply"}
+            variant={action === "block" ? "danger" : "gold"}
+            onClick={apply}
+            disabled={running}
+          />
+        </>
+      }
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {err && <div style={{ color: C.error, fontSize: 12 }}><b>Error:</b> {err}</div>}
+
+        {(action === "tag_add" || action === "tag_remove") && (
+          <div>
+            <label style={{ ...T.small, display: "block", marginBottom: 4 }}>Tag name</label>
+            <input
+              autoFocus
+              value={textValue}
+              onChange={(e) => setTextValue(e.target.value)}
+              placeholder="vip"
+              style={{ ...inputStyle, width: "100%" }}
+            />
+          </div>
+        )}
+
+        {action === "tier_set" && (
+          <div>
+            <label style={{ ...T.small, display: "block", marginBottom: 4 }}>Tier</label>
+            <select value={textValue} onChange={(e) => setTextValue(e.target.value)} style={{ ...selectStyle, width: "100%" }}>
+              {BULK_TIERS.map((t) => <option key={t} value={t}>{t || "— clear —"}</option>)}
+            </select>
+          </div>
+        )}
+
+        {action === "lifecycle_set" && (
+          <div>
+            <label style={{ ...T.small, display: "block", marginBottom: 4 }}>Lifecycle stage</label>
+            <select value={textValue} onChange={(e) => setTextValue(e.target.value)} style={{ ...selectStyle, width: "100%" }}>
+              {BULK_LIFECYCLE.map((l) => <option key={l} value={l}>{l || "— clear —"}</option>)}
+            </select>
+          </div>
+        )}
+
+        {action === "is_test_set" && (
+          <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, cursor: "pointer" }}>
+            <input type="checkbox" checked={boolValue} onChange={(e) => setBoolValue(e.target.checked)} />
+            Mark as test account
+          </label>
+        )}
+
+        {action === "block" && (
+          <div>
+            <label style={{ ...T.small, display: "block", marginBottom: 4 }}>Reason (optional)</label>
+            <input
+              autoFocus
+              value={textValue}
+              onChange={(e) => setTextValue(e.target.value)}
+              placeholder="Why are these blocked?"
+              style={{ ...inputStyle, width: "100%" }}
+            />
+            <div style={{ ...T.small, marginTop: 8, color: C.error }}>
+              ⚠️ {ids.length} contacts will be blocked.
+            </div>
+          </div>
+        )}
+
+        {action === "unblock" && (
+          <div style={T.small}>{ids.length} contacts will be unblocked.</div>
+        )}
+      </div>
+    </Modal>
+  )
+}
+
+// ── SaveFilterModal ────────────────────────────────────────────────────────
+
+function SaveFilterModal({
+  query,
+  onClose,
+  onSaved,
+}: {
+  query: Record<string, unknown>
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [name, setName] = useState("")
+  const [description, setDescription] = useState("")
+  const [pinned, setPinned] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const save = async () => {
+    if (!name.trim()) {
+      setErr("Name required")
+      return
+    }
+    setSaving(true)
+    setErr(null)
+    try {
+      const r = await fetch("/admin/crm/saved-filters", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          description: description.trim() || undefined,
+          query_json: query,
+          is_pinned: pinned,
+          shared: false,
+        }),
+      })
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}))
+        throw new Error(d.error || `HTTP ${r.status}`)
+      }
+      onSaved()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal
+      title="Save filter"
+      onClose={onClose}
+      maxWidth={420}
+      footer={
+        <>
+          <Btn label="Cancel" variant="ghost" onClick={onClose} />
+          <Btn label={saving ? "Saving…" : "Save"} variant="gold" onClick={save} disabled={saving || !name.trim()} />
+        </>
+      }
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {err && <div style={{ color: C.error, fontSize: 12 }}><b>Error:</b> {err}</div>}
+        <div>
+          <label style={{ ...T.small, display: "block", marginBottom: 4 }}>Name</label>
+          <input
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Top customers Q2"
+            style={{ ...inputStyle, width: "100%" }}
+          />
+        </div>
+        <div>
+          <label style={{ ...T.small, display: "block", marginBottom: 4 }}>Description (optional)</label>
+          <input
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            style={{ ...inputStyle, width: "100%" }}
+          />
+        </div>
+        <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, cursor: "pointer" }}>
+          <input type="checkbox" checked={pinned} onChange={(e) => setPinned(e.target.checked)} />
+          Pin to sidebar
+        </label>
+      </div>
+    </Modal>
+  )
 }
