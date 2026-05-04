@@ -38,7 +38,7 @@ export async function GET(
       return
     }
 
-    const [emails, addresses, phones, sources, notes, auditLog, transactions] =
+    const [emails, addresses, phones, sources, notes, auditLog, transactions, tasks] =
       await Promise.all([
         pgConnection("crm_master_email")
           .where({ master_id: id })
@@ -63,6 +63,13 @@ export async function GET(
           .where({ master_id: id })
           .orderBy("created_at", "desc")
           .limit(100),
+        // Tasks (S6.6)
+        pgConnection("crm_master_task")
+          .where({ master_id: id })
+          .whereNull("deleted_at")
+          .orderByRaw(`status = 'done' ASC, status = 'cancelled' ASC,
+                       CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
+                       due_at NULLS LAST, created_at DESC`),
         // Transactions via source_link (customer_source matches sl.source) + Line-Items
         pgConnection.raw(
           `WITH txns AS (
@@ -177,6 +184,7 @@ export async function GET(
       sources,
       notes,
       audit_log: auditLog,
+      tasks,
       transactions: (transactions as { rows?: unknown[] }).rows || transactions,
       bids,
       orders,

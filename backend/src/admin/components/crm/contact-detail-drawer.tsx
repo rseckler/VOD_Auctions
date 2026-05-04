@@ -131,6 +131,24 @@ type AuditRow = {
   created_at: string
 }
 
+type TaskRow = {
+  id: string
+  master_id: string
+  title: string
+  description: string | null
+  due_at: string | null
+  status: "open" | "done" | "cancelled"
+  priority: "low" | "normal" | "high" | "urgent"
+  reminder_at: string | null
+  reminder_sent_at: string | null
+  reminder_channel: string | null
+  assigned_to: string | null
+  completed_at: string | null
+  completed_by: string | null
+  created_by: string
+  created_at: string
+}
+
 type TransactionItem = {
   position: number
   article_no: string | null
@@ -207,6 +225,7 @@ type DetailData = {
   sources: SourceLink[]
   notes: NoteRow[]
   audit_log: AuditRow[]
+  tasks: TaskRow[]
   transactions: TransactionRow[]
   bids: BidRow[]
   orders: OrderRow[]
@@ -215,9 +234,10 @@ type DetailData = {
 
 type DrawerTab =
   | "overview"
-  | "contact"
   | "activity"
+  | "tasks"
   | "notes"
+  | "contact"
   | "sources"
   | "audit"
 
@@ -349,7 +369,7 @@ export function ContactDetailDrawer({
   const [data, setData] = useState<DetailData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [tab, setTab] = useState<DrawerTab>("overview")
+  const [tab, setTab] = useState<DrawerTab>("activity")  // Klaviyo-Pattern: Activity-Feed als Default
   const [editMaster, setEditMaster] = useState(false)
 
   const load = useCallback(() => {
@@ -369,7 +389,7 @@ export function ContactDetailDrawer({
     if (contactId) {
       setData(null)
       setError(null)
-      setTab("overview")
+      setTab("activity")
       load()
     }
   }, [contactId, load])
@@ -529,51 +549,57 @@ export function ContactDetailDrawer({
           }}
         >
           {(
+            // Tab-Reihenfolge nach Marktstandard (HubSpot/Salesforce/Klaviyo):
+            // Overview (Profile/Stats) · Activity (default) · Tasks · Notes · Contact Info · Sources · Audit
             [
               { key: "overview" as DrawerTab, label: "Overview" },
-              { key: "contact" as DrawerTab, label: "Contact Info" },
               { key: "activity" as DrawerTab, label: "Activity" },
+              { key: "tasks" as DrawerTab, label: "Tasks" },
               { key: "notes" as DrawerTab, label: "Notes" },
+              { key: "contact" as DrawerTab, label: "Contact Info" },
               { key: "sources" as DrawerTab, label: "Sources" },
               { key: "audit" as DrawerTab, label: "Audit" },
             ] as const
-          ).map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              style={{
-                padding: "10px 16px",
-                fontSize: 13,
-                fontWeight: tab === t.key ? 600 : 400,
-                color: tab === t.key ? C.gold : C.muted,
-                borderBottom: `2px solid ${tab === t.key ? C.gold : "transparent"}`,
-                background: "none",
-                border: "none",
-                borderBottomColor: tab === t.key ? C.gold : "transparent",
-                borderBottomWidth: 2,
-                borderBottomStyle: "solid",
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {t.label}
-              {t.key === "notes" && data && data.notes.length > 0 && (
-                <span style={{ marginLeft: 6, color: C.muted, fontSize: 11 }}>
-                  ({data.notes.length})
-                </span>
-              )}
-              {t.key === "activity" && data && (
-                <span style={{ marginLeft: 6, color: C.muted, fontSize: 11 }}>
-                  ({fmtNum(
-                    data.transactions.length +
-                      data.bids.length +
-                      data.orders.length +
-                      data.imap_messages.length
-                  )})
-                </span>
-              )}
-            </button>
-          ))}
+          ).map((t) => {
+            // Counter for some tabs
+            let counter: number | null = null
+            if (data) {
+              if (t.key === "activity") {
+                counter = data.transactions.length + data.bids.length + data.orders.length + data.imap_messages.length
+              } else if (t.key === "tasks") {
+                counter = data.tasks.filter((x) => x.status === "open").length
+              } else if (t.key === "notes") {
+                counter = data.notes.length
+              }
+            }
+            return (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                style={{
+                  padding: "10px 16px",
+                  fontSize: 13,
+                  fontWeight: tab === t.key ? 600 : 400,
+                  color: tab === t.key ? C.gold : C.muted,
+                  borderBottom: `2px solid ${tab === t.key ? C.gold : "transparent"}`,
+                  background: "none",
+                  border: "none",
+                  borderBottomColor: tab === t.key ? C.gold : "transparent",
+                  borderBottomWidth: 2,
+                  borderBottomStyle: "solid",
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {t.label}
+                {counter !== null && counter > 0 && (
+                  <span style={{ marginLeft: 6, color: C.muted, fontSize: 11 }}>
+                    ({fmtNum(counter)})
+                  </span>
+                )}
+              </button>
+            )
+          })}
         </div>
 
         {/* Content */}
@@ -587,11 +613,12 @@ export function ContactDetailDrawer({
             </div>
           )}
           {data && tab === "overview" && <OverviewTab data={data} />}
-          {data && tab === "contact" && <ContactInfoTab data={data} onChange={load} />}
           {data && tab === "activity" && <ActivityTab data={data} />}
+          {data && tab === "tasks" && <TasksTab data={data} onChange={load} />}
           {data && tab === "notes" && (
             <NotesTab data={data} onChange={load} />
           )}
+          {data && tab === "contact" && <ContactInfoTab data={data} onChange={load} />}
           {data && tab === "sources" && <SourcesTabContent data={data} />}
           {data && tab === "audit" && <AuditTab data={data} />}
         </div>
@@ -1395,6 +1422,333 @@ function renderEventSubtitle(e: TimelineEvent): string {
   }
   const m = e.data as ImapRow
   return `${m.from_name || m.from_email || "(no from)"} · ${m.account} · ${m.folder}`
+}
+
+// ── Tab: Tasks ─────────────────────────────────────────────────────────────
+
+const PRIORITY_LABELS: Record<string, { icon: string; color: string }> = {
+  urgent: { icon: "🚨", color: C.error },
+  high:   { icon: "🔴", color: C.warning },
+  normal: { icon: "•",  color: C.muted },
+  low:    { icon: "·",  color: C.muted },
+}
+
+function TasksTab({ data, onChange }: { data: DetailData; onChange: () => void }) {
+  const masterId = data.master.id
+  const [showAdd, setShowAdd] = useState(false)
+  const [editing, setEditing] = useState<TaskRow | null>(null)
+  const [showDone, setShowDone] = useState(false)
+
+  const open = data.tasks.filter((t) => t.status === "open")
+  const done = data.tasks.filter((t) => t.status !== "open")
+
+  const toggleDone = async (task: TaskRow) => {
+    try {
+      const r = await fetch(`/admin/crm/contacts/${masterId}/tasks/${task.id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status: task.status === "done" ? "open" : "done" }),
+      })
+      if (!r.ok) throw new Error(`HTTP ${r.status}`)
+      onChange()
+    } catch (e) {
+      alert(`Failed: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+
+  const remove = async (task: TaskRow) => {
+    if (!confirm(`Delete task "${task.title}"?`)) return
+    await fetch(`/admin/crm/contacts/${masterId}/tasks/${task.id}`, {
+      method: "DELETE", credentials: "include",
+    })
+    onChange()
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {/* Header with Add button */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={T.sectionHead}>
+          {open.length} open · {done.length} done
+        </div>
+        <Btn label="+ Add task" variant="gold" onClick={() => setShowAdd(true)} />
+      </div>
+
+      {/* Open tasks */}
+      {open.length === 0 ? (
+        <EmptyState title="No open tasks" description="All caught up!" />
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {open.map((t) => (
+            <TaskCard
+              key={t.id}
+              task={t}
+              onToggle={() => toggleDone(t)}
+              onEdit={() => setEditing(t)}
+              onDelete={() => remove(t)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Done section (collapsible) */}
+      {done.length > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <button
+            onClick={() => setShowDone(!showDone)}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: C.muted,
+              fontSize: 12,
+              fontWeight: 600,
+              textTransform: "uppercase",
+              letterSpacing: "0.04em",
+              cursor: "pointer",
+              padding: "4px 0",
+            }}
+          >
+            {showDone ? "▼" : "▶"} Done & Cancelled ({done.length})
+          </button>
+          {showDone && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+              {done.map((t) => (
+                <TaskCard
+                  key={t.id}
+                  task={t}
+                  onToggle={() => toggleDone(t)}
+                  onEdit={() => setEditing(t)}
+                  onDelete={() => remove(t)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {showAdd && (
+        <TaskEditModal
+          masterId={masterId}
+          task={null}
+          onClose={() => setShowAdd(false)}
+          onSaved={() => { setShowAdd(false); onChange() }}
+        />
+      )}
+      {editing && (
+        <TaskEditModal
+          masterId={masterId}
+          task={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); onChange() }}
+        />
+      )}
+    </div>
+  )
+}
+
+function TaskCard({ task, onToggle, onEdit, onDelete }: {
+  task: TaskRow
+  onToggle: () => void
+  onEdit: () => void
+  onDelete: () => void
+}) {
+  const isDone = task.status === "done"
+  const isCancelled = task.status === "cancelled"
+  const overdue = !isDone && !isCancelled && task.due_at && new Date(task.due_at) < new Date()
+  const prio = PRIORITY_LABELS[task.priority] || PRIORITY_LABELS.normal
+
+  return (
+    <Card>
+      <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+        <button
+          onClick={onToggle}
+          style={{
+            width: 20, height: 20, marginTop: 2,
+            border: `1.5px solid ${isDone ? C.success : C.border}`,
+            background: isDone ? C.success : "transparent",
+            borderRadius: 4,
+            cursor: "pointer",
+            color: "#fff",
+            fontSize: 11,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          }}
+          title={isDone ? "Re-open" : "Mark done"}
+        >
+          {isDone ? "✓" : ""}
+        </button>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start"
+          }}>
+            <div style={{
+              fontWeight: 500, fontSize: 13,
+              textDecoration: isDone || isCancelled ? "line-through" : "none",
+              color: isDone || isCancelled ? C.muted : C.text,
+              flex: 1,
+              minWidth: 0,
+              wordBreak: "break-word",
+            }}>
+              {task.priority !== "normal" && task.priority !== "low" && (
+                <span style={{ marginRight: 6, color: prio.color }}>{prio.icon}</span>
+              )}
+              {task.title}
+            </div>
+            <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+              <button onClick={onEdit} style={iconBtnStyle()} title="Edit">✎</button>
+              <button onClick={onDelete} style={iconBtnStyle()} title="Delete">×</button>
+            </div>
+          </div>
+          {task.description && (
+            <div style={{ ...T.small, marginTop: 4, whiteSpace: "pre-wrap" }}>{task.description}</div>
+          )}
+          <div style={{
+            ...T.small, marginTop: 6, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center"
+          }}>
+            {task.due_at && (
+              <span style={{ color: overdue ? C.error : C.muted, fontWeight: overdue ? 500 : 400 }}>
+                📅 {overdue ? "Overdue · " : ""}{new Date(task.due_at).toLocaleString("en-GB", {
+                  day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+                })}
+              </span>
+            )}
+            {task.assigned_to && (
+              <span style={{ color: C.muted }}>👤 {task.assigned_to}</span>
+            )}
+            {task.reminder_at && !task.reminder_sent_at && (
+              <span style={{ color: C.muted }}>
+                ⏰ {new Date(task.reminder_at).toLocaleString("en-GB", {
+                  day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+                })}
+              </span>
+            )}
+            {task.reminder_sent_at && (
+              <span style={{ color: C.muted, fontStyle: "italic" }}>reminder sent</span>
+            )}
+            {isCancelled && <Badge label="cancelled" variant="neutral" />}
+          </div>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+// ── Task Edit/Add Modal ────────────────────────────────────────────────────
+
+const PRIORITY_OPTIONS = ["low", "normal", "high", "urgent"] as const
+
+function TaskEditModal({
+  masterId,
+  task,
+  onClose,
+  onSaved,
+}: {
+  masterId: string
+  task: TaskRow | null
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const isEdit = task !== null
+  const [title, setTitle] = useState(task?.title || "")
+  const [description, setDescription] = useState(task?.description || "")
+  const [dueAt, setDueAt] = useState(task?.due_at ? task.due_at.slice(0, 16) : "")
+  const [priority, setPriority] = useState(task?.priority || "normal")
+  const [reminderAt, setReminderAt] = useState(task?.reminder_at ? task.reminder_at.slice(0, 16) : "")
+  const [assignedTo, setAssignedTo] = useState(task?.assigned_to || "")
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const save = async () => {
+    if (!title.trim()) {
+      setErr("Title required")
+      return
+    }
+    setSaving(true)
+    setErr(null)
+    try {
+      const body: Record<string, unknown> = {
+        title: title.trim(),
+        description: description.trim() || null,
+        due_at: dueAt ? new Date(dueAt).toISOString() : null,
+        priority,
+        reminder_at: reminderAt ? new Date(reminderAt).toISOString() : null,
+        assigned_to: assignedTo.trim() || null,
+      }
+      const url = isEdit
+        ? `/admin/crm/contacts/${masterId}/tasks/${task!.id}`
+        : `/admin/crm/contacts/${masterId}/tasks`
+      const r = await fetch(url, {
+        method: isEdit ? "PATCH" : "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      })
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}))
+        throw new Error(d.error || `HTTP ${r.status}`)
+      }
+      onSaved()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal
+      title={isEdit ? "Edit task" : "Add task"}
+      onClose={onClose}
+      maxWidth={520}
+      footer={
+        <>
+          <Btn label="Cancel" variant="ghost" onClick={onClose} />
+          <Btn label={saving ? "Saving…" : "Save"} variant="gold" onClick={save} disabled={saving || !title.trim()} />
+        </>
+      }
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {err && <div style={{ color: C.error, fontSize: 12 }}><b>Error:</b> {err}</div>}
+        <div style={inputRow}>
+          <label style={inputLabel}>Title</label>
+          <input style={fullInput} value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
+        </div>
+        <div style={inputRow}>
+          <label style={inputLabel}>Description (optional)</label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            style={{ ...fullInput, minHeight: 64, padding: 10, resize: "vertical", fontFamily: "inherit" }}
+          />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: 12 }}>
+          <div style={inputRow}>
+            <label style={inputLabel}>Due date</label>
+            <input style={fullInput} type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} />
+          </div>
+          <div style={inputRow}>
+            <label style={inputLabel}>Priority</label>
+            <select style={selectStyle} value={priority} onChange={(e) => setPriority(e.target.value as typeof priority)}>
+              {PRIORITY_OPTIONS.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div style={inputRow}>
+          <label style={inputLabel}>Reminder (optional)</label>
+          <input style={fullInput} type="datetime-local" value={reminderAt} onChange={(e) => setReminderAt(e.target.value)} />
+        </div>
+        <div style={inputRow}>
+          <label style={inputLabel}>Assigned to (email)</label>
+          <input style={fullInput} type="email" value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)} placeholder="default: current admin" />
+        </div>
+      </div>
+    </Modal>
+  )
 }
 
 // ── Tab: Notes ─────────────────────────────────────────────────────────────
