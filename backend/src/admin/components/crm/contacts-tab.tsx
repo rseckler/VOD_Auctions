@@ -336,6 +336,19 @@ export function ContactsTab() {
     setAllSelectedCount(null)
   }
 
+  const toggleSort = (key: string) => {
+    setActiveSavedId(null)
+    if (sort === key) {
+      // Same column → flip order
+      setOrder(order === "asc" ? "desc" : "asc")
+    } else {
+      // New column → reasonable default (numeric desc, alpha asc)
+      setSort(key)
+      const numericKeys = ["lifetime_revenue", "total_transactions", "health_score", "last_seen_at", "created_at"]
+      setOrder(numericKeys.includes(key) ? "desc" : "asc")
+    }
+  }
+
   const total = data?.total || 0
   const totalPages = Math.ceil(total / PAGE_SIZE)
   const currentPage = Math.floor(offset / PAGE_SIZE) + 1
@@ -479,13 +492,13 @@ export function ContactsTab() {
                     style={{ cursor: "pointer" }}
                   />
                 </th>
-                <th style={thStyle}>Name</th>
-                <th style={thStyle}>Email</th>
-                <th style={thStyle}>Location</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Revenue</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Txns</th>
-                <th style={thStyle}>RFM</th>
-                <th style={thStyle}>Last seen</th>
+                <SortableTh label="Name"      sortKey="display_name"   sort={sort} order={order} onSort={(k) => toggleSort(k)} />
+                <SortableTh label="Email"     sortKey="primary_email"  sort={sort} order={order} onSort={(k) => toggleSort(k)} />
+                <SortableTh label="Location"  sortKey="city"           sort={sort} order={order} onSort={(k) => toggleSort(k)} />
+                <SortableTh label="Revenue"   sortKey="lifetime_revenue" sort={sort} order={order} onSort={(k) => toggleSort(k)} align="right" />
+                <SortableTh label="Txns"      sortKey="total_transactions" sort={sort} order={order} onSort={(k) => toggleSort(k)} align="right" />
+                <SortableTh label="RFM"       sortKey="rfm_segment"    sort={sort} order={order} onSort={(k) => toggleSort(k)} />
+                <SortableTh label="Last seen" sortKey="last_seen_at"   sort={sort} order={order} onSort={(k) => toggleSort(k)} />
                 <th style={thStyle}>Sources</th>
                 <th style={thStyle}>Tags</th>
               </tr>
@@ -730,6 +743,38 @@ const thStyle: React.CSSProperties = {
 const tdStyle: React.CSSProperties = {
   padding: S.cellPadding,
   verticalAlign: "middle",
+}
+
+function SortableTh({
+  label, sortKey, sort, order, onSort, align,
+}: {
+  label: string
+  sortKey: string
+  sort: string
+  order: "asc" | "desc"
+  onSort: (k: string) => void
+  align?: "left" | "right"
+}) {
+  const active = sort === sortKey
+  return (
+    <th
+      style={{
+        ...thStyle,
+        textAlign: align || "left",
+        cursor: "pointer",
+        userSelect: "none",
+        color: active ? C.gold : C.muted,
+      }}
+      onClick={() => onSort(sortKey)}
+    >
+      <span style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
+        {label}
+        <span style={{ fontSize: 9, opacity: active ? 1 : 0.3 }}>
+          {active ? (order === "asc" ? "↑" : "↓") : "↕"}
+        </span>
+      </span>
+    </th>
+  )
 }
 
 function paginationBtnStyle(disabled: boolean): React.CSSProperties {

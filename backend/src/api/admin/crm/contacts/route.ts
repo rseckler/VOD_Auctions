@@ -43,6 +43,13 @@ export async function GET(
       total_transactions: "mc.total_transactions",
       created_at: "mc.created_at",
       display_name: "mc.display_name",
+      primary_email: "mc.primary_email_lower",
+      city: "mc.primary_city",
+      country: "mc.primary_country_code",
+      health_score: "mc.health_score",
+      rfm_segment: "mc.rfm_segment",
+      tier: "mc.tier",
+      lifecycle_stage: "mc.lifecycle_stage",
     }[sortInput] || "mc.lifetime_revenue"
 
   try {

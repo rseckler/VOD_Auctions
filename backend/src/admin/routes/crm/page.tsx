@@ -2160,7 +2160,7 @@ const CustomersPage = () => {
   })
 
   return (
-    <PageShell>
+    <PageShell maxWidth={1440}>
       <PageHeader title="CRM" subtitle="Customer relationship management" />
 
       {/* Tabs — Decision 3A */}
