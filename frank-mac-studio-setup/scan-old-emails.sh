@@ -107,24 +107,51 @@ bold "3b) macOS-Berechtigung prüfen"
 # Wichtig: pipefail temporär abschalten — `find | head` triggert SIGPIPE
 # auf find, was sonst unter `set -eo pipefail` das ganze Skript killt.
 set +o pipefail
-PERM_OK=true
+ANY_MAIL_READABLE=false
+NEW_ROOTS=()
 for p in "${ROOTS[@]}"; do
   case "$p" in
-    *Library/Mail*|*Library/Containers/com.apple.mail*)
+    *Library/Mail*|*Library/Containers/com.apple.mail*|*com~apple~mail*)
       # Probe: gibt es überhaupt 1 lesbare Datei drin?
       probe=$(find "$p" -name '*.emlx' -print -quit 2>/dev/null || true)
       if [ -z "$probe" ]; then
-        # Fallback: irgendein File im Tree?
         probe=$(find "$p" -type f -print -quit 2>/dev/null || true)
       fi
       if [ -z "$probe" ] && [ -d "$p" ]; then
-        warn "Kann '$p' nicht lesen (vermutlich macOS Full Disk Access fehlt)"
-        PERM_OK=false
+        # Container-Pfad ist auf macOS Sequoia/Sonoma systemisch gesperrt —
+        # SELBST mit Full Disk Access. Nur warnen + skip, nicht blockieren.
+        info "$(basename "$p") nicht lesbar — wird übersprungen (macOS-System-Sandbox)"
+        continue
       fi
+      ANY_MAIL_READABLE=true
       ;;
   esac
+  NEW_ROOTS+=("$p")
 done
+ROOTS=("${NEW_ROOTS[@]}")
 set -o pipefail
+
+# Nur blockieren wenn KEINE einzige Apple-Mail-Location und KEIN Volume da ist
+if [ "$ANY_MAIL_READABLE" = "false" ]; then
+  HAS_VOLUME=false
+  for p in "${ROOTS[@]}"; do
+    case "$p" in /Volumes/*) HAS_VOLUME=true ;; esac
+  done
+  if [ "$HAS_VOLUME" = "false" ]; then
+    cat <<'EOF'
+
+  ⚠️  Keine einzige Mail-Location lesbar.
+      Terminal braucht Full Disk Access für ~/Library/Mail/:
+
+  Apple-Menü → Systemeinstellungen → Datenschutz & Sicherheit
+    → Festplattenvollzugriff → "+" → Programme → Terminal.app
+    → Schalter aktivieren → Terminal komplett schließen + neu öffnen
+
+EOF
+    info "Abgebrochen. Erst FDA setzen, dann erneut starten."
+    exit 0
+  fi
+fi
 
 if [ "$PERM_OK" = "false" ]; then
   cat <<'EOF'
