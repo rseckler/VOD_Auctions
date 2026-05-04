@@ -221,10 +221,112 @@ function renderHourlyBars(stats: Stats, C: any): JSX.Element {
 
 // ─── Main Page ──────────────────────────────────────────────────────────────
 
+// ─── Quick-Stats SWR Cache ──────────────────────────────────────────────────
+//
+// Robin will instant-Anzeige der Top-Bar (vorher 1-10s Wartezeit). Strategie:
+// Backend-Endpoint `/admin/erp/inventory/stats/quick` liefert nur die
+// "above-the-fold"-KPIs in <50ms (siehe quick-route.ts), Frontend cached
+// die Response in localStorage. Beim Mount: cached Werte sofort rendern,
+// parallel fresh fetchen, smooth-update. Volle /stats laedt parallel fuer
+// die Pro-Person/Verlauf/Format-Cards.
+//
+// Cache-Versionierung: bei Schema-Aenderung Key auf v2 bumpen, alte Caches
+// werden automatisch verworfen.
+const QUICK_CACHE_KEY = "vod_inventory_stats_quick_v1"
+
+interface QuickStats {
+  total_releases: number
+  eligible: number
+  verified: number
+  missing: number
+  remaining: number
+  additional_copies: number
+  avg_verified_price: number
+  verified_value: number
+  projected_remaining_value: number
+  today: { verified: number; copies_added: number; price_changed: number }
+  throughput: {
+    current_rate_per_hour: number
+    today_avg_per_active_hour: number
+    today_active_hours: number
+    today_peak_hour_utc: number | null
+    today_peak_count: number
+  }
+  bulk_status: Stats["bulk_status"]
+  generated_at: string
+}
+
+function readCachedQuick(): QuickStats | null {
+  try {
+    const raw = localStorage.getItem(QUICK_CACHE_KEY)
+    if (!raw) return null
+    return JSON.parse(raw) as QuickStats
+  } catch {
+    return null
+  }
+}
+
+function writeCachedQuick(quick: QuickStats): void {
+  try {
+    localStorage.setItem(QUICK_CACHE_KEY, JSON.stringify(quick))
+  } catch {
+    // Quota exceeded oder Private Mode — kein Drama, nur kein Cache
+  }
+}
+
+// Mergt Quick-Stats in das vorhandene Stats-Objekt (oder erstellt eines mit
+// Platzhaltern fuer die deep-Felder die noch nicht da sind). So kann die UI
+// sofort die Top-Cards rendern und die Skeleton-Cards bleiben unten stehen.
+function mergeQuickIntoStats(prev: Stats | null, quick: QuickStats): Stats {
+  return {
+    ...(prev || ({} as Stats)),
+    total_releases: quick.total_releases,
+    eligible: quick.eligible,
+    distinct_releases: prev?.distinct_releases ?? 0,
+    verified: quick.verified,
+    missing: quick.missing,
+    remaining: quick.remaining,
+    additional_copies: quick.additional_copies,
+    avg_verified_price: quick.avg_verified_price,
+    verified_value: quick.verified_value,
+    projected_remaining_value: quick.projected_remaining_value,
+    today: quick.today,
+    bulk_status: quick.bulk_status,
+    // throughput: deep-Endpoint hat zusaetzliche Felder (today_hourly, today_hourly_by_warehouse).
+    // Bei reinem Quick-Render erstmal mit leerem hourly-Array initialisieren — Verlauf-Card
+    // zeigt dann ihren Empty-State bis /stats nachlaedt.
+    throughput: {
+      ...(prev?.throughput || {
+        today_hourly: [],
+        today_hourly_by_warehouse: [],
+      }),
+      current_rate_per_hour: quick.throughput.current_rate_per_hour,
+      today_avg_per_active_hour: quick.throughput.today_avg_per_active_hour,
+      today_active_hours: quick.throughput.today_active_hours,
+      today_peak_hour_utc: quick.throughput.today_peak_hour_utc,
+      today_peak_count: quick.throughput.today_peak_count,
+    },
+    // format_breakdown / per_user / per_warehouse: bleiben aus prev wenn da, sonst leer
+    format_breakdown: prev?.format_breakdown ?? [],
+    per_user: prev?.per_user,
+    per_warehouse: prev?.per_warehouse,
+  }
+}
+
 function InventoryHubPage() {
   useAdminNav()
 
-  const [stats, setStats] = useState<Stats | null>(null)
+  // Cache-First: lese Quick-Stats aus localStorage VOR dem ersten Render.
+  // Wenn da, ist die Top-Bar instant befuellt — kein Skeleton-Flash. Der
+  // Background-Fetch ueberschreibt die Werte sobald da (<200ms typisch).
+  const initialCachedQuick = typeof window !== "undefined" ? readCachedQuick() : null
+  const [stats, setStats] = useState<Stats | null>(
+    initialCachedQuick ? mergeQuickIntoStats(null, initialCachedQuick) : null
+  )
+  // refreshingFromCache: true solange wir Cache rendern und Server noch nicht
+  // geantwortet hat. Nutzen wir um deep-Cards (Pro Person / Verlauf) im
+  // Skeleton-State zu lassen — die kommen erst aus /stats, nicht aus dem Cache.
+  const renderedFromCache = initialCachedQuick !== null
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null)
@@ -251,15 +353,35 @@ function InventoryHubPage() {
 
   // ── Load stats ──
 
+  // Two-phase load: /stats/quick (≤50ms DB) ersetzt sofort die Cache-Werte,
+  // /stats (deep, 1-10s) ergaenzt Pro-Person/Verlauf/Format danach.
+  // Beide laufen parallel — quick beendet das loading-State sobald da.
   const loadStats = useCallback(async () => {
-    try {
-      const data = await apiFetch<Stats>("/admin/erp/inventory/stats")
-      setStats(data)
-    } catch (e: any) {
-      setError(e.message)
-    } finally {
-      setLoading(false)
-    }
+    // Phase 1: quick — refresh top-bar values from server
+    apiFetch<QuickStats>("/admin/erp/inventory/stats/quick")
+      .then((quick) => {
+        setStats((prev) => mergeQuickIntoStats(prev, quick))
+        writeCachedQuick(quick)
+        setLoading(false)
+      })
+      .catch((e: any) => {
+        // Quick-Fehler: nicht hard-fail solange wir Cache haben
+        if (!stats) setError(e.message)
+        setLoading(false)
+      })
+
+    // Phase 2: deep — Pro-Person, Verlauf, Format-Breakdown
+    apiFetch<Stats>("/admin/erp/inventory/stats")
+      .then((deep) => {
+        // Deep-Response enthaelt ALLE Felder inkl. quick-Werte. Da deep nach
+        // quick zurueckkommt, ist deep autoritativ — einfach das prev
+        // ueberschreiben.
+        setStats(deep)
+      })
+      .catch((e: any) => {
+        if (!stats) setError(e.message)
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => { loadStats() }, [loadStats])
