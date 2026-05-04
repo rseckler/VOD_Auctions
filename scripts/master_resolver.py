@@ -414,17 +414,23 @@ def stage2_address_match(conn, run_id: str, dry_run: bool = False) -> dict:
                     (master_id,),
                 )
         else:
-            # Neuer Master ausschließlich aus mo_pdf
+            # Neuer Master ausschließlich aus mo_pdf — Profile-Felder direkt aus
+            # staging_contact übernehmen (Bug-Fix 2026-05-04: vorher nur display_name
+            # + country/plz/city, first_name/last_name/company blieben NULL).
+            # acquisition_date initial = today (per Trigger / sql-default), wird beim
+            # nightly-recalc auf min(staging_transaction.doc_date) korrigiert.
             cur.execute(
                 """
                 INSERT INTO crm_master_contact (
-                    display_name, contact_type,
+                    display_name, first_name, last_name, company, salutation, title,
+                    contact_type,
                     primary_country_code, primary_postal_code, primary_city,
-                    manual_review_status
-                ) VALUES (%s,%s, %s,%s,%s, 'auto')
+                    manual_review_status, acquisition_channel, acquisition_date
+                ) VALUES (%s,%s,%s,%s,%s,%s, %s, %s,%s,%s, 'auto', 'mo_pdf_legacy', CURRENT_DATE)
                 RETURNING id
                 """,
-                (display_name or src_rec_id, contact_type or "person",
+                (display_name or src_rec_id, first_name, last_name, company, salutation, title,
+                 contact_type or "person",
                  country_code, postal_code, city),
             )
             master_id = cur.fetchone()[0]
