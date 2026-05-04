@@ -103,22 +103,28 @@ bold "3b) macOS-Berechtigung prüfen"
 # Apple Mail-Verzeichnisse sind ohne Full Disk Access nicht lesbar — selbst
 # wenn ~/Library/Mail/V* existiert, gibt os.walk() leeren Listing.
 # Ein einzelner Test: schau ob V<N>/MailData/ etc lesbar ist.
+#
+# Wichtig: pipefail temporär abschalten — `find | head` triggert SIGPIPE
+# auf find, was sonst unter `set -eo pipefail` das ganze Skript killt.
+set +o pipefail
 PERM_OK=true
 for p in "${ROOTS[@]}"; do
   case "$p" in
     *Library/Mail*|*Library/Containers/com.apple.mail*)
-      # Probe: zähle Dateien rekursiv (limit 5)
-      count=$(find "$p" -type f 2>/dev/null | head -5 | wc -l | tr -d ' ')
-      if [ "$count" = "0" ]; then
-        # Erstes Anzeichen: Verzeichnis existiert, aber 0 Files lesbar
-        if [ -d "$p" ]; then
-          warn "Kann '$p' nicht lesen (vermutlich macOS Full Disk Access fehlt)"
-          PERM_OK=false
-        fi
+      # Probe: gibt es überhaupt 1 lesbare Datei drin?
+      probe=$(find "$p" -name '*.emlx' -print -quit 2>/dev/null || true)
+      if [ -z "$probe" ]; then
+        # Fallback: irgendein File im Tree?
+        probe=$(find "$p" -type f -print -quit 2>/dev/null || true)
+      fi
+      if [ -z "$probe" ] && [ -d "$p" ]; then
+        warn "Kann '$p' nicht lesen (vermutlich macOS Full Disk Access fehlt)"
+        PERM_OK=false
       fi
       ;;
   esac
 done
+set -o pipefail
 
 if [ "$PERM_OK" = "false" ]; then
   cat <<'EOF'
