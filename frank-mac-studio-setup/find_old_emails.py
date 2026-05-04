@@ -141,15 +141,28 @@ def extract_full_message(path: Path) -> dict | None:
     if len(body) > 200 * 1024:
         body = body[: 200 * 1024] + "\n\n[...truncated]"
 
+    # Header-Werte können Header-Objects sein (bei non-ASCII encoded-words);
+    # explizit zu str casten + decode falls nötig
+    def _h(name: str) -> str:
+        v = msg.get(name)
+        if v is None:
+            return ""
+        try:
+            from email.header import decode_header, make_header
+            decoded = make_header(decode_header(str(v)))
+            return str(decoded).strip()
+        except Exception:
+            return str(v).strip()
+
     # Minimal Header-Set + Body. Plus message-id (für dedup).
     return {
-        "date": (msg.get("Date") or "").strip(),
-        "message_id": (msg.get("Message-ID") or msg.get("Message-Id") or "").strip(),
-        "from": (msg.get("From") or "").strip(),
-        "to": (msg.get("To") or "").strip(),
-        "cc": (msg.get("Cc") or "").strip(),
-        "reply_to": (msg.get("Reply-To") or "").strip(),
-        "subject": (msg.get("Subject") or "").strip(),
+        "date": _h("Date"),
+        "message_id": _h("Message-ID") or _h("Message-Id"),
+        "from": _h("From"),
+        "to": _h("To"),
+        "cc": _h("Cc"),
+        "reply_to": _h("Reply-To"),
+        "subject": _h("Subject"),
         "body": body,
     }
 
@@ -250,7 +263,11 @@ def scan_root(root: Path, out_writer, jsonl_writer, counters: dict) -> None:
 
             # JSONL-Export NUR für VOD-relevant (sonst zu viel Datenvolumen)
             if rel and jsonl_writer is not None:
-                full_msg = extract_full_message(full)
+                try:
+                    full_msg = extract_full_message(full)
+                except Exception as e:
+                    print(f"  [extract-err] {full}: {e}", file=sys.stderr)
+                    full_msg = None
                 if full_msg:
                     record = {
                         "path": str(full),
