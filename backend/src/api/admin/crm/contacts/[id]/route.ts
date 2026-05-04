@@ -188,3 +188,224 @@ export async function GET(
     res.status(500).json({ ok: false, error: message })
   }
 }
+
+// ── PATCH /admin/crm/contacts/:id — Master-Felder editieren ──────────────
+//
+// Editable: display_name, contact_type, tier, is_test, is_blocked,
+//           blocked_reason, tags, manual_review_status
+//
+// Per-Field-Diff im Audit-Log:
+//   - field-changes → 'master_updated' (details.fields_changed)
+//   - tier change → zusätzlich 'tier_set' (details.from/to)
+//   - is_blocked true → 'block' (details.reason), false → 'unblock'
+//   - is_test change → 'is_test_set' / 'is_test_unset'
+//   - tags array diff → 'tag_added' / 'tag_removed' per tag
+type PatchBody = {
+  display_name?: string
+  contact_type?: "person" | "business" | null
+  tier?: "platinum" | "gold" | "silver" | "bronze" | "standard" | "dormant" | null
+  is_test?: boolean
+  is_blocked?: boolean
+  blocked_reason?: string | null
+  tags?: string[]
+  manual_review_status?: string | null
+}
+
+const ALLOWED_TIERS = new Set([
+  "platinum", "gold", "silver", "bronze", "standard", "dormant",
+])
+const ALLOWED_REVIEW = new Set(["auto", "pending", "reviewed", "rejected"])
+const ALLOWED_CONTACT_TYPES = new Set(["person", "business"])
+
+export async function PATCH(
+  req: MedusaRequest<PatchBody, { id?: string }>,
+  res: MedusaResponse
+): Promise<void> {
+  const pgConnection: Knex = req.scope.resolve(
+    ContainerRegistrationKeys.PG_CONNECTION
+  )
+  const id = (req.params as { id?: string })?.id
+  const payload = (req.body as PatchBody) || {}
+  const admin = "admin@vod-auctions.com"
+
+  if (!id) {
+    res.status(400).json({ ok: false, error: "id required" })
+    return
+  }
+
+  try {
+    const before = await pgConnection("crm_master_contact")
+      .where({ id, deleted_at: null })
+      .first()
+    if (!before) {
+      res.status(404).json({ ok: false, error: "Contact not found" })
+      return
+    }
+
+    const updates: Record<string, unknown> = {}
+    const fieldsChanged: string[] = []
+
+    if (typeof payload.display_name === "string" && payload.display_name.trim()) {
+      const v = payload.display_name.trim()
+      if (v !== before.display_name) {
+        updates.display_name = v
+        fieldsChanged.push("display_name")
+      }
+    }
+    if (payload.contact_type !== undefined) {
+      const v = payload.contact_type === null || payload.contact_type === ""
+        ? null
+        : payload.contact_type
+      if (v !== null && !ALLOWED_CONTACT_TYPES.has(v)) {
+        res.status(400).json({ ok: false, error: "invalid contact_type" })
+        return
+      }
+      if (v !== before.contact_type) {
+        updates.contact_type = v
+        fieldsChanged.push("contact_type")
+      }
+    }
+    if (payload.tier !== undefined) {
+      const v = payload.tier === null || payload.tier === ""
+        ? null
+        : payload.tier
+      if (v !== null && !ALLOWED_TIERS.has(v)) {
+        res.status(400).json({ ok: false, error: "invalid tier" })
+        return
+      }
+      if (v !== before.tier) {
+        updates.tier = v
+        updates.tier_calculated_at = pgConnection.fn.now()
+        fieldsChanged.push("tier")
+      }
+    }
+    if (typeof payload.is_test === "boolean" && payload.is_test !== before.is_test) {
+      updates.is_test = payload.is_test
+      fieldsChanged.push("is_test")
+    }
+    if (typeof payload.is_blocked === "boolean" && payload.is_blocked !== before.is_blocked) {
+      updates.is_blocked = payload.is_blocked
+      fieldsChanged.push("is_blocked")
+    }
+    if (payload.blocked_reason !== undefined) {
+      const v = payload.blocked_reason === null || payload.blocked_reason === ""
+        ? null
+        : String(payload.blocked_reason).trim()
+      if (v !== before.blocked_reason) {
+        updates.blocked_reason = v
+        fieldsChanged.push("blocked_reason")
+      }
+    }
+    if (Array.isArray(payload.tags)) {
+      const cleaned = Array.from(new Set(payload.tags.map((t) => String(t).trim()).filter(Boolean)))
+      const beforeTags: string[] = (before.tags as string[]) || []
+      if (
+        cleaned.length !== beforeTags.length ||
+        cleaned.some((t, i) => t !== beforeTags[i]) ||
+        beforeTags.some((t) => !cleaned.includes(t))
+      ) {
+        updates.tags = cleaned
+        fieldsChanged.push("tags")
+      }
+    }
+    if (payload.manual_review_status !== undefined) {
+      const v = payload.manual_review_status === null || payload.manual_review_status === ""
+        ? null
+        : payload.manual_review_status
+      if (v !== null && !ALLOWED_REVIEW.has(v)) {
+        res.status(400).json({ ok: false, error: "invalid manual_review_status" })
+        return
+      }
+      if (v !== before.manual_review_status) {
+        updates.manual_review_status = v
+        fieldsChanged.push("manual_review_status")
+      }
+    }
+
+    if (fieldsChanged.length === 0) {
+      res.json({ ok: true, master: before, changed: [] })
+      return
+    }
+
+    updates.updated_at = pgConnection.fn.now()
+
+    // Knex .update() braucht JSON.stringify nicht für text[] (nur für jsonb).
+    // tags ist text[] → array literal works direkt.
+    const [after] = await pgConnection("crm_master_contact")
+      .where({ id })
+      .update(updates)
+      .returning("*")
+
+    // Audit-Log-Einträge
+    const auditEntries: Array<Record<string, unknown>> = []
+    auditEntries.push({
+      master_id: id,
+      action: "master_updated",
+      details: { fields_changed: fieldsChanged },
+      source: "admin_ui",
+      admin_email: admin,
+    })
+
+    if (fieldsChanged.includes("tier")) {
+      auditEntries.push({
+        master_id: id,
+        action: "tier_set",
+        details: { from: before.tier, to: updates.tier },
+        source: "admin_ui",
+        admin_email: admin,
+      })
+    }
+    if (fieldsChanged.includes("is_blocked")) {
+      auditEntries.push({
+        master_id: id,
+        action: updates.is_blocked ? "block" : "unblock",
+        details: { reason: updates.blocked_reason || null },
+        source: "admin_ui",
+        admin_email: admin,
+      })
+    }
+    if (fieldsChanged.includes("is_test")) {
+      auditEntries.push({
+        master_id: id,
+        action: updates.is_test ? "is_test_set" : "is_test_unset",
+        details: {},
+        source: "admin_ui",
+        admin_email: admin,
+      })
+    }
+    if (fieldsChanged.includes("tags")) {
+      const beforeTags: string[] = (before.tags as string[]) || []
+      const afterTags: string[] = (updates.tags as string[]) || []
+      const added = afterTags.filter((t) => !beforeTags.includes(t))
+      const removed = beforeTags.filter((t) => !afterTags.includes(t))
+      for (const t of added) {
+        auditEntries.push({
+          master_id: id,
+          action: "tag_added",
+          details: { tag: t },
+          source: "admin_ui",
+          admin_email: admin,
+        })
+      }
+      for (const t of removed) {
+        auditEntries.push({
+          master_id: id,
+          action: "tag_removed",
+          details: { tag: t },
+          source: "admin_ui",
+          admin_email: admin,
+        })
+      }
+    }
+
+    if (auditEntries.length > 0) {
+      await pgConnection("crm_master_audit_log").insert(auditEntries)
+    }
+
+    res.json({ ok: true, master: after, changed: fieldsChanged })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error("[admin/crm/contacts/:id PATCH] error:", message)
+    res.status(500).json({ ok: false, error: message })
+  }
+}

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react"
 import { C, S, T, fmtMoney, fmtNum, relativeTime } from "../admin-tokens"
-import { Badge, Btn, EmptyState, inputStyle } from "../admin-ui"
+import { Badge, Btn, EmptyState, inputStyle, selectStyle, Modal } from "../admin-ui"
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -266,6 +266,7 @@ export function ContactDetailDrawer({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState<DrawerTab>("overview")
+  const [editMaster, setEditMaster] = useState(false)
 
   const load = useCallback(() => {
     if (!contactId) return
@@ -348,6 +349,11 @@ export function ContactDetailDrawer({
                 {tierBadge(data.master.tier)}
                 {data.master.is_test && <Badge label="test" variant="warning" />}
                 {data.master.is_blocked && <Badge label="blocked" variant="error" />}
+                {data.master.tags
+                  .filter((t) => t !== "internal_owner")
+                  .map((t) => (
+                    <Badge key={t} label={t} variant="neutral" />
+                  ))}
                 {data.master.tags.includes("internal_owner") && (
                   <Badge label="internal" variant="purple" />
                 )}
@@ -355,31 +361,59 @@ export function ContactDetailDrawer({
                   <Badge label="vod-auctions linked" variant="success" />
                 )}
                 {data.master.contact_type && (
-                  <Badge
-                    label={data.master.contact_type}
-                    variant="neutral"
-                  />
+                  <Badge label={data.master.contact_type} variant="neutral" />
                 )}
               </div>
             )}
           </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: "transparent",
-              border: `1px solid ${C.border}`,
-              borderRadius: S.radius.md,
-              width: 32,
-              height: 32,
-              cursor: "pointer",
-              fontSize: 18,
-              color: C.muted,
-            }}
-            aria-label="Close"
-          >
-            ×
-          </button>
+          <div style={{ display: "flex", gap: 6 }}>
+            {data && (
+              <button
+                onClick={() => setEditMaster(true)}
+                style={{
+                  background: "transparent",
+                  border: `1px solid ${C.border}`,
+                  borderRadius: S.radius.md,
+                  height: 32,
+                  padding: "0 12px",
+                  cursor: "pointer",
+                  fontSize: 12,
+                  color: C.text,
+                }}
+              >
+                ✎ Edit
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              style={{
+                background: "transparent",
+                border: `1px solid ${C.border}`,
+                borderRadius: S.radius.md,
+                width: 32,
+                height: 32,
+                cursor: "pointer",
+                fontSize: 18,
+                color: C.muted,
+              }}
+              aria-label="Close"
+            >
+              ×
+            </button>
+          </div>
         </div>
+
+        {/* Edit-Master Modal */}
+        {data && editMaster && (
+          <MasterEditModal
+            master={data.master}
+            onClose={() => setEditMaster(false)}
+            onSaved={() => {
+              setEditMaster(false)
+              load()
+            }}
+          />
+        )}
 
         {/* Tabs */}
         <div
@@ -449,7 +483,7 @@ export function ContactDetailDrawer({
             </div>
           )}
           {data && tab === "overview" && <OverviewTab data={data} />}
-          {data && tab === "contact" && <ContactInfoTab data={data} />}
+          {data && tab === "contact" && <ContactInfoTab data={data} onChange={load} />}
           {data && tab === "activity" && <ActivityTab data={data} />}
           {data && tab === "notes" && (
             <NotesTab data={data} onChange={load} />
@@ -582,11 +616,69 @@ function KV({ label, value, mono }: { label: string; value: string; mono?: boole
 
 // ── Tab: Contact Info ──────────────────────────────────────────────────────
 
-function ContactInfoTab({ data }: { data: DetailData }) {
+function ContactInfoTab({ data, onChange }: { data: DetailData; onChange: () => void }) {
+  const masterId = data.master.id
+  const [emailAdd, setEmailAdd] = useState(false)
+  const [addressAdd, setAddressAdd] = useState(false)
+  const [addressEdit, setAddressEdit] = useState<AddressRow | null>(null)
+  const [phoneAdd, setPhoneAdd] = useState(false)
+
+  const setEmailPrimary = async (emailId: string) => {
+    await fetch(`/admin/crm/contacts/${masterId}/emails/${emailId}`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ is_primary: true }),
+    })
+    onChange()
+  }
+  const deleteEmail = async (emailId: string) => {
+    if (!confirm("Delete this email?")) return
+    await fetch(`/admin/crm/contacts/${masterId}/emails/${emailId}`, {
+      method: "DELETE", credentials: "include",
+    })
+    onChange()
+  }
+  const setAddressPrimary = async (addressId: string) => {
+    await fetch(`/admin/crm/contacts/${masterId}/addresses/${addressId}`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ is_primary: true }),
+    })
+    onChange()
+  }
+  const deleteAddress = async (addressId: string) => {
+    if (!confirm("Delete this address?")) return
+    await fetch(`/admin/crm/contacts/${masterId}/addresses/${addressId}`, {
+      method: "DELETE", credentials: "include",
+    })
+    onChange()
+  }
+  const setPhonePrimary = async (phoneId: string) => {
+    await fetch(`/admin/crm/contacts/${masterId}/phones/${phoneId}`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ is_primary: true }),
+    })
+    onChange()
+  }
+  const deletePhone = async (phoneId: string) => {
+    if (!confirm("Delete this phone?")) return
+    await fetch(`/admin/crm/contacts/${masterId}/phones/${phoneId}`, {
+      method: "DELETE", credentials: "include",
+    })
+    onChange()
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       {/* Emails */}
-      <Section title={`Emails (${data.emails.length})`}>
+      <SectionWithAdd
+        title={`Emails (${data.emails.length})`}
+        onAdd={() => setEmailAdd(true)}
+      >
         {data.emails.length === 0 ? (
           <EmptyState title="No emails on file" />
         ) : (
@@ -605,18 +697,26 @@ function ContactInfoTab({ data }: { data: DetailData }) {
                     {e.bounced_at && <Badge label="bounced" variant="error" />}
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                  {e.is_primary && <Badge label="primary" variant="success" />}
+                <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
+                  {e.is_primary ? (
+                    <Badge label="primary" variant="success" />
+                  ) : (
+                    <button onClick={() => setEmailPrimary(e.id)} style={iconBtnStyle()} title="Set primary">⭐</button>
+                  )}
                   {e.is_verified && <Badge label="verified" variant="info" />}
+                  <button onClick={() => deleteEmail(e.id)} style={iconBtnStyle()} title="Delete">×</button>
                 </div>
               </div>
             </Card>
           ))
         )}
-      </Section>
+      </SectionWithAdd>
 
       {/* Addresses */}
-      <Section title={`Addresses (${data.addresses.length})`}>
+      <SectionWithAdd
+        title={`Addresses (${data.addresses.length})`}
+        onAdd={() => setAddressAdd(true)}
+      >
         {data.addresses.length === 0 ? (
           <EmptyState title="No addresses on file" />
         ) : (
@@ -624,7 +724,15 @@ function ContactInfoTab({ data }: { data: DetailData }) {
             <Card key={a.id}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 6 }}>
                 <div style={{ ...T.micro }}>{(a.type || "address").toUpperCase()}</div>
-                {a.is_primary && <Badge label="primary" variant="success" />}
+                <div style={{ display: "flex", gap: 4 }}>
+                  {a.is_primary ? (
+                    <Badge label="primary" variant="success" />
+                  ) : (
+                    <button onClick={() => setAddressPrimary(a.id)} style={iconBtnStyle()} title="Set primary">⭐</button>
+                  )}
+                  <button onClick={() => setAddressEdit(a)} style={iconBtnStyle()} title="Edit">✎</button>
+                  <button onClick={() => deleteAddress(a.id)} style={iconBtnStyle()} title="Delete">×</button>
+                </div>
               </div>
               <div style={{ fontSize: 13, lineHeight: 1.5 }}>
                 {a.salutation && <div>{a.salutation}</div>}
@@ -653,10 +761,13 @@ function ContactInfoTab({ data }: { data: DetailData }) {
             </Card>
           ))
         )}
-      </Section>
+      </SectionWithAdd>
 
       {/* Phones */}
-      <Section title={`Phones (${data.phones.length})`}>
+      <SectionWithAdd
+        title={`Phones (${data.phones.length})`}
+        onAdd={() => setPhoneAdd(true)}
+      >
         {data.phones.length === 0 ? (
           <EmptyState title="No phones on file" />
         ) : (
@@ -667,7 +778,14 @@ function ContactInfoTab({ data }: { data: DetailData }) {
                   <div style={{ fontWeight: 500 }}>{p.phone_normalized || p.phone_raw}</div>
                   {p.phone_type && <div style={T.small}>{p.phone_type}</div>}
                 </div>
-                {p.is_primary && <Badge label="primary" variant="success" />}
+                <div style={{ display: "flex", gap: 4 }}>
+                  {p.is_primary ? (
+                    <Badge label="primary" variant="success" />
+                  ) : (
+                    <button onClick={() => setPhonePrimary(p.id)} style={iconBtnStyle()} title="Set primary">⭐</button>
+                  )}
+                  <button onClick={() => deletePhone(p.id)} style={iconBtnStyle()} title="Delete">×</button>
+                </div>
               </div>
               <div style={{ ...T.small, marginTop: 6, display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {(p.source_list || []).map((s) => (
@@ -679,7 +797,59 @@ function ContactInfoTab({ data }: { data: DetailData }) {
             </Card>
           ))
         )}
-      </Section>
+      </SectionWithAdd>
+
+      {/* Modals */}
+      {emailAdd && (
+        <EmailAddModal
+          masterId={masterId}
+          onClose={() => setEmailAdd(false)}
+          onSaved={() => { setEmailAdd(false); onChange() }}
+        />
+      )}
+      {addressAdd && (
+        <AddressEditModal
+          masterId={masterId}
+          address={null}
+          onClose={() => setAddressAdd(false)}
+          onSaved={() => { setAddressAdd(false); onChange() }}
+        />
+      )}
+      {addressEdit && (
+        <AddressEditModal
+          masterId={masterId}
+          address={addressEdit}
+          onClose={() => setAddressEdit(null)}
+          onSaved={() => { setAddressEdit(null); onChange() }}
+        />
+      )}
+      {phoneAdd && (
+        <PhoneAddModal
+          masterId={masterId}
+          onClose={() => setPhoneAdd(false)}
+          onSaved={() => { setPhoneAdd(false); onChange() }}
+        />
+      )}
+    </div>
+  )
+}
+
+function SectionWithAdd({ title, onAdd, children }: { title: string; onAdd: () => void; children: React.ReactNode }) {
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <div style={T.sectionHead}>{title}</div>
+        <button onClick={onAdd} style={{
+          background: "transparent",
+          border: `1px solid ${C.border}`,
+          borderRadius: S.radius.md,
+          padding: "4px 12px",
+          fontSize: 12,
+          color: C.text,
+          cursor: "pointer",
+        }}>+ Add</button>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{children}</div>
     </div>
   )
 }
@@ -1389,4 +1559,398 @@ function iconBtnStyle(): React.CSSProperties {
     alignItems: "center",
     justifyContent: "center",
   }
+}
+
+const inputRow: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 4 }
+const inputLabel: React.CSSProperties = { ...T.micro, color: C.muted }
+const fullInput: React.CSSProperties = { ...inputStyle, width: "100%" }
+
+// ── Master Edit Modal ──────────────────────────────────────────────────────
+
+const TIER_OPTIONS = ["", "platinum", "gold", "silver", "bronze", "standard", "dormant"] as const
+
+function MasterEditModal({
+  master,
+  onClose,
+  onSaved,
+}: {
+  master: Master
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [displayName, setDisplayName] = useState(master.display_name)
+  const [contactType, setContactType] = useState(master.contact_type || "")
+  const [tier, setTier] = useState(master.tier || "")
+  const [isTest, setIsTest] = useState(master.is_test)
+  const [isBlocked, setIsBlocked] = useState(master.is_blocked)
+  const [blockedReason, setBlockedReason] = useState(master.blocked_reason || "")
+  const [tagsInput, setTagsInput] = useState((master.tags || []).join(", "))
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const save = async () => {
+    setSaving(true)
+    setErr(null)
+    try {
+      const body: Record<string, unknown> = {
+        display_name: displayName.trim(),
+        contact_type: contactType || null,
+        tier: tier || null,
+        is_test: isTest,
+        is_blocked: isBlocked,
+        blocked_reason: isBlocked ? blockedReason.trim() || null : null,
+        tags: tagsInput.split(",").map((t) => t.trim()).filter(Boolean),
+      }
+      const r = await fetch(`/admin/crm/contacts/${master.id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      })
+      if (!r.ok) {
+        const data = await r.json().catch(() => ({}))
+        throw new Error(data.error || `HTTP ${r.status}`)
+      }
+      onSaved()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal
+      title="Edit master contact"
+      subtitle={master.display_name}
+      onClose={onClose}
+      maxWidth={560}
+      footer={
+        <>
+          <Btn label="Cancel" variant="ghost" onClick={onClose} />
+          <Btn label={saving ? "Saving…" : "Save"} variant="gold" onClick={save} disabled={saving} />
+        </>
+      }
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {err && <div style={{ color: C.error, fontSize: 12 }}><b>Error:</b> {err}</div>}
+        <div style={inputRow}>
+          <label style={inputLabel}>Display name</label>
+          <input style={fullInput} value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div style={inputRow}>
+            <label style={inputLabel}>Contact type</label>
+            <select style={selectStyle} value={contactType} onChange={(e) => setContactType(e.target.value)}>
+              <option value="">— unknown —</option>
+              <option value="person">Person</option>
+              <option value="business">Business</option>
+            </select>
+          </div>
+          <div style={inputRow}>
+            <label style={inputLabel}>Tier</label>
+            <select style={selectStyle} value={tier} onChange={(e) => setTier(e.target.value)}>
+              {TIER_OPTIONS.map((t) => (
+                <option key={t} value={t}>{t || "— none —"}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div style={inputRow}>
+          <label style={inputLabel}>Tags (comma separated)</label>
+          <input style={fullInput} value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} placeholder="vip, newsletter, internal_owner" />
+        </div>
+        <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+          <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, cursor: "pointer" }}>
+            <input type="checkbox" checked={isTest} onChange={(e) => setIsTest(e.target.checked)} />
+            Test account
+          </label>
+          <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, cursor: "pointer" }}>
+            <input type="checkbox" checked={isBlocked} onChange={(e) => setIsBlocked(e.target.checked)} />
+            Blocked
+          </label>
+        </div>
+        {isBlocked && (
+          <div style={inputRow}>
+            <label style={inputLabel}>Block reason</label>
+            <input style={fullInput} value={blockedReason} onChange={(e) => setBlockedReason(e.target.value)} placeholder="Why is this contact blocked?" />
+          </div>
+        )}
+      </div>
+    </Modal>
+  )
+}
+
+// ── Email Add Modal ────────────────────────────────────────────────────────
+
+function EmailAddModal({ masterId, onClose, onSaved }: { masterId: string; onClose: () => void; onSaved: () => void }) {
+  const [email, setEmail] = useState("")
+  const [setPrimary, setSetPrimary] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const save = async () => {
+    setSaving(true)
+    setErr(null)
+    try {
+      const r = await fetch(`/admin/crm/contacts/${masterId}/emails`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), is_primary: setPrimary }),
+      })
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}))
+        throw new Error(d.error || `HTTP ${r.status}`)
+      }
+      onSaved()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal
+      title="Add email"
+      onClose={onClose}
+      maxWidth={420}
+      footer={
+        <>
+          <Btn label="Cancel" variant="ghost" onClick={onClose} />
+          <Btn label={saving ? "Saving…" : "Add"} variant="gold" onClick={save} disabled={saving || !email.trim()} />
+        </>
+      }
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {err && <div style={{ color: C.error, fontSize: 12 }}><b>Error:</b> {err}</div>}
+        <div style={inputRow}>
+          <label style={inputLabel}>Email address</label>
+          <input style={fullInput} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="customer@example.com" autoFocus />
+        </div>
+        <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, cursor: "pointer" }}>
+          <input type="checkbox" checked={setPrimary} onChange={(e) => setSetPrimary(e.target.checked)} />
+          Set as primary email
+        </label>
+      </div>
+    </Modal>
+  )
+}
+
+// ── Address Edit/Add Modal ─────────────────────────────────────────────────
+
+function AddressEditModal({
+  masterId,
+  address,
+  onClose,
+  onSaved,
+}: {
+  masterId: string
+  address: AddressRow | null
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const isEdit = address !== null
+  const [type, setType] = useState(address?.type || "shipping")
+  const [salutation, setSalutation] = useState(address?.salutation || "")
+  const [company, setCompany] = useState(address?.company || "")
+  const [firstName, setFirstName] = useState(address?.first_name || "")
+  const [lastName, setLastName] = useState(address?.last_name || "")
+  const [street, setStreet] = useState(address?.street || "")
+  const [street2, setStreet2] = useState(address?.street_2 || "")
+  const [postalCode, setPostalCode] = useState(address?.postal_code || "")
+  const [city, setCity] = useState(address?.city || "")
+  const [region, setRegion] = useState(address?.region || "")
+  const [country, setCountry] = useState(address?.country || "")
+  const [countryCode, setCountryCode] = useState(address?.country_code || "")
+  const [setPrimary, setSetPrimary] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const save = async () => {
+    setSaving(true)
+    setErr(null)
+    try {
+      const body: Record<string, unknown> = {
+        type, salutation, company,
+        first_name: firstName, last_name: lastName,
+        street, street_2: street2,
+        postal_code: postalCode, city, region,
+        country, country_code: countryCode.trim().toUpperCase() || null,
+      }
+      if (setPrimary || !isEdit) body.is_primary = true
+      const url = isEdit
+        ? `/admin/crm/contacts/${masterId}/addresses/${address!.id}`
+        : `/admin/crm/contacts/${masterId}/addresses`
+      const r = await fetch(url, {
+        method: isEdit ? "PATCH" : "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      })
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}))
+        throw new Error(d.error || `HTTP ${r.status}`)
+      }
+      onSaved()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal
+      title={isEdit ? "Edit address" : "Add address"}
+      onClose={onClose}
+      maxWidth={620}
+      footer={
+        <>
+          <Btn label="Cancel" variant="ghost" onClick={onClose} />
+          <Btn label={saving ? "Saving…" : "Save"} variant="gold" onClick={save} disabled={saving} />
+        </>
+      }
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {err && <div style={{ color: C.error, fontSize: 12 }}><b>Error:</b> {err}</div>}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div style={inputRow}>
+            <label style={inputLabel}>Type</label>
+            <select style={selectStyle} value={type || ""} onChange={(e) => setType(e.target.value)}>
+              <option value="shipping">Shipping</option>
+              <option value="billing">Billing</option>
+              <option value="home">Home</option>
+              <option value="business">Business</option>
+            </select>
+          </div>
+          <div style={inputRow}>
+            <label style={inputLabel}>Salutation</label>
+            <input style={fullInput} value={salutation} onChange={(e) => setSalutation(e.target.value)} placeholder="Herr / Frau / Mr / Mrs" />
+          </div>
+        </div>
+        <div style={inputRow}>
+          <label style={inputLabel}>Company</label>
+          <input style={fullInput} value={company} onChange={(e) => setCompany(e.target.value)} />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div style={inputRow}>
+            <label style={inputLabel}>First name</label>
+            <input style={fullInput} value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+          </div>
+          <div style={inputRow}>
+            <label style={inputLabel}>Last name</label>
+            <input style={fullInput} value={lastName} onChange={(e) => setLastName(e.target.value)} />
+          </div>
+        </div>
+        <div style={inputRow}>
+          <label style={inputLabel}>Street</label>
+          <input style={fullInput} value={street} onChange={(e) => setStreet(e.target.value)} />
+        </div>
+        <div style={inputRow}>
+          <label style={inputLabel}>Street 2</label>
+          <input style={fullInput} value={street2} onChange={(e) => setStreet2(e.target.value)} />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "120px 1fr 1fr", gap: 12 }}>
+          <div style={inputRow}>
+            <label style={inputLabel}>Postal code</label>
+            <input style={fullInput} value={postalCode} onChange={(e) => setPostalCode(e.target.value)} />
+          </div>
+          <div style={inputRow}>
+            <label style={inputLabel}>City</label>
+            <input style={fullInput} value={city} onChange={(e) => setCity(e.target.value)} />
+          </div>
+          <div style={inputRow}>
+            <label style={inputLabel}>Region</label>
+            <input style={fullInput} value={region} onChange={(e) => setRegion(e.target.value)} />
+          </div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 100px", gap: 12 }}>
+          <div style={inputRow}>
+            <label style={inputLabel}>Country</label>
+            <input style={fullInput} value={country} onChange={(e) => setCountry(e.target.value)} />
+          </div>
+          <div style={inputRow}>
+            <label style={inputLabel}>ISO-2</label>
+            <input style={fullInput} value={countryCode} onChange={(e) => setCountryCode(e.target.value.toUpperCase())} maxLength={2} placeholder="DE" />
+          </div>
+        </div>
+        {isEdit && (
+          <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, cursor: "pointer" }}>
+            <input type="checkbox" checked={setPrimary} onChange={(e) => setSetPrimary(e.target.checked)} />
+            Set as primary address
+          </label>
+        )}
+      </div>
+    </Modal>
+  )
+}
+
+// ── Phone Add Modal ────────────────────────────────────────────────────────
+
+function PhoneAddModal({ masterId, onClose, onSaved }: { masterId: string; onClose: () => void; onSaved: () => void }) {
+  const [phoneRaw, setPhoneRaw] = useState("")
+  const [phoneType, setPhoneType] = useState("mobile")
+  const [setPrimary, setSetPrimary] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const save = async () => {
+    setSaving(true)
+    setErr(null)
+    try {
+      const r = await fetch(`/admin/crm/contacts/${masterId}/phones`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ phone_raw: phoneRaw.trim(), phone_type: phoneType, is_primary: setPrimary }),
+      })
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}))
+        throw new Error(d.error || `HTTP ${r.status}`)
+      }
+      onSaved()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal
+      title="Add phone"
+      onClose={onClose}
+      maxWidth={420}
+      footer={
+        <>
+          <Btn label="Cancel" variant="ghost" onClick={onClose} />
+          <Btn label={saving ? "Saving…" : "Add"} variant="gold" onClick={save} disabled={saving || !phoneRaw.trim()} />
+        </>
+      }
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {err && <div style={{ color: C.error, fontSize: 12 }}><b>Error:</b> {err}</div>}
+        <div style={inputRow}>
+          <label style={inputLabel}>Phone number</label>
+          <input style={fullInput} value={phoneRaw} onChange={(e) => setPhoneRaw(e.target.value)} placeholder="+49 30 12345678" autoFocus />
+        </div>
+        <div style={inputRow}>
+          <label style={inputLabel}>Type</label>
+          <select style={selectStyle} value={phoneType} onChange={(e) => setPhoneType(e.target.value)}>
+            <option value="mobile">Mobile</option>
+            <option value="work">Work</option>
+            <option value="home">Home</option>
+            <option value="fax">Fax</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, cursor: "pointer" }}>
+          <input type="checkbox" checked={setPrimary} onChange={(e) => setSetPrimary(e.target.checked)} />
+          Set as primary phone
+        </label>
+      </div>
+    </Modal>
+  )
 }
