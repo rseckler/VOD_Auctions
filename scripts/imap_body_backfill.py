@@ -81,12 +81,23 @@ RE_ADR = re.compile(r"\bADR-\d{4,7}\b")
 RE_INVOICE = re.compile(r"\b(?:RG|KR|PR|AB)-?\d{4,8}\b")
 
 
+ENV_KEY_FOR = {
+    "frank@vod-records.com": "IMAP_PASSWORD_VOD_RECORDS",
+    "frank@vinyl-on-demand.com": "IMAP_PASSWORD_VINYL_ON_DEMAND",
+}
+
 def imap_connect(account: str) -> imaplib.IMAP4_SSL:
     import ssl
     cfg = IMAP_CONFIGS[account]
-    pwd = op_get(cfg["op_item"], cfg["op_field"])
+    # Reihenfolge: ENV-Var (für VPS) → 1Password CLI (für Mac)
+    pwd = os.environ.get(ENV_KEY_FOR.get(account, ""))
     if not pwd:
-        raise RuntimeError(f"No IMAP password for {account}.")
+        pwd = op_get(cfg["op_item"], cfg["op_field"])
+    if not pwd:
+        raise RuntimeError(
+            f"No IMAP password for {account}. Set {ENV_KEY_FOR.get(account, 'IMAP_PASSWORD_*')} "
+            "as env var or in scripts/.env, or install op-CLI."
+        )
 
     print(f"[backfill] Connecting {IMAP_HOST}:{IMAP_PORT} as {account}", flush=True)
     ctx = ssl.create_default_context()
