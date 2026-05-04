@@ -368,11 +368,18 @@ def stage2_address_match(conn, run_id: str, dry_run: bool = False) -> dict:
         (staging_id, src_rec_id, display_name, first_name, last_name, company, contact_type,
          street, postal_code, city, country, country_code, region, salutation, title) = row
 
-        # Address-Hash
+        # Address-Hash. Strenger Guard:
+        #   - mind. 2 nicht-leere Komponenten in (street, postal_code, city)
+        #   - hash hat mind. 8 chars nach whitespace-strip (verhindert "||" / "x||" matches)
+        # Bug 2026-05-04: alter Guard war "|||" für 4-part hash, vergessen anzupassen
+        # nach Umstellung auf 3-part. → 12+ unrelated staging_contacts wurden zu
+        # einem Master "Margareta Diedrich" gemerged via empty-hash collision.
         ahash = _addr_hash(street, postal_code, city, country)
         master_id = None
+        non_empty_parts = sum(1 for p in (street, postal_code, city) if p and p.strip())
+        hash_meaningful = ahash and len(ahash) >= 8 and ahash.count("|") < len(ahash) - 2
 
-        if ahash and ahash != "|||":
+        if non_empty_parts >= 2 and hash_meaningful:
             cur.execute(
                 "SELECT master_id FROM crm_master_address WHERE address_hash = %s LIMIT 1",
                 (ahash,),
