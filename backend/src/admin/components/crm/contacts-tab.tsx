@@ -196,6 +196,7 @@ export function ContactsTab() {
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([])
   const [activeSavedId, setActiveSavedId] = useState<string | null>(null)
   const [showSaveFilterModal, setShowSaveFilterModal] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   // Multi-Select für Bulk-Actions
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -340,17 +341,25 @@ export function ContactsTab() {
   const currentPage = Math.floor(offset / PAGE_SIZE) + 1
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 20, alignItems: "flex-start" }}>
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: sidebarCollapsed ? "32px 1fr" : "180px 1fr",
+      gap: sidebarCollapsed ? 8 : 16,
+      alignItems: "flex-start",
+      transition: "grid-template-columns 200ms ease",
+    }}>
       {/* Sidebar: Saved Filters / Smart Lists */}
       <SmartListsSidebar
         filters={savedFilters}
         activeId={activeSavedId}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
         onApply={applySavedFilter}
         onSaveNew={() => setShowSaveFilterModal(true)}
         onDeleted={reloadSavedFilters}
       />
 
-      <div>
+      <div style={{ minWidth: 0 }}>
       {/* Search + Sort */}
       <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
         <input
@@ -434,10 +443,11 @@ export function ContactsTab() {
             background: C.card,
             border: `1px solid ${C.border}`,
             borderRadius: S.radius.lg,
-            overflow: "hidden",
+            overflow: "auto",        // horizontal scrollbar wenn nötig
+            maxWidth: "100%",
           }}
         >
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <table style={{ width: "100%", minWidth: 1080, borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ background: C.subtle }}>
                 <th style={{ ...thStyle, width: 30, padding: "10px 0 10px 14px" }}>
@@ -610,9 +620,21 @@ function ContactRow({ c, selected, onToggle, onClick }: {
           <div style={{ ...T.small, fontSize: 10 }}>linked to vod-auctions</div>
         )}
       </td>
-      <td style={tdStyle}>
+      <td style={{ ...tdStyle, maxWidth: 220 }}>
         {c.primary_email ? (
-          <span style={{ fontSize: 12 }}>{c.primary_email}</span>
+          <span
+            title={c.primary_email}
+            style={{
+              fontSize: 12,
+              display: "block",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              maxWidth: "100%",
+            }}
+          >
+            {c.primary_email}
+          </span>
         ) : (
           <span style={{ color: C.muted, fontStyle: "italic", fontSize: 12 }}>—</span>
         )}
@@ -706,16 +728,44 @@ function paginationBtnStyle(disabled: boolean): React.CSSProperties {
 function SmartListsSidebar({
   filters,
   activeId,
+  collapsed,
+  onToggleCollapse,
   onApply,
   onSaveNew,
   onDeleted,
 }: {
   filters: SavedFilter[]
   activeId: string | null
+  collapsed: boolean
+  onToggleCollapse: () => void
   onApply: (f: SavedFilter) => void
   onSaveNew: () => void
   onDeleted: () => void
 }) {
+  if (collapsed) {
+    return (
+      <button
+        onClick={onToggleCollapse}
+        title="Show saved filters"
+        style={{
+          background: "transparent",
+          border: `1px solid ${C.border}`,
+          borderRadius: S.radius.md,
+          padding: "8px 6px",
+          cursor: "pointer",
+          fontSize: 14,
+          color: C.muted,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          height: 32,
+          marginTop: 4,
+        }}
+      >
+        ☰
+      </button>
+    )
+  }
   const pinned = filters.filter((f) => f.is_pinned)
   const others = filters.filter((f) => !f.is_pinned)
 
@@ -783,11 +833,27 @@ function SmartListsSidebar({
       top: 0,
       paddingTop: 4,
       borderRight: `1px solid ${C.border}`,
-      paddingRight: 16,
+      paddingRight: 12,
       maxHeight: "calc(100vh - 200px)",
       overflowY: "auto",
     }}>
-      <div style={{ ...T.micro, marginBottom: 8 }}>Saved Filters</div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <span style={T.micro}>Saved Filters</span>
+        <button
+          onClick={onToggleCollapse}
+          title="Collapse sidebar"
+          style={{
+            background: "transparent",
+            border: "none",
+            cursor: "pointer",
+            color: C.muted,
+            fontSize: 14,
+            padding: 0,
+          }}
+        >
+          ←
+        </button>
+      </div>
       {pinned.length > 0 && (
         <div style={{ marginBottom: 12, display: "flex", flexDirection: "column", gap: 2 }}>
           {pinned.map(renderFilterItem)}

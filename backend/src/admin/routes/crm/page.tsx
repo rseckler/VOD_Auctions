@@ -1736,7 +1736,8 @@ function CustomersListTab({
 
       {/* Table */}
       <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <div style={{ overflowX: "auto", maxWidth: "100%" }}>
+        <table style={{ width: "100%", minWidth: 980, borderCollapse: "collapse" }}>
           <thead>
             <tr>
               <th style={thStyle} onClick={() => handleSort("created_at")}>
@@ -1827,6 +1828,7 @@ function CustomersListTab({
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Pagination */}
@@ -1950,7 +1952,7 @@ function CRMDashboardTab() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
       {/* Overview Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "16px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "12px" }}>
         {[
           { label: "Total Contacts", value: overview.total_contacts.toLocaleString("en-US") },
           { label: "VOD Auctions", value: overview.vod_auctions.toLocaleString("en-US") },
