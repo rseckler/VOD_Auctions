@@ -134,7 +134,7 @@ function renderHourlyBars(stats: Stats, C: any): JSX.Element {
   const series = stats.throughput?.today_hourly_by_warehouse || []
   if (series.length === 0) {
     return (
-      <div style={{ height: 80, display: "flex", alignItems: "center", justifyContent: "center", color: C.muted, fontSize: 12 }}>
+      <div style={{ height: 60, display: "flex", alignItems: "center", justifyContent: "center", color: C.muted, fontSize: 11 }}>
         Heute noch keine Verifizierungen
       </div>
     )
@@ -168,10 +168,9 @@ function renderHourlyBars(stats: Stats, C: any): JSX.Element {
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 80 }}>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 56 }}>
         {visibleHours.map((h) => {
           const heightPct = (h.total / maxTotal) * 100
-          // Stack-Reihenfolge: stable insertion order
           const stackKeys = Object.keys(h.stack).sort()
           let stackedSoFar = 0
           return (
@@ -185,7 +184,7 @@ function renderHourlyBars(stats: Stats, C: any): JSX.Element {
                     stackKeys.map((k) => `  ${WAREHOUSE_PERSON[k]?.person || k}: ${h.stack[k]}`).join("\n")
               }
             >
-              <div style={{ height: 80, width: "100%", display: "flex", flexDirection: "column-reverse", justifyContent: "flex-start" }}>
+              <div style={{ height: 56, width: "100%", display: "flex", flexDirection: "column-reverse", justifyContent: "flex-start" }}>
                 {h.total > 0 && stackKeys.map((code) => {
                   const segPct = (h.stack[code] / maxTotal) * 100
                   const meta = WAREHOUSE_PERSON[code] || { person: code, color: C.muted }
@@ -206,7 +205,7 @@ function renderHourlyBars(stats: Stats, C: any): JSX.Element {
           )
         })}
       </div>
-      <div style={{ display: "flex", gap: 3, marginTop: 4 }}>
+      <div style={{ display: "flex", gap: 3, marginTop: 2 }}>
         {visibleHours.map((h) => (
           <div
             key={h.hour}
@@ -529,23 +528,23 @@ function InventoryHubPage() {
           {stats.per_warehouse && stats.per_warehouse.length > 0 && (
             <div style={{ display: "flex", gap: S.gap.lg, marginBottom: S.sectionGap }}>
               {/* Pro Person */}
-              <div style={{ ...cardStyle, flex: 1, marginBottom: 0 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <div style={{ ...cardStyle, flex: 1, marginBottom: 0, padding: "12px 14px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase" }}>Pro Person</div>
-                  <div style={{ ...T.small, color: C.muted }} title="David hat noch keinen eigenen Account — Zuordnung über Lagerort: Frank=Alpenstrasse, David=Eugenstrasse">
+                  <div style={{ fontSize: 10, color: C.muted }} title="David hat noch keinen eigenen Account — Zuordnung über Lagerort: Frank=Alpenstrasse, David=Eugenstrasse">
                     via Lagerort
                   </div>
                 </div>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
                     <tr>
-                      <th style={{ ...thStyle, padding: "6px 8px" }}>Person</th>
-                      <th style={{ ...thStyle, padding: "6px 8px", textAlign: "right" }}>Heute</th>
-                      <th style={{ ...thStyle, padding: "6px 8px", textAlign: "right" }}>Items/h</th>
-                      <th style={{ ...thStyle, padding: "6px 8px", textAlign: "right" }}>Jetzt</th>
-                      <th style={{ ...thStyle, padding: "6px 8px", textAlign: "right" }}>7 Tage</th>
-                      <th style={{ ...thStyle, padding: "6px 8px", textAlign: "right" }}>Gesamt</th>
-                      <th style={{ ...thStyle, padding: "6px 8px", textAlign: "right" }}>Zuletzt</th>
+                      <th style={{ ...thStyle, padding: "4px 6px", whiteSpace: "nowrap" }}>Person</th>
+                      <th style={{ ...thStyle, padding: "4px 6px", textAlign: "right", whiteSpace: "nowrap" }}>Heute</th>
+                      <th style={{ ...thStyle, padding: "4px 6px", textAlign: "right", whiteSpace: "nowrap" }}>Items/h</th>
+                      <th style={{ ...thStyle, padding: "4px 6px", textAlign: "right", whiteSpace: "nowrap" }}>Jetzt</th>
+                      <th style={{ ...thStyle, padding: "4px 6px", textAlign: "right", whiteSpace: "nowrap" }}>7 Tage</th>
+                      <th style={{ ...thStyle, padding: "4px 6px", textAlign: "right", whiteSpace: "nowrap" }}>Gesamt</th>
+                      <th style={{ ...thStyle, padding: "4px 6px", textAlign: "right", whiteSpace: "nowrap" }}>Zuletzt</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -554,26 +553,33 @@ function InventoryHubPage() {
                         person: w.warehouse_name,
                         color: C.muted,
                       }
+                      // Person: "Frank" als Hauptname, Lagerort kleiner dahinter — eine Zeile.
+                      const parts = meta.person.split(" ")
+                      const firstName = parts[0]
+                      const subtitle = parts.slice(1).join(" ").replace(/^\(|\)$/g, "")
                       return (
                         <tr key={w.warehouse_code}>
-                          <td style={{ ...tdStyle, padding: "8px" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <td style={{ ...tdStyle, padding: "5px 6px", whiteSpace: "nowrap" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                               <div style={{
-                                width: 8, height: 8, borderRadius: "50%", background: meta.color,
+                                width: 8, height: 8, borderRadius: "50%", background: meta.color, flexShrink: 0,
                               }} />
-                              <span style={{ fontWeight: 500 }}>{meta.person}</span>
+                              <span style={{ fontWeight: 500, fontSize: 12 }}>{firstName}</span>
+                              {subtitle && (
+                                <span style={{ fontSize: 10, color: C.muted }}>{subtitle}</span>
+                              )}
                             </div>
                           </td>
-                          <td style={{ ...tdStyle, padding: "8px", textAlign: "right", fontWeight: 600 }}>{w.today}</td>
-                          <td style={{ ...tdStyle, padding: "8px", textAlign: "right", color: C.muted }}>
+                          <td style={{ ...tdStyle, padding: "5px 6px", textAlign: "right", fontWeight: 600, fontSize: 12 }}>{w.today}</td>
+                          <td style={{ ...tdStyle, padding: "5px 6px", textAlign: "right", color: C.muted, fontSize: 12 }}>
                             {w.items_per_hour_today || "—"}
                           </td>
-                          <td style={{ ...tdStyle, padding: "8px", textAlign: "right", color: w.current_rate_per_hour > 0 ? C.gold : C.muted }}>
+                          <td style={{ ...tdStyle, padding: "5px 6px", textAlign: "right", color: w.current_rate_per_hour > 0 ? C.gold : C.muted, fontSize: 12 }}>
                             {w.current_rate_per_hour || "—"}
                           </td>
-                          <td style={{ ...tdStyle, padding: "8px", textAlign: "right", color: C.muted }}>{w.last_7_days}</td>
-                          <td style={{ ...tdStyle, padding: "8px", textAlign: "right", color: C.muted }}>{w.all_time.toLocaleString("de-DE")}</td>
-                          <td style={{ ...tdStyle, padding: "8px", textAlign: "right", color: C.muted }}>
+                          <td style={{ ...tdStyle, padding: "5px 6px", textAlign: "right", color: C.muted, fontSize: 12 }}>{w.last_7_days}</td>
+                          <td style={{ ...tdStyle, padding: "5px 6px", textAlign: "right", color: C.muted, fontSize: 12 }}>{w.all_time.toLocaleString("de-DE")}</td>
+                          <td style={{ ...tdStyle, padding: "5px 6px", textAlign: "right", color: C.muted, fontSize: 12, whiteSpace: "nowrap" }}>
                             {w.last_active_at ? formatRelativeTime(w.last_active_at) : "—"}
                           </td>
                         </tr>
@@ -584,15 +590,15 @@ function InventoryHubPage() {
               </div>
 
               {/* Verlauf heute — gestackte mini-bars by warehouse */}
-              <div style={{ ...cardStyle, flex: 1, marginBottom: 0 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <div style={{ ...cardStyle, flex: 1, marginBottom: 0, padding: "12px 14px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase" }}>Verlauf heute</div>
-                  <div style={{ display: "flex", gap: 12, ...T.small, color: C.muted }}>
+                  <div style={{ display: "flex", gap: 10, fontSize: 10, color: C.muted }}>
                     {stats.per_warehouse.map((w) => {
                       const meta = WAREHOUSE_PERSON[w.warehouse_code] || { person: w.warehouse_name, color: C.muted }
                       return (
                         <div key={w.warehouse_code} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                          <div style={{ width: 8, height: 8, borderRadius: 2, background: meta.color }} />
+                          <div style={{ width: 7, height: 7, borderRadius: 2, background: meta.color }} />
                           <span>{meta.person.split(" ")[0]}</span>
                         </div>
                       )
