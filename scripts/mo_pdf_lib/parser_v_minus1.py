@@ -21,9 +21,15 @@ from .parser_v0 import normalize_country
 
 # ─── Detection ────────────────────────────────────────────────────────────────
 
-# Lowercase "vinyl-on-demand" + Frank Maier (konstant über Hochstr/Alpenstr Versionen)
+# Lowercase "vinyl-on-demand" + Frank Maier (konstant über Hochstr/Alpenstr Versionen).
+# Spalten-Layout variiert: in manchen PDFs steht "vinyl-on-demand" links und
+# "Frank Maier" rechts daneben (≥3 spaces), pdftotext liefert dann "Frank Maier
+# ... vinyl-on-demand" oder "vinyl-on-demand ... Frank Maier" je nach Layout-
+# Render. Bidirektionaler Match.
 RE_VOD_HEADER_VMINUS1 = re.compile(
-    r"vinyl-on-demand[\s\S]{0,200}Frank\s+Maier", re.IGNORECASE
+    r"(?:vinyl-on-demand[\s\S]{0,200}Frank\s+Maier"
+    r"|Frank\s+Maier[\s\S]{0,200}vinyl-on-demand)",
+    re.IGNORECASE,
 )
 
 # Invoice-Nr (im Body, nach "Rechnung-Nr.:")
