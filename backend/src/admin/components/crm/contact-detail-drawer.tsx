@@ -101,6 +101,20 @@ type AuditRow = {
   created_at: string
 }
 
+type TransactionItem = {
+  position: number
+  article_no: string | null
+  article_name: string
+  quantity: number | string
+  unit: string | null
+  unit_price: number | string | null
+  line_total_gross: number | string | null
+  line_total_net: number | string | null
+  vat_rate: number | string | null
+  is_shipping: boolean
+  is_discount: boolean
+}
+
 type TransactionRow = {
   id: string
   source: string
@@ -108,11 +122,18 @@ type TransactionRow = {
   doc_type: string
   doc_number: string | null
   doc_date: string
+  delivery_date: string | null
   total_gross: number | string | null
+  total_net: number | string | null
+  total_tax: number | string | null
+  shipping_cost: number | string | null
   currency: string | null
   status: string | null
   payment_method: string | null
   item_count: number | string
+  items: TransactionItem[]
+  billing_address_raw: string | null
+  shipping_address_raw: string | null
 }
 
 type BidRow = {
@@ -691,6 +712,26 @@ function buildTimeline(d: DetailData): TimelineEvent[] {
 
 function ActivityTab({ data }: { data: DetailData }) {
   const events = buildTimeline(data)
+  const [expandedTxns, setExpandedTxns] = useState<Set<string>>(new Set())
+  const [expandedMails, setExpandedMails] = useState<Set<string>>(new Set())
+
+  const toggleTxn = (id: string) => {
+    setExpandedTxns((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  const toggleMail = (id: string) => {
+    setExpandedMails((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   if (events.length === 0) {
     return <EmptyState title="No activity yet" description="No transactions, bids, orders, or matched emails." />
   }
@@ -710,19 +751,42 @@ function ActivityTab({ data }: { data: DetailData }) {
       />
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         {events.map((e, i) => (
-          <TimelineRow key={i} event={e} />
+          <TimelineRow
+            key={i}
+            event={e}
+            expanded={
+              e.kind === "transaction" ? expandedTxns.has((e.data as TransactionRow).id)
+              : e.kind === "imap" ? expandedMails.has((e.data as ImapRow).id)
+              : false
+            }
+            onToggle={
+              e.kind === "transaction" ? () => toggleTxn((e.data as TransactionRow).id)
+              : e.kind === "imap" ? () => toggleMail((e.data as ImapRow).id)
+              : undefined
+            }
+          />
         ))}
       </div>
     </div>
   )
 }
 
-function TimelineRow({ event }: { event: TimelineEvent }) {
+function TimelineRow({
+  event,
+  expanded,
+  onToggle,
+}: {
+  event: TimelineEvent
+  expanded: boolean
+  onToggle?: () => void
+}) {
   const dotColor =
     event.kind === "transaction" ? C.gold
     : event.kind === "bid" ? C.blue
     : event.kind === "order" ? C.success
     : C.muted
+
+  const isExpandable = onToggle !== undefined
 
   return (
     <div style={{ position: "relative" }}>
@@ -740,15 +804,20 @@ function TimelineRow({ event }: { event: TimelineEvent }) {
         }}
       />
       <div
+        onClick={isExpandable ? onToggle : undefined}
         style={{
           background: C.card,
           border: `1px solid ${C.border}`,
           borderRadius: S.radius.md,
           padding: "10px 14px",
+          cursor: isExpandable ? "pointer" : "default",
         }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            {isExpandable && (
+              <span style={{ fontSize: 10, color: C.muted, width: 10 }}>{expanded ? "▼" : "▶"}</span>
+            )}
             {event.kind === "transaction" && (
               <Badge label={`${(event.data as TransactionRow).doc_type}`} variant="warning" />
             )}
@@ -762,9 +831,211 @@ function TimelineRow({ event }: { event: TimelineEvent }) {
           <div style={T.small}>{relativeTime(event.date)}</div>
         </div>
         <div style={{ ...T.small, fontSize: 12 }}>{renderEventSubtitle(event)}</div>
+
+        {/* Expanded content */}
+        {expanded && event.kind === "transaction" && (
+          <TransactionItems transaction={event.data as TransactionRow} />
+        )}
+        {expanded && event.kind === "imap" && (
+          <ImapBody mail={event.data as ImapRow} />
+        )}
       </div>
     </div>
   )
+}
+
+function TransactionItems({ transaction }: { transaction: TransactionRow }) {
+  const items = transaction.items || []
+  const productItems = items.filter((i) => !i.is_shipping && !i.is_discount)
+  const otherItems = items.filter((i) => i.is_shipping || i.is_discount)
+
+  return (
+    <div
+      style={{
+        marginTop: 10,
+        paddingTop: 10,
+        borderTop: `1px solid ${C.border}`,
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {/* Totals row */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
+          gap: 8,
+          marginBottom: 10,
+          fontSize: 12,
+        }}
+      >
+        <TotalCell label="Net" value={fmtRev(transaction.total_net)} />
+        <TotalCell label="Tax" value={fmtRev(transaction.total_tax)} />
+        <TotalCell label="Shipping" value={fmtRev(transaction.shipping_cost)} />
+        <TotalCell label="Gross" value={fmtRev(transaction.total_gross)} accent={C.gold} />
+        {transaction.payment_method && (
+          <TotalCell label="Payment" value={transaction.payment_method} />
+        )}
+      </div>
+
+      {items.length === 0 ? (
+        <div style={{ ...T.small, fontStyle: "italic" }}>No line items recorded.</div>
+      ) : (
+        <>
+          {productItems.length > 0 && (
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: C.subtle }}>
+                  <th style={itemThStyle}>#</th>
+                  <th style={itemThStyle}>Article</th>
+                  <th style={{ ...itemThStyle, textAlign: "right" }}>Qty</th>
+                  <th style={{ ...itemThStyle, textAlign: "right" }}>Unit</th>
+                  <th style={{ ...itemThStyle, textAlign: "right" }}>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {productItems.map((it) => (
+                  <tr key={it.position} style={{ borderTop: `1px solid ${C.border}` }}>
+                    <td style={{ ...itemTdStyle, color: C.muted, width: 28 }}>{it.position}</td>
+                    <td style={itemTdStyle}>
+                      <div>{it.article_name}</div>
+                      {it.article_no && (
+                        <div style={{ ...T.small, fontSize: 10, fontFamily: "monospace" }}>
+                          {it.article_no}
+                        </div>
+                      )}
+                    </td>
+                    <td style={{ ...itemTdStyle, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                      {fmtQty(it.quantity)}
+                      {it.unit && <span style={{ color: C.muted }}> {it.unit}</span>}
+                    </td>
+                    <td style={{ ...itemTdStyle, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                      {fmtRev(it.unit_price)}
+                    </td>
+                    <td style={{ ...itemTdStyle, textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 500 }}>
+                      {fmtRev(it.line_total_gross)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {otherItems.length > 0 && (
+            <div style={{ marginTop: 8, fontSize: 12 }}>
+              {otherItems.map((it) => (
+                <div
+                  key={it.position}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "4px 0",
+                    borderTop: `1px solid ${C.border}`,
+                    color: C.muted,
+                  }}
+                >
+                  <span>
+                    {it.is_shipping ? "📦" : it.is_discount ? "🎫" : "•"} {it.article_name}
+                  </span>
+                  <span style={{ fontVariantNumeric: "tabular-nums" }}>
+                    {fmtRev(it.line_total_gross)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {transaction.billing_address_raw && (
+        <details style={{ marginTop: 10, fontSize: 11 }}>
+          <summary style={{ cursor: "pointer", color: C.muted }}>Billing address</summary>
+          <pre
+            style={{
+              marginTop: 4,
+              fontFamily: "monospace",
+              fontSize: 11,
+              whiteSpace: "pre-wrap",
+              background: C.subtle,
+              padding: 6,
+              borderRadius: S.radius.sm,
+            }}
+          >
+            {transaction.billing_address_raw}
+          </pre>
+        </details>
+      )}
+    </div>
+  )
+}
+
+function ImapBody({ mail }: { mail: ImapRow }) {
+  return (
+    <div
+      style={{
+        marginTop: 10,
+        paddingTop: 10,
+        borderTop: `1px solid ${C.border}`,
+        fontSize: 12,
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div style={{ display: "grid", gridTemplateColumns: "80px 1fr", gap: 6, marginBottom: 6 }}>
+        <span style={{ ...T.small, fontWeight: 500 }}>From</span>
+        <span>{mail.from_name ? `${mail.from_name} <${mail.from_email}>` : mail.from_email}</span>
+        <span style={{ ...T.small, fontWeight: 500 }}>To</span>
+        <span>{(mail.to_emails || []).join(", ")}</span>
+        <span style={{ ...T.small, fontWeight: 500 }}>Folder</span>
+        <span>{mail.folder}</span>
+      </div>
+      {mail.body_excerpt && (
+        <pre
+          style={{
+            fontFamily: "inherit",
+            fontSize: 12,
+            whiteSpace: "pre-wrap",
+            background: C.subtle,
+            padding: 8,
+            borderRadius: S.radius.sm,
+            marginTop: 6,
+            marginBottom: 0,
+            maxHeight: 240,
+            overflow: "auto",
+          }}
+        >
+          {mail.body_excerpt}
+        </pre>
+      )}
+    </div>
+  )
+}
+
+function TotalCell({ label, value, accent }: { label: string; value: string; accent?: string }) {
+  return (
+    <div>
+      <div style={T.micro}>{label}</div>
+      <div style={{ fontWeight: 600, color: accent || C.text, marginTop: 1 }}>{value}</div>
+    </div>
+  )
+}
+
+function fmtQty(v: number | string): string {
+  const n = typeof v === "string" ? parseFloat(v) : v
+  if (Number.isNaN(n)) return String(v)
+  return n % 1 === 0 ? String(n) : n.toFixed(2)
+}
+
+const itemThStyle: React.CSSProperties = {
+  padding: "6px 8px",
+  textAlign: "left",
+  fontSize: 10,
+  fontWeight: 600,
+  textTransform: "uppercase",
+  letterSpacing: "0.04em",
+  color: C.muted,
+}
+
+const itemTdStyle: React.CSSProperties = {
+  padding: "6px 8px",
+  verticalAlign: "top",
 }
 
 function renderEventTitle(e: TimelineEvent): string {

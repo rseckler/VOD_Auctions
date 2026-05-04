@@ -63,20 +63,51 @@ export async function GET(
           .where({ master_id: id })
           .orderBy("created_at", "desc")
           .limit(100),
-        // Transactions via source_link (customer_source matches sl.source)
+        // Transactions via source_link (customer_source matches sl.source) + Line-Items
         pgConnection.raw(
-          `SELECT t.id, t.source, t.source_record_id, t.doc_type,
-                  t.doc_number, t.doc_date, t.delivery_date,
-                  t.total_gross, t.currency, t.status,
-                  t.payment_method, t.notes_or_warnings,
-                  (SELECT COUNT(*) FROM crm_staging_transaction_item ti WHERE ti.transaction_id = t.id) AS item_count
-           FROM crm_staging_transaction t
-           JOIN crm_master_source_link sl
-             ON sl.source = t.customer_source
-            AND sl.source_record_id = t.customer_source_record_id
-           WHERE sl.master_id = ?
-           ORDER BY t.doc_date DESC, t.doc_number DESC NULLS LAST
-           LIMIT 200`,
+          `WITH txns AS (
+             SELECT t.id, t.source, t.source_record_id, t.doc_type,
+                    t.doc_number, t.doc_date, t.delivery_date,
+                    t.total_gross, t.total_net, t.total_tax, t.shipping_cost,
+                    t.currency, t.status,
+                    t.payment_method, t.notes_or_warnings,
+                    t.billing_address_raw, t.shipping_address_raw
+             FROM crm_staging_transaction t
+             JOIN crm_master_source_link sl
+               ON sl.source = t.customer_source
+              AND sl.source_record_id = t.customer_source_record_id
+             WHERE sl.master_id = ?
+             ORDER BY t.doc_date DESC, t.doc_number DESC NULLS LAST
+             LIMIT 200
+           )
+           SELECT
+             txns.*,
+             (SELECT COUNT(*) FROM crm_staging_transaction_item ti WHERE ti.transaction_id = txns.id) AS item_count,
+             COALESCE((
+               SELECT json_agg(item ORDER BY pos)
+               FROM (
+                 SELECT ti.position AS pos,
+                        json_build_object(
+                          'position', ti.position,
+                          'article_no', ti.article_no,
+                          'article_name', ti.article_name,
+                          'quantity', ti.quantity,
+                          'unit', ti.unit,
+                          'unit_price', ti.unit_price,
+                          'line_total_gross', ti.line_total_gross,
+                          'line_total_net', ti.line_total_net,
+                          'vat_rate', ti.vat_rate,
+                          'is_shipping', ti.is_shipping,
+                          'is_discount', ti.is_discount
+                        ) AS item
+                 FROM crm_staging_transaction_item ti
+                 WHERE ti.transaction_id = txns.id
+                 ORDER BY ti.position
+                 LIMIT 100
+               ) sub
+             ), '[]'::json) AS items
+           FROM txns
+           ORDER BY doc_date DESC, doc_number DESC NULLS LAST`,
           [id]
         ),
       ])
