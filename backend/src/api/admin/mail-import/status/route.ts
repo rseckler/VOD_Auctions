@@ -123,6 +123,59 @@ export async function GET(
       ? Math.round((lastLine / JSONL_TOTAL_LINES) * 1000) / 10
       : 0
 
+    // 8) Done-Marker (Auto-Cleanup-Status)
+    const done_marker_present = fs.existsSync("/tmp/import_legacy_mails_v3.done")
+
+    // 9) DB-Load — Connection-Verteilung + Größe + Cache-Hit + Slow Queries
+    const conns = await k.raw(`
+      SELECT
+        COUNT(*) FILTER (WHERE state = 'active') AS active,
+        COUNT(*) FILTER (WHERE state = 'idle') AS idle,
+        COUNT(*) FILTER (WHERE state = 'idle in transaction') AS idle_in_txn,
+        COUNT(*) FILTER (WHERE state IS NULL) AS other,
+        COUNT(*) AS total,
+        MAX(EXTRACT(EPOCH FROM (NOW() - query_start)))::int FILTER (WHERE state = 'active') AS longest_active_s
+      FROM pg_stat_activity
+      WHERE datname = current_database() AND pid <> pg_backend_pid()
+    `)
+    const connsRow = (conns.rows ?? conns)[0] || {}
+
+    const dbInfo = await k.raw(`
+      SELECT
+        pg_database_size(current_database()) AS db_size_bytes,
+        (SELECT
+          CASE WHEN (blks_hit + blks_read) > 0
+            THEN ROUND((100.0 * blks_hit / (blks_hit + blks_read))::numeric, 1)
+            ELSE NULL
+          END
+         FROM pg_stat_database WHERE datname = current_database()) AS cache_hit_pct,
+        (SELECT xact_commit + xact_rollback FROM pg_stat_database WHERE datname = current_database()) AS total_txns,
+        (SELECT deadlocks FROM pg_stat_database WHERE datname = current_database()) AS deadlocks
+    `)
+    const dbInfoRow = (dbInfo.rows ?? dbInfo)[0] || {}
+
+    const slowQueries = await k.raw(`
+      SELECT
+        pid,
+        EXTRACT(EPOCH FROM (NOW() - query_start))::int AS duration_s,
+        state,
+        LEFT(REGEXP_REPLACE(query, '\\s+', ' ', 'g'), 120) AS query_preview
+      FROM pg_stat_activity
+      WHERE state = 'active'
+        AND query_start IS NOT NULL
+        AND NOW() - query_start > INTERVAL '3 seconds'
+        AND pid <> pg_backend_pid()
+        AND datname = current_database()
+      ORDER BY query_start
+      LIMIT 5
+    `)
+    const slowQueriesRows = (slowQueries.rows ?? slowQueries) as Array<{
+      pid: number
+      duration_s: number
+      state: string
+      query_preview: string
+    }>
+
     res.json({
       jsonl: {
         total_lines: JSONL_TOTAL_LINES,
@@ -143,6 +196,27 @@ export async function GET(
       accounts,
       history,
       log_tail,
+      done_marker_present,
+      db_load: {
+        connections: {
+          active: Number(connsRow.active ?? 0),
+          idle: Number(connsRow.idle ?? 0),
+          idle_in_txn: Number(connsRow.idle_in_txn ?? 0),
+          other: Number(connsRow.other ?? 0),
+          total: Number(connsRow.total ?? 0),
+          longest_active_s: connsRow.longest_active_s !== null ? Number(connsRow.longest_active_s) : null,
+        },
+        db_size_bytes: Number(dbInfoRow.db_size_bytes ?? 0),
+        cache_hit_pct: dbInfoRow.cache_hit_pct !== null ? Number(dbInfoRow.cache_hit_pct) : null,
+        total_txns: Number(dbInfoRow.total_txns ?? 0),
+        deadlocks: Number(dbInfoRow.deadlocks ?? 0),
+        slow_queries: slowQueriesRows.map((r) => ({
+          pid: Number(r.pid),
+          duration_s: Number(r.duration_s),
+          state: r.state,
+          query_preview: r.query_preview,
+        })),
+      },
     })
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err)

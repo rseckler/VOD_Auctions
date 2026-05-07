@@ -34,6 +34,27 @@ type PullRunRow = {
 
 type AccountRow = { account: string; rows: number | string }
 
+type DbLoad = {
+  connections: {
+    active: number
+    idle: number
+    idle_in_txn: number
+    other: number
+    total: number
+    longest_active_s: number | null
+  }
+  db_size_bytes: number
+  cache_hit_pct: number | null
+  total_txns: number
+  deadlocks: number
+  slow_queries: {
+    pid: number
+    duration_s: number
+    state: string
+    query_preview: string
+  }[]
+}
+
 type StatusResponse = {
   jsonl: { total_lines: number; last_line: number; progress_pct: number }
   current_run: PullRunRow | null
@@ -50,6 +71,8 @@ type StatusResponse = {
   accounts: AccountRow[]
   history: PullRunRow[]
   log_tail: string[]
+  done_marker_present: boolean
+  db_load: DbLoad
 }
 
 function fmtNum(n: number | string | null | undefined): string {
@@ -151,11 +174,17 @@ function MailImportPage() {
 
   if (!data) return null
 
-  const { jsonl, current_run, state, totals, accounts, history, log_tail } = data
+  const { jsonl, current_run, state, totals, accounts, history, log_tail, done_marker_present, db_load } = data
   const isRunning = !!current_run
 
   // Counts vom State (live während laufendem Run) oder dem letzten partial/done in History
   const liveCounts: Counts | null = state?.counts || null
+
+  const dbLoadAccent = loadColor(
+    db_load.connections.active,
+    db_load.connections.longest_active_s,
+    db_load.cache_hit_pct,
+  )
 
   return (
     <PageShell>
@@ -191,6 +220,14 @@ function MailImportPage() {
           {!isRunning && state && (
             <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
               Letzter State: {fmtDate(state.updated_at)} · resume bei Line {fmtNum(state.last_line)}
+            </div>
+          )}
+          {done_marker_present && (
+            <div style={{
+              marginTop: 6, fontSize: 11, fontWeight: 600,
+              color: isRunning ? "#fff" : C.gold,
+            }}>
+              ✅ Import abgeschlossen — Auto-Cleanup läuft beim nächsten Cron-Tick
             </div>
           )}
         </div>
@@ -267,6 +304,70 @@ function MailImportPage() {
             <Row key={a.account} label={a.account} value={`${fmtNum(a.rows)} (${pct(Number(a.rows), totals.legacy_archive_rows)}%)`} last={i === accounts.length - 1} />
           ))}
         </div>
+      </div>
+
+      {/* DB-Belastung (Supabase) */}
+      <div style={{
+        background: C.card, border: `1px solid ${C.border}`,
+        borderRadius: 10, padding: 20, marginBottom: 18,
+      }}>
+        <div style={{ display: "flex", alignItems: "baseline", marginBottom: 12 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>
+            Supabase DB-Belastung
+          </div>
+          <div style={{ fontSize: 11, color: dbLoadAccent, marginLeft: "auto", fontWeight: 600 }}>
+            ● {db_load.connections.active} active · {db_load.connections.total} total
+          </div>
+        </div>
+
+        {/* Connections-Breakdown + DB-Stats Grid */}
+        <div style={{
+          display: "grid", gridTemplateColumns: "repeat(6, 1fr)",
+          gap: 8, marginBottom: 14,
+        }}>
+          <Stat label="Active" value={fmtNum(db_load.connections.active)} color={db_load.connections.active >= 10 ? C.warning : C.success} />
+          <Stat label="Idle" value={fmtNum(db_load.connections.idle)} />
+          <Stat label="Idle in Txn" value={fmtNum(db_load.connections.idle_in_txn)} color={db_load.connections.idle_in_txn > 0 ? C.warning : undefined} />
+          <Stat label="Longest active" value={db_load.connections.longest_active_s !== null ? `${db_load.connections.longest_active_s}s` : "–"} color={db_load.connections.longest_active_s !== null && db_load.connections.longest_active_s > 10 ? C.warning : undefined} />
+          <Stat label="DB Size" value={fmtBytes(db_load.db_size_bytes)} />
+          <Stat label="Cache Hit" value={db_load.cache_hit_pct !== null ? `${db_load.cache_hit_pct}%` : "–"} color={db_load.cache_hit_pct !== null && db_load.cache_hit_pct < 95 ? C.warning : C.success} />
+        </div>
+
+        {/* Slow-Queries-Tabelle (nur wenn welche da) */}
+        {db_load.slow_queries.length > 0 ? (
+          <>
+            <div style={{ fontSize: 11, fontWeight: 600, color: C.warning, marginBottom: 6 }}>
+              ⚠ Slow Queries (active &gt; 3s)
+            </div>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                <thead>
+                  <tr style={{ borderBottom: `1px solid ${C.border}`, color: C.muted, textAlign: "left" }}>
+                    <th style={{ padding: "5px 8px" }}>pid</th>
+                    <th style={{ padding: "5px 8px", textAlign: "right" }}>duration</th>
+                    <th style={{ padding: "5px 8px" }}>state</th>
+                    <th style={{ padding: "5px 8px" }}>query</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {db_load.slow_queries.map((q) => (
+                    <tr key={q.pid} style={{ borderBottom: `1px solid ${C.border}` }}>
+                      <td style={{ padding: "5px 8px", fontFamily: "monospace", color: C.muted }}>{q.pid}</td>
+                      <td style={{ padding: "5px 8px", textAlign: "right", fontWeight: 600, color: q.duration_s > 30 ? C.error : C.warning }}>{q.duration_s}s</td>
+                      <td style={{ padding: "5px 8px", color: C.muted }}>{q.state}</td>
+                      <td style={{ padding: "5px 8px", fontFamily: "monospace", maxWidth: 480, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{q.query_preview}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : (
+          <div style={{ fontSize: 11, color: C.muted }}>
+            Keine langsamen Queries (alle aktiven Statements &lt; 3s).
+            {db_load.deadlocks > 0 && ` · Deadlocks gesamt: ${fmtNum(db_load.deadlocks)}`}
+          </div>
+        )}
       </div>
 
       {/* Run-Historie */}
@@ -370,6 +471,23 @@ function Row({ label, value, bold, last }: { label: string; value: string; bold?
 function pct(n: number, total: number): string {
   if (!total || total <= 0) return "0"
   return ((n / total) * 100).toFixed(1)
+}
+
+function fmtBytes(bytes: number): string {
+  if (!bytes || bytes <= 0) return "–"
+  const units = ["B", "KB", "MB", "GB", "TB"]
+  let i = 0
+  let n = bytes
+  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++ }
+  return `${n.toFixed(n >= 100 ? 0 : 1)} ${units[i]}`
+}
+
+function loadColor(connsActive: number, longest: number | null, cacheHit: number | null): string {
+  // Heuristic: red when very busy or hot, amber if elevated, green otherwise
+  if (connsActive >= 20 || (longest !== null && longest > 30)) return "#dc2626" // C.error
+  if (connsActive >= 10 || (longest !== null && longest > 10)) return "#d97706" // C.warning
+  if (cacheHit !== null && cacheHit < 95) return "#d97706"
+  return "#16a34a" // C.success
 }
 
 export default MailImportPage

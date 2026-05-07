@@ -61,6 +61,7 @@ VOD_DEMAND_DOMAIN = "vinyl-on-demand.com"
 EMAIL_RE = re.compile(r"\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b")
 
 DEFAULT_STATE_FILE = "/tmp/import_legacy_mails_v3.state.json"
+DONE_MARKER = Path("/tmp/import_legacy_mails_v3.done")
 
 
 # ─── Pure Helpers (keine DB, getestet in import_legacy_mails_v3_test.py) ─────
@@ -515,6 +516,7 @@ def main() -> int:
     cur_line = 0
     batches_since_recycle = 0
     processed_for_limit = 0
+    eof_reached = False
 
     print(f"[v3] streaming JSONL, skip bis line {state.last_line}…")
     with gzip.open(str(src), "rt", encoding="utf-8") as f:
@@ -577,6 +579,10 @@ def main() -> int:
                           f"in_batch_dup={state.counts['skipped_in_batch_dup']} "
                           f"no_date={state.counts['skipped_no_date']} "
                           f"err={state.counts['skipped_error']}", flush=True)
+        else:
+            # for-else: läuft nur wenn for natürlich beendet (kein break) →
+            # JSONL ist vollständig durchgelaufen
+            eof_reached = True
 
     if batch:
         run_with_backoff(pg_conn, batch, state.pull_run_id, state.counts)
@@ -588,8 +594,10 @@ def main() -> int:
 
     elapsed = time.time() - t_start
 
-    # Run komplett durch? Pull-Run auf 'done', State-File löschen
-    completed = (max_runtime <= 0 or elapsed <= max_runtime) and (args.limit is None)
+    # JSONL komplett durch? Pull-Run auf 'done', State-File löschen, DONE-
+    # Marker für den Cron-Wrapper schreiben (triggers Self-Cleanup beim
+    # nächsten Tick).
+    completed = eof_reached and (args.limit is None)
     if completed:
         try:
             conn = make_pg_conn(stmt_timeout_s=10)
@@ -613,6 +621,11 @@ def main() -> int:
                 state_path.unlink()
             except OSError:
                 pass
+            try:
+                DONE_MARKER.touch()
+                print(f"[v3] DONE marker written: {DONE_MARKER}")
+            except OSError as e:
+                print(f"[v3] failed to write DONE marker: {e}", file=sys.stderr)
         except Exception as e:
             print(f"[done-mark-err] {e}", file=sys.stderr)
 
