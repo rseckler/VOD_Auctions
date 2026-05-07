@@ -234,7 +234,7 @@ def preflight_check(pg_conn) -> tuple[bool, str]:
             if not cur.fetchone():
                 return (False, "Pre-flight: UNIQUE-Index idx_crm_imap_message_msgid_unique fehlt")
 
-            # 2) Parallel-Job-Skip
+            # 2) legacy_sync_v2 parallel?
             cur.execute("""
                 SELECT id, started_at FROM crm_pull_run
                 WHERE pipeline = 'legacy_sync_v2' AND status = 'running'
@@ -244,6 +244,17 @@ def preflight_check(pg_conn) -> tuple[bool, str]:
             row = cur.fetchone()
             if row:
                 return (False, f"Pre-flight: legacy_sync_v2 läuft (started {row[1]})")
+
+            # 3) Self-Lock: schon ein import_legacy_mails_v3 am Laufen?
+            cur.execute("""
+                SELECT id, started_at FROM crm_pull_run
+                WHERE pipeline = %s AND status = 'running'
+                  AND started_at > NOW() - INTERVAL '90 minutes'
+                ORDER BY started_at DESC LIMIT 1
+            """, (PIPELINE_TAG,))
+            row = cur.fetchone()
+            if row:
+                return (False, f"Pre-flight: {PIPELINE_TAG} läuft bereits (started {row[1]})")
     except Exception as e:
         return (False, f"Pre-flight DB-Read failed: {e}")
 
