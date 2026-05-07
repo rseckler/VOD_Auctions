@@ -161,6 +161,36 @@ Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Rel
 
 ---
 
+## 2026-05-07 — Catalog-Image-Saga Hardening: Codex-Review-Findings (rc53.10)
+
+**Kontext:** Folge zu rc53.9. Frank's Drag&Drop warf trotz aller initial-Fixes weiter HTTP 500. Logs zeigten erst `chk_action_valid`-Violation (gefixt durch Whitelist-Erweiterung), dann `release_audit_log_action_check`-Violation — ein **zweiter** Constraint mit Postgres-Default-Name, der seit der v1-Migration still parallel zu `chk_action_valid` lebte. Beide werden bei jedem Insert evaluiert; der engere kippt. Auto-Duplikat gedroppt auf Production + Replica.
+
+**Daraufhin Codex-Review** (CLI-Update auf 0.128.0 nötig — alte 0.118.0 unterstützte `gpt-5.5` nicht). Codex fand 3 Major + 2 Minor + 3 Nice-to-Have, alle Major+Minor adressiert.
+
+**Major-Fixes:**
+
+1. **Race auf Discogs-Cover-Apply** [`backend/src/api/admin/media/[id]/route.ts:439`] — Bump+Insert in einer Transaction, aber kein Release-Row-Lock. Default-PG-MVCC würde Bumps zwar sequenzieren, aber `SELECT ... FOR UPDATE` macht die Serialisierung explizit. **Fix:** `await trx("Release").where("id", id).select("id").forUpdate().first()` vor dem Bump, nur wenn `newImageRow` gesetzt ist.
+
+2. **ID-Kollision via `Date.now()`** [`route.ts:427`] — Image-ID-Generator war `media-edit-${id}-${Date.now()}`. Same-Millisekunde-Apply-Kollisionen würden identische `image_id` + R2-Object-Key produzieren (`downloadOptimizeUpload` hasht die ID). `ON CONFLICT DO NOTHING` skippt den Insert silent, aber `Release.coverImage` wird trotzdem auf die neue URL gesetzt → orphan-State. **Fix:** `media-edit-${generateEntityId()}` (ULID, global eindeutig).
+
+3. **Discogs-Preise im Modal selectable, vom Backend ignoriert** [`DiscogsReviewModal.tsx`, `discogs-preview/route.ts`] — Modal exposed 4 Discogs-Preis-Felder (`discogs_lowest_price`, `discogs_median_price`, `discogs_highest_price`, `discogs_num_for_sale`) als checkbox-able Apply-Targets. Frontend POSTete sie an `/admin/media/:id`, aber dort listet `allowedReleaseFields` diese Felder NICHT — silent dropped während Toast "Applied" zeigte. **Fix:** Felder aus `ProposedFields`-Type, `proposed`-/`current`-Snapshots, marketplace-stats-Fetch + price_suggestions-Fetch im preview-endpoint sowie aus `FIELD_LABELS` im Modal entfernt. Per `PRICING_MODEL.md` sind sie sowieso nur Markt-Referenz, keine Stammdaten.
+
+**Minor-Fixes:**
+
+- `discogs_id` zu `STAMMDATEN_AUDIT_FIELDS` hinzugefügt — Verknüpfungs-ID-Änderungen jetzt im Audit-Log nachvollziehbar.
+- Neuer `backend/scripts/migrations/_constraints_reference.sql` als Single Source of Truth für ENUM-artige CHECK-Constraints. Idempotente DROP+ADD für `chk_action_valid`, `chk_revert_consistency`, `chk_revert_has_parent` + Defense-Drop des Auto-Duplikats. Disziplin: bei jedem neuen Action-Wert im Code dieses File mit-aktualisieren.
+
+**Backlog (TODO `Later`):**
+- 3 weitere Tabellen mit Inline-CHECK ohne expliziten Namen (`promo_codes`, `crm_staging`, `erp_inventory_bootstrap`) — Future-Risk-Pattern, aktuell kein Drift, ~1h Effort wenn relevant.
+
+**Memory neu:** [`feedback_check_constraint_action_drift.md`](../../.claude/projects/.../memory/feedback_check_constraint_action_drift.md) — bei neuen action/status/type-Werten im Code immer den DB-CHECK-Constraint mit-migrieren. Inline-CHECK-Constraints in Knex-Migrations IMMER explizit benennen (`ADD CONSTRAINT chk_<name>`), nie Inline ohne Name.
+
+**Session-Log:** [`docs/sessions/2026-05-07_catalog_image_saga.md`](../sessions/2026-05-07_catalog_image_saga.md) — vollständige Story über 6 Wellen.
+
+**Commits dieser Welle:** `903e18c`, `9f448d2`, `64ae682`, `d57c092`.
+
+---
+
 ## 2026-05-07 — Catalog-Image-Stack-Bug + Drag&Drop Cover-Target + Upload Body-Limit (rc53.9)
 
 **Kontext:** David's Bug-Report nach rc51.9.2 (Discogs Review Modal): "Jedes Mal wenn ich neu fetche und Unlocke übernimmt es mir dann immer und immer wieder das neue Bild nochmal, aber tauscht nicht das falsche aus." Frank parallel: "Drag and Drop bilder tauschen geht nicht und bild hochladen muss ich noch probieren."
