@@ -1,0 +1,22 @@
+-- 2026-05-07: drop duplicate auto-generated CHECK constraint on
+-- release_audit_log.action.
+--
+-- Folge-Migration zu 2026-05-07_release_audit_log_action_whitelist.sql:
+-- Frank's Reorder warf weiter HTTP 500 nachdem chk_action_valid erweitert
+-- wurde. Logs zeigten violations gegen einen ZWEITEN Constraint namens
+-- release_audit_log_action_check (Postgres-Auto-Name pattern
+-- "<table>_<column>_check") — dieser entstand vermutlich aus einer früheren
+-- Knex-Migration mit `.text("action").checkIn([...])` und wurde nie als
+-- benannter Constraint geführt.
+--
+-- Beide Constraints werden bei jedem Insert evaluiert; der engere kippt.
+-- chk_action_valid ist der explizit benannte, kanonische Constraint und
+-- bleibt; der Auto-generierte Duplikat wird gedroppt.
+--
+-- Lesson (siehe ~/.claude/.../memory/feedback_check_constraint_action_drift.md):
+-- ENUM-artige CHECK-Constraints in Knex/Postgres müssen IMMER explizit
+-- benannt werden (`ALTER TABLE ... ADD CONSTRAINT chk_<name> CHECK (...)`),
+-- damit spätere Migrations sie eindeutig referenzieren können. Auto-Namen
+-- wie `<table>_<column>_check` führen zu still co-existierenden Duplikaten.
+
+ALTER TABLE release_audit_log DROP CONSTRAINT IF EXISTS release_audit_log_action_check;
