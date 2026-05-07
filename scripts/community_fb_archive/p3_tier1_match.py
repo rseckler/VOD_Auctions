@@ -66,6 +66,32 @@ RELEASE_THRESHOLD_LOW = 70
 # Confidence calculation buckets
 TIER1_MIN_CONFIDENCE = 0.80
 
+# Names that are nothing but a single stop-word create false positives like
+# Artist "IS" matching the word "is" in any English post. We filter these
+# out at load time.
+EN_STOPWORDS = {
+    "a", "an", "the", "is", "am", "are", "was", "were", "be", "been", "being",
+    "as", "at", "by", "for", "in", "of", "on", "to", "up", "or", "and", "but",
+    "if", "so", "no", "do", "go", "my", "me", "i", "we", "us", "you", "it", "he",
+    "she", "they", "this", "that", "not", "yes", "its", "who", "how", "why",
+    "what", "when", "where", "just", "oh", "ah", "eh", "um", "all", "any",
+    "out", "now", "new", "old", "way", "yet", "too", "off", "own", "let",
+}
+DE_STOPWORDS = {
+    "der", "die", "das", "den", "dem", "ein", "eine", "einen", "einer", "ist",
+    "sind", "war", "waren", "und", "oder", "aber", "nicht", "kein", "ich", "du",
+    "er", "sie", "es", "wir", "ihr", "mein", "dein", "sein", "auf", "mit",
+    "von", "zu", "an", "in", "aus", "bei", "für", "ja", "nein", "auch", "noch",
+    "dass", "wie", "wenn", "weil", "habe", "hat", "haben", "wird", "werden",
+    "kann", "muss", "soll",
+}
+STOPWORDS = EN_STOPWORDS | DE_STOPWORDS
+
+# Hard minimum length for substring matching — anything shorter is too
+# generic. ("TG" alone in random text is a false match; needs surrounding
+# context which the fuzzy fallback handles via token overlap.)
+SUBSTRING_MIN_LEN = 4
+
 
 # ─── DB connection ─────────────────────────────────────────────────────────
 
@@ -108,8 +134,13 @@ def load_artists(conn) -> list[dict]:
     out = []
     for r in rows:
         nrm = normalize_for_match(r["name"])
-        if nrm:
-            out.append({"id": r["id"], "name": r["name"], "norm": nrm})
+        if not nrm:
+            continue
+        # Skip pure-stopword names (Artist "IS", "AS", "OR", "Die", …)
+        toks = nrm.split()
+        if all(t in STOPWORDS for t in toks):
+            continue
+        out.append({"id": r["id"], "name": r["name"], "norm": nrm})
     return out
 
 
@@ -138,20 +169,25 @@ def load_releases(conn) -> list[dict]:
     out = []
     for r in rows:
         nrm = normalize_for_match(r["title"])
-        if nrm:
-            # Prefer artist_display_name (denormalized, often "Various
-            # Artists" or "Artist1 / Artist2"), fall back to joined Artist.name
-            display = r["artist_display_name"] or r["main_artist_name"]
-            out.append(
-                {
-                    "id": r["release_id"],
-                    "title": r["title"],
-                    "norm": nrm,
-                    "catalog_number": r["catalog_number"],
-                    "main_artist_name": display,
-                    "main_artist_id": r["main_artist_id"],
-                }
-            )
+        if not nrm:
+            continue
+        # Skip pure-stopword titles ("Is", "Why", "Is It")
+        toks = nrm.split()
+        if all(t in STOPWORDS for t in toks):
+            continue
+        # Prefer artist_display_name (denormalized, often "Various Artists"
+        # or "Artist1 / Artist2"), fall back to joined Artist.name
+        display = r["artist_display_name"] or r["main_artist_name"]
+        out.append(
+            {
+                "id": r["release_id"],
+                "title": r["title"],
+                "norm": nrm,
+                "catalog_number": r["catalog_number"],
+                "main_artist_name": display,
+                "main_artist_id": r["main_artist_id"],
+            }
+        )
     return out
 
 
@@ -192,19 +228,16 @@ def find_artist_matches(post_norm: str, artists: list[dict]) -> list[dict]:
     matches: list[dict] = []
     seen_ids: set[str] = set()
 
-    # Stage 1 — direct substring match (very fast)
+    # Stage 1 — direct substring match. Names < SUBSTRING_MIN_LEN (after
+    # collapsing whitespace) are too generic for substring matching; they go
+    # only through the fuzzy stage which requires multi-token overlap.
     for a in artists:
-        # Word-boundary substring for short names so "TG" doesn't false-positive
         nm = a["norm"]
-        if len(nm) < 4:
-            # Require word-boundary match for very short names
-            if re.search(rf"\b{re.escape(nm)}\b", post_norm):
-                matches.append({**a, "score": 100.0, "match_type": "exact_substring"})
-                seen_ids.add(a["id"])
-        else:
-            if nm in post_norm:
-                matches.append({**a, "score": 100.0, "match_type": "exact_substring"})
-                seen_ids.add(a["id"])
+        if len(nm.replace(" ", "")) < SUBSTRING_MIN_LEN:
+            continue
+        if re.search(rf"\b{re.escape(nm)}\b", post_norm):
+            matches.append({**a, "score": 100.0, "match_type": "exact_substring"})
+            seen_ids.add(a["id"])
 
     if matches:
         # Have exact matches → don't bother with fuzzy
@@ -240,20 +273,18 @@ def find_artist_matches(post_norm: str, artists: list[dict]) -> list[dict]:
 
 
 def find_release_matches(post_norm: str, releases: list[dict]) -> list[dict]:
-    """Same idea as artists, but on Release titles."""
+    """Same idea as artists, but on Release titles. Min-length gate to
+    prevent generic short titles ("Is", "Why") from false-matching."""
     matches: list[dict] = []
     seen_ids: set[str] = set()
 
     for r in releases:
         nm = r["norm"]
-        if len(nm) < 4:
-            if re.search(rf"\b{re.escape(nm)}\b", post_norm):
-                matches.append({**r, "score": 100.0, "match_type": "exact_substring"})
-                seen_ids.add(r["id"])
-        else:
-            if nm in post_norm:
-                matches.append({**r, "score": 100.0, "match_type": "exact_substring"})
-                seen_ids.add(r["id"])
+        if len(nm.replace(" ", "")) < SUBSTRING_MIN_LEN:
+            continue
+        if re.search(rf"\b{re.escape(nm)}\b", post_norm):
+            matches.append({**r, "score": 100.0, "match_type": "exact_substring"})
+            seen_ids.add(r["id"])
 
     if matches:
         matches.sort(key=lambda m: (-m["score"], -len(m["norm"])))
@@ -286,34 +317,81 @@ def find_release_matches(post_norm: str, releases: list[dict]) -> list[dict]:
     return matches[:5]
 
 
+def reorder_releases_by_artist(
+    releases: list[dict], top_artist: dict | None
+) -> list[dict]:
+    """Boost releases whose main_artist matches the top Artist match.
+
+    This eliminates the case where a generic Release-title coincidentally
+    appears in a post about a different artist. We only TRUST a release
+    suggestion when its catalog-side main_artist agrees with the post's
+    artist signal.
+    """
+    if not top_artist or not releases:
+        return releases
+    top_artist_id = top_artist["id"]
+    top_artist_norm = top_artist["norm"]
+
+    def is_artist_consistent(r: dict) -> bool:
+        if r.get("main_artist_id") == top_artist_id:
+            return True
+        rn = normalize_for_match(r.get("main_artist_name") or "")
+        return bool(rn) and (rn == top_artist_norm or top_artist_norm in rn or rn in top_artist_norm)
+
+    consistent = [r for r in releases if is_artist_consistent(r)]
+    other = [r for r in releases if not is_artist_consistent(r)]
+    return consistent + other
+
+
 def compute_confidence(
     artists: list[dict], releases: list[dict]
 ) -> tuple[float, str]:
     """Return (confidence 0..1, reason).
 
-    Heuristic:
-      both exact          → 0.95
-      exact artist + fuzzy release ≥ HIGH → 0.85
-      fuzzy artist + exact release  → 0.80
-      both fuzzy ≥ HIGH   → 0.70
-      only one side       → 0.40
-      neither             → 0.0
+    Cross-validation: When BOTH an artist and a release matched, AND the
+    top release's main_artist agrees with the top artist, that's a strong
+    signal. Mismatch on artist between sides drops confidence sharply.
+
+    Heuristic (artist-aligned cases):
+      both exact + artist-consistent          → 0.95
+      exact artist + fuzzy release            → 0.85
+      fuzzy artist + exact release            → 0.80
+      both fuzzy high                          → 0.70
+
+    Cross-mismatch case (artist signal disagrees):
+      both matches but releases.main_artist != top_artist → 0.45 (P4 disambiguates)
+
+    Single-side:
+      artist only / release only               → 0.40
+      neither                                  → 0.0
     """
-    if not artists or not releases:
-        # Single side only (or none)
-        if artists and not releases:
-            return (0.40, "artist_only")
-        if releases and not artists:
-            return (0.40, "release_only")
+    if not artists and not releases:
         return (0.0, "no_match")
+    if artists and not releases:
+        return (0.40, "artist_only")
+    if releases and not artists:
+        return (0.40, "release_only")
 
     a_score = artists[0]["score"]
     r_score = releases[0]["score"]
     a_exact = a_score >= 100.0
     r_exact = r_score >= 100.0
 
+    # Cross-validate: does the top release belong to the top artist?
+    top_a = artists[0]
+    top_r = releases[0]
+    artist_consistent = (
+        top_r.get("main_artist_id") == top_a["id"]
+        or normalize_for_match(top_r.get("main_artist_name") or "") == top_a["norm"]
+    )
+
+    if not artist_consistent:
+        # Artist and Release exist but don't agree on who's the artist —
+        # could be a post mentioning multiple things; defer to AI vision.
+        return (0.45, "artist_release_mismatch")
+
     if a_exact and r_exact:
-        return (0.95, "both_exact")
+        return (0.95, "both_exact_consistent")
     if a_exact and r_score >= RELEASE_THRESHOLD_HIGH:
         return (0.85, "exact_artist_fuzzy_release")
     if r_exact and a_score >= ARTIST_THRESHOLD_HIGH:
@@ -520,6 +598,11 @@ def run(
 
                 a_matches = find_artist_matches(post_norm, artists)
                 r_matches = find_release_matches(post_norm, releases)
+                # Cross-validate: prefer releases whose main_artist matches
+                # the top Artist match — this anchors the release-side to
+                # the artist-side and kills generic Release-title collisions.
+                if a_matches:
+                    r_matches = reorder_releases_by_artist(r_matches, a_matches[0])
                 conf, reason = compute_confidence(a_matches, r_matches)
 
                 # Tier decision (per-post, applied to all photos in post)
