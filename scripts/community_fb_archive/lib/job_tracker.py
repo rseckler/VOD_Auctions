@@ -232,10 +232,18 @@ class JobTracker:
 
     def _finish(self, status: str, result_summary: dict[str, Any] | None) -> None:
         with self._conn.cursor() as c:
+            # On successful completion snap progress_done to progress_total
+            # (heartbeat-throttling can leave progress_done lagging on fast jobs).
+            progress_clause = (
+                "progress_done = COALESCE(progress_total, progress_done),"
+                if status == "succeeded"
+                else ""
+            )
             c.execute(
-                """
+                f"""
                 UPDATE background_job
                    SET status         = %s,
+                       {progress_clause}
                        finished_at    = NOW(),
                        last_heartbeat = NOW(),
                        result_summary = %s::jsonb,
