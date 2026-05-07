@@ -114,26 +114,23 @@ def load_artists(conn) -> list[dict]:
 
 
 def load_releases(conn) -> list[dict]:
-    """Read all Releases with title + (joined) main artist for filename."""
+    """Read all Releases with title + main artist for filename.
+
+    Release has a direct `artistId` column (main artist) and
+    `artist_display_name` (denormalized display string). No
+    ReleaseArtist-join needed.
+    """
     with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as c:
-        # Main artist via lowest rang in ReleaseArtist join — matches the
-        # display convention used elsewhere in the codebase.
         c.execute(
             """
-            SELECT r.id           AS release_id,
-                   r.title        AS title,
-                   r."catalogNumber" AS catalog_number,
-                   COALESCE(a.name, NULL) AS main_artist_name,
-                   a.id           AS main_artist_id
+            SELECT r.id                   AS release_id,
+                   r.title                AS title,
+                   r."catalogNumber"      AS catalog_number,
+                   r.artist_display_name  AS artist_display_name,
+                   r."artistId"           AS main_artist_id,
+                   a.name                 AS main_artist_name
               FROM "Release" r
-              LEFT JOIN LATERAL (
-                  SELECT a2.id, a2.name
-                    FROM "ReleaseArtist" ra
-                    JOIN "Artist" a2 ON a2.id = ra."artistId"
-                   WHERE ra."releaseId" = r.id
-                   ORDER BY ra.rang ASC NULLS LAST
-                   LIMIT 1
-              ) a ON TRUE
+              LEFT JOIN "Artist" a ON a.id = r."artistId"
              WHERE r.title IS NOT NULL AND length(trim(r.title)) >= 2
             """
         )
@@ -142,13 +139,16 @@ def load_releases(conn) -> list[dict]:
     for r in rows:
         nrm = normalize_for_match(r["title"])
         if nrm:
+            # Prefer artist_display_name (denormalized, often "Various
+            # Artists" or "Artist1 / Artist2"), fall back to joined Artist.name
+            display = r["artist_display_name"] or r["main_artist_name"]
             out.append(
                 {
                     "id": r["release_id"],
                     "title": r["title"],
                     "norm": nrm,
                     "catalog_number": r["catalog_number"],
-                    "main_artist_name": r["main_artist_name"],
+                    "main_artist_name": display,
                     "main_artist_id": r["main_artist_id"],
                 }
             )
