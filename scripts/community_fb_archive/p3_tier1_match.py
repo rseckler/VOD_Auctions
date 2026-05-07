@@ -221,7 +221,11 @@ def sanitize_filename_part(s: str) -> str:
 # ─── Matching ──────────────────────────────────────────────────────────────
 
 
-def find_artist_matches(post_norm: str, artists: list[dict]) -> list[dict]:
+def find_artist_matches(
+    post_norm: str,
+    artists: list[dict],
+    artist_index: dict[str, list[dict]],
+) -> list[dict]:
     """Return artists whose normalized name appears (substring or fuzzy) in
     the normalized post text. Sorted by:
         1. score DESC
@@ -230,21 +234,29 @@ def find_artist_matches(post_norm: str, artists: list[dict]) -> list[dict]:
 
     Single-token names < 5 chars are skipped from substring-match (too
     generic — e.g. "Pure", "Play", "Them" in random English text).
+
+    Performance: candidates pre-filtered via inverted-index on tokens —
+    only artists whose tokens appear in the post-tokens are checked.
+    Reduces from 64k full-iteration to ~100-500 candidates per post.
     """
     matches: list[dict] = []
     seen_ids: set[str] = set()
 
-    for a in artists:
+    post_tokens = set(post_norm.split())
+    cands_by_id: dict[str, dict] = {}
+    for tok in post_tokens:
+        for a in artist_index.get(tok, ()):
+            cands_by_id[a["id"]] = a
+
+    for a in cands_by_id.values():
         nm = a["norm"]
         no_ws = nm.replace(" ", "")
         if len(no_ws) < SUBSTRING_MIN_LEN:
             continue
         token_count = nm.count(" ") + 1
-        # Single-token artist needs ≥5 letters to substring-match
-        # (drops "Pure", "Soon", "Play", "Them" — but keeps "Swans", "Throbbing")
         if token_count == 1 and len(no_ws) < 5:
             continue
-        if re.search(rf"\b{re.escape(nm)}\b", post_norm):
+        if a["pat"].search(post_norm):
             matches.append({
                 **a,
                 "score": 100.0,
@@ -260,10 +272,7 @@ def find_artist_matches(post_norm: str, artists: list[dict]) -> list[dict]:
 
     # Stage 2 — fuzzy via rapidfuzz process.extract (only if no exact match)
     # Limit to artists whose norm shares at least one token with the post
-    post_tokens = set(post_norm.split())
-    candidate_artists = [
-        a for a in artists if any(tok in post_tokens for tok in a["norm"].split())
-    ]
+    candidate_artists = list(cands_by_id.values())
     if not candidate_artists:
         return []
 
@@ -280,19 +289,38 @@ def find_artist_matches(post_norm: str, artists: list[dict]) -> list[dict]:
         if a["id"] in seen_ids:
             continue
         seen_ids.add(a["id"])
-        matches.append({**a, "score": score, "match_type": "fuzzy"})
+        token_count = a["norm"].count(" ") + 1
+        matches.append({
+            **a,
+            "score": score,
+            "match_type": "fuzzy",
+            "_tokens": token_count,
+        })
 
-    matches.sort(key=lambda m: -m["score"])
+    matches.sort(key=lambda m: (-m["score"], -m["_tokens"], -len(m["norm"])))
     return matches[:5]
 
 
-def find_release_matches(post_norm: str, releases: list[dict]) -> list[dict]:
+def find_release_matches(
+    post_norm: str,
+    releases: list[dict],
+    release_index: dict[str, list[dict]],
+) -> list[dict]:
     """Same idea as artists, but on Release titles. Multi-token wins.
-    Single-token titles < 5 chars get skipped (e.g. "Try To..", "Music")."""
+    Single-token titles < 5 chars get skipped (e.g. "Try To..", "Music").
+
+    Performance: candidates pre-filtered via inverted-index on tokens.
+    """
     matches: list[dict] = []
     seen_ids: set[str] = set()
 
-    for r in releases:
+    post_tokens = set(post_norm.split())
+    cands_by_id: dict[str, dict] = {}
+    for tok in post_tokens:
+        for r in release_index.get(tok, ()):
+            cands_by_id[r["id"]] = r
+
+    for r in cands_by_id.values():
         nm = r["norm"]
         no_ws = nm.replace(" ", "")
         if len(no_ws) < SUBSTRING_MIN_LEN:
@@ -300,7 +328,7 @@ def find_release_matches(post_norm: str, releases: list[dict]) -> list[dict]:
         token_count = nm.count(" ") + 1
         if token_count == 1 and len(no_ws) < 5:
             continue
-        if re.search(rf"\b{re.escape(nm)}\b", post_norm):
+        if r["pat"].search(post_norm):
             matches.append({
                 **r,
                 "score": 100.0,
@@ -313,11 +341,8 @@ def find_release_matches(post_norm: str, releases: list[dict]) -> list[dict]:
         matches.sort(key=lambda m: (-m["score"], -m["_tokens"], -len(m["norm"])))
         return matches[:5]
 
-    # Fuzzy fallback — restrict to title-token-overlap candidates for speed
-    post_tokens = set(post_norm.split())
-    candidate_releases = [
-        r for r in releases if any(tok in post_tokens for tok in r["norm"].split())
-    ]
+    # Fuzzy fallback — token-overlap candidates already cached above
+    candidate_releases = list(cands_by_id.values())
     if not candidate_releases:
         return []
 
@@ -334,9 +359,15 @@ def find_release_matches(post_norm: str, releases: list[dict]) -> list[dict]:
         if r["id"] in seen_ids:
             continue
         seen_ids.add(r["id"])
-        matches.append({**r, "score": score, "match_type": "fuzzy"})
+        token_count = r["norm"].count(" ") + 1
+        matches.append({
+            **r,
+            "score": score,
+            "match_type": "fuzzy",
+            "_tokens": token_count,
+        })
 
-    matches.sort(key=lambda m: -m["score"])
+    matches.sort(key=lambda m: (-m["score"], -m["_tokens"], -len(m["norm"])))
     return matches[:5]
 
 
@@ -554,6 +585,23 @@ def run(
     print(f"    {len(releases)} releases loaded", flush=True)
     conn.close()
 
+    # 3) Pre-compute: per-item word-boundary regex pattern + token-inverted-index
+    # This moves the work from O(N×M) per-post to O(N) once + O(K) per post,
+    # where K is the post's distinct token count (~30-50). Critical speedup.
+    print("  pre-compiling patterns + building inverted index …", flush=True)
+    artist_index: dict[str, list[dict]] = {}
+    for a in artists:
+        a["pat"] = re.compile(rf"\b{re.escape(a['norm'])}\b")
+        for tok in set(a["norm"].split()):
+            artist_index.setdefault(tok, []).append(a)
+    release_index: dict[str, list[dict]] = {}
+    for r in releases:
+        r["pat"] = re.compile(rf"\b{re.escape(r['norm'])}\b")
+        for tok in set(r["norm"].split()):
+            release_index.setdefault(tok, []).append(r)
+    print(f"    artist index tokens: {len(artist_index)}", flush=True)
+    print(f"    release index tokens: {len(release_index)}", flush=True)
+
     # 3) Match + write manifest_matches.jsonl
     payload = {
         "source_dir": str(source_dir),
@@ -619,8 +667,8 @@ def run(
                     job.heartbeat(progress_done=idx)
                     continue
 
-                a_matches = find_artist_matches(post_norm, artists)
-                r_matches = find_release_matches(post_norm, releases)
+                a_matches = find_artist_matches(post_norm, artists, artist_index)
+                r_matches = find_release_matches(post_norm, releases, release_index)
                 # Cross-validate: prefer releases whose main_artist matches
                 # the top Artist match — this anchors the release-side to
                 # the artist-side and kills generic Release-title collisions.
@@ -679,6 +727,9 @@ def run(
                         "confidence": round(conf, 2),
                         "reason": reason,
                         "post_text_excerpt": post["text"][:200],
+                        # NB: artist/release dicts contain compiled regex
+                        # patterns ("pat") — explicitly project to JSON-safe
+                        # subset only. Same for "_tokens" (transient).
                         "artist_candidates": [
                             {
                                 "id": a["id"],
