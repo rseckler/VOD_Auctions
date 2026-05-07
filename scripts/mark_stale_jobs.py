@@ -23,6 +23,13 @@ from datetime import datetime, timezone
 
 import psycopg2
 
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except ImportError:
+    pass
+
 STALE_THRESHOLD_SEC = 5 * 60  # 5 Minuten ohne Heartbeat → stale
 
 QUERY = """
@@ -43,9 +50,9 @@ RETURNING id, kind, display_name, last_heartbeat;
 
 
 def main() -> int:
-    db_url = os.environ.get("SUPABASE_DB_URL")
+    db_url = os.environ.get("SUPABASE_DB_URL") or os.environ.get("DATABASE_URL")
     if not db_url:
-        print("FATAL: SUPABASE_DB_URL not set", file=sys.stderr)
+        print("FATAL: neither SUPABASE_DB_URL nor DATABASE_URL set", file=sys.stderr)
         return 1
 
     conn = psycopg2.connect(db_url)

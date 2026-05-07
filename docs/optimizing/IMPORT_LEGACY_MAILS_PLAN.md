@@ -3,6 +3,7 @@
 **Status:** ⏸️ **On Hold** — Robin entscheidet Restart-Zeitpunkt
 **Last update:** 2026-05-05
 **Author:** Robin Seckler + Claude
+**Verwandtes Konzept:** [`LOAD_TIER_KONZEPT.md`](./LOAD_TIER_KONZEPT.md) — der `import_legacy_mails_v2.py` respektiert beim Restart den globalen `load_tier`. Tier-Wechsel via Admin-UI unter `/app/operations/load-tier`. Restart-Modus-Frage (Teil 6 / Frage 1) wird damit zur **Tier-Wahl** statt eines hartcodierten Modus.
 
 ## Zusammenfassung in einem Absatz
 
@@ -248,15 +249,18 @@ Skript `scripts/import_sage_db.py`:
 
 ### Vorgeschlagener Importer-Umbau
 
-| Aspekt | Alt | Neu |
+> **Tier-Awareness:** Die konkreten Werte für `batch_size`, `sleep`, `max_runtime` werden vom globalen `load_tier`-Setting gesteuert. Robin schaltet den Tier vor dem Restart via Admin-UI auf `low`, der Importer liest ihn beim Start und passt sich an. Siehe [`LOAD_TIER_KONZEPT.md`](./LOAD_TIER_KONZEPT.md) Sektion 4.3 für die exakte Tier-Matrix.
+
+| Aspekt | Alt | Neu (Tier-aware) |
 |---|---|---|
-| **Dedup** | row-by-row SELECT+INSERT | Batch SELECT 200 message_ids → filter → bulk INSERT |
-| **Round-Trips** | ~845.000 | **~4.200** (200× weniger DB-Calls) |
+| **Dedup** | row-by-row SELECT+INSERT | `low`: Batch SELECT 50 → in-memory diff → bulk INSERT · `medium/high`: Bulk-INSERT mit `ON CONFLICT DO NOTHING` |
+| **Round-Trips** | ~845.000 | **~2.000–200** je nach Tier (200×–4000× weniger) |
 | **Connection** | 1× 6h offen | kurzlebig — open per Batch, close, sleep, repeat |
-| **Throttle** | keine | 100 ms Sleep zwischen Batches → DB hat 50% Idle |
-| **Idempotenz** | SELECT-then-INSERT (race-prone) | `INSERT … ON CONFLICT (message_id_header) DO NOTHING` |
-| **State-File** | kein | `/tmp/import_legacy_mails.state.json` — letzte Zeile + pull_run_id, nach jedem Batch geschrieben |
-| **Max-Runtime** | unbegrenzt | `--max-runtime 1800` (30 Min) — clean shutdown bei Time-Box, exit 0 |
+| **Throttle (sleep zw. Batches)** | keine | `low`: 1.5 s · `medium`: 0.1 s · `high`: 0 s |
+| **Batch-Size** | n/a | `low`: 50 · `medium`: 200 · `high`: 500 |
+| **Idempotenz** | SELECT-then-INSERT (race-prone) | `INSERT … ON CONFLICT (message_id_header) DO NOTHING` (medium/high) bzw. SELECT-skip (low) |
+| **State-File** | kein | `/tmp/import_legacy_mails.state.json` — letzte Zeile + pull_run_id, Flush je nach Tier (low: jeder Batch, medium: alle 5, high: alle 20) |
+| **Max-Runtime** | unbegrenzt | `low`: `--max-runtime 1800` (30 Min) · `medium`: 3600 · `high`: unlimited |
 | **Error-Handling** | crash bei Timeout | bei Statement-Timeout: 5 s Backoff + 1 Retry, dann Batch skippen + Counter |
 | **Pull-Run** | hangt bei Kill | atexit-Handler markiert pull_run als `partial` mit aktuellem Stand |
 
@@ -278,15 +282,18 @@ CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS
   WHERE message_id_header IS NOT NULL;
 ```
 
-### ETA / Last-Profil
+### ETA / Last-Profil (Tier-abhängig)
 
-| Modus | Dauer | DB-Last | Crash-Recovery |
-|---|---|---|---|
-| **Alt (broken)** | 30–60 Min konstant 100% | hoch, blockt andere Queries | komplett verloren |
-| **Neu** | 30 Min/h × 3–4 Stunden = **3–4 h Wallclock** | gemittelt ~50% | resume from state-file |
+| Tier | Dauer | DB-Last | Crash-Recovery | Wann sinnvoll? |
+|---|---|---|---|---|
+| **Alt (broken)** | 30–60 Min konstant 100% | hoch, blockt andere Queries | komplett verloren | nie |
+| **Neu — `low`** | 6–8 h Wallclock (cron 30 Min/h) | ~25% gemittelt | resume from state-file | Restart in Bürozeiten, Frank arbeitet parallel |
+| **Neu — `medium`** | 3–4 h Wallclock | ~50% gemittelt | resume from state-file | abends, weniger paralleler Traffic |
+| **Neu — `high`** | 1–2 h Wallclock | ~80–100%, kurzer Peak | resume from state-file | Sonntagnacht, gar nichts los |
 
-Du arbeitest in der Zeit **ohne Beeinträchtigung** weiter — Frank kann scannen,
-CRM-UI bleibt nutzbar, andere Crons laufen.
+Im `low`-Tier kannst du **uneingeschränkt parallel arbeiten** — Frank kann scannen,
+CRM-UI bleibt nutzbar, andere Crons laufen ungestört. Im `medium`-Tier bist du
+in den 30-Min-Slots auf etwas langsamere Admin-Page-Loads gefasst.
 
 ---
 
@@ -333,10 +340,10 @@ JSONL.gz, Dedup macht den Rest.
 
 ## Teil 6: Offene Fragen für Restart-Entscheidung
 
-1. **Restart-Modus** für Mac-Studio-JSONL: stündliche 30-Min-Slots (cron)
-   oder einmaliger 3–4 h Marathon mit Throttle? Beide haben gleich niedrige
-   DB-Last, der Unterschied ist Wallclock-Dauer und Wieder-Startbarkeit bei
-   Crash.
+1. ~~**Restart-Modus** für Mac-Studio-JSONL: stündliche Cron-Slots oder
+   Marathon?~~ → **gelöst durch Load-Tier-System** (siehe LOAD_TIER_KONZEPT.md):
+   `low` = 30-Min-Slots stündlich (Bürozeit-Safe), `medium` = 60-Min-Slot,
+   `high` = Marathon. Robin wählt Tier in Admin-UI vor Restart.
 2. **Index-Migration** auf `crm_imap_message.message_id_header` — additive
    Migration, kein Risk, ~30 s auf 116k Rows. OK?
 3. **Hangende pull_runs** als `abandoned` flaggen?
@@ -349,6 +356,12 @@ JSONL.gz, Dedup macht den Rest.
 6. **Thunderbird/PST** vor oder nach Mac-Studio-Restart? Beide würden eigene
    `pull_run`-Source haben und beim Mac-Studio-Restart NICHT durch Dedup
    gefiltert (andere message_id_headers).
+7. **Reihenfolge der PR-Auslieferung:** zuerst LOAD_TIER_KONZEPT-PR (3 h
+   Code, schaltet Tier-Mechanism scharf), erst dann v2-Importer bauen?
+   Oder Importer-v2 ohne Tier-Awareness bauen (hartcodiert auf `low`-Werte)
+   und Tier-Lookup als zweites Commit nachreichen? Empfehlung: **LOAD_TIER
+   zuerst** — dann hat der Importer die Lookup-Funktion vom ersten Tag,
+   keine Refactoring-Schleife.
 
 ---
 

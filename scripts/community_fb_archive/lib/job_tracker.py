@@ -45,6 +45,30 @@ from typing import Any, Iterator
 import psycopg2
 import psycopg2.extras
 
+try:
+    from dotenv import load_dotenv as _load_dotenv
+
+    _load_dotenv()
+except ImportError:
+    pass
+
+
+def _resolve_db_url() -> str:
+    """Resolve Postgres URL from env, accepting both VOD legacy names.
+
+    Canonical: SUPABASE_DB_URL (used by all newer scripts).
+    Legacy fallback: DATABASE_URL (current name on VPS .env file).
+    """
+    for var in ("SUPABASE_DB_URL", "DATABASE_URL"):
+        val = os.environ.get(var)
+        if val:
+            return val
+    raise RuntimeError(
+        "Neither SUPABASE_DB_URL nor DATABASE_URL is set — "
+        "check scripts/.env or pass db_url= explicitly."
+    )
+
+
 DEFAULT_HEARTBEAT_INTERVAL_SEC = 15
 LOG_TAIL_MAX_CHARS = 5000
 
@@ -79,7 +103,7 @@ class JobTracker:
         db_url: str | None = None,
     ) -> Iterator["JobTracker"]:
         """Context manager: registers job, runs body, marks succeed/fail."""
-        conn = psycopg2.connect(db_url or os.environ["SUPABASE_DB_URL"])
+        conn = psycopg2.connect(db_url or _resolve_db_url())
         conn.autocommit = True
         job_id = _generate_id()
         try:
