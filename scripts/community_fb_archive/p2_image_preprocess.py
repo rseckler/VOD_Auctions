@@ -186,6 +186,28 @@ def optimize_image(image_bytes: bytes) -> tuple[bytes, int, int, bool]:
 # ─── Main worker ───────────────────────────────────────────────────────────
 
 
+def resolve_media_path(source_dir: Path, uri: str) -> Path | None:
+    """Try multiple media-root locations for a given URI.
+
+    The FB export ships TWO copies of the data: JSON variant under
+    `this_profile's_activity_across_facebook/` and HTML variant under
+    a separately rsync'd `this_profile_html/`. Both variants reference
+    the same URI prefix in their JSON, but each contains a different
+    SUBSET of the actual media files. We probe both before giving up.
+    """
+    # URI is like `this_profile's_activity_across_facebook/posts/media/Fotos_…/N.jpg`
+    candidates = [
+        source_dir / uri,  # JSON-variant native path
+    ]
+    if uri.startswith("this_profile's_activity_across_facebook/"):
+        rest = uri[len("this_profile's_activity_across_facebook/"):]
+        candidates.append(source_dir / "this_profile_html" / rest)
+    for p in candidates:
+        if p.exists():
+            return p
+    return None
+
+
 def run(
     source_dir: Path,
     dry_run: bool = False,
@@ -198,7 +220,6 @@ def run(
         / "posts"
         / "profile_posts_1.json"
     )
-    media_root = source_dir
     manifest_path = source_dir / "manifest_images.jsonl"
 
     if not posts_json.exists():
@@ -268,8 +289,8 @@ def run(
         bytes_out = 0
 
         for idx, (fb_id, meta) in enumerate(todo_items, start=1):
-            src_path = media_root / meta["source_path"]
-            if not src_path.exists():
+            src_path = resolve_media_path(source_dir, meta["source_path"])
+            if src_path is None:
                 skipped_missing += 1
                 row = {
                     "fb_id": fb_id,
