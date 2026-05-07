@@ -1,8 +1,11 @@
 # Mail-Import — Reset-Plan (Neustart 2026-05-08)
 
-**Status:** ⚠️ Reset nach 2026-05-07 Session-Schaden
-**Vorgänger-Doku:** [`IMPORT_LEGACY_MAILS_PLAN.md`](./IMPORT_LEGACY_MAILS_PLAN.md) (jetzt obsolet, nicht mehr verlässlich)
-**Session-Log:** [`docs/sessions/2026-05-07_mail_import_reset.md`](../sessions/2026-05-07_mail_import_reset.md)
+**Status:** ✅ Phasen A→F abgeschlossen am 2026-05-07 (rc53.12). Welle 1 läuft autonom per Cron mit Auto-Cleanup. Welle 2 (Mac Studio Tiefen-Scan + RAID) dokumentiert als [RSE-322](https://linear.app/rseckler/issue/RSE-322), wartet auf Welle-1-Abschluss.
+**Restart-Session-Log:** [`docs/sessions/2026-05-07_mail_import_reset_restart.md`](../sessions/2026-05-07_mail_import_reset_restart.md) — Phasen A-F im Detail mit allen Bug-Fixes
+**Original-Schaden-Session:** [`docs/sessions/2026-05-07_mail_import_reset.md`](../sessions/2026-05-07_mail_import_reset.md)
+**Vorgänger-Doku:** [`IMPORT_LEGACY_MAILS_PLAN.md`](./IMPORT_LEGACY_MAILS_PLAN.md) (obsolet, nicht mehr verlässlich)
+**CHANGELOG-Eintrag:** [`docs/architecture/CHANGELOG.md` rc53.12](../architecture/CHANGELOG.md)
+**Operations-UI:** [`/app/mail-import`](https://admin.vod-auctions.com/app/mail-import) — Live-Status der Welle 1
 
 ---
 

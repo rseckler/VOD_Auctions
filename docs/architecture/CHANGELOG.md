@@ -161,6 +161,48 @@ Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Rel
 
 ---
 
+## 2026-05-07 — Mail-Import Reset Restart: v3 + Wrapper + Operations-UI + Auto-Cleanup (rc53.12)
+
+**Kontext:** Reset-Plan nach Datenverlust-Verdacht der Vor-Session — siehe [`docs/sessions/2026-05-07_mail_import_reset.md`](../sessions/2026-05-07_mail_import_reset.md). Phasen A→F des [`MAIL_IMPORT_RESET_PLAN.md`](../optimizing/MAIL_IMPORT_RESET_PLAN.md) abgearbeitet, alles mit explizitem Robin-Gate pro destruktivem SQL. Parallel zu rc53.11 (FB-Archive) gelaufen — gemeinsamer Bauplan für Operations-UIs `/app/mail-import` ⇄ `/app/fb-archive` (DB-Health-Banner-Pattern wandert von rc53.12 nach rc53.11).
+
+**Endstand der Session:**
+- 116.901 LEGACY_ARCHIVE-Müll-Rows + 2 abandoned pull_runs sauber entfernt (Phase C)
+- Neuer `scripts/import_legacy_mails_v3.py` (~430 Zeilen) + Test-Suite `import_legacy_mails_v3_test.py` (45 Tests, pure stdlib, alle grün)
+- Cron `15,45 * * * *` mit Wrapper-Skript für Auto-Cleanup live
+- Operations-UI `/app/mail-import` mit Live-Counts, Run-Historie, Log-Tail, **Supabase-DB-Belastungs-Card** (Connection-Breakdown, Slow-Queries, Cache-Hit, DB-Size)
+- Welle 2 (Mac Studio Tiefen-Scan + externe RAID) als [RSE-322](https://linear.app/rseckler/issue/RSE-322) + Frank-Briefing dokumentiert
+
+**Bug-Fixes durch Real-Run aufgedeckt (Phase E):**
+
+1. **Postgres ON CONFLICT mit Partial-Unique-Index brittle.** Erster Smoke-Run (`--limit 1000`) failed alle 1000 Rows mit `there is no unique or exclusion constraint matching the ON CONFLICT specification` — auch mit explizitem Predikat in der Klausel. **Fix:** SELECT-then-INSERT-Pattern statt ON CONFLICT. Pre-SELECT existing message_ids → Filter → Bulk-INSERT der neuen Rows ohne ON CONFLICT → catch UniqueViolation als Race-cond-Fallback. Funktioniert mit jedem Index, exakter db_dup-Count gratis. Memory: [`feedback_partial_index_on_conflict.md`](../../.claude/projects/.../memory/feedback_partial_index_on_conflict.md).
+
+2. **Self-Lock-Pre-flight fehlte.** Mit `*/30`-Cron-Schedule + `max_runtime=1800s` ist null Marge gegen Slot-Overlap. Pre-flight-Check checkte nur `legacy_sync_v2`, nicht den eigenen Pipeline-Tag. **Fix:** zusätzlicher Self-Lock-Check (`pipeline = 'import_legacy_mails_v3' AND status = 'running'`).
+
+**Auto-Cleanup-Pattern:**
+- Importer: `eof_reached=True` via Python-for-else wenn JSONL natürlich endet (kein break). Memory: [`feedback_python_for_else_eof.md`](../../.claude/projects/.../memory/feedback_python_for_else_eof.md). Im completed-Block: pull_run auf `done`, state-file weg, **DONE-Marker** (`/tmp/import_legacy_mails_v3.done`) touchen.
+- `scripts/import_legacy_mails_wrapper.sh`: prüft Marker beim Cron-Tick. Wenn da: Crontab-Backup + atomic `sed -i` removes Cron-Lines + Marker/State weg + exit 0. Sonst: exec Importer.
+
+**Operations-UI:**
+- Backend `GET /admin/mail-import/status` returnt: jsonl-progress, current_run, state-file content, LEGACY_ARCHIVE-Totals (with_body/with_from/with_subject/synthetic_msgid/oldest+newest), account-Verteilung, last 20 pull_runs, last 80 log lines, **db_load** (active/idle/idle_in_txn/longest_active_s + DB-Size + Cache-Hit-% + Slow-Queries top 5)
+- Frontend `/app/mail-import` (no defineRouteConfig — via Operations-Hub-Card): Status-Banner, Progress-Bar, 6-Stat-Grid live, Totals-Panel, Account-Distribution, **Supabase-DB-Belastungs-Card mit Slow-Query-Tabelle**, Run-Historie, Log-Tail. Auto-Refresh 10s.
+- Hotfix während Deploy: `MAX(...)::int FILTER (...)` SQL-Syntax-Fehler — FILTER muss direkt am Aggregate hängen, vor dem Cast. Plus loose `.where().orWhere()` zu `.where(function() { this.where(...).orWhere(...) })` für Knex-Grouping.
+
+**DSGVO-Workflow Mail-Daten:**
+- Frank's Mac Studio scannt + extrahiert lokal → JSONL-Output
+- JSONL fließt zum VPS (über Robin), DB-Credentials bleiben ausschließlich auf VPS
+- Importer läuft auf VPS gegen Supabase, idempotent (ON CONFLICT-äquivalent via Pre-SELECT)
+- Pattern auch für Welle 2 (RSE-322): nichts ändert sich am Datenfluss
+
+**Memory neu:** [`feedback_partial_index_on_conflict.md`](../../.claude/projects/.../memory/feedback_partial_index_on_conflict.md), [`feedback_python_for_else_eof.md`](../../.claude/projects/.../memory/feedback_python_for_else_eof.md), [`project_import_legacy_mails_v3.md`](../../.claude/projects/.../memory/project_import_legacy_mails_v3.md).
+
+**Session-Log:** [`docs/sessions/2026-05-07_mail_import_reset_restart.md`](../sessions/2026-05-07_mail_import_reset_restart.md) — Phasen A-F im Detail mit allen Bug-Fixes.
+
+**Linear:** [RSE-322](https://linear.app/rseckler/issue/RSE-322) für Welle 2 (Backlog, Priority Medium).
+
+**Commits dieser Welle:** `ee759cc`, `2de78b6`, `295a443`, `d3fbbd3`, `c53089c`, `233ab1a`, `e2a95d2`, `7c1d493`.
+
+---
+
 ## 2026-05-07 — FB-Archive Pipeline + Operations-Tracker (rc53.11)
 
 **Kontext:** Frank hat seinen vollständigen FB-Datenexport heruntergeladen (~4 GB, 5.819 Posts, 6.369 Media-Files, 11.926 Followers). Wunsch: Posts in eigenem Forum auf vod-auctions.com rekonstruieren, Bilder semantisch umbenennen (`Throbbing Gristle - Heathen Earth FB.jpg`), neue Member kommentieren. Diese rc liefert Foundation + Phasen P1-P3 ausgeführt + P4 bereit + Status-Page live. P6 final-DB-Import wartet auf Community-MVP M3+M4+M7 (Phase 1).
