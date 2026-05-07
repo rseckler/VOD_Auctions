@@ -19,9 +19,12 @@ const ICON_INVENTORY = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 
 
 const ICON_CATALOG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="0.6" fill="currentColor"/></svg>`
 
+const ICON_FB_ARCHIVE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>`
+
 const SHORTCUTS: Array<{ href: string; label: string; icon: string }> = [
   { href: "/app/erp/inventory", label: "Inventory", icon: ICON_INVENTORY },
   { href: "/app/media", label: "Catalog", icon: ICON_CATALOG },
+  { href: "/app/fb-archive", label: "FB Archive", icon: ICON_FB_ARCHIVE },
 ]
 
 function injectShortcuts() {
