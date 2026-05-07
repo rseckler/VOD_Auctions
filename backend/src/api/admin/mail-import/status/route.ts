@@ -73,8 +73,9 @@ export async function GET(
 
     // 2) Run-Historie (last 20)
     const history = await k("crm_pull_run")
-      .where({ pipeline: PIPELINE })
-      .orWhere({ source: SOURCE })
+      .where(function () {
+        this.where({ pipeline: PIPELINE }).orWhere({ source: SOURCE })
+      })
       .orderBy("started_at", "desc")
       .limit(20)
       .select(
@@ -127,6 +128,7 @@ export async function GET(
     const done_marker_present = fs.existsSync("/tmp/import_legacy_mails_v3.done")
 
     // 9) DB-Load — Connection-Verteilung + Größe + Cache-Hit + Slow Queries
+    // FILTER-Klausel muss direkt am Aggregate hängen, vor dem Cast.
     const conns = await k.raw(`
       SELECT
         COUNT(*) FILTER (WHERE state = 'active') AS active,
@@ -134,7 +136,10 @@ export async function GET(
         COUNT(*) FILTER (WHERE state = 'idle in transaction') AS idle_in_txn,
         COUNT(*) FILTER (WHERE state IS NULL) AS other,
         COUNT(*) AS total,
-        MAX(EXTRACT(EPOCH FROM (NOW() - query_start)))::int FILTER (WHERE state = 'active') AS longest_active_s
+        COALESCE(
+          (MAX(EXTRACT(EPOCH FROM (NOW() - query_start))) FILTER (WHERE state = 'active'))::int,
+          0
+        ) AS longest_active_s
       FROM pg_stat_activity
       WHERE datname = current_database() AND pid <> pg_backend_pid()
     `)
