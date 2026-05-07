@@ -576,9 +576,12 @@ export async function POST(
     // Zone-3 Commerce fields (shop_price, sale_mode, etc.) are tracked via
     // erp_inventory_movement and bulk_price_adjustment_log instead.
     // Hard-Stammdaten (inkl. barcode seit R1-Merge) + Zone-2 Soft-Stammdaten
+    // + discogs_id (Codex 2026-05-07: Verknüpfungs-ID-Änderungen sind nach-
+    // vollziehbar wichtig — vorher silent geupdated)
     const STAMMDATEN_AUDIT_FIELDS = Array.from(new Set([
       ...(HARD_STAMMDATEN_FIELDS as readonly string[]),
       "credits", "genres", "styles", "format_descriptors",
+      "discogs_id",
     ]))
     const auditFields: Record<string, { oldValue: unknown; newValue: unknown }> = {}
     for (const field of STAMMDATEN_AUDIT_FIELDS) {
