@@ -506,6 +506,17 @@ function OperationsHub() {
           actionLabel="Open Importer →"
         />
 
+        {/* Mail Import (Frank's Mac Studio JSONL) */}
+        <HubCard
+          icon="📬"
+          title="Mail Import"
+          description="Frank's Legacy Mail Archive (Mac Studio JSONL → crm_imap_message). Live progress, run history, log tail."
+          statusLine="legacy_mail_archive · low-tier slots"
+          statusColor={C.muted}
+          href="/app/mail-import"
+          actionLabel="Open Mail Import →"
+        />
+
         {/* Inventory Stocktake */}
         <HubCard
           icon="📦"
