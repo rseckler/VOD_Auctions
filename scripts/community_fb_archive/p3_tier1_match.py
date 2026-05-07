@@ -223,25 +223,39 @@ def sanitize_filename_part(s: str) -> str:
 
 def find_artist_matches(post_norm: str, artists: list[dict]) -> list[dict]:
     """Return artists whose normalized name appears (substring or fuzzy) in
-    the normalized post text. Sorted by score desc, max 5.
+    the normalized post text. Sorted by:
+        1. score DESC
+        2. token-count DESC  (multi-word "Throbbing Gristle" beats "Pure")
+        3. length DESC       (more specific name wins)
+
+    Single-token names < 5 chars are skipped from substring-match (too
+    generic — e.g. "Pure", "Play", "Them" in random English text).
     """
     matches: list[dict] = []
     seen_ids: set[str] = set()
 
-    # Stage 1 — direct substring match. Names < SUBSTRING_MIN_LEN (after
-    # collapsing whitespace) are too generic for substring matching; they go
-    # only through the fuzzy stage which requires multi-token overlap.
     for a in artists:
         nm = a["norm"]
-        if len(nm.replace(" ", "")) < SUBSTRING_MIN_LEN:
+        no_ws = nm.replace(" ", "")
+        if len(no_ws) < SUBSTRING_MIN_LEN:
+            continue
+        token_count = nm.count(" ") + 1
+        # Single-token artist needs ≥5 letters to substring-match
+        # (drops "Pure", "Soon", "Play", "Them" — but keeps "Swans", "Throbbing")
+        if token_count == 1 and len(no_ws) < 5:
             continue
         if re.search(rf"\b{re.escape(nm)}\b", post_norm):
-            matches.append({**a, "score": 100.0, "match_type": "exact_substring"})
+            matches.append({
+                **a,
+                "score": 100.0,
+                "match_type": "exact_substring",
+                "_tokens": token_count,
+            })
             seen_ids.add(a["id"])
 
     if matches:
-        # Have exact matches → don't bother with fuzzy
-        matches.sort(key=lambda m: (-m["score"], len(m["norm"])))
+        # Multi-token wins over single-token; longer over shorter.
+        matches.sort(key=lambda m: (-m["score"], -m["_tokens"], -len(m["norm"])))
         return matches[:5]
 
     # Stage 2 — fuzzy via rapidfuzz process.extract (only if no exact match)
@@ -273,21 +287,30 @@ def find_artist_matches(post_norm: str, artists: list[dict]) -> list[dict]:
 
 
 def find_release_matches(post_norm: str, releases: list[dict]) -> list[dict]:
-    """Same idea as artists, but on Release titles. Min-length gate to
-    prevent generic short titles ("Is", "Why") from false-matching."""
+    """Same idea as artists, but on Release titles. Multi-token wins.
+    Single-token titles < 5 chars get skipped (e.g. "Try To..", "Music")."""
     matches: list[dict] = []
     seen_ids: set[str] = set()
 
     for r in releases:
         nm = r["norm"]
-        if len(nm.replace(" ", "")) < SUBSTRING_MIN_LEN:
+        no_ws = nm.replace(" ", "")
+        if len(no_ws) < SUBSTRING_MIN_LEN:
+            continue
+        token_count = nm.count(" ") + 1
+        if token_count == 1 and len(no_ws) < 5:
             continue
         if re.search(rf"\b{re.escape(nm)}\b", post_norm):
-            matches.append({**r, "score": 100.0, "match_type": "exact_substring"})
+            matches.append({
+                **r,
+                "score": 100.0,
+                "match_type": "exact_substring",
+                "_tokens": token_count,
+            })
             seen_ids.add(r["id"])
 
     if matches:
-        matches.sort(key=lambda m: (-m["score"], -len(m["norm"])))
+        matches.sort(key=lambda m: (-m["score"], -m["_tokens"], -len(m["norm"])))
         return matches[:5]
 
     # Fuzzy fallback — restrict to title-token-overlap candidates for speed
