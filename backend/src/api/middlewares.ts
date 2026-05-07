@@ -28,6 +28,14 @@ export default defineMiddlewares({
       bodyParser: { sizeLimit: "25mb" },
     },
     {
+      // Catalog-Detail Image-Upload (Frank: "Bild hochladen geht oft nicht").
+      // Default-Limit ~1 MB → iPhone-Fotos (3-4 MB base64) werden silent
+      // abgelehnt mit 413. Same Limit wie Stocktake.
+      matcher: "/admin/media/*/images",
+      methods: ["POST"],
+      bodyParser: { sizeLimit: "25mb" },
+    },
+    {
       // Stripe webhook — raw body for signature verification, no auth
       matcher: "/webhooks/stripe",
       methods: ["POST"],

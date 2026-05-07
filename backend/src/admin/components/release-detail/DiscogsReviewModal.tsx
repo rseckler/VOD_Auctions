@@ -204,15 +204,19 @@ export function DiscogsReviewModal({ preview, lockedFields, onClose, onApply }: 
               <span style={{ ...T.small, color: C.text, fontWeight: 600 }}>
                 {FIELD_LABELS[key] || key}
                 {isLocked && (
-                  <span style={{
-                    ...T.micro,
-                    color: C.warning,
-                    marginLeft: 6,
-                    fontWeight: 500,
-                    textTransform: "none",
-                    letterSpacing: 0,
-                  }}>
-                    🔒 locked
+                  <span
+                    title="Sync-locked: this field is protected from automatic Discogs/Tape-Mag sync. Tick the checkbox to apply this value manually anyway."
+                    style={{
+                      ...T.micro,
+                      color: C.warning,
+                      marginLeft: 6,
+                      fontWeight: 500,
+                      textTransform: "none",
+                      letterSpacing: 0,
+                      cursor: "help",
+                    }}
+                  >
+                    🔒 sync-locked
                   </span>
                 )}
               </span>
@@ -250,8 +254,8 @@ export function DiscogsReviewModal({ preview, lockedFields, onClose, onApply }: 
       )}
 
       <div style={{ ...T.micro, color: C.muted, marginTop: S.gap.md, textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>
-        Locked fields default to off — uncheck or check explicitly.
-        Cover image, when applied, is downloaded from Discogs, optimized to WebP, and uploaded to R2 (no hotlinking).
+        🔒 sync-locked = protected from auto-sync (Discogs/Tape-Mag). The field can still be applied manually by ticking the checkbox — it just doesn't apply by default.
+        Cover image, when applied, is downloaded from Discogs, optimized to WebP, uploaded to R2, and replaces the current cover (the previous cover is kept as a thumbnail in the gallery).
         Artist and label are not part of this preview — use the dedicated pickers.
         Apply writes through the same audit-logged path as a manual edit; hard fields auto-lock.
       </div>

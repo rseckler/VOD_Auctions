@@ -451,11 +451,14 @@ export async function POST(
     }
 
     // rc51.9.5: bei R2-Upload des coverImage zusätzlich Image-Row anlegen
-    // (rang=0 für die neue Cover-Position, höher als bisherige Bilder ist OK
-    // — der Catalog-Detail-Page sortiert nach rang ASC, id ASC). ON CONFLICT
-    // DO NOTHING falls die ID kollidiert (millisecond-collision unwahrscheinlich
-    // aber harmlos) — der Release.coverImage-Update-Wert bleibt davon unberührt.
+    // mit rang=0 als neue Cover-Position. PFLICHT: vorher alle existierenden
+    // Images +10 bumpen, sonst stapeln sich rang=0-Rows und der Storefront-
+    // Sort `rang ASC, id ASC` friert die älteste als sichtbares Cover ein
+    // (David-Bug 2026-05-06: 4× Discogs-Apply → 4× rang=0 → ältestes blieb
+    // Cover trotz neuem Release.coverImage). Same Pattern wie POST /images
+    // mit set_as_cover=true.
     if (newImageRow) {
+      await trx("Image").where("releaseId", id).increment("rang", 10)
       await trx.raw(
         `INSERT INTO "Image" (id, url, alt, "releaseId", rang, source, "createdAt")
          VALUES (?, ?, ?, ?, 0, 'admin_edit', NOW())

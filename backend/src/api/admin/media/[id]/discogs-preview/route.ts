@@ -244,6 +244,7 @@ export async function POST(
   const current: ProposedFields = {
     discogs_id: release.discogs_id ?? null,
     title: release.title ?? null,
+    artist_display_name: release.artist_display_name ?? null,
     year: release.year ?? null,
     country: release.country ?? null,
     catalogNumber: release.catalogNumber ?? null,

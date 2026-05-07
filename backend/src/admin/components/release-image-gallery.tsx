@@ -151,9 +151,33 @@ export function ReleaseImageGallery({ releaseId, images, onChanged, onLightbox }
 
   return (
     <div>
-      {/* Cover (rang=0) — groß */}
+      {/* Cover (rang=0) — groß. Drop-Target: Galerie-Thumbnail aufs Cover
+          ziehen → set-cover für das gedragte Bild. */}
       {cover ? (
-        <div style={{ position: "relative" }}>
+        <div
+          style={{
+            position: "relative",
+            outline: dragOverId === "__cover__" ? `3px solid ${C.gold}` : "none",
+            outlineOffset: dragOverId === "__cover__" ? 2 : 0,
+            borderRadius: S.radius.lg,
+            transition: "outline-color 0.1s",
+          }}
+          onDragOver={(e) => {
+            if (dragId && dragId !== cover.id) {
+              e.preventDefault()
+              setDragOverId("__cover__")
+            }
+          }}
+          onDragLeave={() => setDragOverId((curr) => curr === "__cover__" ? null : curr)}
+          onDrop={(e) => {
+            if (!dragId || dragId === cover.id) return
+            e.preventDefault()
+            const dragged = images.find((img) => img.id === dragId)
+            setDragId(null)
+            setDragOverId(null)
+            if (dragged) handleSetCover(dragged)
+          }}
+        >
           <img
             src={cover.url}
             alt={cover.alt ?? ""}
@@ -161,12 +185,14 @@ export function ReleaseImageGallery({ releaseId, images, onChanged, onLightbox }
             style={{
               width: "100%", borderRadius: S.radius.lg, border: `1px solid ${C.border}`,
               aspectRatio: "1", objectFit: "cover", cursor: "pointer",
+              display: "block",
             }}
           />
           <span style={{
             position: "absolute", top: 8, left: 8, fontSize: 11, fontWeight: 600,
             background: C.gold, color: "#1c1915",
             padding: "3px 8px", borderRadius: 12, letterSpacing: "0.03em",
+            pointerEvents: "none",
           }}>
             ★ COVER
           </span>
@@ -180,6 +206,17 @@ export function ReleaseImageGallery({ releaseId, images, onChanged, onLightbox }
               background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: 16, lineHeight: 1,
             }}
           >×</button>
+          {dragOverId === "__cover__" && (
+            <div style={{
+              position: "absolute", inset: 0, borderRadius: S.radius.lg,
+              background: "rgba(212, 165, 74, 0.18)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontWeight: 600, color: "#1c1915", fontSize: 14,
+              pointerEvents: "none",
+            }}>
+              Hier loslassen → als Cover setzen
+            </div>
+          )}
         </div>
       ) : (
         <div style={{
@@ -286,9 +323,9 @@ export function ReleaseImageGallery({ releaseId, images, onChanged, onLightbox }
         </div>
       )}
 
-      {rest.length > 1 && (
+      {rest.length > 0 && (
         <div style={{ ...T.small, color: C.muted, marginTop: 4, fontSize: 11 }}>
-          Tipp: Bilder per Drag&amp;Drop umsortieren · ★ = als Cover · × = löschen
+          Tipp: Bild aufs Cover ziehen → neues Cover · zwischen Galerie-Plätzen ziehen → umsortieren · ★ = als Cover · × = löschen
         </div>
       )}
 
