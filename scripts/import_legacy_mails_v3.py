@@ -283,7 +283,7 @@ INSERT INTO crm_imap_message (
     from_email, from_name, to_emails, cc_emails,
     subject, body_excerpt, detected_emails
 ) VALUES %s
-ON CONFLICT (message_id_header) DO NOTHING
+ON CONFLICT (message_id_header) WHERE (message_id_header IS NOT NULL) DO NOTHING
 RETURNING id
 """
 
