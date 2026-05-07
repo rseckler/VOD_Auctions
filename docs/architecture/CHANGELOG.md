@@ -161,6 +161,66 @@ Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Rel
 
 ---
 
+## 2026-05-07 — FB-Archive Pipeline + Operations-Tracker (rc53.11)
+
+**Kontext:** Frank hat seinen vollständigen FB-Datenexport heruntergeladen (~4 GB, 5.819 Posts, 6.369 Media-Files, 11.926 Followers). Wunsch: Posts in eigenem Forum auf vod-auctions.com rekonstruieren, Bilder semantisch umbenennen (`Throbbing Gristle - Heathen Earth FB.jpg`), neue Member kommentieren. Diese rc liefert Foundation + Phasen P1-P3 ausgeführt + P4 bereit + Status-Page live. P6 final-DB-Import wartet auf Community-MVP M3+M4+M7 (Phase 1).
+
+**Doku:** [Annex zum Community-Konzept](Community/Community%20Concept%20—%20Facebook%20Migration%20Annex.md), [Session-Log](../sessions/2026-05-07_fb_archive_pipeline.md), Memory `feedback_hostinger_vps_ipv6_default.md`.
+
+### Operations-Tracker-Foundation (universell)
+
+- DB-Schema `background_job` (text-PK, status-CHECK, 4 Indexe inkl. partial idx für Stale-Scan, auto-updated_at-Trigger). Migration `background_job_tracker_2026_05_07` applied via Supabase MCP.
+- Python-Helper `scripts/community_fb_archive/lib/job_tracker.py` mit Context-Manager-API (`JobTracker.start()`), heartbeat-rate-limited (default 15s, P3/P4 nutzen 30s sparsam), Cancel-Polling via `JobCancelledError`, in-memory log-tail-buffer (5kb), auto-succeed/fail mit traceback in `result_summary`. Hostname+PID werden für UI mitgespeichert.
+- Stale-Detection-Cron `mark_stale_jobs.py`, alle 2 Min, markiert running-Jobs ohne Heartbeat seit >5 Min als failed mit Begründung. Lehre aus Postmortem 2026-05-01 (Sampler 5,6 Tage tot ohne Alarm). Crontab atomic via tmp-file installed.
+- Bug-Fix: `_finish('succeeded')` snappt `progress_done` auf `progress_total` (Heartbeat-Throttling konnte sehr schnelle Jobs lagging lassen).
+
+### FB-Archive-Pipeline P1-P3 ausgeführt
+
+**P1** — rsync FB-Export auf VPS nach `/root/VOD_Auctions/data/fb_archive_2026-05-07/`. JSON+HTML beide gebraucht weil Posts URIs referenzieren die jeweils nur in einer Variante physisch liegen (versteckter Bug, beim Dry-Run aufgedeckt). Dual-Path-Resolver in P2-Script.
+
+**P2** Image Preprocess (live durch): `scripts/community_fb_archive/p2_image_preprocess.py` — strip EXIF + resize max 1200px + WebP Q80 + R2-Upload. **7.310 / 7.358** uploaded, 48 skipped (Videos), 0 errors, 0 missing. **3.15 GB → 880 MB (72 % Compression)**. Manifest `manifest_images.jsonl` append-only, resume-fähig. Dauer 65 Min, ~113 Bilder/Min.
+
+**P3** Tier-1 Match (running): `scripts/community_fb_archive/p3_tier1_match.py` — verbindet ausschließlich zur **VPS-Read-Replica** `vod_auctions_replica@127.0.0.1:5433` (0 Last auf Frank's Prod-DB), 2 batch-SELECTs (Artists 64k + Releases 52k), Pre-compile pro Item + Inverted-Index pro Token (~100-500 Kandidaten statt 116k iterieren). 3-stage Match: Stop-Word-Filter (en+de) + Substring-min-len-Gate + Cross-Validation `reorder_releases_by_artist()` + rapidfuzz token_set_ratio Fallback. Sort `(-score, -tokens, -length)` priorisiert multi-token. **Performance:** Original 1,8 sec/Post → optimiert 0,2 sec/Post (9× speedup), Full-Run-ETA ~11 Min statt 4-5h. Tier-1-Quote nach 3 Iterationen auf realistische 6,5 % gefallen (vorher 76 % False-Positives durch „IS"/„AS"/„The X"-Stop-Word-Hits).
+
+**P4** AI Vision (Script committed, ungetestet): `p4_ai_vision.py` — Haiku 4.5 + tool-use, 1 Call pro Post mit ≤6 Photos + Top-Kandidaten aus P3, Tool `identify_photo_releases` returnt pro Photo `{artist_id, release_id, confidence, reason, unrelated}`. Cost-Estimate ~$17 für ~3.500 Tier-2-Posts.
+
+### `/app/fb-archive` Status-Page mit DB-Health-Banner
+
+Backend `/admin/fb-archive/status` + UI `/app/fb-archive` — Pattern angelehnt an `/app/mail-import` (heute parallel von 2. Session gebaut):
+
+- Phase-Cards (P2/P3/P4) mit Progress-Bar + Heartbeat-Age + PID
+- Manifest-Stats (Image-Stats + Match-Tier-Verteilung mit reasons)
+- **DB-Health-Banner ganz oben** (color-coded green/yellow/red, große Live-Stats: TX/s · Disk-Read/s · Cache%, Begründungs-Zeile). Composite-Score aus Cache-Hit-Pct, Connection-Saturation, Slow-Queries-Dauer, Deadlocks-Delta, Disk-Reads-Rate (>1500/s = Free-Tier Burst-Budget!). Persistent Snapshot in `/tmp/fb_archive_db_load_snapshot.json` für Delta-Rate-Berechnung.
+- DB-Load-Detail-Card mit Live-Rates-Zeile + Connection-Breakdown + Slow-Queries (color-graded ≥3s/≥10s/≥30s)
+- Run-Historie + Log-Tails P2/P3
+- Auto-Refresh 10s, Elapsed-Timer sekündlich
+
+Sidebar-Shortcut „FB Archive" hinzugefügt.
+
+### R2-Token-Bug-Diagnose (30-Min-Loop, vermeidbar)
+
+P2 Live-Run wurde in 5 sec mit AccessDenied gekillt. Iteration: scripts/.env-Token war read-only → neuer Cloudflare-Token erstellt mit `Object Read & Write` + Bucket=vod-images + IP-Filter `72.62.148.205/32` + 1Password Vault Work + scripts/.env-Append → trotzdem AccessDenied auf PUT/LIST/LIST_BUCKETS.
+
+**Root Cause:** Hostinger-VPS routet outbound default IPv6 (`2a02:4780:41:2dca::1`), nicht IPv4. IP-Filter blockierte alles. Robin entfernte den Filter (Bucket-Scope reicht).
+
+**Memory:** [`feedback_hostinger_vps_ipv6_default.md`](.claude/projects/.../memory/feedback_hostinger_vps_ipv6_default.md) — bei AccessDenied trotz korrekter Credentials IMMER zuerst IP-Filter prüfen via `curl -s -4 ifconfig.io` und `curl -s -6 ifconfig.io`. Pre-live single-PUT-Smoke-Test hätte das in 5 sec entdeckt — Lehre konsistent mit `feedback_scratch_test_before_bulk`.
+
+### Commits
+
+`acabf18` (background_job foundation) → `c5d0233` (env-fallback) → `704deaa` (P2 base) → `4b05b20` (P2 dual-variant resolver) → `9ec916c` (job_tracker progress-snap) → `0b1ab16` (R2_WRITE_*) → `233ab1a` (P3 base) → `65ecf01` (Release.artistId direct) → `cbbdefb` (multi-token priority) → `f4a2234` (stop-word filter + cross-validate) → `52526d3` (inverted-index 9× speedup) → `72e92b7` (status-page) → `00da453` (DB-Health-Banner + Live-Rates) → `60c366f` (P4).
+
+### Files
+
+- Backend: `backend/scripts/migrations/2026-05-07_background_job_tracker.sql`, `backend/src/api/admin/fb-archive/status/route.ts`, `backend/src/admin/routes/fb-archive/page.tsx`, `backend/src/admin/components/admin-nav.tsx`
+- Scripts: `scripts/community_fb_archive/{__init__,lib/__init__,lib/job_tracker,p2_image_preprocess,p3_tier1_match,p4_ai_vision}.py`, `scripts/mark_stale_jobs.py`
+- Doku: `docs/Community/Community Concept — Facebook Migration Annex.md`, `docs/sessions/2026-05-07_fb_archive_pipeline.md`
+
+### Open
+
+P3-Full-Run abwarten, P4-Smoke-Test, P5-CSV-Export, P6 final-DB-Import (wartet auf Community-MVP).
+
+---
+
 ## 2026-05-07 — Catalog-Image-Saga Hardening: Codex-Review-Findings (rc53.10)
 
 **Kontext:** Folge zu rc53.9. Frank's Drag&Drop warf trotz aller initial-Fixes weiter HTTP 500. Logs zeigten erst `chk_action_valid`-Violation (gefixt durch Whitelist-Erweiterung), dann `release_audit_log_action_check`-Violation — ein **zweiter** Constraint mit Postgres-Default-Name, der seit der v1-Migration still parallel zu `chk_action_valid` lebte. Beide werden bei jedem Insert evaluiert; der engere kippt. Auto-Duplikat gedroppt auf Production + Replica.
