@@ -161,6 +161,31 @@ Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Rel
 
 ---
 
+## 2026-05-07 — Catalog-Image-Stack-Bug + Drag&Drop Cover-Target + Upload Body-Limit (rc53.9)
+
+**Kontext:** David's Bug-Report nach rc51.9.2 (Discogs Review Modal): "Jedes Mal wenn ich neu fetche und Unlocke übernimmt es mir dann immer und immer wieder das neue Bild nochmal, aber tauscht nicht das falsche aus." Frank parallel: "Drag and Drop bilder tauschen geht nicht und bild hochladen muss ich noch probieren."
+
+**Root Causes:**
+
+1. **Cover-Stack-Bug** in `backend/src/api/admin/media/[id]/route.ts:458` — Beim Apply des Felds `coverImage` aus dem Discogs-Review-Modal hat das Backend eine neue `Image`-Row mit `rang=0` eingefügt, ohne die existierenden Images um +10 zu bumpen. Die Storefront-Sortierung `ORDER BY rang ASC, id ASC` friert dann das alphabetisch erste Bild als sichtbares Cover ein. Nach 4× Fetch+Apply hatte David's Release `legacy-release-32552` 4 Image-Rows alle mit `rang=0` — der älteste Apply (id 1778075980394) blieb sichtbares Cover, die neueren stapelten sich dahinter. `Release.coverImage` (separate Spalte) wurde bei jedem Apply korrekt geupdated, aber die Storefront liest aus dem Image-Array, nicht aus der Spalte. **Fix:** Insert-Pfad bumpt jetzt alle existierenden Images +10 vor dem rang=0-Insert, same Pattern wie POST `/admin/media/:id/images` mit `set_as_cover=true`.
+
+2. **Catalog-Image-Upload Body-Size-Bug** in `backend/src/api/middlewares.ts` — `/admin/media/*/images` hatte kein `bodyParser.sizeLimit`-Override → Medusa-Default ~1mb → iPhone-Fotos (3-4 MB base64) wurden silent mit HTTP 413 abgelehnt. Frank's "Bild hochladen geht oft nicht" war reproducible bei Fotos > ~750 KB raw. **Fix:** Limit auf `25mb` analog `/admin/erp/inventory/upload-image`.
+
+3. **Drag&Drop Cover-Swap nicht verdrahtet** in `backend/src/admin/components/release-image-gallery.tsx` — Cover-Container war kein Drop-Target. User erwartet Galerie-Thumbnail aufs Cover ziehen → Cover-Wechsel. **Fix:** Cover-`<div>` bekommt `onDragOver` + `onDrop`-Handlers; on-drop ruft `set-cover`-API mit der gedragten Image-ID auf. Visuelle Indication: Gold-Outline + Overlay-Text "Hier loslassen → als Cover setzen".
+
+4. **Begleit-Bug** in `backend/src/api/admin/media/[id]/discogs-preview/route.ts` — `current.artist_display_name` fehlte im Snapshot, dadurch zeigte der Diff das Feld immer als geändert (auch wenn unverändert). **Fix:** Field zum Current-Snapshot hinzugefügt.
+
+5. **UX-Klarstellung** in `backend/src/admin/components/release-detail/DiscogsReviewModal.tsx` — David's Frage "Was bedeutet Cover Image locked denn es lässt sich dann bei Bild ändern bzw von Discogs ziehen". Badge-Wording `🔒 locked` → `🔒 sync-locked` mit Tooltip ("Sync-locked: this field is protected from automatic Discogs/Tape-Mag sync. Tick the checkbox to apply this value manually anyway."), Footer-Erklärung explizit.
+
+**DB-Cleanup für 57 betroffene Releases:**
+SQL-Migration: pro Release das Image dessen URL `Release.coverImage` matched → `rang=0`, alle anderen → `rang = 10, 20, 30, …` sortiert nach (alter rang, createdAt, id). Strategie war 100% sicher weil Pre-Check zeigte: `Release.coverImage` matchte für alle 57 Releases auf eine vorhandene Image-Row mit Source `admin_edit`. Plus `search_indexed_at = NULL` für Meili-Reindex. **Resultat:** 168 Row-Updates, 57 new covers, 11 demoted. 0 stacked Releases nach Cleanup.
+
+**Messung (Davids Release post-Cleanup):** `legacy-release-32552` hat jetzt das gewollte Discogs-Cover (rang=0), das alte Mosaik-Image (legacy-image-32552) auf rang=10 als Galerie-Thumbnail.
+
+**Memory:** [feedback_image_row_dedup.md](../../.claude/projects/.../feedback_image_row_dedup.md) bestand bereits — der neue Code-Pfad in route.ts:458 hatte das Pattern aber nicht befolgt. Lesson reinforced.
+
+---
+
 ## 2026-04-25 — Format-V2: 71-Wert-Whitelist + Backfill 52.788 Items + UI durchgängig (rc51.7)
 
 **Kontext:** Robin: „Wir müssen uns leider nochmals mit den Formaten beschäftigen. Wir haben einen Fehler gemacht bei der Übernahme der Formatdefinitionen von tape-mag.com — wir haben deutlich zu wenig Unterscheidungen in unserer DB. Das zeigt sich auch beim Discogs-Import." Der alte `ReleaseFormat`-Enum (16 Werte: `LP`, `CD`, `CASSETTE`, …) verschmolz zwei orthogonale Dimensionen ungewollt zu einer: (a) **Format-Typ** (Vinyl 7" / 10" / 12" / LP, MC, Reel, CD …) und (b) **Anzahl Tonträger** (Single-Disc vs. Box mit 2-32 Stück). Die `-N`-Suffixe in tape-mags `Format`-Tabelle (`Vinyl-Lp-5`, `Tape-26`, `Vinyl-7"-3`) waren ursprünglich keine Sortier-Hilfen, sondern bedeuteten **„LP-Box mit 5 Platten"**, **„26 Cassetten in Box"**, **„Box mit 3 7"-Singles"** — diese Information ging verloren, alle wurden auf `LP` oder `CASSETTE` kollabiert. Discogs liefert dieselbe Info als `formats[0].qty: "6"` (Anzeige `6× Vinyl, LP`), aber das `qty` wurde im `discogs_api_cache` nur abgelegt und nie auf `Release` durchgereicht.
