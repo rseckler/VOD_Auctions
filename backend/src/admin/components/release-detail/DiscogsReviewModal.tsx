@@ -38,10 +38,6 @@ const FIELD_LABELS: Record<string, string> = {
   styles: "Styles",
   credits: "Credits",
   coverImage: "Cover Image",
-  discogs_lowest_price: "Discogs lowest price",
-  discogs_median_price: "Discogs median price",
-  discogs_highest_price: "Discogs highest price",
-  discogs_num_for_sale: "Discogs # for sale",
 }
 
 const IMAGE_FIELDS = new Set(["coverImage"])

@@ -1,5 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, generateEntityId } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { createMovement } from "../../../../lib/inventory"
 import { pushReleaseNow } from "../../../../lib/meilisearch-push"
@@ -424,7 +424,12 @@ export async function POST(
   ) {
     const sourceUrl = releaseUpdates.coverImage
     if (isR2Configured()) {
-      const imageId = `media-edit-${id}-${Date.now()}`
+      // M2 (Codex 2026-05-07): generateEntityId() statt Date.now(). Same-ms
+      // Apply-Kollisionen würden sonst identische image_id + R2-key produzieren,
+      // ON CONFLICT DO NOTHING beim Insert silent skippen, aber Release.cover
+      // Image trotzdem auf die neue URL setzen → orphan-state (cover URL ohne
+      // matchende Image-Row). ULID ist global eindeutig.
+      const imageId = `media-edit-${generateEntityId()}`
       const r2Url = await downloadOptimizeUpload(sourceUrl, id, imageId)
       if (r2Url) {
         releaseUpdates.coverImage = r2Url
@@ -437,6 +442,15 @@ export async function POST(
   releaseUpdates.updatedAt = new Date()
 
   await pgConnection.transaction(async (trx) => {
+    // M1 (Codex 2026-05-07): row-level Lock auf Release damit konkurrente
+    // Cover-Applies serialisiert werden. Default-PG-MVCC würde Bumps zwar
+    // sequenziell durchführen, aber FOR UPDATE macht die Serialisierung
+    // explizit + schützt vor künftigen Refactors die das Locking-Pattern
+    // auflockern könnten. Cost: vernachlässigbar (Single-Row-Lookup).
+    if (newImageRow) {
+      await trx("Release").where("id", id).select("id").forUpdate().first()
+    }
+
     if (Object.keys(releaseUpdates).length > 1) {
       // more than just updatedAt
       // node-postgres serializes JS arrays as text[] literals ("{a,b}"), and

@@ -19,6 +19,12 @@ import { pickArtistDisplayName, type DiscogsArtistEntry } from "../../../../../l
  * overwrites of manually-edited title/year/country/etc.
  */
 
+// M3 (Codex 2026-05-07): Discogs-Preise (lowest/median/highest/num_for_sale)
+// sind aus dem Apply-Diff entfernt. Sie waren im Modal selectable, aber das
+// Backend's allowedReleaseFields kennt sie nicht — Apply wäre silent gedroppt
+// gewesen. Per Pricing-Modell sind sie sowieso nur Markt-Referenz, keine
+// Stammdaten. Falls sie irgendwann persistiert werden sollen, in
+// allowedReleaseFields + audit policy aufnehmen und hier wieder reinholen.
 type ProposedFields = {
   discogs_id: number | null
   title: string | null
@@ -34,10 +40,6 @@ type ProposedFields = {
   styles: string[] | null
   credits: string | null
   coverImage: string | null
-  discogs_lowest_price: number | null
-  discogs_median_price: number | null
-  discogs_highest_price: number | null
-  discogs_num_for_sale: number | null
 }
 
 type DiscogsApiData = {
@@ -184,61 +186,14 @@ export async function POST(
     styles: Array.isArray(apiData.styles) && apiData.styles.length > 0 ? apiData.styles.map(String) : null,
     credits: buildCreditsText(apiData.extraartists),
     coverImage: pickPrimaryImage(apiData.images),
-    discogs_lowest_price: null,
-    discogs_median_price: null,
-    discogs_highest_price: null,
-    discogs_num_for_sale: null,
   }
 
-  // Marketplace stats (non-critical)
-  try {
-    const statsResp = await fetch(`https://api.discogs.com/marketplace/stats/${discogsId}`, {
-      headers,
-      signal: AbortSignal.timeout(10000),
-    })
-    if (statsResp.ok) {
-      const stats = (await statsResp.json()) as {
-        lowest_price?: number | { value?: number }
-        num_for_sale?: number
-      }
-      const lp = stats.lowest_price
-      if (lp && typeof lp === "object" && lp.value != null) {
-        proposed.discogs_lowest_price = Number(lp.value)
-      } else if (typeof lp === "number") {
-        proposed.discogs_lowest_price = lp
-      }
-      proposed.discogs_num_for_sale = stats.num_for_sale ?? 0
-    }
-  } catch {
-    // non-critical
-  }
-
-  // Price suggestions (non-critical)
-  try {
-    const suggResp = await fetch(`https://api.discogs.com/marketplace/price_suggestions/${discogsId}`, {
-      headers,
-      signal: AbortSignal.timeout(10000),
-    })
-    if (suggResp.ok) {
-      const sugg = (await suggResp.json()) as Record<string, { value?: number }>
-      const prices: number[] = []
-      for (const info of Object.values(sugg)) {
-        if (info?.value != null) {
-          const v = Number(info.value)
-          if (!isNaN(v)) prices.push(v)
-        }
-      }
-      if (prices.length > 0) {
-        prices.sort((a, b) => a - b)
-        const n = prices.length
-        const median = n % 2 === 1 ? prices[(n - 1) / 2] : (prices[n / 2 - 1] + prices[n / 2]) / 2
-        proposed.discogs_median_price = Number(median.toFixed(2))
-        proposed.discogs_highest_price = Number(prices[n - 1].toFixed(2))
-      }
-    }
-  } catch {
-    // non-critical
-  }
+  // M3 (Codex 2026-05-07): Marketplace-Stats + Price-Suggestions-Fetch
+  // entfernt zusammen mit den 4 discogs_*_price-Feldern aus dem Preview-
+  // Diff. Backend's allowedReleaseFields kennt sie nicht → silent dropped.
+  // Falls sie irgendwann persistiert werden sollen: hier marketplace/stats
+  // und marketplace/price_suggestions wieder fetchen + zur ProposedFields
+  // + allowedReleaseFields adden.
 
   // Build current snapshot in same shape
   const current: ProposedFields = {
@@ -256,10 +211,6 @@ export async function POST(
     styles: Array.isArray(release.styles) ? release.styles : null,
     credits: release.credits ?? null,
     coverImage: release.coverImage ?? null,
-    discogs_lowest_price: release.discogs_lowest_price != null ? Number(release.discogs_lowest_price) : null,
-    discogs_median_price: release.discogs_median_price != null ? Number(release.discogs_median_price) : null,
-    discogs_highest_price: release.discogs_highest_price != null ? Number(release.discogs_highest_price) : null,
-    discogs_num_for_sale: release.discogs_num_for_sale ?? null,
   }
 
   // Diff: only fields where current !== proposed
