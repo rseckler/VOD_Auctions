@@ -62,6 +62,20 @@ type DbLoad = {
     seconds: number
     query: string
   }[]
+  rates?: {
+    interval_sec: number
+    tx_per_sec: number
+    blks_read_per_sec: number
+    blks_hit_per_sec: number
+    deadlocks_delta: number
+    temp_files_delta: number
+    temp_bytes_delta: number
+    rollback_delta: number
+  } | null
+  health?: {
+    level: "ok" | "warn" | "critical"
+    reasons: string[]
+  }
   error?: string
 }
 
@@ -203,6 +217,9 @@ function FBArchivePage() {
         title="FB Archive Import"
         subtitle="Frank's Facebook Archive · 5.819 Posts · 7.310 R2-Bilder · Annex §A10"
       />
+
+      {/* Supabase DB Health Banner — prominent, an erster Stelle */}
+      <DbHealthBanner load={db_load} />
 
       {/* Status banner */}
       <div style={{
@@ -455,6 +472,87 @@ function PhaseCard({ label, job, placeholder }: { label: string; job: Job | null
   )
 }
 
+function DbHealthBanner({ load }: { load: DbLoad | null }) {
+  if (!load || !load.health) return null
+  const lvl = load.health.level
+  const bg =
+    lvl === "ok" ? C.success
+      : lvl === "warn" ? C.warning
+      : C.error
+  const label =
+    lvl === "ok" ? "DB Healthy"
+      : lvl === "warn" ? "DB Warning"
+      : "DB Critical"
+  const icon =
+    lvl === "ok" ? "✓"
+      : lvl === "warn" ? "!"
+      : "⚠"
+  const r = load.rates
+
+  return (
+    <div style={{
+      background: `linear-gradient(135deg, ${bg}, ${bg}cc)`,
+      color: "#fff",
+      borderRadius: 10, padding: "14px 18px", marginBottom: 14,
+      display: "flex", alignItems: "center", gap: 14,
+    }}>
+      <div style={{
+        width: 32, height: 32, borderRadius: "50%",
+        background: "rgba(255,255,255,0.2)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 18, fontWeight: 700, flexShrink: 0,
+      }}>
+        {icon}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 15, fontWeight: 700 }}>{label}</span>
+          <span style={{ fontSize: 11, opacity: 0.85 }}>
+            (Supabase Prod · vod-auctions)
+          </span>
+        </div>
+        <div style={{ fontSize: 12, opacity: 0.95, marginTop: 4 }}>
+          {(load.health.reasons || []).join(" · ")}
+        </div>
+      </div>
+      {r && (
+        <div style={{
+          display: "flex", gap: 14, fontSize: 11,
+          flexShrink: 0, textAlign: "right",
+        }}>
+          <div>
+            <div style={{ opacity: 0.7, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              TX/s
+            </div>
+            <div style={{ fontWeight: 700, fontSize: 16 }}>{r.tx_per_sec}</div>
+          </div>
+          <div>
+            <div style={{ opacity: 0.7, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Disk-Read
+            </div>
+            <div style={{ fontWeight: 700, fontSize: 16 }}>
+              {r.blks_read_per_sec > 0 ? `${r.blks_read_per_sec}/s` : "0"}
+            </div>
+            <div style={{ opacity: 0.6, fontSize: 9 }}>
+              {r.blks_read_per_sec > 0
+                ? `${((r.blks_read_per_sec * 8) / 1024).toFixed(1)} MB/s`
+                : ""}
+            </div>
+          </div>
+          <div>
+            <div style={{ opacity: 0.7, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Cache
+            </div>
+            <div style={{ fontWeight: 700, fontSize: 16 }}>
+              {load.cache_hit_pct != null ? `${load.cache_hit_pct.toFixed(1)}%` : "–"}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function DbLoadCard({ load }: { load: DbLoad | null }) {
   if (!load) {
     return null
@@ -483,7 +581,7 @@ function DbLoadCard({ load }: { load: DbLoad | null }) {
       borderRadius: 10, padding: 20, marginBottom: 18,
     }}>
       <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: C.text }}>
-        DB-Load (Supabase Prod)
+        DB-Load (Supabase Prod) — Detail
       </div>
 
       <div style={{
@@ -515,6 +613,32 @@ function DbLoadCard({ load }: { load: DbLoad | null }) {
           color={load.temp_files && load.temp_files > 100 ? C.warning : undefined}
         />
       </div>
+
+      {/* Live rates row — what's happening RIGHT NOW (last interval) */}
+      {load.rates && (
+        <div style={{
+          background: C.subtle, borderRadius: 6,
+          padding: "8px 12px", marginBottom: 12,
+          display: "flex", gap: 16, fontSize: 11, alignItems: "center",
+        }}>
+          <span style={{ color: C.muted, fontWeight: 600 }}>
+            Live ({load.rates.interval_sec}s window):
+          </span>
+          <span><b>{load.rates.tx_per_sec}</b> tx/s</span>
+          <span><b>{load.rates.blks_read_per_sec}</b> disk-reads/s</span>
+          <span><b>{load.rates.blks_hit_per_sec}</b> cache-hits/s</span>
+          {load.rates.rollback_delta > 0 && (
+            <span style={{ color: C.warning }}>
+              <b>{load.rates.rollback_delta}</b> rollbacks
+            </span>
+          )}
+          {load.rates.deadlocks_delta > 0 && (
+            <span style={{ color: C.error }}>
+              <b>{load.rates.deadlocks_delta}</b> neue Deadlocks
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Connection breakdown */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
