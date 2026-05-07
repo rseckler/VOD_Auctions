@@ -497,8 +497,20 @@ def run(
                         job.heartbeat(progress_done=idx)
                         continue
 
-                # Map per_photo by photo_index
-                per_photo = {p["photo_index"]: p for p in ai_input.get("per_photo", [])}
+                # Map per_photo by photo_index. Anthropic occasionally returns
+                # malformed entries (string instead of dict, missing keys) — be
+                # defensive so a single bad post doesn't abort a 90-min run.
+                per_photo: dict[int, dict] = {}
+                raw_per_photo = ai_input.get("per_photo", []) if isinstance(ai_input, dict) else []
+                if not isinstance(raw_per_photo, list):
+                    raw_per_photo = []
+                for p in raw_per_photo:
+                    if not isinstance(p, dict):
+                        continue
+                    pi = p.get("photo_index")
+                    if not isinstance(pi, int):
+                        continue
+                    per_photo[pi] = p
 
                 # Resolve names from id (for filename)
                 artist_by_id = {a["id"]: a["name"] for a in candidates["artists"]}
