@@ -283,15 +283,21 @@ INSERT INTO crm_imap_message (
     from_email, from_name, to_emails, cc_emails,
     subject, body_excerpt, detected_emails
 ) VALUES %s
-ON CONFLICT (message_id_header) WHERE (message_id_header IS NOT NULL) DO NOTHING
 RETURNING id
 """
 
 
-def insert_batch(pg_conn, run_id: str, parsed: list[dict]) -> int:
-    """Bulk-INSERT mit ON CONFLICT DO NOTHING + RETURNING id für exakten
-    Insert-Count. Per-Batch isolierte Transaction: bei Exception ist nur
-    dieser Batch verloren, der Lauf läuft weiter.
+def insert_batch(pg_conn, run_id: str, parsed: list[dict],
+                 counts: dict | None = None) -> int:
+    """SELECT-then-INSERT: erst existing message_id_headers raussuchen, dann
+    nur die neuen bulk-INSERTen. Per-Batch isolierte Transaction: bei
+    Exception nur dieser Batch verloren, der Lauf läuft weiter.
+
+    Postgres' ON CONFLICT mit Partial-Unique-Index (predicate-inferring) ist
+    in der Praxis unzuverlässig — bei idx_crm_imap_message_msgid_unique
+    schlägt die Inference fehl ('no unique or exclusion constraint matching').
+    Pre-SELECT funktioniert mit jedem Index und gibt uns einen exakten
+    db_dup-Count gratis.
 
     Returnt Anzahl inserted.
     """
@@ -299,6 +305,24 @@ def insert_batch(pg_conn, run_id: str, parsed: list[dict]) -> int:
         return 0
 
     pg = _ensure_psycopg2()
+    msg_ids = [p["msg_id"] for p in parsed]
+
+    # 1) Pre-SELECT: was ist schon in der DB?
+    with pg_conn.cursor() as cur:
+        cur.execute(
+            "SELECT message_id_header FROM crm_imap_message "
+            "WHERE message_id_header = ANY(%s)",
+            (msg_ids,),
+        )
+        existing = {row[0] for row in cur.fetchall()}
+
+    new = [p for p in parsed if p["msg_id"] not in existing]
+    if counts is not None:
+        counts["skipped_db_dup"] += len(existing)
+
+    if not new:
+        return 0
+
     rows = [
         (
             run_id, p["account"], p["msg_uid"], 0, "LEGACY_ARCHIVE",
@@ -306,17 +330,25 @@ def insert_batch(pg_conn, run_id: str, parsed: list[dict]) -> int:
             p["from_email"], p["from_name"], p["to_emails"], p["cc_emails"],
             p["subject"], p["body_excerpt"], p["detected_emails"],
         )
-        for p in parsed
+        for p in new
     ]
 
-    with pg_conn.cursor() as cur:
-        # execute_values mit fetch=True returnt RETURNING-Tupel
-        result = pg.extras.execute_values(
-            cur, INSERT_SQL, rows,
-            template=None, page_size=200, fetch=True,
-        )
-    pg_conn.commit()
-    return len(result or [])
+    # 2) Bulk-INSERT der neuen Rows. Race-Condition (paralleler Import) wäre
+    # eine UniqueViolation — sehr selten weil Pre-flight kein paralleles
+    # Laufen erlaubt. Im Fall: ganzer Batch rolled-back, weiterlaufen.
+    try:
+        with pg_conn.cursor() as cur:
+            result = pg.extras.execute_values(
+                cur, INSERT_SQL, rows,
+                template=None, page_size=200, fetch=True,
+            )
+        pg_conn.commit()
+        return len(result or [])
+    except pg.errors.UniqueViolation:
+        pg_conn.rollback()
+        if counts is not None:
+            counts["skipped_error"] += len(new)
+        return 0
 
 
 def run_with_backoff(pg_conn, parsed: list[dict], run_id: str, counts: dict) -> int:
@@ -328,7 +360,7 @@ def run_with_backoff(pg_conn, parsed: list[dict], run_id: str, counts: dict) -> 
     counts["skipped_in_batch_dup"] += len(parsed) - len(deduped)
 
     try:
-        inserted = insert_batch(pg_conn, run_id, deduped)
+        inserted = insert_batch(pg_conn, run_id, deduped, counts)
     except pg.errors.QueryCanceled:
         print("  [warn] statement-timeout, 5s + retry", file=sys.stderr)
         try:
@@ -337,7 +369,7 @@ def run_with_backoff(pg_conn, parsed: list[dict], run_id: str, counts: dict) -> 
             pass
         time.sleep(5.0)
         try:
-            inserted = insert_batch(pg_conn, run_id, deduped)
+            inserted = insert_batch(pg_conn, run_id, deduped, counts)
         except Exception as retry_e:
             print(f"  [err] retry failed, batch skipped: {retry_e}", file=sys.stderr)
             try:
@@ -356,7 +388,6 @@ def run_with_backoff(pg_conn, parsed: list[dict], run_id: str, counts: dict) -> 
         return 0
 
     counts["inserted"] += inserted
-    counts["skipped_db_dup"] += len(deduped) - inserted
     return inserted
 
 
