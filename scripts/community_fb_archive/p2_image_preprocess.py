@@ -64,13 +64,26 @@ DEFAULT_HEARTBEAT_INTERVAL = 30  # seconds — sparsam für 9-12h Jobs
 
 
 def make_r2_client():
+    """Build a write-capable R2 client.
+
+    Prefers R2_WRITE_* (scoped write-token created 2026-05-07 for the
+    fb-archive pipeline). Falls back to R2_* for local dev / older scripts
+    that share scope. Endpoint is account-level → identical for both.
+    """
     endpoint = os.environ.get("R2_ENDPOINT")
-    key = os.environ.get("R2_ACCESS_KEY_ID")
-    secret = os.environ.get("R2_SECRET_ACCESS_KEY")
+    key = (
+        os.environ.get("R2_WRITE_ACCESS_KEY_ID")
+        or os.environ.get("R2_ACCESS_KEY_ID")
+    )
+    secret = (
+        os.environ.get("R2_WRITE_SECRET_ACCESS_KEY")
+        or os.environ.get("R2_SECRET_ACCESS_KEY")
+    )
     if not all([endpoint, key, secret]):
         raise RuntimeError(
-            "Missing R2 env vars: R2_ENDPOINT / R2_ACCESS_KEY_ID / "
-            "R2_SECRET_ACCESS_KEY"
+            "Missing R2 env vars: need R2_ENDPOINT plus either "
+            "R2_WRITE_ACCESS_KEY_ID/R2_WRITE_SECRET_ACCESS_KEY (preferred) "
+            "or R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY"
         )
     return boto3.client(
         "s3",
