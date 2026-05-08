@@ -11,6 +11,8 @@ Jeder Git-Tag entspricht einem Snapshot des Gesamtsystems. Feature Flags zeigen 
 | Version | Datum | Platform Mode | Feature Flags aktiv (prod) | Milestone / Inhalt |
 |---------|-------|--------------|---------------------------|-------------------|
 | **v1.0.0** | TBD | `live` | ERP: TBD | RSE-78: Erster öffentlicher Launch |
+| **v1.0.0-rc53.15** | 2026-05-08 | `beta_test` | `ERP_INVENTORY`, `SEARCH_MEILI_CATALOG`, `SEARCH_MEILI_ADMIN`, `SYSTEM_HEALTH_*` | **Bulk-Invite Endpoint + UI für VOD Auctions Early-Access (Phase B).** Bulk-Invite-Workflow im CRM: max 1.000 Master-IDs pro Call, JobTracker mit Heartbeat, Async-Send 66 Mails/sec. Drei §7(3) UWG-Tier-Templates (newsletter_subscriber / webshop_customer / tape_mag_member). Master-ID-basierter Unsubscribe-Endpoint (HMAC + UPSERT comm-pref + Mirror in newsletter_subscribers + audit-log). Schema-Migration `phase_b_bulk_invite_tracking` (additive). CRM-UI "✉ Send Invite"-Bulk-Action mit Custom-Note + Skip-Already-Sent. |
+| **v1.0.0-rc53.14** | 2026-05-08 | `beta_test` | `ERP_INVENTORY`, `SEARCH_MEILI_CATALOG`, `SEARCH_MEILI_ADMIN`, `SYSTEM_HEALTH_*` | **Public Newsletter-Sign-up + DSGVO-Checkboxes (Phase A).** Storefront `/newsletter`-Page (Email + DSGVO-Consent + DOI-Hinweis) wired auf bestehenden `POST /store/newsletter`-Flow. DSGVO-Checkbox auf `/apply` ergänzt. Datenschutz §12 erweitert um DOI-Mechanik, Zwei-Listen-Klarstellung, Retention-Specifics. middleware.ts `/newsletter*` public path. Backend nur TODO-Kommentar für Rate-Limit-Deferral. |
 | **v1.0.0-rc53.8** | 2026-05-04 | `beta_test` | `ERP_INVENTORY`, `SEARCH_MEILI_CATALOG`, `SEARCH_MEILI_ADMIN`, `SYSTEM_HEALTH_*` | **AI-Daten-Cleanup-Pipeline für mo_pdf-Master + Mail-Archive-Scanner für Frank's Mac Studio.** Robin's Beobachtung nach rc53.7 Backfill: viele master_contacts haben fehlende/falsche Profile-Daten ("Last name = Deutschland" weil Country als Last-Name geparst, "first/last für Firmennamen", 40+ Doppel-Master für gleiche Firma weil Phase-1+2-existing-master keine Adressen hatte → Stage-2 konnte nicht matchen, etc.). Plus 78% mo_pdf-Master ohne primary_email weil IMAP-Index 2010-2018 fast leer ist (nur 372 Mails — alte Mail-Setup-Lücke). **AI-Pipeline implementiert (Anthropic Haiku 4.5, DSGVO-konform für Customer-PII via AVV):** **(1) 1st-Pass `mo_pdf_ai_extract.py`** (Filter-basiert: company-suffix, country-in-street, anrede-only-display, empty-street, Lieferanschrift-Overlap-Pattern): 2.500 problematische staging_contacts + staging_addresses durchgehen, JSON-Schema-Output mit contact_type/company/first/last/salutation/street/postal/city/country_iso/confidence. **Resultat:** 2.444 von 2.500 improved (97.8%), Original-Werte als Audit in `raw_payload.regex_original`. **(2) Stage-2 empty-hash-guard-Bug fixen** (3 Master cross-contaminiert, Margareta Diedrich mit 12+ unrelated staging-Inhalten gemerged) → cleanup, re-Stage-2 mit strict-guard (≥2 non-empty parts + ≥8 chars hash). 154 orphan staging_contacts re-verarbeitet: 95 matched, 59 echt neu, 0 Doppel. **(3) Smart Master-Profile-Backfill** (display_name-aware DISTINCT ON statt random pick): COALESCE first_name/last_name/company aus best-matching staging_contact. **5.996 von 6.014 mo_pdf-Master haben jetzt Profile-Daten (99.7%)**. **(4) 2nd-AI-Pass `mo_pdf_ai_consolidate_master.py`** (Master-Level Address-Konsolidierung: pro Master mit ≥2 master_addresses sammelt 2-6 partial inputs + raw_customer_blocks, Haiku merged zu 1 canonical, DELETE alte master_addresses + INSERT 1 mit `source_list=['ai_consolidated']`). **Status:** läuft Background im Auto-Mode auf VPS, 4.775 eligible master, ~$7 cost, ETA ~5-6h. Bei Schreiben dieses Entries: 300 processed, 276 consolidated, 24 LLM-JSON-Errors (8% — höher als 1st-Pass, multi-input prompts schwerer). **Mail-Archive-Scanner (paralleler Workstream):** `frank-mac-studio-setup/scan-old-emails.sh` + `find_old_emails.py` (pure stdlib) für Frank's Mac Studio + externe VOD BIGRAID — produziert TSV-Catalog + JSONL.gz mit Body von VOD-relevanten Mails (vinyl-on-demand.com / vod-records.com Domain-Match). Plus VPS-side `scripts/import_legacy_mails.py` für Import nach `crm_imap_message`. **Frank's erster Run (mac studio, 20k Mails durchgegangen, 19.412 VOD-relevant identifiziert) crashed bei `'Header' object .strip()` — non-ASCII-Subjects via RFC2047-encoded-words.** Fix `ceb1aa0` mit decode_header/make_header-helper + try/except wrap, Frank läuft erneut. **Erwartete Email-Coverage nach Import:** 22% → 80-90%. **Bugs unterwegs gefixt (Memory):** address_hash app-formula muss DB-GENERATED-Expression spiegeln (`feedback_app_db_hash_formula_must_match.md`); macOS Sequoia Apple-Mail-Container ist auch mit FDA gesperrt (`feedback_macos_sequoia_app_sandbox.md`); curl|bash + read MUSS `< /dev/tty` (`feedback_curl_bash_read_dev_tty.md`); GitHub raw cached main ~5min — bei Hot-Fix SHA-URL nutzen (`feedback_github_raw_cdn_cache.md`). **Code-Commits ~24 today** zwischen `623fc97` (v0 parser) und `ceb1aa0` (header-decode-fix). Background-Tasks: 2nd-AI-Pass läuft auf VPS PID 59506 weiter; Frank's Mail-Scan läuft auf Mac Studio. **Open für nächste Session:** (a) 2nd-AI-Pass-Done abwarten + verify 0 broken master_addresses, (b) Frank's JSONL.gz import + Stage-4-Body-Match-Re-Run für Email-Candidates, (c) Master-Merge-UI für die noch existing Doppel-Master (Eric Lanzillotta 4×, Second Layer 17×, HHV 6× — alle gleicher Customer pro Display_Name). |
 | **v1.0.0-rc53.7** | 2026-05-04 | `beta_test` | `ERP_INVENTORY`, `SEARCH_MEILI_CATALOG`, `SEARCH_MEILI_ADMIN`, `SYSTEM_HEALTH_*` | **MO-PDF Backfill 2004-2021 vollständig + Address-Hash-Bug-Fix (€2.95M zusätzliche Lifetime-Revenue).** Aufbauend auf rc53.6 (Layout v-1 Parser): Full-Run der externen HDD `Monkey Office/Rechnungen_ExternHDD/` (10.027 PDFs aus 2000-2021). **Pipeline-Coverage 88.6%** mit 3 Layout-Varianten (mo-2019-2026 / mo-2010-2018 / mo-2007-2010). **Resultat:** 6.910 distinct neue Tx in `crm_staging_transaction`, 1.102 Reviews (Eingangsrechnungen DHL/Cartus/Telefonica + v1-Storno-Edge-Cases), 0 errors. **Dedup:** 1.819 Pipeline-Iterationen wurden via `(source, source_record_id)` UNIQUE-Constraint absorbiert (echte Datei-Duplikate auf der HDD), 0 Überlapp mit existing 9.683 Imports aus `Monkey Office/Rechnungen/`. **Address-Hash-Doppel-Bug:** Master-Resolver Stage 2 hatte initial 0 matches gefunden (6.012 Doppel-Master angelegt). Root-Cause: (a) App-side `_addr_hash` nutzte SPACE-Trenner, DB-Generated-Column nutzte `|`-Trenner — die Hash-Formate matchten NIE; (b) country inkonsistent normalisiert (NULL/Finnland/FI/OES). **Fix:** DB-Migration `2026_05_04_address_hash_no_country` (Generation-Expression ohne country, alle 46k hashes via STORED-column-Re-Materialization neu berechnet), App-Code `_addr_hash` an DB-Formel angeglichen. **Cleanup:** 2.534 Doppel-Master via FK-Cascade DELETE, Re-Run Stage 2 mit Fix: **5.127 matched (85%) gegen existing master, 885 echt neu (15%)** — 0 Doppel-Master-Pairs zwischen heutigen Inserts und existing. **Daten-Snapshot Final:** 20.767 master_contacts (+885), 16.593 mo_pdf-Tx (+6.910), 6.488 mo_pdf source_links, **€6.02M MO-PDF Lifetime-Revenue total** (3.07M existing + 2.95M heute). **Memory-Update:** `feedback_no_direct_vps_deploy.md` (Robin's harte Regel: keine scp/ssh-Edits auf VPS-Code ohne vorherigen GitHub-Commit). **Commits:** `877f3cc` (resolver: hash without country) + `17ae093` (resolver: app-hash matching DB-formula). VPS-tmp `/root/VOD_Auctions_tmp_externhdd` (215MB) cleaned up. |
 | **v1.0.0-rc53.6** | 2026-05-04 | `beta_test` | `ERP_INVENTORY`, `SEARCH_MEILI_CATALOG`, `SEARCH_MEILI_ADMIN`, `SYSTEM_HEALTH_*` | **Inventory-Hub Top-Bar instant + MO-PDF-Parser für 2004-2010 (Layout v-1).** Zwei Workstreams: (1) **Performance-Fix Inventory-Hub:** Robin's Reklamation, dass die obere Card-Reihe (Stats + HEUTE + Format) bei jedem Hub-Open 1-10s Skeleton zeigt, bis die 9 Aggregate-Queries durchgelaufen sind. **Lösung Hybrid C+B:** neuer Endpoint `/admin/erp/inventory/stats/quick` (nur Above-the-Fold-Felder: counts/missing/today/throughput/bulk_status/total_releases) plus localStorage-Stale-While-Revalidate im Frontend. **Quick-Endpoint** macht 4 parallele Queries statt 9, wichtigster Speedup war Wegnahme von `COUNT(DISTINCT release_id)` aus dem Mega-Aggregate (Sequential Scan + hash-distinct → 578ms; ohne den nur Sequential Scan + FILTER → **11ms**). DB-Side-Latenz: `~11ms total` parallel. Field war eh nur im TS-Interface, nirgends gerendert. **Frontend** liest Quick-Stats VOR dem ersten Render aus localStorage (Cache-Key `vod_inventory_stats_quick_v1`), rendert sofort, fetcht parallel `/stats/quick` (Refresh) + `/stats` (deep für Pro-Person/Verlauf/Format-Cards). `mergeQuickIntoStats`-Helper sorgt dafür dass deep-Felder nicht ueberschrieben werden wenn quick zuerst zurueckkommt. Versionierter Cache-Key — bei Schema-Aenderung v2 bumpen, alte Caches verworfen. **Erwartet:** Top-Bar instant ab 2. Besuch (aus Cache, ~0ms perceived), Server-Refresh smooth nach ~200ms. Pro-Person/Verlauf/Format-Cards laden weiter in 1-10s (unter dem Fold). **Commit:** `e107632`. (2) **MO-PDF-Parser Layout v-1:** Robin's parallele CRM-MO-Session — der Pre-2019-Rechnungen-Scanner aus rc53.0 (Mac Studio RAID, ~10.575 PDFs) deckt jetzt zusätzlich 2004-2010 ab. **Klassifikator-Sample 30 PDFs/Jahr** zeigte: 2000-2003 keine VOD-Output (alle Eingangsrechnungen), 2004-2008 ~1.014 v-1 Files (vinyl-on-demand + Hochstr. 25), 2009-2010 ~508 v-1 (vinyl-on-demand + Alpenstr. 25/1), 2011+ v0 (Vinyl on Demand TitleCase + Alpenstr.). Layout v-1 Charakteristika: lowercase header `vinyl-on-demand` + 2-Spalten-Layout `Frank Maier ... <addr>`, Invoice-Nr `RE-YYYYMM/NNNNN`, 2004-2006-Subvintage mit `Rechnung Nummer:` + `Ihre Nummer:` Field-Labels statt der späteren Punkt-Kolon-Form. **Files:** `scripts/mo_pdf_lib/parser_v_minus1.py` (NEU + 2 Hotfix-Iterationen). **Commits:** `144fd69` (Layout v-1 base), `99c7785` (header pattern bidirektional), `acf0bea` (2004-2006 sub-vintage patterns). |
@@ -158,6 +160,102 @@ Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Rel
 - **Patch Release** (`v1.0.x`): Kritische Bugfixes zwischen geplanten Releases
 - **Tagging-Workflow:** `git tag -a vX.Y.Z -m "Release vX.Y.Z: <Kurzname>"` → `git push origin vX.Y.Z`
 - **Tag-Zeitpunkt:** Direkt nach Deploy + Smoke-Test auf Production — nicht vor dem Deploy
+
+---
+
+## 2026-05-08 — Bulk-Invite Endpoint + UI für VOD Auctions Early-Access (rc53.15)
+
+**Kontext:** Phase B des Workstreams §14 (Registrierung-Opening + Fortschritts-Newsletter). Nach Phase A heute morgen (Public `/newsletter`-Form + DSGVO-Checkboxes) jetzt das Backend-Werkzeug, mit dem Frank aus dem CRM heraus Bulk-Invites an Bestandskontakte verschicken kann. Plan: [`docs/optimizing/PHASE_B_REGISTRATION_OPENING_PLAN.md`](../optimizing/PHASE_B_REGISTRATION_OPENING_PLAN.md).
+
+**Datengrundlage (Production-Audit 2026-05-08):**
+- 20.826 Master-Contacts gesamt (war im CLAUDE.md noch 14.450 — Mail-Imports + Backfills haben ~6.000 dazu gebracht)
+- 12.995 mit Primary-Email (~62%)
+- 3.634 opted-in für `email_marketing` (rc53.4-Backfill)
+- 0 opted-out (Webhook bislang ohne Events) und 0 Master-Contacts mit Medusa-Account → wir starten bei null
+
+**Drei DSGVO-Tiers identifiziert:**
+| Tier | Count | Profil | Rechtsbasis |
+|---|---|---|---|
+| T1 | 3.634 | Newsletter opted-in | Art. 6(1)(a) DSGVO |
+| T2 | 6.455 | vod-records-Bestandskunde, ohne Newsletter | §7(3) UWG |
+| T3 | 2.737 | tape-mag.com Legacy-Member, ohne Newsletter | §7(3) UWG |
+
+**Robin-Decision 2026-05-08:** Aggressiver Pfad — alle drei Tiers via §7(3) UWG (Bestandskundenwerbung), KEINE Re-Opt-In-Hürde. Framing: VOD ist Dachmarke, VOD Auctions ist drittes Angebot neben VOD Records + tape-mag.com (kein Rebrand). Disclaimer in Erst-Mail + prominenter Unsubscribe-Link.
+
+**Schema (Migration `phase_b_bulk_invite_tracking` applied):**
+- `invite_tokens.master_id` (uuid FK auf `crm_master_contact`, ON DELETE SET NULL) + Partial-Index
+- `crm_master_contact.bulk_invite_sent_at` (timestamptz) + Partial-Index
+
+**Backend-Code:**
+- `lib/job-tracker.ts` — TypeScript-Pendant zum Python-JobTracker aus rc53.11. Schreibt fortlaufend `background_job` mit `tick()`, `setTotal()`, `isCancelled()` (throttled DB-Read alle 5 ticks), `finish(status, summary)`, `appendLog()` (Right-truncate auf 32 KB).
+- `emails/bulk-invite-vod-auctions.ts` — Drei Intro-Varianten je Tier (`newsletter_subscriber`, `webshop_customer`, `tape_mag_member`). §7(3)-UWG-Disclaimer-Block für T2/T3, optionale Frank-Custom-Note (max 500 chars) als italic Blockquote unter dem Token-Display, persönlicher Token mit 21-Tage-Expiry, Account-Setup-CTA.
+- `emails/layout.ts` — `emailLayout`-opts erweitert um optionalen `unsubscribeUrl` (für master-id-basierten Unsub aus Bulk-Invite, ohne Medusa-customer-id).
+- `lib/email-helpers.ts` — Neue Helper `generateMasterUnsubscribeToken` + `getMasterUnsubscribeUrl` (HMAC `${master_id}:master_unsubscribe`), `resolveBulkInviteIntro` (auto: opted-in > webshop > tape-mag), `sendBulkInviteEmailToMaster` (lookup → token-row mit `master_id` + `application_id=NULL` → mail send → mark `bulk_invite_sent_at`).
+- `api/admin/crm/contacts/bulk-invite/route.ts` — POST max 1.000 ids, returns 202 mit `{ job_id, eligible, skipped_no_email/blocked/already_sent/not_found }`. Async-Send decoupled vom HTTP-Lifecycle (CLAUDE.md `feedback_http_lifecycle_background_tasks`), 15ms-Throttle = ~66 Mails/sec (Resend-Limit 100/sec sicher unterschritten). JobTracker für live progress + cancel.
+- `api/store/email-preferences/unsubscribe-master/route.ts` — Public `/store/*` GET-Route. HMAC verifizieren, UPSERT in `crm_master_communication_pref` (`opted_in=false`, `source='unsubscribe_master_link'`), Mirror in `newsletter_subscribers` (`status='unsubscribed'`), audit-log-Eintrag, Redirect zur Storefront-Confirmation.
+
+**Storefront:**
+- `app/email-preferences/unsubscribe-master/page.tsx` — Server-Component proxy mit `x-publishable-api-key` (mirror `/newsletter/confirm`-Pattern, weil `/store/*`-Routes API-Key brauchen aber Email-Links keinen Header schicken können).
+- `middleware.ts` — `/email-preferences*` als public path (Gate-Bypass für Unsubscribe-Flow).
+
+**Admin-UI (`/app/crm` Contacts-Tab):**
+- Neuer "✉ Send Invite"-Button im `BulkActionBar` (Gold-Border, hervorgehoben). Erscheint sobald >0 Kontakte ausgewählt sind.
+- `BulkActionModal`-Case `invite` mit:
+  - Auto-Tone-Hinweis je Kontakt-Typ (für Frank zur Orientierung)
+  - 500-Char Custom-Note-Textarea (live char-count)
+  - "Skip already sent"-Checkbox (default true — verhindert versehentliche Doppelversände dank `bulk_invite_sent_at`)
+  - Async-Submit zu `/admin/crm/contacts/bulk-invite` mit Skipped-Breakdown im Result-Toast + Job-ID
+
+**Smoke-Test nach Deploy:**
+- `https://vod-auctions.com/email-preferences/unsubscribed` → 200
+- `https://api.vod-auctions.com/admin/crm/contacts/bulk-invite` (no-auth) → 401 (korrekt: route exists, requires admin auth)
+
+**Was Frank jetzt tun kann:**
+1. `/app/crm` → Contacts-Tab → Filter "📨 Newsletter Subscribers"
+2. 10-20 Test-Kontakte selektieren
+3. "✉ Send Invite" → optionale Note ergänzen → "Apply"
+4. Job-ID-Toast zeigt Eligible + Skipped-Breakdown
+5. Empfänger bekommen ihre persönliche Mail mit Token + Account-Setup-Link
+
+**Open Items (Phase B.5, separat):**
+- `/app/operations/bulk-invite` Job-Monitor-Page (Progress-Bars + Errors-Liste) — bewusst gestrichen aus Phase B, lieber nach erstem echten Send sinnvoll bauen
+- Re-Opt-In-Mode für `/newsletter` (`?prefill=&via=re-opt-in`) — falls wir später für Inbound-Re-Opt-In einen Pfad brauchen
+- Anwalts-Check für §7(3)-UWG-Disclaimer-Wording — mit RSE-78 koppeln
+
+**Commits:** `f625c2c` (Phase B).
+
+---
+
+## 2026-05-08 — Public Newsletter-Sign-up + DSGVO-Checkboxes (rc53.14)
+
+**Kontext:** Phase A des Workstreams §14 (Registrierung-Opening + Fortschritts-Newsletter). Backend-Foundation aus rc53.4 (CRM↔Newsletter-Hybrid) ist seit 2026-05-04 produktiv, fehlte nur das Frontend-Gateway: keine Public-Sign-up-Form (nur Confirm-Page existierte), keine DSGVO-Consent-Checkbox auf `/apply`, Datenschutz §12 zu generisch.
+
+**Storefront-Neu:**
+- `app/newsletter/page.tsx` — Public Sign-up-Form (Email + DSGVO-Consent-Checkbox + DOI-Hinweis) wired auf bestehenden `POST /store/newsletter` Double-Opt-In-Flow (HMAC-Token, 24h gültig). Success-State "Check your inbox" mit "try a different email"-Reset und Link zur Privacy-Policy.
+- `app/newsletter/layout.tsx` — Page-Metadata.
+
+**Storefront-Geändert:**
+- `middleware.ts` — `/newsletter*` als public path (sonst blockt der `beta_test`-Gate die Sign-up-Page).
+- `app/apply/page.tsx` — Explizite DSGVO-Consent-Checkbox vor Submit. Validation blockt unchecked Submit. Klartext-Einwilligungstext + Privacy-Link.
+- `app/datenschutz/page.tsx` — Section 12 (Newsletter & CRM — Brevo) erweitert um DOI-Mechanik mit 24h-Token, Zwei-Listen-Klarstellung (VOD aktiv + Tape-mag-Legacy), Retention-Specifics (Suppression-Record nach Unsub für GDPR Art. 21), `privacy@`-Kontakt für Direct-Unsub-Anfrage.
+
+**Backend-Geändert:**
+- `api/store/newsletter/route.ts` — TODO-Kommentar für Rate-Limit-Deferral an Workstream §4 (Redis). Begründung im Kommentar: niedriges Risiko heute (limitierte Audience) aber Resend-Quota + Auto-Master-Pollution bei Flood.
+
+**Audit ohne Code-Change:**
+- 4 Block-Templates (`block-teaser/tomorrow/live/ending`) nutzen alle `newsletter-layout.ts` mit `{{ unsubscribe }}` Brevo-Placeholder im Footer → Brevo ersetzt per Recipient automatisch.
+- `newsletter-confirm.ts` Template ist production-ready (24h-Hinweis matcht HMAC-Token-Validity, sauberes Branding, Fallback-Plain-Link).
+
+**Smoke-Test nach Deploy:**
+- `GET /newsletter` → 200
+- `GET /datenschutz` → 200
+- `GET /apply` → 200
+
+**Doku:**
+- TODO.md Workstream §14 angelegt mit Phasen A→D
+- Audit-Report in der Antwort an Robin (siehe Phase A Conversation 2026-05-08)
+
+**Commits:** `2b267d3` (Phase A).
 
 ---
 
