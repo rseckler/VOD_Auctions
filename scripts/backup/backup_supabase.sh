@@ -50,9 +50,28 @@ esac
 DB_URL=""
 DB_SOURCE="unknown"
 if [ -n "$REPLICA_URL" ]; then
-  # Check replica lag via pg_stat_subscription on the replica itself
+  # Replica-Lag-Check mit Robustheit gegen disabled/missing/never-applied subscriptions.
+  #
+  # Bug-Fix 2026-05-08: Wenn die Subscription disabled ist (`subenabled=false`)
+  # ODER der Worker noch nie was applied hat (`latest_end_time IS NULL`),
+  # liefert die alte Query "lag=0s" zurück (COALESCE auf NULL → 0) → Backup
+  # läuft fälschlicherweise gegen die veraltete Replica. Das hat am 2026-05-07
+  # ~12h lang stille Backup-Corruption produziert.
+  #
+  # Neue CASE-Logik markiert disabled/uninitialized subscriptions als 999999s,
+  # so dass der Fallback auf Supabase-Direct sicher greift.
   LAG=$(docker run --rm --network=host postgres:17 \
-    psql "$REPLICA_URL" -t -c "SELECT COALESCE(EXTRACT(EPOCH FROM (now() - latest_end_time))::int, 0) FROM pg_stat_subscription WHERE subname = '$SUB_NAME';" 2>/dev/null | xargs)
+    psql "$REPLICA_URL" -t -c "
+      SELECT CASE
+        WHEN s.subname IS NULL THEN 999999
+        WHEN NOT s.subenabled THEN 999999
+        WHEN ss.latest_end_time IS NULL THEN 999999
+        ELSE EXTRACT(EPOCH FROM (now() - ss.latest_end_time))::int
+      END
+      FROM (SELECT '$SUB_NAME'::name AS subname) want
+      LEFT JOIN pg_subscription s ON s.subname = want.subname
+      LEFT JOIN pg_stat_subscription ss ON ss.subname = want.subname;
+    " 2>/dev/null | xargs)
   if [ -z "$LAG" ]; then LAG=999999; fi
   if [ "$LAG" -le "$MAX_LAG" ]; then
     DB_URL="$REPLICA_URL"
