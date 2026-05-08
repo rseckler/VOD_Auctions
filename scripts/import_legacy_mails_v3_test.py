@@ -295,6 +295,66 @@ class TestDedupInBatch(unittest.TestCase):
         self.assertEqual(out[0]["tag"], 1)
 
 
+class TestStripNul(unittest.TestCase):
+    def test_none(self):
+        self.assertIsNone(ilm.strip_nul(None))
+
+    def test_empty(self):
+        self.assertEqual(ilm.strip_nul(""), "")
+
+    def test_no_nul(self):
+        self.assertEqual(ilm.strip_nul("clean text"), "clean text")
+
+    def test_single_nul(self):
+        self.assertEqual(ilm.strip_nul("a\x00b"), "ab")
+
+    def test_multiple_nuls(self):
+        self.assertEqual(ilm.strip_nul("\x00a\x00b\x00"), "ab")
+
+    def test_only_nuls(self):
+        self.assertEqual(ilm.strip_nul("\x00\x00\x00"), "")
+
+
+class TestParseRecordWithNul(unittest.TestCase):
+    def test_nul_in_subject(self):
+        rec = {
+            "message_id": "<a@x.de>",
+            "date": "Tue, 27 Aug 2024 16:18:07 +0200",
+            "from": "Frank <frank@vod-records.com>",
+            "to": "x@y.de",
+            "subject": "hello\x00world",
+            "body": "test",
+        }
+        out = ilm.parse_record(rec)
+        self.assertEqual(out["subject"], "helloworld")
+
+    def test_nul_in_body(self):
+        rec = {
+            "message_id": "<a@x.de>",
+            "date": "Tue, 27 Aug 2024 16:18:07 +0200",
+            "from": "frank@vod-records.com",
+            "to": "x@y.de",
+            "subject": "Hi",
+            "body": "before\x00after\x00end",
+        }
+        out = ilm.parse_record(rec)
+        self.assertEqual(out["body_excerpt"], "beforeafterend")
+
+    def test_nul_in_message_id_fallback(self):
+        # Synthetic message-id falls real one missing; NUL must be stripped from input first
+        rec = {
+            "message_id": "<id\x00clean@x.de>",
+            "date": "Tue, 27 Aug 2024 16:18:07 +0200",
+            "from": "frank@vod-records.com",
+            "to": "x@y.de",
+            "subject": "Hi",
+            "body": "",
+        }
+        out = ilm.parse_record(rec)
+        self.assertNotIn("\x00", out["msg_id"])
+        self.assertEqual(out["msg_id"], "<idclean@x.de>")
+
+
 class TestRealJSONLSample(unittest.TestCase):
     """Test gegen Echt-Records aus Frank's JSONL-Export."""
     def test_real_emlx_record(self):

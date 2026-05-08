@@ -122,9 +122,18 @@ def make_msg_id(rec: dict) -> str:
     return "synthetic:" + hashlib.sha256(seed.encode()).hexdigest()[:16]
 
 
+def strip_nul(s: str | None) -> str | None:
+    """Postgres TEXT-Spalten lehnen NUL-Bytes (0x00) ab; emlx/Outlook-Mails
+    enthalten gelegentlich welche im Body/Subject. Strippen ist die einzige
+    Option — die Bytes sind in keinem realen Mail-Inhalt sinnvoll."""
+    if s is None:
+        return None
+    return s.replace("\x00", "")
+
+
 def parse_record(rec: dict) -> dict | None:
     """Returnt parsed record, None wenn skip wegen no-date."""
-    msg_id = make_msg_id(rec)
+    msg_id = strip_nul(make_msg_id(rec))
     date_header = parse_iso_date(rec.get("date", ""))
     if not date_header:
         return None
@@ -132,7 +141,7 @@ def parse_record(rec: dict) -> dict | None:
     from_emails, from_names = parse_addresses(rec.get("from", ""))
     to_emails, _ = parse_addresses(rec.get("to", ""))
     cc_emails, _ = parse_addresses(rec.get("cc", ""))
-    body = rec.get("body") or ""
+    body = strip_nul(rec.get("body")) or ""
     body_excerpt = body[:5000] if body else None
     detected = extract_emails_from_body(body)
     fake_uid = "legacy:" + hashlib.sha256(msg_id.encode()).hexdigest()[:24]
@@ -142,11 +151,11 @@ def parse_record(rec: dict) -> dict | None:
         "date_header": date_header,
         "account": derive_account(rec.get("from", ""), rec.get("to", "")),
         "msg_uid": fake_uid,
-        "from_email": (from_emails[0] if from_emails else None),
-        "from_name": (from_names[0] if from_names else None),
-        "to_emails": to_emails,
-        "cc_emails": cc_emails,
-        "subject": (rec.get("subject") or "")[:500] or None,
+        "from_email": strip_nul(from_emails[0]) if from_emails else None,
+        "from_name": strip_nul(from_names[0]) if from_names else None,
+        "to_emails": [strip_nul(e) for e in to_emails],
+        "cc_emails": [strip_nul(e) for e in cc_emails],
+        "subject": strip_nul((rec.get("subject") or "")[:500]) or None,
         "body_excerpt": body_excerpt,
         "detected_emails": detected,
     }
