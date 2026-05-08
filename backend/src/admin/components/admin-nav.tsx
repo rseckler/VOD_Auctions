@@ -25,6 +25,7 @@ const SHORTCUTS: Array<{ href: string; label: string; icon: string }> = [
   { href: "/app/erp/inventory", label: "Inventory", icon: ICON_INVENTORY },
   { href: "/app/media", label: "Catalog", icon: ICON_CATALOG },
   { href: "/app/fb-archive", label: "FB Archive", icon: ICON_FB_ARCHIVE },
+  { href: "/app/fb-archive-review", label: "FB Review", icon: ICON_FB_ARCHIVE },
 ]
 
 function injectShortcuts() {
