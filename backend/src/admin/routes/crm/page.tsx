@@ -1953,21 +1953,41 @@ function CRMDashboardTab() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
       {/* Overview Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "12px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px" }}>
         {[
-          { label: "Total Contacts", value: overview.total_contacts.toLocaleString("en-US") },
-          { label: "VOD Auctions", value: overview.vod_auctions.toLocaleString("en-US") },
-          { label: "TAPE-MAG", value: overview.tape_mag.toLocaleString("en-US") },
+          {
+            label: "Total Contacts",
+            value: overview.total_contacts.toLocaleString("en-US"),
+            hint: "CRM master (all sources)",
+          },
           {
             label: "Newsletter Opt-ins",
             value: overview.newsletter_optins.toLocaleString("en-US"),
             color: C.success,
+            hint: "opted-in via DOI or sync",
           },
-          { label: "Medusa Customers", value: overview.medusa_customers.toLocaleString("en-US") },
+          {
+            label: "VOD Brevo List",
+            value: overview.vod_auctions.toLocaleString("en-US"),
+            hint: "Brevo list 4 (sendable)",
+          },
+          {
+            label: "Tape-mag Brevo List",
+            value: overview.tape_mag.toLocaleString("en-US"),
+            hint: "Brevo list 5 (sendable)",
+          },
+          {
+            label: "Medusa Customers",
+            value: overview.medusa_customers.toLocaleString("en-US"),
+            hint: "registered accounts",
+          },
         ].map((card) => (
           <div key={card.label} style={cardStyle}>
             <div style={labelStyle}>{card.label}</div>
             <div style={{ ...bigValueStyle, color: card.color || C.gold }}>{card.value}</div>
+            {card.hint && (
+              <div style={{ fontSize: "11px", color: C.muted, marginTop: "4px" }}>{card.hint}</div>
+            )}
           </div>
         ))}
       </div>

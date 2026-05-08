@@ -35,6 +35,8 @@ export async function GET(
       sentCampaigns,
       customerCount,
       recentCustomers,
+      masterContactCount,
+      newsletterOptInCount,
     ] = await Promise.all([
       BREVO_LIST_VOD_AUCTIONS
         ? getListContactCount(BREVO_LIST_VOD_AUCTIONS).catch(() => 0)
@@ -67,6 +69,18 @@ export async function GET(
         .whereNull("deleted_at")
         .orderBy("created_at", "desc")
         .limit(10),
+      // Local CRM-Master count (rc53.0+) — replaces "Brevo-only" total_contacts
+      pgConnection("crm_master_contact")
+        .whereNull("deleted_at")
+        .count("id as total")
+        .first()
+        .catch(() => ({ total: 0 })),
+      // Local newsletter opt-in count (rc53.4+) — replaces brittle Brevo-attribute scan
+      pgConnection("crm_master_communication_pref")
+        .where({ channel: "email_marketing", opted_in: true })
+        .count("master_id as total")
+        .first()
+        .catch(() => ({ total: 0 })),
     ])
 
     // Combine all contacts for segment analysis
@@ -79,15 +93,11 @@ export async function GET(
       return true
     })
 
-    // Count by segment
+    // Count by segment (Brevo-attribute-based — used for the Customer-Segments-chart)
     const segments: Record<string, number> = {}
-    let newsletterOptins = 0
     for (const c of uniqueContacts) {
       const seg = c.attributes?.CUSTOMER_SEGMENT || "unknown"
       segments[seg] = (segments[seg] || 0) + 1
-      if (c.attributes?.NEWSLETTER_OPTIN === true) {
-        newsletterOptins++
-      }
     }
 
     // Top customers by TOTAL_SPENT
@@ -159,10 +169,16 @@ export async function GET(
     res.json({
       configured: true,
       overview: {
-        total_contacts: vodCount + tapeMagCount,
+        // Card 1: full local CRM (replaces Brevo-only sum which was ~3.6k vs 20.8k actual)
+        total_contacts: Number(masterContactCount?.total || 0),
+        // Cards 2 + 3 keep showing Brevo-list reach — that's the *active newsletter
+        // audience*, not total CRM. UI labels make the distinction clear.
         vod_auctions: vodCount,
         tape_mag: tapeMagCount,
-        newsletter_optins: newsletterOptins,
+        // Card 4: opted-in count from local crm_master_communication_pref
+        // (was scanning Brevo NEWSLETTER_OPTIN-attribute which only sees the 50
+        // most-recent contacts per list and was returning 0 in production)
+        newsletter_optins: Number(newsletterOptInCount?.total || 0),
         medusa_customers: Number(customerCount?.total || 0),
       },
       segments,
