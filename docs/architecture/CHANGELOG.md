@@ -11,6 +11,8 @@ Jeder Git-Tag entspricht einem Snapshot des Gesamtsystems. Feature Flags zeigen 
 | Version | Datum | Platform Mode | Feature Flags aktiv (prod) | Milestone / Inhalt |
 |---------|-------|--------------|---------------------------|-------------------|
 | **v1.0.0** | TBD | `live` | ERP: TBD | RSE-78: Erster öffentlicher Launch |
+| **v1.0.0-rc53.15.2** | 2026-05-08 | `beta_test` | `ERP_INVENTORY`, `SEARCH_MEILI_CATALOG`, `SEARCH_MEILI_ADMIN`, `SYSTEM_HEALTH_*` | **CRM Overview-Cards auf lokale DB statt Brevo-only.** Robin's Beobachtung: "TOTAL CONTACTS: 3.601" + "NEWSLETTER OPT-INS: 0" obwohl 20.826 / 3.634 in der DB. Backend-Fix `/admin/customers`: zwei zusätzliche parallel-Queries auf `crm_master_contact` und `crm_master_communication_pref`. UI-Fix Cards-Reordering (Total → Opt-ins → VOD-Brevo → Tape-mag-Brevo → Medusa) + Subtitle-Hints, die die Datenquelle erklären. |
+| **v1.0.0-rc53.15.1** | 2026-05-08 | `beta_test` | `ERP_INVENTORY`, `SEARCH_MEILI_CATALOG`, `SEARCH_MEILI_ADMIN`, `SYSTEM_HEALTH_*` | **CRM Smart-List-Filter-Pills sichtbar.** Backend `/admin/crm/contacts` unterstützt seit rc53.4 die drei Smart-List-Filter (newsletter_subscribers / newsletter_unsubscribed / newsletter_only_leads), aber das UI hat sie nie als Pills exposed. Ohne diese Pills konnte Frank Phase-B-Bulk-Invites nicht ans richtige Segment zielen. Drei Pills mit den Phase-B-Plan-Icons (📨/🔕/🌱) zwischen "MO-PDF only" und "Test accounts" ergänzt + FilterKey-Type erweitert. |
 | **v1.0.0-rc53.15** | 2026-05-08 | `beta_test` | `ERP_INVENTORY`, `SEARCH_MEILI_CATALOG`, `SEARCH_MEILI_ADMIN`, `SYSTEM_HEALTH_*` | **Bulk-Invite Endpoint + UI für VOD Auctions Early-Access (Phase B).** Bulk-Invite-Workflow im CRM: max 1.000 Master-IDs pro Call, JobTracker mit Heartbeat, Async-Send 66 Mails/sec. Drei §7(3) UWG-Tier-Templates (newsletter_subscriber / webshop_customer / tape_mag_member). Master-ID-basierter Unsubscribe-Endpoint (HMAC + UPSERT comm-pref + Mirror in newsletter_subscribers + audit-log). Schema-Migration `phase_b_bulk_invite_tracking` (additive). CRM-UI "✉ Send Invite"-Bulk-Action mit Custom-Note + Skip-Already-Sent. |
 | **v1.0.0-rc53.14** | 2026-05-08 | `beta_test` | `ERP_INVENTORY`, `SEARCH_MEILI_CATALOG`, `SEARCH_MEILI_ADMIN`, `SYSTEM_HEALTH_*` | **Public Newsletter-Sign-up + DSGVO-Checkboxes (Phase A).** Storefront `/newsletter`-Page (Email + DSGVO-Consent + DOI-Hinweis) wired auf bestehenden `POST /store/newsletter`-Flow. DSGVO-Checkbox auf `/apply` ergänzt. Datenschutz §12 erweitert um DOI-Mechanik, Zwei-Listen-Klarstellung, Retention-Specifics. middleware.ts `/newsletter*` public path. Backend nur TODO-Kommentar für Rate-Limit-Deferral. |
 | **v1.0.0-rc53.8** | 2026-05-04 | `beta_test` | `ERP_INVENTORY`, `SEARCH_MEILI_CATALOG`, `SEARCH_MEILI_ADMIN`, `SYSTEM_HEALTH_*` | **AI-Daten-Cleanup-Pipeline für mo_pdf-Master + Mail-Archive-Scanner für Frank's Mac Studio.** Robin's Beobachtung nach rc53.7 Backfill: viele master_contacts haben fehlende/falsche Profile-Daten ("Last name = Deutschland" weil Country als Last-Name geparst, "first/last für Firmennamen", 40+ Doppel-Master für gleiche Firma weil Phase-1+2-existing-master keine Adressen hatte → Stage-2 konnte nicht matchen, etc.). Plus 78% mo_pdf-Master ohne primary_email weil IMAP-Index 2010-2018 fast leer ist (nur 372 Mails — alte Mail-Setup-Lücke). **AI-Pipeline implementiert (Anthropic Haiku 4.5, DSGVO-konform für Customer-PII via AVV):** **(1) 1st-Pass `mo_pdf_ai_extract.py`** (Filter-basiert: company-suffix, country-in-street, anrede-only-display, empty-street, Lieferanschrift-Overlap-Pattern): 2.500 problematische staging_contacts + staging_addresses durchgehen, JSON-Schema-Output mit contact_type/company/first/last/salutation/street/postal/city/country_iso/confidence. **Resultat:** 2.444 von 2.500 improved (97.8%), Original-Werte als Audit in `raw_payload.regex_original`. **(2) Stage-2 empty-hash-guard-Bug fixen** (3 Master cross-contaminiert, Margareta Diedrich mit 12+ unrelated staging-Inhalten gemerged) → cleanup, re-Stage-2 mit strict-guard (≥2 non-empty parts + ≥8 chars hash). 154 orphan staging_contacts re-verarbeitet: 95 matched, 59 echt neu, 0 Doppel. **(3) Smart Master-Profile-Backfill** (display_name-aware DISTINCT ON statt random pick): COALESCE first_name/last_name/company aus best-matching staging_contact. **5.996 von 6.014 mo_pdf-Master haben jetzt Profile-Daten (99.7%)**. **(4) 2nd-AI-Pass `mo_pdf_ai_consolidate_master.py`** (Master-Level Address-Konsolidierung: pro Master mit ≥2 master_addresses sammelt 2-6 partial inputs + raw_customer_blocks, Haiku merged zu 1 canonical, DELETE alte master_addresses + INSERT 1 mit `source_list=['ai_consolidated']`). **Status:** läuft Background im Auto-Mode auf VPS, 4.775 eligible master, ~$7 cost, ETA ~5-6h. Bei Schreiben dieses Entries: 300 processed, 276 consolidated, 24 LLM-JSON-Errors (8% — höher als 1st-Pass, multi-input prompts schwerer). **Mail-Archive-Scanner (paralleler Workstream):** `frank-mac-studio-setup/scan-old-emails.sh` + `find_old_emails.py` (pure stdlib) für Frank's Mac Studio + externe VOD BIGRAID — produziert TSV-Catalog + JSONL.gz mit Body von VOD-relevanten Mails (vinyl-on-demand.com / vod-records.com Domain-Match). Plus VPS-side `scripts/import_legacy_mails.py` für Import nach `crm_imap_message`. **Frank's erster Run (mac studio, 20k Mails durchgegangen, 19.412 VOD-relevant identifiziert) crashed bei `'Header' object .strip()` — non-ASCII-Subjects via RFC2047-encoded-words.** Fix `ceb1aa0` mit decode_header/make_header-helper + try/except wrap, Frank läuft erneut. **Erwartete Email-Coverage nach Import:** 22% → 80-90%. **Bugs unterwegs gefixt (Memory):** address_hash app-formula muss DB-GENERATED-Expression spiegeln (`feedback_app_db_hash_formula_must_match.md`); macOS Sequoia Apple-Mail-Container ist auch mit FDA gesperrt (`feedback_macos_sequoia_app_sandbox.md`); curl|bash + read MUSS `< /dev/tty` (`feedback_curl_bash_read_dev_tty.md`); GitHub raw cached main ~5min — bei Hot-Fix SHA-URL nutzen (`feedback_github_raw_cdn_cache.md`). **Code-Commits ~24 today** zwischen `623fc97` (v0 parser) und `ceb1aa0` (header-decode-fix). Background-Tasks: 2nd-AI-Pass läuft auf VPS PID 59506 weiter; Frank's Mail-Scan läuft auf Mac Studio. **Open für nächste Session:** (a) 2nd-AI-Pass-Done abwarten + verify 0 broken master_addresses, (b) Frank's JSONL.gz import + Stage-4-Body-Match-Re-Run für Email-Candidates, (c) Master-Merge-UI für die noch existing Doppel-Master (Eric Lanzillotta 4×, Second Layer 17×, HHV 6× — alle gleicher Customer pro Display_Name). |
@@ -160,6 +162,42 @@ Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Rel
 - **Patch Release** (`v1.0.x`): Kritische Bugfixes zwischen geplanten Releases
 - **Tagging-Workflow:** `git tag -a vX.Y.Z -m "Release vX.Y.Z: <Kurzname>"` → `git push origin vX.Y.Z`
 - **Tag-Zeitpunkt:** Direkt nach Deploy + Smoke-Test auf Production — nicht vor dem Deploy
+
+---
+
+## 2026-05-08 — CRM Overview-Cards auf lokale DB statt Brevo-only (rc53.15.2)
+
+**Kontext:** Robin's Screenshot von `/app/crm` Overview-Tab zeigte "TOTAL CONTACTS: 3.601" und "NEWSLETTER OPT-INS: 0" — beides offensichtlich falsch (20.826 in `crm_master_contact`, 3.634 in `crm_master_communication_pref`). Ursache: technische Schuld aus pre-rc53.0-Zeit, als CRM noch ein UI um Brevo herum war.
+
+**Befund:**
+- `total_contacts` zog aus Brevo-Listen-Sum (vodCount + tapeMagCount = 21 + 3.580 = 3.601), nicht aus der lokalen Master-Contact-DB
+- `newsletter_optins` wurde durch Iteration über die ersten 50 Brevo-Contacts pro Liste mit Attribut-Check `NEWSLETTER_OPTIN === true` ermittelt — Attribut ist nicht durchgängig gesetzt, deshalb 0
+- `vod_auctions` (21) und `tape_mag` (3.580) waren korrekt, aber das Label "VOD Auctions" suggerierte Auktions-Aktivität statt Brevo-Sendelisten-Reichweite
+
+**Fix:**
+- **Backend `/admin/customers/route.ts`** — zwei zusätzliche parallel-Knex-Queries: `crm_master_contact WHERE deleted_at IS NULL` (~10ms, indexed) und `crm_master_communication_pref WHERE channel='email_marketing' AND opted_in=true` (Partial-Index seit rc53.4). `vod_auctions` + `tape_mag` bleiben Brevo-Listen-Counts (zeigen Sende-Reichweite). `segments`-Map weiterhin aus Brevo-Attributen (für die Customer-Segments-Donut-Chart, die kennt die rc53.0-Tier-Engine noch nicht).
+- **Frontend `admin/routes/crm/page.tsx`** — Cards-Reihenfolge umgestellt (Total → Opt-ins → VOD-Brevo → Tape-mag-Brevo → Medusa, Funnel-Logik). Subtitle-Hints pro Card ("CRM master (all sources)" / "opted-in via DOI or sync" / "Brevo list 4 (sendable)" / "Brevo list 5 (sendable)" / "registered accounts"). Card-Min-Width 140→160px wegen längerer Labels.
+
+**Erwartete Werte nach Deploy:**
+- Total Contacts: 20.826
+- Newsletter Opt-ins: 3.634
+- VOD Brevo List: 21
+- Tape-mag Brevo List: 3.580
+- Medusa Customers: 12
+
+**Commit:** `33a47fa`.
+
+---
+
+## 2026-05-08 — CRM Smart-List-Filter-Pills sichtbar (rc53.15.1)
+
+**Kontext:** Beim Versuch der Phase-B-Test-Welle hat Robin gemeldet, dass die im `PHASE_B_REGISTRATION_OPENING_PLAN.md` genannten Smart-List-Filter (📨 Newsletter Subscribers / 🔕 Unsubscribed / 🌱 Newsletter-Only Leads) im UI gar nicht auswählbar sind. Backend-Endpoint `GET /admin/crm/contacts` unterstützt sie seit rc53.4, aber die `FILTERS`-Array in `contacts-tab.tsx` war auf die ursprünglichen 7 Pre-rc53.4-Filter beschränkt.
+
+**Fix:** Drei neue Pills (📨/🔕/🌱) in der `FilterPills`-Bar zwischen "MO-PDF only" und "Test accounts" ergänzt. `FilterKey`-Type um drei Werte erweitert. Reihenfolge ist Logik-orientiert: Source-Filter → Newsletter-Status → Admin-Flags.
+
+**Konsequenz:** Frank kann jetzt im CRM Contacts-Tab per Pill-Klick auf 3.634 Newsletter-Subscriber filtern und die ersten Test-Welle-Empfänger auswählen.
+
+**Commit:** `00501b1`.
 
 ---
 
