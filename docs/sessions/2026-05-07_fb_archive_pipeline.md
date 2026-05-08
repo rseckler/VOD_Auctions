@@ -263,3 +263,133 @@ docs/sessions/2026-05-07_fb_archive_pipeline.md                   (diese Datei)
 - P4-Script gepusht, ungetestet
 - Status-Page deployed, erreichbar unter https://admin.vod-auctions.com/app/fb-archive
 - Health-Banner sollte 🟢 zeigen (Disk-Reads aus dem Replica nicht aus Supabase)
+
+---
+
+## Update 2026-05-08 — Pipeline komplett durch + Review-UI
+
+### 9. P3 Full-Run abgeschlossen
+
+4.481 Posts in **10:25 Min** (genau wie ETA). Endergebnis:
+
+| Tier | Count | % |
+|---|---|---|
+| **Tier 1** (auto-renameable) | **499** | 6,8 % |
+| Tier 2 (P4 AI Vision) | 6.793 | 92,2 % |
+| Tier 3 (no match) | 77 | 1,0 % |
+| **Total photo-rows** | **7.369** | |
+
+Sample-Treffer der jetzt vertrauenswürdigen Tier-1-Klassifikation:
+- `Esoteric - Floatdemonium FB.jpg`
+- `Nocturnal Emissions - Songs Of Love And Revolution FB.jpg`
+- `Light Asylum - Light Asylum FB.jpg`
+- `Hunting Lodge - Tribal Warning Shot FB.jpg`
+
+### 10. P4 AI Vision — Anthropic-Key-Reset + DB-Critical-Vorfall + Crash + Resume
+
+**Drei separate Issues** in einem Run:
+
+#### 10.1 Anthropic-Key war seit 2026-05-03 revoked
+
+P4 Live-Smoke-Test (10 Posts) zeigte **HTTP 401 invalid x-api-key** auf jedem Call. Das war im TODO.md §Next dokumentiert seit 2026-05-03 aber nie behoben — Backend AI-Chat (Haiku) und AI-Create-Auction (Sonnet) waren parallel broken.
+
+Robin hat in console.anthropic.com einen neuen Key erstellt + in 1Password Item `75waec4iz5yzqejjjctrchn5iq` (Vault Work) gespeichert. Ich habe via `op item get` den Key gelesen + via SSH-Heredoc atomically in scripts/.env UND backend/.env aktualisiert (grep -v alt + append neu, chmod 600 zurück), pm2 restart vodauction-backend. Smoke-Test gegen Haiku 4.5 grün → P4 spielbereit. Kollateral-Fix für Backend-AI-Routes mitgemacht.
+
+#### 10.2 Mail-Importer drückte Supabase ins Critical (39 MB/s Disk-Reads)
+
+Während P4-Smoke-Test live ging, sprang das DB-Health-Banner auf 🔴 mit `Disk-Reads 5086/s (~39.7 MB/s) — Burst-Budget!`. Diagnose: nicht meine Pipeline, sondern `import_legacy_mails_v3.py --jsonl` (PID 1345035) lief parallel als Cron-Job (`15,45 * * * *` low-tier supposed) und machte massive `SELECT message_id_header FROM crm_imap_message WHERE = ANY(ARRAY[...])`-Lookups ohne effektiven Index.
+
+**Fix:** `kill -TERM 1345035` + Cron-Eintrag atomic auskommentiert (`sed`-Replace via tmp-File, Memory `feedback_crontab_atomic_update`). Banner war ~30 sec später zurück auf 🟢, `pg_stat_activity` zeigte 0 active queries.
+
+**Lesson:** Banner-Indikator hat genau seinen Job getan — DB-Last erkannt + benannt + Verursacher identifizierbar gemacht. Robin's Frust ("Du sollst Supabase-Last klein halten, nicht groß machen") war berechtigt — ich hätte nach dem Mail-Importer-Kill eine Pause + Status-Beweis machen sollen, bevor ich P4-Live startete. Pattern für die Zukunft: nach jeder Last-erzeugenden Aktion explizit messen + zeigen, dann erst weitergehen.
+
+#### 10.3 P4 Crash bei 2.143/3.907 (55 %) + Defensive Resume
+
+`TypeError: string indices must be integers, not 'str'` in line 501 — Anthropic-Tool-Use returnt gelegentlich `per_photo[i]` als String statt Object (oder mit fehlendem `photo_index`-Key). Das hat einen 90-Min-Run abgebrochen, obwohl 2.142 Posts korrekt verarbeitet waren — kein Datenverlust dank append-only manifest_matches_v2.jsonl.
+
+Fix: defensive type-check pro Item — non-dicts oder Items ohne integer `photo_index` werden geskippt. Resume-Run nahm via `already_processed`-Set die letzten 1.756 Posts dran, in 81 Min ohne weiteren Error durch.
+
+**Final-Resultat über alle 7.369 Photo-Rows (P3 vor → P4 nach):**
+
+| Tier | P3 | P4 final | Δ |
+|---|---|---|---|
+| **Tier 1** auto-renameable | 499 | **1.524** | **+1.025 (3×)** |
+| Tier 2 manual review | 6.793 | 2.140 | -4.653 |
+| Tier 3 unrelated | 77 | 3.705 | +3.628 |
+
+**P4 hat:**
+- 1.025 Tier-2-Photos auf Tier-1 promoted (AI las Cover-Text + identifizierte korrekt)
+- 3.628 als unrelated klassifiziert (Frank's Selfies, Reise-Bilder, Auction-Block-Mood-Shots — keine Catalog-Items)
+
+**Cost-Summary:** ~$6.30 (gecrashed Run) + $4.74 (Resume) = **~$11.04** (vs. $17 Annex-Schätzung — unterboten).
+
+**AI-Sample-Beispiele** (alle conf ≥ 0.85):
+- `Severed Heads - Severed Heads FB-1.jpg` — *„Text clearly shows 'SEVERED HEADS DEAD EYES OPENED' at top"* (Robin's ursprünglicher Test, von P3 versemmelt, von AI gelöst)
+- `Arthur Doyle - Alabama Feeling FB.jpg` — Album-Cover-Text identifiziert
+- `Current 93 - Imperium (signed) FB-1.jpg` — Sleeve-Style + Signatur erkannt
+- `Hanatarash - Hanatarash FB-4.jpg` — Vinyl-Label-Text gelesen
+
+### 11. P5 CSV-Export
+
+`scripts/community_fb_archive/p5_export_manual_review.py` — exportiert die 2.140 Tier-2-Photos (nach P4) als Frank-freundliche CSV `manual_review_frank.csv` (1.13 MB):
+
+- 14 Spalten: fb_id, r2_url (Cloudflare-public, Browser-clickbar), post_date, photo_pos, post_text, current_filename_suggest, ai_confidence, ai_artist_name, ai_release_title, ai_reason, artist_candidates_top3, release_candidates_top3, manual_decision (leer), manual_filename (leer)
+- UTF-8 mit BOM für Excel-Mac-Kompatibilität, semicolon-separated für DE-Locale
+- Sortiert nach AI-Confidence DESC
+- 0 DB-Calls, 0 API-Calls
+
+### 12. Review-UI `/app/fb-archive-review`
+
+Statt nur CSV-Workflow gleich noch eine Browser-Page für rapides Durchklicken:
+
+**Backend** `backend/src/api/admin/fb-archive/review/route.ts`:
+- `GET /admin/fb-archive/review?filter=pending&page=1&pageSize=10&include_tier1=false` — paginated, pro Row volles Detail (R2-URL, Top-3-Kandidaten, AI-Reason, existing decision)
+- `POST /admin/fb-archive/review` mit `{fb_id, decision: ok|skip|edit, filename?}` — append-only JSONL `manual_review_decisions.jsonl`. Latest entry per fb_id wins → korrigieren möglich
+
+**UI** `backend/src/admin/routes/fb-archive-review/page.tsx`:
+- Single-Column-Cards mit 320×320 Bild-Preview (clickable → R2-voll)
+- Confidence-Badge color-graded (≥85 % grün, ≥60 % gelb, sonst rot)
+- AI-Vorschlag + Reason + Top-3 Artist + Release Kandidaten
+- 3 Buttons: ✓ OK / ⨯ Skip / ✎ Edit (Inline-Filename-Input)
+- **Keyboard-Shortcuts:** `1`=OK, `2`=Skip, `3`=Edit, `←`/`→`=Pagination
+- Filter: Pending (default) / Decided / All
+- ☐ „auch Tier-1-Treffer" Toggle für Spot-Check der 1.524 high-conf Renames
+- Progress-Bar oben (X / 2.140 entschieden, %)
+- Sortierung nach AI-Confidence DESC + post_timestamp ASC als Tiebreaker
+
+Sidebar-Shortcut „FB Review" hinzugefügt.
+
+**0 DB-Last.** Decisions liegen ausschließlich auf Filesystem. Resume-fähig wenn Frank zumacht und später weitermacht.
+
+### 13. Pipeline-Status final
+
+| Phase | Status |
+|---|---|
+| P1 rsync | ✅ 3.8 GB JSON+HTML auf VPS |
+| P2 Image-Preprocess | ✅ 7.310 R2-Bilder, 72 % Compression |
+| P3 Tier-1 Match | ✅ 499 Tier-1 |
+| **P4 AI Vision** | ✅ **1.524 Tier-1, 2.140 Tier-2, 3.705 Tier-3 — $11 spend** |
+| **P5 CSV + Review-UI** | ✅ **2.140 Cards für Frank, Keyboard-Shortcuts, JSONL-Persistierung** |
+| P6 Final-DB-Import in `community_post` | ⏳ blocked auf Community-MVP M3+M4+M7 (Phase 1, 8-12 Wochen) |
+
+### 14. Files (Update-Set 2026-05-08)
+
+```
+scripts/community_fb_archive/p5_export_manual_review.py        (201 Z, neu)
+backend/src/api/admin/fb-archive/review/route.ts               (200 Z, neu)
+backend/src/admin/routes/fb-archive-review/page.tsx            (525 Z, neu)
+backend/src/admin/components/admin-nav.tsx                     (+1 Z, FB Review-Shortcut)
+
+scripts/community_fb_archive/p4_ai_vision.py                   (Defensive parse-Fix)
+
+# VPS-Filesystem (manifest, kein git)
+/root/VOD_Auctions/data/fb_archive_2026-05-07/
+├── manifest_matches_v2.jsonl                                  (P4 Output, 7.369 Z)
+├── manual_review_frank.csv                                    (P5 Output, 2.140 Z)
+└── manual_review_decisions.jsonl                              (Review-UI, append-only)
+```
+
+### 15. Memories die in dieser Update-Session entstehen
+
+- **Neu:** `feedback_anthropic_tooluse_defensive_parsing.md` — Anthropic Tool-Use kann gelegentlich malformierte Items in einem `array`-Schema returnen (Strings statt Objects, fehlende keys). Pro Item type-check + skip statt zu crashen
+- **Neu:** `feedback_supabase_load_check_after_action.md` — nach jeder DB-Last-erzeugenden Aktion (kill, restart, deploy) explizit `pg_stat_activity` lesen + Status-Beweis liefern, BEVOR die nächste Aktion startet

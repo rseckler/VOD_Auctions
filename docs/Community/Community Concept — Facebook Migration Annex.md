@@ -513,7 +513,7 @@ Damit der Tracker echten Wert liefert, schicken auch existierende Jobs Heartbeat
 
 ---
 
-**Status (Stand 2026-05-07 ~16:00):**
+**Status (Stand 2026-05-08):**
 
 | Phase | Status | Notes |
 |---|---|---|
@@ -522,11 +522,23 @@ Damit der Tracker echten Wert liefert, schicken auch existierende Jobs Heartbeat
 | `/app/fb-archive` Status-Page | ✅ live | Phase-Cards + DB-Health-Banner + Live-Rates |
 | P1 rsync FB-Export → VPS | ✅ done | 3,8 GB (JSON+HTML beide gebraucht) |
 | P2 Image-Preprocess + R2 | ✅ done | 7.310/7.358 in 65 Min, 72 % Compression, 0 errors |
-| P3 Tier-1 Match (VPS-Replica) | 🟡 running | ~6,5 % Tier-1, ~93,5 % Tier-2, ETA ~11 Min |
-| P4 AI Vision (Haiku 4.5) | 🟦 ready | Script committed, ungetestet, ~$17 für ~3.500 Posts |
-| P5 Manual-Review-CSV-Export | ⏳ pending | nach P4 |
-| P6 Final-DB-Import in `community_post` | ⏳ blocked | wartet auf Community-MVP M3+M4+M7 (Phase 1) |
+| P3 Tier-1 Match (VPS-Replica) | ✅ done | 4.481 Posts in 10:25 Min, 499 Tier-1 / 6.793 Tier-2 / 77 Tier-3 |
+| P4 AI Vision (Haiku 4.5) | ✅ done | 3.899 Posts, $11,04 Spend, +1.025 Tier-1 promotions, 0 final errors |
+| P5 Manual-Review-CSV-Export | ✅ done | 2.140 Zeilen, sortiert by AI-conf DESC |
+| **Review-UI `/app/fb-archive-review`** | ✅ live | Single-Column-Cards mit Keyboard-Shortcuts (1=OK/2=Skip/3=Edit/←→), Append-only JSONL-Persistierung, 0 DB-Last |
+| P6 Final-DB-Import in `community_post` | ⏳ blocked | wartet auf Community-MVP M3+M4+M7 (Phase 1) + Frank's Review-Bearbeitung |
 
-**Memory neu:** `feedback_hostinger_vps_ipv6_default.md` — VPS routet outbound default IPv6 (`2a02:4780:41:2dca::1`), IPv4-only Cloudflare-IP-Filter blockt alles. 30-Min-Diagnose-Loop bei R2-Token-Setup vermeidbar mit pre-live single-PUT-Smoke-Test.
+**Final Tier-Verteilung (über 7.369 Photo-Rows):**
 
-**Doku-Links:** [Session-Log](../sessions/2026-05-07_fb_archive_pipeline.md) · [CHANGELOG rc53.11](../architecture/CHANGELOG.md) · [TODO §Now Item 0](../TODO.md#now)
+| Tier | Count | Bedeutung |
+|---|---|---|
+| Tier 1 auto-renameable | **1.524** | Bereit für direkten Import — `Artist - Release FB.jpg` |
+| Tier 2 manual review (Frank-UI) | **2.140** | In `/app/fb-archive-review` zu entscheiden |
+| Tier 3 unrelated | **3.705** | Frank's Selfies, Reise-Bilder, Mood-Shots — kein Catalog-Bezug |
+
+**Memories (2026-05-07 + 2026-05-08):**
+- `feedback_hostinger_vps_ipv6_default.md` — IPv4-only Cloudflare-Filter blockt IPv6-Outbound
+- `feedback_anthropic_tooluse_defensive_parsing.md` — Tool-Use kann malformed Items returnen
+- `feedback_supabase_load_check_after_action.md` — explizit messen+zeigen nach Last-Aktionen
+
+**Doku-Links:** [Session-Log](../sessions/2026-05-07_fb_archive_pipeline.md) · [CHANGELOG rc53.11+Update-2026-05-08](../architecture/CHANGELOG.md) · [TODO §Now Item 0](../TODO.md#now)

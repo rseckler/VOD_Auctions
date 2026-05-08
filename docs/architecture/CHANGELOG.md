@@ -261,6 +261,37 @@ P2 Live-Run wurde in 5 sec mit AccessDenied gekillt. Iteration: scripts/.env-Tok
 
 P3-Full-Run abwarten, P4-Smoke-Test, P5-CSV-Export, P6 final-DB-Import (wartet auf Community-MVP).
 
+### Update 2026-05-08 — Pipeline komplett durch (P3+P4+P5 + Review-UI)
+
+**P3-Final** (10:25 Min): 4.481 Posts → 7.369 photo-rows → 499 Tier-1 (6,8 %), 6.793 Tier-2, 77 Tier-3.
+
+**P4 AI Vision** (3 Issues, alle gelöst):
+1. **Anthropic-Key revoked seit 2026-05-03** (TODO §Next stand drin, bis dahin nicht behoben). Robin neuen Key in 1Password Item `75waec4iz5yzqejjjctrchn5iq` Vault Work — via `op item get` gelesen + atomically in scripts/.env UND backend/.env aktualisiert (grep -v alt + append neu, chmod 600), pm2 restart. Backend-AI-Routes (Haiku-Chat + Sonnet-Auction-Builder) sind Kollateral wieder live.
+2. **DB-Critical-Vorfall** während P4-Smoke (39,7 MB/s Disk-Reads): Mail-Importer-Cron (`import_legacy_mails_v3 --jsonl`) lief parallel mit unindexed `WHERE message_id_header = ANY(ARRAY[...])`-Lookups. Banner-Indikator hat genau seinen Job getan. `kill -TERM 1345035` + Cron-Eintrag atomic auskommentiert. Banner ~30s später zurück auf 🟢.
+3. **P4-Crash bei 2.143/3.907** (`TypeError: string indices must be integers`) — Anthropic Tool-Use returnt gelegentlich `per_photo[i]` als String/malformed-Object. Defensive type-check pro Item, Resume-Run via append-only manifest_matches_v2.jsonl nahm die letzten 1.756 Posts dran in 81 Min, 0 weitere Errors.
+
+**P4 final über 7.369 photo-rows** (P3 vor → P4 nach):
+
+| Tier | P3 | P4 final | Δ |
+|---|---|---|---|
+| Tier 1 auto-renameable | 499 | **1.524** | **+1.025 (3×)** |
+| Tier 2 manual review | 6.793 | 2.140 | -4.653 |
+| Tier 3 unrelated | 77 | 3.705 | +3.628 |
+
+Cost: $6,30 (gecrashed) + $4,74 (Resume) = **$11,04** (vs. Annex-Schätzung $17). 6,42 M Input-Tokens / 720 k Output-Tokens.
+
+**Sample-AI-Treffer** (alle conf ≥ 0,85): „Severed Heads — Severed Heads" (Robin's ursprünglicher P3-Failtest, von AI gelöst), „Arthur Doyle — Alabama Feeling", „Current 93 — Imperium (signed)", „Hanatarash — Hanatarash". AI hat Cover-Text + Sleeve-Style + Vinyl-Label-Schrift identifiziert.
+
+**P5 CSV-Export** `scripts/community_fb_archive/p5_export_manual_review.py`: 2.140 Tier-2-Photos als `manual_review_frank.csv` (1,13 MB, UTF-8-BOM, semicolon-separated für Excel-DE, 14 Spalten, sortiert nach AI-Confidence DESC).
+
+**Review-UI** `/app/fb-archive-review`: Browser-Workflow für Frank statt CSV-Roundtrip. Single-Column-Cards mit 320 px Bild-Preview, Confidence-Badge, AI-Vorschlag + Reason + Top-3-Kandidaten, 3 Buttons (✓ OK / ⨯ Skip / ✎ Edit). **Keyboard-Shortcuts:** `1`=OK, `2`=Skip, `3`=Edit, `←`/`→`=Pagination. Filter Pending/Decided/All. Append-only JSONL-Persistierung in `manual_review_decisions.jsonl` — **0 DB-Calls**, latest entry per fb_id wins, resume-fähig. Sidebar-Shortcut „FB Review" ergänzt.
+
+**Pipeline-Status final:** P1 ✅ · P2 ✅ · P3 ✅ · P4 ✅ · P5 + Review-UI ✅ · P6 ⏳ blocked auf Community-MVP M3+M4+M7 (Phase 1, 8-12 Wochen) + Frank's Review-Bearbeitung im eigenen Tempo.
+
+**Update-Commits:** `0cf77c1` (P4 defensive parse), `3b1b038` (P5 CSV-Export), `de37a73` (Review-UI).
+
+**Memories neu (2026-05-08):** `feedback_anthropic_tooluse_defensive_parsing.md`, `feedback_supabase_load_check_after_action.md`.
+
 ---
 
 ## 2026-05-07 — Catalog-Image-Saga Hardening: Codex-Review-Findings (rc53.10)
