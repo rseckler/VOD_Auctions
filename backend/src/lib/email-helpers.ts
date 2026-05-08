@@ -16,6 +16,9 @@ import { bidPlacedEmail } from "../emails/bid-placed"
 import { bidEndingSoonEmail, BidEndingReminderType } from "../emails/bid-ending-soon"
 import { waitlistConfirmEmail } from "../emails/waitlist-confirm"
 import { inviteWelcomeEmail } from "../emails/invite-welcome"
+import { bulkInviteEmail, BulkInviteIntro } from "../emails/bulk-invite-vod-auctions"
+import { generateEntityId } from "@medusajs/framework/utils"
+import { generateRawToken, formatToken } from "./invite"
 
 // --- Unsubscribe token helpers ---
 
@@ -31,6 +34,25 @@ export function getUnsubscribeUrl(customerId: string): string {
   const token = generateUnsubscribeToken(customerId)
   const base = process.env.STOREFRONT_URL || "http://localhost:3000"
   return `${base}/email-preferences/unsubscribe?token=${token}&id=${customerId}`
+}
+
+// --- Master-ID-based unsubscribe (for CRM bulk-invite flows) ---
+
+export function generateMasterUnsubscribeToken(masterId: string): string {
+  const secret = process.env.REVALIDATE_SECRET || "fallback-secret"
+  return createHmac("sha256", secret)
+    .update(`${masterId}:master_unsubscribe`)
+    .digest("hex")
+    .slice(0, 32)
+}
+
+export function getMasterUnsubscribeUrl(masterId: string): string {
+  const token = generateMasterUnsubscribeToken(masterId)
+  // Storefront page proxies to backend (mirrors /newsletter/confirm pattern).
+  // Backend /store/* routes require x-publishable-api-key, so the email link
+  // points at the storefront which adds the key server-side.
+  const base = process.env.STOREFRONT_URL || "http://localhost:3000"
+  return `${base}/email-preferences/unsubscribe-master?token=${token}&id=${masterId}`
 }
 
 // Tiered bid increment table (mirrors bid route logic)
@@ -621,4 +643,109 @@ export async function sendInviteWelcomeEmail(
     expiresAt: new Date(token.expires_at),
   })
   await sendEmailWithLog(pg, { to: app.email, subject, html, template: "invite-welcome" })
+}
+
+// --- BULK INVITE (CRM Master direkt, kein waitlist_applications-Detour) ---
+
+/**
+ * Resolves which intro variant to use based on the Master's source-link history.
+ * Priority: Newsletter-Optedin > Webshop-Customer > Tape-mag-Member.
+ */
+export async function resolveBulkInviteIntro(
+  pg: Knex,
+  masterId: string
+): Promise<BulkInviteIntro> {
+  const optedIn = await pg("crm_master_communication_pref")
+    .where({ master_id: masterId, channel: "email_marketing", opted_in: true })
+    .first()
+  if (optedIn) return "newsletter_subscriber"
+
+  const sources = await pg("crm_master_source_link")
+    .where("master_id", masterId)
+    .pluck("source")
+  if (sources.some((s: string) => s.startsWith("vod_records_"))) {
+    return "webshop_customer"
+  }
+  return "tape_mag_member"
+}
+
+/**
+ * Creates an invite_tokens row for the master AND sends the bulk-invite email.
+ * Marks crm_master_contact.bulk_invite_sent_at so the same master is not
+ * re-sent in a subsequent bulk batch.
+ *
+ * Returns the issued token.token_display on success or throws.
+ */
+export async function sendBulkInviteEmailToMaster(
+  pg: Knex,
+  opts: {
+    masterId: string
+    expiresDays: number
+    customNote?: string | null
+    issuedBy?: string
+  }
+): Promise<{ tokenDisplay: string; email: string }> {
+  const master = await pg("crm_master_contact")
+    .where({ id: opts.masterId, deleted_at: null })
+    .select(
+      "id",
+      "primary_email_lower",
+      "display_name",
+      "first_name",
+      "is_blocked"
+    )
+    .first()
+  if (!master) throw new Error(`Master ${opts.masterId} not found`)
+  if (master.is_blocked) throw new Error(`Master ${opts.masterId} is blocked`)
+  if (!master.primary_email_lower) throw new Error(`Master ${opts.masterId} has no email`)
+
+  const intro = await resolveBulkInviteIntro(pg, opts.masterId)
+
+  const raw = generateRawToken()
+  const display = formatToken(raw)
+  const expiresAt = new Date(Date.now() + opts.expiresDays * 24 * 60 * 60 * 1000)
+  const tokenId = generateEntityId()
+
+  await pg("invite_tokens").insert({
+    id: tokenId,
+    token: raw,
+    token_display: display,
+    application_id: null,
+    master_id: opts.masterId,
+    email: master.primary_email_lower,
+    issued_by: opts.issuedBy ?? "admin",
+    issued_at: new Date(),
+    expires_at: expiresAt,
+    status: "active",
+  })
+
+  const inviteUrl = `${APP_URL}/invite/${raw}`
+  const unsubscribeUrl = getMasterUnsubscribeUrl(opts.masterId)
+  const displayName =
+    master.first_name?.trim() ||
+    master.display_name?.split(/[\s,]+/)[0] ||
+    "there"
+
+  const { subject, html } = bulkInviteEmail({
+    displayName,
+    tokenDisplay: display,
+    inviteUrl,
+    expiresAt,
+    intro,
+    customNote: opts.customNote ?? null,
+    unsubscribeUrl,
+  })
+
+  await sendEmailWithLog(pg, {
+    to: master.primary_email_lower,
+    subject,
+    html,
+    template: "bulk-invite-vod-auctions",
+  })
+
+  await pg("crm_master_contact")
+    .where("id", opts.masterId)
+    .update({ bulk_invite_sent_at: new Date(), updated_at: new Date() })
+
+  return { tokenDisplay: display, email: master.primary_email_lower }
 }

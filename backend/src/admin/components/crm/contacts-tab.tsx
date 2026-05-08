@@ -1312,6 +1312,8 @@ function BulkActionBar({
         </button>
       )}
       <div style={{ width: 1, height: 24, background: C.border }} />
+      <button onClick={() => onAction("invite")} style={{ ...bulkBtnStyle(), color: C.gold, borderColor: C.gold }}>✉ Send Invite</button>
+      <div style={{ width: 1, height: 24, background: C.border }} />
       <button onClick={() => onAction("tag_add")} style={bulkBtnStyle()}>+ Tag</button>
       <button onClick={() => onAction("tag_remove")} style={bulkBtnStyle()}>− Tag</button>
       <button onClick={() => onAction("tier_set")} style={bulkBtnStyle()}>Set tier</button>
@@ -1366,12 +1368,48 @@ function BulkActionModal({
     is_test_set: "Set test-flag for selected",
     block: "Block selected contacts",
     unblock: "Unblock selected contacts",
+    invite: "Send Early-Access invites",
   }
+
+  const [skipAlreadySent, setSkipAlreadySent] = useState(true)
 
   const apply = async () => {
     setRunning(true)
     setErr(null)
     try {
+      // Bulk-Invite goes to a different endpoint (async send, JobTracker)
+      if (action === "invite") {
+        const r = await fetch("/admin/crm/contacts/bulk-invite", {
+          method: "POST",
+          credentials: "include",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            master_ids: ids,
+            custom_note: textValue.trim() || undefined,
+            skip_already_sent: skipAlreadySent,
+          }),
+        })
+        if (!r.ok) {
+          const d = await r.json().catch(() => ({}))
+          throw new Error(d.message || `HTTP ${r.status}`)
+        }
+        const d = await r.json()
+        const skipped =
+          (d.skipped_no_email || 0) +
+          (d.skipped_blocked || 0) +
+          (d.skipped_already_sent || 0) +
+          (d.skipped_not_found || 0)
+        alert(
+          `Bulk-Invite started.\n` +
+            `Eligible: ${d.eligible}\n` +
+            `Skipped: ${skipped} (no-email: ${d.skipped_no_email}, blocked: ${d.skipped_blocked}, already-sent: ${d.skipped_already_sent}, not-found: ${d.skipped_not_found})\n\n` +
+            `Job-ID: ${d.job_id}\n` +
+            `Sending in background — refresh the contacts list in a few minutes.`
+        )
+        onApplied()
+        return
+      }
+
       let value: unknown = textValue
       if (action === "is_test_set") value = boolValue
       else if (action === "block") value = { reason: textValue }
@@ -1472,6 +1510,56 @@ function BulkActionModal({
 
         {action === "unblock" && (
           <div style={T.small}>{ids.length} contacts will be unblocked.</div>
+        )}
+
+        {action === "invite" && (
+          <>
+            <div style={{ ...T.small, lineHeight: 1.6 }}>
+              Send <strong>{ids.length}</strong> Early-Access invites to selected contacts.
+              <br />
+              Each contact gets an individual VOD-Auctions invite token by email.
+              <br />
+              <br />
+              <span style={{ color: C.muted }}>
+                Tone is auto-selected per contact:
+                <br />
+                • <em>opted-in newsletter</em> → friendly, no §7(3) notice
+                <br />
+                • <em>vod-records customer</em> → with §7(3) UWG Bestandskunden-Notiz
+                <br />
+                • <em>tape-mag legacy</em> → with §7(3) UWG Bestandskunden-Notiz
+              </span>
+            </div>
+
+            <div>
+              <label style={{ ...T.small, display: "block", marginBottom: 4 }}>
+                Optional note from Frank (max 500 chars)
+              </label>
+              <textarea
+                value={textValue}
+                onChange={(e) => setTextValue(e.target.value.slice(0, 500))}
+                placeholder='e.g. "Hallo, Du gehörst zu unseren ältesten Kunden — exklusiver Early-Access-Code für Dich."'
+                rows={3}
+                style={{ ...inputStyle, width: "100%", resize: "vertical", fontFamily: "inherit" }}
+              />
+              <div style={{ ...T.small, color: C.muted, marginTop: 4 }}>
+                {textValue.length}/500 — appears as italic blockquote in the email.
+              </div>
+            </div>
+
+            <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={skipAlreadySent}
+                onChange={(e) => setSkipAlreadySent(e.target.checked)}
+              />
+              Skip contacts that already received a bulk-invite (recommended)
+            </label>
+
+            <div style={{ ...T.small, color: C.warning, marginTop: 4 }}>
+              ⚠️ Send is irreversible. Unsubscribe link in every mail is master-id based and works without account.
+            </div>
+          </>
         )}
       </div>
     </Modal>

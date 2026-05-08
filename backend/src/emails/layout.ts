@@ -9,11 +9,12 @@ export function emailLayout(
   content: string,
   opts: {
     preheader: string
-    customerId?: string  // if provided, renders unsubscribe link in footer
+    customerId?: string       // if provided, renders Medusa-customer unsubscribe link
+    unsubscribeUrl?: string   // alt: pre-built unsubscribe URL (e.g. master-id-based for CRM bulk-invite)
   }
 ): string {
   const preheader = buildPreheader(opts.preheader)
-  const footer = buildFooter(opts.customerId)
+  const footer = buildFooter(opts.customerId, opts.unsubscribeUrl)
 
   return `<!DOCTYPE html>
 <html lang="en" xmlns:v="urn:schemas-microsoft-com:vml">
@@ -71,14 +72,21 @@ function buildPreheader(text: string): string {
   return `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;color:#0d0b08;line-height:1px;">${text}${padding}</div>`
 }
 
-function buildFooter(customerId?: string): string {
+function buildFooter(customerId?: string, unsubscribeUrl?: string): string {
+  const unsubHref = unsubscribeUrl ?? (customerId ? getUnsubscribeUrl(customerId) : null)
   const unsubscribeHtml = customerId
     ? `<a href="${getUnsubscribeUrl(customerId)}" style="color:#6b6560;text-decoration:none;">Unsubscribe</a>
        <span style="color:#3a3530;">&nbsp;&middot;&nbsp;</span>
        <a href="${STOREFRONT_URL}/email-preferences/${customerId}" style="color:#6b6560;text-decoration:none;">Email Preferences</a>
        <span style="color:#3a3530;">&nbsp;&middot;&nbsp;</span>
        <a href="${STOREFRONT_URL}" style="color:#6b6560;text-decoration:none;">Visit VOD Auctions</a>`
-    : `<a href="${STOREFRONT_URL}" style="color:#6b6560;text-decoration:none;">Visit VOD Auctions</a>`
+    : unsubHref
+      ? `<a href="${unsubHref}" style="color:#6b6560;text-decoration:none;">Unsubscribe</a>
+         <span style="color:#3a3530;">&nbsp;&middot;&nbsp;</span>
+         <a href="${STOREFRONT_URL}/datenschutz" style="color:#6b6560;text-decoration:none;">Privacy</a>
+         <span style="color:#3a3530;">&nbsp;&middot;&nbsp;</span>
+         <a href="${STOREFRONT_URL}" style="color:#6b6560;text-decoration:none;">Visit VOD Auctions</a>`
+      : `<a href="${STOREFRONT_URL}" style="color:#6b6560;text-decoration:none;">Visit VOD Auctions</a>`
 
   return `<tr>
     <td style="background-color:#111009;padding:24px 32px;border-radius:0 0 12px 12px;border:1px solid #2a2520;border-top:none;text-align:center;">

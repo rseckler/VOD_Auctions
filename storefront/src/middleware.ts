@@ -55,6 +55,7 @@ function isPublicPath(pathname: string): boolean {
     pathname === "/apply" ||
     pathname === "/apply/confirm" ||
     pathname.startsWith("/newsletter") ||
+    pathname.startsWith("/email-preferences") ||
     pathname.startsWith("/invite") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api/revalidate") ||
