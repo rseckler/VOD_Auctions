@@ -161,6 +161,40 @@ Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Rel
 
 ---
 
+## 2026-05-08 — Replica-Slot Recovery + Backup-Pipeline-Hotfix + Mail-Import Re-Enable (rc53.13)
+
+**Kontext:** Mail-Import-Cron wurde 2026-05-07 ~Abend mit Hinweis "DB Critical" disabled. Ursache war NICHT der Importer — ein invalidierter Replication-Slot hatte die Source-DB unter Disk-Druck gesetzt, plus ein Lag-Guard-Bug hat 12h lang stille Backup-Corruption produziert. Session-Log: [`docs/sessions/2026-05-08_replica_slot_recovery.md`](../sessions/2026-05-08_replica_slot_recovery.md).
+
+**Befunde:**
+1. **Replication-Slot `vod_auctions_replication_slot` invalidated** — Postgres hat ihn wegen `max_slot_wal_keep_size` zwangs-invalidiert (`invalidation_reason: wal_removed`). 54 GB WAL akkumuliert dann freigegeben. Akute Krise war beim Cron-Disable schon vorbei.
+2. **Stille Backup-Corruption seit 2026-05-07T18:00Z** — `backup_supabase.sh` Lag-Guard nutzte `COALESCE(EXTRACT(EPOCH FROM (now() - latest_end_time))::int, 0)`. Bei disabled subscription ist `latest_end_time = NULL` → COALESCE returnt `0` → "lag=0s" → Backup läuft gegen veraltete Replica. 5 Cron-Backups (alle 2h) ohne aktuelle Mutations und ohne CRM (Replica enthält kein CRM, siehe `project_replica_no_crm_tables.md`).
+3. **NUL-Byte-Errors im 17:45-Slot:** Mail-Importer hatte 2.549 errors mit `A string literal cannot contain NUL (0x00) characters.` — emlx/Outlook-Mails enthalten gelegentlich `\x00`-Bytes im Body/Subject.
+
+**Aktionen (mit User-Gate pro destruktivem SQL):**
+- **SQL 1:** `pg_drop_replication_slot('vod_auctions_replication_slot')` auf Source — toter Slot weg.
+- **SQL 2:** `ALTER SUBSCRIPTION vod_auctions_sub DISABLE; SET (slot_name = NONE)` auf pg17-replica — Reconnect-Spam (alle 5s) gestoppt. `blackfire_sub` unbetroffen.
+- **Code-Hotfix `backup_supabase.sh`** (Commit `3ab0086`): CASE-Logik mit explizitem Check für `subenabled=false` ODER `latest_end_time IS NULL` ODER `subname IS NULL` → 999999s sentinel → Fallback auf Supabase-Direct sicher.
+- **Recovery-Backup** manuell getriggert: 327 MB via Supabase-Direct (vs vorher 123 MB ohne CRM) — erste valide vod-auctions-Backup seit 12h.
+- **NUL-Byte-Fix** in `import_legacy_mails_v3.py` (Commit `1f8b059`): `strip_nul()` Helper auf alle string-Felder vor INSERT angewendet. 9 neue Test-Cases (54 total grün).
+- **Cron re-enabled** atomic via Tempfile + Backup `/tmp/crontab.bak.before-mail-cron-reenable-20260508-054111`. Mail-Import resumed bei Line 206.034 (48.7%) mit NUL-Byte-Fix aktiv.
+
+**Doku:**
+- Re-Sync-Runbook: [`docs/runbooks/RESYNC_VOD_AUCTIONS_REPLICA.md`](../runbooks/RESYNC_VOD_AUCTIONS_REPLICA.md)
+- Linear: [RSE-323 Tier-2 Replica Re-Sync](https://linear.app/rseckler/issue/RSE-323) (Backlog)
+
+**Memory neu:** `feedback_replica_lag_guard_disabled_subscription.md` — pg_stat_subscription.latest_end_time NULL bei disabled/uninitialized; CASE-Logic mit subenabled+latest_end_time-Check Pflicht.
+
+**Memory updated:** `project_logical_replication.md` markiert `vod_auctions_replica` als out-of-sync seit 2026-05-07 mit Verweis auf RSE-323.
+
+**Open Items (nicht in dieser rc):**
+- Replica Re-Sync (RSE-323, ~1.6 GB Egress, ~1-2h)
+- WAL-Lag-Health-Monitor `replication_health_check.sh` analoger Bug-Check (gleicher CASE-Logic-Fix wenn betroffen)
+- 5 corrupted Replica-Snapshots in R2 — können bleiben oder gelöscht werden, nicht aktiv schädlich
+
+**Commits dieser Welle:** `1f8b059` (NUL-Byte-Fix), `3ab0086` (Backup-Lag-Guard).
+
+---
+
 ## 2026-05-07 — Mail-Import Reset Restart: v3 + Wrapper + Operations-UI + Auto-Cleanup (rc53.12)
 
 **Kontext:** Reset-Plan nach Datenverlust-Verdacht der Vor-Session — siehe [`docs/sessions/2026-05-07_mail_import_reset.md`](../sessions/2026-05-07_mail_import_reset.md). Phasen A→F des [`MAIL_IMPORT_RESET_PLAN.md`](../optimizing/MAIL_IMPORT_RESET_PLAN.md) abgearbeitet, alles mit explizitem Robin-Gate pro destruktivem SQL. Parallel zu rc53.11 (FB-Archive) gelaufen — gemeinsamer Bauplan für Operations-UIs `/app/mail-import` ⇄ `/app/fb-archive` (DB-Health-Banner-Pattern wandert von rc53.12 nach rc53.11).
