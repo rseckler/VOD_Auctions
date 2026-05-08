@@ -41,6 +41,12 @@ export { verifyConfirmToken }
  *
  * Accepts an email address, sends a double opt-in confirmation email.
  * Does NOT add to Brevo list until the confirmation link is clicked.
+ *
+ * TODO (workstream §4): Add Upstash-Redis-backed rate-limit before launch.
+ * Risk today is low (audience limited to invited beta users) — but the
+ * /store/newsletter and /store/waitlist endpoints both accept anonymous
+ * input and trigger a Resend send, so a flood would burn Resend quota
+ * and pollute customer_stats with bogus auto-master rows.
  */
 export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<void> {
   const { email } = req.body as { email?: string }

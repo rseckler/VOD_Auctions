@@ -311,8 +311,49 @@ export default function DatenschutzPage() {
           </ul>
           <p>
             Newsletter emails are only sent if you have explicitly
-            opted in (double opt-in). You can unsubscribe at any time
-            via the link in each newsletter email.
+            opted in (double opt-in): after submitting your email
+            address on{" "}
+            <Link href="/newsletter" className="text-primary hover:underline">
+              /newsletter
+            </Link>{" "}
+            or selecting the consent checkbox on{" "}
+            <Link href="/apply" className="text-primary hover:underline">
+              /apply
+            </Link>
+            , you receive a confirmation email with a one-time link
+            valid for 24 hours. Your address is only added to our
+            sending list after you click that link.
+          </p>
+          <p>
+            We maintain two newsletter lists in Brevo: the active VOD
+            Auctions list (for current and future subscribers) and a
+            legacy tape-mag.com list (archive contacts from prior
+            subscriptions). Each list has its own opt-in record and
+            unsubscribe state.
+          </p>
+          <p>
+            <strong className="text-foreground">Retention:</strong>{" "}
+            Subscriber records (email, opt-in date, list membership)
+            are kept for as long as your subscription is active. After
+            you unsubscribe, we retain a minimal suppression record
+            (hashed email + unsubscribe date) to ensure we do not
+            re-add you in error and to comply with GDPR Art. 21 (Right
+            to Object). You can request deletion of this suppression
+            record at any time.
+          </p>
+          <p>
+            <strong className="text-foreground">Unsubscribe:</strong>{" "}
+            Every newsletter email contains a one-click unsubscribe
+            link in the footer. Opt-out requests are honoured
+            immediately and synchronised back to our internal records
+            within minutes. Alternatively, write to{" "}
+            <a
+              href="mailto:privacy@vod-auctions.com"
+              className="text-primary hover:underline"
+            >
+              privacy@vod-auctions.com
+            </a>
+            .
           </p>
           <p>
             Brevo Privacy Policy:{" "}
@@ -608,7 +649,7 @@ export default function DatenschutzPage() {
         </section>
 
         <p className="text-xs text-muted-foreground/60 pt-4">
-          Last updated: March 2026
+          Last updated: May 2026
         </p>
       </div>
     </main>

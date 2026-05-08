@@ -45,6 +45,7 @@ export default function ApplyPage() {
   const [genres, setGenres] = useState<string[]>([])
   const [channels, setChannels] = useState<string[]>([])
   const [referrer, setReferrer] = useState("")
+  const [consent, setConsent] = useState(false)
 
   useEffect(() => {
     fetch(`${MEDUSA_URL}/store/waitlist`, {
@@ -71,6 +72,7 @@ export default function ApplyPage() {
     if (!email.trim()) errors.email = "Email is required"
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
       errors.email = "Please enter a valid email"
+    if (!consent) errors.consent = "Please confirm your consent to continue"
     setFieldErrors(errors)
     return Object.keys(errors).length === 0
   }
@@ -309,6 +311,68 @@ export default function ApplyPage() {
                 rows={2}
                 className={textareaClass}
               />
+            </div>
+
+            {/* DSGVO Consent */}
+            <div>
+              <label
+                htmlFor="apply_consent"
+                className={`flex items-start gap-2.5 px-3.5 py-3 rounded-lg border cursor-pointer transition-colors ${
+                  consent
+                    ? "border-primary/50 bg-primary/5"
+                    : "border-secondary hover:border-muted-foreground/30"
+                }`}
+              >
+                <input
+                  id="apply_consent"
+                  type="checkbox"
+                  checked={consent}
+                  onChange={(e) => setConsent(e.target.checked)}
+                  className="sr-only"
+                />
+                <span
+                  className={`mt-0.5 w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
+                    consent
+                      ? "bg-primary border-primary"
+                      : "border-muted-foreground/40 bg-transparent"
+                  }`}
+                >
+                  {consent && (
+                    <svg
+                      className="w-2.5 h-2.5 text-primary-foreground"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={3}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                  )}
+                </span>
+                <span className="text-muted-foreground text-xs leading-relaxed">
+                  I agree that VOD Records may store my application data and
+                  contact me about early access. Data is processed on EU
+                  servers (Supabase) and via our email provider Resend. I can
+                  request deletion at any time. See the{" "}
+                  <Link
+                    href="/datenschutz"
+                    target="_blank"
+                    className="text-primary hover:underline"
+                  >
+                    Privacy Policy
+                  </Link>
+                  .
+                </span>
+              </label>
+              {fieldErrors.consent && (
+                <p className="mt-1 text-red-500 text-xs">
+                  {fieldErrors.consent}
+                </p>
+              )}
             </div>
 
             {/* Submit */}
