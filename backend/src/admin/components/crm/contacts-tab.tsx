@@ -93,6 +93,9 @@ type FilterKey =
   | "test"
   | "internal_owner"
   | "blocked"
+  | "newsletter_subscribers"
+  | "newsletter_unsubscribed"
+  | "newsletter_only_leads"
 
 // ── Display helpers ────────────────────────────────────────────────────────
 
@@ -135,6 +138,9 @@ const FILTERS: Array<{ key: FilterKey; label: string }> = [
   { key: "with_email", label: "With email" },
   { key: "only_webshop", label: "Webshop only" },
   { key: "only_mo_pdf", label: "MO-PDF only" },
+  { key: "newsletter_subscribers", label: "📨 Newsletter Subscribers" },
+  { key: "newsletter_unsubscribed", label: "🔕 Unsubscribed" },
+  { key: "newsletter_only_leads", label: "🌱 Newsletter-Only Leads" },
   { key: "test", label: "Test accounts" },
   { key: "internal_owner", label: "Internal" },
   { key: "blocked", label: "Blocked" },
