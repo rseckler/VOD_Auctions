@@ -90,22 +90,25 @@ const UNIFORM_INVITE_REQUIRED_BODY = {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-function isValidEmail(value: string): boolean {
+export function isValidEmail(value: string): boolean {
   return EMAIL_RE.test(value) && value.length <= 254
 }
 
-function normalizeRawToken(input: string): string {
+export function normalizeRawToken(input: string): string {
   return input.replace(/^VOD-/i, "").replace(/-/g, "").toUpperCase()
 }
 
 // CODEX P2#5 — random delay so that "invite_required" and "email_in_use" in
 // invite-only mode are not distinguishable by latency. 100-300ms range.
-async function constantTimePad(targetMs = 200): Promise<void> {
+export async function constantTimePad(targetMs = 200): Promise<void> {
   const min = Math.max(50, targetMs - 100)
   const max = targetMs + 100
   const delay = Math.floor(Math.random() * (max - min + 1)) + min
   await new Promise((resolve) => setTimeout(resolve, delay))
 }
+
+// Pre-approved sources exported for tests + audit visibility.
+export { PRE_APPROVED_SOURCES, UNIFORM_INVITE_REQUIRED_BODY }
 
 // ─── Core helper ────────────────────────────────────────────────────────────
 
