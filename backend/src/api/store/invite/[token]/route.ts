@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys, generateEntityId } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
+import { registerCustomer } from "../../../../lib/customer-register"
 
 /**
  * GET /store/invite/:token
@@ -66,8 +67,15 @@ export async function GET(
 
 /**
  * POST /store/invite/:token
- * Redeem an invite token. Creates a Medusa customer account.
- * Body: { first_name, last_name, email, password }
+ * Redeem an invite token. Delegates the actual account creation to the shared
+ * registerCustomer() helper (rc53.17) so the invite path uses the same
+ * atomic-claim, compensation, CRM-link, and welcome-mail logic as
+ * /store/customer/register.
+ *
+ * Body: { first_name, last_name, password, [newsletter_optin] }
+ * The email is taken from the invite_tokens row, not the request body — this
+ * prevents the redeemer from registering a different email under someone
+ * else's invite.
  */
 export async function POST(
   req: MedusaRequest,
@@ -75,128 +83,93 @@ export async function POST(
 ): Promise<void> {
   const pg: Knex = req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
   const { token } = req.params
-  const ip = req.headers["x-forwarded-for"] as string || req.socket?.remoteAddress || ""
-  const userAgent = req.headers["user-agent"] || ""
-  const body = req.body as Record<string, string>
+  const ip =
+    (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ||
+    req.socket?.remoteAddress ||
+    ""
+  const userAgent = (req.headers["user-agent"] as string | undefined) ?? ""
+  const body = (req.body || {}) as Record<string, unknown>
 
-  const { first_name, last_name, email, password } = body
+  const first_name = typeof body.first_name === "string" ? body.first_name : ""
+  const last_name = typeof body.last_name === "string" ? body.last_name : ""
+  const password = typeof body.password === "string" ? body.password : ""
+  const newsletter_optin = body.newsletter_optin === true
 
-  if (!first_name || !email || !password) {
-    res.status(400).json({ success: false, message: "first_name, email, and password are required" })
+  if (!first_name || !password) {
+    res
+      .status(400)
+      .json({ success: false, message: "first_name and password are required" })
     return
   }
 
-  // Normalize token
+  // Resolve invite email from the token row (NOT the request body). The
+  // helper will atomic-claim the same row again — this is intentional: we
+  // do an upfront read here only to get the email + give a clearer 400 for
+  // dead tokens. The helper handles the race-condition safely.
   const rawToken = token.replace(/^VOD-/i, "").replace(/-/g, "").toUpperCase()
-
   const invite = await pg("invite_tokens")
     .where(function () {
       this.where("token", rawToken).orWhere("token", token)
     })
     .first()
 
-  if (!invite || invite.status !== "active") {
-    await pg("invite_token_attempts").insert({
-      token, ip, user_agent: userAgent, result: "invalid", attempted_at: new Date(),
-    })
-    res.status(400).json({ success: false, message: "This invite link is no longer valid" })
+  if (!invite || !invite.email) {
+    await pg("invite_token_attempts")
+      .insert({
+        token,
+        ip,
+        user_agent: userAgent,
+        result: "invalid",
+        attempted_at: new Date(),
+      })
+      .catch(() => {})
+    res
+      .status(400)
+      .json({ success: false, message: "This invite link is no longer valid" })
     return
   }
 
-  // Check expiry
-  if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
-    await pg("invite_tokens").where("id", invite.id).update({ status: "expired" })
-    await pg("invite_token_attempts").insert({
-      token, ip, user_agent: userAgent, result: "expired", attempted_at: new Date(),
-    })
-    res.status(400).json({ success: false, message: "This invite link is no longer valid" })
-    return
-  }
+  const result = await registerCustomer(req, {
+    email: invite.email,
+    password,
+    first_name,
+    last_name,
+    agb_accepted: true, // implicit: clicking the invite link + filling the form
+    newsletter_optin,
+    source: "invite_redemption",
+    invite_token: token,
+    ip,
+    user_agent: userAgent,
+  })
 
-  try {
-    // Step 1: Register auth identity via Medusa's built-in auth
-    const backendUrl = process.env.MEDUSA_BACKEND_URL
-    if (!backendUrl) {
-      console.error("[invite/redeem] MEDUSA_BACKEND_URL is not set!")
-      res.status(500).json({ success: false, message: "Server configuration error" })
+  if (!result.success) {
+    // Surface a friendlier message for the well-known invite-invalid paths;
+    // pass through everything else verbatim.
+    const code = (result.body as any)?.error
+    if (code === "invite_invalid") {
+      res
+        .status(result.status)
+        .json({ success: false, message: "This invite link is no longer valid" })
       return
     }
-
-    const normalizedEmail = email.trim().toLowerCase()
-    let authToken: string | null = null
-    let accountExists = false
-
-    const authRes = await fetch(`${backendUrl}/auth/customer/emailpass/register`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: normalizedEmail, password }),
-    })
-
-    if (authRes.ok) {
-      const authData = await authRes.json().catch(() => ({}))
-      authToken = authData.token || null
-    } else {
-      const authErr = await authRes.json().catch(() => ({}))
-      const errMsg = authErr.message || ""
-      // Account already exists — that's OK, just login instead
-      if (errMsg.includes("already exists") || errMsg.includes("Identity")) {
-        accountExists = true
-      } else {
-        res.status(400).json({ success: false, message: errMsg || "Registration failed" })
-        return
-      }
+    if (code === "email_in_use") {
+      res
+        .status(result.status)
+        .json({
+          success: false,
+          message: "An account already exists for this email. Please log in instead.",
+        })
+      return
     }
-
-    // Step 2: Create customer record (only for new accounts)
-    if (authToken && !accountExists) {
-      await fetch(`${backendUrl}/store/customers`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${authToken}`,
-        },
-        body: JSON.stringify({
-          first_name: first_name.trim(),
-          last_name: (last_name || "").trim(),
-          email: normalizedEmail,
-        }),
-      })
-    }
-
-    // Step 3: Mark token as used
-    await pg("invite_tokens").where("id", invite.id).update({
-      status: "used",
-      used_at: new Date(),
-      used_ip: ip,
-    })
-
-    // Step 4: Update waitlist application status
-    if (invite.application_id) {
-      await pg("waitlist_applications")
-        .where("id", invite.application_id)
-        .update({ status: "registered", registered_at: new Date() })
-    }
-
-    // Log success
-    await pg("invite_token_attempts").insert({
-      token, ip, user_agent: userAgent, result: "success", attempted_at: new Date(),
-    })
-
-    // Step 5: Login to get a session token for the client
-    const loginRes = await fetch(`${backendUrl}/auth/customer/emailpass`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
-    })
-    const loginData = await loginRes.json().catch(() => ({}))
-
-    res.json({
-      success: true,
-      message: "Account created. Welcome to VOD Auctions!",
-      token: loginData.token || null,
-    })
-  } catch (err: any) {
-    console.error("[invite/redeem] Error:", err.message)
-    res.status(500).json({ success: false, message: "Registration failed. Please try again." })
+    res
+      .status(result.status)
+      .json({ success: false, message: (result.body as any)?.message || "Registration failed" })
+    return
   }
+
+  res.status(200).json({
+    success: true,
+    message: "Account created. Welcome to VOD Auctions!",
+    token: result.body.token || null,
+  })
 }

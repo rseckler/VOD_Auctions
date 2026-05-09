@@ -53,6 +53,7 @@ type AuthContextType = {
     password: string,
     firstName: string,
     lastName: string,
+    agbAccepted: true,
     newsletterOptin?: boolean
   ) => Promise<void>
   logout: () => void
@@ -235,40 +236,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password: string,
       firstName: string,
       lastName: string,
+      agbAccepted: true,
       newsletterOptin?: boolean
     ) => {
-      const token = await authRegister(email, password, firstName, lastName)
-      setToken(token)
-      const c = await getCustomer(token)
-      setCustomer(c)
-      setSessionExpiredMessage(null)
-      await fetchStatus(token)
-      if (c) rudderIdentify(c.id, { email: c.email ?? undefined })
+      // rc53.17 — single backend endpoint handles auth+customer+CRM-link
+      // atomically and sends welcome + newsletter DOI mails server-side.
+      const result = await authRegister({
+        email,
+        password,
+        firstName,
+        lastName,
+        agbAccepted,
+        newsletterOptin,
+      })
 
-      // Send welcome email (fire-and-forget)
-      fetch(`${MEDUSA_URL}/store/account/send-welcome`, {
-        method: "POST",
-        headers: {
-          "x-publishable-api-key": PUBLISHABLE_KEY,
-          Authorization: `Bearer ${token}`,
-        },
-      }).catch(() => {})
+      const token = result.token
+      if (token) {
+        setToken(token)
+        const c = await getCustomer(token)
+        setCustomer(c)
+        setSessionExpiredMessage(null)
+        await fetchStatus(token)
+        if (c) rudderIdentify(c.id, { email: c.email ?? undefined })
+      }
 
       // Trigger onboarding modal for first-time registrations
       window.dispatchEvent(new Event("vod:registration-complete"))
-
-      // Sync newsletter opt-in preference to Brevo (fire-and-forget)
-      if (newsletterOptin) {
-        fetch(`${MEDUSA_URL}/store/account/newsletter`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-publishable-api-key": PUBLISHABLE_KEY,
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ newsletter_optin: true }),
-        }).catch(() => {})
-      }
     },
     [fetchStatus]
   )

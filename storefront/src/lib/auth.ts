@@ -3,62 +3,85 @@ const MEDUSA_URL =
 const PUBLISHABLE_KEY =
   process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
 
-export async function register(
-  email: string,
-  password: string,
-  firstName: string,
+export type RegisterOptions = {
+  email: string
+  password: string
+  firstName: string
   lastName: string
-): Promise<string> {
-  // 1. Register auth identity
-  const authRes = await fetch(
-    `${MEDUSA_URL}/auth/customer/emailpass/register`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    }
-  )
+  agbAccepted: true
+  newsletterOptin?: boolean
+}
 
-  if (!authRes.ok) {
-    const err = await authRes.json().catch(() => ({}))
-    throw new Error(err.message || "Registration failed")
-  }
+export type RegisterResult = {
+  token: string
+  customerId: string
+  masterId: string
+  newsletterPendingConfirmation: boolean
+}
 
-  const { token } = await authRes.json()
-
-  // 2. Create customer record
-  const custRes = await fetch(`${MEDUSA_URL}/store/customers`, {
+/**
+ * Register a new customer via the custom /store/customer/register endpoint
+ * (rc53.17). This single call enforces the site-mode invite gate, atomically
+ * creates the auth-identity + customer + CRM master link, and triggers the
+ * welcome + newsletter DOI mails. Replaces the legacy 3-step dance
+ * (auth/register → store/customers → auth/login).
+ */
+export async function register(opts: RegisterOptions): Promise<RegisterResult> {
+  const res = await fetch(`${MEDUSA_URL}/store/customer/register`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
       "x-publishable-api-key": PUBLISHABLE_KEY,
     },
     body: JSON.stringify({
-      first_name: firstName,
-      last_name: lastName,
-      email,
+      email: opts.email,
+      password: opts.password,
+      first_name: opts.firstName,
+      last_name: opts.lastName,
+      agb_accepted: opts.agbAccepted,
+      newsletter_optin: opts.newsletterOptin === true,
+      source: "self_signup",
     }),
   })
 
-  if (!custRes.ok) {
-    const err = await custRes.json().catch(() => ({}))
-    throw new Error(err.message || "Customer account could not be created")
+  let data: Record<string, unknown> = {}
+  try {
+    data = (await res.json()) as Record<string, unknown>
+  } catch {
+    // ignore — fall through to !res.ok branch with empty body
   }
 
-  // The registration token is short-lived and not valid for store APIs.
-  // Do a regular login to get a proper session token.
-  const loginRes = await fetch(`${MEDUSA_URL}/auth/customer/emailpass`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  })
-  if (loginRes.ok) {
-    const { token: sessionToken } = await loginRes.json()
-    return sessionToken
+  if (!res.ok || !data.success) {
+    const code = typeof data.error === "string" ? data.error : ""
+    if (code === "registration_not_possible") {
+      throw new Error(
+        (data.message as string) ||
+          "Registration is currently invite-only. Apply for early access at /apply."
+      )
+    }
+    if (code === "email_in_use") {
+      throw new Error("An account with this email already exists.")
+    }
+    if (code === "agb_not_accepted") {
+      throw new Error("Please accept the Terms & Conditions.")
+    }
+    if (code === "validation_failed") {
+      const field = (data.field as string) || ""
+      if (field === "email") throw new Error("Please enter a valid email address.")
+      if (field === "password")
+        throw new Error("Password must be at least 8 characters.")
+      if (field === "first_name") throw new Error("Please enter your first name.")
+      throw new Error("Please check the form fields and try again.")
+    }
+    throw new Error((data.message as string) || "Registration failed")
   }
 
-  return token
+  return {
+    token: (data.token as string) || "",
+    customerId: (data.customer_id as string) || "",
+    masterId: (data.master_id as string) || "",
+    newsletterPendingConfirmation: data.newsletter_pending_confirmation === true,
+  }
 }
 
 export async function login(

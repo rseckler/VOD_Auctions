@@ -4,6 +4,10 @@ import { Knex } from "knex"
 import { upsertContact, BREVO_LIST_VOD_AUCTIONS } from "../../../../lib/brevo"
 import { verifyConfirmToken } from "../route"
 import { rudderTrack } from "../../../../lib/rudderstack"
+import {
+  findOrCreateMasterByEmail,
+  applyLocalCommPrefChange,
+} from "../../../../lib/crm-newsletter-sync"
 
 const STOREFRONT_URL = process.env.STOREFRONT_URL || "http://localhost:3000"
 
@@ -48,9 +52,38 @@ export async function GET(
     // Redirect anyway — don't block the user on a provider error
   }
 
+  const pgConnection: Knex = req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
+
+  // CODEX P2#4 (rc53.17) — mirror the DOI confirmation into the local CRM
+  // store so /store/customer/register's pending-newsletter intent flips to
+  // opted_in=true after the click. Same code path also closes the gap for
+  // inbound /newsletter signups: previously they only landed in Brevo.
+  let masterId: string | null = null
+  try {
+    const { masterId: mid } = await pgConnection.transaction((trx) =>
+      findOrCreateMasterByEmail(trx, normalised)
+    )
+    masterId = mid
+    await applyLocalCommPrefChange(
+      pgConnection,
+      mid,
+      true,
+      "self_service",
+      "storefront_signup"
+    )
+    await pgConnection("crm_master_audit_log").insert({
+      master_id: mid,
+      action: "newsletter_optin_confirmed",
+      details: { source: "doi_click", channel: "email_marketing", email: normalised },
+      source: "self_service",
+      admin_email: "self_service",
+    })
+  } catch (e: any) {
+    console.warn("[newsletter/confirm] CRM mirror failed (non-blocking):", e?.message ?? e)
+  }
+
   // If this email belongs to a registered customer, tag them in customer_stats
   try {
-    const pgConnection: Knex = req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
     const customer = await pgConnection("customer")
       .where("email", normalised)
       .whereNull("deleted_at")
@@ -65,9 +98,9 @@ export async function GET(
         WHERE customer_id = ?
           AND NOT (tags @> ARRAY['newsletter_subscriber'])
       `, [customer.id])
-      rudderTrack(customer.id, "Newsletter Confirmed", { email: normalised })
+      rudderTrack(customer.id, "Newsletter Confirmed", { email: normalised, master_id: masterId })
     } else {
-      rudderTrack(normalised, "Newsletter Confirmed", { email: normalised })
+      rudderTrack(normalised, "Newsletter Confirmed", { email: normalised, master_id: masterId })
     }
   } catch (e: any) {
     // Non-critical — don't block redirect

@@ -122,7 +122,7 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
         setFailedAttempts(0)
         onClose()
       } else {
-        await register(email, password, firstName, lastName, newsletterOptin)
+        await register(email, password, firstName, lastName, true, newsletterOptin)
         setMode("verify-email")
       }
     } catch (err: any) {

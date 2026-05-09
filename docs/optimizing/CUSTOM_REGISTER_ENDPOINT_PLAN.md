@@ -835,13 +835,16 @@ Das ist Teil von rc53.17 (siehe §4.6a). Bonus: schließt auch eine bestehende L
 
 | Item | Datei | Status |
 |---|---|---|
-| Backend-Endpoint `POST /store/customer/register` | `backend/src/api/store/customer/register/route.ts` (NEU) | TODO |
-| Helper `registerCustomer()` | `backend/src/lib/customer-register.ts` (NEU) | TODO |
-| Storefront `register()`-Refactor | `storefront/src/lib/auth.ts` (MOD) | TODO |
-| AuthModal + AuthProvider Signatur | `storefront/src/components/AuthModal.tsx`, `AuthProvider.tsx` (MOD) | TODO |
-| `/invite/[token]` POST → ruft Helper | `backend/src/api/store/invite/[token]/route.ts` (MOD) | TODO |
-| `/store/newsletter/confirm` Erweiterung (P2#4) | `backend/src/api/store/newsletter/confirm/route.ts` (MOD) | TODO |
-| Tests (race-condition mit concurrent submits) | `backend/src/__tests__/customer-register.test.ts` (NEU) | TODO |
-| CHANGELOG-Entry rc53.17 + Release-Tag | docs + gh release create | TODO |
+| Backend-Endpoint `POST /store/customer/register` | `backend/src/api/store/customer/register/route.ts` (NEU) | ✅ done |
+| Helper `registerCustomer()` | `backend/src/lib/customer-register.ts` (NEU) | ✅ done |
+| Newsletter-DOI-Helper | `backend/src/lib/newsletter-doi.ts` (NEU) | ✅ done |
+| Storefront `register()`-Refactor | `storefront/src/lib/auth.ts` (MOD) | ✅ done |
+| AuthModal + AuthProvider Signatur | `storefront/src/components/AuthModal.tsx`, `AuthProvider.tsx` (MOD) | ✅ done |
+| `/invite/[token]` POST → ruft Helper | `backend/src/api/store/invite/[token]/route.ts` (MOD) | ✅ done |
+| `/store/newsletter/confirm` Erweiterung (P2#4) | `backend/src/api/store/newsletter/confirm/route.ts` (MOD) | ✅ done |
+| CHANGELOG-Entry rc53.17 | `docs/architecture/CHANGELOG.md` | ✅ done |
+| Tests (race-condition mit concurrent submits) | `backend/src/__tests__/customer-register.test.ts` (NEU) | ⏸ post-deploy (manueller Smoke-Test in §7.3 zuerst) |
+| GitHub Release-Tag `v1.0.0-rc53.17` | gh release create | ⏸ post-VPS-deploy |
+| VPS-Deploy + Smoke-Test §7.3 | Operations | ⏸ wartet auf Frank-Bulk-Invite-Welle-Slot |
 
 
