@@ -235,18 +235,22 @@ export async function applyLocalCommPrefChange(
       prefId = row.id
     }
 
-    // 2. Upsert newsletter_subscribers — keep it as audit-trail mirror
+    // 2. Upsert newsletter_subscribers — keep it as audit-trail mirror.
+    //    Status enum is constrained to ('active','unsubscribed','bounced') —
+    //    rc53.4 originally wrote 'subscribed' which silently violated the
+    //    CHECK constraint. rc53.17.2 aligns with the constraint + existing
+    //    backfill data (3567 rows pre-existing as 'active').
     await trx("newsletter_subscribers")
       .insert({
         email: master.primary_email,
         source: "crm_admin",
-        status: optedIn ? "subscribed" : "unsubscribed",
+        status: optedIn ? "active" : "unsubscribed",
         subscribed_at: trx.fn.now(),
         unsubscribed_at: optedIn ? null : trx.fn.now(),
       })
       .onConflict(trx.raw("(lower(email))"))
       .merge({
-        status: optedIn ? "subscribed" : "unsubscribed",
+        status: optedIn ? "active" : "unsubscribed",
         unsubscribed_at: optedIn ? null : trx.fn.now(),
         subscribed_at: optedIn ? trx.fn.now() : trx.raw("newsletter_subscribers.subscribed_at"),
       })
