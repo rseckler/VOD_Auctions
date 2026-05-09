@@ -11,7 +11,7 @@ Jeder Git-Tag entspricht einem Snapshot des Gesamtsystems. Feature Flags zeigen 
 | Version | Datum | Platform Mode | Feature Flags aktiv (prod) | Milestone / Inhalt |
 |---------|-------|--------------|---------------------------|-------------------|
 | **v1.0.0** | TBD | `live` | ERP: TBD | RSE-78: Erster öffentlicher Launch |
-| **v1.0.0-rc53.15.2** | 2026-05-08 | `beta_test` | `ERP_INVENTORY`, `SEARCH_MEILI_CATALOG`, `SEARCH_MEILI_ADMIN`, `SYSTEM_HEALTH_*` | **CRM Overview-Cards auf lokale DB statt Brevo-only.** Robin's Beobachtung: "TOTAL CONTACTS: 3.601" + "NEWSLETTER OPT-INS: 0" obwohl 20.826 / 3.634 in der DB. Backend-Fix `/admin/customers`: zwei zusätzliche parallel-Queries auf `crm_master_contact` und `crm_master_communication_pref`. UI-Fix Cards-Reordering (Total → Opt-ins → VOD-Brevo → Tape-mag-Brevo → Medusa) + Subtitle-Hints, die die Datenquelle erklären. |
+| **v1.0.0-rc53.16** | 2026-05-09 | `beta_test` | `ERP_INVENTORY`, `SEARCH_MEILI_CATALOG`, `SEARCH_MEILI_ADMIN`, `SYSTEM_HEALTH_*` | **Bowie → David Bowie Artist-Merge + Audit-Doc für 2.063 weitere Duplikate.** Robin's Catalog-Test "bowie" vs "david bowie" zeigte zwei Artist-Rows für dieselbe Person (`discogs-artist-10263` "Bowie" 72 RA-Links + `legacy-artist-10478` "David Bowie" 16 RA-Links). Atomic-SQL-Merge: 99 Releases auf einen Pointer konsolidiert, ReleaseArtist-Rows umgeroutet (6 dual-linked: Rollen gemerged), Loser-Row gelöscht, search_text neu gebaut, Meili reindexed (1.5s). Verify post-commit: search "bowie" 128 Hits / "david bowie" 496 Hits, alle als "David Bowie" gelabelt. **Audit für ganzen Katalog:** `docs/audit_artist_duplicates_2026-05-09.md` mit 2.063 exakt-Name-Duplikaten / 4.131 Artist-Rows / **16.585 betroffenen Releases (~40 % des Katalogs)**, 3 Klassen (A exakt-name, B "X" vs "The X", C Bowie-style different-name), Workflow für Frank, komplettes Merge-SQL-Template. Sync-Pipelines (`legacy_sync_v2.py`, `discogs-import/commit`) machen `ON CONFLICT (id) DO NOTHING` — Fix wird nicht zurückgeschrieben. |
 | **v1.0.0-rc53.15.1** | 2026-05-08 | `beta_test` | `ERP_INVENTORY`, `SEARCH_MEILI_CATALOG`, `SEARCH_MEILI_ADMIN`, `SYSTEM_HEALTH_*` | **CRM Smart-List-Filter-Pills sichtbar.** Backend `/admin/crm/contacts` unterstützt seit rc53.4 die drei Smart-List-Filter (newsletter_subscribers / newsletter_unsubscribed / newsletter_only_leads), aber das UI hat sie nie als Pills exposed. Ohne diese Pills konnte Frank Phase-B-Bulk-Invites nicht ans richtige Segment zielen. Drei Pills mit den Phase-B-Plan-Icons (📨/🔕/🌱) zwischen "MO-PDF only" und "Test accounts" ergänzt + FilterKey-Type erweitert. |
 | **v1.0.0-rc53.15** | 2026-05-08 | `beta_test` | `ERP_INVENTORY`, `SEARCH_MEILI_CATALOG`, `SEARCH_MEILI_ADMIN`, `SYSTEM_HEALTH_*` | **Bulk-Invite Endpoint + UI für VOD Auctions Early-Access (Phase B).** Bulk-Invite-Workflow im CRM: max 1.000 Master-IDs pro Call, JobTracker mit Heartbeat, Async-Send 66 Mails/sec. Drei §7(3) UWG-Tier-Templates (newsletter_subscriber / webshop_customer / tape_mag_member). Master-ID-basierter Unsubscribe-Endpoint (HMAC + UPSERT comm-pref + Mirror in newsletter_subscribers + audit-log). Schema-Migration `phase_b_bulk_invite_tracking` (additive). CRM-UI "✉ Send Invite"-Bulk-Action mit Custom-Note + Skip-Already-Sent. |
 | **v1.0.0-rc53.14** | 2026-05-08 | `beta_test` | `ERP_INVENTORY`, `SEARCH_MEILI_CATALOG`, `SEARCH_MEILI_ADMIN`, `SYSTEM_HEALTH_*` | **Public Newsletter-Sign-up + DSGVO-Checkboxes (Phase A).** Storefront `/newsletter`-Page (Email + DSGVO-Consent + DOI-Hinweis) wired auf bestehenden `POST /store/newsletter`-Flow. DSGVO-Checkbox auf `/apply` ergänzt. Datenschutz §12 erweitert um DOI-Mechanik, Zwei-Listen-Klarstellung, Retention-Specifics. middleware.ts `/newsletter*` public path. Backend nur TODO-Kommentar für Rate-Limit-Deferral. |
@@ -162,6 +162,53 @@ Welche Flags für welchen Release geplant sind (kein Commitment — wird bei Rel
 - **Patch Release** (`v1.0.x`): Kritische Bugfixes zwischen geplanten Releases
 - **Tagging-Workflow:** `git tag -a vX.Y.Z -m "Release vX.Y.Z: <Kurzname>"` → `git push origin vX.Y.Z`
 - **Tag-Zeitpunkt:** Direkt nach Deploy + Smoke-Test auf Production — nicht vor dem Deploy
+
+---
+
+## 2026-05-09 — Bowie → David Bowie Artist-Merge + Audit-Doc für 2.063 weitere Duplikate (rc53.16)
+
+**Kontext:** Robin testet die Catalog-Search auf der Storefront und stellt fest, dass viele Releases als „Bowie" angezeigt werden, einige als „David Bowie", und dass die Search „david bowie" die „Bowie"-only Items nicht findet. Diagnose ergibt: zwei separate Artist-Rows für dieselbe Person — `discogs-artist-10263` mit Name „Bowie" (72 ReleaseArtist-Links + 60 primary `Release.artistId`-Verbindungen) und `legacy-artist-10478` mit Name „David Bowie" (16 RA-Links + 39 primary). Beide referenzieren Bowie-Releases. Im Discogs-Canonical heißt die ID 10263 „David Bowie" — Discogs-Sync hat den Per-Release-Credit „Bowie" beim ersten Antreffen übernommen statt den Artist-Canonical zu lesen. Frank's MO-ERP listet Bowie ebenfalls als „Bowie" (Screenshot) — also propagiert die MySQL-`band_name`-Kurzform mit über den `legacy_sync_v2.py`-Importpfad.
+
+**Atomic-Merge-SQL (eine Transaction, ~7 Statements):**
+1. `discogs-artist-10263` umbenannt → Name „David Bowie", Slug „david-bowie", `updatedAt = NOW()`
+2. 39 primary `Release.artistId`-Pointer von `legacy-artist-10478` → `discogs-artist-10263` umgeroutet (feuert `update_release_search_text` + `trigger_release_indexed_at_self` Trigger pro Row)
+3. ReleaseArtist Dedup: 6 dual-linked-Rows (David Bowie / Fashion ×2 / Heroes / Let's Dance / Lodger) — Rollen gemerged via `CONCAT_WS(', ', ...)`, danach Loser-Side-Row gedroppt
+4. Restliche 10 ReleaseArtist-Rows (legacy-only): einfach `artistId` umgepointert
+5. `legacy-artist-10478` gelöscht (`Artist_pkey` PK-Cascade leer wegen Schritte 3+4)
+6. Search-Text-Rebuild für die bereits korrekt gepointeten 60 Releases via `UPDATE Release SET artistId = artistId, search_indexed_at = NULL WHERE artistId = 'discogs-artist-10263'` — `OF artistId`-Trigger feuert auch bei no-op SET, search_text wird neu mit dem neuen Artist.name gebaut
+7. `Release.artist_display_name` auf 3 Override-Releases (Aladdin Sane, Hunky Dory, Young Americans Variant) auf NULL gesetzt; Cat People (`"David Bowie Music By Giorgio Moroder"`) bleibt für Frank's Audit-Entscheidung
+
+**Verify-Counts post-commit:** `canonical_name=David Bowie`, `canonical_slug=david-bowie`, `legacy_artist_remaining=0`, `releases_now_correct=99`, `releases_orphaned=0`, `ra_orphaned=0`, `pending_meili_reindex=99`.
+
+**Meili-Sync manuell getriggert** auf VPS (sonst 5-min-Cron-Wait): `meilisearch_sync.py` mit Delta-Modus, 100 candidates / 100 push / 0 unchanged / 1 chunk / 1.482ms.
+
+**Live-Test gegen Public-API (`api.vod-auctions.com`, For-Sale-Default):**
+- `?search=bowie` → 128 Hits, alle als „David Bowie" gelabelt (außer Cat People + 2 Lester-Bowie-Items)
+- `?search=david+bowie` → 496 Hits, Bowie-Items sauber oben gerankt; „David Murray", „David J" etc. via Meili-`last`-strategy-Token-Drop hinten
+
+**Sync-Risiko geprüft:** `legacy_sync_v2.py:457` und `backend/src/api/admin/discogs-import/commit/route.ts:1093/1115` (zwei `ensureArtist`-Pfade) machen alle `INSERT … ON CONFLICT (id) DO NOTHING`. **Kein Code-Pfad UPDATEt Artist.name** — der Fix wird nicht zurückgeschrieben.
+
+**Repo-weites Audit für die nächsten Cases:**
+
+Klasse A (exakt gleicher Name, mehrere Artist-Rows): **2.063 Künstlernamen, 4.131 Artist-Rows, 16.585 Releases betroffen — ~40 % des Katalogs**. Top-Impact-Cases (Auszug, vollständige Liste im Audit-Doc):
+- Various 5066, Depeche Mode 140, John Cage 105, Laibach 94, Joy Division 89, Kraftwerk 89, Current 93 86, Whitehouse 84, Coil 80, Big City Orchestra 74, Die Tödliche Doris 73, New Order 65, Severed Heads 64, Pink Floyd 55, John Coltrane 54, The Cure 52, Swans 49, Bauhaus 41, Skinny Puppy 40, Sex Pistols 28, Killing Joke 29, Tangerine Dream 27, Miles Davis 27, Talking Heads 22, Led Zeppelin 22, Sonic Youth 20, Patti Smith 19, Tom Waits 18, Cocteau Twins 18, R.E.M. 17, Queen 17, Dead Kennedys 17, Black Sabbath 14.
+
+Klasse B („X" vs „The X"): ~50 high-confidence Cases — Sisters of Mercy / The Sisters Of Mercy (82+22), Legendary Pink Dots / The Legendary Pink Dots (84+11), Beatles / The Beatles (35+35), Hafler Trio / The Hafler Trio (35+2), Velvet Underground / The Velvet Underground (12+9), Cramps / The Cramps (8+13), Damned / The Damned (5+13+7), Birthday Party / The Birthday Party (12+4), Klinik / The Klinik (14+2), Rolling Stones / The Rolling Stones (6+9), Doors / the Doors (7+8), Clash / the Clash (12+14), Cassandra Complex / The Cassandra Complex (12+2), Wirtschaftswunder / The Wirtschaftswunder (8+5), Kinks / The Kinks (7+5), B-52's / The B-52's, Vibrators / The Vibrators (3+6), Pogues / The Pogues (4+2), Haters / The Haters (39+3+2). **Vorsicht-Falsch-Positive:** Coil ≠ This Mortal Coil (zwei verschiedene Bands).
+
+Klasse C (Bowie-style: gleicher Künstler unter unterschiedlichem Namen): heuristisch schwer detektierbar, weil Bandkollegen / Producer-Cluster (Roger Waters + David Gilmour, McCoy Tyner + John Coltrane, Bob Thiele + Rudy Van Gelder + Reid Miles, Florian Schneider + Ralf Hütter etc.) genauso oft via shared Releases auftauchen wie echte Duplikate. Nebenbefund: Fragment-Pattern aus dem `band_name`-Splitting-Bug (`legacy-artist-11105` „FROM", `-6505` „Tape", `-8268` „NO", `-5820` „Sound" etc. — vermutlich „FROM TAPE NO SOUND"-Zerstückelung beim CSV-Import) gehört zu RSE-321.
+
+**Audit-Doc:** [`docs/audit_artist_duplicates_2026-05-09.md`](../audit_artist_duplicates_2026-05-09.md) — vollständige Top-30-Tabelle, Klasse-B-High-Confidence-Liste, Workflow für Frank in 5 Phasen (P1 Top-30 ~1-2h, P2 Long Tail ~10h, P3 Klasse B ~1-2h, P4 Klasse C händisch, P5 Sync-Pipeline-Härtung als Backlog), generisches Merge-SQL-Template mit `<WINNER_ID>` / `<LOSER_ID>`-Platzhaltern, CSV-Export-Helper-SQL, Detail-Check-SQL pro Künstler.
+
+**Schreib-Operationen:** kein Code-Change (reine Daten-Migration via Supabase MCP `execute_sql`), kein Deploy nötig. Bowie-Fix war live sobald die Transaction committed war + Meili sync durch.
+
+**Open-Items:**
+- Frank-Briefing zum Audit-Doc + Tier-1-Batch (Top-30 nach Impact) gemeinsam durchgehen
+- Cat People artist_display_name-Entscheidung („David Bowie" stand-alone vs „David Bowie Music By Giorgio Moroder" beibehalten)
+- RSE-Ticket „Sync-Pipeline-Härtung gegen neue Artist-Duplikate" (Slug-Check vor INSERT bei legacy_sync_v2 + discogs-import/commit, plus Nightly-Audit-Cron)
+
+**Memory-Update:** `project_artist_duplicates_audit.md` (Audit-Doc-Pointer + Merge-Pattern + Sync-Risiko-Lehre), keine Feedback-Memory weil das Pattern (Pre-SELECT-then-INSERT für Slug-Lookup, `ON CONFLICT (id) DO NOTHING` reicht nicht für Identity-Merge) bereits in feedback_partial_index_on_conflict abgedeckt ist.
+
+**SQL-Logfile:** Verify-Snapshot in der Audit-Doc-Section „2. Referenzfall: Bowie → David Bowie".
 
 ---
 
