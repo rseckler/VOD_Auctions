@@ -62,17 +62,18 @@ export function Toggle({ active, onChange, disabled }: ToggleProps) {
 
 interface ToastProps {
   message: string
-  type?: "success" | "error"
+  type?: "success" | "error" | "warning"
   onDone: () => void
 }
 
 export function Toast({ message, type = "success", onDone }: ToastProps) {
   useEffect(() => {
-    const t = setTimeout(onDone, 2500)
+    // rc53.18.1: warning toasts have longer text — keep them readable.
+    const t = setTimeout(onDone, type === "warning" ? 5000 : 2500)
     return () => clearTimeout(t)
-  }, [onDone])
+  }, [onDone, type])
 
-  const color = type === "error" ? C.error : C.success
+  const color = type === "error" ? C.error : type === "warning" ? C.warning : C.success
   return (
     <div style={{
       position: "fixed", bottom: 24, right: 24, zIndex: 9999,

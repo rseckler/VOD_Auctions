@@ -450,6 +450,7 @@ export async function POST(
   type GalleryUpload = { idx: number; uri: string; r2Url: string; imageId: string }
   let galleryUploads: GalleryUpload[] | null = null
   let galleryReplaceTriggered = false
+  let gallerySkippedDueToUploadFailure = false
   if (Array.isArray(body.gallery_images)) {
     galleryReplaceTriggered = true
     const uris = (body.gallery_images as unknown[])
@@ -544,23 +545,43 @@ export async function POST(
     }
 
     // rc53.18: Galerie-Replace. Wenn body.gallery_images übergeben wurde,
-    // löschen wir alle bisherigen `source='discogs'`-Rows mit rang>0 und
-    // legen die neuen R2-URLs bei rang 31+i an. Cover (rang 0) und
-    // admin_edit-Rows bleiben unangetastet. R2-Objekte der gelöschten
-    // Rows bleiben Orphans im Bucket — bekanntes Cleanup-Backlog.
+    // löschen wir alle bisherigen secondary-Rows (`source='discogs'` AND
+    // rang > 1) und legen die neuen R2-URLs bei rang 31+i an. Cover
+    // (rang 0 admin_edit ODER rang 1 discogs-import primary) und alle
+    // admin_edit-Rows bleiben unangetastet. R2-Objekte der gelöschten Rows
+    // bleiben Orphans im Bucket — bekanntes Cleanup-Backlog.
+    //
+    // rc53.18.1 (Codex P2#1): rang > 0 → rang > 1, sonst würde bei
+    // discogs-import-Releases das Primary-Image-Row mit gelöscht.
+    //
+    // rc53.18.1 (Codex P2#2): wenn Frank Galerie-Replace gewollt hat aber
+    // alle downloadOptimizeUpload-Calls haben null returnt (R2 down /
+    // Discogs CDN 404 / ratelimited), würde galleryUploads.length === 0
+    // einen DELETE-ohne-INSERT auslösen → leere Galerie nach transientem
+    // Fehler. Statt zu wipen: existing Galerie behalten und im
+    // Response-Header `x-gallery-skipped` signalisieren, damit das
+    // Frontend einen Toast ziehen kann.
     if (galleryReplaceTriggered && galleryUploads) {
-      await trx("Image")
-        .where({ releaseId: id, source: "discogs" })
-        .andWhere("rang", ">", 0)
-        .del()
+      const userWantedAtLeastOne =
+        Array.isArray(body.gallery_images) && (body.gallery_images as unknown[]).length > 0
+      if (galleryUploads.length === 0 && userWantedAtLeastOne) {
+        // Keep existing gallery — do nothing. Signal to the FE so it can
+        // show a "gallery upload failed, kept existing" toast.
+        gallerySkippedDueToUploadFailure = true
+      } else {
+        await trx("Image")
+          .where({ releaseId: id, source: "discogs" })
+          .andWhere("rang", ">", 1)
+          .del()
 
-      for (const upload of galleryUploads) {
-        await trx.raw(
-          `INSERT INTO "Image" (id, url, alt, "releaseId", rang, source, "createdAt")
-           VALUES (?, ?, ?, ?, ?, 'discogs', NOW())
-           ON CONFLICT (id) DO UPDATE SET url = EXCLUDED.url, rang = EXCLUDED.rang`,
-          [upload.imageId, upload.r2Url, "", id, 31 + upload.idx]
-        )
+        for (const upload of galleryUploads) {
+          await trx.raw(
+            `INSERT INTO "Image" (id, url, alt, "releaseId", rang, source, "createdAt")
+             VALUES (?, ?, ?, ?, ?, 'discogs', NOW())
+             ON CONFLICT (id) DO UPDATE SET url = EXCLUDED.url, rang = EXCLUDED.rang`,
+            [upload.imageId, upload.r2Url, "", id, 31 + upload.idx]
+          )
+        }
       }
     }
 
@@ -742,7 +763,14 @@ export async function POST(
     }
   }
 
-  res.json({ release })
+  // rc53.18.1 (Codex P2#2): signal to FE if gallery replace was requested
+  // but skipped because all image uploads failed — used for a toast.
+  const responseBody: Record<string, unknown> = { release }
+  if (gallerySkippedDueToUploadFailure) {
+    responseBody.gallery_skipped = true
+    responseBody.gallery_skipped_reason = "upload_failed"
+  }
+  res.json(responseBody)
 
   // Klasse-B on-demand-Reindex (rc48 §3.8) — Admin-Edit soll sofort im
   // Catalog-Listing sichtbar sein. Plus Inventory-Item-Änderungen (Warehouse,

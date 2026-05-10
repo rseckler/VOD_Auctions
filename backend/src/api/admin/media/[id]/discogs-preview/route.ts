@@ -154,12 +154,16 @@ export async function POST(
     return
   }
 
-  // rc53.18: Current Discogs-sourced gallery images (rang >= 1, source='discogs')
-  // Cover (rang 0) is handled via the coverImage field — keep it on its own axis
-  // so users can review cover and gallery independently.
+  // rc53.18: Current Discogs-sourced gallery images (secondaries only).
+  // Cover (rang 0 admin_edit OR rang 1 discogs-import primary) is handled via
+  // the coverImage field — keep it on its own axis so users can review cover
+  // and gallery independently. rc53.18.1 (Codex P2#1): exclude rang=1 too,
+  // because discogs-import/commit places the primary image there. Including
+  // it here would surface it as a "current gallery image" and the apply path
+  // would then DELETE it during gallery replace — wiping the cover row.
   const currentGalleryRows = await pg("Image")
     .where({ releaseId: id, source: "discogs" })
-    .andWhere("rang", ">", 0)
+    .andWhere("rang", ">", 1)
     .orderBy("rang", "asc")
     .select("url")
   const currentGalleryUrls = currentGalleryRows.map((r: { url: string }) => r.url)

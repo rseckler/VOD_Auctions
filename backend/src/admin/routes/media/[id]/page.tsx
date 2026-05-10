@@ -589,7 +589,7 @@ const MediaDetailPage = () => {
   const [inventoryMovements, setInventoryMovements] = useState<InventoryMovement[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null)
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "warning" } | null>(null)
   const [meta, setMeta] = useState<{ is_stammdaten_editable: boolean; source: string; locked_fields: string[] } | null>(null)
   const [unlockFieldPending, setUnlockFieldPending] = useState<string | null>(null)
   const [unlockingField, setUnlockingField] = useState(false)
@@ -1015,12 +1015,23 @@ const MediaDetailPage = () => {
       setDiscogsIdInput(data.release.discogs_id != null ? String(data.release.discogs_id) : "")
     }
     setAuditRefreshKey((k) => k + 1)
-    setToast({
-      message: selectedFields.length > 0
-        ? `Applied ${selectedFields.length} field${selectedFields.length === 1 ? "" : "s"} from Discogs`
-        : "discogs_id updated",
-      type: "success",
-    })
+    // rc53.18.1: BE returns gallery_skipped=true when gallery_images was
+    // requested but all uploads failed (R2 down / Discogs CDN 404 /
+    // ratelimited). Existing gallery is kept; warn the user instead of
+    // silently leaving them with a wiped gallery.
+    if (data.gallery_skipped) {
+      setToast({
+        message: "Gallery upload failed — kept existing images. Try Apply again later.",
+        type: "warning",
+      })
+    } else {
+      setToast({
+        message: selectedFields.length > 0
+          ? `Applied ${selectedFields.length} field${selectedFields.length === 1 ? "" : "s"} from Discogs`
+          : "discogs_id updated",
+        type: "success",
+      })
+    }
   }
 
   // Q2: unlock price lock on a specific exemplar
