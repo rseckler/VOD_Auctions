@@ -25,6 +25,13 @@ import { pickArtistDisplayName, type DiscogsArtistEntry } from "../../../../../l
 // gewesen. Per Pricing-Modell sind sie sowieso nur Markt-Referenz, keine
 // Stammdaten. Falls sie irgendwann persistiert werden sollen, in
 // allowedReleaseFields + audit policy aufnehmen und hier wieder reinholen.
+//
+// rc53.18 (2026-05-10): label_name + gallery_images im Diff. Vorher hat das
+// Modal nur 14 Felder gediffed; ein Wechsel zwischen Pressungen mit anderem
+// Label / anderen Galerie-Bildern ließ Label und Galerie unverändert. Bei
+// Apply triggert label_name den findOrCreateLabelByName-Pfad (lib/label-
+// resolver.ts), gallery_images den Galerie-Replace im Apply-Pfad
+// (api/admin/media/[id]/route.ts). Cover bleibt eigene Achse via coverImage.
 type ProposedFields = {
   discogs_id: number | null
   title: string | null
@@ -40,6 +47,8 @@ type ProposedFields = {
   styles: string[] | null
   credits: string | null
   coverImage: string | null
+  label_name: string | null
+  gallery_images: string[]
 }
 
 type DiscogsApiData = {
@@ -113,12 +122,30 @@ export async function POST(
   }
 
   const release = await pg("Release")
-    .where("id", id)
+    .leftJoin("Label", "Release.labelId", "Label.id")
+    .where("Release.id", id)
     .select(
-      "id", "title", "artist_display_name", "year", "country", "catalogNumber", "barcode",
-      "description", "format_v2", "format_descriptors", "genres", "styles",
-      "credits", "coverImage", "discogs_id", "discogs_lowest_price", "discogs_median_price",
-      "discogs_highest_price", "discogs_num_for_sale"
+      "Release.id",
+      "Release.title",
+      "Release.artist_display_name",
+      "Release.year",
+      "Release.country",
+      "Release.catalogNumber",
+      "Release.barcode",
+      "Release.description",
+      "Release.format_v2",
+      "Release.format_descriptors",
+      "Release.genres",
+      "Release.styles",
+      "Release.credits",
+      "Release.coverImage",
+      "Release.discogs_id",
+      "Release.discogs_lowest_price",
+      "Release.discogs_median_price",
+      "Release.discogs_highest_price",
+      "Release.discogs_num_for_sale",
+      "Release.labelId",
+      pg.raw('"Label"."name" as label_name')
     )
     .first()
 
@@ -126,6 +153,16 @@ export async function POST(
     res.status(404).json({ message: "Release not found" })
     return
   }
+
+  // rc53.18: Current Discogs-sourced gallery images (rang >= 1, source='discogs')
+  // Cover (rang 0) is handled via the coverImage field — keep it on its own axis
+  // so users can review cover and gallery independently.
+  const currentGalleryRows = await pg("Image")
+    .where({ releaseId: id, source: "discogs" })
+    .andWhere("rang", ">", 0)
+    .orderBy("rang", "asc")
+    .select("url")
+  const currentGalleryUrls = currentGalleryRows.map((r: { url: string }) => r.url)
 
   const token = process.env.DISCOGS_TOKEN
   if (!token) {
@@ -167,6 +204,19 @@ export async function POST(
     }))
   )
 
+  // rc53.18: Strip Discogs disambiguator suffix "(N)" from the label name so
+  // the find-or-create resolver matches the existing canonical row (e.g.
+  // "Mute (3)" → "Mute"). Same convention as ensureLabel in
+  // discogs-import/commit/route.ts.
+  const rawLabelName = apiData.labels?.[0]?.name?.trim() || null
+  const proposedLabelName = rawLabelName ? rawLabelName.replace(/\s*\(\d+\)$/, "").trim() : null
+
+  // rc53.18: Galerie = secondary-Bilder. Primary läuft separat via coverImage,
+  // damit Cover- und Galerie-Diff orthogonal bleiben.
+  const proposedGalleryUrls = (apiData.images || [])
+    .filter((im) => im.type === "secondary" && im.uri)
+    .map((im) => im.uri as string)
+
   const proposed: ProposedFields = {
     discogs_id: discogsId,
     title: apiData.title?.trim() || null,
@@ -186,6 +236,8 @@ export async function POST(
     styles: Array.isArray(apiData.styles) && apiData.styles.length > 0 ? apiData.styles.map(String) : null,
     credits: buildCreditsText(apiData.extraartists),
     coverImage: pickPrimaryImage(apiData.images),
+    label_name: proposedLabelName,
+    gallery_images: proposedGalleryUrls,
   }
 
   // M3 (Codex 2026-05-07): Marketplace-Stats + Price-Suggestions-Fetch
@@ -211,6 +263,8 @@ export async function POST(
     styles: Array.isArray(release.styles) ? release.styles : null,
     credits: release.credits ?? null,
     coverImage: release.coverImage ?? null,
+    label_name: release.label_name ?? null,
+    gallery_images: currentGalleryUrls,
   }
 
   // Diff: only fields where current !== proposed

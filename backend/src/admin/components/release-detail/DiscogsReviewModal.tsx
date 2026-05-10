@@ -38,9 +38,12 @@ const FIELD_LABELS: Record<string, string> = {
   styles: "Styles",
   credits: "Credits",
   coverImage: "Cover Image",
+  label_name: "Label",
+  gallery_images: "Gallery",
 }
 
 const IMAGE_FIELDS = new Set(["coverImage"])
+const GALLERY_FIELDS = new Set(["gallery_images"])
 
 function formatValue(v: unknown): string {
   if (v == null) return "—"
@@ -68,6 +71,39 @@ function ImageCell({ url }: { url: unknown }) {
       <a href={url} target="_blank" rel="noopener noreferrer" style={{ ...T.micro, color: C.muted, textTransform: "none", letterSpacing: 0 }}>
         open ↗
       </a>
+    </div>
+  )
+}
+
+function GalleryCell({ urls }: { urls: unknown }) {
+  const list: string[] = Array.isArray(urls)
+    ? (urls.filter((u) => typeof u === "string" && u.length > 0) as string[])
+    : []
+  if (list.length === 0) {
+    return <span style={{ ...T.small, color: C.muted }}>— (none)</span>
+  }
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+        {list.slice(0, 8).map((url, i) => (
+          <img
+            key={i}
+            src={url}
+            alt=""
+            style={{
+              width: 48,
+              height: 48,
+              objectFit: "cover",
+              borderRadius: S.radius.sm,
+              border: `1px solid ${C.border}`,
+            }}
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none" }}
+          />
+        ))}
+      </div>
+      <span style={{ ...T.micro, color: C.muted, textTransform: "none", letterSpacing: 0 }}>
+        {list.length} image{list.length === 1 ? "" : "s"}
+      </span>
     </div>
   )
 }
@@ -218,6 +254,8 @@ export function DiscogsReviewModal({ preview, lockedFields, onClose, onApply }: 
               </span>
               {IMAGE_FIELDS.has(key) ? (
                 <ImageCell url={d.from} />
+              ) : GALLERY_FIELDS.has(key) ? (
+                <GalleryCell urls={d.from} />
               ) : (
                 <span style={{ ...T.small, color: C.muted, wordBreak: "break-word" }}>
                   {formatValue(d.from)}
@@ -225,6 +263,8 @@ export function DiscogsReviewModal({ preview, lockedFields, onClose, onApply }: 
               )}
               {IMAGE_FIELDS.has(key) ? (
                 <ImageCell url={d.to} />
+              ) : GALLERY_FIELDS.has(key) ? (
+                <GalleryCell urls={d.to} />
               ) : (
                 <span style={{ ...T.small, color: C.text, wordBreak: "break-word", fontWeight: checked ? 600 : 400 }}>
                   {formatValue(d.to)}
@@ -252,7 +292,9 @@ export function DiscogsReviewModal({ preview, lockedFields, onClose, onApply }: 
       <div style={{ ...T.micro, color: C.muted, marginTop: S.gap.md, textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>
         🔒 sync-locked = protected from auto-sync (Discogs/Tape-Mag). The field can still be applied manually by ticking the checkbox — it just doesn't apply by default.
         Cover image, when applied, is downloaded from Discogs, optimized to WebP, uploaded to R2, and replaces the current cover (the previous cover is kept as a thumbnail in the gallery).
-        Artist and label are not part of this preview — use the dedicated pickers.
+        Label, when applied, is resolved by name (case-insensitive); a new Label row is created on demand.
+        Gallery, when applied, replaces all existing source=&apos;discogs&apos; images for this release with the secondaries from the new Discogs ID. Cover stays untouched.
+        Artist is not part of this preview — use the dedicated picker.
         Apply writes through the same audit-logged path as a manual edit; hard fields auto-lock.
       </div>
     </Modal>

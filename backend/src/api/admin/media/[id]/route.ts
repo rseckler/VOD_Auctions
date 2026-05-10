@@ -10,6 +10,7 @@ import { lockFields, getHardFieldsInBody } from "../../../../lib/release-locks"
 import { isValidFormat, isValidDescriptor } from "../../../../lib/format-mapping"
 import { isValidGenre } from "../../../../admin/data/genre-styles"
 import { downloadOptimizeUpload, isR2Configured, isR2Url } from "../../../../lib/image-upload"
+import { findOrCreateLabelByName } from "../../../../lib/label-resolver"
 
 // GET /admin/media/:id — Single release detail with sync history
 export async function GET(
@@ -441,14 +442,75 @@ export async function POST(
 
   releaseUpdates.updatedAt = new Date()
 
+  // rc53.18: Galerie-Replace-Vorbereitung. Der Modal sendet `gallery_images`
+  // als Array von Discogs-URIs (secondaries). Wir downloaden + R2-uploaden
+  // VOR der Transaktion (kein DB-Lock-Hold während Netz-IO), und legen die
+  // Image-Rows dann inside trx atomic an. Bei Netz-Fehler einzelner Bilder:
+  // die erfolgreichen werden trotzdem geschrieben, fehlende geloggt.
+  type GalleryUpload = { idx: number; uri: string; r2Url: string; imageId: string }
+  let galleryUploads: GalleryUpload[] | null = null
+  let galleryReplaceTriggered = false
+  if (Array.isArray(body.gallery_images)) {
+    galleryReplaceTriggered = true
+    const uris = (body.gallery_images as unknown[])
+      .map((u) => (typeof u === "string" ? u.trim() : ""))
+      .filter((u) => u.length > 0 && u.startsWith("http"))
+
+    galleryUploads = []
+    if (isR2Configured() && releaseUpdates.discogs_id) {
+      const discogsIdForGallery = Number(releaseUpdates.discogs_id) || currentRelease.discogs_id
+      for (let idx = 0; idx < uris.length; idx++) {
+        const uri = uris[idx]
+        const imageId = `discogs-image-${discogsIdForGallery}-${idx + 1}`
+        const r2Url = await downloadOptimizeUpload(uri, id, imageId)
+        if (r2Url) {
+          galleryUploads.push({ idx, uri, r2Url, imageId })
+        }
+      }
+    } else if (releaseUpdates.discogs_id == null && currentRelease.discogs_id) {
+      // discogs_id nicht in Body geändert → existing Wert nutzen
+      for (let idx = 0; idx < uris.length; idx++) {
+        const uri = uris[idx]
+        const imageId = `discogs-image-${currentRelease.discogs_id}-${idx + 1}`
+        const r2Url = await downloadOptimizeUpload(uri, id, imageId)
+        if (r2Url) {
+          galleryUploads.push({ idx, uri, r2Url, imageId })
+        }
+      }
+    }
+  }
+
   await pgConnection.transaction(async (trx) => {
     // M1 (Codex 2026-05-07): row-level Lock auf Release damit konkurrente
     // Cover-Applies serialisiert werden. Default-PG-MVCC würde Bumps zwar
     // sequenziell durchführen, aber FOR UPDATE macht die Serialisierung
     // explizit + schützt vor künftigen Refactors die das Locking-Pattern
     // auflockern könnten. Cost: vernachlässigbar (Single-Row-Lookup).
-    if (newImageRow) {
+    if (newImageRow || galleryReplaceTriggered) {
       await trx("Release").where("id", id).select("id").forUpdate().first()
+    }
+
+    // rc53.18: Resolve label_name → labelId via find-or-create. Geht VOR der
+    // Release-UPDATE damit der resolved labelId in releaseUpdates landet und
+    // in einer einzigen UPDATE-Statement persistiert wird. Empty-string
+    // explicit clears (releaseUpdates.labelId = null). Wenn body.labelId
+    // bereits gesetzt ist, gewinnt es (User explicit override).
+    //
+    // Mirror auch auf body.labelId damit Auto-Lock (getHardFieldsInBody) +
+    // Audit-Log (STAMMDATEN_AUDIT_FIELDS) den Label-Wechsel erfassen — die
+    // beiden lesen body, nicht releaseUpdates.
+    if (typeof body.label_name === "string" && releaseUpdates.labelId === undefined) {
+      const cleanedLabelName = body.label_name.trim()
+      if (cleanedLabelName) {
+        const resolvedLabelId = await findOrCreateLabelByName(trx, cleanedLabelName)
+        if (resolvedLabelId) {
+          releaseUpdates.labelId = resolvedLabelId
+          body.labelId = resolvedLabelId
+        }
+      } else {
+        releaseUpdates.labelId = null
+        body.labelId = null
+      }
     }
 
     if (Object.keys(releaseUpdates).length > 1) {
@@ -479,6 +541,27 @@ export async function POST(
          ON CONFLICT (id) DO NOTHING`,
         [newImageRow.id, newImageRow.url, "", newImageRow.releaseId]
       )
+    }
+
+    // rc53.18: Galerie-Replace. Wenn body.gallery_images übergeben wurde,
+    // löschen wir alle bisherigen `source='discogs'`-Rows mit rang>0 und
+    // legen die neuen R2-URLs bei rang 31+i an. Cover (rang 0) und
+    // admin_edit-Rows bleiben unangetastet. R2-Objekte der gelöschten
+    // Rows bleiben Orphans im Bucket — bekanntes Cleanup-Backlog.
+    if (galleryReplaceTriggered && galleryUploads) {
+      await trx("Image")
+        .where({ releaseId: id, source: "discogs" })
+        .andWhere("rang", ">", 0)
+        .del()
+
+      for (const upload of galleryUploads) {
+        await trx.raw(
+          `INSERT INTO "Image" (id, url, alt, "releaseId", rang, source, "createdAt")
+           VALUES (?, ?, ?, ?, ?, 'discogs', NOW())
+           ON CONFLICT (id) DO UPDATE SET url = EXCLUDED.url, rang = EXCLUDED.rang`,
+          [upload.imageId, upload.r2Url, "", id, 31 + upload.idx]
+        )
+      }
     }
 
     // Auto-lock: any Zone-1 Hard-Stammdaten field that actually CHANGED gets
