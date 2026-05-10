@@ -32,6 +32,7 @@ import requests
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parent.parent / ".env")
+load_dotenv(Path(__file__).parent / ".env", override=False)  # scripts/.env has DISCOGS_TOKEN
 
 R2_ENDPOINT = os.getenv("R2_ENDPOINT", "https://98bed59e4077ace876d8c5870be1ad39.r2.cloudflarestorage.com")
 R2_BUCKET = os.getenv("R2_BUCKET", "vod-images")
