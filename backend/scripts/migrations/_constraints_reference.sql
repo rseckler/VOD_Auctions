@@ -78,6 +78,19 @@ ALTER TABLE release_audit_log
 
 COMMIT;
 
+-- ─── Release ────────────────────────────────────────────────────────────────
+-- release_country_iso_format (rc54.0, 2026-05-11): erzwingt dass Release.country
+-- entweder NULL ist oder dem ISO-3166-1 alpha-2 Format entspricht (zwei Großbuchstaben).
+-- Plus deprecated ISO-3166-3 (YU, DD, CS, SU) für historische Releases und
+-- reserved Codes EU (Pure-Europe) + WO (Worldwide).
+--
+-- Backfill-Migration: backend/scripts/migrations/2026-05-11_country_iso_backfill.sql
+-- Konzept-Doku: docs/optimizing/COUNTRY_ISO_MIGRATION_PLAN.md
+--
+-- ALTER TABLE "Release"
+--   ADD CONSTRAINT release_country_iso_format
+--   CHECK (country IS NULL OR country ~ '^[A-Z]{2}$');
+
 -- TODO (Backlog, niedrige Priorität): andere Tabellen mit Inline-CHECK-
 -- Constraints ohne expliziten Namen sollten ebenfalls explizite chk_*-
 -- Namen bekommen, sobald ihre Werte sich erweitern könnten:

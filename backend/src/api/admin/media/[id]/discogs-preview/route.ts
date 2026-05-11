@@ -2,7 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { classifyDiscogsFormat } from "../../../../../lib/format-mapping"
-import { findCountryByName, isValidIsoCode } from "../../../../../admin/data/country-iso"
+import { normalizeCountryToIso } from "../../../../../lib/country-normalize"
 import { pickArtistDisplayName, type DiscogsArtistEntry } from "../../../../../lib/artist-display"
 
 /**
@@ -99,12 +99,8 @@ function extractBarcode(identifiers: DiscogsApiData["identifiers"]): string | nu
   return digits
 }
 
-function normalizeCountry(raw: string | null | undefined): string | null {
-  if (!raw) return null
-  if (raw.length === 2 && isValidIsoCode(raw)) return raw.toUpperCase()
-  const found = findCountryByName(raw)
-  return found?.code ?? null
-}
+// Lokale normalizeCountry() durch shared lib/country-normalize.ts ersetzt (rc54.0).
+// Kein Verhaltens-Unterschied — selbe Logik, Single Source of Truth.
 
 export async function POST(
   req: MedusaRequest,
@@ -230,7 +226,7 @@ export async function POST(
       apiData.artists || null
     ),
     year: typeof apiData.year === "number" && apiData.year > 0 ? apiData.year : null,
-    country: normalizeCountry(apiData.country),
+    country: normalizeCountryToIso(apiData.country),
     catalogNumber: apiData.labels?.[0]?.catno?.trim() || null,
     barcode: extractBarcode(apiData.identifiers),
     description: apiData.notes?.trim() || null,
@@ -257,7 +253,10 @@ export async function POST(
     title: release.title ?? null,
     artist_display_name: release.artist_display_name ?? null,
     year: release.year ?? null,
-    country: release.country ?? null,
+    // rc54.0: current ebenfalls durch Normalizer → verhindert False-Positive-
+    // Diffs während der Transition. Beispiel: DB hat noch "UK" (alt), API
+    // liefert "UK" → beide → "GB" → Diff korrekt als "unchanged" markiert.
+    country: normalizeCountryToIso(release.country),
     catalogNumber: release.catalogNumber ?? null,
     barcode: release.barcode ?? null,
     description: release.description ?? null,

@@ -43,7 +43,9 @@ import requests
 
 # Import sibling country-ISO map (scripts/data/country_iso.py)
 sys.path.insert(0, str(Path(__file__).parent))
-from data.country_iso import lookup_iso  # noqa: E402
+# rc54.0: lookup_iso entfernt — DB enthält jetzt ISO direkt. Falls Bedarf für
+# Display-Name-Ableitung (Storefront-Facetten „Deutschland (12.689 hits)") später
+# entsteht: data.country_iso.findCountryByName invertieren.
 
 SCRIPT_VERSION = "meilisearch_sync.py v1.0.0"
 
@@ -501,8 +503,12 @@ def transform_to_doc(row):
         "product_category": row["product_category"],
         "year": year,
         "decade": decade,
+        # rc54.0: country ist seit Phase 4 Backfill garantiert ISO-2 oder NULL.
+        # Beide Felder bekommen denselben Wert — Storefront-UI rendert raw,
+        # Filter-Facette nutzt country_code. Volltext-Suche („germany"/etc.)
+        # läuft über Meili-Synonyms (siehe scripts/build_country_synonyms.py).
         "country": row["country"],
-        "country_code": lookup_iso(row["country"]),
+        "country_code": row["country"],
         "catalog_number": row["catalog_number"],
         "article_number": row["article_number"],
         "genres": list(row["genres"]) if row["genres"] else [],

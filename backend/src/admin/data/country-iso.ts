@@ -22,6 +22,18 @@ export type IsoCountry = {
   code: string
   nameEn: string
   nameDe: string
+  /**
+   * Marker für nicht-reguläre ISO-3166-1-Codes (rc54.0):
+   * - 'iso-deprecated': ISO-3166-3 (YU, DD, CS, SU) — historisch für Releases
+   *   aus dissolved States (Yugoslavia, East Germany, USSR, Czechoslovakia +
+   *   Serbia and Montenegro).
+   * - 'iso-exceptional': ISO-3166-1 exceptionally-reserved (EU) — formell
+   *   ISO-Reservierung für non-Country-Zwecke (Currency-Code, statistische
+   *   Zwecke). Wir nutzen es für Pure-Europe Pressungen.
+   * - 'vod-internal': Nicht-ISO, VOD-spezifisch (WO für Worldwide). ISO-3166-1
+   *   hat keinen Code für „Worldwide" und vergibt im W-Range aktuell nichts.
+   */
+  reserved?: 'iso-deprecated' | 'iso-exceptional' | 'vod-internal'
 }
 
 /**
@@ -79,12 +91,14 @@ export const ISO_COUNTRIES: IsoCountry[] = [
   { code: "CN", nameEn: "China", nameDe: "China" },
   { code: "CO", nameEn: "Colombia", nameDe: "Kolumbien" },
   { code: "CR", nameEn: "Costa Rica", nameDe: "Costa Rica" },
+  { code: "CS", nameEn: "Czechoslovakia / Serbia and Montenegro", nameDe: "Tschechoslowakei / Serbien und Montenegro", reserved: 'iso-deprecated' },
   { code: "CU", nameEn: "Cuba", nameDe: "Kuba" },
   { code: "CV", nameEn: "Cabo Verde", nameDe: "Kap Verde" },
   { code: "CW", nameEn: "Curaçao", nameDe: "Curaçao" },
   { code: "CX", nameEn: "Christmas Island", nameDe: "Weihnachtsinsel" },
   { code: "CY", nameEn: "Cyprus", nameDe: "Zypern" },
   { code: "CZ", nameEn: "Czechia", nameDe: "Tschechien" },
+  { code: "DD", nameEn: "East Germany (GDR)", nameDe: "Deutsche Demokratische Republik", reserved: 'iso-deprecated' },
   { code: "DE", nameEn: "Germany", nameDe: "Deutschland" },
   { code: "DJ", nameEn: "Djibouti", nameDe: "Dschibuti" },
   { code: "DK", nameEn: "Denmark", nameDe: "Dänemark" },
@@ -98,6 +112,7 @@ export const ISO_COUNTRIES: IsoCountry[] = [
   { code: "ER", nameEn: "Eritrea", nameDe: "Eritrea" },
   { code: "ES", nameEn: "Spain", nameDe: "Spanien" },
   { code: "ET", nameEn: "Ethiopia", nameDe: "Äthiopien" },
+  { code: "EU", nameEn: "Europe (EU)", nameDe: "Europäische Union", reserved: 'iso-exceptional' },
   { code: "FI", nameEn: "Finland", nameDe: "Finnland" },
   { code: "FJ", nameEn: "Fiji", nameDe: "Fidschi" },
   { code: "FK", nameEn: "Falkland Islands", nameDe: "Falklandinseln" },
@@ -238,6 +253,7 @@ export const ISO_COUNTRIES: IsoCountry[] = [
   { code: "SR", nameEn: "Suriname", nameDe: "Suriname" },
   { code: "SS", nameEn: "South Sudan", nameDe: "Südsudan" },
   { code: "ST", nameEn: "São Tomé and Príncipe", nameDe: "São Tomé und Príncipe" },
+  { code: "SU", nameEn: "Soviet Union (USSR)", nameDe: "Sowjetunion", reserved: 'iso-deprecated' },
   { code: "SV", nameEn: "El Salvador", nameDe: "El Salvador" },
   { code: "SX", nameEn: "Sint Maarten (Dutch part)", nameDe: "Sint Maarten" },
   { code: "SY", nameEn: "Syria", nameDe: "Syrien" },
@@ -273,8 +289,10 @@ export const ISO_COUNTRIES: IsoCountry[] = [
   { code: "VU", nameEn: "Vanuatu", nameDe: "Vanuatu" },
   { code: "WF", nameEn: "Wallis and Futuna", nameDe: "Wallis und Futuna" },
   { code: "WS", nameEn: "Samoa", nameDe: "Samoa" },
+  { code: "WO", nameEn: "Worldwide", nameDe: "Weltweit", reserved: 'vod-internal' },
   { code: "YE", nameEn: "Yemen", nameDe: "Jemen" },
   { code: "YT", nameEn: "Mayotte", nameDe: "Mayotte" },
+  { code: "YU", nameEn: "Yugoslavia", nameDe: "Jugoslawien", reserved: 'iso-deprecated' },
   { code: "ZA", nameEn: "South Africa", nameDe: "Südafrika" },
   { code: "ZM", nameEn: "Zambia", nameDe: "Sambia" },
   { code: "ZW", nameEn: "Zimbabwe", nameDe: "Simbabwe" },
@@ -310,8 +328,9 @@ export function findCountryByName(name: string | null | undefined): IsoCountry |
     const byCode = findCountry(q)
     if (byCode) return byCode
   }
-  // Common aliases used by Discogs
+  // Common aliases used by Discogs + rc54.0 Country-ISO-Migration
   const aliases: Record<string, string> = {
+    // Existing
     "uk": "GB",
     "usa": "US",
     "south korea": "KR",
@@ -322,6 +341,41 @@ export function findCountryByName(name: string | null | undefined): IsoCountry |
     "czech republic": "CZ",
     "macedonia": "MK",
     "burma": "MM",
+    "turkey": "TR",
+    // rc54.0: Deprecated-ISO-Aliase (historische DB-Strings)
+    "east germany (gdr)": "DD",
+    "east germany": "DD",
+    "german democratic republic (gdr)": "DD",
+    "german democratic republic": "DD",
+    "gdr": "DD",
+    "yugoslavia": "YU",
+    "soviet union": "SU",
+    "ussr": "SU",
+    "czechoslovakia": "CS",
+    "serbia and montenegro": "CS",
+    // rc54.0: Multi-Region Pure-Europe
+    "europe": "EU",
+    "european union": "EU",
+    // rc54.0: Worldwide
+    "worldwide": "WO",
+    // rc54.0: Region-Sammelnamen (pragmatisch: traditionelles Pressland)
+    "benelux": "NL",
+    "scandinavia": "SE",
+    // rc54.0: Compound — primary-country-first (zerstörte Sekundär-Info, siehe Plan §5)
+    "uk & europe": "GB",
+    "uk & us": "GB",
+    "uk & ireland": "GB",
+    "uk & germany": "GB",
+    "uk & france": "GB",
+    "uk, europe & us": "GB",
+    "usa & europe": "US",
+    "usa & canada": "US",
+    "usa, canada & europe": "US",
+    "usa, canada & uk": "US",
+    "germany, austria, & switzerland": "DE",
+    "germany & switzerland": "DE",
+    "france & benelux": "FR",
+    "australia & new zealand": "AU",
   }
   if (aliases[q]) return findCountry(aliases[q])
   return ISO_COUNTRIES.find(
@@ -329,13 +383,39 @@ export function findCountryByName(name: string | null | undefined): IsoCountry |
   )
 }
 
+/**
+ * Flag-Override für Codes deren Regional-Indicator-Pair kein definiertes
+ * Emoji liefert. Aktuell nur WO (Worldwide, VOD-intern). EU rendert via
+ * normalem flagFor() korrekt zu 🇪🇺 — die Regional-Indicators E+U sind ein
+ * etabliertes Pair.
+ */
+const FLAG_OVERRIDE: Record<string, string> = {
+  WO: "🌐",
+}
+
+function flagWithOverride(code: string): string {
+  return FLAG_OVERRIDE[code] ?? flagFor(code)
+}
+
 /** Formats "🇩🇪 Germany (DE)" — fallback to just the code if unknown. */
 export function formatCountryLabel(code: string | null | undefined): string {
   if (!code) return ""
   const country = findCountry(code)
-  const flag = flagFor(code)
-  if (country) return `${flag} ${country.nameEn} (${country.code})`
+  if (country) return `${flagWithOverride(country.code)} ${country.nameEn} (${country.code})`
   return `⚠️ ${code} (non-ISO)`
+}
+
+/**
+ * Compact-Variante für enge Spalten (z.B. rc53.19 Stocktake-Search 110 px):
+ * "🇩🇪 DE" statt "🇩🇪 Germany (DE)". Für unbekannte Codes Fallback auf den
+ * Code-String selbst (ohne Warning-Symbol — Defense-in-Depth durch CHECK-
+ * Constraint nach rc54.0, aber falls doch was durchrutscht: kein UI-Crash).
+ */
+export function formatCountryCompact(code: string | null | undefined): string {
+  if (!code) return "—"
+  const country = findCountry(code)
+  if (!country) return code
+  return `${flagWithOverride(country.code)} ${country.code}`
 }
 
 /** Fuzzy-Filter: sucht in code/nameEn/nameDe. */
