@@ -11,7 +11,7 @@ import {
   getPrinterHealth,
   type PrinterHealth,
 } from "../../../../lib/print-client"
-import { displayFormat, type FormatValue } from "../../../../../lib/format-mapping"
+import { displayFormat, isValidFormat, toFormatGroup, type FormatValue, type FormatGroup } from "../../../../../lib/format-mapping"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -201,6 +201,64 @@ function GradeSelector({ label, value, onChange }: { label: string; value: Grade
   )
 }
 
+// ─── Format Filter Icons (Vinyl / Tape / Magazin) ───────────────────────────
+//
+// Drei Toggle-Icons rechts neben der Search-Bar. Aktiver Filter = gold,
+// inaktiv = neutral. Mehrfachauswahl ist erlaubt (Set semantics) — leeres Set
+// bedeutet "alles zeigen" und ist auch der initiale Zustand. Frank klickt nur
+// dann auf einen Filter wenn er gezielt verengen will, z.B. um die Vinyl-
+// Pressung zwischen 30 Kassetten-Treffern zu finden.
+
+const FORMAT_FILTER_BUTTONS: Array<{ group: FormatGroup; emoji: string; title: string }> = [
+  { group: "vinyl", emoji: "💿", title: "Platten" },
+  { group: "tapes", emoji: "📼", title: "Kassetten / Tapes" },
+  { group: "literature", emoji: "📖", title: "Magazine / Literatur" },
+]
+
+function FormatFilterIcons({
+  active,
+  onToggle,
+}: {
+  active: Set<FormatGroup>
+  onToggle: (g: FormatGroup) => void
+}) {
+  return (
+    <div style={{ display: "flex", gap: 6, alignItems: "stretch" }}>
+      {FORMAT_FILTER_BUTTONS.map(({ group, emoji, title }) => {
+        const isActive = active.has(group)
+        return (
+          <button
+            key={group}
+            type="button"
+            onClick={() => onToggle(group)}
+            title={`${title}${isActive ? " — aktiv" : ""}`}
+            aria-pressed={isActive}
+            style={{
+              width: 44,
+              minHeight: 44,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 0,
+              fontSize: 18,
+              lineHeight: 1,
+              background: isActive ? `${C.gold}1a` : C.card,
+              color: isActive ? C.gold : C.muted,
+              border: `1px solid ${isActive ? C.gold : C.border}`,
+              borderRadius: S.radius.md,
+              cursor: "pointer",
+              transition: "background 0.12s, border-color 0.12s, color 0.12s",
+              filter: isActive ? "none" : "grayscale(0.4) opacity(0.75)",
+            }}
+          >
+            {emoji}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 // ─── Main Session Page ──────────────────────────────────────────────────────
 
 function StocktakeSessionPage() {
@@ -212,6 +270,8 @@ function StocktakeSessionPage() {
   const [searchLoading, setSearchLoading] = useState(false)
   const [selectedResultIndex, setSelectedResultIndex] = useState(0)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  // Format-Filter-Toggles (Vinyl / Tape / Magazin). Leeres Set = alle anzeigen.
+  const [activeFormatFilters, setActiveFormatFilters] = useState<Set<FormatGroup>>(new Set())
 
   // Release detail + copies
   const [releaseDetail, setReleaseDetail] = useState<ReleaseDetail | null>(null)
@@ -350,6 +410,43 @@ function StocktakeSessionPage() {
     if (searchTimer.current) clearTimeout(searchTimer.current)
     searchTimer.current = setTimeout(() => doSearch(val), 250)
   }
+
+  // Group eines SearchResults bestimmen — bevorzugt format_v2, sonst Heuristik
+  // auf dem Legacy-format-Freitext (manche alte Releases haben kein format_v2).
+  const getResultGroup = useCallback((r: SearchResult): FormatGroup | null => {
+    if (r.format_v2 && isValidFormat(r.format_v2)) {
+      return toFormatGroup(r.format_v2 as FormatValue)
+    }
+    const f = (r.format || "").toLowerCase()
+    if (!f) return null
+    if (f.includes("vinyl") || f.includes("lp") || f.includes("flexi") || f.includes("acetate") || f.includes("shellac") || f.includes("lathe")) return "vinyl"
+    if (f.includes("tape") || f.includes("cassette") || f.includes("reel")) return "tapes"
+    if (f.includes("magazin") || f.includes("book") || f.includes("photo") || f.includes("poster") || f.includes("postcard") || f.includes("shirt")) return "literature"
+    return null
+  }, [])
+
+  const filteredResults = useMemo(() => {
+    if (activeFormatFilters.size === 0) return searchResults
+    return searchResults.filter((r) => {
+      const g = getResultGroup(r)
+      return g != null && activeFormatFilters.has(g)
+    })
+  }, [searchResults, activeFormatFilters, getResultGroup])
+
+  // Selected index zurücksetzen sobald die Filter-Menge sich ändert (sonst
+  // zeigt der Highlight-Cursor evtl. auf einen herausgefilterten Index).
+  useEffect(() => {
+    setSelectedResultIndex(0)
+  }, [activeFormatFilters, filteredResults.length])
+
+  const toggleFormatFilter = useCallback((g: FormatGroup) => {
+    setActiveFormatFilters((prev) => {
+      const next = new Set(prev)
+      if (next.has(g)) next.delete(g)
+      else next.add(g)
+      return next
+    })
+  }, [])
 
   // ── Open Release Detail ──
 
@@ -667,10 +764,10 @@ function StocktakeSessionPage() {
       }
 
       // Search results navigation
-      if (activeView === "search" && searchResults.length > 0) {
+      if (activeView === "search" && filteredResults.length > 0) {
         if (e.key === "ArrowDown") {
           e.preventDefault()
-          setSelectedResultIndex((i) => Math.min(i + 1, searchResults.length - 1))
+          setSelectedResultIndex((i) => Math.min(i + 1, filteredResults.length - 1))
           return
         }
         if (e.key === "ArrowUp") {
@@ -680,7 +777,7 @@ function StocktakeSessionPage() {
         }
         if (e.key === "Enter") {
           e.preventDefault()
-          openRelease(searchResults[selectedResultIndex].release_id)
+          openRelease(filteredResults[selectedResultIndex].release_id)
           return
         }
       }
@@ -711,7 +808,7 @@ function StocktakeSessionPage() {
 
     window.addEventListener("keydown", handler)
     return () => window.removeEventListener("keydown", handler)
-  }, [activeView, searchResults, selectedResultIndex, editingCopy, isNewCopy, releaseDetail, stats, doSearch, conditionMedia, conditionSleeve, priceValue, noteText])
+  }, [activeView, searchResults, filteredResults, selectedResultIndex, editingCopy, isNewCopy, releaseDetail, stats, doSearch, conditionMedia, conditionSleeve, priceValue, noteText])
 
   // ─── RENDER ──────────────────────────────────────────────────────────────
 
@@ -788,21 +885,21 @@ function StocktakeSessionPage() {
         </div>
       )}
 
-      {/* ── SEARCH BAR ── */}
-      <div style={{ marginBottom: S.gap.lg }}>
+      {/* ── SEARCH BAR + FORMAT FILTERS ── */}
+      <div style={{ marginBottom: S.gap.lg, display: "flex", gap: S.gap.sm, alignItems: "stretch" }}>
         <input
           ref={searchInputRef}
           type="text"
           value={searchQuery}
           onChange={(e) => handleSearchInput(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && searchResults.length > 0) {
+            if (e.key === "Enter" && filteredResults.length > 0) {
               e.preventDefault()
-              openRelease(searchResults[selectedResultIndex].release_id)
+              openRelease(filteredResults[selectedResultIndex].release_id)
             }
             if (e.key === "ArrowDown") {
               e.preventDefault()
-              setSelectedResultIndex((i) => Math.min(i + 1, searchResults.length - 1))
+              setSelectedResultIndex((i) => Math.min(i + 1, filteredResults.length - 1))
             }
             if (e.key === "ArrowUp") {
               e.preventDefault()
@@ -812,20 +909,21 @@ function StocktakeSessionPage() {
           placeholder="Artist, Titel, Katalognummer oder VOD-Nummer (z.B. VOD-19586) suchen..."
           style={{
             ...inputStyle,
-            width: "100%",
+            flex: 1,
             padding: "14px 16px",
             fontSize: 16,
             borderColor: activeView === "search" ? C.gold : C.border,
           }}
           autoFocus
         />
+        <FormatFilterIcons active={activeFormatFilters} onToggle={toggleFormatFilter} />
       </div>
 
       {/* ── SEARCH RESULTS ──
           Scrollbarer Container: bei generischen Tokens ("vanity", "music")
           kommen 50-500 Treffer. Ohne maxHeight wird die Page lang und Frank
           verliert die Recent-Items + Search-Bar aus dem Viewport. */}
-      {activeView === "search" && searchResults.length > 0 && (
+      {activeView === "search" && filteredResults.length > 0 && (
         <div style={{ ...cardStyle, marginBottom: S.gap.lg, padding: 0, overflow: "hidden" }}>
           <div style={{
             padding: "8px 16px",
@@ -837,10 +935,15 @@ function StocktakeSessionPage() {
             textTransform: "uppercase",
             letterSpacing: "0.05em",
           }}>
-            Treffer · {searchResults.length}
+            Treffer · {filteredResults.length}
+            {activeFormatFilters.size > 0 && filteredResults.length !== searchResults.length && (
+              <span style={{ color: C.muted, fontWeight: 400, marginLeft: 6, textTransform: "none", letterSpacing: 0 }}>
+                (von {searchResults.length} gefiltert)
+              </span>
+            )}
           </div>
           <div style={{ maxHeight: 600, overflowY: "auto" }}>
-          {searchResults.map((r, idx) => (
+          {filteredResults.map((r, idx) => (
             <div
               key={r.release_id}
               onClick={() => openRelease(r.release_id)}
@@ -851,7 +954,7 @@ function StocktakeSessionPage() {
                 padding: "10px 16px",
                 cursor: "pointer",
                 background: idx === selectedResultIndex ? C.hover : "transparent",
-                borderBottom: idx < searchResults.length - 1 ? `1px solid ${C.border}` : "none",
+                borderBottom: idx < filteredResults.length - 1 ? `1px solid ${C.border}` : "none",
                 transition: "background 0.1s",
               }}
               onMouseEnter={() => setSelectedResultIndex(idx)}
@@ -872,6 +975,21 @@ function StocktakeSessionPage() {
                   {r.label_name ? ` · ${r.label_name}` : ""}
                 </div>
               </div>
+              <div style={{
+                width: 110,
+                flexShrink: 0,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                ...T.small,
+                color: r.country ? C.text : C.muted,
+                fontWeight: r.country ? 500 : 400,
+                textAlign: "left",
+              }}
+                title={r.country || "Land unbekannt"}
+              >
+                {r.country || "—"}
+              </div>
               <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                 <div style={{ fontWeight: 600, color: C.gold }}>{r.legacy_price != null ? `€${r.legacy_price}` : ""}</div>
                 <div style={{ ...T.small, color: C.muted }}>
@@ -889,6 +1007,12 @@ function StocktakeSessionPage() {
       {activeView === "search" && searchQuery && !searchLoading && searchResults.length === 0 && (
         <div style={{ ...cardStyle, textAlign: "center", color: C.muted, padding: 40 }}>
           Kein Treffer für &quot;{searchQuery}&quot;
+        </div>
+      )}
+
+      {activeView === "search" && searchQuery && !searchLoading && searchResults.length > 0 && filteredResults.length === 0 && (
+        <div style={{ ...cardStyle, textAlign: "center", color: C.muted, padding: 40 }}>
+          {searchResults.length} Treffer, aber keiner passt zum Format-Filter — Filter anpassen oder zurücksetzen.
         </div>
       )}
 
