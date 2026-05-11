@@ -78,18 +78,21 @@ ALTER TABLE release_audit_log
 
 COMMIT;
 
--- ─── Release ────────────────────────────────────────────────────────────────
--- release_country_iso_format (rc54.0, 2026-05-11): erzwingt dass Release.country
--- entweder NULL ist oder dem ISO-3166-1 alpha-2 Format entspricht (zwei Großbuchstaben).
--- Plus deprecated ISO-3166-3 (YU, DD, CS, SU) für historische Releases und
--- reserved Codes EU (Pure-Europe) + WO (Worldwide).
+-- ─── Country-ISO-Format Constraints (rc54.0 + RSE-324) ─────────────────────
+-- Erzwingen ISO-3166-1 alpha-2 Format auf allen country-Feldern.
+-- Erlaubt: 249 reguläre ISO + 4 deprecated ISO-3166-3 (YU/DD/CS/SU) + 2 reserved (EU/WO).
 --
--- Backfill-Migration: backend/scripts/migrations/2026-05-11_country_iso_backfill.sql
+-- Backfill-Migrations:
+-- - backend/scripts/migrations/2026-05-11_country_iso_backfill.sql (Release)
+-- - backend/scripts/migrations/2026-05-11_pressorga_labelperson_country_iso_backfill.sql
 -- Konzept-Doku: docs/optimizing/COUNTRY_ISO_MIGRATION_PLAN.md
 --
--- ALTER TABLE "Release"
---   ADD CONSTRAINT release_country_iso_format
---   CHECK (country IS NULL OR country ~ '^[A-Z]{2}$');
+-- ALTER TABLE "Release"     ADD CONSTRAINT release_country_iso_format     CHECK (country IS NULL OR country ~ '^[A-Z]{2}$');
+-- ALTER TABLE "PressOrga"   ADD CONSTRAINT pressorga_country_iso_format   CHECK (country IS NULL OR country ~ '^[A-Z]{2}$');
+-- ALTER TABLE "LabelPerson" ADD CONSTRAINT labelperson_country_iso_format CHECK (country IS NULL OR country ~ '^[A-Z]{2}$');
+-- ALTER TABLE "Artist"      ADD CONSTRAINT artist_country_iso_format      CHECK (country IS NULL OR country ~ '^[A-Z]{2}$');
+-- ALTER TABLE "Label"       ADD CONSTRAINT label_country_iso_format       CHECK (country IS NULL OR country ~ '^[A-Z]{2}$');
+-- ALTER TABLE musician      ADD CONSTRAINT musician_country_iso_format    CHECK (country IS NULL OR country ~ '^[A-Z]{2}$');
 
 -- TODO (Backlog, niedrige Priorität): andere Tabellen mit Inline-CHECK-
 -- Constraints ohne expliziten Namen sollten ebenfalls explizite chk_*-
