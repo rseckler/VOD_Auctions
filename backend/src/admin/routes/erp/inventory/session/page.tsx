@@ -12,6 +12,7 @@ import {
   type PrinterHealth,
 } from "../../../../lib/print-client"
 import { displayFormat, isValidFormat, toFormatGroup, type FormatValue, type FormatGroup } from "../../../../../lib/format-mapping"
+import { formatCountryCompact, formatCountryLabel } from "../../../../data/country-iso"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -976,7 +977,7 @@ function StocktakeSessionPage() {
                 </div>
               </div>
               <div style={{
-                width: 110,
+                width: 90,
                 flexShrink: 0,
                 whiteSpace: "nowrap",
                 overflow: "hidden",
@@ -986,9 +987,11 @@ function StocktakeSessionPage() {
                 fontWeight: r.country ? 500 : 400,
                 textAlign: "left",
               }}
-                title={r.country || "Land unbekannt"}
+                title={r.country ? formatCountryLabel(r.country) : "Land unbekannt"}
               >
-                {r.country || "—"}
+                {/* rc54.0: Compact-Format (Flag + ISO) — DB-Wert ist seit
+                    Phase 4 Backfill garantiert ISO-3166-1 alpha-2. */}
+                {formatCountryCompact(r.country)}
               </div>
               <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                 <div style={{ fontWeight: 600, color: C.gold }}>{r.legacy_price != null ? `€${r.legacy_price}` : ""}</div>

@@ -10,7 +10,7 @@ import { SourceBadge } from "../../../components/release-detail/SourceBadge"
 import { LockBanner } from "../../../components/release-detail/LockBanner"
 import { ArtistPickerModal, LabelPickerModal, CountryPickerModal, FormatPickerModal, DescriptorPickerModal, GenrePickerModal, StylesPickerModal } from "../../../components/release-detail/PickerModals"
 import { DiscogsReviewModal, type DiscogsPreviewResponse } from "../../../components/release-detail/DiscogsReviewModal"
-import { findCountry, isValidIsoCode, flagFor } from "../../../data/country-iso"
+import { findCountry, isValidIsoCode, flagFor, formatCountryLabel } from "../../../data/country-iso"
 import { AuditHistory } from "../../../components/release-detail/AuditHistory"
 import { TrackManagement } from "../../../components/release-detail/TrackManagement"
 import { ReleaseImageGallery, type GalleryImage } from "../../../components/release-image-gallery"
@@ -1089,10 +1089,9 @@ const MediaDetailPage = () => {
     ["Title", release.title],
     ["Format", formatDescriptors.length > 0 ? `${formatLabel} (${formatDescriptors.join(", ")})` : formatLabel],
     ["Year", release.year != null ? String(release.year) : null],
-    ["Country", release.country ? (() => {
-      const c = findCountry(release.country)
-      return c ? `${flagFor(c.code)} ${c.nameEn} (${c.code})` : `⚠️ ${release.country} (non-ISO)`
-    })() : null],
+    // rc54.0: formatCountryLabel statt Inline-IIFE. Warn-Fallback bleibt drin
+    // als Defense-in-Depth — sollte durch CHECK-Constraint nie mehr feuern.
+    ["Country", release.country ? formatCountryLabel(release.country) : null],
     ["Label", release.label_name],
     ["CatNo", release.catalogNumber],
     ["Barcode", release.barcode],
