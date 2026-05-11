@@ -79,6 +79,7 @@ Requires .env in project root with LEGACY_DB_* and SUPABASE_DB_URL.
 
 import argparse
 import json
+import logging
 import os
 import re
 import sys
@@ -89,6 +90,8 @@ from pathlib import Path
 
 import psycopg2
 import psycopg2.extras
+
+from data.country_iso import normalize_country_to_iso
 
 from shared import (
     BATCH_SIZE,
@@ -222,10 +225,22 @@ HARD_STAMMDATEN_FIELDS = {
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
 def translate_country(name):
-    """Translate German country name to English."""
+    """Translate German country name to ISO-3166-1 alpha-2 (rc54.0).
+
+    Vorher: returnt English Name. Jetzt: returnt ISO-Code.
+    Unbekannte Strings werden zu NULL gemappt + geloggt (statt verbatim
+    durchgereicht — sonst stiller Datenverlust nach Phase 5 CHECK-Constraint).
+    """
     if not name:
         return None
-    return COUNTRY_DE_TO_EN.get(name, name)
+    english = COUNTRY_DE_TO_EN.get(name, name)
+    iso = normalize_country_to_iso(english)
+    if iso is None:
+        logging.warning(
+            "legacy_sync: unknown country %r (DE→EN resolved: %r) → NULL",
+            name, english,
+        )
+    return iso
 
 
 def normalize_value(value):

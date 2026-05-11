@@ -843,7 +843,15 @@ grep -rn "country.*=.*'\(Germany\|United Kingdom\|UK\|Europe\)" backend/src scri
 
 ### 4.2 Backfill-SQL
 
-(Volle 88-Werte-Mapping-Tabelle aus `COUNTRY_ISO_MIGRATION_PLAN.md` §7. Hier nur das Skelett — kompletter SQL liegt unter `scripts/migrations/2026-05-XX_country_iso_backfill.sql`)
+(Volle Mapping-Tabelle aus `COUNTRY_ISO_MIGRATION_PLAN.md` §7. Hier nur das Skelett — kompletter SQL liegt unter `scripts/migrations/2026-05-XX_country_iso_backfill.sql`)
+
+**Erkenntnisse aus Phase 0.5 Sandbox-Test (2026-05-11):**
+- Step 0 muss empty-string UND whitespace-strings (`trim(country) = ''`) cleanen
+- Step 0b muss leading/trailing-whitespace trimmen (Discogs hat selten Trailing Spaces)
+- Step 1 muss `WHERE LOWER(country) = LOWER(m.source)` matchen — case-insensitive (Discovery: kein Prod-Wert ist heute lowercase, aber defensive). Performance bei 48k Rows einmalig irrelevant.
+- Backfill-SQL muss als EIN Statement im selben execute_sql laufen (Supabase MCP: jeder execute_sql ist eine eigene auto-commit Transaktion. BEGIN/COMMIT-Wrapper innerhalb eines Calls = OK, aber `BEGIN;` in einem Call und `COMMIT;` in einem anderen = implicit rollback nach 1. Call)
+- 2 zusätzliche Mappings nötig (entdeckt in Phase 0.3 Discogs-Audit): `('UK & France', 'GB')` und `('Australia & New Zealand', 'AU')`
+- Lithuania/Latvia kommen aus Discogs aber sind via `findCountryByName(nameEn)` auto-resolved im Normalizer-Code — im Backfill-SQL TROTZDEM explizit ergänzen weil Backfill-SQL nicht den TS-Normalizer nutzt, sondern reines SQL-CASE-Mapping.
 
 ```sql
 BEGIN;

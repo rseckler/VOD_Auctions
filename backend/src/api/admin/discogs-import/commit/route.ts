@@ -21,6 +21,7 @@ import { isR2Configured, downloadOptimizeUpload } from "../../../../lib/image-up
 import { lockFields } from "../../../../lib/release-locks"
 import { classifyDiscogsFormat } from "../../../../lib/format-mapping"
 import { pickArtistDisplayName, type DiscogsArtistEntry } from "../../../../lib/artist-display"
+import { normalizeCountryToIso } from "../../../../lib/country-normalize"
 
 // ─── POST /admin/discogs-import/commit ───────────────────────────────────────
 // SSE Stream with phase-based progress:
@@ -735,7 +736,7 @@ export async function POST(
             artistDisplayName,
             row.catalog_number,
             (cached?.year as number) || row.year,
-            (cached?.country as string) || "",
+            normalizeCountryToIso((cached?.country as string) || ""),  // rc54.0: ISO-2 only
             formatResult,
             formatDetail,
             formatV2.format,

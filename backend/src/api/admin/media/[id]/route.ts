@@ -8,6 +8,7 @@ import { logEdit, HARD_STAMMDATEN_FIELDS, SYSTEM_ID_FIELDS, looseEqual } from ".
 import { validateReleaseStammdaten } from "../../../../lib/release-validation"
 import { lockFields, getHardFieldsInBody } from "../../../../lib/release-locks"
 import { isValidFormat, isValidDescriptor } from "../../../../lib/format-mapping"
+import { normalizeCountryToIso } from "../../../../lib/country-normalize"
 import { isValidGenre } from "../../../../admin/data/genre-styles"
 import { downloadOptimizeUpload, isR2Configured, isR2Url } from "../../../../lib/image-upload"
 import { findOrCreateLabelByName } from "../../../../lib/label-resolver"
@@ -281,6 +282,22 @@ export async function POST(
     if (body[field] !== undefined) {
       releaseUpdates[field] = body[field]
     }
+  }
+
+  // rc54.0: country defensiv durch Normalizer. Picker liefert schon ISO,
+  // aber idempotent + verhindert dass jemand via API einen raw "Germany"-
+  // String reinwirft. Nach Phase 5 würde die CHECK-Constraint das blocken,
+  // aber wir geben eine cleaner Fehlermeldung wenn wir hier early-rejecten.
+  if (releaseUpdates.country !== undefined && releaseUpdates.country !== null) {
+    const normalized = normalizeCountryToIso(String(releaseUpdates.country))
+    if (normalized === null && releaseUpdates.country) {
+      res.status(400).json({
+        error: "invalid_country",
+        message: `Country '${releaseUpdates.country}' is not a valid ISO-3166-1 alpha-2 code or known alias`,
+      })
+      return
+    }
+    releaseUpdates.country = normalized
   }
 
   // Normalize genres/styles: accept string[] directly or split "a, b, c" string
