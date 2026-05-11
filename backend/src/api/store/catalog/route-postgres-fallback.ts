@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import { buildReleaseSearchSubquery } from "../../../lib/release-search"
 import { getSiteConfig } from "../../../lib/site-config"
+import { resolveCountryForFilter } from "../../../lib/country-resolve"
 
 // Map German (and other common) country names to English DB values
 const COUNTRY_ALIASES: Record<string, string> = {
@@ -319,9 +320,15 @@ export async function catalogGetPostgres(
   }
 
   if (country && typeof country === "string") {
-    const resolved = resolveCountry(country)
-    query = query.whereILike("Release.country", `%${resolved}%`)
-    countQuery = countQuery.whereILike("Release.country", `%${resolved}%`)
+    // rc54.0 dual-tolerant: während der Country-ISO-Migration enthält DB
+    // gemixt ISO-Codes + English-Names. resolveCountryForFilter returnt
+    // alle bekannten DB-Werte für diesen ISO. Nach Phase 6-Cleanup wieder
+    // auf single-value vereinfachen (siehe COUNTRY_ISO_MIGRATION_IMPLEMENTATION).
+    const variants = resolveCountryForFilter(country)
+    if (variants.length > 0) {
+      query = query.whereIn("Release.country", variants)
+      countQuery = countQuery.whereIn("Release.country", variants)
+    }
   }
 
   if (year_from && typeof year_from === "string") {

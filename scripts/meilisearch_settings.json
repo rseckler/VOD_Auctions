@@ -127,15 +127,1350 @@
     "has_inventory"
   ],
   "stopWords": [
-    "the", "a", "an", "and", "of", "for", "with",
-    "der", "die", "das", "und", "oder", "fuer", "für", "mit", "von"
+    "the",
+    "a",
+    "an",
+    "and",
+    "of",
+    "for",
+    "with",
+    "der",
+    "die",
+    "das",
+    "und",
+    "oder",
+    "fuer",
+    "für",
+    "mit",
+    "von"
   ],
   "synonyms": {
-    "industrial": ["industrial music"],
-    "noise": ["japanoise"],
-    "power electronics": ["pe"],
-    "dark ambient": ["drone", "isolationism"],
-    "ebm": ["electronic body music"]
+    "industrial": [
+      "industrial music"
+    ],
+    "noise": [
+      "japanoise"
+    ],
+    "power electronics": [
+      "pe"
+    ],
+    "dark ambient": [
+      "drone",
+      "isolationism"
+    ],
+    "ebm": [
+      "electronic body music"
+    ],
+    "german": [
+      "de",
+      "deutschland",
+      "germany",
+      "germany & switzerland",
+      "germany, austria, & switzerland"
+    ],
+    "de": [
+      "deutschland",
+      "german",
+      "germany",
+      "germany & switzerland",
+      "germany, austria, & switzerland"
+    ],
+    "germany": [
+      "de",
+      "deutschland",
+      "german",
+      "germany & switzerland",
+      "germany, austria, & switzerland"
+    ],
+    "deutschland": [
+      "de",
+      "german",
+      "germany",
+      "germany & switzerland",
+      "germany, austria, & switzerland"
+    ],
+    "germany, austria, & switzerland": [
+      "de",
+      "deutschland",
+      "german",
+      "germany",
+      "germany & switzerland"
+    ],
+    "germany & switzerland": [
+      "de",
+      "deutschland",
+      "german",
+      "germany",
+      "germany, austria, & switzerland"
+    ],
+    "usa": [
+      "america",
+      "amerika",
+      "united states",
+      "us",
+      "usa & canada",
+      "usa & europe",
+      "usa, canada & europe",
+      "usa, canada & uk",
+      "vereinigte staaten"
+    ],
+    "vereinigte staaten": [
+      "america",
+      "amerika",
+      "united states",
+      "us",
+      "usa",
+      "usa & canada",
+      "usa & europe",
+      "usa, canada & europe",
+      "usa, canada & uk"
+    ],
+    "america": [
+      "amerika",
+      "united states",
+      "us",
+      "usa",
+      "usa & canada",
+      "usa & europe",
+      "usa, canada & europe",
+      "usa, canada & uk",
+      "vereinigte staaten"
+    ],
+    "united states": [
+      "america",
+      "amerika",
+      "us",
+      "usa",
+      "usa & canada",
+      "usa & europe",
+      "usa, canada & europe",
+      "usa, canada & uk",
+      "vereinigte staaten"
+    ],
+    "usa, canada & uk": [
+      "america",
+      "amerika",
+      "united states",
+      "us",
+      "usa",
+      "usa & canada",
+      "usa & europe",
+      "usa, canada & europe",
+      "vereinigte staaten"
+    ],
+    "usa, canada & europe": [
+      "america",
+      "amerika",
+      "united states",
+      "us",
+      "usa",
+      "usa & canada",
+      "usa & europe",
+      "usa, canada & uk",
+      "vereinigte staaten"
+    ],
+    "usa & canada": [
+      "america",
+      "amerika",
+      "united states",
+      "us",
+      "usa",
+      "usa & europe",
+      "usa, canada & europe",
+      "usa, canada & uk",
+      "vereinigte staaten"
+    ],
+    "usa & europe": [
+      "america",
+      "amerika",
+      "united states",
+      "us",
+      "usa",
+      "usa & canada",
+      "usa, canada & europe",
+      "usa, canada & uk",
+      "vereinigte staaten"
+    ],
+    "us": [
+      "america",
+      "amerika",
+      "united states",
+      "usa",
+      "usa & canada",
+      "usa & europe",
+      "usa, canada & europe",
+      "usa, canada & uk",
+      "vereinigte staaten"
+    ],
+    "amerika": [
+      "america",
+      "united states",
+      "us",
+      "usa",
+      "usa & canada",
+      "usa & europe",
+      "usa, canada & europe",
+      "usa, canada & uk",
+      "vereinigte staaten"
+    ],
+    "uk & germany": [
+      "england",
+      "gb",
+      "great britain",
+      "grossbritannien",
+      "großbritannien",
+      "uk",
+      "uk & europe",
+      "uk & france",
+      "uk & ireland",
+      "uk & us",
+      "uk, europe & us",
+      "united kingdom",
+      "vereinigtes koenigreich",
+      "vereinigtes königreich"
+    ],
+    "uk & europe": [
+      "england",
+      "gb",
+      "great britain",
+      "grossbritannien",
+      "großbritannien",
+      "uk",
+      "uk & france",
+      "uk & germany",
+      "uk & ireland",
+      "uk & us",
+      "uk, europe & us",
+      "united kingdom",
+      "vereinigtes koenigreich",
+      "vereinigtes königreich"
+    ],
+    "grossbritannien": [
+      "england",
+      "gb",
+      "great britain",
+      "großbritannien",
+      "uk",
+      "uk & europe",
+      "uk & france",
+      "uk & germany",
+      "uk & ireland",
+      "uk & us",
+      "uk, europe & us",
+      "united kingdom",
+      "vereinigtes koenigreich",
+      "vereinigtes königreich"
+    ],
+    "vereinigtes koenigreich": [
+      "england",
+      "gb",
+      "great britain",
+      "grossbritannien",
+      "großbritannien",
+      "uk",
+      "uk & europe",
+      "uk & france",
+      "uk & germany",
+      "uk & ireland",
+      "uk & us",
+      "uk, europe & us",
+      "united kingdom",
+      "vereinigtes königreich"
+    ],
+    "united kingdom": [
+      "england",
+      "gb",
+      "great britain",
+      "grossbritannien",
+      "großbritannien",
+      "uk",
+      "uk & europe",
+      "uk & france",
+      "uk & germany",
+      "uk & ireland",
+      "uk & us",
+      "uk, europe & us",
+      "vereinigtes koenigreich",
+      "vereinigtes königreich"
+    ],
+    "uk & ireland": [
+      "england",
+      "gb",
+      "great britain",
+      "grossbritannien",
+      "großbritannien",
+      "uk",
+      "uk & europe",
+      "uk & france",
+      "uk & germany",
+      "uk & us",
+      "uk, europe & us",
+      "united kingdom",
+      "vereinigtes koenigreich",
+      "vereinigtes königreich"
+    ],
+    "gb": [
+      "england",
+      "great britain",
+      "grossbritannien",
+      "großbritannien",
+      "uk",
+      "uk & europe",
+      "uk & france",
+      "uk & germany",
+      "uk & ireland",
+      "uk & us",
+      "uk, europe & us",
+      "united kingdom",
+      "vereinigtes koenigreich",
+      "vereinigtes königreich"
+    ],
+    "uk": [
+      "england",
+      "gb",
+      "great britain",
+      "grossbritannien",
+      "großbritannien",
+      "uk & europe",
+      "uk & france",
+      "uk & germany",
+      "uk & ireland",
+      "uk & us",
+      "uk, europe & us",
+      "united kingdom",
+      "vereinigtes koenigreich",
+      "vereinigtes königreich"
+    ],
+    "england": [
+      "gb",
+      "great britain",
+      "grossbritannien",
+      "großbritannien",
+      "uk",
+      "uk & europe",
+      "uk & france",
+      "uk & germany",
+      "uk & ireland",
+      "uk & us",
+      "uk, europe & us",
+      "united kingdom",
+      "vereinigtes koenigreich",
+      "vereinigtes königreich"
+    ],
+    "great britain": [
+      "england",
+      "gb",
+      "grossbritannien",
+      "großbritannien",
+      "uk",
+      "uk & europe",
+      "uk & france",
+      "uk & germany",
+      "uk & ireland",
+      "uk & us",
+      "uk, europe & us",
+      "united kingdom",
+      "vereinigtes koenigreich",
+      "vereinigtes königreich"
+    ],
+    "großbritannien": [
+      "england",
+      "gb",
+      "great britain",
+      "grossbritannien",
+      "uk",
+      "uk & europe",
+      "uk & france",
+      "uk & germany",
+      "uk & ireland",
+      "uk & us",
+      "uk, europe & us",
+      "united kingdom",
+      "vereinigtes koenigreich",
+      "vereinigtes königreich"
+    ],
+    "uk & us": [
+      "england",
+      "gb",
+      "great britain",
+      "grossbritannien",
+      "großbritannien",
+      "uk",
+      "uk & europe",
+      "uk & france",
+      "uk & germany",
+      "uk & ireland",
+      "uk, europe & us",
+      "united kingdom",
+      "vereinigtes koenigreich",
+      "vereinigtes königreich"
+    ],
+    "uk, europe & us": [
+      "england",
+      "gb",
+      "great britain",
+      "grossbritannien",
+      "großbritannien",
+      "uk",
+      "uk & europe",
+      "uk & france",
+      "uk & germany",
+      "uk & ireland",
+      "uk & us",
+      "united kingdom",
+      "vereinigtes koenigreich",
+      "vereinigtes königreich"
+    ],
+    "vereinigtes königreich": [
+      "england",
+      "gb",
+      "great britain",
+      "grossbritannien",
+      "großbritannien",
+      "uk",
+      "uk & europe",
+      "uk & france",
+      "uk & germany",
+      "uk & ireland",
+      "uk & us",
+      "uk, europe & us",
+      "united kingdom",
+      "vereinigtes koenigreich"
+    ],
+    "uk & france": [
+      "england",
+      "gb",
+      "great britain",
+      "grossbritannien",
+      "großbritannien",
+      "uk",
+      "uk & europe",
+      "uk & germany",
+      "uk & ireland",
+      "uk & us",
+      "uk, europe & us",
+      "united kingdom",
+      "vereinigtes koenigreich",
+      "vereinigtes königreich"
+    ],
+    "jp": [
+      "japan"
+    ],
+    "japan": [
+      "jp"
+    ],
+    "fr": [
+      "france",
+      "france & benelux",
+      "frankreich"
+    ],
+    "frankreich": [
+      "fr",
+      "france",
+      "france & benelux"
+    ],
+    "france": [
+      "fr",
+      "france & benelux",
+      "frankreich"
+    ],
+    "france & benelux": [
+      "fr",
+      "france",
+      "frankreich"
+    ],
+    "italien": [
+      "it",
+      "italy"
+    ],
+    "it": [
+      "italien",
+      "italy"
+    ],
+    "italy": [
+      "it",
+      "italien"
+    ],
+    "holland": [
+      "benelux",
+      "netherlands",
+      "niederlande",
+      "nl"
+    ],
+    "nl": [
+      "benelux",
+      "holland",
+      "netherlands",
+      "niederlande"
+    ],
+    "benelux": [
+      "holland",
+      "netherlands",
+      "niederlande",
+      "nl"
+    ],
+    "niederlande": [
+      "benelux",
+      "holland",
+      "netherlands",
+      "nl"
+    ],
+    "netherlands": [
+      "benelux",
+      "holland",
+      "niederlande",
+      "nl"
+    ],
+    "be": [
+      "belgien",
+      "belgium"
+    ],
+    "belgium": [
+      "be",
+      "belgien"
+    ],
+    "belgien": [
+      "be",
+      "belgium"
+    ],
+    "kanada": [
+      "ca",
+      "canada"
+    ],
+    "canada": [
+      "ca",
+      "kanada"
+    ],
+    "ca": [
+      "canada",
+      "kanada"
+    ],
+    "schweiz": [
+      "ch",
+      "suisse",
+      "switzerland"
+    ],
+    "suisse": [
+      "ch",
+      "schweiz",
+      "switzerland"
+    ],
+    "ch": [
+      "schweiz",
+      "suisse",
+      "switzerland"
+    ],
+    "switzerland": [
+      "ch",
+      "schweiz",
+      "suisse"
+    ],
+    "australien": [
+      "au",
+      "australia",
+      "australia & new zealand"
+    ],
+    "australia & new zealand": [
+      "au",
+      "australia",
+      "australien"
+    ],
+    "australia": [
+      "au",
+      "australia & new zealand",
+      "australien"
+    ],
+    "au": [
+      "australia",
+      "australia & new zealand",
+      "australien"
+    ],
+    "es": [
+      "spain",
+      "spanien"
+    ],
+    "spain": [
+      "es",
+      "spanien"
+    ],
+    "spanien": [
+      "es",
+      "spain"
+    ],
+    "austria": [
+      "at",
+      "oesterreich",
+      "österreich"
+    ],
+    "oesterreich": [
+      "at",
+      "austria",
+      "österreich"
+    ],
+    "österreich": [
+      "at",
+      "austria",
+      "oesterreich"
+    ],
+    "at": [
+      "austria",
+      "oesterreich",
+      "österreich"
+    ],
+    "schweden": [
+      "scandinavia",
+      "se",
+      "sverige",
+      "sweden"
+    ],
+    "sverige": [
+      "scandinavia",
+      "schweden",
+      "se",
+      "sweden"
+    ],
+    "scandinavia": [
+      "schweden",
+      "se",
+      "sverige",
+      "sweden"
+    ],
+    "se": [
+      "scandinavia",
+      "schweden",
+      "sverige",
+      "sweden"
+    ],
+    "sweden": [
+      "scandinavia",
+      "schweden",
+      "se",
+      "sverige"
+    ],
+    "norge": [
+      "no",
+      "norway",
+      "norwegen"
+    ],
+    "norway": [
+      "no",
+      "norge",
+      "norwegen"
+    ],
+    "no": [
+      "norge",
+      "norway",
+      "norwegen"
+    ],
+    "norwegen": [
+      "no",
+      "norge",
+      "norway"
+    ],
+    "polen": [
+      "pl",
+      "poland",
+      "polska"
+    ],
+    "poland": [
+      "pl",
+      "polen",
+      "polska"
+    ],
+    "polska": [
+      "pl",
+      "poland",
+      "polen"
+    ],
+    "pl": [
+      "poland",
+      "polen",
+      "polska"
+    ],
+    "denmark": [
+      "daenemark",
+      "dk",
+      "dänemark"
+    ],
+    "dk": [
+      "daenemark",
+      "denmark",
+      "dänemark"
+    ],
+    "dänemark": [
+      "daenemark",
+      "denmark",
+      "dk"
+    ],
+    "daenemark": [
+      "denmark",
+      "dk",
+      "dänemark"
+    ],
+    "finland": [
+      "fi",
+      "finnland",
+      "suomi"
+    ],
+    "suomi": [
+      "fi",
+      "finland",
+      "finnland"
+    ],
+    "fi": [
+      "finland",
+      "finnland",
+      "suomi"
+    ],
+    "finnland": [
+      "fi",
+      "finland",
+      "suomi"
+    ],
+    "ireland": [
+      "ie",
+      "irland"
+    ],
+    "irland": [
+      "ie",
+      "ireland"
+    ],
+    "ie": [
+      "ireland",
+      "irland"
+    ],
+    "island": [
+      "iceland",
+      "is"
+    ],
+    "is": [
+      "iceland",
+      "island"
+    ],
+    "iceland": [
+      "is",
+      "island"
+    ],
+    "portugal": [
+      "pt"
+    ],
+    "pt": [
+      "portugal"
+    ],
+    "ungarn": [
+      "hu",
+      "hungary"
+    ],
+    "hu": [
+      "hungary",
+      "ungarn"
+    ],
+    "hungary": [
+      "hu",
+      "ungarn"
+    ],
+    "czech republic": [
+      "cz",
+      "czechia",
+      "tschechien"
+    ],
+    "cz": [
+      "czech republic",
+      "czechia",
+      "tschechien"
+    ],
+    "czechia": [
+      "cz",
+      "czech republic",
+      "tschechien"
+    ],
+    "tschechien": [
+      "cz",
+      "czech republic",
+      "czechia"
+    ],
+    "sk": [
+      "slovakia"
+    ],
+    "slovakia": [
+      "sk"
+    ],
+    "slovenia": [
+      "si"
+    ],
+    "si": [
+      "slovenia"
+    ],
+    "croatia": [
+      "hr"
+    ],
+    "hr": [
+      "croatia"
+    ],
+    "rumänien": [
+      "ro",
+      "romania",
+      "rumaenien"
+    ],
+    "romania": [
+      "ro",
+      "rumaenien",
+      "rumänien"
+    ],
+    "rumaenien": [
+      "ro",
+      "romania",
+      "rumänien"
+    ],
+    "ro": [
+      "romania",
+      "rumaenien",
+      "rumänien"
+    ],
+    "bulgaria": [
+      "bg"
+    ],
+    "bg": [
+      "bulgaria"
+    ],
+    "jugoslawien": [
+      "yu",
+      "yugoslavia"
+    ],
+    "yugoslavia": [
+      "jugoslawien",
+      "yu"
+    ],
+    "yu": [
+      "jugoslawien",
+      "yugoslavia"
+    ],
+    "serbia": [
+      "rs"
+    ],
+    "rs": [
+      "serbia"
+    ],
+    "lt": [
+      "lithuania"
+    ],
+    "lithuania": [
+      "lt"
+    ],
+    "latvia": [
+      "lv"
+    ],
+    "lv": [
+      "latvia"
+    ],
+    "ee": [
+      "estonia"
+    ],
+    "estonia": [
+      "ee"
+    ],
+    "ua": [
+      "ukraine"
+    ],
+    "ukraine": [
+      "ua"
+    ],
+    "belarus": [
+      "by"
+    ],
+    "by": [
+      "belarus"
+    ],
+    "lu": [
+      "luxembourg"
+    ],
+    "luxembourg": [
+      "lu"
+    ],
+    "greece": [
+      "gr",
+      "griechenland"
+    ],
+    "gr": [
+      "greece",
+      "griechenland"
+    ],
+    "griechenland": [
+      "gr",
+      "greece"
+    ],
+    "tr": [
+      "turkey"
+    ],
+    "turkey": [
+      "tr"
+    ],
+    "cy": [
+      "cyprus"
+    ],
+    "cyprus": [
+      "cy"
+    ],
+    "mt": [
+      "malta"
+    ],
+    "malta": [
+      "mt"
+    ],
+    "mexiko": [
+      "mexico",
+      "mx"
+    ],
+    "mexico": [
+      "mexiko",
+      "mx"
+    ],
+    "mx": [
+      "mexico",
+      "mexiko"
+    ],
+    "brazil": [
+      "br",
+      "brasilien"
+    ],
+    "br": [
+      "brasilien",
+      "brazil"
+    ],
+    "brasilien": [
+      "br",
+      "brazil"
+    ],
+    "argentinien": [
+      "ar",
+      "argentina"
+    ],
+    "argentina": [
+      "ar",
+      "argentinien"
+    ],
+    "ar": [
+      "argentina",
+      "argentinien"
+    ],
+    "chile": [
+      "cl"
+    ],
+    "cl": [
+      "chile"
+    ],
+    "pe": [
+      "peru"
+    ],
+    "peru": [
+      "pe"
+    ],
+    "co": [
+      "colombia"
+    ],
+    "colombia": [
+      "co"
+    ],
+    "ve": [
+      "venezuela"
+    ],
+    "venezuela": [
+      "ve"
+    ],
+    "uy": [
+      "uruguay"
+    ],
+    "uruguay": [
+      "uy"
+    ],
+    "gt": [
+      "guatemala"
+    ],
+    "guatemala": [
+      "gt"
+    ],
+    "new zealand": [
+      "nz"
+    ],
+    "nz": [
+      "new zealand"
+    ],
+    "papua new guinea": [
+      "pg"
+    ],
+    "pg": [
+      "papua new guinea"
+    ],
+    "china": [
+      "cn"
+    ],
+    "cn": [
+      "china"
+    ],
+    "hong kong": [
+      "hk"
+    ],
+    "hk": [
+      "hong kong"
+    ],
+    "taiwan": [
+      "tw"
+    ],
+    "tw": [
+      "taiwan"
+    ],
+    "korea": [
+      "kr",
+      "south korea"
+    ],
+    "kr": [
+      "korea",
+      "south korea"
+    ],
+    "south korea": [
+      "korea",
+      "kr"
+    ],
+    "india": [
+      "in"
+    ],
+    "in": [
+      "india"
+    ],
+    "id": [
+      "indonesia"
+    ],
+    "indonesia": [
+      "id"
+    ],
+    "th": [
+      "thailand"
+    ],
+    "thailand": [
+      "th"
+    ],
+    "my": [
+      "malaysia"
+    ],
+    "malaysia": [
+      "my"
+    ],
+    "singapore": [
+      "sg"
+    ],
+    "sg": [
+      "singapore"
+    ],
+    "philippines": [
+      "ph"
+    ],
+    "ph": [
+      "philippines"
+    ],
+    "vietnam": [
+      "vn"
+    ],
+    "vn": [
+      "vietnam"
+    ],
+    "il": [
+      "israel"
+    ],
+    "israel": [
+      "il"
+    ],
+    "lebanon": [
+      "lb"
+    ],
+    "lb": [
+      "lebanon"
+    ],
+    "south africa": [
+      "suedafrika",
+      "südafrika",
+      "za"
+    ],
+    "südafrika": [
+      "south africa",
+      "suedafrika",
+      "za"
+    ],
+    "suedafrika": [
+      "south africa",
+      "südafrika",
+      "za"
+    ],
+    "za": [
+      "south africa",
+      "suedafrika",
+      "südafrika"
+    ],
+    "eg": [
+      "egypt"
+    ],
+    "egypt": [
+      "eg"
+    ],
+    "ma": [
+      "morocco"
+    ],
+    "morocco": [
+      "ma"
+    ],
+    "nigeria": [
+      "ng"
+    ],
+    "ng": [
+      "nigeria"
+    ],
+    "kenya": [
+      "ke"
+    ],
+    "ke": [
+      "kenya"
+    ],
+    "tn": [
+      "tunisia"
+    ],
+    "tunisia": [
+      "tn"
+    ],
+    "algeria": [
+      "dz"
+    ],
+    "dz": [
+      "algeria"
+    ],
+    "russia": [
+      "ru",
+      "russland"
+    ],
+    "russland": [
+      "ru",
+      "russia"
+    ],
+    "ru": [
+      "russia",
+      "russland"
+    ],
+    "kz": [
+      "kazakhstan"
+    ],
+    "kazakhstan": [
+      "kz"
+    ],
+    "united arab emirates": [
+      "ae"
+    ],
+    "ae": [
+      "united arab emirates"
+    ],
+    "sa": [
+      "saudi arabia"
+    ],
+    "saudi arabia": [
+      "sa"
+    ],
+    "iran": [
+      "ir"
+    ],
+    "ir": [
+      "iran"
+    ],
+    "pr": [
+      "puerto rico"
+    ],
+    "puerto rico": [
+      "pr"
+    ],
+    "jamaica": [
+      "jm"
+    ],
+    "jm": [
+      "jamaica"
+    ],
+    "cuba": [
+      "cu"
+    ],
+    "cu": [
+      "cuba"
+    ],
+    "dominican republic": [
+      "do"
+    ],
+    "do": [
+      "dominican republic"
+    ],
+    "costa rica": [
+      "cr"
+    ],
+    "cr": [
+      "costa rica"
+    ],
+    "pa": [
+      "panama"
+    ],
+    "panama": [
+      "pa"
+    ],
+    "ussr": [
+      "soviet union",
+      "sowjetunion",
+      "su"
+    ],
+    "soviet union": [
+      "sowjetunion",
+      "su",
+      "ussr"
+    ],
+    "sowjetunion": [
+      "soviet union",
+      "su",
+      "ussr"
+    ],
+    "su": [
+      "soviet union",
+      "sowjetunion",
+      "ussr"
+    ],
+    "east germany (gdr)": [
+      "dd",
+      "ddr",
+      "deutsche demokratische republik",
+      "east germany",
+      "gdr",
+      "german democratic republic",
+      "german democratic republic (gdr)"
+    ],
+    "dd": [
+      "ddr",
+      "deutsche demokratische republik",
+      "east germany",
+      "east germany (gdr)",
+      "gdr",
+      "german democratic republic",
+      "german democratic republic (gdr)"
+    ],
+    "ddr": [
+      "dd",
+      "deutsche demokratische republik",
+      "east germany",
+      "east germany (gdr)",
+      "gdr",
+      "german democratic republic",
+      "german democratic republic (gdr)"
+    ],
+    "east germany": [
+      "dd",
+      "ddr",
+      "deutsche demokratische republik",
+      "east germany (gdr)",
+      "gdr",
+      "german democratic republic",
+      "german democratic republic (gdr)"
+    ],
+    "german democratic republic (gdr)": [
+      "dd",
+      "ddr",
+      "deutsche demokratische republik",
+      "east germany",
+      "east germany (gdr)",
+      "gdr",
+      "german democratic republic"
+    ],
+    "gdr": [
+      "dd",
+      "ddr",
+      "deutsche demokratische republik",
+      "east germany",
+      "east germany (gdr)",
+      "german democratic republic",
+      "german democratic republic (gdr)"
+    ],
+    "german democratic republic": [
+      "dd",
+      "ddr",
+      "deutsche demokratische republik",
+      "east germany",
+      "east germany (gdr)",
+      "gdr",
+      "german democratic republic (gdr)"
+    ],
+    "deutsche demokratische republik": [
+      "dd",
+      "ddr",
+      "east germany",
+      "east germany (gdr)",
+      "gdr",
+      "german democratic republic",
+      "german democratic republic (gdr)"
+    ],
+    "serbia and montenegro": [
+      "cs",
+      "czechoslovakia"
+    ],
+    "czechoslovakia": [
+      "cs",
+      "serbia and montenegro"
+    ],
+    "cs": [
+      "czechoslovakia",
+      "serbia and montenegro"
+    ],
+    "europa": [
+      "eu",
+      "europe",
+      "european union"
+    ],
+    "europe": [
+      "eu",
+      "europa",
+      "european union"
+    ],
+    "eu": [
+      "europa",
+      "europe",
+      "european union"
+    ],
+    "european union": [
+      "eu",
+      "europa",
+      "europe"
+    ],
+    "welt": [
+      "weltweit",
+      "wo",
+      "world",
+      "worldwide"
+    ],
+    "world": [
+      "welt",
+      "weltweit",
+      "wo",
+      "worldwide"
+    ],
+    "weltweit": [
+      "welt",
+      "wo",
+      "world",
+      "worldwide"
+    ],
+    "worldwide": [
+      "welt",
+      "weltweit",
+      "wo",
+      "world"
+    ],
+    "wo": [
+      "welt",
+      "weltweit",
+      "world",
+      "worldwide"
+    ],
+    "türkiye": [
+      "tr",
+      "turkey"
+    ]
   },
   "typoTolerance": {
     "enabled": true,
@@ -143,7 +1478,11 @@
       "oneTypo": 4,
       "twoTypos": 8
     },
-    "disableOnAttributes": ["catalog_number", "article_number", "inventory_barcode"]
+    "disableOnAttributes": [
+      "catalog_number",
+      "article_number",
+      "inventory_barcode"
+    ]
   },
   "faceting": {
     "maxValuesPerFacet": 100,
