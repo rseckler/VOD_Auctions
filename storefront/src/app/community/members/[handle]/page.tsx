@@ -89,7 +89,7 @@ export default async function MemberProfilePage({
                 <span className="sep" />
               )}
               {profile.collector_since && (
-                <span>Sammler seit {profile.collector_since}</span>
+                <span>Collecting since {profile.collector_since}</span>
               )}
             </div>
             {profile.bio && <div className="cm-profile-bio">{profile.bio}</div>}
@@ -114,11 +114,11 @@ export default async function MemberProfilePage({
         <div className="cm-stats-bar">
           <div className="cm-stat">
             <div className="cm-stat-num">{stats.posts}</div>
-            <div className="cm-stat-label">Beiträge</div>
+            <div className="cm-stat-label">Posts</div>
           </div>
           <div className="cm-stat">
             <div className="cm-stat-num">{stats.comments}</div>
-            <div className="cm-stat-label">Kommentare</div>
+            <div className="cm-stat-label">Comments</div>
           </div>
           <div className="cm-stat">
             <div className="cm-stat-num">{stats.reviews}</div>
@@ -128,7 +128,7 @@ export default async function MemberProfilePage({
 
         <div style={{ padding: "8px 0 64px" }}>
           {posts.length === 0 ? (
-            <div className="cm-empty">Noch keine Beiträge.</div>
+            <div className="cm-empty">No posts yet.</div>
           ) : (
             <div className="cm-feed">
               {posts.map((p) =>

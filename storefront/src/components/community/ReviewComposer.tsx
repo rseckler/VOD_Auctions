@@ -28,21 +28,21 @@ export function ReviewComposer({ releaseId }: { releaseId: string }) {
     return (
       <div className="cm-empty">
         <Link href="/account" className="cm-link-gold">
-          Melde dich an
+          Sign in
         </Link>{" "}
-        um dieses Release zu bewerten.
+        to review this release.
       </div>
     )
   }
 
   if (done) {
-    return <div className="cm-empty">Danke — deine Bewertung ist gespeichert ✓</div>
+    return <div className="cm-empty">Thanks — your review has been saved ✓</div>
   }
 
   async function submit() {
     if (busy) return
     if (rating < 1) {
-      setError("Bitte wähle 1–5 Sterne.")
+      setError("Please pick 1–5 stars.")
       return
     }
     setBusy(true)
@@ -57,7 +57,9 @@ export function ReviewComposer({ releaseId }: { releaseId: string }) {
       router.refresh()
     } catch (e) {
       setError(
-        e instanceof CommunityError ? e.message : "Fehler — erneut versuchen."
+        e instanceof CommunityError
+          ? e.message
+          : "Something went wrong — please try again."
       )
     } finally {
       setBusy(false)
@@ -83,12 +85,12 @@ export function ReviewComposer({ releaseId }: { releaseId: string }) {
           </button>
         ))}
         <span className="cm-rating-picker-label">
-          {rating > 0 ? `${rating}/5` : "Bewerten"}
+          {rating > 0 ? `${rating}/5` : "Rate"}
         </span>
       </div>
       <textarea
         className="cm-composer-input"
-        placeholder="Optional: ein paar Worte zu diesem Release…"
+        placeholder="Optional: a few words about this release…"
         value={text}
         onChange={(e) => setText(e.target.value)}
       />
@@ -101,7 +103,7 @@ export function ReviewComposer({ releaseId }: { releaseId: string }) {
           disabled={busy}
           style={{ marginLeft: "auto" }}
         >
-          {busy ? "Senden…" : "Bewertung abgeben"}
+          {busy ? "Sending…" : "Submit Review"}
         </button>
       </div>
     </div>

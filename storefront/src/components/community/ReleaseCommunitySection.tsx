@@ -72,7 +72,7 @@ export async function ReleaseCommunitySection({
               <strong>{reviews.average_rating.toFixed(1)}</strong>
               <span>
                 · {reviews.rating_count}{" "}
-                {reviews.rating_count === 1 ? "Bewertung" : "Bewertungen"}
+                {reviews.rating_count === 1 ? "rating" : "ratings"}
               </span>
             </span>
           )}
@@ -80,9 +80,7 @@ export async function ReleaseCommunitySection({
         <ReviewComposer releaseId={releaseId} />
         <div className="cm-review-list">
           {reviews.reviews.length === 0 ? (
-            <div className="cm-empty">
-              Noch keine Reviews — sei die oder der Erste.
-            </div>
+            <div className="cm-empty">No reviews yet — be the first.</div>
           ) : (
             reviews.reviews.map((r) => <ReviewCard key={r.id} review={r} />)
           )}
@@ -91,17 +89,17 @@ export async function ReleaseCommunitySection({
 
       <div className="cm-community-block">
         <div className="cm-community-block-head">
-          <h3>Diskussion</h3>
+          <h3>Discussion</h3>
           <Link
             href={`/community/compose?release_id=${encodeURIComponent(releaseId)}`}
             className="cm-btn cm-btn-outline cm-btn-sm"
           >
-            Beitrag schreiben
+            Write a post
           </Link>
         </div>
         {feed.posts.length === 0 ? (
           <div className="cm-empty">
-            Noch keine Diskussion zu diesem Release.
+            No discussion about this release yet.
           </div>
         ) : (
           <div className="cm-feed">

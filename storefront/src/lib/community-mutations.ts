@@ -26,7 +26,7 @@ async function authReq<T>(
 ): Promise<T> {
   const token = getToken()
   if (!token) {
-    throw new CommunityError("Bitte melde dich an.", 401)
+    throw new CommunityError("Please sign in.", 401)
   }
   let res: Response
   try {
@@ -40,12 +40,12 @@ async function authReq<T>(
       body: body ? JSON.stringify(body) : undefined,
     })
   } catch {
-    throw new CommunityError("Netzwerkfehler — bitte erneut versuchen.", 0)
+    throw new CommunityError("Network error — please try again.", 0)
   }
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
     throw new CommunityError(
-      (data as { message?: string })?.message || "Etwas ist schiefgelaufen.",
+      (data as { message?: string })?.message || "Something went wrong.",
       res.status
     )
   }

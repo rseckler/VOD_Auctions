@@ -35,7 +35,11 @@ export function ReactionsBar({
         return next
       })
     } catch (e) {
-      setError(e instanceof CommunityError ? e.message : "Fehler — erneut versuchen.")
+      setError(
+        e instanceof CommunityError
+          ? e.message
+          : "Something went wrong — please try again."
+      )
     } finally {
       setBusy(false)
     }

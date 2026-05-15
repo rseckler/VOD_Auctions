@@ -35,7 +35,7 @@ export function PostEditor({
         HTMLAttributes: { rel: "noopener noreferrer nofollow", target: "_blank" },
       }),
       Placeholder.configure({
-        placeholder: placeholder || "Teile deine Gedanken…",
+        placeholder: placeholder || "Share your thoughts…",
       }),
     ],
     content: "",
@@ -47,7 +47,7 @@ export function PostEditor({
   const setLink = useCallback(() => {
     if (!editor) return
     const prev = editor.getAttributes("link").href as string | undefined
-    const url = window.prompt("Link-URL", prev || "https://")
+    const url = window.prompt("Link URL", prev || "https://")
     if (url === null) return
     if (url.trim() === "") {
       editor.chain().focus().extendMarkRange("link").unsetLink().run()
@@ -69,7 +69,7 @@ export function PostEditor({
       <div className="cm-editor-toolbar">
         <button
           type="button"
-          title="Fett"
+          title="Bold"
           className={"cm-composer-tool" + (editor.isActive("bold") ? " is-active" : "")}
           onClick={() => editor.chain().focus().toggleBold().run()}
         >
@@ -77,7 +77,7 @@ export function PostEditor({
         </button>
         <button
           type="button"
-          title="Kursiv"
+          title="Italic"
           className={"cm-composer-tool" + (editor.isActive("italic") ? " is-active" : "")}
           onClick={() => editor.chain().focus().toggleItalic().run()}
         >
@@ -85,7 +85,7 @@ export function PostEditor({
         </button>
         <button
           type="button"
-          title="Überschrift"
+          title="Heading"
           className={
             "cm-composer-tool" +
             (editor.isActive("heading", { level: 2 }) ? " is-active" : "")
@@ -96,7 +96,7 @@ export function PostEditor({
         </button>
         <button
           type="button"
-          title="Unterüberschrift"
+          title="Subheading"
           className={
             "cm-composer-tool" +
             (editor.isActive("heading", { level: 3 }) ? " is-active" : "")
@@ -107,7 +107,7 @@ export function PostEditor({
         </button>
         <button
           type="button"
-          title="Liste"
+          title="Bullet list"
           className={
             "cm-composer-tool" + (editor.isActive("bulletList") ? " is-active" : "")
           }
@@ -117,7 +117,7 @@ export function PostEditor({
         </button>
         <button
           type="button"
-          title="Nummerierte Liste"
+          title="Numbered list"
           className={
             "cm-composer-tool" + (editor.isActive("orderedList") ? " is-active" : "")
           }
@@ -127,7 +127,7 @@ export function PostEditor({
         </button>
         <button
           type="button"
-          title="Zitat"
+          title="Quote"
           className={
             "cm-composer-tool" + (editor.isActive("blockquote") ? " is-active" : "")
           }

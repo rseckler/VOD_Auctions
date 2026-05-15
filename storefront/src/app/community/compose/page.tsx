@@ -25,7 +25,7 @@ export default function CommunityComposePage() {
   const [releaseId, setReleaseId] = useState<string | null>(null)
 
   // Optional release anchor — set when arriving from a release page's
-  // "Beitrag schreiben" link (/community/compose?release_id=…).
+  // "Write a post" link (/community/compose?release_id=…).
   useEffect(() => {
     setReleaseId(
       new URLSearchParams(window.location.search).get("release_id")
@@ -47,7 +47,7 @@ export default function CommunityComposePage() {
   async function submit() {
     if (busy) return
     if (!text.trim() && !title.trim()) {
-      setError("Titel oder Text erforderlich.")
+      setError("Title or body required.")
       return
     }
     setBusy(true)
@@ -66,7 +66,11 @@ export default function CommunityComposePage() {
       })
       router.push(`/community/post/${post.slug || post.id}`)
     } catch (e) {
-      setError(e instanceof CommunityError ? e.message : "Fehler — erneut versuchen.")
+      setError(
+        e instanceof CommunityError
+          ? e.message
+          : "Something went wrong — please try again."
+      )
       setBusy(false)
     }
   }
@@ -74,7 +78,7 @@ export default function CommunityComposePage() {
   if (loading) {
     return (
       <div className="cm-container-narrow" style={{ padding: "48px 0" }}>
-        Lädt…
+        Loading…
       </div>
     )
   }
@@ -84,9 +88,9 @@ export default function CommunityComposePage() {
       <div className="cm-container-narrow" style={{ padding: "48px 0" }}>
         <div className="cm-empty">
           <Link href="/account" className="cm-link-gold">
-            Melde dich an
+            Sign in
           </Link>{" "}
-          um einen Beitrag zu schreiben.
+          to write a post.
         </div>
       </div>
     )
@@ -98,12 +102,12 @@ export default function CommunityComposePage() {
       style={{ paddingTop: 32, paddingBottom: 64 }}
     >
       <h1 className="cm-hub-title" style={{ marginBottom: 20, fontSize: 30 }}>
-        Neuer Beitrag
+        New Post
       </h1>
 
       {releaseId && (
         <p className="cm-hub-sub" style={{ marginBottom: 16 }}>
-          Dieser Beitrag wird mit dem ausgewählten Release verknüpft.
+          This post will be linked to the selected release.
         </p>
       )}
 
@@ -114,7 +118,7 @@ export default function CommunityComposePage() {
             className={kind === "discussion" ? "is-active" : ""}
             onClick={() => setKind("discussion")}
           >
-            Diskussion
+            Discussion
           </button>
           <button
             type="button"
@@ -128,14 +132,14 @@ export default function CommunityComposePage() {
 
       <input
         className="cm-compose-title"
-        placeholder="Titel (optional)"
+        placeholder="Title (optional)"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         maxLength={200}
       />
 
       <PostEditor
-        placeholder="Teile deine Gedanken mit der Community…"
+        placeholder="Share your thoughts with the community…"
         onChange={(h, j, t) => {
           setHtml(h)
           setJson(j)
@@ -145,7 +149,7 @@ export default function CommunityComposePage() {
 
       <input
         className="cm-compose-tags"
-        placeholder="Tags, kommagetrennt (optional)"
+        placeholder="Tags, comma-separated (optional)"
         value={tags}
         onChange={(e) => setTags(e.target.value)}
       />
@@ -159,7 +163,7 @@ export default function CommunityComposePage() {
           disabled={busy}
           style={{ marginLeft: "auto" }}
         >
-          {busy ? "Veröffentlichen…" : "Veröffentlichen"}
+          {busy ? "Publishing…" : "Publish"}
         </button>
       </div>
     </div>

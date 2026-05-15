@@ -23,7 +23,7 @@ export async function generateMetadata({
   return {
     title: post?.title
       ? `${post.title} — VOD Community`
-      : "Beitrag — VOD Community",
+      : "Post — VOD Community",
   }
 }
 
@@ -39,7 +39,7 @@ export default async function CommunityPostPage({
   const comments = await fetchComments(post.id)
   const isEditorial = post.kind === "editorial"
   const dateLabel = new Date(post.published_at || post.created_at).toLocaleDateString(
-    "de-DE",
+    "en-US",
     { weekday: "long", day: "numeric", month: "long", year: "numeric" }
   )
 
@@ -54,7 +54,7 @@ export default async function CommunityPostPage({
             <span style={{ color: "var(--primary)" }}>From the Vault</span>
           </div>
         )}
-        <h1 className="cm-post-detail-title">{post.title || "Ohne Titel"}</h1>
+        <h1 className="cm-post-detail-title">{post.title || "Untitled"}</h1>
 
         <div className="cm-author-strip">
           <Link

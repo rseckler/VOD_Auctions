@@ -117,7 +117,9 @@ export default function CommunitySettingsPage() {
       setSaved(true)
     } catch (e) {
       setError(
-        e instanceof CommunityError ? e.message : "Fehler — erneut versuchen."
+        e instanceof CommunityError
+          ? e.message
+          : "Something went wrong — please try again."
       )
     } finally {
       setBusy(false)
@@ -127,7 +129,7 @@ export default function CommunitySettingsPage() {
   if (loading || loadingProfile) {
     return (
       <div className="cm-container-narrow" style={{ padding: "48px 0" }}>
-        Lädt…
+        Loading…
       </div>
     )
   }
@@ -137,9 +139,9 @@ export default function CommunitySettingsPage() {
       <div className="cm-container-narrow" style={{ padding: "48px 0" }}>
         <div className="cm-empty">
           <Link href="/account" className="cm-link-gold">
-            Melde dich an
+            Sign in
           </Link>{" "}
-          um dein Profil zu bearbeiten.
+          to edit your profile.
         </div>
       </div>
     )
@@ -168,7 +170,7 @@ export default function CommunitySettingsPage() {
       style={{ paddingTop: 32, paddingBottom: 64 }}
     >
       <h1 className="cm-hub-title" style={{ fontSize: 30, marginBottom: 6 }}>
-        Profil bearbeiten
+        Edit Profile
       </h1>
       {profile && (
         <p className="cm-hub-sub" style={{ marginBottom: 24 }}>
@@ -176,29 +178,29 @@ export default function CommunitySettingsPage() {
             href={`/community/members/${profile.handle}`}
             className="cm-link-gold"
           >
-            → Dein öffentliches Profil ansehen
+            → View your public profile
           </Link>
         </p>
       )}
 
       <div className="cm-form-grid">
-        {field("display_name", "Anzeigename")}
-        {field("handle", "Handle", { placeholder: "3–30 Zeichen: a–z 0–9 _ -" })}
+        {field("display_name", "Display name")}
+        {field("handle", "Handle", { placeholder: "3–30 chars: a–z 0–9 _ -" })}
         <div className="cm-field cm-field-full">
           <label className="cm-field-label">Bio</label>
           <textarea
             className="cm-textarea"
             value={form.bio}
             maxLength={1000}
-            placeholder="Erzähl der Community von dir und deiner Sammlung…"
+            placeholder="Tell the community about yourself and your collection…"
             onChange={(e) => set("bio", e.target.value)}
           />
         </div>
-        {field("location", "Ort")}
-        {field("pronouns", "Pronomen")}
-        {field("collector_since", "Sammler seit (Jahr)", { type: "number" })}
-        {field("avatar_url", "Avatar-Bild (URL)")}
-        {field("header_url", "Header-Bild (URL)")}
+        {field("location", "Location")}
+        {field("pronouns", "Pronouns")}
+        {field("collector_since", "Collecting since (year)", { type: "number" })}
+        {field("avatar_url", "Avatar image (URL)")}
+        {field("header_url", "Header image (URL)")}
         {field("bandcamp", "Bandcamp")}
         {field("discogs", "Discogs")}
         {field("soundcloud", "SoundCloud")}
@@ -207,7 +209,7 @@ export default function CommunitySettingsPage() {
 
       <div className="cm-compose-foot">
         {error && <span className="cm-composer-error">{error}</span>}
-        {saved && <span className="cm-settings-success">Gespeichert ✓</span>}
+        {saved && <span className="cm-settings-success">Saved ✓</span>}
         <button
           type="button"
           className="cm-btn cm-btn-primary cm-btn-lg"
@@ -215,7 +217,7 @@ export default function CommunitySettingsPage() {
           disabled={busy}
           style={{ marginLeft: "auto" }}
         >
-          {busy ? "Speichern…" : "Speichern"}
+          {busy ? "Saving…" : "Save"}
         </button>
       </div>
     </div>

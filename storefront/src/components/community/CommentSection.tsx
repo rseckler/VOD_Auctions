@@ -69,7 +69,7 @@ function CommentRow({
               className="cm-comment-action"
               onClick={() => onReply(comment)}
             >
-              Antworten
+              Reply
             </button>
           </div>
         )}
@@ -109,7 +109,11 @@ export function CommentSection({
       setText("")
       setReplyTo(null)
     } catch (e) {
-      setError(e instanceof CommunityError ? e.message : "Fehler — erneut versuchen.")
+      setError(
+        e instanceof CommunityError
+          ? e.message
+          : "Something went wrong — please try again."
+      )
     } finally {
       setBusy(false)
     }
@@ -119,7 +123,7 @@ export function CommentSection({
     <section>
       <div className="cm-comments-head">
         <div className="cm-comments-head-title">
-          {comments.length} {comments.length === 1 ? "Kommentar" : "Kommentare"}
+          {comments.length} {comments.length === 1 ? "Comment" : "Comments"}
         </div>
       </div>
 
@@ -128,7 +132,7 @@ export function CommentSection({
           <div style={{ flex: 1 }}>
             {replyTo && (
               <div className="cm-composer-replyctx">
-                Antwort an {replyTo.author.display_name}
+                Replying to {replyTo.author.display_name}
                 <button type="button" onClick={() => setReplyTo(null)}>
                   ✕
                 </button>
@@ -136,7 +140,7 @@ export function CommentSection({
             )}
             <textarea
               className="cm-composer-input"
-              placeholder="Teile deine Gedanken…"
+              placeholder="Share your thoughts…"
               value={text}
               onChange={(e) => setText(e.target.value)}
             />
@@ -149,7 +153,7 @@ export function CommentSection({
                 disabled={busy || !text.trim()}
                 style={{ marginLeft: "auto" }}
               >
-                {busy ? "Senden…" : "Kommentar posten"}
+                {busy ? "Sending…" : "Post Comment"}
               </button>
             </div>
           </div>
@@ -157,9 +161,9 @@ export function CommentSection({
       ) : (
         <div className="cm-empty" style={{ marginBottom: 24 }}>
           <Link href="/account" className="cm-link-gold">
-            Melde dich an
+            Sign in
           </Link>{" "}
-          um mitzudiskutieren.
+          to join the discussion.
         </div>
       )}
 
@@ -173,7 +177,7 @@ export function CommentSection({
           </div>
         ))}
         {comments.length === 0 && (
-          <div className="cm-empty">Noch keine Kommentare.</div>
+          <div className="cm-empty">No comments yet.</div>
         )}
       </div>
     </section>

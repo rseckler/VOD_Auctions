@@ -6,7 +6,7 @@ import { PostCard, EditorialCard } from "@/components/community/CommunityUI"
 export const metadata: Metadata = {
   title: "Community — VOD Auctions",
   description:
-    "Wo die Industrial-, Power-Electronics- und Tape-Underground-Sammler diskutieren.",
+    "Where collectors of industrial, power-electronics and tape-underground music talk.",
 }
 
 // Hub feed — newest published posts, the latest editorial pinned as hero.
@@ -28,14 +28,14 @@ export default async function CommunityHubPage() {
       <header className="cm-hub-head">
         <h1 className="cm-hub-title">Community</h1>
         <p className="cm-hub-sub">
-          Wo die Industrial-Sammler-Welt diskutiert.
+          Where the industrial collector world talks.
         </p>
         <div className="cm-hub-actions" style={{ display: "flex", gap: 8 }}>
           <Link href="/community/compose" className="cm-btn cm-btn-primary">
-            Neuer Beitrag
+            New Post
           </Link>
           <Link href="/community/settings" className="cm-btn cm-btn-outline">
-            Mein Profil
+            My Profile
           </Link>
         </div>
       </header>
@@ -48,7 +48,7 @@ export default async function CommunityHubPage() {
 
       {isEmpty ? (
         <div className="cm-empty">
-          Noch keine Beiträge — die Community startet gerade.
+          No posts yet — the community is just getting started.
         </div>
       ) : (
         <div className="cm-feed">
