@@ -91,3 +91,8 @@ docs/audit_discogs_flagged_*.csv
 
 # Claude Code local config (machine-specific, worktrees)
 .claude/
+
+# Sensitive business analyses — kept local-only, deliberately not in version control
+docs/business/INTERNATIONALE_STEUER_GESELLSCHAFTSSTRUKTUR_ANALYSE_2026.md
+docs/business/PRIVATSAMMLUNG_VS_GEWERBE_STRATEGIE_2026.md
+docs/business/RELOCATION_GANZE_FIRMA_STANDORT_ANALYSE_2026.md
