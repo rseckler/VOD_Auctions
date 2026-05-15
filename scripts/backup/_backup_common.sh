@@ -108,5 +108,7 @@ setup_traps() {
 local_retention_cleanup() {
   local keep_days="${LOCAL_RETENTION_DAYS:-3}"
   find "$BACKUP_ROOT" -maxdepth 2 -type f -mtime "+$keep_days" -delete 2>/dev/null || true
-  find "$BACKUP_ROOT" -maxdepth 2 -type d -empty -mtime "+$keep_days" -delete 2>/dev/null || true
+  # Empty dirs without mtime gate: deleting files inside touches the parent's mtime to "now",
+  # so `-mtime +N` never matches and old empty backup dirs accumulate forever.
+  find "$BACKUP_ROOT" -maxdepth 2 -type d -empty -delete 2>/dev/null || true
 }
