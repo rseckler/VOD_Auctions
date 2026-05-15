@@ -150,6 +150,14 @@ export const FEATURES = {
     category: "platform",
     requires: [],
   },
+  // ─── Community flags — visibility gate for the Community surface ─────────────
+  COMMUNITY: {
+    key: "COMMUNITY",
+    default: false,
+    description: "VOD Community — Member-Profile, Posts, Comments, Reactions, Catalog-Anchored Discussion + Reviews. Bei OFF: /community-Storefront-Routen + /admin/community antworten 404, kein Discussion/Review-Tab auf Release-Seiten, kein Community-Nav-Eintrag. Tabellen (community_*) + Code existieren unabhängig vom Flag. Siehe docs/Community/Community Concept.md §17.",
+    category: "platform",
+    requires: [],
+  },
 } as const satisfies Record<string, FeatureFlagDefinition>
 
 export type FeatureFlagKey = keyof typeof FEATURES
@@ -171,6 +179,10 @@ export type FeatureFlagKey = keyof typeof FEATURES
 // Keep this list short and deliberate. A flag is private by default.
 export const CLIENT_SAFE_FLAGS: readonly FeatureFlagKey[] = [
   "EXPERIMENTAL_SKIP_BID_CONFIRMATION",
+  // Purely presentational: the storefront needs to know whether to render the
+  // Community nav entry + route the /community pages. Knowing a community
+  // surface exists grants an attacker nothing.
+  "COMMUNITY",
 ] as const
 
 export function isClientSafeFlag(key: string): key is FeatureFlagKey {

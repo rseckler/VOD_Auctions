@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { ImageGallery } from "@/components/ImageGallery"
 import { CatalogRelatedSection } from "@/components/CatalogRelatedSection"
+import { isCommunityEnabled } from "@/lib/community-api"
+import { ReleaseCommunitySection } from "@/components/community/ReleaseCommunitySection"
 import { DirectPurchaseButton } from "@/components/DirectPurchaseButton"
 import { SaveForLaterButton } from "@/components/SaveForLaterButton"
 import { ShareButton } from "@/components/ShareButton"
@@ -140,6 +142,7 @@ export default async function CatalogDetailPage({
   if (!data) notFound()
 
   const release = data.release
+  const communityEnabled = await isCommunityEnabled()
 
   // Category-aware context: artist for releases/band_lit, label for label_lit, press org for press_lit
   const cat = release.product_category
@@ -538,6 +541,13 @@ export default async function CatalogDetailPage({
         relatedByArtist={release.related_by_artist || []}
         relatedByLabel={release.related_by_label || []}
       />
+
+      {communityEnabled && (
+        <>
+          <Separator className="my-8" />
+          <ReleaseCommunitySection releaseId={release.id} />
+        </>
+      )}
 
       <Separator className="my-8" />
       <Button variant="ghost" asChild>

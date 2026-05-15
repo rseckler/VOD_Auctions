@@ -3,7 +3,7 @@
 **Status:** Draft v1 (2026-05-05)
 **Owner:** Robin Seckler
 **Stakeholder:** Frank Maier (Inhalt + Curation), Robin Seckler (Tech + Plattform)
-**Version:** 0.1 — initialer Konzept-Wurf, noch nicht abgesegnet
+**Version:** 0.2 — 2026-05-15 Update §17 ergänzt: Build-Strategie (direkt in Plattform, Flag `COMMUNITY`), Increment-1-Plan, Legacy-Review-Integration. Bei Konflikt mit §1–§16 gewinnt §17.
 **Verwandte Docs:** [`CRM_SYSTEM_STATE_2026-05-04.md`](../architecture/CRM_SYSTEM_STATE_2026-05-04.md), [`POST_AUCTION_MARKETING_FUNNEL.md`](../optimizing/POST_AUCTION_MARKETING_FUNNEL.md), [`NEWSLETTER_CRM_HYBRID_PLAN.md`](../optimizing/NEWSLETTER_CRM_HYBRID_PLAN.md)
 
 ---
@@ -1224,4 +1224,128 @@ Beide Wünsche sind im Konzept berücksichtigt — hier die Plain-Language-Antwo
 
 ---
 
-**Ende des Konzepts. Robin freut sich über Fragen, Korrekturen, Veto auf einzelne Punkte. Niemand ist hier in Stein gemeißelt.**
+**Ende des ursprünglichen Konzepts (§1–§16). Robin freut sich über Fragen, Korrekturen, Veto auf einzelne Punkte. Niemand ist hier in Stein gemeißelt.**
+
+---
+
+## 17. Update 2026-05-15 — Build-Strategie, Increment 1 & Legacy-Review-Integration
+
+Dieser Abschnitt konsolidiert die Entscheidungen der Planungs-Session vom 2026-05-15. **Bei Konflikt mit §1–§16 gewinnt §17.**
+
+### 17.1 Build-Strategie: direkt in die Plattform, hinter Feature-Flag
+
+**Entscheidung:** **Kein separater MVP.** Die Community wird direkt in die bestehende Plattform (`storefront/` + `backend/`) gebaut, hinter einem neuen Feature-Flag **`COMMUNITY`** (`backend/src/lib/feature-flags.ts` + `site_config.features` JSONB), **OFF by default**.
+
+**Begründung:**
+- Plattform ist `beta_test` — Passwort-Gate, keine Live-Kunden, kein Kundenrisiko.
+- Die zwei Konzept-USPs (Catalog-Anchored-Threads §5.2 + CRM-Tier-Vererbung §6.5) funktionieren *nur* in der echten Plattform — ein Standalone-MVP hätte genau sie nicht testen können.
+- Separater MVP = Wegwerf-Code + späterer Port-Aufwand. Direkt-Build spart den Port vollständig.
+- „Deploy early, activate when ready" ist bereits Plattform-Doktrin (`DEPLOYMENT_METHODOLOGY.md`).
+
+**Disziplin-Bedingungen:**
+- Klein iterieren — Increment 1 zuerst, nicht M1–M18 in einem Rutsch. Der Flag erlaubt schrittweises Freischalten.
+- Additive-only Schema, neue `community_*`-Tabellen, Migration via Supabase MCP `apply_migration` (vor Anwendung einzeln zur Freigabe).
+- DDL parallel auf Tier-2-Replica spiegeln (Logical-Replication-Regel, `project_logical_replication`).
+- Member-Identität = Medusa-`customer` (1:1, `community_profile.id = customer.id`) — **kein eigenes Auth**.
+- CLAUDE.md-Gotchas strikt: Route-Prefix `community` (nicht-nativ, OK), kein `test` in Verzeichnisnamen, Vite-Cache-Clear bei neuen Admin-Routes, Knex-Patterns, Meili-Trigger-Whitelist.
+
+### 17.2 Increment 1 — Scope
+
+Erstes Increment hinter `COMMUNITY`-Flag = die 4 Design-Brief-Screens, funktional minimal:
+
+1. **Community-Hub-Landing** — statischer Feed (alle Posts reverse-chrono), Frank-Editorial als Hero
+2. **Single-Post-Page** — Tiptap-Body + Embeds + Reactions + Comments
+3. **Member-Profil-Page** — Avatar, Header, Bio, Tier-Badge, Stats, eigene Posts
+4. **Catalog-Anchored-Discussion** — Discussion- + Reviews-Tab auf der Release-Seite
+
+**Drin:** Posts (Tiptap, Bild-Upload, YouTube/Bandcamp-Embeds), Comments (1 Threading-Ebene), Reactions (7 Emoji), Reviews + Rating, Editorial-Sondertreatment via `kind='editorial'`.
+
+**Raus (spätere Increments):** Following-System, Tag-Browser/-Filter, eigene Dispatch-Spur, Notification-Center, Moderation-Queue, Trust-Levels, Suche, CRM-Tier-Vererbung (Tier im Increment 1 manuell gesetzt), FB-Import.
+
+**Increment 1 = 5 Tabellen:** `community_profile`, `community_post`, `community_comment`, `community_reaction`, **`community_review`** — letztere NEU aus Phase-2-S2 vorgezogen, weil Frank Reviews von Anfang an auf der Release-Seite will.
+
+### 17.3 Die 4 Inhaltstypen auf der Release-Seite
+
+Konzeptionelle Klärung: Auf der Artikel-Einzelseite gibt es vier verschiedene Inhaltstypen, die technisch getrennt bleiben — **aber alle umfassen Frank**. Frank ist *nicht* „außerhalb" der Community, er ist ihr zentralster Member. Die Trennung verläuft entlang „Katalogdaten vs. Gespräch", nicht „Frank vs. Members".
+
+| Block | Inhalt | Quelle | Increment |
+|---|---|---|---|
+| **Curator-Note** | Franks editorialer Text zum Tonträger | `Release.description` (existiert, 34.142/52.788 befüllt) — dargestellt mit Franks Curator-Identität (Avatar + „🎙 VOD Curator") | bereits da |
+| **From the Vault** | Franks FB-Posts mit Release-Bezug | `community_post`, `imported_from='facebook'` | **Schritt 2** (FB-Migration) |
+| **Discussion** | Member-Posts/-Kommentare zum Release | `community_post`/`community_comment` mit `release_id` | Increment 1 |
+| **Reviews + Rating** | Bewertungen 1–5 Sterne + Text | `community_review` | Increment 1 |
+
+`Release.description` bleibt eine **Eigenschaft des Tonträgers** (Katalog-Metadaten, vom Sync versorgt, im Katalog-Admin editiert) — keine Migration in Community-Posts (das hieße 34k Records migrieren + Sync-Pipeline brechen, ohne Mehrwert). Die *Darstellung* trägt Franks Curator-Identität, damit er auch hier sichtbar präsent ist.
+
+**Content-Pool-Prinzip:** Ein `community_post` kann optional an ein Release angeheftet sein (`release_id`). Mit Anker → erscheint auf der Release-Seite **und** im Hub-Feed. Ohne Anker → nur im Hub. **Ein Content-Pool, zwei Eingänge** — keine zwei getrennten Systeme.
+
+### 17.4 Rating-Skala: ganzzahlig 1–5
+
+**Entscheidung:** `community_review.rating smallint`, gültige Werte **1–5 ganzzahlig**, `NULL` = keine Bewertung. **Keine Halb-Sterne** (§4.2-S2 hatte 0,5–5,0 vorgeschlagen — verworfen). Begründung: matcht Franks Wunsch *und* die Legacy-Daten exakt. Halb-Sterne wären später ein trivialer Wechsel auf `numeric(2,1)`.
+
+**Aggregat:** `avg(rating)` + `count` rollen per Trigger in die bereits existierenden, aktuell leeren Spalten `Release.averageRating` (double) + `Release.ratingCount` (int) — keine neue Spalte nötig. `averageRating` ggf. in die 22-Feld-Meili-Trigger-Whitelist aufnehmen, falls danach sortiert/gefiltert wird.
+
+### 17.5 Legacy-Review-Import (`3wadmin_tapes_comment`)
+
+**Inventar 2026-05-15:** Die Legacy-MySQL `vodtapes.3wadmin_tapes_comment` (500 Rows, live 2017-01 → 2026-04-24) ist Franks „Kommentar- + Bewertungsfeld" — *eine* Tabelle, die beides macht.
+
+**Schema:** `id` PK · `tid` (Ziel-Item-ID) · `typ` (Ziel-Typ, 8 Werte: 8/1/5/7/2/3/6/4) · `user` (FK → `3wadmin_extranet_user`) · `rate` (0–5, **0 = keine Bewertung**) · `text` (HTML-entity-encoded, EN+DE) · `date`.
+
+**Verteilung:** 133 Member · 388 Items · rate: 251×0 / 189×5 / 25×4 / 24×3 / wenige 1–2 · 166 Zeilen Text+Rating · 83 nur Rating · ~251 nur Kommentar · 36 (user,tid)-Dubletten.
+
+**Import-Mapping (Snapshot, einmalig):**
+- Text + `rate` 1–5 → `community_review`
+- leerer Text + `rate` 1–5 → `community_review` (nur Rating)
+- Text + `rate` 0 → `community_comment` / Discussion-Post
+- (user,tid)-Dubletten → jüngste behalten (`community_review` UNIQUE(release_id, author_id))
+- `text` vor Import HTML-entity-decoden
+
+**Verifikation VOR dem Import** (nicht vor dem Bauen):
+1. **`typ`-Decode** — 8 Werte gegen Katalog-Entitäten auflösen. Nur Release-`typ` → `community_review`; Band/Label/Press → Discussion auf der jeweiligen Seite.
+
+Das **User-Mapping ist gelöst** — siehe §17.7 (deterministischer Join über `crm_master_source_link`, kein Fuzzy-Match). Der Legacy-Import nutzt das dort beschriebene Shadow-Profil-Pattern.
+
+**Hinweis:** Die Tabelle wird aktuell noch beschrieben — der Import ist ein Snapshot mit Stichtag (vod-auctions löst tape-mag ohnehin ab).
+
+### 17.6 Increment-1-Aufbau-Plan
+
+| Phase | Inhalt | Aufwand |
+|---|---|---|
+| 0 | Feature-Flag `COMMUNITY` + Schema-Migration (5 `community_*`-Tabellen, FKs, Replica-Spiegelung) | 1 T |
+| 1 | Backend-Routes `/store/community/*` + `/admin/community/*` (Posts, Comments, Reactions, Reviews, Profile) | 3 T |
+| 2 | Storefront `/community` Hub-Feed + Single-Post + Compose (Tiptap) | 3 T |
+| 3 | Member-Profil-Page + `/account/community-profile` Edit | 1,5 T |
+| 4 | Catalog-Anchored Discussion- + Reviews-Tab auf Release-Seite (echte Daten, Rating-Aggregat-Trigger) | 2 T |
+| 5 | Polish, Mobile, Deploy hinter Flag, Frank-Review | 1 T |
+
+**Σ ≈ 11,5 Tage.** Danach Flag umlegen → Frank testet auf der echten Plattform. **Schritt 2** = FB-Migration (P6-Import + Überarbeitung der fehlerhaften FB-Posts).
+
+### 17.7 Legacy-tape-mag-User: Übernahme, CRM-Markierung, Onboarding & Account-Claim
+
+**Verifiziert 2026-05-15:** Die 3.632 tape-mag-Member (`3wadmin_extranet_user`) sind **bereits im CRM** — `crm_master_source_link.source='vodtapes_members'`, 3.632 Links auf 3.632 Master. `source_record_id` = die Legacy-`3wadmin_extranet_user.id`. Damit ist das User-Mapping **deterministisch**, kein Fuzzy-Match nötig:
+
+```
+3wadmin_tapes_comment.user
+  → crm_master_source_link.source_record_id  (WHERE source='vodtapes_members')
+  → master_id
+  → crm_master_email   (Email für den Account-Claim-Match)
+```
+
+**Vier-Teil-Lifecycle:**
+
+1. **Übernehmen** — die User-Records sind schon da (CRM). Die 133 Legacy-Reviewer/Commenter werden über obigen Join an ihre CRM-Master gebunden.
+2. **CRM-Markieren** — die Master der 133 bekommen einen Marker (`tapemag_reviewer` Tag/Flag); die Legacy-Review-Anzahl fließt in die Community-Stats des Masters (§7.8: CRM-Master bekommt `community_review_count` etc.). Smart-List „tape-mag Reviewers" für die Invite-Welle.
+3. **Onboarding-Anschreiben** — gestaffelte Invite-Wellen über das bestehende rc52-Invite-System (`invite_tokens`) + Brevo (bestehende tape-mag-Liste, List ID 5, 3.580 Kontakte — Consent-Basis vorhanden):
+   - **Welle 1 (Priorität): die 133 Reviewer** — „Deine Reviews sind mitgezogen, hol sie dir."
+   - **Welle 2: die übrigen ~3.500 tape-mag-Member** — allgemeine Community-Einladung.
+4. **Abholen bei Registrierung (Account-Claim)** — registriert sich jemand im neuen System mit einer Email, die zu einem CRM-Master mit historischen Reviews passt, zeigt das Onboarding: „Wir haben deine tape-mag-Historie gefunden: X Reviews, Y Kommentare — übernehmen?" → re-pointet die historischen `community_review`/`community_comment`-Rows vom Shadow-Profil auf das neue echte `community_profile`.
+
+**Shadow-Profil-Pattern für den Import:** Beim Legacy-Import (§17.5) bekommt jeder der 133 Legacy-User ein **Shadow-`community_profile`** (Handle aus `3wadmin_extranet_user.name/vorname`, Spalte `legacy_extranet_user_id` gesetzt, `claimed=false`, keine Login-Fähigkeit). Reviews/Comments hängen an diesem Shadow-Profil — so haben sie ab Tag 1 einen anzeigbaren Autor. Beim Account-Claim wird das Shadow-Profil mit dem echten Account gemerged (1 Re-Pointer + `claimed=true`).
+
+**DSGVO:** Outreach läuft über den bestehenden, einwilligungsbasierten tape-mag-Brevo-Kanal. Der Claim-Flow zeigt nur eigene Historie nach Email-Match. Die Verhaltenscodex-/AGB-Erweiterung (RSE-78) deckt das mit ab.
+
+Dieser Punkt löst das §17.5-Item „User-Mapping". **Einzig offen aus §17.5:** der `typ`-Decode.
+
+---
+
+**Ende §17.**

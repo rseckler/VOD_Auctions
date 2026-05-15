@@ -81,5 +81,16 @@ export default defineMiddlewares({
         authenticate("customer", ["session", "bearer"]),
       ],
     },
+    {
+      // Community — populate auth_context when a customer is logged in, but
+      // allow public read access. Each route enforces auth itself for the
+      // actions that require it (create/edit/delete/react/review).
+      matcher: "/store/community/*",
+      middlewares: [
+        authenticate("customer", ["session", "bearer"], {
+          allowUnauthenticated: true,
+        }),
+      ],
+    },
   ],
 })

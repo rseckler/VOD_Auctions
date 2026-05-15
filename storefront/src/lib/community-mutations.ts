@@ -1,0 +1,126 @@
+// VOD Community — authenticated client-side mutations.
+// Used only by "use client" components. Reads the customer bearer token from
+// lib/auth (localStorage) — never call these server-side.
+
+import { MEDUSA_URL, PUBLISHABLE_KEY } from "./api"
+import { getToken } from "./auth"
+import type {
+  CommunityComment,
+  CommunityPost,
+  CommunityProfile,
+} from "./community-api"
+
+export class CommunityError extends Error {
+  status: number
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = "CommunityError"
+    this.status = status
+  }
+}
+
+async function authReq<T>(
+  path: string,
+  method: "POST" | "PATCH" | "PUT" | "DELETE",
+  body?: unknown
+): Promise<T> {
+  const token = getToken()
+  if (!token) {
+    throw new CommunityError("Bitte melde dich an.", 401)
+  }
+  let res: Response
+  try {
+    res = await fetch(`${MEDUSA_URL}${path}`, {
+      method,
+      headers: {
+        "x-publishable-api-key": PUBLISHABLE_KEY,
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    })
+  } catch {
+    throw new CommunityError("Netzwerkfehler — bitte erneut versuchen.", 0)
+  }
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new CommunityError(
+      (data as { message?: string })?.message || "Etwas ist schiefgelaufen.",
+      res.status
+    )
+  }
+  return data as T
+}
+
+export interface CreatePostInput {
+  title?: string
+  body_html: string
+  body_json?: unknown
+  kind?: "discussion" | "editorial"
+  tags?: string[]
+  release_id?: string
+}
+
+export async function createPost(input: CreatePostInput): Promise<CommunityPost> {
+  const data = await authReq<{ post: CommunityPost }>(
+    "/store/community/posts",
+    "POST",
+    input
+  )
+  return data.post
+}
+
+export async function addComment(
+  postIdOrSlug: string,
+  input: { body_html: string; body_json?: unknown; parent_id?: string }
+): Promise<CommunityComment> {
+  const data = await authReq<{ comment: CommunityComment }>(
+    `/store/community/posts/${encodeURIComponent(postIdOrSlug)}/comments`,
+    "POST",
+    input
+  )
+  return data.comment
+}
+
+export async function toggleReaction(
+  targetKind: "post" | "comment",
+  targetId: string,
+  emoji: string
+): Promise<{ reacted: boolean; emoji: string; count: number }> {
+  return authReq("/store/community/reactions", "POST", {
+    target_kind: targetKind,
+    target_id: targetId,
+    emoji,
+  })
+}
+
+export async function createReview(input: {
+  release_id: string
+  rating: number
+  body_html?: string
+}): Promise<unknown> {
+  return authReq("/store/community/reviews", "POST", input)
+}
+
+export interface ProfileInput {
+  display_name?: string
+  handle?: string
+  bio?: string | null
+  location?: string | null
+  pronouns?: string | null
+  collector_since?: number | null
+  avatar_url?: string | null
+  header_url?: string | null
+  links?: Record<string, string>
+}
+
+export async function updateProfile(
+  input: ProfileInput
+): Promise<CommunityProfile> {
+  const data = await authReq<{ profile: CommunityProfile }>(
+    "/store/community/profile",
+    "PUT",
+    input
+  )
+  return data.profile
+}

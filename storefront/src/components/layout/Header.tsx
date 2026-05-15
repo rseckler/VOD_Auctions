@@ -9,6 +9,7 @@ import { MobileNav } from "./MobileNav"
 import { useAuth } from "@/components/AuthProvider"
 import { AuthModal } from "@/components/AuthModal"
 import { SearchAutocomplete } from "@/components/SearchAutocomplete"
+import { useFeatureFlag } from "@/components/FeatureFlagProvider"
 
 const NAV_LINKS = [
   { href: "/auctions", label: "Auctions" },
@@ -23,6 +24,15 @@ export function Header() {
   const [authModalOpen, setAuthModalOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const { isAuthenticated, cartCount, savedCount, emailVerified, resendVerification } = useAuth()
+  const communityEnabled = useFeatureFlag("COMMUNITY")
+  // Community sits between Auctions and Catalog when the flag is on.
+  const navLinks = communityEnabled
+    ? [
+        NAV_LINKS[0],
+        { href: "/community", label: "Community" },
+        ...NAV_LINKS.slice(1),
+      ]
+    : NAV_LINKS
   const [verifyBannerDismissed, setVerifyBannerDismissed] = useState(false)
   const [resendSent, setResendSent] = useState(false)
   const showVerifyBanner = isAuthenticated && !emailVerified && !verifyBannerDismissed
@@ -59,7 +69,7 @@ export function Header() {
 
           {/* Desktop Nav */}
           <nav aria-label="Main navigation" className="hidden md:flex items-center gap-6 text-sm">
-            {NAV_LINKS.map((link) => {
+            {navLinks.map((link) => {
               const isActive = pathname.startsWith(link.href)
               return (
                 <Link

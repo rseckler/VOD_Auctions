@@ -1,8 +1,9 @@
 "use client"
 
 import Link from "next/link"
-import { Gavel, User, LogOut, Disc3, Library, Info, Search, ShoppingCart, Heart, Trophy, Package, MapPin, Settings, Landmark } from "lucide-react"
+import { Gavel, User, LogOut, Disc3, Library, Info, Search, ShoppingCart, Heart, Trophy, Package, MapPin, Settings, Landmark, Users } from "lucide-react"
 import { useAuth } from "@/components/AuthProvider"
+import { useFeatureFlag } from "@/components/FeatureFlagProvider"
 import { Button } from "@/components/ui/button"
 import {
   Sheet,
@@ -21,6 +22,7 @@ export function MobileNav({
   onClose: () => void
 }) {
   const { isAuthenticated, customer, logout, cartCount, savedCount, bidsCount } = useAuth()
+  const communityEnabled = useFeatureFlag("COMMUNITY")
   const [authModalOpen, setAuthModalOpen] = useState(false)
 
   return (
@@ -43,6 +45,16 @@ export function MobileNav({
               <Gavel className="h-4 w-4" />
               Auctions
             </Link>
+            {communityEnabled && (
+              <Link
+                href="/community"
+                onClick={onClose}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-[rgba(232,224,212,0.04)] transition-colors"
+              >
+                <Users className="h-4 w-4" />
+                Community
+              </Link>
+            )}
             <Link
               href="/catalog"
               onClick={onClose}
