@@ -611,9 +611,14 @@ const MediaDetailPage = () => {
   const [estimatedValue, setEstimatedValue] = useState<string>("")
   const [mediaCondition, setMediaCondition] = useState<string>("")
   const [sleeveCondition, setSleeveCondition] = useState<string>("")
-  // Default 2026-04-22: direct_purchase passt zum Walk-in-First-Workflow.
-  // Frank's Standard ist Direkt-Verkauf; Auktionen sind die Ausnahme.
-  const [saleMode, setSaleMode] = useState<string>("direct_purchase")
+  // sale_mode-Default ist 'both' (2026-05-15) — eine Platte ist im Normalfall
+  // sowohl per Auktion als auch direkt kaufbar. Das Dropdown zeigt 'both'
+  // voraus, wenn ein Release noch keinen Wert hat. WICHTIG: gespeichert wird
+  // sale_mode ausschliesslich, wenn Frank das Dropdown bewusst aendert
+  // (saleModeDirty) — ein beliebiger Save (z.B. Titel-Korrektur) darf den
+  // Wert nicht ungefragt ueberschreiben.
+  const [saleMode, setSaleMode] = useState<string>("both")
+  const [saleModeDirty, setSaleModeDirty] = useState<boolean>(false)
   const [shopPrice, setShopPrice] = useState<string>("")
   const [inventory, setInventory] = useState<string>("")
   const [shippingTypeId, setShippingTypeId] = useState<string>("")
@@ -695,7 +700,8 @@ const MediaDetailPage = () => {
           setEstimatedValue(d.release.estimated_value != null ? String(d.release.estimated_value) : "")
           setMediaCondition(d.release.media_condition || "")
           setSleeveCondition(d.release.sleeve_condition || "")
-          setSaleMode(d.release.sale_mode || "direct_purchase")
+          setSaleMode(d.release.sale_mode || "both")
+          setSaleModeDirty(false)
           setShopPrice(d.release.shop_price != null ? String(d.release.shop_price) : "")
           setInventory(d.release.inventory != null ? String(d.release.inventory) : "")
           setShippingTypeId(d.release.shipping_item_type_id || "")
@@ -756,7 +762,8 @@ const MediaDetailPage = () => {
       else body.estimated_value = null
       body.media_condition = mediaCondition || null
       body.sleeve_condition = sleeveCondition || null
-      body.sale_mode = saleMode
+      // sale_mode nur persistieren, wenn das Dropdown bewusst geaendert wurde.
+      if (saleModeDirty) body.sale_mode = saleMode
       body.shop_price = shopPrice !== "" ? parseFloat(shopPrice) : null
       body.inventory = inventory !== "" ? parseInt(inventory) : null
       body.shipping_item_type_id = shippingTypeId || null
@@ -771,6 +778,7 @@ const MediaDetailPage = () => {
       if (res.ok) {
         const d = await res.json()
         setRelease(d.release || release)
+        setSaleModeDirty(false)
         setToast({ message: "Saved successfully", type: "success" })
       } else {
         const err = await res.json().catch(() => ({}))
@@ -1708,7 +1716,7 @@ const MediaDetailPage = () => {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: S.gap.lg, marginTop: S.gap.lg }}>
           <div>
             <div style={labelStyle}>Sale Mode</div>
-            <select value={saleMode} onChange={(e) => setSaleMode(e.target.value)} style={localSelectStyle}>
+            <select value={saleMode} onChange={(e) => { setSaleMode(e.target.value); setSaleModeDirty(true) }} style={localSelectStyle}>
               <option value="auction_only">Auction Only</option>
               <option value="direct_purchase">Direct Purchase</option>
               <option value="both">Both (Auction + Direct)</option>

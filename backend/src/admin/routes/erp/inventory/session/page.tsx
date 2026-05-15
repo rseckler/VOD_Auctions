@@ -475,8 +475,9 @@ function StocktakeSessionPage() {
     // Release.legacy_condition + Release.legacy_price so Frank sees sensible
     // defaults instead of empty dropdowns.
     const legacyParsed = parseLegacyCondition(releaseDetail?.legacy_condition || null)
-    setConditionMedia((copy.condition_media as Grade) || legacyParsed.media)
-    setConditionSleeve((copy.condition_sleeve as Grade) || legacyParsed.sleeve)
+    // Reihenfolge: gespeicherter Exemplar-Zustand → Legacy → VG+/VG+-Fallback.
+    setConditionMedia((copy.condition_media as Grade) || legacyParsed.media || "VG+")
+    setConditionSleeve((copy.condition_sleeve as Grade) || legacyParsed.sleeve || "VG+")
     const effective = copy.effective_price != null
       ? copy.effective_price
       : (releaseDetail?.legacy_price != null ? releaseDetail.legacy_price : null)
@@ -500,8 +501,10 @@ function StocktakeSessionPage() {
     const parsed = parseLegacyCondition(releaseDetail.legacy_condition)
     setEditingCopy(null)
     setIsNewCopy(true)
-    setConditionMedia(parsed.media)
-    setConditionSleeve(parsed.sleeve)
+    // Default VG+/VG+ wenn keine Legacy-Condition parsebar — Frank's
+    // haeufigster Zustand. Vorhandene Legacy-Werte bleiben unangetastet.
+    setConditionMedia(parsed.media ?? "VG+")
+    setConditionSleeve(parsed.sleeve ?? "VG+")
     setPriceValue(releaseDetail.legacy_price != null ? String(releaseDetail.legacy_price) : "")
     setNoteText("")
     // rc52.2: Default = aktive 📍-Location (oder is_default wenn keine 📍)

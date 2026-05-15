@@ -70,50 +70,46 @@ export async function POST(
     if (item.copy_number === 1) {
       const releaseUpdate: Record<string, unknown> = {}
 
+      // Release-Row einmalig laden — Sale-Mode-Default, Preis-Mirror und
+      // Condition-Mirror lesen alle aus derselben Row (vorher 3 Selects).
+      const release = await trx("Release")
+        .where("id", item.release_id)
+        .select("shop_price", "legacy_price", "sale_mode", "media_condition", "sleeve_condition")
+        .first()
+
+      // Sale-Mode-Default: JEDE Verifizierung von Copy #1 kippt NULL oder
+      // auction_only auf 'both' — unabhängig davon ob ein Preis eingetippt
+      // wurde. direct_purchase oder 'both' nie überschreiben (explizite
+      // User-Choice). Früher hing dieser Block im Preis-Block → Items ohne
+      // eingetippten Preis blieben auf NULL/auction_only hängen.
+      if (!release?.sale_mode || release.sale_mode === "auction_only") {
+        releaseUpdate.sale_mode = "both"
+        reference.old_sale_mode = release?.sale_mode || null
+        reference.new_sale_mode = "both"
+      }
+
       if (body?.new_price != null && body.new_price >= 0) {
         // Preis-Schreib-Modell (rc47.x): shop_price ist ab jetzt der
         // kanonische Shop-Preis. legacy_price bleibt nur noch als Info
         // erhalten (MySQL-Import-Historie). Wir spiegeln trotzdem auch auf
         // legacy_price damit bestehende Leser (Legacy-Sync-Konflikt-Detection
         // via price_locked, diverse Scripts) weiter funktionieren.
-        const release = await trx("Release")
-          .where("id", item.release_id)
-          .select("shop_price", "legacy_price", "sale_mode")
-          .first()
-
         releaseUpdate.shop_price = body.new_price
         releaseUpdate.legacy_price = body.new_price
         reference.old_shop_price = release?.shop_price != null ? Number(release.shop_price) : null
         reference.old_legacy_price = release?.legacy_price != null ? Number(release.legacy_price) : null
         reference.new_price = body.new_price
-
-        // Sale-Mode-Default: wenn bisher NULL oder auction_only, auf 'both'
-        // kippen. direct_purchase oder 'both' nie überschreiben — das waren
-        // explizite User-Choices.
-        if (!release?.sale_mode || release.sale_mode === "auction_only") {
-          releaseUpdate.sale_mode = "both"
-          reference.old_sale_mode = release?.sale_mode || null
-          reference.new_sale_mode = "both"
-        }
       }
 
       if (body?.condition_media) {
-        const current = await trx("Release")
-          .where("id", item.release_id)
-          .select("media_condition")
-          .first()
         releaseUpdate.media_condition = body.condition_media
-        reference.old_media_condition = current?.media_condition || null
+        reference.old_media_condition = release?.media_condition || null
         reference.new_media_condition = body.condition_media
       }
 
       if (body?.condition_sleeve) {
-        const current = await trx("Release")
-          .where("id", item.release_id)
-          .select("sleeve_condition")
-          .first()
         releaseUpdate.sleeve_condition = body.condition_sleeve
-        reference.old_sleeve_condition = current?.sleeve_condition || null
+        reference.old_sleeve_condition = release?.sleeve_condition || null
         reference.new_sleeve_condition = body.condition_sleeve
       }
 
