@@ -43,10 +43,10 @@ pnpm-debug.log*
 # Sentry
 .sentryclirc
 
-# Local images/screenshots (root level)
+# Local images/screenshots
 *.jpeg
 *.png
-!Screenshots/*.png
+Screenshots/
 
 # Python cache
 __pycache__/
@@ -78,3 +78,16 @@ backend/public/admin/
 
 # Top-level package-lock.json — repo uses pnpm workspaces, this is a stub
 /package-lock.json
+
+# Local-only data, archives and caches — never commit (large + partly sensitive)
+# Monkey Office = 1.6 GB of invoices + mail archives; discogs = Discogs CSV exports
+Monkey Office/
+discogs/
+scripts/discogs_wantlist_analysis/cache/
+scripts/discogs_wantlist_analysis/output/
+frank-macbook-setup/
+frank-macbook-setup.zip
+docs/audit_discogs_flagged_*.csv
+
+# Claude Code local config (machine-specific, worktrees)
+.claude/
