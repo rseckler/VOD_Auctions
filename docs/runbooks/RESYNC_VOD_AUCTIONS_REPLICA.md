@@ -61,16 +61,31 @@ SELECT relname, n_live_tup FROM pg_stat_user_tables
 WHERE schemaname = 'public' ORDER BY n_live_tup DESC LIMIT 20;
 ```
 
-**Alternative:** komplettes Drop+Recreate der Replica-DB. Brachialer aber definitiv clean:
+**Alternative (EMPFOHLEN bei Schema-Drift — am 2026-05-15 so durchgeführt):**
+komplettes Drop+Recreate der Replica-DB. Brachialer aber definitiv clean —
+beseitigt fehlende Tabellen UND Spalten-Drift in einem Rutsch:
 
-```sql
--- Auf pg17-replica, NOT in vod_auctions_replica
-\c postgres
-DROP DATABASE vod_auctions_replica;
-CREATE DATABASE vod_auctions_replica;
-\c vod_auctions_replica
--- Schema neu pullen aus Source via pg_dump --schema-only
+```bash
+# 1) Subscription weg, dann DB neu (WITH FORCE killt offene Connections)
+docker exec pg17-replica psql -U postgres -d vod_auctions_replica -c "DROP SUBSCRIPTION vod_auctions_sub;"
+docker exec pg17-replica psql -U postgres -d postgres -c "DROP DATABASE vod_auctions_replica WITH (FORCE);"
+docker exec pg17-replica psql -U postgres -d postgres -c "CREATE DATABASE vod_auctions_replica;"
+
+# 2) PFLICHT vor Restore: pg_trgm + No-Op-Rollen (frische DB hat keine Extensions)
+docker exec pg17-replica psql -U postgres -d vod_auctions_replica \
+  -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;" \
+  -c "CREATE ROLE anon;" -c "CREATE ROLE authenticated;" -c "CREATE ROLE service_role;"
+
+# 3) Schema pullen + restoren (Direct-Connection, pg17-Client im Container)
+docker exec pg17-replica pg_dump '<supabase-direct-url>?sslmode=require' \
+  --schema-only --schema=public --no-owner --no-privileges \
+  --no-publications --no-subscriptions -f /tmp/vod_schema.sql
+docker exec pg17-replica sh -c "psql -U postgres -d vod_auctions_replica -v ON_ERROR_STOP=0 -f /tmp/vod_schema.sql"
+# Erwartet: ~13 benigne Fehler (RLS-Policies + FKs gegen auth-Schema) — egal.
+# Verify: count(*) pg_tables public == count Publication-Tabellen (2026-05-15: 273)
 ```
+
+Danach weiter mit Schritt 2 (`CREATE SUBSCRIPTION`).
 
 ---
 
