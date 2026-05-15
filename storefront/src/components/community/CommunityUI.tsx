@@ -166,6 +166,14 @@ export function PostCard({ post }: { post: CommunityPost }) {
     >
       <Byline author={post.author} time={timeAgo(post.published_at || post.created_at)} />
       {post.title && <h3 className="cm-post-title">{post.title}</h3>}
+      {post.cover_image_url && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={post.cover_image_url}
+          alt=""
+          className="cm-post-card-cover"
+        />
+      )}
       {post.excerpt && <div className="cm-post-body">{post.excerpt}</div>}
       {post.release && <ReleaseCardInline release={post.release} />}
       {post.tags.length > 0 && (
@@ -209,6 +217,14 @@ export function EditorialCard({
           · {timeAgo(post.published_at || post.created_at)}
         </span>
       </div>
+      {post.cover_image_url && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={post.cover_image_url}
+          alt=""
+          className="cm-editorial-cover"
+        />
+      )}
       <div className="cm-editorial-body">
         <h2 className="cm-editorial-title">{post.title || "Untitled"}</h2>
         {post.excerpt && <p className="cm-editorial-lede">{post.excerpt}</p>}

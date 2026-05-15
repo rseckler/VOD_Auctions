@@ -1,10 +1,11 @@
 "use client"
 
-import { useCallback } from "react"
+import { useCallback, useRef, useState } from "react"
 import { useEditor, EditorContent } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import Link from "@tiptap/extension-link"
 import Placeholder from "@tiptap/extension-placeholder"
+import TiptapImage from "@tiptap/extension-image"
 import {
   Bold,
   Italic,
@@ -14,7 +15,15 @@ import {
   ListOrdered,
   Quote,
   Link2,
+  ImagePlus,
+  Film,
 } from "lucide-react"
+import {
+  uploadCommunityImage,
+  resolveEmbed,
+  CommunityError,
+} from "@/lib/community-mutations"
+import { Embed } from "./tiptap-embed"
 
 // Tiptap rich-text editor for the community composer. Emits sanitised-on-server
 // HTML + the Tiptap JSON doc. SSR-safe via immediatelyRender: false.
@@ -25,6 +34,10 @@ export function PostEditor({
   placeholder?: string
   onChange: (html: string, json: unknown, text: string) => void
 }) {
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
@@ -34,6 +47,8 @@ export function PostEditor({
         autolink: true,
         HTMLAttributes: { rel: "noopener noreferrer nofollow", target: "_blank" },
       }),
+      TiptapImage.configure({ HTMLAttributes: { class: "cm-post-image" } }),
+      Embed,
       Placeholder.configure({
         placeholder: placeholder || "Share your thoughts…",
       }),
@@ -54,6 +69,55 @@ export function PostEditor({
       return
     }
     editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run()
+  }, [editor])
+
+  const onImageFile = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0]
+      e.target.value = "" // allow re-picking the same file
+      if (!file || !editor) return
+      setUploadError(null)
+      setUploading(true)
+      try {
+        const url = await uploadCommunityImage(file)
+        editor.chain().focus().setImage({ src: url }).run()
+      } catch (err) {
+        setUploadError(
+          err instanceof CommunityError
+            ? err.message
+            : "Image upload failed — please try again."
+        )
+      } finally {
+        setUploading(false)
+      }
+    },
+    [editor]
+  )
+
+  const insertEmbed = useCallback(async () => {
+    if (!editor) return
+    const url = window.prompt(
+      "Media URL — YouTube, Vimeo, Spotify, SoundCloud or Bandcamp"
+    )
+    if (!url || !url.trim()) return
+    setUploadError(null)
+    setUploading(true)
+    try {
+      const { provider, embed_url } = await resolveEmbed(url.trim())
+      editor
+        .chain()
+        .focus()
+        .insertContent({ type: "embed", attrs: { src: embed_url, provider } })
+        .run()
+    } catch (err) {
+      setUploadError(
+        err instanceof CommunityError
+          ? err.message
+          : "Could not embed this link."
+      )
+    } finally {
+      setUploading(false)
+    }
   }, [editor])
 
   if (!editor) {
@@ -143,6 +207,35 @@ export function PostEditor({
         >
           <Link2 size={15} />
         </button>
+        <button
+          type="button"
+          title="Insert image"
+          className="cm-composer-tool"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+        >
+          <ImagePlus size={15} />
+        </button>
+        <button
+          type="button"
+          title="Embed video or audio"
+          className="cm-composer-tool"
+          onClick={insertEmbed}
+          disabled={uploading}
+        >
+          <Film size={15} />
+        </button>
+        {uploading && <span className="cm-editor-uploading">Uploading…</span>}
+        {uploadError && (
+          <span className="cm-composer-error">{uploadError}</span>
+        )}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={onImageFile}
+        />
       </div>
       <EditorContent editor={editor} />
     </div>

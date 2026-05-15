@@ -7,7 +7,11 @@ import { useAuth } from "@/components/AuthProvider"
 import { getToken } from "@/lib/auth"
 import { medusaAuthFetch } from "@/lib/api"
 import { PostEditor } from "@/components/community/PostEditor"
-import { createPost, CommunityError } from "@/lib/community-mutations"
+import {
+  createPost,
+  uploadCommunityImage,
+  CommunityError,
+} from "@/lib/community-mutations"
 
 export default function CommunityComposePage() {
   const { isAuthenticated, loading } = useAuth()
@@ -23,6 +27,25 @@ export default function CommunityComposePage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [releaseId, setReleaseId] = useState<string | null>(null)
+  const [coverUrl, setCoverUrl] = useState<string | null>(null)
+  const [coverBusy, setCoverBusy] = useState(false)
+
+  async function onCoverFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ""
+    if (!file) return
+    setCoverBusy(true)
+    setError(null)
+    try {
+      setCoverUrl(await uploadCommunityImage(file))
+    } catch (err) {
+      setError(
+        err instanceof CommunityError ? err.message : "Cover upload failed."
+      )
+    } finally {
+      setCoverBusy(false)
+    }
+  }
 
   // Optional release anchor — set when arriving from a release page's
   // "Write a post" link (/community/compose?release_id=…).
@@ -63,6 +86,7 @@ export default function CommunityComposePage() {
           .map((t) => t.trim())
           .filter(Boolean),
         release_id: releaseId || undefined,
+        cover_image_url: coverUrl || undefined,
       })
       router.push(`/community/post/${post.slug || post.id}`)
     } catch (e) {
@@ -129,6 +153,33 @@ export default function CommunityComposePage() {
           </button>
         </div>
       )}
+
+      <div className="cm-cover-field">
+        {coverUrl ? (
+          <div className="cm-cover-preview">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={coverUrl} alt="Cover" />
+            <button
+              type="button"
+              className="cm-cover-remove"
+              onClick={() => setCoverUrl(null)}
+            >
+              Remove cover
+            </button>
+          </div>
+        ) : (
+          <label className="cm-cover-upload">
+            {coverBusy ? "Uploading…" : "+ Add cover image (optional)"}
+            <input
+              type="file"
+              accept="image/*"
+              hidden
+              disabled={coverBusy}
+              onChange={onCoverFile}
+            />
+          </label>
+        )}
+      </div>
 
       <input
         className="cm-compose-title"

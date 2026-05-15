@@ -52,15 +52,21 @@ export function sanitizeBodyHtml(html: string): string {
   return sanitizeHtml(html || "", {
     allowedTags: [
       "p", "br", "strong", "em", "s", "u", "code", "pre", "blockquote",
-      "h2", "h3", "ul", "ol", "li", "a", "img", "iframe", "hr", "span",
+      "h2", "h3", "ul", "ol", "li", "a", "img", "iframe", "hr", "span", "div",
     ],
     allowedAttributes: {
       a: ["href", "title", "target", "rel"],
       img: ["src", "alt", "title"],
       iframe: [
         "src", "width", "height", "allow", "allowfullscreen", "frameborder",
+        "loading",
       ],
+      // Embed wrapper — class is restricted to the cm-embed* family below.
+      div: ["class", "data-community-embed"],
       span: ["data-mention", "data-id"],
+    },
+    allowedClasses: {
+      div: ["cm-embed", "cm-embed-youtube", "cm-embed-vimeo", "cm-embed-spotify", "cm-embed-soundcloud", "cm-embed-bandcamp", "cm-embed-generic"],
     },
     allowedSchemes: ["http", "https", "mailto"],
     allowedIframeHostnames: EMBED_HOSTS,

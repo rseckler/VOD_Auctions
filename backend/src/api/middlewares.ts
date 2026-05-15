@@ -92,5 +92,12 @@ export default defineMiddlewares({
         }),
       ],
     },
+    {
+      // Community image upload — base64 photo payloads (iPhone shots run
+      // 3-4 MB raw + base64 overhead). Default ~1 MB limit would 413.
+      matcher: "/store/community/upload",
+      methods: ["POST"],
+      bodyParser: { sizeLimit: "20mb" },
+    },
   ],
 })

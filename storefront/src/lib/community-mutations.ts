@@ -59,6 +59,7 @@ export interface CreatePostInput {
   kind?: "discussion" | "editorial"
   tags?: string[]
   release_id?: string
+  cover_image_url?: string
 }
 
 export async function createPost(input: CreatePostInput): Promise<CommunityPost> {
@@ -100,6 +101,30 @@ export async function createReview(input: {
   body_html?: string
 }): Promise<unknown> {
   return authReq("/store/community/reviews", "POST", input)
+}
+
+/** Resolve a media URL to an embeddable iframe src (server-side). */
+export async function resolveEmbed(
+  url: string
+): Promise<{ provider: string; embed_url: string }> {
+  return authReq("/store/community/embed", "POST", { url })
+}
+
+/** Upload an image file to R2 via the community upload endpoint. */
+export async function uploadCommunityImage(file: File): Promise<string> {
+  const base64 = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () =>
+      reject(new CommunityError("Could not read the selected file.", 0))
+    reader.readAsDataURL(file)
+  })
+  const data = await authReq<{ url: string }>(
+    "/store/community/upload",
+    "POST",
+    { image: base64 }
+  )
+  return data.url
 }
 
 export interface ProfileInput {
