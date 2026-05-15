@@ -237,10 +237,12 @@ export async function adminMediaGetPostgres(
     })
   }
   if (has_legacy_price === "true") {
-    query = query.whereNotNull("Release.legacy_price")
+    query = query.where("Release.legacy_price", ">", 0)
   }
   if (has_legacy_price === "false") {
-    query = query.whereNull("Release.legacy_price")
+    query = query.where(function () {
+      this.whereNull("Release.legacy_price").orWhere("Release.legacy_price", "<=", 0)
+    })
   }
 
   // Image filter

@@ -119,21 +119,17 @@ function buildFilterString(f?: CatalogFilters): string[] {
   if (f.has_image !== undefined) parts.push(`has_image = ${f.has_image}`)
   if (f.has_inventory !== undefined) parts.push(`has_inventory = ${f.has_inventory}`)
 
-  // Preis-Filter (rc54.x). shop_price ist kanonischer Shop-Preis → `> 0`.
-  // legacy_price ist Historie → reiner "gesetzt"-Check (NULL vs NOT NULL).
-  // shop_price/legacy_price können im Meili-Doc null sein; daher für den
-  // "No"-Fall explizit IS NULL mit-prüfen.
+  // Preis-Filter (rc54.x). shop_price + legacy_price können im Meili-Doc
+  // JSON-`null` sein (Release ohne Preis). WICHTIG: Meilis `IS NULL` matcht
+  // diese null-Felder NICHT (empirisch verifiziert — `legacy_price IS NULL`
+  // → 0 Treffer trotz 35k null-Docs), und Range-Operatoren matchen null
+  // ebenfalls nie. Der "No"-Fall muss daher über das Komplement `NOT … > 0`
+  // gehen. In der DB existiert kein `*_price = 0` → `> 0` ≡ "Preis gesetzt".
   if (f.has_shop_price !== undefined) {
-    parts.push(
-      f.has_shop_price
-        ? `shop_price > 0`
-        : `(shop_price IS NULL OR shop_price <= 0)`
-    )
+    parts.push(f.has_shop_price ? `shop_price > 0` : `NOT shop_price > 0`)
   }
   if (f.has_legacy_price !== undefined) {
-    parts.push(
-      f.has_legacy_price ? `legacy_price IS NOT NULL` : `legacy_price IS NULL`
-    )
+    parts.push(f.has_legacy_price ? `legacy_price > 0` : `NOT legacy_price > 0`)
   }
 
   // visibility (Storefront-Sichtbarkeit — shop_price + verified)

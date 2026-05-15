@@ -129,8 +129,12 @@ export async function GET(
       this.whereNull("Release.shop_price").orWhere("Release.shop_price", "<=", 0)
     })
   }
-  if (has_legacy_price === "true") query = query.whereNotNull("Release.legacy_price")
-  if (has_legacy_price === "false") query = query.whereNull("Release.legacy_price")
+  if (has_legacy_price === "true") query = query.where("Release.legacy_price", ">", 0)
+  if (has_legacy_price === "false") {
+    query = query.where(function () {
+      this.whereNull("Release.legacy_price").orWhere("Release.legacy_price", "<=", 0)
+    })
+  }
   if (has_image === "true") {
     query = query.whereNotNull("Release.coverImage").where("Release.coverImage", "!=", "")
   }
