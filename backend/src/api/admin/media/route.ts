@@ -79,6 +79,10 @@ export async function GET(
         q.has_discogs === "true" ? true : q.has_discogs === "false" ? false : undefined,
       has_image:
         q.has_image === "true" ? true : q.has_image === "false" ? false : undefined,
+      has_shop_price:
+        q.has_shop_price === "true" ? true : q.has_shop_price === "false" ? false : undefined,
+      has_legacy_price:
+        q.has_legacy_price === "true" ? true : q.has_legacy_price === "false" ? false : undefined,
       visibility: q.visibility as any,
       import_collection: q.import_collection,
       import_action: q.import_action,

@@ -18,9 +18,11 @@ export async function GET(
         .count("id as count")
         .whereNotNull("discogs_id")
         .first(),
+      // WITH PRICE zählt den kanonischen Shop-Preis (Preis-Modell rc47.2),
+      // nicht mehr discogs_lowest_price (Markt-Referenz).
       pgConnection("Release")
         .count("id as count")
-        .whereNotNull("discogs_lowest_price")
+        .where("shop_price", ">", 0)
         .first(),
       pgConnection("Release")
         .select(

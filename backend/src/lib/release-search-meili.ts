@@ -44,6 +44,13 @@ export interface CatalogFilters {
   has_discogs?: boolean
   has_image?: boolean
   has_inventory?: boolean
+  // ── Preis-Filter (rc54.x) ────────────────────────────────────────────
+  // has_shop_price  = Release.shop_price > 0 (kanonischer Shop-Preis)
+  // has_legacy_price = Release.legacy_price gesetzt (tape-mag-Historie)
+  // Bewusst KEIN Discogs-Preis-Filter — discogs_lowest_price ist nur
+  // Markt-Referenz und nicht filterrelevant.
+  has_shop_price?: boolean
+  has_legacy_price?: boolean
   visibility?: "visible" | "hidden"
   auction_status?: string
   inventory_status?: string
@@ -111,6 +118,23 @@ function buildFilterString(f?: CatalogFilters): string[] {
   }
   if (f.has_image !== undefined) parts.push(`has_image = ${f.has_image}`)
   if (f.has_inventory !== undefined) parts.push(`has_inventory = ${f.has_inventory}`)
+
+  // Preis-Filter (rc54.x). shop_price ist kanonischer Shop-Preis → `> 0`.
+  // legacy_price ist Historie → reiner "gesetzt"-Check (NULL vs NOT NULL).
+  // shop_price/legacy_price können im Meili-Doc null sein; daher für den
+  // "No"-Fall explizit IS NULL mit-prüfen.
+  if (f.has_shop_price !== undefined) {
+    parts.push(
+      f.has_shop_price
+        ? `shop_price > 0`
+        : `(shop_price IS NULL OR shop_price <= 0)`
+    )
+  }
+  if (f.has_legacy_price !== undefined) {
+    parts.push(
+      f.has_legacy_price ? `legacy_price IS NOT NULL` : `legacy_price IS NULL`
+    )
+  }
 
   // visibility (Storefront-Sichtbarkeit — shop_price + verified)
   if (f.visibility === "visible") parts.push(`is_purchasable = true`)

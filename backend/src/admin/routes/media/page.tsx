@@ -577,7 +577,9 @@ const MediaPage = () => {
   const [activeFormat, setActiveFormat] = useState<string | null>(null)
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
   const [hasDiscogs, setHasDiscogs] = useState("")
-  const [hasPrice, setHasPrice] = useState("")
+  const [hasShopPrice, setHasShopPrice] = useState("")
+  const [hasLegacyPrice, setHasLegacyPrice] = useState("")
+  const [hasImage, setHasImage] = useState("")
   const [auctionStatus, setAuctionStatus] = useState("")
   const [countryFilter, setCountryFilter] = useState("")
   const [yearFrom, setYearFrom] = useState("")
@@ -621,7 +623,7 @@ const MediaPage = () => {
   // Reset page on filter change
   useEffect(() => {
     setPage(0)
-  }, [searchQuery, activeFormat, activeCategory, hasDiscogs, hasPrice, auctionStatus, countryFilter, yearFrom, yearTo, labelFilter, visibilityFilter, pageSize,
+  }, [searchQuery, activeFormat, activeCategory, hasDiscogs, hasShopPrice, hasLegacyPrice, hasImage, auctionStatus, countryFilter, yearFrom, yearTo, labelFilter, visibilityFilter, pageSize,
       importCollection, importAction, inventoryState, inventoryStatusFilter, stocktakeFilter, priceLockedFilter, warehouseLocationFilter])
 
   // ── rc23: Load filter options on mount ──
@@ -685,7 +687,9 @@ const MediaPage = () => {
     if (activeFormat) params.set("format", activeFormat)
     if (activeCategory) params.set("category", activeCategory)
     if (hasDiscogs) params.set("has_discogs", hasDiscogs)
-    if (hasPrice) params.set("has_price", hasPrice)
+    if (hasShopPrice) params.set("has_shop_price", hasShopPrice)
+    if (hasLegacyPrice) params.set("has_legacy_price", hasLegacyPrice)
+    if (hasImage) params.set("has_image", hasImage)
     if (auctionStatus) params.set("auction_status", auctionStatus)
     if (countryFilter) params.set("country", countryFilter)
     if (yearFrom) params.set("year_from", yearFrom)
@@ -715,7 +719,7 @@ const MediaPage = () => {
         console.error("Fetch error:", err)
         setLoading(false)
       })
-  }, [searchQuery, activeFormat, activeCategory, hasDiscogs, hasPrice, auctionStatus, countryFilter, yearFrom, yearTo, labelFilter, visibilityFilter,
+  }, [searchQuery, activeFormat, activeCategory, hasDiscogs, hasShopPrice, hasLegacyPrice, hasImage, auctionStatus, countryFilter, yearFrom, yearTo, labelFilter, visibilityFilter,
       importCollection, importAction, inventoryState, inventoryStatusFilter, stocktakeFilter, priceLockedFilter, warehouseLocationFilter,
       sortField, sortDir, page, pageSize, refetchTrigger])
 
@@ -953,11 +957,27 @@ const MediaPage = () => {
           </select>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <label style={{ fontSize: "13px", color: C.muted }}>Price:</label>
-          <select value={hasPrice} onChange={(e) => setHasPrice(e.target.value)} style={selectStyle}>
+          <label style={{ fontSize: "13px", color: C.muted }} title="Release.shop_price > 0 — kanonischer Shop-Preis">Shop Price:</label>
+          <select value={hasShopPrice} onChange={(e) => setHasShopPrice(e.target.value)} style={selectStyle}>
             <option value="">All</option>
             <option value="true">Yes</option>
             <option value="false">No</option>
+          </select>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <label style={{ fontSize: "13px", color: C.muted }} title="Release.legacy_price gesetzt — tape-mag-Historie">Legacy Price:</label>
+          <select value={hasLegacyPrice} onChange={(e) => setHasLegacyPrice(e.target.value)} style={selectStyle}>
+            <option value="">All</option>
+            <option value="true">Yes</option>
+            <option value="false">No</option>
+          </select>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <label style={{ fontSize: "13px", color: C.muted }} title="Release hat ein Cover-Bild">Pictures:</label>
+          <select value={hasImage} onChange={(e) => setHasImage(e.target.value)} style={selectStyle}>
+            <option value="">All</option>
+            <option value="true">With pictures</option>
+            <option value="false">Without pictures</option>
           </select>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>

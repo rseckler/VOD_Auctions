@@ -35,7 +35,8 @@ export async function GET(
     label,
     auction_status,
     has_discogs,
-    has_price,
+    has_shop_price,
+    has_legacy_price,
     has_image,
     visibility,
     import_collection,
@@ -122,8 +123,14 @@ export async function GET(
 
   if (has_discogs === "true") query = query.whereNotNull("Release.discogs_id")
   if (has_discogs === "false") query = query.whereNull("Release.discogs_id")
-  if (has_price === "true") query = query.whereNotNull("Release.discogs_lowest_price")
-  if (has_price === "false") query = query.whereNull("Release.discogs_lowest_price")
+  if (has_shop_price === "true") query = query.where("Release.shop_price", ">", 0)
+  if (has_shop_price === "false") {
+    query = query.where(function () {
+      this.whereNull("Release.shop_price").orWhere("Release.shop_price", "<=", 0)
+    })
+  }
+  if (has_legacy_price === "true") query = query.whereNotNull("Release.legacy_price")
+  if (has_legacy_price === "false") query = query.whereNull("Release.legacy_price")
   if (has_image === "true") {
     query = query.whereNotNull("Release.coverImage").where("Release.coverImage", "!=", "")
   }

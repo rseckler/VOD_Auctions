@@ -34,7 +34,8 @@ export async function adminMediaGetPostgres(
     label,
     auction_status,
     has_discogs,
-    has_price,
+    has_shop_price,
+    has_legacy_price,
     has_image,
     visibility,
     // ── rc23 new filters: Import ──
@@ -223,11 +224,23 @@ export async function adminMediaGetPostgres(
   if (has_discogs === "false") {
     query = query.whereNull("Release.discogs_id")
   }
-  if (has_price === "true") {
-    query = query.whereNotNull("Release.discogs_lowest_price")
+  // Preis-Filter (rc54.x). Bewusst getrennt: shop_price ist der kanonische
+  // Shop-Preis (Preis-Modell rc47.2), legacy_price nur tape-mag-Historie.
+  // Der frühere "has_price"-Filter zeigte auf discogs_lowest_price — das
+  // war die alte/falsche Preislogik und ist hier ersetzt.
+  if (has_shop_price === "true") {
+    query = query.where("Release.shop_price", ">", 0)
   }
-  if (has_price === "false") {
-    query = query.whereNull("Release.discogs_lowest_price")
+  if (has_shop_price === "false") {
+    query = query.where(function () {
+      this.whereNull("Release.shop_price").orWhere("Release.shop_price", "<=", 0)
+    })
+  }
+  if (has_legacy_price === "true") {
+    query = query.whereNotNull("Release.legacy_price")
+  }
+  if (has_legacy_price === "false") {
+    query = query.whereNull("Release.legacy_price")
   }
 
   // Image filter
@@ -357,7 +370,8 @@ export async function adminMediaGetPostgres(
     auction_status ||
     category ||
     has_discogs ||
-    has_price ||
+    has_shop_price ||
+    has_legacy_price ||
     has_image ||
     visibility ||
     (import_collection && typeof import_collection === "string" && import_collection.trim()) ||

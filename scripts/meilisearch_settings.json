@@ -27,6 +27,8 @@
     "styles",
     "has_cover",
     "has_price",
+    "shop_price",
+    "legacy_price",
     "is_purchasable",
     "in_stock",
     "cohort_a",
