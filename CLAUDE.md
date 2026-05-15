@@ -2,7 +2,7 @@
 
 **Purpose:** Auktionsplattform für ~41.500 Produkte (Industrial Music Tonträger + Literatur/Merch) — eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Beta Test (`platform_mode: beta_test`) · Storefront+Admin-UI: Englisch
-**Last Updated:** 2026-05-15 — **rc54.1 Inventory Sale-Mode-Fix** live: Catalog-Edit-Maske stempelte `sale_mode=direct_purchase` ungefragt auf NULL-Releases — Default jetzt `both` überall, Verify preis-unabhängig, Stocktake-Conditions VG+/VG+-Fallback. Backfill der 13.574 Alt-`direct_purchase`-Rows bewusst geparkt (TODO.md Now §0). Vorher rc54.0 Country-ISO Migration. Volle Release-Historie + Details aller rc53.x/rc54.x-Releases: [`docs/architecture/CHANGELOG.md`](docs/architecture/CHANGELOG.md). Operative Arbeitsliste: [`docs/TODO.md`](docs/TODO.md).
+**Last Updated:** 2026-05-15 — **rc54.2 + rc54.3 Media-Catalog Preis-Filter** live: „Price"-Filter (referenzierte alte `discogs_lowest_price`-Logik bzw. wurde von der Meili-Route still verworfen) ersetzt durch getrennte **Shop Price** + **Legacy Price** Filter (je `> 0`-Semantik) + neuen **Pictures**-Filter; Kachel „WITH PRICE" auf `shop_price`. rc54.3-Hotfix: „No"-Fall über Komplement `NOT <field> > 0`, da Meili `IS NULL` keine JSON-null-Felder matcht. Davor rc54.1 Inventory Sale-Mode-Fix (Default `both` überall), rc54.0 Country-ISO Migration. Volle Release-Historie + Details aller rc53.x/rc54.x-Releases: [`docs/architecture/CHANGELOG.md`](docs/architecture/CHANGELOG.md). Operative Arbeitsliste: [`docs/TODO.md`](docs/TODO.md).
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
 
@@ -109,6 +109,7 @@ cd /root/VOD_Auctions/storefront && npm run build && pm2 restart vodauction-stor
 - Long-running Loops wie `--full-rebuild` dürfen mitten im Build crashen ohne Prod-Impact: Staging-Indexes werden über atomic swap erst aktiv, Prod-Index bleibt intakt. Orphan-Staging-Indexes manuell cleanen via DELETE `/indexes/:staging`
 - ENV-Loading auf VPS über `scripts/meili-cron-env.sh` Wrapper (sourced beide .env-Files + aliased `DATABASE_URL` → `SUPABASE_DB_URL` für das Sync-Script)
 - Meili SDK `meilisearch@^0.45.0` (CJS-kompatibel). `0.57+` ist ESM-only und funktioniert NICHT im Medusa 2.x CJS-Runtime — `TS1479: CommonJS module whose imports will produce 'require' calls`
+- **`IS NULL` matcht keine JSON-`null`-Felder** (rc54.3-Befund): ein null-wertiges Feld im Doc landet nicht im filterbaren Index — weder `IS NULL` noch `NOT EXISTS` noch Range-Operatoren erfassen es. Für "Feld fehlt"-Filter immer das Komplement `NOT <field> > 0` nutzen, nicht `IS NULL`. Postgres-Fallback parallel auf dieselbe Semantik ziehen, sonst Backend-Drift
 - Flag-Kill-Switch: `/app/config` OFF → Postgres-FTS sofort live, kein Deploy nötig. Auch via SQL-UPDATE auf `site_config.features`
 
 **Cwd-independente Pfade:** Backend nutzt NIE `process.cwd()`/relative `__dirname`. Immer `getProjectRoot()` etc. aus `backend/src/lib/paths.ts`. PM2 cwd ist `.medusa/server/`, nicht Source-Tree.
