@@ -1,0 +1,1698 @@
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
+import { C, T, S } from "../../../../components/admin-tokens"
+import { Btn, Toast, inputStyle, Badge } from "../../../../components/admin-ui"
+import { PrintLocationSwitcher } from "../../../../components/print-location-switcher"
+import {
+  printerAvailable,
+  printLabelAuto,
+  getActiveLocation,
+  getPrinterHealth,
+  type PrinterHealth,
+} from "../../../../lib/print-client"
+import { displayFormat, isValidFormat, toFormatGroup, type FormatValue, type FormatGroup } from "../../../../../lib/format-mapping"
+import { formatCountryCompact, formatCountryLabel } from "../../../../data/country-iso"
+
+// ─── Types ──────────────────────────────────────────────────────────────────
+
+interface SearchResult {
+  release_id: string
+  artist_name: string | null
+  title: string
+  format: string
+  format_v2: string | null
+  catalog_number: string | null
+  article_number: string | null
+  cover_image: string | null
+  legacy_price: number | null
+  label_name: string | null
+  year: number | null
+  country: string | null
+  exemplar_count: number
+  verified_count: number
+  discogs_median: number | null
+  discogs_id: number | null
+  matched_exemplar?: {
+    inventory_item_id: string
+    barcode: string | null
+    copy_number: number
+    condition_media: string | null
+    condition_sleeve: string | null
+    exemplar_price: number | null
+    is_verified: boolean
+  }
+}
+
+interface ReleaseDetail {
+  id: string
+  title: string
+  artist_name: string | null
+  label_name: string | null
+  format: string
+  format_v2: string | null
+  year: number | null
+  country: string | null
+  cover_image: string | null
+  catalog_number: string | null
+  article_number: string | null
+  legacy_price: number | null
+  legacy_condition: string | null
+  discogs_lowest: number | null
+  discogs_median: number | null
+  discogs_highest: number | null
+  discogs_num_for_sale: number | null
+  discogs_url: string | null
+}
+
+interface CopyItem {
+  id: string
+  barcode: string | null
+  copy_number: number
+  condition_media: string | null
+  condition_sleeve: string | null
+  exemplar_price: number | null
+  effective_price: number | null
+  status: string
+  is_verified: boolean
+  verified_at: string | null
+  verified_by: string | null
+  price_locked: boolean
+  notes: string | null
+  source: string | null
+  warehouse_location_id: string | null
+}
+
+// rc52.2: Lagerort-Auswahl in der Edit-Form
+interface WarehouseLocation {
+  id: string
+  code: string
+  name: string
+  is_default: boolean
+  is_active: boolean
+}
+
+// ─── Deep-Stats (Verifiziert / Ausstehend / Pro-Person) ─────────────────────
+//
+// Felder aus dem /admin/erp/inventory/stats-Response, die der kompakte
+// Statistik-Block oben im Erfassungs-Tab braucht. 1:1 aus UebersichtTab
+// übernommen (nur die hier konsumierte Teilmenge).
+
+interface InventoryStats {
+  eligible: number
+  verified: number
+  verified_value: number
+  remaining: number
+  projected_remaining_value: number
+  today?: { verified: number }
+  throughput?: { current_rate_per_hour: number }
+  per_warehouse?: Array<{
+    warehouse_code: string
+    warehouse_name: string
+    today: number
+    last_7_days: number
+    all_time: number
+    last_active_at: string | null
+    items_per_hour_today: number
+    current_rate_per_hour: number
+  }>
+}
+
+// Mapping warehouse_code → freundlicher Person-Name. David hat keinen
+// eigenen User-Account; beide arbeiten unter Frank's Login. Lager ist
+// daher der einzige zuverlässige Frank/David-Indikator (Stand 2026-05-04).
+// 1:1 aus UebersichtTab.
+const WAREHOUSE_PERSON: Record<string, { person: string; color: string }> = {
+  ALPENSTRASSE: { person: "Frank (Alpenstrasse)", color: "#d4a54a" },
+  EUGENSTRASSE: { person: "David (Eugenstrasse)", color: "#3b82f6" },
+  UNASSIGNED: { person: "Ohne Lager", color: "#94a3b8" },
+}
+
+// "vor 3 Min" / "vor 2h" / "gestern" — kompakte Relativ-Zeit ohne i18n-Lib.
+// 1:1 aus UebersichtTab.
+function formatRelativeTime(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime()
+  const diffMin = Math.floor(diffMs / 60_000)
+  if (diffMin < 1) return "jetzt"
+  if (diffMin < 60) return `vor ${diffMin} Min`
+  const diffH = Math.floor(diffMin / 60)
+  if (diffH < 24) return `vor ${diffH}h`
+  const diffD = Math.floor(diffH / 24)
+  if (diffD === 1) return "gestern"
+  return `vor ${diffD}d`
+}
+
+// €-Kurzformat — wie UebersichtTab.formatEur.
+function formatEur(n: number): string {
+  if (n >= 1_000_000) return `€${(n / 1_000_000).toFixed(2)}M`
+  if (n >= 10_000) return `€${Math.round(n / 1_000)}k`
+  if (n >= 1_000) return `€${(n / 1_000).toFixed(1)}k`
+  return `€${Math.round(n).toLocaleString("de-DE")}`
+}
+
+function pickDefaultLocationId(
+  activeCode: string,
+  existingLocationId: string | null,
+  locations: WarehouseLocation[]
+): string | null {
+  // rc52.2.1: Priorität korrigiert nach Frank-Feedback.
+  //
+  // Die 📍-Auswahl oben (im Toolbar-Switcher) ist die PRIMÄRE Standort-Aussage:
+  // wenn Frank in der Eugenstraße steht und EUGENSTRASSE als Druckziel gewählt
+  // hat, soll auch das Lager im Edit-Form auf EUGENSTRASSE defaulten — selbst
+  // wenn das Item in der DB noch ALPENSTRASSE zugeordnet ist (er relocated es
+  // gerade physisch). Frank kann immer noch manuell im Dropdown übersteuern.
+  //
+  // Reihenfolge:
+  //   1. Match auf aktive 📍-Location (case-insensitive) — wins always
+  //   2. Existing warehouse_location_id des Items (nur wenn aktiv)
+  //   3. is_default=true Lager
+  //   4. Erstes aktives Lager
+  if (activeCode) {
+    const m = locations.find((l) => l.is_active && l.code.toUpperCase() === activeCode.toUpperCase())
+    if (m) return m.id
+  }
+  if (existingLocationId) {
+    const e = locations.find((l) => l.is_active && l.id === existingLocationId)
+    if (e) return e.id
+  }
+  const def = locations.find((l) => l.is_default && l.is_active)
+  if (def) return def.id
+  return locations.find((l) => l.is_active)?.id || null
+}
+
+// ─── Constants ──────────────────────────────────────────────────────────────
+
+const GRADES = ["M", "NM", "VG+", "VG", "G+", "G", "F", "P"] as const
+type Grade = (typeof GRADES)[number]
+
+const LEGACY_CONDITION_MAP: Record<string, Grade> = {
+  m: "M", mint: "M",
+  nm: "NM", "near mint": "NM", "n/m": "NM", "m-": "NM",
+  "vg+": "VG+", "very good plus": "VG+", ex: "VG+", excellent: "VG+",
+  vg: "VG", "very good": "VG",
+  "g+": "G+", "good plus": "G+",
+  g: "G", good: "G",
+  f: "F", fair: "F",
+  p: "P", poor: "P",
+}
+
+function parseLegacyCondition(legacy: string | null): { media: Grade | null; sleeve: Grade | null } {
+  if (!legacy) return { media: null, sleeve: null }
+  const parts = legacy.toLowerCase().split("/").map((s) => s.trim())
+  return {
+    media: LEGACY_CONDITION_MAP[parts[0]] || null,
+    sleeve: parts[1] ? LEGACY_CONDITION_MAP[parts[1]] || null : null,
+  }
+}
+
+// ─── Printer ────────────────────────────────────────────────────────────────
+
+type PrinterStatus = "connected" | "browser" | "none"
+
+// Session-local alias — the implementation lives in lib/print-client so
+// it can be shared with the Catalog Detail Label-Print buttons.
+const printLabel = printLabelAuto
+
+// ─── API Helper ─────────────────────────────────────────────────────────────
+
+async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(path, {
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...(options?.headers || {}) },
+    ...options,
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(`${res.status}: ${text}`)
+  }
+  return res.json()
+}
+
+// ─── Grade Selector Component ──────────────────────────────────────────────
+
+function GradeSelector({ label, value, onChange }: { label: string; value: Grade | null; onChange: (g: Grade) => void }) {
+  return (
+    <div style={{ marginBottom: S.gap.md }}>
+      <div style={{ ...T.small, color: C.muted, marginBottom: 4 }}>{label}</div>
+      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+        {GRADES.map((g) => (
+          <button
+            key={g}
+            onClick={() => onChange(g)}
+            style={{
+              padding: "6px 12px",
+              border: `1px solid ${value === g ? C.gold : C.border}`,
+              borderRadius: 4,
+              background: value === g ? C.gold : "transparent",
+              color: value === g ? "#000" : C.text,
+              cursor: "pointer",
+              fontSize: 13,
+              fontWeight: value === g ? 700 : 400,
+              transition: "all 0.15s",
+            }}
+          >
+            {g}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Format Filter Icons (Vinyl / Tape / Magazin) ───────────────────────────
+//
+// Drei Toggle-Icons rechts neben der Search-Bar. Aktiver Filter = gold,
+// inaktiv = neutral. Mehrfachauswahl ist erlaubt (Set semantics) — leeres Set
+// bedeutet "alles zeigen" und ist auch der initiale Zustand. Frank klickt nur
+// dann auf einen Filter wenn er gezielt verengen will, z.B. um die Vinyl-
+// Pressung zwischen 30 Kassetten-Treffern zu finden.
+
+const FORMAT_FILTER_BUTTONS: Array<{ group: FormatGroup; emoji: string; title: string }> = [
+  { group: "vinyl", emoji: "💿", title: "Platten" },
+  { group: "tapes", emoji: "📼", title: "Kassetten / Tapes" },
+  { group: "literature", emoji: "📖", title: "Magazine / Literatur" },
+]
+
+function FormatFilterIcons({
+  active,
+  onToggle,
+}: {
+  active: Set<FormatGroup>
+  onToggle: (g: FormatGroup) => void
+}) {
+  return (
+    <div style={{ display: "flex", gap: 6, alignItems: "stretch" }}>
+      {FORMAT_FILTER_BUTTONS.map(({ group, emoji, title }) => {
+        const isActive = active.has(group)
+        return (
+          <button
+            key={group}
+            type="button"
+            onClick={() => onToggle(group)}
+            title={`${title}${isActive ? " — aktiv" : ""}`}
+            aria-pressed={isActive}
+            style={{
+              width: 44,
+              minHeight: 44,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 0,
+              fontSize: 18,
+              lineHeight: 1,
+              background: isActive ? `${C.gold}1a` : C.card,
+              color: isActive ? C.gold : C.muted,
+              border: `1px solid ${isActive ? C.gold : C.border}`,
+              borderRadius: S.radius.md,
+              cursor: "pointer",
+              transition: "background 0.12s, border-color 0.12s, color 0.12s",
+              filter: isActive ? "none" : "grayscale(0.4) opacity(0.75)",
+            }}
+          >
+            {emoji}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─── Main Session Page ──────────────────────────────────────────────────────
+
+export function ErfassungTab({ active }: { active: boolean }) {
+  // Search
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [selectedResultIndex, setSelectedResultIndex] = useState(0)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  // Format-Filter-Toggles (Vinyl / Tape / Magazin). Leeres Set = alle anzeigen.
+  const [activeFormatFilters, setActiveFormatFilters] = useState<Set<FormatGroup>>(new Set())
+
+  // Release detail + copies
+  const [releaseDetail, setReleaseDetail] = useState<ReleaseDetail | null>(null)
+  const [copies, setCopies] = useState<CopyItem[]>([])
+  const [activeView, setActiveView] = useState<"search" | "detail">("search")
+
+  // Evaluation form (for verifying or adding a copy)
+  const [editingCopy, setEditingCopy] = useState<CopyItem | null>(null)
+  const [isNewCopy, setIsNewCopy] = useState(false)
+  const [conditionMedia, setConditionMedia] = useState<Grade | null>(null)
+  const [conditionSleeve, setConditionSleeve] = useState<Grade | null>(null)
+  const [priceValue, setPriceValue] = useState("")
+  const [noteText, setNoteText] = useState("")
+  // rc52.2: Lagerort pro Edit. null = "kein Lager", undefined wird beim Save
+  // als "Feld nicht im Body" behandelt (lädt Backend-Default).
+  const [editLocationId, setEditLocationId] = useState<string | null>(null)
+  const [warehouseLocations, setWarehouseLocations] = useState<WarehouseLocation[]>([])
+  // rc52.3: Health der Print-Bridge — wird gegen warehouseLocations gemappt
+  // um Drift zu erkennen (Bridge-Code != DB-Code).
+  const [printerHealth, setPrinterHealth] = useState<PrinterHealth | null>(null)
+
+  // Stats — voller Deep-Stats-Response für den kompakten Statistik-Block
+  // (Verifiziert-Card, Ausstehend-Card, Pro-Person-Tabelle).
+  const [stats, setStats] = useState<InventoryStats | null>(null)
+
+  // Image upload
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // UI state
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null)
+  const [printerStatus, setPrinterStatus] = useState<PrinterStatus>("none")
+  // Recent Items: zuletzt bearbeitete Platten (letzte 10), werden prominent
+  // im Search-View angezeigt damit Frank den Kontext behält wenn er zwischen
+  // Artikeln springt. Erweitert um Barcode, Preis, Condition für sinnvolle
+  // Inline-Info + release_id zum Wiederaufrufen per Klick.
+  const [recentItems, setRecentItems] = useState<Array<{
+    release_id: string
+    artist: string
+    title: string
+    copy: number
+    barcode?: string | null
+    price?: number | null
+    condition?: string | null
+    at: number
+  }>>([])
+  const [actionLoading, setActionLoading] = useState(false)
+
+  // Scanner buffer
+  const scanBuffer = useRef("")
+  const scanTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // ── Init ──
+
+  useEffect(() => {
+    // sessionStorage-Flag: markiert dass der Erfassungs-Tab geöffnet wurde.
+    // Catalog-Detail (media/[id]/page.tsx) checkt das Flag und zeigt dann einen
+    // "← Zurück zur Erfassung"-Button oben an — damit Frank zum Catalog
+    // springen, recherchieren und wieder zurückkommen kann. Das Flag läuft
+    // nach 6h als stale aus (siehe media/[id]/page.tsx).
+    try {
+      sessionStorage.setItem("vod.inventory_session_active", String(Date.now()))
+    } catch { /* storage quota / private browsing — best-effort */ }
+
+    printerAvailable().then((ok) => setPrinterStatus(ok ? "connected" : "browser"))
+    // rc52.3: zusätzlich vollen Health-State holen für Bridge↔DB Code-Mismatch-Detection
+    getPrinterHealth().then(setPrinterHealth)
+    // Voller Deep-Stats-Response — liefert verified_value, remaining,
+    // projected_remaining_value, per_warehouse für den Statistik-Block.
+    // Läuft async, blockiert die Such-Bar nicht; bis der Fetch zurück ist
+    // rendert der Block Skeleton-Platzhalter.
+    apiFetch<InventoryStats>("/admin/erp/inventory/stats")
+      .then((s) => setStats(s))
+      .catch(() => {})
+    // rc52.2: Warehouse-Locations laden für Lagerort-Dropdown im Edit-Form
+    apiFetch<{ locations: WarehouseLocation[] }>("/admin/erp/locations")
+      .then((d) => setWarehouseLocations(d.locations || []))
+      .catch(() => {})
+    // Recent Activity aus DB laden — damit Frank auch nach Page-Reload die
+    // letzten bearbeiteten Platten sieht (war vorher nur in-memory State).
+    apiFetch<{ items: Array<{
+      release_id: string
+      artist: string
+      title: string
+      copy: number
+      barcode: string | null
+      price: number | null
+      condition: string | null
+      at: string
+    }> }>("/admin/erp/inventory/recent-activity?limit=500")
+      .then((r) => {
+        setRecentItems(
+          r.items.map((it) => ({
+            release_id: it.release_id,
+            artist: it.artist,
+            title: it.title,
+            copy: it.copy,
+            barcode: it.barcode,
+            price: it.price,
+            condition: it.condition,
+            at: new Date(it.at).getTime(),
+          }))
+        )
+      })
+      .catch(() => {})
+  }, [])
+
+  // Suchfeld fokussieren sobald der Erfassungs-Tab aktiv wird (ersetzt den
+  // früheren Mount-Fokus — der Tab ist immer gemountet, also muss der Fokus
+  // an die Tab-Aktivierung statt an den Mount gekoppelt sein).
+  useEffect(() => {
+    if (active) {
+      const t = setTimeout(() => searchInputRef.current?.focus(), 100)
+      return () => clearTimeout(t)
+    }
+  }, [active])
+
+  // ── Search ──
+
+  const doSearch = useCallback(async (q: string) => {
+    if (!q.trim()) {
+      setSearchResults([])
+      return
+    }
+    setSearchLoading(true)
+    try {
+      const data = await apiFetch<{ results: SearchResult[]; match_type: string }>(
+        `/admin/erp/inventory/search?q=${encodeURIComponent(q.trim())}&limit=500`
+      )
+      setSearchResults(data.results)
+      setSelectedResultIndex(0)
+
+      // Barcode direct hit: auto-open
+      if (data.match_type === "barcode" && data.results.length === 1) {
+        openRelease(data.results[0].release_id)
+      }
+    } catch {
+      setSearchResults([])
+    } finally {
+      setSearchLoading(false)
+    }
+  }, [])
+
+  // Debounced search
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const handleSearchInput = (val: string) => {
+    setSearchQuery(val)
+    if (searchTimer.current) clearTimeout(searchTimer.current)
+    searchTimer.current = setTimeout(() => doSearch(val), 250)
+  }
+
+  // Group eines SearchResults bestimmen — bevorzugt format_v2, sonst Heuristik
+  // auf dem Legacy-format-Freitext (manche alte Releases haben kein format_v2).
+  const getResultGroup = useCallback((r: SearchResult): FormatGroup | null => {
+    if (r.format_v2 && isValidFormat(r.format_v2)) {
+      return toFormatGroup(r.format_v2 as FormatValue)
+    }
+    const f = (r.format || "").toLowerCase()
+    if (!f) return null
+    if (f.includes("vinyl") || f.includes("lp") || f.includes("flexi") || f.includes("acetate") || f.includes("shellac") || f.includes("lathe")) return "vinyl"
+    if (f.includes("tape") || f.includes("cassette") || f.includes("reel")) return "tapes"
+    if (f.includes("magazin") || f.includes("book") || f.includes("photo") || f.includes("poster") || f.includes("postcard") || f.includes("shirt")) return "literature"
+    return null
+  }, [])
+
+  const filteredResults = useMemo(() => {
+    if (activeFormatFilters.size === 0) return searchResults
+    return searchResults.filter((r) => {
+      const g = getResultGroup(r)
+      return g != null && activeFormatFilters.has(g)
+    })
+  }, [searchResults, activeFormatFilters, getResultGroup])
+
+  // Selected index zurücksetzen sobald die Filter-Menge sich ändert (sonst
+  // zeigt der Highlight-Cursor evtl. auf einen herausgefilterten Index).
+  useEffect(() => {
+    setSelectedResultIndex(0)
+  }, [activeFormatFilters, filteredResults.length])
+
+  const toggleFormatFilter = useCallback((g: FormatGroup) => {
+    setActiveFormatFilters((prev) => {
+      const next = new Set(prev)
+      if (next.has(g)) next.delete(g)
+      else next.add(g)
+      return next
+    })
+  }, [])
+
+  // ── Open Release Detail ──
+
+  const openRelease = useCallback(async (releaseId: string) => {
+    try {
+      const data = await apiFetch<{ release: ReleaseDetail; copies: CopyItem[] }>(
+        `/admin/erp/inventory/release/${releaseId}/copies`
+      )
+      setReleaseDetail(data.release)
+      setCopies(data.copies)
+      setActiveView("detail")
+      setEditingCopy(null)
+      setIsNewCopy(false)
+    } catch (e: any) {
+      setToast({ message: `Error: ${e.message}`, type: "error" })
+    }
+  }, [])
+
+  // ── Start Editing a Copy ──
+
+  const startEditCopy = (copy: CopyItem) => {
+    setEditingCopy(copy)
+    setIsNewCopy(false)
+    // P0.1: if erp values are NULL (Cohort-A backfill rows), seed from
+    // Release.legacy_condition + Release.legacy_price so Frank sees sensible
+    // defaults instead of empty dropdowns.
+    const legacyParsed = parseLegacyCondition(releaseDetail?.legacy_condition || null)
+    // Reihenfolge: gespeicherter Exemplar-Zustand → Legacy → VG+/VG+-Fallback.
+    setConditionMedia((copy.condition_media as Grade) || legacyParsed.media || "VG+")
+    setConditionSleeve((copy.condition_sleeve as Grade) || legacyParsed.sleeve || "VG+")
+    const effective = copy.effective_price != null
+      ? copy.effective_price
+      : (releaseDetail?.legacy_price != null ? releaseDetail.legacy_price : null)
+    setPriceValue(effective != null ? String(effective) : "")
+    setNoteText(copy.notes || "")
+    // rc52.2.1: Aktive 📍-Location ist der primäre Default — User-Standort
+    // gewinnt über Item-DB-Lager. pickDefaultLocationId fällt automatisch
+    // auf das existierende warehouse_location_id zurück wenn keine 📍 gesetzt.
+    setEditLocationId(
+      pickDefaultLocationId(
+        getActiveLocation(),
+        copy.warehouse_location_id,
+        warehouseLocations
+      )
+    )
+  }
+
+  const startNewCopy = () => {
+    if (!releaseDetail) return
+    // Pre-fill from legacy condition
+    const parsed = parseLegacyCondition(releaseDetail.legacy_condition)
+    setEditingCopy(null)
+    setIsNewCopy(true)
+    // Default VG+/VG+ wenn keine Legacy-Condition parsebar — Frank's
+    // haeufigster Zustand. Vorhandene Legacy-Werte bleiben unangetastet.
+    setConditionMedia(parsed.media ?? "VG+")
+    setConditionSleeve(parsed.sleeve ?? "VG+")
+    setPriceValue(releaseDetail.legacy_price != null ? String(releaseDetail.legacy_price) : "")
+    setNoteText("")
+    // rc52.2: Default = aktive 📍-Location (oder is_default wenn keine 📍)
+    setEditLocationId(pickDefaultLocationId(getActiveLocation(), null, warehouseLocations))
+  }
+
+  // Auto-open first copy for editing if it's unverified
+  useEffect(() => {
+    if (activeView === "detail" && !editingCopy && !isNewCopy) {
+      if (copies.length === 0) {
+        // No inventory item yet (non-Cohort-A release) → auto-open new copy form
+        startNewCopy()
+      } else {
+        const firstUnverified = copies.find((c) => !c.is_verified)
+        if (firstUnverified) {
+          startEditCopy(firstUnverified)
+        }
+      }
+    }
+  }, [activeView, copies])
+
+  // ── Verify ──
+  //
+  // Zwei-Button-Flow seit 2026-04-22: Frank braucht eine bewusste Trennung
+  // zwischen "Änderungen speichern" und "Label drucken". doPrint=true druckt
+  // zusätzlich nach dem Save, false speichert nur. Shortcut 'S' = Save,
+  // 'V' = Save+Print.
+
+  const handleVerify = async (doPrint: boolean = false) => {
+    if (!releaseDetail) return
+    setActionLoading(true)
+
+    try {
+      if (isNewCopy) {
+        // Add new copy
+        const body: any = {
+          release_id: releaseDetail.id,
+          condition_media: conditionMedia || undefined,
+          condition_sleeve: conditionSleeve || undefined,
+          notes: noteText || undefined,
+          // rc52.2: Lagerort explizit mitsenden — auch null wenn User
+          // bewusst "kein Lager" gewählt hat. Backend distinguiert das
+          // über hasOwnProperty.
+          warehouse_location_id: editLocationId,
+        }
+        const price = parseFloat(priceValue.replace(",", "."))
+        if (!isNaN(price) && price >= 0) body.exemplar_price = Math.round(price)
+
+        const result = await apiFetch<{ item: any; label_url: string }>(
+          "/admin/erp/inventory/items/add-copy",
+          { method: "POST", body: JSON.stringify(body) }
+        )
+
+        let printResult: { silent: boolean } | null = null
+        if (doPrint) printResult = await printLabel(result.item.id)
+        const printSuffix = printResult ? (printResult.silent ? " · gedruckt" : " · Druck-Dialog") : ""
+
+        setToast({
+          message: `Copy #${result.item.copy_number} gespeichert — ${result.item.barcode}${printSuffix}`,
+          type: "success",
+        })
+        {
+          const pr = parseFloat(priceValue.replace(",", "."))
+          const condition = conditionMedia && conditionSleeve && conditionMedia !== conditionSleeve
+            ? `${conditionMedia}/${conditionSleeve}`
+            : (conditionMedia || conditionSleeve || null)
+          setRecentItems((prev) => [
+            {
+              release_id: releaseDetail.id,
+              artist: releaseDetail.artist_name || "?",
+              title: releaseDetail.title,
+              copy: result.item.copy_number,
+              barcode: result.item.barcode || null,
+              price: !isNaN(pr) && pr >= 0 ? Math.round(pr) : null,
+              condition,
+              at: Date.now(),
+            },
+            // Dedupe: bei Mehrfach-Verify desselben Exemplars in einer Session
+            // nur der neueste Eintrag bleibt (key = release_id + copy_number).
+            ...prev.filter((p) => !(p.release_id === releaseDetail.id && p.copy === (isNewCopy ? result.item?.copy_number : result.copy_number))),
+          ])
+        }
+      } else if (editingCopy) {
+        // Verify existing copy
+        const body: any = {
+          condition_media: conditionMedia || undefined,
+          condition_sleeve: conditionSleeve || undefined,
+          notes: noteText || undefined,
+          // rc52.2: Lagerort explizit — auch null akzeptiert das Backend
+          warehouse_location_id: editLocationId,
+        }
+        // Preis immer senden wenn valid — Backend ist idempotent + mirror'd
+        // auch exemplar_price für Copy #1 damit das Label den Wert zeigt.
+        // Früherer Delta-Check (rounded !== releaseDetail.legacy_price) hat
+        // Frank gefressen: Type-Mismatch zwischen parseFloat-Number und
+        // DB-String-Number führte zu silent-skip, Preis landete nicht in DB.
+        const price = parseFloat(priceValue.replace(",", "."))
+        if (!isNaN(price) && price >= 0) {
+          const rounded = Math.round(price)
+          if (editingCopy.copy_number === 1) {
+            body.new_price = rounded
+          } else {
+            body.exemplar_price = rounded
+          }
+        }
+
+        const result = await apiFetch<{ barcode: string; copy_number: number }>(
+          `/admin/erp/inventory/items/${editingCopy.id}/verify`,
+          { method: "POST", body: JSON.stringify(body) }
+        )
+
+        let printResult: { silent: boolean } | null = null
+        if (doPrint) printResult = await printLabel(editingCopy.id)
+        const printSuffix = printResult ? (printResult.silent ? " · gedruckt" : " · Druck-Dialog") : ""
+
+        setToast({
+          message: `Exemplar #${result.copy_number} gespeichert — ${result.barcode}${printSuffix}`,
+          type: "success",
+        })
+        {
+          const pr = parseFloat(priceValue.replace(",", "."))
+          const condition = conditionMedia && conditionSleeve && conditionMedia !== conditionSleeve
+            ? `${conditionMedia}/${conditionSleeve}`
+            : (conditionMedia || conditionSleeve || null)
+          setRecentItems((prev) => [
+            {
+              release_id: releaseDetail.id,
+              artist: releaseDetail.artist_name || "?",
+              title: releaseDetail.title,
+              copy: result.copy_number,
+              barcode: result.barcode || null,
+              price: !isNaN(pr) && pr >= 0 ? Math.round(pr) : null,
+              condition,
+              at: Date.now(),
+            },
+            // Dedupe: bei Mehrfach-Verify desselben Exemplars in einer Session
+            // nur der neueste Eintrag bleibt (key = release_id + copy_number).
+            ...prev.filter((p) => !(p.release_id === releaseDetail.id && p.copy === (isNewCopy ? result.item?.copy_number : result.copy_number))),
+          ])
+        }
+      }
+
+      // Update stats
+      if (stats) setStats({ ...stats, verified: stats.verified + 1 })
+
+      // Return to search
+      backToSearch()
+    } catch (e: any) {
+      setToast({ message: `Error: ${e.message}`, type: "error" })
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  // ── Back to Search ──
+
+  const backToSearch = () => {
+    setActiveView("search")
+    setReleaseDetail(null)
+    setCopies([])
+    setEditingCopy(null)
+    setIsNewCopy(false)
+    setSearchQuery("")
+    setSearchResults([])
+    setTimeout(() => searchInputRef.current?.focus(), 50)
+  }
+
+  // ── Image Upload ──
+
+  const handleImageUpload = async (file: File) => {
+    if (!releaseDetail) return
+    setUploading(true)
+    try {
+      const reader = new FileReader()
+      const base64 = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+
+      const result = await apiFetch<{ url: string; optimized_size_kb: number; compression: string }>(
+        "/admin/erp/inventory/upload-image",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            release_id: releaseDetail.id,
+            image_data: base64,
+            filename: file.name,
+          }),
+        }
+      )
+
+      // Update local state with new image
+      setReleaseDetail({ ...releaseDetail, cover_image: result.url })
+      setToast({ message: `Bild hochgeladen (${result.optimized_size_kb} KB, ${result.compression} komprimiert)`, type: "success" })
+    } catch (e: any) {
+      setToast({ message: `Upload fehlgeschlagen: ${e.message}`, type: "error" })
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  // ── Discogs Price Override ──
+
+  const applyDiscogsMedian = () => {
+    if (releaseDetail?.discogs_median != null) {
+      setPriceValue(String(Math.round(releaseDetail.discogs_median)))
+    }
+  }
+
+  // ── Keyboard Shortcuts ──
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Shortcuts nur verarbeiten wenn der Erfassungs-Tab aktiv ist — sonst
+      // würde Scannen/Tippen im Hintergrund die versteckte Ansicht steuern.
+      if (!active) return
+      const target = e.target as HTMLElement
+      const isInput = target.tagName === "INPUT" || target.tagName === "TEXTAREA"
+
+      // Scanner detection: rapid keystrokes (< 40ms apart) = barcode scanner
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && activeView === "search" && !isInput) {
+        scanBuffer.current += e.key
+        if (scanTimeout.current) clearTimeout(scanTimeout.current)
+        scanTimeout.current = setTimeout(() => {
+          const val = scanBuffer.current.trim()
+          scanBuffer.current = ""
+          // Drei Scanner-Formate werden erkannt:
+          //   1. <digits>VODe   — neues Exemplar-Format (2026-04-22+), z.B. 000001VODe
+          //   2. VOD-<digits>   — tape-mag article_number (VOD-19586) UND
+          //                       altes Exemplar-Format (VOD-000001) aus der Übergangsphase
+          // Backend-Search handled all drei — probiert erst exact Exemplar-Barcode
+          // (erp_inventory_item.barcode), dann article_number (Release.article_number).
+          const newBarcodePattern = /^\d+VODe$/i
+          const oldBarcodeOrArticle = /^VOD-\d+$/i
+          if (val.length >= 5 && (newBarcodePattern.test(val) || oldBarcodeOrArticle.test(val))) {
+            setSearchQuery(val)
+            doSearch(val)
+          }
+        }, 80)
+      }
+
+      // Global shortcuts
+      if (e.key === "Escape") {
+        if (editingCopy || isNewCopy) {
+          setEditingCopy(null)
+          setIsNewCopy(false)
+          e.preventDefault()
+          return
+        } else if (activeView === "detail") {
+          backToSearch()
+          e.preventDefault()
+          return
+        }
+        // Im plain-search-View macht Escape nichts mehr (kein Exit-Modal).
+      }
+
+      if (isInput) return // Don't intercept while typing
+
+      if (e.key === "/" || e.key === "f") {
+        e.preventDefault()
+        if (activeView === "detail") backToSearch()
+        else searchInputRef.current?.focus()
+        return
+      }
+
+      // Search results navigation
+      if (activeView === "search" && filteredResults.length > 0) {
+        if (e.key === "ArrowDown") {
+          e.preventDefault()
+          setSelectedResultIndex((i) => Math.min(i + 1, filteredResults.length - 1))
+          return
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault()
+          setSelectedResultIndex((i) => Math.max(i - 1, 0))
+          return
+        }
+        if (e.key === "Enter") {
+          e.preventDefault()
+          openRelease(filteredResults[selectedResultIndex].release_id)
+          return
+        }
+      }
+
+      // Detail view shortcuts
+      if (activeView === "detail") {
+        if (e.key === "v" || e.key === "V") {
+          if (editingCopy || isNewCopy) handleVerify(true)
+        }
+        if (e.key === "s" || e.key === "S") {
+          if (editingCopy || isNewCopy) handleVerify(false)
+          return
+        }
+        if (e.key === "a" || e.key === "A") {
+          startNewCopy()
+          return
+        }
+        if (e.key === "d" || e.key === "D") {
+          applyDiscogsMedian()
+          return
+        }
+        if (e.key === "l" || e.key === "L") {
+          if (editingCopy?.id) printLabel(editingCopy.id)
+          return
+        }
+      }
+    }
+
+    window.addEventListener("keydown", handler)
+    return () => window.removeEventListener("keydown", handler)
+  }, [active, activeView, searchResults, filteredResults, selectedResultIndex, editingCopy, isNewCopy, releaseDetail, stats, doSearch, conditionMedia, conditionSleeve, priceValue, noteText])
+
+  // ─── RENDER ──────────────────────────────────────────────────────────────
+
+  const cardStyle: React.CSSProperties = {
+    background: C.card,
+    borderRadius: S.radius.md,
+    border: `1px solid ${C.border}`,
+    padding: S.gap.lg,
+  }
+
+  // rc52.3: Drift-Detection — Bridge meldet z.B. EUGENSTRASSE als printer-location,
+  // aber DB hat keinen warehouse_location-Eintrag mit code='EUGENSTRASSE'.
+  // Konsequenz: Der Lagerort-Default beim Edit fällt nicht auf EUGENSTRASSE
+  // sondern auf den letzten Existing oder is_default. Das ist genau der rc52.x-Bug
+  // der Frank in der Eugenstraße getroffen hat (DB-Code war "EGSTR57/2").
+  // Wir warnen sichtbar damit das nicht stumm passiert.
+  const bridgeOrphanCodes = useMemo<string[]>(() => {
+    if (!printerHealth?.locations || printerHealth.locations.length === 0) return []
+    if (warehouseLocations.length === 0) return [] // noch nicht geladen
+    const dbCodes = new Set(warehouseLocations.map((l) => l.code.toUpperCase()))
+    return printerHealth.locations
+      .map((l) => l.code)
+      .filter((code) => !dbCodes.has(code.toUpperCase()))
+  }, [printerHealth, warehouseLocations])
+
+  // ── Kompakter Statistik-Block (Erfassungs-Tab) ──
+  // Zeile 1: Verifiziert-Card + Ausstehend-Card (links) + 📍-Switcher +
+  // Drucker-Badge (rechts). Zeile 2: Pro-Person-Tabelle (volle Breite).
+  // Bewusst kleiner dimensioniert als das Dashboard, damit der Block die
+  // Such-Bar nicht dominiert. Skeleton-Platzhalter solange stats === null.
+
+  // Kompakte Mini-Card für eine KPI (Verifiziert / Ausstehend).
+  const miniStatCard = (
+    label: string,
+    value: string,
+    subtitle: string | undefined,
+    accent: string
+  ): JSX.Element => (
+    <div style={{
+      flex: 1,
+      minWidth: 120,
+      background: C.card,
+      border: `1px solid ${C.border}`,
+      borderRadius: S.radius.md,
+      padding: "8px 12px",
+    }}>
+      <div style={{ ...T.micro, color: C.muted }}>{label}</div>
+      <div style={{ fontSize: 18, fontWeight: 700, color: accent, lineHeight: 1.15, marginTop: 1 }}>
+        {value}
+      </div>
+      {subtitle && (
+        <div style={{ fontSize: 10, color: C.muted, marginTop: 1 }}>{subtitle}</div>
+      )}
+    </div>
+  )
+
+  // Kompakte Tabellen-Styles für die Pro-Person-Card.
+  const ppThStyle: React.CSSProperties = {
+    padding: "3px 6px",
+    textAlign: "left",
+    fontSize: 9,
+    fontWeight: 700,
+    color: C.muted,
+    textTransform: "uppercase",
+    borderBottom: `1px solid ${C.border}`,
+    whiteSpace: "nowrap",
+  }
+  const ppTdStyle: React.CSSProperties = {
+    padding: "4px 6px",
+    fontSize: 11,
+    borderBottom: `1px solid ${C.border}08`,
+    whiteSpace: "nowrap",
+  }
+
+  return (
+    <>
+      {/* ── KOMPAKTER STATISTIK-BLOCK ── */}
+      <div style={{ marginBottom: S.gap.lg }}>
+        {/* Zeile 1: Verifiziert + Ausstehend (links) · 📍 + Drucker (rechts) */}
+        <div style={{
+          display: "flex",
+          alignItems: "stretch",
+          justifyContent: "space-between",
+          gap: S.gap.md,
+          flexWrap: "wrap",
+        }}>
+          <div style={{ display: "flex", gap: S.gap.sm, flex: 1, minWidth: 260 }}>
+            {stats ? (
+              <>
+                {miniStatCard(
+                  "Verifiziert",
+                  stats.verified.toLocaleString("de-DE"),
+                  `${formatEur(stats.verified_value)} Wert`,
+                  C.success
+                )}
+                {miniStatCard(
+                  "Ausstehend",
+                  stats.remaining.toLocaleString("de-DE"),
+                  stats.remaining > 0
+                    ? `≈ ${formatEur(stats.projected_remaining_value)} Hochrechnung`
+                    : undefined,
+                  stats.remaining > 0 ? C.warning : C.success
+                )}
+              </>
+            ) : (
+              <>
+                {miniStatCard("Verifiziert", "—", undefined, C.success)}
+                {miniStatCard("Ausstehend", "—", undefined, C.warning)}
+              </>
+            )}
+          </div>
+          {/* 📍-Switcher + Drucker-Badge */}
+          <div style={{ display: "flex", gap: S.gap.md, alignItems: "center" }}>
+            <PrintLocationSwitcher />
+            <Badge
+              label={printerStatus === "connected" ? "Silent Print" : "Browser Print"}
+              variant={printerStatus === "connected" ? "success" : "info"}
+            />
+          </div>
+        </div>
+
+        {/* Zeile 2: Pro-Person-Card (kompakt, volle Breite) */}
+        {stats && stats.per_warehouse && stats.per_warehouse.length > 0 && (
+          <div style={{
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: S.radius.md,
+            padding: "8px 12px",
+            marginTop: S.gap.sm,
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+              <div style={{ ...T.micro, color: C.muted }}>Pro Person</div>
+              <div
+                style={{ fontSize: 9, color: C.muted }}
+                title="David hat noch keinen eigenen Account — Zuordnung über Lagerort: Frank=Alpenstrasse, David=Eugenstrasse"
+              >
+                via Lagerort
+              </div>
+            </div>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  <th style={ppThStyle}>Person</th>
+                  <th style={{ ...ppThStyle, textAlign: "right" }}>Heute</th>
+                  <th style={{ ...ppThStyle, textAlign: "right" }}>Items/h</th>
+                  <th style={{ ...ppThStyle, textAlign: "right" }}>Jetzt</th>
+                  <th style={{ ...ppThStyle, textAlign: "right" }}>7 Tage</th>
+                  <th style={{ ...ppThStyle, textAlign: "right" }}>Gesamt</th>
+                  <th style={{ ...ppThStyle, textAlign: "right" }}>Zuletzt</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats.per_warehouse.map((w) => {
+                  const meta = WAREHOUSE_PERSON[w.warehouse_code] || {
+                    person: w.warehouse_name,
+                    color: C.muted,
+                  }
+                  const parts = meta.person.split(" ")
+                  const firstName = parts[0]
+                  const subtitle = parts.slice(1).join(" ").replace(/^\(|\)$/g, "")
+                  return (
+                    <tr key={w.warehouse_code}>
+                      <td style={ppTdStyle}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                          <div style={{
+                            width: 7, height: 7, borderRadius: "50%", background: meta.color, flexShrink: 0,
+                          }} />
+                          <span style={{ fontWeight: 500 }}>{firstName}</span>
+                          {subtitle && (
+                            <span style={{ fontSize: 9, color: C.muted }}>{subtitle}</span>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{ ...ppTdStyle, textAlign: "right", fontWeight: 600 }}>{w.today}</td>
+                      <td style={{ ...ppTdStyle, textAlign: "right", color: C.muted }}>
+                        {w.items_per_hour_today || "—"}
+                      </td>
+                      <td style={{ ...ppTdStyle, textAlign: "right", color: w.current_rate_per_hour > 0 ? C.gold : C.muted }}>
+                        {w.current_rate_per_hour || "—"}
+                      </td>
+                      <td style={{ ...ppTdStyle, textAlign: "right", color: C.muted }}>{w.last_7_days}</td>
+                      <td style={{ ...ppTdStyle, textAlign: "right", color: C.muted }}>{w.all_time.toLocaleString("de-DE")}</td>
+                      <td style={{ ...ppTdStyle, textAlign: "right", color: C.muted }}>
+                        {w.last_active_at ? formatRelativeTime(w.last_active_at) : "—"}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {/* Pro-Person Skeleton-Platzhalter solange stats laedt */}
+        {!stats && (
+          <div style={{
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: S.radius.md,
+            padding: "8px 12px",
+            marginTop: S.gap.sm,
+          }}>
+            <div style={{ ...T.micro, color: C.muted, marginBottom: 6 }}>Pro Person</div>
+            {Array.from({ length: 2 }).map((_, i) => (
+              <div key={i} style={{ height: 11, background: C.subtle, borderRadius: 2, marginBottom: 5, width: `${70 - i * 15}%` }} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* rc52.3: Bridge↔DB Code-Mismatch Banner */}
+      {bridgeOrphanCodes.length > 0 && (
+        <div style={{
+          marginBottom: S.gap.lg,
+          padding: `${S.gap.md}px ${S.gap.lg}px`,
+          background: `${C.warning}15`,
+          border: `1px solid ${C.warning}40`,
+          borderRadius: S.radius.md,
+          color: C.text,
+          fontSize: 13,
+          lineHeight: 1.5,
+        }}>
+          <div style={{ fontWeight: 600, marginBottom: 4, color: C.warning }}>
+            ⚠️ Drucker-Standort{bridgeOrphanCodes.length > 1 ? "e" : ""} ohne passendes Lager
+          </div>
+          <div>
+            Die Print-Bridge kennt {bridgeOrphanCodes.length === 1 ? "den Code" : "die Codes"}{" "}
+            <strong>{bridgeOrphanCodes.join(", ")}</strong>, aber {bridgeOrphanCodes.length === 1 ? "es existiert kein" : "es existieren keine"}
+            {" "}<code>warehouse_location</code> mit{" "}
+            {bridgeOrphanCodes.length === 1 ? "diesem Code" : "diesen Codes"} in der DB.
+            Der Lagerort-Default beim Erfassen kippt deshalb auf das DB-Default-Lager statt auf den gewählten Drucker-Standort.{" "}
+            <strong>Fix:</strong>{" "}
+            <a
+              href="/app/erp/locations"
+              style={{ color: C.warning, textDecoration: "underline" }}
+            >
+              Lagerort-Code anpassen
+            </a>
+            {" "}oder Bridge mit dem DB-Code neu installieren.
+          </div>
+        </div>
+      )}
+
+      {/* ── SEARCH BAR + FORMAT FILTERS ── */}
+      <div style={{ marginBottom: S.gap.lg, display: "flex", gap: S.gap.sm, alignItems: "stretch" }}>
+        <input
+          ref={searchInputRef}
+          type="text"
+          value={searchQuery}
+          onChange={(e) => handleSearchInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && filteredResults.length > 0) {
+              e.preventDefault()
+              openRelease(filteredResults[selectedResultIndex].release_id)
+            }
+            if (e.key === "ArrowDown") {
+              e.preventDefault()
+              setSelectedResultIndex((i) => Math.min(i + 1, filteredResults.length - 1))
+            }
+            if (e.key === "ArrowUp") {
+              e.preventDefault()
+              setSelectedResultIndex((i) => Math.max(i - 1, 0))
+            }
+          }}
+          placeholder="Artist, Titel, Katalognummer oder VOD-Nummer (z.B. VOD-19586) suchen..."
+          style={{
+            ...inputStyle,
+            flex: 1,
+            padding: "14px 16px",
+            fontSize: 16,
+            borderColor: activeView === "search" ? C.gold : C.border,
+          }}
+          autoFocus
+        />
+        <FormatFilterIcons active={activeFormatFilters} onToggle={toggleFormatFilter} />
+      </div>
+
+      {/* ── SEARCH RESULTS ──
+          Scrollbarer Container: bei generischen Tokens ("vanity", "music")
+          kommen 50-500 Treffer. Ohne maxHeight wird die Page lang und Frank
+          verliert die Recent-Items + Search-Bar aus dem Viewport. */}
+      {activeView === "search" && filteredResults.length > 0 && (
+        <div style={{ ...cardStyle, marginBottom: S.gap.lg, padding: 0, overflow: "hidden" }}>
+          <div style={{
+            padding: "8px 16px",
+            background: C.hover,
+            borderBottom: `1px solid ${C.border}`,
+            ...T.small,
+            color: C.muted,
+            fontWeight: 600,
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+          }}>
+            Treffer · {filteredResults.length}
+            {activeFormatFilters.size > 0 && filteredResults.length !== searchResults.length && (
+              <span style={{ color: C.muted, fontWeight: 400, marginLeft: 6, textTransform: "none", letterSpacing: 0 }}>
+                (von {searchResults.length} gefiltert)
+              </span>
+            )}
+          </div>
+          <div style={{ maxHeight: 600, overflowY: "auto" }}>
+          {filteredResults.map((r, idx) => (
+            <div
+              key={r.release_id}
+              onClick={() => openRelease(r.release_id)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: S.gap.md,
+                padding: "10px 16px",
+                cursor: "pointer",
+                background: idx === selectedResultIndex ? C.hover : "transparent",
+                borderBottom: idx < filteredResults.length - 1 ? `1px solid ${C.border}` : "none",
+                transition: "background 0.1s",
+              }}
+              onMouseEnter={() => setSelectedResultIndex(idx)}
+            >
+              {r.cover_image ? (
+                <img src={r.cover_image} alt="" style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 4 }} />
+              ) : (
+                <div style={{ width: 48, height: 48, background: C.border, borderRadius: 4 }} />
+              )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {r.artist_name || "Unknown"} — {r.title}
+                </div>
+                <div style={{ ...T.small, color: C.muted }}>
+                  {r.article_number ? <span style={{ fontFamily: "monospace", fontWeight: 600, marginRight: 6 }}>{r.article_number}</span> : null}
+                  {r.format_v2 ? displayFormat(r.format_v2 as FormatValue) : r.format}
+                  {r.catalog_number ? ` · ${r.catalog_number}` : ""}
+                  {r.label_name ? ` · ${r.label_name}` : ""}
+                </div>
+              </div>
+              <div style={{
+                width: 90,
+                flexShrink: 0,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                ...T.small,
+                color: r.country ? C.text : C.muted,
+                fontWeight: r.country ? 500 : 400,
+                textAlign: "left",
+              }}
+                title={r.country ? formatCountryLabel(r.country) : "Land unbekannt"}
+              >
+                {/* rc54.0: Compact-Format (Flag + ISO) — DB-Wert ist seit
+                    Phase 4 Backfill garantiert ISO-3166-1 alpha-2. */}
+                {formatCountryCompact(r.country)}
+              </div>
+              <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                <div style={{ fontWeight: 600, color: C.gold }}>{r.legacy_price != null ? `€${r.legacy_price}` : ""}</div>
+                <div style={{ ...T.small, color: C.muted }}>
+                  {r.exemplar_count > 0
+                    ? <>{r.exemplar_count} Ex. {r.verified_count > 0 && <span style={{ color: C.success }}>· {r.verified_count} done</span>}</>
+                    : <span style={{ color: C.warning }}>NEU</span>}
+                </div>
+              </div>
+            </div>
+          ))}
+          </div>
+        </div>
+      )}
+
+      {activeView === "search" && searchQuery && !searchLoading && searchResults.length === 0 && (
+        <div style={{ ...cardStyle, textAlign: "center", color: C.muted, padding: 40 }}>
+          Kein Treffer für &quot;{searchQuery}&quot;
+        </div>
+      )}
+
+      {activeView === "search" && searchQuery && !searchLoading && searchResults.length > 0 && filteredResults.length === 0 && (
+        <div style={{ ...cardStyle, textAlign: "center", color: C.muted, padding: 40 }}>
+          {searchResults.length} Treffer, aber keiner passt zum Format-Filter — Filter anpassen oder zurücksetzen.
+        </div>
+      )}
+
+      {/* ── RELEASE DETAIL + COPIES ── */}
+      {activeView === "detail" && releaseDetail && (
+        <div style={{ ...cardStyle, marginBottom: S.gap.lg }}>
+          {/* Release header */}
+          <div style={{ display: "flex", gap: S.gap.lg, marginBottom: S.gap.lg }}>
+            <div style={{ position: "relative", width: 200, height: 200 }}>
+              {releaseDetail.cover_image ? (
+                <img src={releaseDetail.cover_image} alt="" style={{ width: 200, height: 200, objectFit: "cover", borderRadius: S.radius.md }} />
+              ) : (
+                <div style={{
+                  width: 200, height: 200, background: C.border, borderRadius: S.radius.md,
+                  display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column",
+                  cursor: "pointer", border: `2px dashed ${C.muted}`,
+                }}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <div style={{ fontSize: 32, marginBottom: 4 }}>📷</div>
+                  <div style={{ ...T.small, color: C.muted }}>Foto aufnehmen</div>
+                </div>
+              )}
+              {/* Upload button overlay (always visible) */}
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                style={{
+                  position: "absolute", bottom: 6, right: 6,
+                  background: C.gold, color: "#000", border: "none", borderRadius: 4,
+                  padding: "4px 8px", fontSize: 11, fontWeight: 600, cursor: "pointer",
+                  opacity: uploading ? 0.5 : 0.9,
+                }}
+              >
+                {uploading ? "..." : "📷"}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                style={{ display: "none" }}
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) handleImageUpload(file)
+                  e.target.value = ""
+                }}
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <h2 style={{ margin: 0, fontSize: 22, color: C.text }}>{releaseDetail.artist_name || "Unknown"}</h2>
+              <div style={{ fontSize: 16, color: C.muted, marginTop: 4 }}>{releaseDetail.title}</div>
+              {releaseDetail.article_number && (
+                <div style={{ ...T.small, fontFamily: "monospace", color: C.gold, marginTop: 4, fontWeight: 600 }}>
+                  {releaseDetail.article_number}
+                </div>
+              )}
+              <div style={{ ...T.small, color: C.muted, marginTop: 8 }}>
+                {releaseDetail.format_v2 ? displayFormat(releaseDetail.format_v2 as FormatValue) : releaseDetail.format}
+                {releaseDetail.catalog_number ? ` · ${releaseDetail.catalog_number}` : ""}
+                {releaseDetail.label_name ? ` · ${releaseDetail.label_name}` : ""}
+              </div>
+              <div style={{ ...T.small, color: C.muted, marginTop: 4 }}>
+                {releaseDetail.country || ""}{releaseDetail.year ? ` · ${releaseDetail.year}` : ""}
+              </div>
+              {/* Quick-Links zu Catalog (Admin) + Storefront (oeffentlich).
+                  Beide oeffnen in neuem Tab, damit Frank seine Inventur-Session
+                  nicht verlaesst. Storefront-URL ist die Prod-URL — Admin
+                  laeuft praktisch nur auf Prod, lokale Dev-Sessions sind
+                  selten Stocktake-Use-Case. */}
+              <div style={{ ...T.small, marginTop: 8, display: "flex", gap: 12, alignItems: "center" }}>
+                <a
+                  href={`/app/media/${releaseDetail.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: C.gold, textDecoration: "underline" }}
+                  title="Im Catalog (Admin) oeffnen"
+                >
+                  → Catalog
+                </a>
+                <a
+                  href={`https://vod-auctions.com/catalog/${releaseDetail.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: C.gold, textDecoration: "underline" }}
+                  title="Im Storefront (oeffentliche Ansicht) oeffnen"
+                >
+                  → Storefront
+                </a>
+              </div>
+              <div style={{ marginTop: 12, fontSize: 24, fontWeight: 700, color: C.gold }}>
+                {releaseDetail.legacy_price != null ? `€${releaseDetail.legacy_price}` : "—"}
+              </div>
+              {/* Discogs prices — 2 semantic sources, not a Low/Med/High triple:
+                  1) Market: lowest active listing + count (from /marketplace/stats)
+                  2) Suggestion range across 7 grades (from /marketplace/price_suggestions,
+                     Median=middle grade, High=Mint). NOT sales-history — that data is
+                     only on the Discogs website, link through for it. */}
+              {(releaseDetail.discogs_lowest != null || releaseDetail.discogs_median != null) && (
+                <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 2 }}>
+                  {releaseDetail.discogs_lowest != null && (
+                    <div style={{ ...T.small, color: C.muted }}>
+                      <strong style={{ color: C.text }}>Markt aktuell:</strong>{" "}
+                      ab €{releaseDetail.discogs_lowest.toFixed(2)}
+                      {releaseDetail.discogs_num_for_sale != null && ` · ${releaseDetail.discogs_num_for_sale} im Angebot`}
+                    </div>
+                  )}
+                  {releaseDetail.discogs_median != null && releaseDetail.discogs_highest != null && (
+                    <div style={{ ...T.small, color: C.muted }}>
+                      <strong style={{ color: C.text }}>Discogs-Suggestion:</strong>{" "}
+                      Median €{releaseDetail.discogs_median.toFixed(2)} · Mint €{releaseDetail.discogs_highest.toFixed(2)}
+                      <span style={{ color: C.muted, opacity: 0.7 }}> (je Zustand)</span>
+                    </div>
+                  )}
+                  {releaseDetail.discogs_url && (
+                    <a href={releaseDetail.discogs_url} target="_blank" rel="noopener noreferrer" style={{ ...T.small, color: C.gold, textDecoration: "underline", marginTop: 2 }}>
+                      Sales-History auf Discogs ansehen →
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Copies list */}
+          <div style={{ marginBottom: S.gap.lg }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: S.gap.md }}>
+              <div style={{ fontWeight: 600, color: C.text }}>Exemplare ({copies.length})</div>
+              <Btn label="[A] Weiteres Exemplar" variant="gold" onClick={startNewCopy} style={{ fontSize: 12, padding: "6px 12px" }} />
+            </div>
+            {copies.map((copy) => (
+              <div
+                key={copy.id}
+                onClick={() => startEditCopy(copy)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: S.gap.md,
+                  padding: "10px 12px",
+                  borderRadius: S.radius.sm,
+                  cursor: "pointer",
+                  background: editingCopy?.id === copy.id ? `${C.gold}15` : "transparent",
+                  border: editingCopy?.id === copy.id ? `1px solid ${C.gold}40` : `1px solid transparent`,
+                  marginBottom: 4,
+                  transition: "all 0.15s",
+                }}
+              >
+                <div style={{ fontWeight: 700, width: 28, color: C.muted }}>#{copy.copy_number}</div>
+                <div style={{ width: 80, ...T.small }}>
+                  {copy.condition_media && copy.condition_sleeve
+                    ? `${copy.condition_media}/${copy.condition_sleeve}`
+                    : copy.condition_media || "—"}
+                </div>
+                <div style={{ width: 70, fontWeight: 600, color: C.gold }}>
+                  €{copy.effective_price ?? "—"}
+                </div>
+                <div style={{ width: 120, fontFamily: "monospace", ...T.small }}>
+                  {copy.barcode || "—"}
+                </div>
+                <div style={{ flex: 1 }}>
+                  {copy.is_verified
+                    ? <Badge label="Verified" variant="success" />
+                    : <Badge label="Pending" variant="warning" />}
+                </div>
+                {/* P0.5: Re-Edit + Re-Print buttons, always available (even post-verify) */}
+                <div style={{ display: "flex", gap: 6 }} onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); startEditCopy(copy) }}
+                    style={{
+                      background: "none",
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 4,
+                      padding: "4px 10px",
+                      color: C.text,
+                      cursor: "pointer",
+                      fontSize: 11,
+                    }}
+                    title="Edit this copy again"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={async (e) => {
+                      e.stopPropagation()
+                      if (!copy.barcode) {
+                        setToast({ message: "Copy has no barcode yet — verify first", type: "error" })
+                        return
+                      }
+                      const r = await printLabel(copy.id)
+                      setToast({
+                        message: r.silent ? `Printed ${copy.barcode}` : `Print dialog opened for ${copy.barcode}`,
+                        type: "success",
+                      })
+                    }}
+                    style={{
+                      background: "none",
+                      border: `1px solid ${C.gold}`,
+                      borderRadius: 4,
+                      padding: "4px 10px",
+                      color: C.gold,
+                      cursor: "pointer",
+                      fontSize: 11,
+                    }}
+                    title="Re-print label"
+                  >
+                    Print
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Evaluation form */}
+          {(editingCopy || isNewCopy) && (
+            <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: S.gap.lg }}>
+              <div style={{ fontWeight: 600, color: C.text, marginBottom: S.gap.md }}>
+                {isNewCopy ? `Neues Exemplar #${copies.length + 1}` : `Exemplar #${editingCopy?.copy_number} bewerten`}
+              </div>
+
+              <GradeSelector label="Zustand Media" value={conditionMedia} onChange={setConditionMedia} />
+              <GradeSelector label="Zustand Sleeve" value={conditionSleeve} onChange={setConditionSleeve} />
+
+              <div style={{ marginBottom: S.gap.md }}>
+                <div style={{ ...T.small, color: C.muted, marginBottom: 4 }}>Preis (EUR)</div>
+                <div style={{ display: "flex", gap: S.gap.sm, alignItems: "center" }}>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={priceValue}
+                    onChange={(e) => setPriceValue(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleVerify(true) }}
+                    style={{ ...inputStyle, width: 120 }}
+                    placeholder="0"
+                  />
+                  {releaseDetail?.discogs_median != null && (
+                    <button
+                      onClick={applyDiscogsMedian}
+                      style={{
+                        background: "none",
+                        border: `1px solid ${C.border}`,
+                        borderRadius: 4,
+                        padding: "6px 12px",
+                        color: C.gold,
+                        cursor: "pointer",
+                        fontSize: 12,
+                      }}
+                      title="Discogs Median-Suggestion übernehmen (über alle 7 Zustände gemittelt — für Mint eher Mint-Suggestion nehmen)"
+                    >
+                      [D] Sugg €{Math.round(releaseDetail.discogs_median)}
+                    </button>
+                  )}
+                  {releaseDetail?.discogs_highest != null && releaseDetail.discogs_highest !== releaseDetail.discogs_median && (
+                    <button
+                      onClick={() => {
+                        if (releaseDetail?.discogs_highest != null) {
+                          setPriceValue(String(Math.round(releaseDetail.discogs_highest)))
+                        }
+                      }}
+                      style={{
+                        background: "none",
+                        border: `1px solid ${C.border}`,
+                        borderRadius: 4,
+                        padding: "6px 12px",
+                        color: C.gold,
+                        cursor: "pointer",
+                        fontSize: 12,
+                      }}
+                      title="Discogs Mint-Suggestion übernehmen (höchste Zustands-Empfehlung)"
+                    >
+                      Mint €{Math.round(releaseDetail.discogs_highest)}
+                    </button>
+                  )}
+                  {releaseDetail?.discogs_lowest != null && (
+                    <button
+                      onClick={() => {
+                        if (releaseDetail?.discogs_lowest != null) {
+                          setPriceValue(String(Math.round(releaseDetail.discogs_lowest)))
+                        }
+                      }}
+                      style={{
+                        background: "none",
+                        border: `1px solid ${C.border}`,
+                        borderRadius: 4,
+                        padding: "6px 12px",
+                        color: C.gold,
+                        cursor: "pointer",
+                        fontSize: 12,
+                      }}
+                      title="Niedrigster aktiver Marktpreis (alle Zustände)"
+                    >
+                      Markt €{Math.round(releaseDetail.discogs_lowest)}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ marginBottom: S.gap.md }}>
+                <div style={{ ...T.small, color: C.muted, marginBottom: 4 }}>Notiz (optional)</div>
+                <input
+                  type="text"
+                  value={noteText}
+                  onChange={(e) => setNoteText(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleVerify(true) }}
+                  style={{ ...inputStyle, width: "100%" }}
+                  placeholder="Freitext..."
+                />
+              </div>
+
+              {/* rc52.2: Lagerort — pro-Item-Override des aktiven 📍-Standorts.
+                  Defaultet auf das physische Lager (aus 📍-Switcher), kann aber
+                  pro Exemplar abweichen wenn z.B. ein Item für die andere
+                  Filiale gemeint ist. */}
+              <div style={{ marginBottom: S.gap.lg }}>
+                <div style={{ ...T.small, color: C.muted, marginBottom: 4 }}>Lagerort</div>
+                <select
+                  value={editLocationId || ""}
+                  onChange={(e) => setEditLocationId(e.target.value || null)}
+                  style={{ ...inputStyle, width: "100%" }}
+                >
+                  <option value="">— Kein Lager —</option>
+                  {warehouseLocations.filter((l) => l.is_active).map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.code} — {l.name}{l.is_default ? " (Default)" : ""}
+                    </option>
+                  ))}
+                </select>
+                {(() => {
+                  const activeCode = getActiveLocation()
+                  const chosen = warehouseLocations.find((l) => l.id === editLocationId)
+                  const chosenCode = chosen?.code?.toUpperCase() || null
+                  if (activeCode && chosenCode && chosenCode !== activeCode.toUpperCase()) {
+                    return (
+                      <div style={{ ...T.small, color: C.warning, marginTop: 4 }}>
+                        ⚠️ Druck geht auf <strong>{activeCode}</strong>, Lager wird aber <strong>{chosenCode}</strong> zugewiesen.
+                      </div>
+                    )
+                  }
+                  return null
+                })()}
+              </div>
+
+              <div style={{ display: "flex", gap: S.gap.md, flexWrap: "wrap" }}>
+                <Btn
+                  label={actionLoading ? "Speichert..." : "[S] Nur Speichern"}
+                  variant="ghost"
+                  onClick={() => handleVerify(false)}
+                  disabled={actionLoading}
+                />
+                <Btn
+                  label={actionLoading ? "Speichert..." : "[V] Speichern & Drucken"}
+                  variant="gold"
+                  onClick={() => handleVerify(true)}
+                  disabled={actionLoading}
+                />
+                <Btn label="[Esc] Zurück" variant="ghost" onClick={backToSearch} />
+              </div>
+              <div style={{ ...T.small, color: C.muted, marginTop: S.gap.sm }}>
+                "Nur Speichern" persistiert Zustand + Preis ohne Druck.
+                "Speichern & Drucken" macht beides. Preis-Änderungen werden
+                immer ins Label übernommen.
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── RECENT ITEMS ── prominente Sektion im Search-View (alle bearbeiteten
+          Platten der laufenden + vorherigen Sessions, scrollbar). Klick auf
+          Eintrag öffnet das Release wieder. Cap 2026-04-22 entfernt — Backend
+          liefert bis 1000 Eintraege, In-Memory unbegrenzt akkumuliert. */}
+      {activeView === "search" && recentItems.length > 0 && (
+        <div style={{ ...cardStyle, marginTop: S.gap.lg, padding: 0, overflow: "hidden" }}>
+          <div style={{
+            padding: "8px 16px",
+            background: C.hover,
+            borderBottom: `1px solid ${C.border}`,
+            ...T.small,
+            color: C.muted,
+            fontWeight: 600,
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+          }}>
+            Zuletzt bearbeitet · {recentItems.length}
+          </div>
+          <div style={{ maxHeight: 600, overflowY: "auto" }}>
+          {recentItems.map((r, i) => {
+            const ageSec = Math.floor((Date.now() - r.at) / 1000)
+            const ageLabel = ageSec < 60
+              ? `${ageSec}s`
+              : ageSec < 3600
+              ? `${Math.floor(ageSec / 60)}m`
+              : `${Math.floor(ageSec / 3600)}h`
+            return (
+              <div
+                key={`${r.release_id}-${r.copy}-${r.at}`}
+                onClick={() => openRelease(r.release_id)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: S.gap.md,
+                  padding: "10px 16px",
+                  cursor: "pointer",
+                  borderBottom: i < recentItems.length - 1 ? `1px solid ${C.border}` : "none",
+                  transition: "background 0.1s",
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = C.hover }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = "transparent" }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    <span style={{ color: C.success, marginRight: 6 }}>✓</span>
+                    {r.artist} — {r.title}
+                    <span style={{ color: C.muted, fontWeight: 400, marginLeft: 6 }}>#{r.copy}</span>
+                  </div>
+                  <div style={{ ...T.small, color: C.muted }}>
+                    {r.barcode ? <span style={{ fontFamily: "monospace", marginRight: 6 }}>{r.barcode}</span> : null}
+                    {r.condition ? <span style={{ marginRight: 6 }}>· {r.condition}</span> : null}
+                  </div>
+                </div>
+                <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                  {r.price != null && (
+                    <div style={{ fontWeight: 600, color: C.gold }}>€{r.price}</div>
+                  )}
+                  <div style={{ ...T.small, color: C.muted }}>vor {ageLabel}</div>
+                </div>
+              </div>
+            )
+          })}
+          </div>
+        </div>
+      )}
+
+      {/* ── SHORTCUTS HELP ── */}
+      <div style={{ ...T.small, color: C.muted, marginTop: S.gap.lg, opacity: 0.6, textAlign: "center" }}>
+        / Search · ↑↓ Navigate · Enter Open · V Verify · A Add Copy · D Discogs Median · L Print Label · Esc Back
+      </div>
+
+      {toast && <Toast message={toast.message} type={toast.type} onDone={() => setToast(null)} />}
+    </>
+  )
+}

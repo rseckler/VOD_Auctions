@@ -1122,10 +1122,10 @@ const MediaDetailPage = () => {
 
   return (
     <PageShell maxWidth={1100}>
-      {/* Back-to-Inventur-Session-Banner — erscheint nur wenn der User
-          gerade in einer laufenden Inventur-Session ist. sessionStorage-Flag
-          wird von /app/erp/inventory/session beim Mount gesetzt und erst beim
-          expliziten "Session beenden" wieder gelöscht. */}
+      {/* Back-to-Erfassung-Banner — erscheint nur wenn der User gerade die
+          Inventory-Erfassung offen hat. sessionStorage-Flag wird vom
+          Erfassungs-Tab (/app/erp/inventory) beim Mount gesetzt und läuft
+          nach 6h ab. */}
       {hasActiveSession && (
         <div
           style={{
@@ -1141,13 +1141,13 @@ const MediaDetailPage = () => {
           }}
         >
           <div style={{ ...T.small, color: C.text }}>
-            Inventur-Session läuft — Änderungen an dieser Platte fließen auch
-            zurück in die Session.
+            Inventory-Erfassung läuft — Änderungen an dieser Platte fließen
+            auch in die Erfassung zurück.
           </div>
           <Btn
-            label="← Zurück zur Inventur-Session"
+            label="← Zurück zur Erfassung"
             variant="gold"
-            onClick={() => (window.location.href = "/app/erp/inventory/session")}
+            onClick={() => (window.location.href = "/app/erp/inventory?tab=erfassung")}
           />
         </div>
       )}
