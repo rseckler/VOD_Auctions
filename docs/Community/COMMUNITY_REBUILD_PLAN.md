@@ -256,7 +256,7 @@ Launch-Voraussetzung bleibt RSE-78 (AGB-Anwalt) — kein Code-Blocker, aber Öff
 | R4 — Catalog-Anchored | ✅ rc62.0 (2026-05-16) — Release-Discussion + Reviews + Histogramm. Offen: Band/Label/Press-Walls (schema-pflichtig) |
 | R5 — Lists | ✅ rc63.0 (2026-05-16) — Lists-CRUD + Directory + Detail + Profil-Tab; gebündelter Schema-Slice (Featured/Privacy/Entity-Spalten) main + Replica |
 | R6 — Acquired + Notifications + Email | ✅ rc64.0 (2026-05-16) — Bookmarks, Header-Notif-Dot, Acquired-Feed-Job, Notification- + Weekly-Digest-Email |
-| R7 — Search + Explore | ⬜ offen |
+| R7 — Search + Explore | ✅ rc65.0 (2026-05-16) — Postgres-Suche (Posts/Members/Lists) + Explore-Seite. Kein Meili-Index (Community-Scale) |
 | R8 — Admin + Moderation + Trust | ⬜ offen |
 | R9 — Schema-Restfeatures (Top-4, Privacy-Toggles, Entity-Walls) | ⬜ offen |
 | FB-Migration | ⬜ geparkt |
