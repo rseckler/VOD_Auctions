@@ -1,12 +1,10 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
+import Link from "next/link"
 import { fetchProfile } from "@/lib/community-api"
-import {
-  MemberAvatar,
-  PostCard,
-  EditorialCard,
-} from "@/components/community/CommunityUI"
+import { MemberAvatar } from "@/components/community/CommunityUI"
 import { FollowButton } from "@/components/community/FollowButton"
+import { ProfileTabs } from "@/components/community/ProfileTabs"
 
 type Params = { handle: string }
 
@@ -49,7 +47,8 @@ export default async function MemberProfilePage({
   const data = await fetchProfile(handle)
   if (!data) notFound()
 
-  const { profile, stats, posts, is_following, is_self } = data
+  const { profile, stats, posts, comments, reviews, is_following, is_self } =
+    data
   const links = Object.entries(profile.links || {}).filter(([, v]) => !!v)
 
   return (
@@ -110,14 +109,22 @@ export default async function MemberProfilePage({
               </div>
             )}
           </div>
-          {!is_self && (
-            <div className="cm-profile-actions">
+          <div className="cm-profile-actions">
+            {is_self ? (
+              <Link
+                href="/community/settings"
+                className="cm-btn cm-btn-outline"
+                prefetch={false}
+              >
+                Edit profile
+              </Link>
+            ) : (
               <FollowButton
                 handle={profile.handle}
                 initialFollowing={is_following}
               />
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         <div className="cm-stats-bar">
@@ -143,21 +150,16 @@ export default async function MemberProfilePage({
           </div>
         </div>
 
-        <div style={{ padding: "8px 0 64px" }}>
-          {posts.length === 0 ? (
-            <div className="cm-empty">No posts yet.</div>
-          ) : (
-            <div className="cm-feed">
-              {posts.map((p) =>
-                p.kind === "editorial" ? (
-                  <EditorialCard key={p.id} post={p} />
-                ) : (
-                  <PostCard key={p.id} post={p} />
-                )
-              )}
-            </div>
-          )}
-        </div>
+        <ProfileTabs
+          posts={posts}
+          comments={comments}
+          reviews={reviews}
+          counts={{
+            posts: stats.posts,
+            comments: stats.comments,
+            reviews: stats.reviews,
+          }}
+        />
       </div>
     </div>
   )

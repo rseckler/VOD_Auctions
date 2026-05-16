@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { fetchFeed, fetchTags, fetchHubSidebar } from "@/lib/community-api"
 import { EditorialCard } from "@/components/community/CommunityUI"
 import { HubFeed } from "@/components/community/HubFeed"
+import { OnboardingNudge } from "@/components/community/OnboardingNudge"
 import {
   ActiveBlocksWidget,
   TrendingTagsWidget,
@@ -29,6 +30,8 @@ export default async function CommunityHubPage() {
 
   return (
     <div className="cm-container">
+      <OnboardingNudge />
+
       {hero && (
         <div style={{ padding: "32px 0 8px" }}>
           <EditorialCard post={hero} variant="hero" />

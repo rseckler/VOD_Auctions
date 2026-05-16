@@ -232,16 +232,77 @@ export interface ProfileStats {
   following: number
 }
 
-/** Public member profile by handle, with recent posts + stats. */
-export async function fetchProfile(handle: string): Promise<{
+export interface ProfileComment {
+  id: string
+  body_html: string
+  created_at: string
+  post: { slug: string | null; title: string | null }
+}
+
+export interface ProfileReview {
+  id: string
+  rating: number | null
+  body_html: string | null
+  is_verified_acquired: boolean
+  created_at: string
+  release: ReleaseCard | null
+}
+
+export interface ProfileResponse {
   profile: CommunityProfile
   is_following: boolean
   is_self: boolean
   stats: ProfileStats
   posts: CommunityPost[]
-} | null> {
+  comments: ProfileComment[]
+  reviews: ProfileReview[]
+}
+
+/** Public member profile by handle, with recent posts, comments + reviews. */
+export async function fetchProfile(
+  handle: string
+): Promise<ProfileResponse | null> {
   return medusaFetch(
     `/store/community/profiles/${encodeURIComponent(handle)}`,
     { revalidate: 30 }
   )
+}
+
+export interface MemberListItem {
+  handle: string
+  display_name: string
+  avatar_url: string | null
+  tier: CommunityTier
+  is_curator: boolean
+  location: string | null
+  bio: string | null
+  collector_since: number | null
+  post_count: number
+  follower_count: number
+}
+
+export interface MembersResponse {
+  members: MemberListItem[]
+  tier_counts: Record<string, number>
+  limit: number
+  offset: number
+}
+
+/** Member directory — tier filter, sort, search. */
+export async function fetchMembers(params: {
+  tier?: string
+  sort?: string
+  q?: string
+  limit?: number
+  offset?: number
+} = {}): Promise<MembersResponse> {
+  const qs = new URLSearchParams()
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== "") qs.set(k, String(v))
+  }
+  const data = await medusaFetch<MembersResponse>(
+    `/store/community/members?${qs.toString()}`,
+    { revalidate: 30 }
+  )
+  return data ?? { members: [], tier_counts: {}, limit: 24, offset: 0 }
 }

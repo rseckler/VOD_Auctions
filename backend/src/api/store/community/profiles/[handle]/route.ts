@@ -39,6 +39,34 @@ export async function GET(
       "release_id", "reaction_count", "comment_count", "published_at"
     )
 
+  // Recent comments — for the profile "Comments" tab, with post context.
+  const commentRows = await pg("community_comment as c")
+    .join("community_post as po", "po.id", "c.post_id")
+    .where("c.author_id", profile.id)
+    .where("c.status", "published")
+    .orderBy("c.created_at", "desc")
+    .limit(20)
+    .select(
+      "c.id", "c.body_html", "c.created_at",
+      "po.slug as post_slug", "po.title as post_title"
+    )
+
+  // Recent reviews — for the profile "Reviews" tab.
+  const reviewRows = await pg("community_review as r")
+    .leftJoin("Release", "Release.id", "r.release_id")
+    .leftJoin("Artist", "Artist.id", "Release.artistId")
+    .where("r.author_id", profile.id)
+    .where("r.status", "published")
+    .orderBy("r.created_at", "desc")
+    .limit(20)
+    .select(
+      "r.id", "r.rating", "r.body_html", "r.is_verified_acquired", "r.created_at",
+      "r.release_id",
+      "Release.title as release_title",
+      "Release.coverImage as release_cover",
+      "Artist.name as release_artist"
+    )
+
   const releaseCards = await fetchReleaseCards(pg, posts.map((p: any) => p.release_id))
 
   const postCountRows = await pg("community_post")
@@ -89,6 +117,27 @@ export async function GET(
       ...p,
       tags: p.tags || [],
       release: p.release_id ? releaseCards[p.release_id] || null : null,
+    })),
+    comments: commentRows.map((c: any) => ({
+      id: c.id,
+      body_html: c.body_html,
+      created_at: c.created_at,
+      post: { slug: c.post_slug, title: c.post_title },
+    })),
+    reviews: reviewRows.map((r: any) => ({
+      id: r.id,
+      rating: r.rating,
+      body_html: r.body_html,
+      is_verified_acquired: !!r.is_verified_acquired,
+      created_at: r.created_at,
+      release: r.release_id
+        ? {
+            id: r.release_id,
+            title: r.release_title,
+            cover_image: r.release_cover,
+            artist_name: r.release_artist,
+          }
+        : null,
     })),
   })
 }

@@ -1,14 +1,18 @@
 import type { Metadata } from "next"
-import { ComingSoon } from "@/components/community/ComingSoon"
+import { fetchMembers } from "@/lib/community-api"
+import { MembersBrowser } from "@/components/community/MembersBrowser"
 
-export const metadata: Metadata = { title: "Members — VOD Community" }
+export const metadata: Metadata = {
+  title: "Members — VOD Community",
+  description:
+    "The collector directory — industrial, power-electronics and tape-underground.",
+}
 
-export default function CommunityMembersPage() {
+export default async function CommunityMembersPage() {
+  const initial = await fetchMembers({ sort: "activity", limit: 48 })
   return (
-    <ComingSoon
-      phase="Rebuild phase R3"
-      title="Members"
-      blurb="The collector directory — browse members by tier, location and activity. Individual member profiles are already live; the directory lands with the profile rebuild."
-    />
+    <div style={{ paddingTop: 28 }}>
+      <MembersBrowser initial={initial} />
+    </div>
   )
 }

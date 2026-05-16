@@ -1473,3 +1473,106 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* R3 — members directory: search + sort controls in the toolbar. */
+.cm-members-search {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--card);
+  color: var(--foreground);
+  font: 400 12px var(--font-sans);
+  padding: 6px 10px;
+  outline: none;
+  min-width: 160px;
+}
+.cm-members-search:focus { border-color: rgba(212, 165, 74, 0.5); }
+.cm-members-sort {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--card);
+  color: var(--foreground);
+  font: 400 12px var(--font-sans);
+  padding: 6px 8px;
+  outline: none;
+  cursor: pointer;
+}
+@media (max-width: 640px) {
+  .cm-members-toolbar { flex-wrap: wrap; }
+  .cm-members-search { flex: 1; min-width: 120px; }
+}
+
+/* R3 — profile Comments + Reviews tab cards. */
+.cm-profile-comment {
+  display: block;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  background: var(--card);
+}
+.cm-profile-comment:hover { border-color: rgba(212, 165, 74, 0.4); }
+.cm-profile-comment-ctx {
+  font: 400 12px var(--font-sans);
+  color: var(--muted-foreground);
+  margin-bottom: 6px;
+}
+.cm-profile-comment-ctx strong {
+  color: var(--foreground);
+  font-weight: 600;
+}
+.cm-profile-comment-time {
+  margin-left: 8px;
+  color: var(--muted-foreground);
+}
+.cm-profile-review {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  background: var(--card);
+}
+.cm-profile-review-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+/* R3 — onboarding page + hub nudge. */
+.cm-onboard-eyebrow {
+  font: 700 10px var(--font-sans);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--primary);
+  margin-bottom: 12px;
+}
+.cm-onboard-avatar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 22px;
+}
+.cm-onboard-nudge {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 28px 0 4px;
+  padding: 16px 20px;
+  border: 1px solid rgba(212, 165, 74, 0.35);
+  border-radius: 12px;
+  background: rgba(212, 165, 74, 0.06);
+}
+.cm-onboard-nudge-text { flex: 1; min-width: 220px; }
+.cm-onboard-nudge-text strong {
+  display: block;
+  font: 400 17px var(--font-serif);
+  color: var(--foreground);
+  margin-bottom: 3px;
+}
+.cm-onboard-nudge-text span {
+  font: 400 13px var(--font-sans);
+  color: var(--muted-foreground);
+}
+.cm-onboard-nudge-actions {
+  display: flex;
+  gap: 8px;
+}
