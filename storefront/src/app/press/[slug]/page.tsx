@@ -6,6 +6,7 @@ import { notFound } from "next/navigation"
 import { ChevronRight } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { medusaFetch } from "@/lib/api"
+import { EntityWall } from "@/components/community/EntityWall"
 
 type PressPublication = {
   id: string
@@ -286,6 +287,10 @@ export default async function PressPage({
           </div>
         </div>
       )}
+
+      <div className="mt-10 border-t border-border pt-8">
+        <EntityWall type="press" id={press.id} name={press.name} />
+      </div>
     </main>
   )
 }

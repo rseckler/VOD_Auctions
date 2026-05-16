@@ -69,6 +69,15 @@ export async function GET(
 
   const releaseCards = await fetchReleaseCards(pg, posts.map((p: any) => p.release_id))
 
+  // Featured releases — the member's pinned "Top 4" for the profile header.
+  const featuredIds: string[] = Array.isArray(profile.featured_releases)
+    ? profile.featured_releases.map((x: any) => String(x))
+    : []
+  const featuredCards = await fetchReleaseCards(pg, featuredIds)
+  const featured = featuredIds
+    .map((id) => featuredCards[id])
+    .filter(Boolean)
+
   const postCountRows = await pg("community_post")
     .where({ author_id: profile.id, status: "published" })
     .count("id as count")
@@ -112,6 +121,7 @@ export async function GET(
     profile: profileCard,
     is_following: isFollowing,
     is_self: isSelf,
+    featured,
     stats: {
       posts: Number(postCountRows[0]?.count || 0),
       comments: Number(commentCountRows[0]?.count || 0),

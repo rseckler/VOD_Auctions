@@ -6,7 +6,9 @@ import { useAuth } from "@/components/AuthProvider"
 import { getToken } from "@/lib/auth"
 import { medusaAuthFetch } from "@/lib/api"
 import { updateProfile, CommunityError } from "@/lib/community-mutations"
-import type { CommunityProfile } from "@/lib/community-api"
+import type { CommunityProfile, ReleaseCard } from "@/lib/community-api"
+import { ReleasePicker } from "@/components/community/ReleasePicker"
+import { ReleaseCardInline } from "@/components/community/CommunityUI"
 
 type Form = {
   display_name: string
@@ -45,6 +47,8 @@ export default function CommunitySettingsPage() {
   const [form, setForm] = useState<Form>(EMPTY)
   const [showAcquired, setShowAcquired] = useState(false)
   const [emailNotif, setEmailNotif] = useState(true)
+  const [showTier, setShowTier] = useState(true)
+  const [featured, setFeatured] = useState<ReleaseCard[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
@@ -59,7 +63,7 @@ export default function CommunitySettingsPage() {
       setLoadingProfile(false)
       return
     }
-    medusaAuthFetch<{ profile: CommunityProfile }>(
+    medusaAuthFetch<{ profile: CommunityProfile; featured?: ReleaseCard[] }>(
       "/store/community/profile",
       token
     )
@@ -83,7 +87,9 @@ export default function CommunitySettingsPage() {
           })
           setShowAcquired(!!p.show_acquired_feed)
           setEmailNotif(p.email_notifications !== false)
+          setShowTier(p.show_tier !== false)
         }
+        setFeatured(d?.featured || [])
       })
       .finally(() => setLoadingProfile(false))
   }, [isAuthenticated])
@@ -118,6 +124,8 @@ export default function CommunitySettingsPage() {
         },
         show_acquired_feed: showAcquired,
         email_notifications: emailNotif,
+        show_tier: showTier,
+        featured_releases: featured.map((r) => r.id),
       })
       setProfile(updated)
       setSaved(true)
@@ -242,6 +250,81 @@ export default function CommunitySettingsPage() {
           mentions and new editorials.
         </span>
       </label>
+      <label className="cm-list-visibility">
+        <input
+          type="checkbox"
+          checked={showTier}
+          onChange={(e) => {
+            setShowTier(e.target.checked)
+            setSaved(false)
+          }}
+        />
+        <span>
+          <strong>Show my collector tier</strong> — display your Platinum /
+          Gold / Silver badge on your public profile.
+        </span>
+      </label>
+
+      <h2 className="cm-settings-section">Featured releases</h2>
+      <p
+        style={{
+          font: "400 13px var(--font-sans)",
+          color: "var(--muted-foreground)",
+          margin: "0 0 12px",
+        }}
+      >
+        Pin up to four records to the top of your profile — your collection in
+        a glance.
+      </p>
+      {featured.length > 0 && (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+            marginBottom: 12,
+          }}
+        >
+          {featured.map((r) => (
+            <div
+              key={r.id}
+              style={{ display: "flex", alignItems: "center", gap: 10 }}
+            >
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <ReleaseCardInline release={r} />
+              </div>
+              <button
+                type="button"
+                className="cm-btn cm-btn-ghost cm-btn-sm"
+                onClick={() => {
+                  setFeatured((f) => f.filter((x) => x.id !== r.id))
+                  setSaved(false)
+                }}
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      {featured.length < 4 && (
+        <ReleasePicker
+          value={null}
+          onChange={(r) => {
+            if (!r || featured.some((x) => x.id === r.id)) return
+            setFeatured((f) => [
+              ...f,
+              {
+                id: r.id,
+                title: r.title,
+                cover_image: r.cover_image ?? null,
+                artist_name: r.artist_name ?? null,
+              },
+            ])
+            setSaved(false)
+          }}
+        />
+      )}
 
       <div className="cm-compose-foot">
         {error && <span className="cm-composer-error">{error}</span>}

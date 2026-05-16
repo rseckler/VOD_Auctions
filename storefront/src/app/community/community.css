@@ -1934,3 +1934,21 @@
   color: var(--muted-foreground);
   white-space: nowrap;
 }
+
+/* R9 — profile featured-releases strip. */
+.cm-profile-featured {
+  margin: 4px 0 4px;
+  padding: 16px 0 4px;
+}
+.cm-profile-featured-label {
+  font: 700 10px var(--font-sans);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  margin-bottom: 10px;
+}
+.cm-profile-featured-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}

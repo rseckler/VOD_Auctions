@@ -60,6 +60,9 @@ export interface CreatePostInput {
   kind?: "discussion" | "editorial"
   tags?: string[]
   release_id?: string
+  artist_id?: string
+  label_id?: string
+  press_id?: string
   cover_image_url?: string
 }
 

@@ -5,6 +5,7 @@ import {
   requireCommunityEnabled,
   getOrCreateProfile,
   serializeProfile,
+  fetchReleaseCards,
 } from "../../../../lib/community"
 
 const HANDLE_RE = /^[a-z0-9_-]{3,30}$/
@@ -24,7 +25,14 @@ export async function GET(
   }
 
   const profile = await getOrCreateProfile(pg, customerId)
-  res.json({ profile: { ...serializeProfile(profile), is_banned: !!profile.is_banned } })
+  const featuredIds: string[] = Array.isArray(profile.featured_releases)
+    ? profile.featured_releases.map((x: any) => String(x))
+    : []
+  const cards = await fetchReleaseCards(pg, featuredIds)
+  res.json({
+    profile: { ...serializeProfile(profile), is_banned: !!profile.is_banned },
+    featured: featuredIds.map((id) => cards[id]).filter(Boolean),
+  })
 }
 
 // PUT /store/community/profile — update own profile (auth required)

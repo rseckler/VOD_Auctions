@@ -47,6 +47,10 @@ export async function GET(
     base = base.whereRaw("p.author_id NOT LIKE ?", [DEMO_AUTHOR_LIKE])
   }
   if (releaseId) base = base.where("p.release_id", releaseId)
+  // Entity-anchor filters — Band/Label/Press walls.
+  if (req.query.artist_id) base = base.where("p.artist_id", String(req.query.artist_id))
+  if (req.query.label_id) base = base.where("p.label_id", String(req.query.label_id))
+  if (req.query.press_id) base = base.where("p.press_id", String(req.query.press_id))
   if (kind === "discussion" || kind === "editorial") base = base.where("p.kind", kind)
   if (authorHandle) base = base.where("a.handle", authorHandle)
   if (tag) base = base.whereRaw("? = ANY(p.tags)", [tag])
@@ -198,6 +202,9 @@ export async function POST(
       cover_image_url: body.cover_image_url ? String(body.cover_image_url) : null,
       tags,
       release_id: body.release_id ? String(body.release_id) : null,
+      artist_id: body.artist_id ? String(body.artist_id) : null,
+      label_id: body.label_id ? String(body.label_id) : null,
+      press_id: body.press_id ? String(body.press_id) : null,
       status: "published",
       created_at: now,
       updated_at: now,

@@ -6,6 +6,7 @@ import { notFound } from "next/navigation"
 import { ChevronRight } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { medusaFetch } from "@/lib/api"
+import { EntityWall } from "@/components/community/EntityWall"
 
 type LabelRelease = {
   id: string
@@ -437,6 +438,10 @@ export default async function LabelPage({
           </div>
         </div>
       )}
+
+      <div className="mt-10 border-t border-border pt-8">
+        <EntityWall type="label" id={label.id} name={label.name} />
+      </div>
     </main>
   )
 }

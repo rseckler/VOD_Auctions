@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { fetchProfile } from "@/lib/community-api"
-import { MemberAvatar } from "@/components/community/CommunityUI"
+import { MemberAvatar, ReleaseCardInline } from "@/components/community/CommunityUI"
 import { FollowButton } from "@/components/community/FollowButton"
 import { ProfileTabs } from "@/components/community/ProfileTabs"
 
@@ -49,7 +49,11 @@ export default async function MemberProfilePage({
 
   const { profile, stats, posts, comments, reviews, is_following, is_self } =
     data
+  const featured = data.featured || []
   const links = Object.entries(profile.links || {}).filter(([, v]) => !!v)
+  // Privacy: the member can hide their collector tier (Concept §6.5).
+  const showTier = profile.show_tier !== false
+  const shownTier = showTier ? profile.tier : "standard"
 
   return (
     <div>
@@ -71,18 +75,20 @@ export default async function MemberProfilePage({
         <div className="cm-profile-card">
           <MemberAvatar
             name={profile.display_name}
-            tier={profile.tier}
+            tier={shownTier}
             avatarUrl={profile.avatar_url}
             size={120}
           />
           <div className="cm-profile-id">
             <h1 className="cm-profile-name">{profile.display_name}</h1>
             <div className="cm-profile-handle">@{profile.handle}</div>
-            <div className="cm-profile-tier">
-              <span className="cm-profile-tier-text">
-                {TIER_TEXT[profile.tier] || "Member"}
-              </span>
-            </div>
+            {(showTier || profile.is_curator) && (
+              <div className="cm-profile-tier">
+                <span className="cm-profile-tier-text">
+                  {TIER_TEXT[profile.tier] || "Member"}
+                </span>
+              </div>
+            )}
             <div className="cm-profile-meta">
               {profile.location && <span>{profile.location}</span>}
               {profile.location && profile.collector_since && (
@@ -127,6 +133,17 @@ export default async function MemberProfilePage({
           </div>
         </div>
 
+        {featured.length > 0 && (
+          <div className="cm-profile-featured">
+            <div className="cm-profile-featured-label">Featured releases</div>
+            <div className="cm-profile-featured-grid">
+              {featured.map((r) => (
+                <ReleaseCardInline key={r.id} release={r} />
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="cm-stats-bar">
           <div className="cm-stat">
             <div className="cm-stat-num">{stats.posts}</div>
@@ -152,6 +169,7 @@ export default async function MemberProfilePage({
 
         <ProfileTabs
           handle={profile.handle}
+          showAcquired={profile.show_acquired_feed}
           posts={posts}
           comments={comments}
           reviews={reviews}

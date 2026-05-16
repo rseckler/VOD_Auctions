@@ -112,6 +112,9 @@ export interface CommunityNotification {
 
 export interface FeedParams {
   release_id?: string
+  artist_id?: string
+  label_id?: string
+  press_id?: string
   kind?: "discussion" | "editorial"
   author?: string
   tag?: string
@@ -343,6 +346,7 @@ export interface ProfileResponse {
   profile: CommunityProfile
   is_following: boolean
   is_self: boolean
+  featured: ReleaseCard[]
   stats: ProfileStats
   posts: CommunityPost[]
   comments: ProfileComment[]

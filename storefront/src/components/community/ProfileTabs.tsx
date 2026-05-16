@@ -24,12 +24,14 @@ type TabKey = "posts" | "comments" | "reviews" | "acquired" | "lists"
 // Acquired / Lists. The Wantlist tab arrives with the Discogs bridge.
 export function ProfileTabs({
   handle,
+  showAcquired = true,
   posts,
   comments,
   reviews,
   counts,
 }: {
   handle: string
+  showAcquired?: boolean
   posts: CommunityPost[]
   comments: ProfileComment[]
   reviews: ProfileReview[]
@@ -57,7 +59,9 @@ export function ProfileTabs({
     { key: "posts", label: "Posts", n: regularPosts.length },
     { key: "comments", label: "Comments", n: counts.comments },
     { key: "reviews", label: "Reviews", n: counts.reviews },
-    { key: "acquired", label: "Acquired", n: acquiredPosts.length },
+    ...(showAcquired
+      ? [{ key: "acquired" as TabKey, label: "Acquired", n: acquiredPosts.length }]
+      : []),
     { key: "lists", label: "Lists", n: lists ? lists.length : null },
   ]
 

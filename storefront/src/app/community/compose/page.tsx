@@ -29,6 +29,10 @@ export default function CommunityComposePage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [release, setRelease] = useState<PickedRelease | null>(null)
+  const [entityAnchor, setEntityAnchor] = useState<{
+    type: "artist" | "label" | "press"
+    id: string
+  } | null>(null)
   const [coverUrl, setCoverUrl] = useState<string | null>(null)
   const [coverBusy, setCoverBusy] = useState(false)
 
@@ -49,11 +53,19 @@ export default function CommunityComposePage() {
     }
   }
 
-  // Optional release anchor — pre-filled when arriving from a release page's
-  // "Write a post" link (/community/compose?release_id=…).
+  // Optional anchors — pre-filled when arriving from a release page's
+  // "Write a post" link, or from a band/label/press "Community Wall".
   useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get("release_id")
-    if (id) setRelease({ id, title: null })
+    const params = new URLSearchParams(window.location.search)
+    const releaseId = params.get("release_id")
+    if (releaseId) setRelease({ id: releaseId, title: null })
+    for (const type of ["artist", "label", "press"] as const) {
+      const id = params.get(`${type}_id`)
+      if (id) {
+        setEntityAnchor({ type, id })
+        break
+      }
+    }
   }, [])
 
   useEffect(() => {
@@ -84,6 +96,9 @@ export default function CommunityComposePage() {
         kind: isCurator ? kind : "discussion",
         tags,
         release_id: release?.id || undefined,
+        artist_id: entityAnchor?.type === "artist" ? entityAnchor.id : undefined,
+        label_id: entityAnchor?.type === "label" ? entityAnchor.id : undefined,
+        press_id: entityAnchor?.type === "press" ? entityAnchor.id : undefined,
         cover_image_url: coverUrl || undefined,
       })
       router.push(`/community/post/${post.slug || post.id}`)
@@ -126,6 +141,12 @@ export default function CommunityComposePage() {
       <h1 className="cm-hub-title" style={{ marginBottom: 24, fontSize: 30 }}>
         New Post
       </h1>
+
+      {entityAnchor && (
+        <p className="cm-hub-sub" style={{ marginBottom: 16 }}>
+          This post will appear on the {entityAnchor.type} wall.
+        </p>
+      )}
 
       {isCurator && (
         <div className="cm-kind-toggle">
