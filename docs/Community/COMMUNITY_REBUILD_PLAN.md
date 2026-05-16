@@ -200,6 +200,16 @@ Reihenfolge nach Abhängigkeit: erst Inhalte sichtbar machen (R0), dann das Ger�
 
 **Deliverable:** Plattform moderierbar, bereit für Beta-Öffnung.
 
+### R9 — Schema-Restfeatures (reiner Code) · ~2 T
+
+**Ziel:** die drei während R3–R5 aufgeschobenen Features fertigstellen. Das Schema steht bereits (in rc63.0 gebündelt mitgeliefert: `community_profile.featured_releases/show_tier/show_acquired_feed/show_wantlist`, `community_post.artist_id/label_id/press_id`, main + Replica) — es fehlt **nur noch Code**, keine Migration, keine Replica-Runde.
+
+- **Top-4-Featured-Releases** — Release-Picker in `/community/settings`, Anzeige als gepinnte Releases im Profil-Header (`featured_releases`).
+- **Privacy-Toggles** — Settings-UI für `show_tier` / `show_acquired_feed` / `show_wantlist`; Anwendung an den Anzeigestellen (Tier-Badge, Acquired-Tab, Wantlist-Tab ein-/ausblenden).
+- **Entity-Walls** — Band/Label/Press-geankerte Posts (`artist_id`/`label_id`/`press_id`) + „Wall"-Anzeige auf den Band-/Label-/Press-Seiten; Composer-Anker erweitern.
+
+**Deliverable:** Konzept-Restumfang aus R3/R4 geschlossen.
+
 ---
 
 ## 5. Parallelstrang — Facebook-Migration (separat)
@@ -228,6 +238,7 @@ R0 Seed ─┬─ R1 Shell+Hub ─ R2 Post+Compose ─ R3 Profil+Directory ─ R
 | R6 Acquired + Notifications + Email | 3 T | R3 |
 | R7 Search + Explore | 3 T | R2 |
 | R8 Admin + Moderation + Trust | 2 T | R4 |
+| R9 Schema-Restfeatures (Code-only) | 2 T | R5 |
 | **Σ** | **~25,5 T** | |
 
 Launch-Voraussetzung bleibt RSE-78 (AGB-Anwalt) — kein Code-Blocker, aber Öffnungs-Blocker.
@@ -244,9 +255,10 @@ Launch-Voraussetzung bleibt RSE-78 (AGB-Anwalt) — kein Code-Blocker, aber Öff
 | R3 — Profil + Directory + Onboarding | ✅ rc61.0 (2026-05-16) — Directory, Profil-Tabs, Onboarding. Offen: Top-4-Featured + Privacy-Toggles (schema-pflichtig) |
 | R4 — Catalog-Anchored | ✅ rc62.0 (2026-05-16) — Release-Discussion + Reviews + Histogramm. Offen: Band/Label/Press-Walls (schema-pflichtig) |
 | R5 — Lists | ✅ rc63.0 (2026-05-16) — Lists-CRUD + Directory + Detail + Profil-Tab; gebündelter Schema-Slice (Featured/Privacy/Entity-Spalten) main + Replica |
-| R6 — Acquired + Notifications + Email | ⬜ offen |
+| R6 — Acquired + Notifications + Email | ✅ rc64.0 (2026-05-16) — Bookmarks, Header-Notif-Dot, Acquired-Feed-Job, Notification- + Weekly-Digest-Email |
 | R7 — Search + Explore | ⬜ offen |
 | R8 — Admin + Moderation + Trust | ⬜ offen |
+| R9 — Schema-Restfeatures (Top-4, Privacy-Toggles, Entity-Walls) | ⬜ offen |
 | FB-Migration | ⬜ geparkt |
 
 Nach jeder Phase: CHANGELOG-Entry + GitHub-Release, dieser Plan + `COMMUNITY_SYSTEM_STATE.md` aktualisiert.
