@@ -238,7 +238,7 @@ Launch-Voraussetzung bleibt RSE-78 (AGB-Anwalt) — kein Code-Blocker, aber Öff
 
 | Phase | Status |
 |---|---|
-| R0 — Demo-Seed | ⬜ offen |
+| R0 — Demo-Seed | ✅ rc58.0 (2026-05-16) |
 | R1 — Shell + Hub | ⬜ offen |
 | R2 — Post + Compose | ⬜ offen |
 | R3 — Profil + Directory + Onboarding | ⬜ offen |
