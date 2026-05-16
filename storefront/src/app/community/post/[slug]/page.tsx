@@ -119,13 +119,20 @@ export default async function CommunityPostPage({
             </div>
           </div>
 
-          {post.cover_image_url && (
+          {post.cover_image_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={post.cover_image_url}
               alt=""
               className="cm-post-detail-cover"
             />
+          ) : (
+            <div className="cm-post-detail-cover cm-post-detail-cover-ph">
+              <span className="cm-cover-art" aria-hidden="true" />
+              <span className="cm-post-detail-cover-cap">
+                {isEditorial ? "From the Archive" : "VOD Community"}
+              </span>
+            </div>
           )}
 
           <div
