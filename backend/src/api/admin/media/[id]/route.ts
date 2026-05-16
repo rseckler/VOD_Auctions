@@ -252,6 +252,15 @@ export async function POST(
     "shop_price",
     "shipping_item_type_id",
     "discogs_id",
+    // Fix 1 (2026-05-16): Discogs-Marktpreise. Markt-Referenz, kein Stammdatum
+    // — kein Lock, kein Audit, kein Review-Checkbox. Werden vom discogs-preview-
+    // Apply-Pfad (market-Objekt) immer mitgeschickt, damit der Inventory-Process
+    // den "Markt aktuell"-Block sofort nach dem Verlinken zeigt statt erst nach
+    // dem nächsten discogs_daily_sync.py-Cron.
+    "discogs_lowest_price",
+    "discogs_median_price",
+    "discogs_highest_price",
+    "discogs_num_for_sale",
     // Zone-2 Soft-Stammdaten (always open, no lock needed)
     "genres",
     "styles",
@@ -282,6 +291,18 @@ export async function POST(
     if (body[field] !== undefined) {
       releaseUpdates[field] = body[field]
     }
+  }
+
+  // Fix 1 (2026-05-16): wenn Discogs-Marktpreise im Body sind, discogs_last_synced
+  // mitstempeln — sonst zeigt die Source-Badge weiter "Last sync: —" obwohl
+  // gerade frische Marktdaten gezogen wurden.
+  if (
+    releaseUpdates.discogs_lowest_price !== undefined ||
+    releaseUpdates.discogs_median_price !== undefined ||
+    releaseUpdates.discogs_highest_price !== undefined ||
+    releaseUpdates.discogs_num_for_sale !== undefined
+  ) {
+    releaseUpdates.discogs_last_synced = new Date()
   }
 
   // rc54.0: country defensiv durch Normalizer. Picker liefert schon ISO,
@@ -599,6 +620,33 @@ export async function POST(
             [upload.imageId, upload.r2Url, "", id, 31 + upload.idx]
           )
         }
+      }
+    }
+
+    // Fix 2 (2026-05-16): Tracklist-Replace. Der DiscogsReviewModal sendet
+    // `tracklist` als Array von { position, title, duration } wenn Frank die
+    // Tracklist-Diff-Zeile anhakt. Tracklist ist KEIN Release-Column → eigener
+    // Body-Key wie gallery_images, nicht in allowedReleaseFields. Replace =
+    // alle bisherigen Track-Rows der Release löschen + neu inserten. Track hat
+    // keine createdAt/updatedAt-Spalten (siehe discogs-import/commit).
+    if (Array.isArray(body.tracklist)) {
+      const tracks = (body.tracklist as unknown[])
+        .map((t) => (t && typeof t === "object" ? (t as Record<string, unknown>) : null))
+        .filter((t): t is Record<string, unknown> => t != null && typeof t.title === "string" && (t.title as string).trim() !== "")
+      await trx("Track").where("releaseId", id).del()
+      for (let idx = 0; idx < tracks.length; idx++) {
+        const t = tracks[idx]
+        await trx.raw(
+          `INSERT INTO "Track" (id, "releaseId", position, title, duration)
+           VALUES (?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING`,
+          [
+            `tr-${id}-${idx}`,
+            id,
+            typeof t.position === "string" ? t.position : "",
+            (t.title as string).trim(),
+            typeof t.duration === "string" ? t.duration : "",
+          ]
+        )
       }
     }
 

@@ -8,6 +8,16 @@ export type DiscogsPreviewResponse = {
   proposed: Record<string, unknown>
   diff: Record<string, { from: unknown; to: unknown }>
   has_changes: boolean
+  /**
+   * Fix 1 (2026-05-16): Discogs-Marktpreise — kein reviewbares Diff-Feld
+   * (Markt-Referenz, kein Stammdatum). Werden beim Apply immer mitgeschrieben.
+   */
+  market?: {
+    discogs_lowest_price: number | null
+    discogs_median_price: number | null
+    discogs_highest_price: number | null
+    discogs_num_for_sale: number | null
+  } | null
 }
 
 type Props = {
@@ -40,10 +50,42 @@ const FIELD_LABELS: Record<string, string> = {
   coverImage: "Cover Image",
   label_name: "Label",
   gallery_images: "Gallery",
+  tracklist: "Tracklist",
 }
 
 const IMAGE_FIELDS = new Set(["coverImage"])
 const GALLERY_FIELDS = new Set(["gallery_images"])
+const TRACKLIST_FIELDS = new Set(["tracklist"])
+
+type TrackEntry = { position?: string; title?: string; duration?: string }
+
+/** Fix 2 (2026-05-16): Tracklist-Diff-Zelle — Anzahl + die ersten Titel. */
+function TracklistCell({ tracks }: { tracks: unknown }) {
+  const list: TrackEntry[] = Array.isArray(tracks)
+    ? (tracks.filter((t) => t && typeof t === "object") as TrackEntry[])
+    : []
+  if (list.length === 0) {
+    return <span style={{ ...T.small, color: C.muted }}>— (none)</span>
+  }
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <span style={{ ...T.micro, color: C.muted, textTransform: "none", letterSpacing: 0 }}>
+        {list.length} track{list.length === 1 ? "" : "s"}
+      </span>
+      {list.slice(0, 6).map((t, i) => (
+        <span key={i} style={{ ...T.small, color: C.text, wordBreak: "break-word" }}>
+          {(t.position || "").trim() ? `${t.position} · ` : ""}{t.title || "—"}
+          {(t.duration || "").trim() ? ` (${t.duration})` : ""}
+        </span>
+      ))}
+      {list.length > 6 && (
+        <span style={{ ...T.micro, color: C.muted, textTransform: "none", letterSpacing: 0 }}>
+          +{list.length - 6} more
+        </span>
+      )}
+    </div>
+  )
+}
 
 function formatValue(v: unknown): string {
   if (v == null) return "—"
@@ -149,18 +191,66 @@ export function DiscogsReviewModal({ preview, lockedFields, onClose, onApply }: 
   }
 
   if (!preview.has_changes) {
+    // Fix 1 (2026-05-16): auch wenn keine Stammdaten abweichen, sollen die
+    // Marktpreise frisch geschrieben werden können (Refetch-Use-Case). Apply
+    // mit leerer Feld-Auswahl schickt nur discogs_id + market in den Body.
+    const hasMarket =
+      !!preview.market &&
+      (preview.market.discogs_lowest_price != null ||
+        preview.market.discogs_median_price != null)
     return (
       <Modal
         title="No changes from Discogs"
         subtitle={`discogs_id ${preview.discogs_id} returned the same values that are already on this release.`}
         onClose={onClose}
         footer={
-          <Btn label="Close" variant="ghost" onClick={onClose} style={{ padding: "7px 16px", fontSize: 13 }} />
+          <>
+            <Btn label="Close" variant="ghost" onClick={onClose} disabled={applying} style={{ padding: "7px 16px", fontSize: 13 }} />
+            {hasMarket && (
+              <Btn
+                label={applying ? "Refreshing…" : "Refresh market prices"}
+                variant="gold"
+                onClick={handleApply}
+                disabled={applying}
+                style={{ padding: "7px 20px", fontSize: 13 }}
+              />
+            )}
+          </>
         }
       >
         <div style={{ ...T.small, color: C.muted }}>
-          Nothing to apply. Artist and label are not part of this preview — use the dedicated pickers to change those.
+          No metadata to apply. Artist and label are not part of this preview — use the dedicated pickers to change those.
         </div>
+        {hasMarket && preview.market && (
+          <div style={{
+            ...T.small,
+            color: C.muted,
+            background: C.subtle,
+            border: `1px solid ${C.border}`,
+            borderRadius: S.radius.sm,
+            padding: "8px 12px",
+            marginTop: S.gap.md,
+          }}>
+            <strong style={{ color: C.text }}>Market prices</strong> from Discogs:
+            {preview.market.discogs_lowest_price != null && ` ab €${preview.market.discogs_lowest_price.toFixed(2)}`}
+            {preview.market.discogs_num_for_sale != null && ` · ${preview.market.discogs_num_for_sale} for sale`}
+            {preview.market.discogs_median_price != null && ` · median €${preview.market.discogs_median_price.toFixed(2)}`}
+            {preview.market.discogs_highest_price != null && ` · mint €${preview.market.discogs_highest_price.toFixed(2)}`}
+          </div>
+        )}
+        {error && (
+          <div style={{
+            ...T.small,
+            color: C.error,
+            background: C.error + "15",
+            border: `1px solid ${C.error}40`,
+            borderRadius: S.radius.sm,
+            padding: "8px 12px",
+            marginTop: S.gap.md,
+          }}>
+            {error}
+          </div>
+        )}
       </Modal>
     )
   }
@@ -256,6 +346,8 @@ export function DiscogsReviewModal({ preview, lockedFields, onClose, onApply }: 
                 <ImageCell url={d.from} />
               ) : GALLERY_FIELDS.has(key) ? (
                 <GalleryCell urls={d.from} />
+              ) : TRACKLIST_FIELDS.has(key) ? (
+                <TracklistCell tracks={d.from} />
               ) : (
                 <span style={{ ...T.small, color: C.muted, wordBreak: "break-word" }}>
                   {formatValue(d.from)}
@@ -265,6 +357,8 @@ export function DiscogsReviewModal({ preview, lockedFields, onClose, onApply }: 
                 <ImageCell url={d.to} />
               ) : GALLERY_FIELDS.has(key) ? (
                 <GalleryCell urls={d.to} />
+              ) : TRACKLIST_FIELDS.has(key) ? (
+                <TracklistCell tracks={d.to} />
               ) : (
                 <span style={{ ...T.small, color: C.text, wordBreak: "break-word", fontWeight: checked ? 600 : 400 }}>
                   {formatValue(d.to)}
@@ -274,6 +368,26 @@ export function DiscogsReviewModal({ preview, lockedFields, onClose, onApply }: 
           )
         })}
       </div>
+
+      {preview.market &&
+        (preview.market.discogs_lowest_price != null ||
+          preview.market.discogs_median_price != null) && (
+        <div style={{
+          ...T.small,
+          color: C.muted,
+          background: C.subtle,
+          border: `1px solid ${C.border}`,
+          borderRadius: S.radius.sm,
+          padding: "8px 12px",
+          marginTop: S.gap.md,
+        }}>
+          <strong style={{ color: C.text }}>Market prices</strong> will be refreshed automatically:
+          {preview.market.discogs_lowest_price != null && ` ab €${preview.market.discogs_lowest_price.toFixed(2)}`}
+          {preview.market.discogs_num_for_sale != null && ` · ${preview.market.discogs_num_for_sale} for sale`}
+          {preview.market.discogs_median_price != null && ` · median €${preview.market.discogs_median_price.toFixed(2)}`}
+          {preview.market.discogs_highest_price != null && ` · mint €${preview.market.discogs_highest_price.toFixed(2)}`}
+        </div>
+      )}
 
       {error && (
         <div style={{

@@ -92,6 +92,9 @@ export async function GET(
       article_number: release.article_number,
       legacy_price: release.legacy_price != null ? Number(release.legacy_price) : null,
       legacy_condition: release.legacy_condition,
+      // Erweiterung b (2026-05-16): discogs_id raw, damit der Inventory-Process
+      // die Discogs-Verknüpfung direkt anzeigen + ändern kann (Linking-Sektion).
+      discogs_id: release.discogs_id != null ? Number(release.discogs_id) : null,
       discogs_lowest: release.discogs_lowest_price != null ? Number(release.discogs_lowest_price) : null,
       discogs_median: release.discogs_median_price != null ? Number(release.discogs_median_price) : null,
       discogs_highest: release.discogs_highest_price != null ? Number(release.discogs_highest_price) : null,

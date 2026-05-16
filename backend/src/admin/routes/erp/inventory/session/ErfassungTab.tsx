@@ -11,6 +11,7 @@ import {
 } from "../../../../lib/print-client"
 import { displayFormat, isValidFormat, toFormatGroup, type FormatValue, type FormatGroup } from "../../../../../lib/format-mapping"
 import { formatCountryCompact, formatCountryLabel } from "../../../../data/country-iso"
+import { DiscogsReviewModal, type DiscogsPreviewResponse } from "../../../../components/release-detail/DiscogsReviewModal"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -56,6 +57,7 @@ interface ReleaseDetail {
   article_number: string | null
   legacy_price: number | null
   legacy_condition: string | null
+  discogs_id: number | null
   discogs_lowest: number | null
   discogs_median: number | null
   discogs_highest: number | null
@@ -333,6 +335,13 @@ export function ErfassungTab({ active }: { active: boolean }) {
   const [copies, setCopies] = useState<CopyItem[]>([])
   const [activeView, setActiveView] = useState<"search" | "detail">("search")
 
+  // Erweiterung b (2026-05-16): Discogs-Verlinkung direkt im Inventory-Process.
+  // discogsIdInput wird beim Öffnen einer Release aus releaseDetail.discogs_id
+  // geseedet. Fetch/Refetch öffnet denselben Review-Modal wie der Katalog.
+  const [discogsIdInput, setDiscogsIdInput] = useState("")
+  const [discogsPreview, setDiscogsPreview] = useState<DiscogsPreviewResponse | null>(null)
+  const [discogsPreviewLoading, setDiscogsPreviewLoading] = useState(false)
+
   // Evaluation form (for verifying or adding a copy)
   const [editingCopy, setEditingCopy] = useState<CopyItem | null>(null)
   const [isNewCopy, setIsNewCopy] = useState(false)
@@ -524,6 +533,7 @@ export function ErfassungTab({ active }: { active: boolean }) {
       )
       setReleaseDetail(data.release)
       setCopies(data.copies)
+      setDiscogsIdInput(data.release.discogs_id != null ? String(data.release.discogs_id) : "")
       setActiveView("detail")
       setEditingCopy(null)
       setIsNewCopy(false)
@@ -531,6 +541,57 @@ export function ErfassungTab({ active }: { active: boolean }) {
       setToast({ message: `Error: ${e.message}`, type: "error" })
     }
   }, [])
+
+  // ── Discogs Linking (Erweiterung b) ──
+  // Fetch/Refetch öffnet den Review-Modal (POST /admin/media/:id/discogs-preview).
+  // Identischer Flow wie im Katalog — Release-ID ist in beiden Welten dieselbe.
+  const openDiscogsPreview = useCallback(async (candidateId: string) => {
+    if (!releaseDetail || !candidateId.trim()) return
+    setDiscogsPreviewLoading(true)
+    try {
+      const res = await fetch(`/admin/media/${releaseDetail.id}/discogs-preview`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ discogs_id: candidateId.trim() }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setDiscogsPreview(data as DiscogsPreviewResponse)
+      } else {
+        setToast({ message: data.message || "Discogs preview failed", type: "error" })
+      }
+    } catch {
+      setToast({ message: "Network error", type: "error" })
+    } finally {
+      setDiscogsPreviewLoading(false)
+    }
+  }, [releaseDetail])
+
+  // Apply der im Modal gewählten Felder + discogs_id + Marktpreise. Danach
+  // releaseDetail neu laden, damit der "Markt aktuell"-Block sofort erscheint.
+  const handleApplyDiscogsPreview = useCallback(async (selectedFields: string[]) => {
+    if (!releaseDetail || !discogsPreview) return
+    const body: Record<string, unknown> = { discogs_id: discogsPreview.discogs_id }
+    for (const field of selectedFields) {
+      body[field] = discogsPreview.proposed[field]
+    }
+    if (discogsPreview.market) {
+      Object.assign(body, discogsPreview.market)
+    }
+    const res = await fetch(`/admin/media/${releaseDetail.id}`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      throw new Error(data.message || `Apply failed (HTTP ${res.status})`)
+    }
+    setToast({ message: "Discogs data applied", type: "success" })
+    await openRelease(releaseDetail.id)
+  }, [releaseDetail, discogsPreview, openRelease])
 
   // ── Start Editing a Copy ──
 
@@ -788,6 +849,9 @@ export function ErfassungTab({ active }: { active: boolean }) {
       // Shortcuts nur verarbeiten wenn der Erfassungs-Tab aktiv ist — sonst
       // würde Scannen/Tippen im Hintergrund die versteckte Ansicht steuern.
       if (!active) return
+      // Erweiterung b: Discogs-Review-Modal offen → Inventory-Shortcuts pausieren,
+      // damit V/A/D/L nicht hinter dem Modal feuern.
+      if (discogsPreview) return
       const target = e.target as HTMLElement
       const isInput = target.tagName === "INPUT" || target.tagName === "TEXTAREA"
 
@@ -882,7 +946,7 @@ export function ErfassungTab({ active }: { active: boolean }) {
 
     window.addEventListener("keydown", handler)
     return () => window.removeEventListener("keydown", handler)
-  }, [active, activeView, searchResults, filteredResults, selectedResultIndex, editingCopy, isNewCopy, releaseDetail, stats, doSearch, conditionMedia, conditionSleeve, priceValue, noteText])
+  }, [active, activeView, searchResults, filteredResults, selectedResultIndex, editingCopy, isNewCopy, releaseDetail, stats, doSearch, conditionMedia, conditionSleeve, priceValue, noteText, discogsPreview])
 
   // ─── RENDER ──────────────────────────────────────────────────────────────
 
@@ -1376,6 +1440,45 @@ export function ErfassungTab({ active }: { active: boolean }) {
                   )}
                 </div>
               )}
+
+              {/* Erweiterung b (2026-05-16): Discogs-Verlinkung — IMMER sichtbar,
+                  auch ohne Link. Statt "nichts" sieht Frank ein ID-Feld und kann
+                  direkt im Inventory-Process verknüpfen/ändern. Fetch öffnet
+                  denselben Review-Modal wie der Katalog. */}
+              <div style={{ marginTop: 12, padding: "10px 12px", background: C.subtle, borderRadius: S.radius.sm, border: `1px solid ${C.border}` }}>
+                <div style={{ ...T.micro, color: C.muted, fontWeight: 600, marginBottom: 6 }}>DISCOGS</div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  <input
+                    value={discogsIdInput}
+                    onChange={(e) => setDiscogsIdInput(e.target.value.replace(/[^0-9]/g, ""))}
+                    placeholder="Discogs Release ID"
+                    inputMode="numeric"
+                    style={{ ...inputStyle, width: 150, fontSize: 13, padding: "6px 8px" }}
+                  />
+                  <Btn
+                    label={discogsPreviewLoading ? "Fetching…" : releaseDetail.discogs_id != null ? "Fetch / Update" : "Fetch"}
+                    variant="gold"
+                    onClick={() => openDiscogsPreview(discogsIdInput)}
+                    disabled={discogsPreviewLoading || !discogsIdInput.trim()}
+                    style={{ fontSize: 12, padding: "6px 12px" }}
+                  />
+                  {releaseDetail.discogs_id != null && (
+                    <a
+                      href={`https://www.discogs.com/release/${releaseDetail.discogs_id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ ...T.small, color: C.gold, textDecoration: "underline" }}
+                    >
+                      View on Discogs ↗
+                    </a>
+                  )}
+                </div>
+                <div style={{ ...T.micro, color: C.muted, marginTop: 6, textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>
+                  {releaseDetail.discogs_id != null
+                    ? "Fetch refreshes metadata, tracklist + market prices. Change the ID to relink."
+                    : "No Discogs link yet — paste the release ID to pull metadata, tracklist + market prices."}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1693,6 +1796,16 @@ export function ErfassungTab({ active }: { active: boolean }) {
       </div>
 
       {toast && <Toast message={toast.message} type={toast.type} onDone={() => setToast(null)} />}
+
+      {/* Erweiterung b: Discogs-Review-Modal — geteilt mit dem Katalog. */}
+      {discogsPreview && (
+        <DiscogsReviewModal
+          preview={discogsPreview}
+          lockedFields={[]}
+          onClose={() => setDiscogsPreview(null)}
+          onApply={handleApplyDiscogsPreview}
+        />
+      )}
     </>
   )
 }

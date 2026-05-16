@@ -32,6 +32,8 @@ import { pickArtistDisplayName, type DiscogsArtistEntry } from "../../../../../l
 // Apply triggert label_name den findOrCreateLabelByName-Pfad (lib/label-
 // resolver.ts), gallery_images den Galerie-Replace im Apply-Pfad
 // (api/admin/media/[id]/route.ts). Cover bleibt eigene Achse via coverImage.
+type TrackEntry = { position: string; title: string; duration: string }
+
 type ProposedFields = {
   discogs_id: number | null
   title: string | null
@@ -49,6 +51,17 @@ type ProposedFields = {
   coverImage: string | null
   label_name: string | null
   gallery_images: string[]
+  // Fix 2 (2026-05-16): Tracklist als reviewbares Feld. Vorher wurde sie vom
+  // Katalog-Discogs-Fetch nie gezogen — nur discogs-import/commit schrieb Tracks.
+  tracklist: TrackEntry[]
+}
+
+/** Marktpreis-Block — NICHT reviewbar, immer frisch (Markt-Referenz, kein Stammdatum). */
+type MarketPrices = {
+  discogs_lowest_price: number | null
+  discogs_median_price: number | null
+  discogs_highest_price: number | null
+  discogs_num_for_sale: number | null
 }
 
 type DiscogsApiData = {
@@ -65,6 +78,23 @@ type DiscogsApiData = {
   artists_sort?: string
   extraartists?: Array<{ name?: string; role?: string }>
   images?: Array<{ type?: string; uri?: string; uri150?: string }>
+  tracklist?: Array<{ position?: string; type_?: string; title?: string; duration?: string }>
+}
+
+/**
+ * Fix 2 (2026-05-16): Normalisiert die Discogs-Tracklist auf {position,title,duration}.
+ * Discogs liefert auch `type_:"heading"`/`"index"`-Einträge (Werk-/Akt-Überschriften) —
+ * die werden verworfen, nur echte Tracks bleiben.
+ */
+function buildTracklist(raw: DiscogsApiData["tracklist"]): TrackEntry[] {
+  if (!raw?.length) return []
+  return raw
+    .filter((t) => (t.type_ ? t.type_ === "track" : true) && !!t.title?.trim())
+    .map((t) => ({
+      position: (t.position || "").trim(),
+      title: (t.title || "").trim(),
+      duration: (t.duration || "").trim(),
+    }))
 }
 
 /** Picks the Discogs primary image URL (first `type:primary`, fallback first image). */
@@ -164,6 +194,17 @@ export async function POST(
     .select("url")
   const currentGalleryUrls = currentGalleryRows.map((r: { url: string }) => r.url)
 
+  // Fix 2 (2026-05-16): aktuelle Tracklist aus der Track-Tabelle für den Diff.
+  const currentTrackRows = await pg("Track")
+    .where({ releaseId: id })
+    .orderBy("position", "asc")
+    .select("position", "title", "duration")
+  const currentTracklist: TrackEntry[] = currentTrackRows.map((t: { position: string | null; title: string | null; duration: string | null }) => ({
+    position: t.position || "",
+    title: t.title || "",
+    duration: t.duration || "",
+  }))
+
   const token = process.env.DISCOGS_TOKEN
   if (!token) {
     res.status(500).json({ message: "DISCOGS_TOKEN not configured on backend" })
@@ -238,14 +279,67 @@ export async function POST(
     coverImage: pickPrimaryImage(apiData.images),
     label_name: proposedLabelName,
     gallery_images: proposedGalleryUrls,
+    tracklist: buildTracklist(apiData.tracklist),
   }
 
-  // M3 (Codex 2026-05-07): Marketplace-Stats + Price-Suggestions-Fetch
-  // entfernt zusammen mit den 4 discogs_*_price-Feldern aus dem Preview-
-  // Diff. Backend's allowedReleaseFields kennt sie nicht → silent dropped.
-  // Falls sie irgendwann persistiert werden sollen: hier marketplace/stats
-  // und marketplace/price_suggestions wieder fetchen + zur ProposedFields
-  // + allowedReleaseFields adden.
+  // Fix 1 (2026-05-16): Marketplace-Stats + Price-Suggestions wieder gefetcht.
+  // 2026-05-07 ("M3", Codex) waren sie entfernt worden, weil sie im Modal als
+  // selektierbares Diff-Feld lagen, das Backend's allowedReleaseFields sie aber
+  // nicht kannte → silent dropped. Lösung jetzt: sie sind KEIN Diff-Feld mehr
+  // (Markt-Referenz, kein Stammdatum, kein Review-Checkbox), kommen als eigenes
+  // `market`-Objekt zurück und werden von allowedReleaseFields akzeptiert.
+  // Ohne diesen Fetch blieben discogs_*_price bei frisch verlinkten Releases
+  // bis zum nächsten discogs_daily_sync.py-Cron NULL → der Inventory-Process
+  // blendete den Markt-Block aus.
+  const market: MarketPrices = {
+    discogs_lowest_price: null,
+    discogs_median_price: null,
+    discogs_highest_price: null,
+    discogs_num_for_sale: null,
+  }
+  try {
+    const statsResp = await fetch(`https://api.discogs.com/marketplace/stats/${discogsId}`, {
+      headers,
+      signal: AbortSignal.timeout(10000),
+    })
+    if (statsResp.ok) {
+      const stats = await statsResp.json()
+      const lp = stats.lowest_price
+      if (lp && typeof lp === "object" && lp.value != null) {
+        market.discogs_lowest_price = Number(lp.value)
+      } else if (lp != null) {
+        market.discogs_lowest_price = Number(lp)
+      }
+      market.discogs_num_for_sale = stats.num_for_sale || 0
+    }
+  } catch {
+    // non-critical
+  }
+  try {
+    const suggResp = await fetch(`https://api.discogs.com/marketplace/price_suggestions/${discogsId}`, {
+      headers,
+      signal: AbortSignal.timeout(10000),
+    })
+    if (suggResp.ok) {
+      const sugg = await suggResp.json()
+      const prices: number[] = []
+      for (const info of Object.values(sugg) as Array<{ value?: number }>) {
+        if (info && typeof info === "object" && info.value != null) {
+          const v = Number(info.value)
+          if (!isNaN(v)) prices.push(v)
+        }
+      }
+      if (prices.length > 0) {
+        prices.sort((a, b) => a - b)
+        const n = prices.length
+        const median = n % 2 === 1 ? prices[(n - 1) / 2] : (prices[n / 2 - 1] + prices[n / 2]) / 2
+        market.discogs_median_price = Number(median.toFixed(2))
+        market.discogs_highest_price = Number(prices[n - 1].toFixed(2))
+      }
+    }
+  } catch {
+    // non-critical
+  }
 
   // Build current snapshot in same shape
   const current: ProposedFields = {
@@ -268,6 +362,7 @@ export async function POST(
     coverImage: release.coverImage ?? null,
     label_name: release.label_name ?? null,
     gallery_images: currentGalleryUrls,
+    tracklist: currentTracklist,
   }
 
   // Diff: only fields where current !== proposed
@@ -277,7 +372,11 @@ export async function POST(
     if (a == null || b == null) return false
     if (Array.isArray(a) && Array.isArray(b)) {
       if (a.length !== b.length) return false
-      return a.every((v, i) => v === b[i])
+      // Fix 2 (2026-05-16): rekursiv vergleichen — die Tracklist ist ein Array
+      // von Objekten, `v === b[i]` (Referenz-Gleichheit) würde sie IMMER als
+      // geändert markieren. String-Arrays (genres/styles/gallery) bleiben
+      // unverändert, da `v === b[i]` für Strings sauber greift.
+      return a.every((v, i) => isEqual(v, b[i]))
     }
     return JSON.stringify(a) === JSON.stringify(b)
   }
@@ -295,5 +394,7 @@ export async function POST(
     proposed,
     diff,
     has_changes: Object.keys(diff).length > 0,
+    // Fix 1: Marktpreise — nicht im Diff, werden beim Apply immer mitgeschrieben.
+    market,
   })
 }

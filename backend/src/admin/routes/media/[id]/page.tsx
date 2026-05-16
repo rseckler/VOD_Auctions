@@ -1003,6 +1003,13 @@ const MediaDetailPage = () => {
     for (const field of selectedFields) {
       body[field] = discogsPreview.proposed[field]
     }
+    // Fix 1 (2026-05-16): Marktpreise immer mitschicken — sie sind kein
+    // reviewbares Diff-Feld (Markt-Referenz, kein Stammdatum). Ohne das blieben
+    // discogs_*_price bei frisch verlinkten Releases NULL und der Inventory-
+    // Process zeigte den "Markt aktuell"-Block nicht.
+    if (discogsPreview.market) {
+      Object.assign(body, discogsPreview.market)
+    }
     const res = await fetch(`/admin/media/${id}`, {
       method: "POST",
       credentials: "include",
