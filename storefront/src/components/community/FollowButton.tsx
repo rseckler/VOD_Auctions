@@ -7,9 +7,11 @@ import { toggleFollow, CommunityError } from "@/lib/community-mutations"
 export function FollowButton({
   handle,
   initialFollowing,
+  small = false,
 }: {
   handle: string
   initialFollowing: boolean
+  small?: boolean
 }) {
   const [following, setFollowing] = useState(initialFollowing)
   const [busy, setBusy] = useState(false)
@@ -34,7 +36,9 @@ export function FollowButton({
       <button
         type="button"
         className={
-          "cm-btn " + (following ? "cm-btn-outline" : "cm-btn-primary")
+          "cm-btn " +
+          (following ? "cm-btn-outline" : "cm-btn-primary") +
+          (small ? " cm-btn-sm" : "")
         }
         onClick={onClick}
         disabled={busy}

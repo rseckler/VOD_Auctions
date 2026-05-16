@@ -68,9 +68,25 @@ export function HubFeed({
         <div className="cm-empty">Loading…</div>
       ) : list.length === 0 ? (
         <div className="cm-empty">
-          {tab === "following"
-            ? "Your following feed is quiet — follow members, or switch to Latest."
-            : "No posts yet — the community is just getting started."}
+          {tab === "following" ? (
+            <>
+              <p style={{ marginBottom: 12 }}>
+                Your following feed is quiet. Follow a few collectors to fill it.
+              </p>
+              <a href="/community/members" className="cm-btn cm-btn-outline">
+                Browse members
+              </a>
+            </>
+          ) : (
+            <>
+              <p style={{ marginBottom: 12 }}>
+                No posts yet — be the first to start the conversation.
+              </p>
+              <a href="/community/compose" className="cm-btn cm-btn-primary">
+                Write a post
+              </a>
+            </>
+          )}
         </div>
       ) : (
         <div className="cm-feed">

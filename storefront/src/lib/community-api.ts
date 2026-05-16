@@ -118,6 +118,31 @@ export interface TrendingTag {
   count: number
 }
 
+export interface HubBlock {
+  id: string
+  title: string | null
+  slug: string | null
+  status: string
+  end_time: string | null
+  lots: number
+  from_price: number | null
+}
+
+export interface SuggestedMember {
+  handle: string
+  display_name: string
+  avatar_url: string | null
+  tier: CommunityTier
+  location: string | null
+  is_curator: boolean
+}
+
+export interface HubSidebarData {
+  active_blocks: HubBlock[]
+  suggested_members: SuggestedMember[]
+  catalog_picks: ReleaseCard[]
+}
+
 /** Whether the COMMUNITY flag is on — read from the client-safe flag endpoint. */
 export async function isCommunityEnabled(): Promise<boolean> {
   const data = await medusaFetch<{ flags: Record<string, boolean> }>(
@@ -149,6 +174,17 @@ export async function fetchTags(limit = 24): Promise<TrendingTag[]> {
     { revalidate: 120 }
   )
   return data?.tags ?? []
+}
+
+/** Aggregated data for the Community hub sidebar (blocks, members, catalog). */
+export async function fetchHubSidebar(): Promise<HubSidebarData> {
+  const data = await medusaFetch<HubSidebarData>(
+    "/store/community/hub-sidebar",
+    { revalidate: 60 }
+  )
+  return (
+    data ?? { active_blocks: [], suggested_members: [], catalog_picks: [] }
+  )
 }
 
 /** Single post by id or slug. */

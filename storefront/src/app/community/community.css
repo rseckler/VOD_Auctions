@@ -1194,3 +1194,50 @@
   border: 1px solid var(--border); background: var(--card); color: var(--foreground);
 }
 .cm-report-menu button:hover { border-color: var(--primary); }
+
+/* ───────────────────────────────────────────────────────────────────────────
+   R1 — responsive shell. The ported mockup styled mobile via a JS-toggled
+   .is-mobile class (device-frame previewer). Real viewports need media
+   queries: collapse the hub to one column, make the sub-nav scrollable.
+   ─────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .cm-hub-grid,
+  .cm-hub-grid.layout-3col,
+  .cm-hub-grid.layout-1col {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    padding: 24px 0 96px;
+  }
+  /* Left rail (3-col variant) is desktop-only. */
+  .cm-hub-grid .cm-rail { display: none; }
+  /* Sidebar drops below the feed as a "Discover" section. */
+  .cm-sidebar {
+    position: static;
+    margin-top: 40px;
+    padding-top: 28px;
+    border-top: 1px solid var(--border);
+  }
+  .cm-subnav { top: 64px; }
+  .cm-subnav-inner {
+    padding: 0 16px;
+    gap: 20px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .cm-subnav-inner::-webkit-scrollbar { display: none; }
+  .cm-subnav-link { white-space: nowrap; }
+  .cm-subnav-spacer,
+  .cm-subnav-search { display: none; }
+  .cm-fab {
+    bottom: 24px;
+    right: 16px;
+    height: 48px;
+    padding: 0 18px;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 560px) {
+  .cm-container { padding: 0 16px; }
+  .cm-hub-grid { padding: 16px 0 96px; }
+}
