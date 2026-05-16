@@ -1,6 +1,6 @@
 # Inventory Discogs Fetch — Konzept
 
-**Status:** Fix 1 + Fix 2 + Erweiterung b implementiert (2026-05-16) — Deploy ausstehend
+**Status:** ✅ Live (rc69.0, 2026-05-16) — Fix 1 + Fix 2 + Erweiterung b deployed
 **Erstellt:** 2026-05-16
 **Kontext:** Frank meldet, dass der Inventory-Process (`/app/erp/inventory`, Erfassungs-Tab)
 bei frisch über den Katalog verlinkten Discogs-Releases keine Markt-/Suggestion-Daten
