@@ -1952,3 +1952,25 @@
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 12px;
 }
+
+/* Erweiterung 01 — composer hint. */
+.cm-compose-hint {
+  font: 400 13px/1.55 var(--font-sans);
+  color: var(--muted-foreground);
+  background: rgba(212, 165, 74, 0.06);
+  border: 1px solid rgba(212, 165, 74, 0.25);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 18px;
+}
+
+/* Erweiterung 02 — no horizontal page movement. overflow-x: clip (not
+   hidden) so it doesn't turn cm-root into a scroll container and break
+   the sticky sub-nav. Long strings wrap instead of pushing width. */
+.cm-root { overflow-x: clip; }
+.cm-prose,
+.cm-post-body,
+.cm-post-detail-deck,
+.cm-comment-text,
+.cm-editorial-lede,
+.cm-review-body { overflow-wrap: anywhere; }

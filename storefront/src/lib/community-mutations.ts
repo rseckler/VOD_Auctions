@@ -75,6 +75,21 @@ export async function createPost(input: CreatePostInput): Promise<CommunityPost>
   return data.post
 }
 
+/** Edit an existing own post. Pass release_id: null to clear the anchor. */
+export async function updatePost(
+  id: string,
+  input: Omit<Partial<CreatePostInput>, "release_id"> & {
+    release_id?: string | null
+  }
+): Promise<CommunityPost> {
+  const data = await authReq<{ post: CommunityPost }>(
+    `/store/community/posts/${encodeURIComponent(id)}`,
+    "PATCH",
+    input
+  )
+  return data.post
+}
+
 export async function addComment(
   postIdOrSlug: string,
   input: { body_html: string; body_json?: unknown; parent_id?: string }

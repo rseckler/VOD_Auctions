@@ -99,6 +99,13 @@ export async function PATCH(
       .filter(Boolean)
       .slice(0, 8)
   }
+  // Catalog/entity anchors — editable so a post's article link can be
+  // changed (or removed) after creation. null clears the anchor.
+  for (const anchor of ["release_id", "artist_id", "label_id", "press_id"]) {
+    if (body[anchor] !== undefined) {
+      patch[anchor] = body[anchor] ? String(body[anchor]) : null
+    }
+  }
 
   const [row] = await pg("community_post")
     .where({ id: post.id })

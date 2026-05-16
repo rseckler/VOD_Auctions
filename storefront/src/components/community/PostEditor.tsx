@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useEditor, EditorContent } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import Link from "@tiptap/extension-link"
@@ -30,12 +30,15 @@ import { CommunityMention } from "./mention"
 // HTML + the Tiptap JSON doc. SSR-safe via immediatelyRender: false.
 export function PostEditor({
   placeholder,
+  initialContent,
   onChange,
 }: {
   placeholder?: string
+  initialContent?: string | null
   onChange: (html: string, json: unknown, text: string) => void
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const seeded = useRef(false)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
 
@@ -60,6 +63,15 @@ export function PostEditor({
     onUpdate: ({ editor }) =>
       onChange(editor.getHTML(), editor.getJSON(), editor.getText()),
   })
+
+  // Seed the editor once when editing an existing post.
+  useEffect(() => {
+    if (editor && initialContent && !seeded.current) {
+      seeded.current = true
+      editor.commands.setContent(initialContent)
+      onChange(editor.getHTML(), editor.getJSON(), editor.getText())
+    }
+  }, [editor, initialContent, onChange])
 
   const setLink = useCallback(() => {
     if (!editor) return

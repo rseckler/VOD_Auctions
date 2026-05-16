@@ -6,11 +6,13 @@ import Link from "next/link"
 import { useAuth } from "@/components/AuthProvider"
 import { getToken } from "@/lib/auth"
 import { medusaAuthFetch } from "@/lib/api"
+import { fetchPost } from "@/lib/community-api"
 import { PostEditor } from "@/components/community/PostEditor"
 import { TagInput } from "@/components/community/TagInput"
 import { ReleasePicker, type PickedRelease } from "@/components/community/ReleasePicker"
 import {
   createPost,
+  updatePost,
   uploadCommunityImage,
   CommunityError,
 } from "@/lib/community-mutations"
@@ -35,6 +37,10 @@ export default function CommunityComposePage() {
   } | null>(null)
   const [coverUrl, setCoverUrl] = useState<string | null>(null)
   const [coverBusy, setCoverBusy] = useState(false)
+  // Edit mode — set when arriving via /community/compose?edit=<postId>.
+  const [editId, setEditId] = useState<string | null>(null)
+  const [initialBody, setInitialBody] = useState<string | null>(null)
+  const [editLoading, setEditLoading] = useState(false)
 
   async function onCoverFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -53,10 +59,37 @@ export default function CommunityComposePage() {
     }
   }
 
-  // Optional anchors — pre-filled when arriving from a release page's
-  // "Write a post" link, or from a band/label/press "Community Wall".
+  // Read URL params: edit=<id> loads an existing post; release_id /
+  // artist_id / label_id / press_id pre-fill the anchor on a new post.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
+    const edit = params.get("edit")
+    if (edit) {
+      setEditId(edit)
+      setEditLoading(true)
+      fetchPost(edit)
+        .then((p) => {
+          if (!p) {
+            setError("Post not found.")
+            return
+          }
+          setTitle(p.title || "")
+          setTags(p.tags || [])
+          setCoverUrl(p.cover_image_url || null)
+          setKind(p.kind === "editorial" ? "editorial" : "discussion")
+          setInitialBody(p.body_html || "<p></p>")
+          if (p.release) {
+            setRelease({
+              id: p.release.id,
+              title: p.release.title,
+              artist_name: p.release.artist_name,
+              cover_image: p.release.cover_image,
+            })
+          }
+        })
+        .finally(() => setEditLoading(false))
+      return
+    }
     const releaseId = params.get("release_id")
     if (releaseId) setRelease({ id: releaseId, title: null })
     for (const type of ["artist", "label", "press"] as const) {
@@ -89,18 +122,30 @@ export default function CommunityComposePage() {
     setBusy(true)
     setError(null)
     try {
-      const post = await createPost({
-        title: title.trim() || undefined,
-        body_html: html,
-        body_json: json,
-        kind: isCurator ? kind : "discussion",
-        tags,
-        release_id: release?.id || undefined,
-        artist_id: entityAnchor?.type === "artist" ? entityAnchor.id : undefined,
-        label_id: entityAnchor?.type === "label" ? entityAnchor.id : undefined,
-        press_id: entityAnchor?.type === "press" ? entityAnchor.id : undefined,
-        cover_image_url: coverUrl || undefined,
-      })
+      let post
+      if (editId) {
+        post = await updatePost(editId, {
+          title: title.trim() || undefined,
+          body_html: html,
+          body_json: json,
+          tags,
+          release_id: release?.id || null,
+          cover_image_url: coverUrl || undefined,
+        })
+      } else {
+        post = await createPost({
+          title: title.trim() || undefined,
+          body_html: html,
+          body_json: json,
+          kind: isCurator ? kind : "discussion",
+          tags,
+          release_id: release?.id || undefined,
+          artist_id: entityAnchor?.type === "artist" ? entityAnchor.id : undefined,
+          label_id: entityAnchor?.type === "label" ? entityAnchor.id : undefined,
+          press_id: entityAnchor?.type === "press" ? entityAnchor.id : undefined,
+          cover_image_url: coverUrl || undefined,
+        })
+      }
       router.push(`/community/post/${post.slug || post.id}`)
     } catch (e) {
       setError(
@@ -112,7 +157,7 @@ export default function CommunityComposePage() {
     }
   }
 
-  if (loading) {
+  if (loading || editLoading) {
     return (
       <div className="cm-container-narrow" style={{ padding: "48px 0" }}>
         Loading…
@@ -138,8 +183,8 @@ export default function CommunityComposePage() {
       className="cm-container-narrow"
       style={{ paddingTop: 32, paddingBottom: 72 }}
     >
-      <h1 className="cm-hub-title" style={{ marginBottom: 24, fontSize: 30 }}>
-        New Post
+      <h1 className="cm-hub-title" style={{ marginBottom: 16, fontSize: 30 }}>
+        {editId ? "Edit Post" : "New Post"}
       </h1>
 
       {entityAnchor && (
@@ -148,7 +193,12 @@ export default function CommunityComposePage() {
         </p>
       )}
 
-      {isCurator && (
+      <div className="cm-compose-hint">
+        A photo, a video embed — or at least a linked release — makes a post
+        far more engaging. Visuals matter here, like on any social feed.
+      </div>
+
+      {isCurator && !editId && (
         <div className="cm-kind-toggle">
           <button
             type="button"
@@ -204,6 +254,7 @@ export default function CommunityComposePage() {
 
       <PostEditor
         placeholder="Share your thoughts with the community…"
+        initialContent={initialBody}
         onChange={(h, j, t) => {
           setHtml(h)
           setJson(j)
@@ -230,7 +281,13 @@ export default function CommunityComposePage() {
           disabled={busy}
           style={{ marginLeft: "auto" }}
         >
-          {busy ? "Publishing…" : "Publish"}
+          {busy
+            ? editId
+              ? "Saving…"
+              : "Publishing…"
+            : editId
+              ? "Save changes"
+              : "Publish"}
         </button>
       </div>
     </div>
