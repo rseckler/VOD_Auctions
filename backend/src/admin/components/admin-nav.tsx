@@ -21,11 +21,14 @@ const ICON_CATALOG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24
 
 const ICON_FB_ARCHIVE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>`
 
+const ICON_DISCOGS_BACKFILL = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><path d="M21 12a9 9 0 11-3-6.7M21 4v5h-5"/></svg>`
+
 const SHORTCUTS: Array<{ href: string; label: string; icon: string }> = [
   { href: "/app/erp/inventory", label: "Inventory", icon: ICON_INVENTORY },
   { href: "/app/media", label: "Catalog", icon: ICON_CATALOG },
   { href: "/app/fb-archive", label: "FB Archive", icon: ICON_FB_ARCHIVE },
   { href: "/app/fb-archive-review", label: "FB Review", icon: ICON_FB_ARCHIVE },
+  { href: "/app/discogs-backfill", label: "Discogs Backfill", icon: ICON_DISCOGS_BACKFILL },
 ]
 
 function injectShortcuts() {
