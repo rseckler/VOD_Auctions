@@ -258,7 +258,7 @@ Launch-Voraussetzung bleibt RSE-78 (AGB-Anwalt) — kein Code-Blocker, aber Öff
 | R6 — Acquired + Notifications + Email | ✅ rc64.0 (2026-05-16) — Bookmarks, Header-Notif-Dot, Acquired-Feed-Job, Notification- + Weekly-Digest-Email |
 | R7 — Search + Explore | ✅ rc65.0 (2026-05-16) — Postgres-Suche (Posts/Members/Lists) + Explore-Seite. Kein Meili-Index (Community-Scale) |
 | R8 — Admin + Moderation + Trust | ✅ rc66.0 (2026-05-16) — Trust-Level-Job, Admin-Trust-Verteilung, Report-Links, Bulk-Mod. Offen: Editorial-Scheduling, Curated-Tags, CRM-Tab, Auto-Mod |
-| R9 — Schema-Restfeatures (Top-4, Privacy-Toggles, Entity-Walls) | ⬜ offen |
+| R9 — Schema-Restfeatures (Top-4, Privacy-Toggles, Entity-Walls) | ✅ rc67.0 (2026-05-16) — Rebuild-Plan R0–R9 vollständig |
 | FB-Migration | ⬜ geparkt |
 
 Nach jeder Phase: CHANGELOG-Entry + GitHub-Release, dieser Plan + `COMMUNITY_SYSTEM_STATE.md` aktualisiert.
