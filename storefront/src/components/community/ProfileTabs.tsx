@@ -18,10 +18,10 @@ import {
 import { RatingStars } from "./RatingStars"
 import { ListCard } from "./ListCard"
 
-type TabKey = "posts" | "comments" | "reviews" | "lists"
+type TabKey = "posts" | "comments" | "reviews" | "acquired" | "lists"
 
-// Tabbed content for the member profile — Posts / Comments / Reviews / Lists.
-// Acquired and Wantlist tabs arrive with their rebuild phases.
+// Tabbed content for the member profile — Posts / Comments / Reviews /
+// Acquired / Lists. The Wantlist tab arrives with the Discogs bridge.
 export function ProfileTabs({
   handle,
   posts,
@@ -50,10 +50,14 @@ export function ProfileTabs({
       .catch(() => setLists([]))
   }, [tab, lists, handle])
 
+  const acquiredPosts = posts.filter((p) => p.kind === "acquired")
+  const regularPosts = posts.filter((p) => p.kind !== "acquired")
+
   const tabs: { key: TabKey; label: string; n: number | null }[] = [
-    { key: "posts", label: "Posts", n: counts.posts },
+    { key: "posts", label: "Posts", n: regularPosts.length },
     { key: "comments", label: "Comments", n: counts.comments },
     { key: "reviews", label: "Reviews", n: counts.reviews },
+    { key: "acquired", label: "Acquired", n: acquiredPosts.length },
     { key: "lists", label: "Lists", n: lists ? lists.length : null },
   ]
 
@@ -75,17 +79,28 @@ export function ProfileTabs({
 
       <div style={{ padding: "8px 0 64px" }}>
         {tab === "posts" &&
-          (posts.length === 0 ? (
+          (regularPosts.length === 0 ? (
             <div className="cm-empty">No posts yet.</div>
           ) : (
             <div className="cm-feed">
-              {posts.map((p) =>
+              {regularPosts.map((p) =>
                 p.kind === "editorial" ? (
                   <EditorialCard key={p.id} post={p} />
                 ) : (
                   <PostCard key={p.id} post={p} />
                 )
               )}
+            </div>
+          ))}
+
+        {tab === "acquired" &&
+          (acquiredPosts.length === 0 ? (
+            <div className="cm-empty">No acquisitions shared yet.</div>
+          ) : (
+            <div className="cm-feed">
+              {acquiredPosts.map((p) => (
+                <PostCard key={p.id} post={p} />
+              ))}
             </div>
           ))}
 

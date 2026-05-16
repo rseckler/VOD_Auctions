@@ -19,6 +19,8 @@ import { blockEndingEmail } from "../../../emails/block-ending"
 import { bidEndingSoonEmail } from "../../../emails/bid-ending-soon"
 import { waitlistConfirmEmail } from "../../../emails/waitlist-confirm"
 import { inviteWelcomeEmail } from "../../../emails/invite-welcome"
+import { communityNotificationsEmail } from "../../../emails/community-notifications"
+import { communityDigestEmail } from "../../../emails/community-digest"
 
 const STOREFRONT_URL = process.env.STOREFRONT_URL || "https://vod-auctions.com"
 const BACKEND_URL = process.env.MEDUSA_BACKEND_URL || "http://localhost:9000"
@@ -231,6 +233,24 @@ const TEMPLATES: EmailTemplate[] = [
     category: "newsletter",
     trigger: "Cron: 6h before block end_time",
     preheader: "Last chance — auction closes in 6 hours",
+  },
+  {
+    id: "community-notifications",
+    name: "Community Notifications",
+    description: "Digest of a member's unread community notifications",
+    channel: "resend",
+    category: "transactional",
+    trigger: "Cron: community-notification-emails (every 2h)",
+    preheader: "New notifications in the VOD Community",
+  },
+  {
+    id: "community-weekly-digest",
+    name: "Community Weekly Dispatch",
+    description: "The week's most-engaged community posts",
+    channel: "resend",
+    category: "newsletter",
+    trigger: "Cron: community-weekly-digest (Sundays)",
+    preheader: "The week's most-discussed records and dispatches",
   },
 ]
 
@@ -484,6 +504,43 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
       })
       break
     }
+
+    case "community-notifications":
+      rendered = communityNotificationsEmail({
+        firstName: "Frank",
+        lines: [
+          "<strong>DiscoveredZkoIn1989</strong> commented on your post",
+          "<strong>TapeUndergroundDe</strong> mentioned you",
+          "<strong>NoiseAndArchive</strong> started following you",
+        ],
+        communityUrl: `${STOREFRONT_URL}/community/notifications`,
+        settingsUrl: `${STOREFRONT_URL}/community/settings`,
+      })
+      break
+
+    case "community-weekly-digest":
+      rendered = communityDigestEmail({
+        firstName: "Frank",
+        posts: [
+          {
+            title: "The ZKO Tape Era 1984–1986",
+            author: "Frank Maier",
+            url: `${STOREFRONT_URL}/community`,
+            reactions: 87,
+            comments: 24,
+          },
+          {
+            title: "First-pressing varieties nobody documents",
+            author: "DiscoveredZkoIn1989",
+            url: `${STOREFRONT_URL}/community`,
+            reactions: 14,
+            comments: 6,
+          },
+        ],
+        communityUrl: `${STOREFRONT_URL}/community`,
+        settingsUrl: `${STOREFRONT_URL}/community/settings`,
+      })
+      break
 
     default:
       res.status(400).json({ message: `No preview renderer for template '${templateId}'` })

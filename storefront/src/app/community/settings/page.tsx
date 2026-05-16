@@ -43,6 +43,8 @@ export default function CommunitySettingsPage() {
   const [profile, setProfile] = useState<CommunityProfile | null>(null)
   const [loadingProfile, setLoadingProfile] = useState(true)
   const [form, setForm] = useState<Form>(EMPTY)
+  const [showAcquired, setShowAcquired] = useState(false)
+  const [emailNotif, setEmailNotif] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
@@ -79,6 +81,8 @@ export default function CommunitySettingsPage() {
             soundcloud: p.links?.soundcloud || "",
             website: p.links?.website || "",
           })
+          setShowAcquired(!!p.show_acquired_feed)
+          setEmailNotif(p.email_notifications !== false)
         }
       })
       .finally(() => setLoadingProfile(false))
@@ -112,6 +116,8 @@ export default function CommunitySettingsPage() {
           soundcloud: form.soundcloud,
           website: form.website,
         },
+        show_acquired_feed: showAcquired,
+        email_notifications: emailNotif,
       })
       setProfile(updated)
       setSaved(true)
@@ -206,6 +212,36 @@ export default function CommunitySettingsPage() {
         {field("soundcloud", "SoundCloud")}
         {field("website", "Website")}
       </div>
+
+      <h2 className="cm-settings-section">Privacy &amp; notifications</h2>
+      <label className="cm-list-visibility">
+        <input
+          type="checkbox"
+          checked={showAcquired}
+          onChange={(e) => {
+            setShowAcquired(e.target.checked)
+            setSaved(false)
+          }}
+        />
+        <span>
+          <strong>Share acquisitions</strong> — automatically post to the
+          community when you win an auction or buy a release.
+        </span>
+      </label>
+      <label className="cm-list-visibility">
+        <input
+          type="checkbox"
+          checked={emailNotif}
+          onChange={(e) => {
+            setEmailNotif(e.target.checked)
+            setSaved(false)
+          }}
+        />
+        <span>
+          <strong>Email notifications</strong> — get an email for replies,
+          mentions and new editorials.
+        </span>
+      </label>
 
       <div className="cm-compose-foot">
         {error && <span className="cm-composer-error">{error}</span>}

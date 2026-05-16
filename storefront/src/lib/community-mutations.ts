@@ -134,6 +134,22 @@ export async function markNotificationsRead(ids?: string[]): Promise<void> {
   )
 }
 
+/** Toggle a post bookmark. Returns the new saved state. */
+export async function toggleSaved(
+  postId: string
+): Promise<{ saved: boolean }> {
+  return authReq("/store/community/saved", "POST", { post_id: postId })
+}
+
+/** The viewer's bookmarked posts. */
+export async function fetchSavedPosts(): Promise<CommunityPost[]> {
+  const data = await authReq<{ posts: CommunityPost[] }>(
+    "/store/community/saved",
+    "GET"
+  )
+  return data.posts || []
+}
+
 /** Toggle following a member by handle. */
 export async function toggleFollow(
   handle: string
@@ -225,6 +241,11 @@ export interface ProfileInput {
   avatar_url?: string | null
   header_url?: string | null
   links?: Record<string, string>
+  show_tier?: boolean
+  show_acquired_feed?: boolean
+  show_wantlist?: boolean
+  email_notifications?: boolean
+  featured_releases?: string[]
 }
 
 export async function updateProfile(

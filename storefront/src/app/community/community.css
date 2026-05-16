@@ -1853,3 +1853,47 @@
   flex-shrink: 0;
 }
 .cm-list-item-remove:hover { color: var(--error); border-color: var(--error); }
+
+/* R6 — bookmarks: save button + post-report row layout. */
+.cm-post-report {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.cm-save-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted-foreground);
+  border-radius: 7px;
+  padding: 6px 12px;
+  font: 500 12px var(--font-sans);
+  cursor: pointer;
+}
+.cm-save-btn:hover { color: var(--foreground); border-color: var(--fg-12); }
+.cm-save-btn.is-saved {
+  color: var(--primary);
+  border-color: rgba(212, 165, 74, 0.4);
+  background: rgba(212, 165, 74, 0.08);
+}
+
+/* R6 — settings section heading + acquired-post tag. */
+.cm-settings-section {
+  font: 700 11px var(--font-sans);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  margin: 32px 0 6px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.cm-acquired-tag {
+  display: inline-block;
+  font: 700 9px var(--font-sans);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--primary);
+  margin: 2px 0 2px;
+}

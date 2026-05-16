@@ -29,7 +29,7 @@ export interface ReleaseCard {
 
 export interface CommunityPost {
   id: string
-  kind: "discussion" | "editorial"
+  kind: "discussion" | "editorial" | "acquired"
   title: string | null
   slug: string | null
   excerpt: string | null
@@ -68,6 +68,11 @@ export interface CommunityProfile {
   links: Record<string, string>
   tier: CommunityTier
   is_curator: boolean
+  featured_releases: string[]
+  show_tier: boolean
+  show_acquired_feed: boolean
+  show_wantlist: boolean
+  email_notifications: boolean
   created_at: string
 }
 

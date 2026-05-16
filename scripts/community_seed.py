@@ -422,6 +422,7 @@ def load(cur):
         print("ERROR: no releases with cover art found to anchor demo content")
         sys.exit(1)
     rel_ids = [r[0] for r in releases]
+    rel_title = {r[0]: (r[1] or "a release") for r in releases}
     print(f"  anchoring demo content to {len(rel_ids)} real releases")
 
     # ── Profiles ────────────────────────────────────────────────────────────
@@ -632,6 +633,36 @@ def load(cur):
             (len(picks), lid),
         )
     print(f"  + {list_seq} lists, {item_total} list items")
+
+    # ── Acquired-feed posts ─────────────────────────────────────────────────
+    # A subset of members opts into the acquired feed; seed a few acquired
+    # posts so the feature is visible in the demo dataset.
+    acq_members = RNG.sample(member_keys, 6)
+    for akey in acq_members:
+        cur.execute(
+            "UPDATE community_profile SET show_acquired_feed=true WHERE id=%s",
+            (pid[akey],),
+        )
+    acq_count = 0
+    for akey in acq_members:
+        for rid in RNG.sample(rel_ids, RNG.randint(1, 2)):
+            seq += 1
+            post_id = f"cmpst_demo_{seq:03d}"
+            ts = NOW - timedelta(days=RNG.randint(0, 45), hours=RNG.randint(0, 23))
+            body = (f"<p>Added <strong>{rel_title[rid]}</strong> "
+                    "to the collection.</p>")
+            cur.execute(
+                "INSERT INTO community_post "
+                "(id, author_id, kind, title, slug, body_html, excerpt, tags, "
+                " release_id, status, is_pinned, reaction_count, comment_count, "
+                " created_at, updated_at, published_at) "
+                "VALUES (%s,%s,'acquired',NULL,%s,%s,%s,%s,%s,'published',"
+                "false,0,0,%s,%s,%s)",
+                (post_id, pid[akey], f"demo-{seq}-acquired",
+                 body, _excerpt(body), ["acquired"], rid, ts, ts, ts),
+            )
+            acq_count += 1
+    print(f"  + {acq_count} acquired posts")
 
     # ── Strip demo influence from Release rating aggregates ─────────────────
     # The review trigger rolled demo ratings into Release.averageRating. Reset

@@ -10,6 +10,7 @@ import { useAuth } from "@/components/AuthProvider"
 import { AuthModal } from "@/components/AuthModal"
 import { SearchAutocomplete } from "@/components/SearchAutocomplete"
 import { useFeatureFlag } from "@/components/FeatureFlagProvider"
+import { CommunityNavDot } from "@/components/community/CommunityNavDot"
 
 const NAV_LINKS = [
   { href: "/auctions", label: "Auctions" },
@@ -78,6 +79,7 @@ export function Header() {
                   className={`${isActive ? "text-foreground" : "text-muted-foreground"} hover:text-foreground transition-colors`}
                 >
                   {link.label}
+                  {link.href === "/community" && <CommunityNavDot />}
                 </Link>
               )
             })}

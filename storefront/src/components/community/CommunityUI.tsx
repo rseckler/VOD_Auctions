@@ -190,6 +190,9 @@ export function PostCard({ post }: { post: CommunityPost }) {
       prefetch={false}
     >
       <Byline author={post.author} time={timeAgo(post.published_at || post.created_at)} />
+      {post.kind === "acquired" && (
+        <div className="cm-acquired-tag">✦ Acquired</div>
+      )}
       {post.title && <h3 className="cm-post-title">{post.title}</h3>}
       {post.cover_image_url && (
         // eslint-disable-next-line @next/next/no-img-element

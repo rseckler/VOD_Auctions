@@ -43,6 +43,12 @@ export default async function CommunityHubPage() {
           <div className="cm-page-eyebrow">
             <span className="cm-page-eyebrow-text">The Feed</span>
             <span className="cm-page-eyebrow-rule" />
+            <a
+              href="/community/saved"
+              className="cm-page-eyebrow-link"
+            >
+              Saved posts →
+            </a>
           </div>
           <HubFeed initialPosts={feedRes.posts} heroId={hero?.id} />
         </main>

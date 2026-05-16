@@ -105,6 +105,26 @@ export async function PUT(
     patch.links = JSON.stringify(links)
   }
 
+  // Privacy + notification toggles.
+  for (const flag of [
+    "show_tier",
+    "show_acquired_feed",
+    "show_wantlist",
+    "email_notifications",
+  ]) {
+    if (body[flag] !== undefined) patch[flag] = !!body[flag]
+  }
+  // Featured releases — up to 4 release ids pinned on the profile header.
+  if (body.featured_releases !== undefined) {
+    const ids = Array.isArray(body.featured_releases)
+      ? body.featured_releases
+          .map((x: any) => String(x))
+          .filter(Boolean)
+          .slice(0, 4)
+      : []
+    patch.featured_releases = JSON.stringify(ids)
+  }
+
   const [row] = await pg("community_profile")
     .where({ id: profile.id })
     .update(patch)

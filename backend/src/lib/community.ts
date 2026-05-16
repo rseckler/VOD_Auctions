@@ -449,6 +449,13 @@ export function serializeProfile(p: any) {
     links: p.links ?? {},
     tier: p.tier,
     is_curator: !!p.is_curator,
+    featured_releases: Array.isArray(p.featured_releases)
+      ? p.featured_releases
+      : [],
+    show_tier: p.show_tier !== false,
+    show_acquired_feed: !!p.show_acquired_feed,
+    show_wantlist: !!p.show_wantlist,
+    email_notifications: p.email_notifications !== false,
     created_at: p.created_at,
   }
 }

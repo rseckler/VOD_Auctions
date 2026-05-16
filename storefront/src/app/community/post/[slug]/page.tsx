@@ -17,6 +17,7 @@ import { ReactionsBar } from "@/components/community/ReactionsBar"
 import { CommentSection } from "@/components/community/CommentSection"
 import { ReportButton } from "@/components/community/ReportButton"
 import { FollowButton } from "@/components/community/FollowButton"
+import { SaveButton } from "@/components/community/SaveButton"
 
 type Params = { slug: string }
 
@@ -147,6 +148,7 @@ export default async function CommunityPostPage({
           />
 
           <div className="cm-post-report">
+            <SaveButton postId={post.id} />
             <ReportButton targetKind="post" targetId={post.id} />
           </div>
 
