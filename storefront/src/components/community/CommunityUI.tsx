@@ -102,8 +102,20 @@ export function TierLabel({ tier }: { tier: CommunityTier }) {
 }
 
 // ─── Tag chip ─────────────────────────────────────────────────────────────
+// Tag — plain span, safe inside Link-wrapped cards (no nested anchors).
 export function Tag({ name }: { name: string }) {
   return <span className="cm-tag">#{name}</span>
+}
+
+// TagLink — clickable variant for contexts that are not already a Link
+// (post detail, tag pages, trending strips).
+export function TagLink({ name, count }: { name: string; count?: number }) {
+  return (
+    <Link href={`/community/tag/${encodeURIComponent(name)}`} className="cm-tag" prefetch={false}>
+      #{name}
+      {count != null && <span className="cm-tag-count">{count}</span>}
+    </Link>
+  )
 }
 
 // ─── Inline release card ──────────────────────────────────────────────────

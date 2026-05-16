@@ -1,7 +1,8 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { fetchFeed } from "@/lib/community-api"
-import { PostCard, EditorialCard } from "@/components/community/CommunityUI"
+import { fetchFeed, fetchTags } from "@/lib/community-api"
+import { EditorialCard, TagLink } from "@/components/community/CommunityUI"
+import { HubFeed } from "@/components/community/HubFeed"
 
 export const metadata: Metadata = {
   title: "Community — VOD Auctions",
@@ -9,16 +10,14 @@ export const metadata: Metadata = {
     "Where collectors of industrial, power-electronics and tape-underground music talk.",
 }
 
-// Hub feed — newest published posts, the latest editorial pinned as hero.
+// Hub — latest editorial pinned as hero, then the feed (Following / Latest).
 export default async function CommunityHubPage() {
-  const [editorialRes, feedRes] = await Promise.all([
+  const [editorialRes, feedRes, tags] = await Promise.all([
     fetchFeed({ kind: "editorial", limit: 1 }),
     fetchFeed({ limit: 24 }),
+    fetchTags(12),
   ])
-
   const hero = editorialRes.posts[0] ?? null
-  const feed = feedRes.posts.filter((p) => !hero || p.id !== hero.id)
-  const isEmpty = !hero && feed.length === 0
 
   return (
     <div
@@ -37,8 +36,19 @@ export default async function CommunityHubPage() {
           <Link href="/community/settings" className="cm-btn cm-btn-outline">
             My Profile
           </Link>
+          <Link href="/community/notifications" className="cm-btn cm-btn-ghost">
+            Notifications
+          </Link>
         </div>
       </header>
+
+      {tags.length > 0 && (
+        <div className="cm-post-tags" style={{ marginBottom: 20 }}>
+          {tags.map((t) => (
+            <TagLink key={t.tag} name={t.tag} count={t.count} />
+          ))}
+        </div>
+      )}
 
       {hero && (
         <div style={{ marginBottom: 28 }}>
@@ -46,21 +56,7 @@ export default async function CommunityHubPage() {
         </div>
       )}
 
-      {isEmpty ? (
-        <div className="cm-empty">
-          No posts yet — the community is just getting started.
-        </div>
-      ) : (
-        <div className="cm-feed">
-          {feed.map((p) =>
-            p.kind === "editorial" ? (
-              <EditorialCard key={p.id} post={p} />
-            ) : (
-              <PostCard key={p.id} post={p} />
-            )
-          )}
-        </div>
-      )}
+      <HubFeed initialPosts={feedRes.posts} heroId={hero?.id} />
     </div>
   )
 }

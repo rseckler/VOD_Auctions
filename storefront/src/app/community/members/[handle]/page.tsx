@@ -6,6 +6,7 @@ import {
   PostCard,
   EditorialCard,
 } from "@/components/community/CommunityUI"
+import { FollowButton } from "@/components/community/FollowButton"
 
 type Params = { handle: string }
 
@@ -48,7 +49,7 @@ export default async function MemberProfilePage({
   const data = await fetchProfile(handle)
   if (!data) notFound()
 
-  const { profile, stats, posts } = data
+  const { profile, stats, posts, is_following, is_self } = data
   const links = Object.entries(profile.links || {}).filter(([, v]) => !!v)
 
   return (
@@ -109,6 +110,14 @@ export default async function MemberProfilePage({
               </div>
             )}
           </div>
+          {!is_self && (
+            <div className="cm-profile-actions">
+              <FollowButton
+                handle={profile.handle}
+                initialFollowing={is_following}
+              />
+            </div>
+          )}
         </div>
 
         <div className="cm-stats-bar">
@@ -123,6 +132,14 @@ export default async function MemberProfilePage({
           <div className="cm-stat">
             <div className="cm-stat-num">{stats.reviews}</div>
             <div className="cm-stat-label">Reviews</div>
+          </div>
+          <div className="cm-stat">
+            <div className="cm-stat-num">{stats.followers}</div>
+            <div className="cm-stat-label">Followers</div>
+          </div>
+          <div className="cm-stat">
+            <div className="cm-stat-num">{stats.following}</div>
+            <div className="cm-stat-label">Following</div>
           </div>
         </div>
 

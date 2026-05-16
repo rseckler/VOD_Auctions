@@ -5,7 +5,7 @@ import { fetchPost, fetchComments } from "@/lib/community-api"
 import {
   MemberAvatar,
   TierLabel,
-  Tag,
+  TagLink,
   ReleaseCardInline,
 } from "@/components/community/CommunityUI"
 import { ReactionsBar } from "@/components/community/ReactionsBar"
@@ -102,7 +102,7 @@ export default async function CommunityPostPage({
         {post.tags.length > 0 && (
           <div className="cm-post-tags" style={{ marginTop: 16 }}>
             {post.tags.map((t) => (
-              <Tag key={t} name={t} />
+              <TagLink key={t} name={t} />
             ))}
           </div>
         )}

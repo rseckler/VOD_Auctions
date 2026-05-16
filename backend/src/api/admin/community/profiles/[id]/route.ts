@@ -33,7 +33,12 @@ export async function PATCH(
     }
     patch.tier = body.tier
   }
-  if (body.is_curator !== undefined) patch.is_curator = !!body.is_curator
+  if (body.is_curator !== undefined) {
+    patch.is_curator = !!body.is_curator
+    // Curators carry the 'curator' tier so the badge renders correctly and
+    // the CRM-tier sync trigger skips them.
+    if (body.is_curator === true) patch.tier = "curator"
+  }
   if (body.is_banned !== undefined) patch.is_banned = !!body.is_banned
 
   const [row] = await pg("community_profile")

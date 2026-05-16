@@ -6,6 +6,7 @@ import {
   getOrCreateProfile,
   sanitizeBodyHtml,
   recomputeCommentCount,
+  createNotification,
   serializeProfile,
 } from "../../../../../../lib/community"
 
@@ -97,15 +98,17 @@ export async function POST(
 
   // One threading level only: a reply's parent must itself be top-level.
   let parentId: string | null = null
+  let parentAuthorId: string | null = null
   if (body.parent_id) {
     const parent = await pg("community_comment")
       .where({ id: String(body.parent_id), post_id: post.id })
-      .first("id", "parent_id")
+      .first("id", "parent_id", "author_id")
     if (!parent) {
       res.status(422).json({ message: "Parent comment not found" })
       return
     }
     parentId = parent.parent_id || parent.id
+    parentAuthorId = parent.author_id
   }
 
   const now = new Date()
@@ -124,6 +127,26 @@ export async function POST(
     .returning("*")
 
   await recomputeCommentCount(pg, post.id)
+
+  // Notify the post author, and the parent comment author on a reply.
+  await createNotification(pg, {
+    recipient_id: post.author_id,
+    kind: "comment",
+    actor_id: profile.id,
+    target_kind: "post",
+    target_id: post.id,
+    target_slug: post.slug,
+  })
+  if (parentAuthorId && parentAuthorId !== post.author_id) {
+    await createNotification(pg, {
+      recipient_id: parentAuthorId,
+      kind: "reply",
+      actor_id: profile.id,
+      target_kind: "post",
+      target_id: post.id,
+      target_slug: post.slug,
+    })
+  }
 
   res.status(201).json({ comment: { ...row, author: serializeProfile(profile) } })
 }

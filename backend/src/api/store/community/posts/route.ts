@@ -4,6 +4,7 @@ import { Knex } from "knex"
 import {
   requireCommunityEnabled,
   getOrCreateProfile,
+  getProfileByCustomerId,
   sanitizeBodyHtml,
   excerptFromHtml,
   uniquePostSlug,
@@ -14,6 +15,7 @@ import {
 // GET /store/community/posts — Hub feed (public)
 //
 // Query: release_id, kind (discussion|editorial), author (handle),
+//        feed=following (personalised — followed members + editorials),
 //        q (title/excerpt search), limit (default 20, max 50), offset
 export async function GET(
   req: MedusaRequest,
@@ -25,6 +27,8 @@ export async function GET(
   const releaseId = req.query.release_id as string | undefined
   const kind = req.query.kind as string | undefined
   const authorHandle = req.query.author as string | undefined
+  const feed = req.query.feed as string | undefined
+  const tag = ((req.query.tag as string) || "").toLowerCase().trim()
   const q = ((req.query.q as string) || "").trim()
   const limit = Math.min(Number(req.query.limit) || 20, 50)
   const offset = Math.max(Number(req.query.offset) || 0, 0)
@@ -35,6 +39,23 @@ export async function GET(
   if (releaseId) base = base.where("p.release_id", releaseId)
   if (kind === "discussion" || kind === "editorial") base = base.where("p.kind", kind)
   if (authorHandle) base = base.where("a.handle", authorHandle)
+  if (tag) base = base.whereRaw("? = ANY(p.tags)", [tag])
+
+  // Personalised feed — posts by followed members + all editorials.
+  if (feed === "following") {
+    const customerId = (req as any).auth_context?.actor_id
+    const viewer = customerId ? await getProfileByCustomerId(pg, customerId) : null
+    if (viewer) {
+      const followRows = await pg("community_follow")
+        .where("follower_id", viewer.id)
+        .select("followed_id")
+      const followedIds = followRows.map((r: any) => r.followed_id)
+      base = base.where((b: any) => {
+        b.where("p.kind", "editorial")
+        if (followedIds.length > 0) b.orWhereIn("p.author_id", followedIds)
+      })
+    }
+  }
   if (q) {
     const like = `%${q.toLowerCase()}%`
     base = base.where((b: any) => {

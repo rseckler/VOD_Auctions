@@ -5,6 +5,7 @@ import {
   requireCommunityEnabled,
   serializeProfile,
   fetchReleaseCards,
+  getProfileByCustomerId,
 } from "../../../../../lib/community"
 
 // GET /store/community/profiles/:handle — public member profile + recent posts
@@ -42,13 +43,40 @@ export async function GET(
   const reviewCountRows = await pg("community_review")
     .where({ author_id: profile.id, status: "published" })
     .count("id as count")
+  const followerRows = await pg("community_follow")
+    .where({ followed_id: profile.id })
+    .count("followed_id as count")
+  const followingRows = await pg("community_follow")
+    .where({ follower_id: profile.id })
+    .count("follower_id as count")
+
+  // Viewer relationship — only when logged in and not their own profile.
+  let isFollowing = false
+  let isSelf = false
+  const customerId = (req as any).auth_context?.actor_id
+  if (customerId) {
+    const viewer = await getProfileByCustomerId(pg, customerId)
+    if (viewer) {
+      isSelf = viewer.id === profile.id
+      if (!isSelf) {
+        const rel = await pg("community_follow")
+          .where({ follower_id: viewer.id, followed_id: profile.id })
+          .first("follower_id")
+        isFollowing = !!rel
+      }
+    }
+  }
 
   res.json({
     profile: serializeProfile(profile),
+    is_following: isFollowing,
+    is_self: isSelf,
     stats: {
       posts: Number(postCountRows[0]?.count || 0),
       comments: Number(commentCountRows[0]?.count || 0),
       reviews: Number(reviewCountRows[0]?.count || 0),
+      followers: Number(followerRows[0]?.count || 0),
+      following: Number(followingRows[0]?.count || 0),
     },
     posts: posts.map((p: any) => ({
       ...p,

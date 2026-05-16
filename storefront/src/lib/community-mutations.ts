@@ -8,6 +8,7 @@ import type {
   CommunityComment,
   CommunityPost,
   CommunityProfile,
+  CommunityNotification,
 } from "./community-api"
 
 export class CommunityError extends Error {
@@ -21,7 +22,7 @@ export class CommunityError extends Error {
 
 async function authReq<T>(
   path: string,
-  method: "POST" | "PATCH" | "PUT" | "DELETE",
+  method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE",
   body?: unknown
 ): Promise<T> {
   const token = getToken()
@@ -101,6 +102,30 @@ export async function createReview(input: {
   body_html?: string
 }): Promise<unknown> {
   return authReq("/store/community/reviews", "POST", input)
+}
+
+/** Own notifications + unread count. */
+export async function fetchNotifications(): Promise<{
+  notifications: CommunityNotification[]
+  unread: number
+}> {
+  return authReq("/store/community/notifications", "GET")
+}
+
+/** Mark notifications read — omitted ids marks all. */
+export async function markNotificationsRead(ids?: string[]): Promise<void> {
+  await authReq(
+    "/store/community/notifications",
+    "POST",
+    ids && ids.length ? { ids } : {}
+  )
+}
+
+/** Toggle following a member by handle. */
+export async function toggleFollow(
+  handle: string
+): Promise<{ following: boolean; follower_count: number }> {
+  return authReq("/store/community/follow", "POST", { handle })
 }
 
 /** Resolve a media URL to an embeddable iframe src (server-side). */

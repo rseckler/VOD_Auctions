@@ -87,13 +87,35 @@ export interface ReviewsResponse {
   review_count: number
 }
 
+export interface CommunityNotification {
+  id: string
+  kind: "comment" | "reply" | "follow" | "mention" | "editorial"
+  target_kind: string | null
+  target_id: string | null
+  target_slug: string | null
+  is_read: boolean
+  created_at: string
+  actor: {
+    handle: string
+    display_name: string
+    avatar_url: string | null
+    tier: CommunityTier
+  } | null
+}
+
 export interface FeedParams {
   release_id?: string
   kind?: "discussion" | "editorial"
   author?: string
+  tag?: string
   q?: string
   limit?: number
   offset?: number
+}
+
+export interface TrendingTag {
+  tag: string
+  count: number
 }
 
 /** Whether the COMMUNITY flag is on — read from the client-safe flag endpoint. */
@@ -118,6 +140,15 @@ export async function fetchFeed(
     { revalidate: 30 }
   )
   return data ?? { posts: [], count: 0 }
+}
+
+/** Trending tags across published posts. */
+export async function fetchTags(limit = 24): Promise<TrendingTag[]> {
+  const data = await medusaFetch<{ tags: TrendingTag[] }>(
+    `/store/community/tags?limit=${limit}`,
+    { revalidate: 120 }
+  )
+  return data?.tags ?? []
 }
 
 /** Single post by id or slug. */
@@ -156,10 +187,20 @@ export async function fetchReviews(releaseId: string): Promise<ReviewsResponse> 
   )
 }
 
+export interface ProfileStats {
+  posts: number
+  comments: number
+  reviews: number
+  followers: number
+  following: number
+}
+
 /** Public member profile by handle, with recent posts + stats. */
 export async function fetchProfile(handle: string): Promise<{
   profile: CommunityProfile
-  stats: { posts: number; comments: number; reviews: number }
+  is_following: boolean
+  is_self: boolean
+  stats: ProfileStats
   posts: CommunityPost[]
 } | null> {
   return medusaFetch(

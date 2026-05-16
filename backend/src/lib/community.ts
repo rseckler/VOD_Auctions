@@ -167,6 +167,12 @@ export async function getOrCreateProfile(
     [customer?.first_name, customer?.last_name].filter(Boolean).join(" ").trim() ||
     emailLocal
 
+  // Inherit the CRM tier (Increment 3D). Falls back to 'standard'.
+  const crm = await pg("crm_master_contact")
+    .where({ medusa_customer_id: customerId })
+    .first("tier")
+  const tier = crm?.tier || "standard"
+
   const handle = await uniqueHandle(pg, emailLocal)
   const now = new Date()
 
@@ -178,7 +184,7 @@ export async function getOrCreateProfile(
       handle,
       display_name: displayName,
       links: JSON.stringify({}),
-      tier: "standard",
+      tier,
       created_at: now,
       updated_at: now,
     })
@@ -211,6 +217,42 @@ export async function recomputeCommentCount(
   const n = Number(rows[0]?.count || 0)
   await pg("community_post").where({ id: postId }).update({ comment_count: n })
   return n
+}
+
+// ─── Notifications ──────────────────────────────────────────────────────────
+/**
+ * Insert an in-app notification. No-op when the actor is the recipient
+ * (you never get notified about your own action). Best-effort — callers
+ * should not let a notification failure break the primary action.
+ */
+export async function createNotification(
+  pg: Knex,
+  n: {
+    recipient_id: string
+    kind: "comment" | "reply" | "follow" | "mention" | "editorial"
+    actor_id?: string | null
+    target_kind?: string | null
+    target_id?: string | null
+    target_slug?: string | null
+  }
+): Promise<void> {
+  if (!n.recipient_id) return
+  if (n.actor_id && n.actor_id === n.recipient_id) return
+  try {
+    await pg("community_notification").insert({
+      id: generateEntityId("", "cmntf"),
+      recipient_id: n.recipient_id,
+      kind: n.kind,
+      actor_id: n.actor_id ?? null,
+      target_kind: n.target_kind ?? null,
+      target_id: n.target_id ?? null,
+      target_slug: n.target_slug ?? null,
+      is_read: false,
+      created_at: new Date(),
+    })
+  } catch {
+    // best-effort — never break the primary action over a notification
+  }
 }
 
 // ─── Catalog anchoring ──────────────────────────────────────────────────────
