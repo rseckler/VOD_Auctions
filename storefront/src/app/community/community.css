@@ -195,19 +195,18 @@
 .cm-tier-label.is-gold { color: var(--primary); }
 .cm-tier-label.is-curator { color: var(--primary); }
 
-/* ── Post card (member) — dense hairline row (Erweiterung 02) ─
-   A feed entry is a conversation line, not a billboard. No card
-   chrome: posts are separated by a 1px hairline, the body sits
-   indented under the meta (avatar 36 + 10 gap = 46px). */
+/* ── Post card (member) — compact card (Erweiterung 02) ───────
+   Bordered/rounded card, but a dense interior: 14px padding,
+   small type, 36px avatar. The body sits indented under the
+   meta (avatar 36 + 10 gap = 46px). */
 .cm-post {
   display: block; text-decoration: none; cursor: pointer;
-  background: transparent; border: 0;
-  border-top: 1px solid var(--border);
-  border-radius: 0; padding: 14px 16px;
-  transition: background 150ms;
+  position: relative;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 14px 16px;
+  transition: border-color 150ms;
 }
-.cm-post:hover { background: rgba(232,224,212,0.015); }
-.cm-feed > .cm-post:first-child { border-top: 0; }
+.cm-post:hover { border-color: rgba(212,165,74,0.22); }
 
 .cm-post-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .cm-post-meta {
@@ -295,16 +294,29 @@
 .cm-release-ref-artist { color: var(--muted-foreground); white-space: nowrap; }
 .cm-release-ref-arrow { color: var(--muted-foreground); flex-shrink: 0; }
 
-/* ── Editorial post — dense feed row, distinguished by gold line  */
+/* ── Editorial post — compact card, distinguished by gold line  */
 .cm-post.cm-post-editorial {
-  position: relative; border-top: 0; padding-top: 16px;
+  border-color: rgba(212,165,74,0.28);
   background:
-    radial-gradient(ellipse at 80% 0%, rgba(212,165,74,0.05) 0%, transparent 60%),
-    rgba(212,165,74,0.015);
+    radial-gradient(ellipse at 85% 0%, rgba(212,165,74,0.06) 0%, transparent 55%),
+    var(--card);
+  overflow: hidden;
 }
 .cm-post.cm-post-editorial::before {
-  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px;
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px;
   background: linear-gradient(90deg, var(--primary), rgba(212,165,74,0.2) 80%, transparent);
+}
+
+/* ── Decorative cover placeholder (no real image) ──────────── */
+.cm-cover-art {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse at 25% 15%, rgba(212,165,74,0.18), transparent 55%),
+    linear-gradient(160deg, #4a3a26 0%, #2a2520 50%, #15110d 100%);
+}
+.cm-cover-art::after {
+  content: ""; position: absolute; inset: 0;
+  background: repeating-linear-gradient(45deg, transparent 0 3px, rgba(0,0,0,0.06) 3px 4px);
 }
 .cm-editorial-eyebrow-d {
   display: flex; align-items: center; gap: 6px;
@@ -470,11 +482,8 @@
 }
 .cm-hub-grid.layout-3col { grid-template-columns: 220px minmax(0,1fr) 320px; gap: 48px; }
 .cm-hub-grid.layout-1col { grid-template-columns: minmax(0, 720px); justify-content: center; gap: 0; }
-/* Hairline list — posts are separated by their own border-top, no gap. */
-.cm-feed { display: flex; flex-direction: column; gap: 0; }
-/* Comment / review cards carry their own chrome — keep a small gap. */
-.cm-feed > .cm-profile-comment + .cm-profile-comment,
-.cm-feed > .cm-profile-review + .cm-profile-review { margin-top: 8px; }
+/* Compact card list — small gap between cards. */
+.cm-feed { display: flex; flex-direction: column; gap: 10px; }
 
 .cm-feed-divider {
   display: flex; align-items: center; gap: 14px;
@@ -806,17 +815,17 @@
 }
 
 .cm-stats-strip {
-  display: flex; align-items: center; gap: 28px;
-  padding: 22px 28px; margin: 32px 0 24px;
+  display: flex; align-items: center; gap: 24px;
+  padding: 13px 18px; margin: 14px 0;
   background: var(--card); border: 1px solid var(--border);
-  border-radius: 12px; flex-wrap: wrap;
+  border-radius: 10px; flex-wrap: wrap;
 }
 .cm-stats-strip-item {
-  display: flex; flex-direction: column; gap: 2px;
+  display: flex; flex-direction: column; gap: 1px;
   cursor: pointer;
 }
 .cm-stats-strip-item .num {
-  font: 400 22px/1 var(--font-serif); color: var(--foreground);
+  font: 400 17px/1 var(--font-serif); color: var(--foreground);
   font-variant-numeric: tabular-nums;
 }
 .cm-stats-strip-item .num .star { color: var(--primary); }
@@ -1122,8 +1131,8 @@
 /* ── Catalog-anchored community section (Increment 1, Phase 4) ─ */
 .cm-release-community { margin-top: 8px; }
 .cm-section-title {
-  font: 400 26px var(--font-serif); letter-spacing: -0.01em;
-  margin: 0 0 18px; color: var(--foreground);
+  font: 400 20px var(--font-serif); letter-spacing: -0.01em;
+  margin: 0 0 10px; color: var(--foreground);
 }
 .cm-community-block { margin-bottom: 32px; }
 .cm-community-block-head {
@@ -1147,7 +1156,7 @@
 }
 .cm-rating-picker { display: flex; align-items: center; gap: 4px; margin-bottom: 10px; }
 .cm-star-btn {
-  background: none; border: none; cursor: pointer; font-size: 24px;
+  background: none; border: none; cursor: pointer; font-size: 20px;
   color: var(--border); padding: 0; line-height: 1;
 }
 .cm-star-btn.is-filled { color: var(--primary); }
@@ -1175,7 +1184,7 @@
   .cm-container,
   .cm-container-narrow { padding-left: 16px; padding-right: 16px; }
   .cm-hub-title { font-size: 30px; }
-  .cm-section-title { font-size: 22px; }
+  .cm-section-title { font-size: 18px; }
   .cm-post-detail-title { font-size: 26px; }
   .cm-editorial-title { font-size: 22px; }
   .cm-profile-card { flex-direction: column; align-items: flex-start; gap: 14px; }
@@ -1229,6 +1238,10 @@
 .cm-editorial-cover {
   width: 100%; max-height: 300px; object-fit: cover; border-radius: 8px;
   margin: 12px 0; display: block;
+}
+.cm-editorial-cover-ph {
+  position: relative; height: 180px; border-radius: 8px;
+  overflow: hidden; margin: 12px 0;
 }
 
 /* ── Hub feed tabs (Increment 3B) ───────────────────────────── */
@@ -1660,8 +1673,8 @@
 .cm-rating-overview {
   display: flex;
   align-items: center;
-  gap: 32px;
-  padding: 20px 0 4px;
+  gap: 24px;
+  padding: 6px 0 4px;
   flex-wrap: wrap;
 }
 .cm-rating-overview-score {
@@ -1669,31 +1682,33 @@
   flex-shrink: 0;
 }
 .cm-rating-overview-num {
-  font: 400 44px var(--font-serif);
+  font: 400 30px var(--font-serif);
   color: var(--foreground);
   line-height: 1;
 }
 .cm-rating-overview-count {
   font: 400 11px var(--font-sans);
   color: var(--muted-foreground);
-  margin-top: 6px;
+  margin-top: 4px;
 }
 .cm-histogram {
   flex: 1;
   min-width: 220px;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
 }
 .cm-histogram-row {
   display: flex;
   align-items: center;
   gap: 10px;
+  height: 16px;
 }
 .cm-histogram-label {
   font: 500 11px var(--font-sans);
   color: var(--muted-foreground);
-  width: 28px;
+  min-width: 30px;
+  white-space: nowrap;
   flex-shrink: 0;
 }
 .cm-histogram-star { color: var(--primary); }

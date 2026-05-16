@@ -47,7 +47,7 @@ REACTIONS = ["🔥", "❤️", "🤘", "👀", "💯", "🙏", "⚡"]
 # ─── Demo members ───────────────────────────────────────────────────────────
 # key, display_name, location, collector_since, tier, is_curator, bio, links
 MEMBERS = [
-    ("frank", "Frank Maier", "Pratteln, CH", 2003, "curator", True,
+    ("frank", "Frank Bull", "Pratteln, CH", 2003, "curator", True,
      "Founder of Vinyl on Demand. Building the archive since 2003. The voice "
      "behind every Dispatch from the Vault.",
      {"website": "https://vinyl-on-demand.com"}),

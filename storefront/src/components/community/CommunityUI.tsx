@@ -207,8 +207,10 @@ function Byline({ author, time }: { author: CommunityAuthor; time: string }) {
 // ─── Standard post card — dense hairline row ──────────────────────────────
 export function PostCard({ post }: { post: CommunityPost }) {
   // The right-hand square thumbnail shows the linked release cover, or the
-  // post's own uploaded image when there is no release.
+  // post's own uploaded image. When a release is linked but has no cover,
+  // a decorative placeholder keeps the connection visible.
   const thumb = post.release?.cover_image || post.cover_image_url
+  const showThumb = !!thumb || !!post.release
   const longBody = (post.excerpt?.length || 0) > 180
   return (
     <Link
@@ -231,10 +233,14 @@ export function PostCard({ post }: { post: CommunityPost }) {
           )}
           {post.release && <ReleaseRef release={post.release} />}
         </div>
-        {thumb && (
+        {showThumb && (
           <span className="cm-post-cover-thumb">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={thumb} alt="" />
+            {thumb ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={thumb} alt="" />
+            ) : (
+              <span className="cm-cover-art" aria-hidden="true" />
+            )}
           </span>
         )}
       </div>
@@ -313,9 +319,13 @@ export function EditorialCard({
             · {time}
           </span>
         </div>
-        {post.cover_image_url && (
+        {post.cover_image_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={post.cover_image_url} alt="" className="cm-editorial-cover" />
+        ) : (
+          <div className="cm-editorial-cover-ph">
+            <span className="cm-cover-art" aria-hidden="true" />
+          </div>
         )}
         <div className="cm-editorial-body">
           <h2 className="cm-editorial-title">{post.title || "Untitled"}</h2>
@@ -375,12 +385,14 @@ export function EditorialCard({
           <h2 className="cm-editorial-title-d">{post.title || "Untitled"}</h2>
           {post.excerpt && <p className="cm-editorial-lede-d">{post.excerpt}</p>}
         </div>
-        {post.cover_image_url && (
-          <span className="cm-post-cover-thumb">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
+        <span className="cm-post-cover-thumb">
+          {post.cover_image_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
             <img src={post.cover_image_url} alt="" />
-          </span>
-        )}
+          ) : (
+            <span className="cm-cover-art" aria-hidden="true" />
+          )}
+        </span>
       </div>
       <div className="cm-post-actions">
         <span className="cm-react is-active">
