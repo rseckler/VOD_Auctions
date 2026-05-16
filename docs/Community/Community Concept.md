@@ -1232,6 +1232,8 @@ Beide Wünsche sind im Konzept berücksichtigt — hier die Plain-Language-Antwo
 
 Dieser Abschnitt konsolidiert die Entscheidungen der Planungs-Session vom 2026-05-15. **Bei Konflikt mit §1–§16 gewinnt §17.**
 
+> **Umsetzungsstand (2026-05-16):** Increments 1–4 sind vollständig gebaut + deployed (`rc55.0`–`rc57.0`, Flag `COMMUNITY` ON). Increment-1 enthält bereits Catalog-Anchored Reviews (aus Phase 2 vorgezogen). Verbindliche **As-Built-Referenz:** [`COMMUNITY_SYSTEM_STATE.md`](./COMMUNITY_SYSTEM_STATE.md) · Bauplan: [`COMMUNITY_PLATFORM_BUILD_PLAN.md`](./COMMUNITY_PLATFORM_BUILD_PLAN.md). Offen: **Schritt 2** (Facebook-Migration, geparkt) inkl. dem `typ`-Decode aus §17.5.
+
 ### 17.1 Build-Strategie: direkt in die Plattform, hinter Feature-Flag
 
 **Entscheidung:** **Kein separater MVP.** Die Community wird direkt in die bestehende Plattform (`storefront/` + `backend/`) gebaut, hinter einem neuen Feature-Flag **`COMMUNITY`** (`backend/src/lib/feature-flags.ts` + `site_config.features` JSONB), **OFF by default**.
