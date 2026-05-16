@@ -2,7 +2,7 @@
 
 **Purpose:** Auktionsplattform für ~41.500 Produkte (Industrial Music Tonträger + Literatur/Merch) — eigene Plattform statt 8-13% eBay/Discogs-Gebühren
 **Status:** Beta Test (`platform_mode: beta_test`) · Storefront+Admin-UI: Englisch
-**Last Updated:** 2026-05-16 — **rc55.0–rc57.0 VOD Community (Increments 1–4) live** hinter dem Feature-Flag `COMMUNITY` (ON): Profile, Posts mit Medien (Bild/Embeds/Cover), Comments, Reactions, Reviews, Catalog-Anchored Discussion, Following, personalisierter Activity-Feed, Tags, CRM-Tier-Vererbung, Notifications, Editorial-Dispatch, Moderation/Reports, Trust-Levels + Community-Admin (`/app/community`). As-Built-Referenz: [`docs/Community/COMMUNITY_SYSTEM_STATE.md`](docs/Community/COMMUNITY_SYSTEM_STATE.md). Offen: Schritt 2 — Facebook-Migration (geparkt). Davor **rc54.5 Inventory Erfassung-Landing:** `/app/erp/inventory` ist jetzt eine Tab-Seite — Default-Tab „Erfassung" (Arbeitsplatz, sofort nutzbar) + Tab „Übersicht" (früheres Dashboard). „Session"-Schritt + -Vokabular ersatzlos entfernt (war nie ein echtes Objekt). Kompakter Statistik-Block (Verifiziert/Ausstehend/Pro-Person) im Erfassungs-Tab. Davor **rc54.4:** „Storefront Catalog Visibility"-Toggle aus `/app/media` entfernt (redundant — Steuerung läuft über `/app/config`; Backend-Setting `site_config.catalog_visibility` unangetastet). Davor **rc54.2 + rc54.3 Media-Catalog Preis-Filter** live: „Price"-Filter (referenzierte alte `discogs_lowest_price`-Logik bzw. wurde von der Meili-Route still verworfen) ersetzt durch getrennte **Shop Price** + **Legacy Price** Filter (je `> 0`-Semantik) + neuen **Pictures**-Filter; Kachel „WITH PRICE" auf `shop_price`. rc54.3-Hotfix: „No"-Fall über Komplement `NOT <field> > 0`, da Meili `IS NULL` keine JSON-null-Felder matcht. Davor rc54.1 Inventory Sale-Mode-Fix (Default `both` überall), rc54.0 Country-ISO Migration. Volle Release-Historie + Details aller rc53.x/rc54.x-Releases: [`docs/architecture/CHANGELOG.md`](docs/architecture/CHANGELOG.md). Operative Arbeitsliste: [`docs/TODO.md`](docs/TODO.md).
+**Last Updated:** 2026-05-16 — **VOD Community Rebuild R0–R9 + Erweiterung 01 live** (rc58.0–rc68.0, Flag `COMMUNITY` ON): vollständige Storefront + Funktionsumfang — Hub mit Discovery-Sidebar, Post-Detail/-Editor mit `@`-Mentions + Bearbeitung, Member-Directory/-Profile mit Featured-Releases + Privacy-Toggles, Lists, Catalog-Anchored Discussion + Reviews (Histogramm), Acquired-Feed, Bookmarks, Suche/Explore, Notifications + Email-Digests, Band/Label/Press-Walls, Community-Admin + Trust-Levels, flag-gegateter Demo-Datensatz. As-Built-Referenz: [`docs/Community/COMMUNITY_SYSTEM_STATE.md`](docs/Community/COMMUNITY_SYSTEM_STATE.md), Bauplan: [`docs/Community/COMMUNITY_REBUILD_PLAN.md`](docs/Community/COMMUNITY_REBUILD_PLAN.md). Offen: Erweiterung 02 (visuelle Optimierung — wartet auf Konzept) + Schritt 2 Facebook-Migration (geparkt). Davor **rc54.5 Inventory Erfassung-Landing:** `/app/erp/inventory` ist jetzt eine Tab-Seite — Default-Tab „Erfassung" (Arbeitsplatz, sofort nutzbar) + Tab „Übersicht" (früheres Dashboard). „Session"-Schritt + -Vokabular ersatzlos entfernt (war nie ein echtes Objekt). Kompakter Statistik-Block (Verifiziert/Ausstehend/Pro-Person) im Erfassungs-Tab. Davor **rc54.4:** „Storefront Catalog Visibility"-Toggle aus `/app/media` entfernt (redundant — Steuerung läuft über `/app/config`; Backend-Setting `site_config.catalog_visibility` unangetastet). Davor **rc54.2 + rc54.3 Media-Catalog Preis-Filter** live: „Price"-Filter (referenzierte alte `discogs_lowest_price`-Logik bzw. wurde von der Meili-Route still verworfen) ersetzt durch getrennte **Shop Price** + **Legacy Price** Filter (je `> 0`-Semantik) + neuen **Pictures**-Filter; Kachel „WITH PRICE" auf `shop_price`. rc54.3-Hotfix: „No"-Fall über Komplement `NOT <field> > 0`, da Meili `IS NULL` keine JSON-null-Felder matcht. Davor rc54.1 Inventory Sale-Mode-Fix (Default `both` überall), rc54.0 Country-ISO Migration. Volle Release-Historie + Details aller rc53.x/rc54.x-Releases: [`docs/architecture/CHANGELOG.md`](docs/architecture/CHANGELOG.md). Operative Arbeitsliste: [`docs/TODO.md`](docs/TODO.md).
 **GitHub:** https://github.com/rseckler/VOD_Auctions
 **Publishable API Key:** `pk_0b591cae08b7aea1e783fd9a70afb3644b6aff6aaa90f509058bd56cfdbce78d`
 
@@ -112,12 +112,14 @@ cd /root/VOD_Auctions/storefront && npm run build && pm2 restart vodauction-stor
 - **`IS NULL` matcht keine JSON-`null`-Felder** (rc54.3-Befund): ein null-wertiges Feld im Doc landet nicht im filterbaren Index — weder `IS NULL` noch `NOT EXISTS` noch Range-Operatoren erfassen es. Für "Feld fehlt"-Filter immer das Komplement `NOT <field> > 0` nutzen, nicht `IS NULL`. Postgres-Fallback parallel auf dieselbe Semantik ziehen, sonst Backend-Drift
 - Flag-Kill-Switch: `/app/config` OFF → Postgres-FTS sofort live, kein Deploy nötig. Auch via SQL-UPDATE auf `site_config.features`
 
-**Community (rc55–rc57):**
+**Community (rc58–rc68, Rebuild R0–R9 + Erw. 01):**
 - Jede Community-Route flag-gated via `requireCommunityEnabled()` (Backend) bzw. `isCommunityEnabled()` (Storefront-Layout) — Flag `COMMUNITY` OFF = 404 überall
-- `sanitizeBodyHtml()` in `backend/src/lib/community.ts` ist die EINZIGE HTML-Bereinigung für Post-/Comment-Bodies — neue erlaubte Tags/Embed-Hosts NUR dort ergänzen
+- Demo-Datensatz: Read-Routen filtern Demo-Zeilen (Autor-ID-Präfix `cmpro_demo_`) heraus wenn Flag `COMMUNITY_DEMO` OFF — neue Read-Routen müssen das Gating mitziehen
+- `sanitizeBodyHtml()` in `backend/src/lib/community.ts` ist die EINZIGE HTML-Bereinigung für Post-/Comment-Bodies — neue erlaubte Tags/Embed-Hosts/Mention-Attribute NUR dort ergänzen
 - `community_post.tags` ist `text[]` (keine Tag-Tabelle); `community_profile.tier` wird vom CRM-Trigger überschrieben (manuelles Setzen hält nur bei `is_curator=true`)
-- Neue `community_*`-DDL immer auf `vod_auctions_replica` spiegeln + `REFRESH PUBLICATION` — `community_profile`-Spalten sind replikationskritisch
-- Voll dokumentiert: [`docs/Community/COMMUNITY_SYSTEM_STATE.md`](docs/Community/COMMUNITY_SYSTEM_STATE.md)
+- 11 `community_*`-Tabellen, alle auf `vod_auctions_replica` repliziert. Neue DDL immer spiegeln; neue Tabelle → `ALTER PUBLICATION vod_auctions_pub ADD TABLE` + `REFRESH PUBLICATION`; Spalten-Adds **Replica zuerst**; CHECK-Constraint-Änderungen ebenfalls auf die Replica (sonst Apply-Error)
+- Community-Suche bewusst Postgres-ILIKE (kein Meili-Index); Acquired-Feed-Job scannt Transaktionen statt den Payment-Webhook zu hooken
+- Voll dokumentiert: [`docs/Community/COMMUNITY_SYSTEM_STATE.md`](docs/Community/COMMUNITY_SYSTEM_STATE.md) (As-Built) · [`COMMUNITY_REBUILD_PLAN.md`](docs/Community/COMMUNITY_REBUILD_PLAN.md) (Bauplan)
 
 **Cwd-independente Pfade:** Backend nutzt NIE `process.cwd()`/relative `__dirname`. Immer `getProjectRoot()` etc. aus `backend/src/lib/paths.ts`. PM2 cwd ist `.medusa/server/`, nicht Source-Tree.
 
@@ -139,7 +141,7 @@ cd /root/VOD_Auctions/storefront && npm run build && pm2 restart vodauction-stor
 - Discogs Import (v6.0, rc26): `import_session`, `import_event`, `discogs_api_cache`, `import_log`, `session_locks` (Lock-Heartbeat 30s, Stale 150s). Siehe `docs/architecture/DISCOGS_IMPORT_SESSION_LOCK_PLAN.md`
 - ERP: `erp_inventory_item` (mit `copy_number`, `condition_media/sleeve`, `exemplar_price`, UNIQUE(release_id, copy_number)), `erp_inventory_movement`, `bulk_price_adjustment_log`
 - Meilisearch Sync (rc40): `meilisearch_index_state` (release_id PK, indexed_at, doc_hash — defense-in-depth für Delta-Sync), `meilisearch_drift_log` (30-min cron, severity ok/warning/critical)
-- Community (rc55–rc57): `community_profile`, `community_post`, `community_comment`, `community_reaction`, `community_review`, `community_follow`, `community_notification`, `community_report`. Trigger: `trg_community_review_rating` (Rating-Aggregat → `Release.averageRating/ratingCount`), `trg_community_tier_from_crm` (Tier-Vererbung aus `crm_master_contact`). Voll dokumentiert: [`docs/Community/COMMUNITY_SYSTEM_STATE.md`](docs/Community/COMMUNITY_SYSTEM_STATE.md)
+- Community (rc58–rc68): 11 Tabellen — `community_profile`, `community_post`, `community_comment`, `community_reaction`, `community_review`, `community_follow`, `community_notification`, `community_report`, `community_list`, `community_list_item`, `community_saved`. Trigger: `trg_community_review_rating` (Rating-Aggregat → `Release.averageRating/ratingCount`), `trg_community_tier_from_crm` (Tier-Vererbung aus `crm_master_contact`). Alle auf `vod_auctions_replica` repliziert. Voll dokumentiert: [`docs/Community/COMMUNITY_SYSTEM_STATE.md`](docs/Community/COMMUNITY_SYSTEM_STATE.md)
 
 **bilder_typ Mapping (Regression-Schutz):** 10=releases, 13=band_literature, 14=labels_literature, 12=pressorga_literature
 
@@ -149,7 +151,7 @@ cd /root/VOD_Auctions/storefront && npm run build && pm2 restart vodauction-stor
 
 **Store (x-publishable-api-key):** `/store/auction-blocks[/:slug]`, `/store/catalog[/:id]`, `/store/catalog/suggest` (rc40: Meili discovery-profile, highlight), `/store/labels/suggest` (rc40: Postgres trgm, Label-Picker), `/store/band|label|press/:slug`, `/store/gallery`, `/store/account/{bids,cart,orders,saved,status,gdpr-export}`, Payment: `/create-payment-intent`, `/create-paypal-order`, `/capture-paypal-order`, Invoice: `/orders/:groupId/invoice`
 
-**Store Community (flag `COMMUNITY`):** `/store/community/{posts[/:id[/comments]],comments/:id,reactions,reviews,profile,profiles/:handle,upload,embed,follow,tags,notifications,reports}` — Details in [`docs/Community/COMMUNITY_SYSTEM_STATE.md`](docs/Community/COMMUNITY_SYSTEM_STATE.md)
+**Store Community (flag `COMMUNITY`):** `/store/community/{posts[/:id[/comments]],comments/:id,reactions,reviews,profile,profiles/:handle,members,lists[/:id[/items]],saved,follow,tags,notifications,reports,search,mention-search,hub-sidebar,upload,embed}` — Details in [`docs/Community/COMMUNITY_SYSTEM_STATE.md`](docs/Community/COMMUNITY_SYSTEM_STATE.md)
 
 **Admin:** Groups:
 - Auction: `/auction-blocks` (CRUD, delete, live-bids, bids-log)
@@ -162,7 +164,7 @@ cd /root/VOD_Auctions/storefront && npm run build && pm2 restart vodauction-stor
 - AI: `/ai-chat` (SSE, Haiku, 5 read-only Tools), `/ai-create-auction` (SSE, Sonnet, 3 write Tools)
 - Print: `/print-bridge/sample-label` (Test-Label — Ordner `print-bridge` weil `*test*` gefiltert wird)
 - Entity/Sync: `/entity-content/overhaul-status`, `/sync/discogs-health`, `/sync/change-log`
-- Community: `/community/{dashboard,posts[/:id],profiles[/:id],reports[/:id]}` — Admin-UI `/app/community` (Dashboard/Posts/Members/Reports)
+- Community: `/community/{dashboard,posts[/:id],profiles[/:id],reports[/:id]}` — Admin-UI `/app/community` (Dashboard mit Trust-Verteilung / Posts mit Bulk-Mod / Members / Reports). 4 Scheduled Jobs: `community-acquired`, `community-notification-emails`, `community-weekly-digest`, `community-trust-levels`
 
 ## Payment
 
@@ -320,7 +322,7 @@ docs/
 → Operative Liste: [`docs/TODO.md`](docs/TODO.md) · → Vollständige Release-Historie: [`CHANGELOG.md`](docs/architecture/CHANGELOG.md)
 
 **Aktive Workstreams** (Details + nächste Aktionen in [`docs/TODO.md`](docs/TODO.md)):
-0. **VOD Community** (Increments 1–4 live, rc55–rc57, Flag `COMMUNITY` ON) — As-Built: [`COMMUNITY_SYSTEM_STATE.md`](docs/Community/COMMUNITY_SYSTEM_STATE.md). Nächste Aktionen: Hand-QA (durchklicken als Member + Admin-Tabs), dann **Schritt 2 — Facebook-Migration** (geparkt, separate Überarbeitung; `typ`-Decode offen)
+0. **VOD Community** (Rebuild R0–R9 + Erweiterung 01 live, rc58–rc68, Flag `COMMUNITY` ON) — As-Built: [`COMMUNITY_SYSTEM_STATE.md`](docs/Community/COMMUNITY_SYSTEM_STATE.md), Bauplan: [`COMMUNITY_REBUILD_PLAN.md`](docs/Community/COMMUNITY_REBUILD_PLAN.md). Nächste Aktionen: **Erweiterung 02** (visuelle Optimierung — Density/Mobile, wartet auf Robins Konzept; Input [`SOCIAL_UX_REFERENCE.md`](docs/Community/SOCIAL_UX_REFERENCE.md)), dann **Schritt 2 — Facebook-Migration** (geparkt; `typ`-Decode offen)
 1. **Frank's Bulk-Invite-Test-Welle** (rc53.17 live) — `/app/crm` Smart-List „📨 Newsletter Subscribers" → 10-20 Test-Kontakte → Bulk-Invite
 2. **Artist-Duplikate-Cleanup** (rc53.16, Bowie done) — 2.063 weitere Cases / ~40 % Katalog laut [Audit](docs/audit_artist_duplicates_2026-05-09.md). Top-30 als Tier-1-Batch + Sync-Pipeline-Härtung
 3. **CRM Master v1 + Email Review** (rc53.1 live) — Frank-Einarbeitung 10-Tab-Drawer + Pre-2019-MO-PDFs aus Backup ins Folder
