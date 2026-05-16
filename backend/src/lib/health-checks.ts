@@ -135,6 +135,70 @@ export const CHECKS: HealthCheckDefinition[] = [
     },
   },
   {
+    name: "database_io",
+    label: "Database I/O Health",
+    category: "infrastructure",
+    check_class: "background",
+    url: "https://supabase.com/dashboard/project/bofblwqieuvmqybzxapx/database/indexes",
+    runbook: "https://github.com/rseckler/VOD_Auctions/blob/main/docs/runbooks/database-io.md",
+    severity_note:
+      "error if any index is invalid (silent perf rot — a failed CONCURRENTLY build leaves a 0-byte index the planner ignores) · " +
+      "cache-hit from pg_stat_database (cumulative since stats_reset): ok >=95%, warning 90-95%, error <90% · " +
+      "combined status = worst of the two",
+    async run({ pg }) {
+      const start = Date.now()
+      try {
+        // Invalide Indizes: ein fehlgeschlagener CREATE INDEX CONCURRENTLY
+        // hinterlässt eine indisvalid=false-Hülle, die der Planner lautlos
+        // ignoriert → unbemerkte Seq Scans. Vorfall rc60.2.
+        const invalidRes = await pg.raw(
+          `SELECT indexrelid::regclass::text AS idx
+             FROM pg_index
+            WHERE NOT indisvalid`,
+        )
+        const invalid: string[] = (invalidRes.rows ?? []).map((r: any) => String(r.idx))
+
+        // Cache-Hit-Ratio als Disk-IO-Frühwarnsignal. Wert ist kumulativ
+        // seit stats_reset — träge, fängt einen akuten Spike erst verzögert.
+        const cacheRes = await pg.raw(
+          `SELECT ROUND(100.0 * blks_hit / NULLIF(blks_hit + blks_read, 0), 2) AS hit_pct
+             FROM pg_stat_database
+            WHERE datname = current_database()`,
+        )
+        const hitPct: number | null =
+          cacheRes.rows?.[0]?.hit_pct != null ? Number(cacheRes.rows[0].hit_pct) : null
+
+        const latency_ms = Date.now() - start
+
+        const cacheStatus: ServiceStatus =
+          hitPct == null ? "ok" :
+          hitPct < 90 ? "error" :
+          hitPct < 95 ? "warning" :
+          "ok"
+
+        let status: ServiceStatus = "ok"
+        if (invalid.length > 0 || cacheStatus === "error") status = "error"
+        else if (cacheStatus === "warning") status = "warning"
+
+        const parts: string[] = [
+          invalid.length > 0
+            ? `${invalid.length} invalid index(es): ${invalid.join(", ")}`
+            : "all indexes valid",
+          hitPct != null ? `cache-hit ${hitPct}%` : "cache-hit n/a",
+        ]
+
+        return {
+          status,
+          message: parts.join(" · "),
+          latency_ms,
+          metadata: { invalid_indexes: invalid, cache_hit_pct: hitPct },
+        }
+      } catch (e: any) {
+        return { status: "error", message: e?.message || "query failed", latency_ms: Date.now() - start }
+      }
+    },
+  },
+  {
     name: "vps",
     label: "VPS / API Server (Hostinger)",
     category: "infrastructure",
