@@ -1399,3 +1399,77 @@
   color: var(--muted-foreground);
   margin-bottom: 8px;
 }
+
+/* R2 — @-mentions: rendered chip + composer suggestion popup. */
+.cm-mention {
+  color: var(--primary);
+  font-weight: 600;
+  background: rgba(212, 165, 74, 0.1);
+  border-radius: 3px;
+  padding: 0 3px;
+  white-space: nowrap;
+}
+.cm-mention-popup {
+  min-width: 240px;
+  max-width: 340px;
+  max-height: 280px;
+  overflow-y: auto;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45);
+  padding: 4px;
+}
+.cm-mention-empty {
+  padding: 12px;
+  font: 400 12px var(--font-sans);
+  color: var(--muted-foreground);
+}
+.cm-mention-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+}
+.cm-mention-item.is-active { background: var(--fg-04); }
+.cm-mention-kind {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  font: 700 12px var(--font-sans);
+}
+.cm-mention-kind-user {
+  color: var(--primary);
+  background: rgba(212, 165, 74, 0.12);
+}
+.cm-mention-kind-release {
+  color: var(--foreground);
+  background: var(--fg-08, rgba(232, 224, 212, 0.08));
+}
+.cm-mention-item-text { min-width: 0; }
+.cm-mention-item-label {
+  display: block;
+  font: 600 13px var(--font-sans);
+  color: var(--foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cm-mention-item-sub {
+  display: block;
+  font: 400 11px var(--font-sans);
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

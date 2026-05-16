@@ -15,6 +15,7 @@ import {
   serializeProfile,
   refreshTrustLevel,
   dailyPostLimit,
+  notifyMentions,
 } from "../../../../lib/community"
 
 // GET /store/community/posts — Hub feed (public)
@@ -203,6 +204,13 @@ export async function POST(
       published_at: now,
     })
     .returning("*")
+
+  // Notify any @-mentioned members.
+  await notifyMentions(pg, bodyHtml, profile.id, {
+    kind: "post",
+    id: row.id,
+    slug: row.slug,
+  })
 
   res.status(201).json({ post: { ...row, author: serializeProfile(profile) } })
 }

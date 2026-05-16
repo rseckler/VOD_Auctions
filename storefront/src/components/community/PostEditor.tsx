@@ -24,6 +24,7 @@ import {
   CommunityError,
 } from "@/lib/community-mutations"
 import { Embed } from "./tiptap-embed"
+import { CommunityMention } from "./mention"
 
 // Tiptap rich-text editor for the community composer. Emits sanitised-on-server
 // HTML + the Tiptap JSON doc. SSR-safe via immediatelyRender: false.
@@ -49,6 +50,7 @@ export function PostEditor({
       }),
       TiptapImage.configure({ HTMLAttributes: { class: "cm-post-image" } }),
       Embed,
+      CommunityMention,
       Placeholder.configure({
         placeholder: placeholder || "Share your thoughts…",
       }),

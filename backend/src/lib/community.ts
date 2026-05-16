@@ -85,10 +85,12 @@ export function sanitizeBodyHtml(html: string): string {
       ],
       // Embed wrapper — class is restricted to the cm-embed* family below.
       div: ["class", "data-community-embed"],
-      span: ["data-mention", "data-id"],
+      // Mention spans — @user / @release inserted by the composer.
+      span: ["data-mention", "data-mention-type", "data-id", "class"],
     },
     allowedClasses: {
       div: ["cm-embed", "cm-embed-youtube", "cm-embed-vimeo", "cm-embed-spotify", "cm-embed-soundcloud", "cm-embed-bandcamp", "cm-embed-generic"],
+      span: ["cm-mention"],
     },
     allowedSchemes: ["http", "https", "mailto"],
     allowedIframeHostnames: EMBED_HOSTS,
@@ -341,6 +343,57 @@ export async function createNotification(
     })
   } catch {
     // best-effort — never break the primary action over a notification
+  }
+}
+
+// ─── Mentions ───────────────────────────────────────────────────────────────
+/**
+ * Extract @-mentions from sanitised body HTML. Mention spans carry
+ * `data-mention`, `data-mention-type` (user|release) and `data-id`.
+ * Deduplicated by type+id.
+ */
+export function extractMentions(
+  html: string
+): { type: string; id: string }[] {
+  if (!html) return []
+  const out: { type: string; id: string }[] = []
+  const seen = new Set<string>()
+  const tagRe = /<span\b[^>]*\bdata-mention\b[^>]*>/gi
+  let m: RegExpExecArray | null
+  while ((m = tagRe.exec(html))) {
+    const tag = m[0]
+    const idM = tag.match(/data-id="([^"]*)"/i)
+    if (!idM || !idM[1]) continue
+    const typeM = tag.match(/data-mention-type="([^"]*)"/i)
+    const type = typeM ? typeM[1] : "user"
+    const key = `${type}:${idM[1]}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push({ type, id: idM[1] })
+  }
+  return out
+}
+
+/**
+ * Emit `mention` notifications for every @user mentioned in a body. Best-effort
+ * — createNotification already skips self-mentions and never throws.
+ */
+export async function notifyMentions(
+  pg: Knex,
+  html: string,
+  actorId: string,
+  target: { kind: string; id: string; slug?: string | null }
+): Promise<void> {
+  const userMentions = extractMentions(html).filter((x) => x.type === "user")
+  for (const mention of userMentions) {
+    await createNotification(pg, {
+      recipient_id: mention.id,
+      kind: "mention",
+      actor_id: actorId,
+      target_kind: target.kind,
+      target_id: target.id,
+      target_slug: target.slug ?? null,
+    })
   }
 }
 

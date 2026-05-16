@@ -9,6 +9,7 @@ import {
   sanitizeBodyHtml,
   recomputeCommentCount,
   createNotification,
+  notifyMentions,
   serializeProfile,
 } from "../../../../../../lib/community"
 
@@ -154,6 +155,13 @@ export async function POST(
       target_slug: post.slug,
     })
   }
+
+  // Notify any @-mentioned members.
+  await notifyMentions(pg, bodyHtml, profile.id, {
+    kind: "post",
+    id: post.id,
+    slug: post.slug,
+  })
 
   res.status(201).json({ comment: { ...row, author: serializeProfile(profile) } })
 }
