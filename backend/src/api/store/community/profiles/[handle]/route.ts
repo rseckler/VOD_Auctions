@@ -102,8 +102,14 @@ export async function GET(
     }
   }
 
+  // Every post on this page is authored by `profile` — attach it as the
+  // post `author` so the shared feed cards (PostCard/EditorialCard → Byline)
+  // get the CommunityAuthor object they require. Without this the storefront
+  // crashes on `author.display_name` (Sentry #120272182).
+  const profileCard = serializeProfile(profile)
+
   res.json({
-    profile: serializeProfile(profile),
+    profile: profileCard,
     is_following: isFollowing,
     is_self: isSelf,
     stats: {
@@ -116,6 +122,7 @@ export async function GET(
     posts: posts.map((p: any) => ({
       ...p,
       tags: p.tags || [],
+      author: profileCard,
       release: p.release_id ? releaseCards[p.release_id] || null : null,
     })),
     comments: commentRows.map((c: any) => ({
