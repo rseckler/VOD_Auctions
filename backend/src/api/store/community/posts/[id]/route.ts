@@ -9,6 +9,7 @@ import {
   sanitizeBodyHtml,
   excerptFromHtml,
   fetchReleaseCards,
+  fetchReactionBreakdown,
   serializeProfile,
 } from "../../../../../lib/community"
 
@@ -42,12 +43,14 @@ export async function GET(
 
   const author = await pg("community_profile").where({ id: post.author_id }).first()
   const releaseCards = await fetchReleaseCards(pg, [post.release_id])
+  const reactionMap = await fetchReactionBreakdown(pg, "post", [post.id])
 
   res.json({
     post: {
       ...post,
       author: author ? serializeProfile(author) : null,
       release: post.release_id ? releaseCards[post.release_id] || null : null,
+      reactions: reactionMap[post.id] || {},
     },
   })
 }

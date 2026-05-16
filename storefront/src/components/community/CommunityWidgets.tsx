@@ -9,8 +9,15 @@ import type {
   SuggestedMember,
   TrendingTag,
   ReleaseCard,
+  CommunityPost,
 } from "@/lib/community-api"
-import { MemberAvatar, TierLabel, TagLink, ReleaseCardInline } from "./CommunityUI"
+import {
+  MemberAvatar,
+  TierLabel,
+  TagLink,
+  ReleaseCardInline,
+  timeAgo,
+} from "./CommunityUI"
 import { FollowButton } from "./FollowButton"
 
 // ─── Relative "ends in …" label for a future timestamp ─────────────────────
@@ -131,15 +138,89 @@ export function SuggestedMembersWidget({
   )
 }
 
-// ─── From the catalog ───────────────────────────────────────────────────────
-export function FromCatalogWidget({ items }: { items: ReleaseCard[] }) {
+// ─── From the catalog / related releases ────────────────────────────────────
+export function FromCatalogWidget({
+  items,
+  title = "From the Catalog",
+}: {
+  items: ReleaseCard[]
+  title?: string
+}) {
   if (items.length === 0) return null
   return (
     <div className="cm-widget">
-      <WidgetHead title="From the Catalog" href="/catalog" />
+      <WidgetHead title={title} href="/catalog" />
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {items.map((r) => (
           <ReleaseCardInline key={r.id} release={r} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── More posts from an author (post-detail sidebar) ────────────────────────
+export function MoreFromAuthorWidget({
+  authorName,
+  authorHandle,
+  posts,
+}: {
+  authorName: string
+  authorHandle: string
+  posts: CommunityPost[]
+}) {
+  if (posts.length === 0) return null
+  return (
+    <div className="cm-widget">
+      <WidgetHead
+        title={`More from ${authorName}`}
+        href={`/community/members/${authorHandle}`}
+      />
+      <div style={{ display: "flex", flexDirection: "column" }}>
+        {posts.map((p) => (
+          <Link
+            key={p.id}
+            href={`/community/post/${p.slug || p.id}`}
+            prefetch={false}
+            style={{
+              display: "block",
+              padding: "12px 0",
+              borderTop: "1px solid var(--border)",
+            }}
+          >
+            <div
+              style={{
+                font: "400 15px/1.3 var(--font-serif)",
+                color: "var(--foreground)",
+                marginBottom: 4,
+              }}
+            >
+              {p.title || p.excerpt?.slice(0, 60) || "Untitled"}
+            </div>
+            <div
+              style={{
+                font: "400 11px var(--font-sans)",
+                color: "var(--muted-foreground)",
+              }}
+            >
+              {timeAgo(p.published_at || p.created_at)}
+            </div>
+          </Link>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Tags widget ─────────────────────────────────────────────────────────────
+export function TagsWidget({ tags }: { tags: string[] }) {
+  if (tags.length === 0) return null
+  return (
+    <div className="cm-widget">
+      <WidgetHead title="Tags" />
+      <div className="cm-post-tags" style={{ marginTop: 0 }}>
+        {tags.map((t) => (
+          <TagLink key={t} name={t} />
         ))}
       </div>
     </div>

@@ -7,6 +7,8 @@ import { useAuth } from "@/components/AuthProvider"
 import { getToken } from "@/lib/auth"
 import { medusaAuthFetch } from "@/lib/api"
 import { PostEditor } from "@/components/community/PostEditor"
+import { TagInput } from "@/components/community/TagInput"
+import { ReleasePicker, type PickedRelease } from "@/components/community/ReleasePicker"
 import {
   createPost,
   uploadCommunityImage,
@@ -23,10 +25,10 @@ export default function CommunityComposePage() {
   const [html, setHtml] = useState("")
   const [json, setJson] = useState<unknown>(null)
   const [text, setText] = useState("")
-  const [tags, setTags] = useState("")
+  const [tags, setTags] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [releaseId, setReleaseId] = useState<string | null>(null)
+  const [release, setRelease] = useState<PickedRelease | null>(null)
   const [coverUrl, setCoverUrl] = useState<string | null>(null)
   const [coverBusy, setCoverBusy] = useState(false)
 
@@ -47,12 +49,11 @@ export default function CommunityComposePage() {
     }
   }
 
-  // Optional release anchor — set when arriving from a release page's
+  // Optional release anchor — pre-filled when arriving from a release page's
   // "Write a post" link (/community/compose?release_id=…).
   useEffect(() => {
-    setReleaseId(
-      new URLSearchParams(window.location.search).get("release_id")
-    )
+    const id = new URLSearchParams(window.location.search).get("release_id")
+    if (id) setRelease({ id, title: null })
   }, [])
 
   useEffect(() => {
@@ -81,11 +82,8 @@ export default function CommunityComposePage() {
         body_html: html,
         body_json: json,
         kind: isCurator ? kind : "discussion",
-        tags: tags
-          .split(",")
-          .map((t) => t.trim())
-          .filter(Boolean),
-        release_id: releaseId || undefined,
+        tags,
+        release_id: release?.id || undefined,
         cover_image_url: coverUrl || undefined,
       })
       router.push(`/community/post/${post.slug || post.id}`)
@@ -123,17 +121,11 @@ export default function CommunityComposePage() {
   return (
     <div
       className="cm-container-narrow"
-      style={{ paddingTop: 32, paddingBottom: 64 }}
+      style={{ paddingTop: 32, paddingBottom: 72 }}
     >
-      <h1 className="cm-hub-title" style={{ marginBottom: 20, fontSize: 30 }}>
+      <h1 className="cm-hub-title" style={{ marginBottom: 24, fontSize: 30 }}>
         New Post
       </h1>
-
-      {releaseId && (
-        <p className="cm-hub-sub" style={{ marginBottom: 16 }}>
-          This post will be linked to the selected release.
-        </p>
-      )}
 
       {isCurator && (
         <div className="cm-kind-toggle">
@@ -198,12 +190,15 @@ export default function CommunityComposePage() {
         }}
       />
 
-      <input
-        className="cm-compose-tags"
-        placeholder="Tags, comma-separated (optional)"
-        value={tags}
-        onChange={(e) => setTags(e.target.value)}
-      />
+      <div className="cm-compose-field">
+        <label className="cm-compose-label">Link a release</label>
+        <ReleasePicker value={release} onChange={setRelease} />
+      </div>
+
+      <div className="cm-compose-field">
+        <label className="cm-compose-label">Tags</label>
+        <TagInput value={tags} onChange={setTags} />
+      </div>
 
       <div className="cm-compose-foot">
         {error && <span className="cm-composer-error">{error}</span>}

@@ -241,6 +241,33 @@ export async function recomputeCommentCount(
   return n
 }
 
+/**
+ * Per-emoji reaction breakdown for a set of targets. Returns a map
+ * targetId → { emoji → count }. Used to render the reaction row on feed
+ * cards and the reaction bar on post detail.
+ */
+export async function fetchReactionBreakdown(
+  pg: Knex,
+  targetKind: "post" | "comment",
+  targetIds: (string | null | undefined)[]
+): Promise<Record<string, Record<string, number>>> {
+  const ids = [...new Set(targetIds.filter((x): x is string => !!x))]
+  if (ids.length === 0) return {}
+  const rows = await pg("community_reaction")
+    .where("target_kind", targetKind)
+    .whereIn("target_id", ids)
+    .groupBy("target_id", "emoji")
+    .select("target_id", "emoji")
+    .count("id as count")
+  const map: Record<string, Record<string, number>> = {}
+  for (const r of rows as any[]) {
+    const t = r.target_id as string
+    if (!map[t]) map[t] = {}
+    map[t][r.emoji] = Number(r.count)
+  }
+  return map
+}
+
 // ─── Trust levels ───────────────────────────────────────────────────────────
 // 0 newcomer · 1 member · 2 trusted · 3 veteran. Curators are always 3.
 // Computed from account age + activity; refreshed lazily on post creation.

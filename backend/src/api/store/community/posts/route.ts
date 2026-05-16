@@ -11,6 +11,7 @@ import {
   excerptFromHtml,
   uniquePostSlug,
   fetchReleaseCards,
+  fetchReactionBreakdown,
   serializeProfile,
   refreshTrustLevel,
   dailyPostLimit,
@@ -93,6 +94,11 @@ export async function GET(
     .offset(offset)
 
   const releaseCards = await fetchReleaseCards(pg, rows.map((r: any) => r.release_id))
+  const reactionMap = await fetchReactionBreakdown(
+    pg,
+    "post",
+    rows.map((r: any) => r.id)
+  )
 
   res.json({
     posts: rows.map((r: any) => ({
@@ -105,6 +111,7 @@ export async function GET(
       tags: r.tags || [],
       is_pinned: !!r.is_pinned,
       reaction_count: r.reaction_count,
+      reactions: reactionMap[r.id] || {},
       comment_count: r.comment_count,
       published_at: r.published_at,
       created_at: r.created_at,

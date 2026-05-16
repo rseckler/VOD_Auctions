@@ -28,6 +28,19 @@ export function timeAgo(iso: string | null): string {
   return new Date(iso).toLocaleDateString("en-US")
 }
 
+// ─── Reading time ──────────────────────────────────────────────────────────
+// Rough estimate from the rendered HTML — ~200 words per minute, min 1.
+export function readingTime(html: string | null | undefined): number {
+  if (!html) return 1
+  const words = html
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&[a-z]+;/gi, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length
+  return Math.max(1, Math.round(words / 200))
+}
+
 // ─── Avatar ───────────────────────────────────────────────────────────────
 function monogramHue(name: string): number {
   let h = 0
@@ -196,10 +209,38 @@ export function PostCard({ post }: { post: CommunityPost }) {
         </div>
       )}
       <div className="cm-post-actions">
-        <span className="cm-react">🔥 {post.reaction_count}</span>
+        <ReactionSummary
+          reactions={post.reactions}
+          total={post.reaction_count}
+        />
         <span className="cm-react">💬 {post.comment_count}</span>
       </div>
     </Link>
+  )
+}
+
+// ─── Read-only reaction summary (feed cards) ───────────────────────────────
+const REACTION_ORDER = ["🔥", "❤️", "🤘", "👀", "💯", "🙏", "⚡"]
+
+export function ReactionSummary({
+  reactions,
+  total,
+}: {
+  reactions?: Record<string, number>
+  total: number
+}) {
+  const present = REACTION_ORDER.filter((e) => (reactions?.[e] || 0) > 0)
+  if (present.length === 0) {
+    return <span className="cm-react">🔥 {total}</span>
+  }
+  return (
+    <>
+      {present.slice(0, 4).map((e) => (
+        <span key={e} className="cm-react">
+          <span className="emoji">{e}</span> {reactions![e]}
+        </span>
+      ))}
+    </>
   )
 }
 

@@ -38,6 +38,7 @@ export interface CommunityPost {
   tags: string[]
   is_pinned: boolean
   reaction_count: number
+  reactions?: Record<string, number>
   comment_count: number
   published_at: string | null
   created_at: string
