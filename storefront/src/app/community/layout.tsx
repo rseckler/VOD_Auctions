@@ -2,6 +2,7 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { isCommunityEnabled } from "@/lib/community-api"
 import { CommunitySubNav } from "@/components/community/CommunitySubNav"
+import { CommunityBottomNav } from "@/components/community/CommunityBottomNav"
 import "./community.css"
 
 // The whole /community surface is gated by the COMMUNITY feature flag.
@@ -37,6 +38,7 @@ export default async function CommunityLayout({
         </svg>
         Compose
       </Link>
+      <CommunityBottomNav />
     </div>
   )
 }

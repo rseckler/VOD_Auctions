@@ -195,29 +195,63 @@
 .cm-tier-label.is-gold { color: var(--primary); }
 .cm-tier-label.is-curator { color: var(--primary); }
 
-/* ── Post card (member) ───────────────────────────────────── */
+/* ── Post card (member) — dense hairline row (Erweiterung 02) ─
+   A feed entry is a conversation line, not a billboard. No card
+   chrome: posts are separated by a 1px hairline, the body sits
+   indented under the meta (avatar 36 + 10 gap = 46px). */
 .cm-post {
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: 14px; padding: 24px 26px;
-  transition: 250ms;
+  display: block; text-decoration: none; cursor: pointer;
+  background: transparent; border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0; padding: 14px 16px;
+  transition: background 150ms;
 }
-.cm-post:hover { border-color: rgba(212,165,74,0.18); }
+.cm-post:hover { background: rgba(232,224,212,0.015); }
+.cm-feed > .cm-post:first-child { border-top: 0; }
 
-.cm-post-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
-.cm-post-meta { flex: 1; min-width: 0; }
-.cm-post-author { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-.cm-post-name { font: 600 14px var(--font-sans); color: var(--foreground); }
+.cm-post-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.cm-post-meta {
+  flex: 1; min-width: 0;
+  display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap;
+}
+.cm-post-author { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.cm-post-name { font: 600 13px var(--font-sans); color: var(--foreground); }
 .cm-post-loc { font: 400 12px var(--font-sans); color: var(--muted-foreground); }
-.cm-post-time { font: 400 12px var(--font-sans); color: var(--muted-foreground); margin-top: 2px; }
+.cm-post-time { font: 400 12px var(--font-sans); color: var(--muted-foreground); }
+.cm-post-dot { font: 400 12px var(--font-sans); color: var(--muted-foreground); opacity: 0.5; }
+.cm-post-title { font: 600 14.5px/1.35 var(--font-sans); color: var(--foreground); margin: 0 0 4px; }
 
-.cm-post-body { font: 400 15px/1.6 var(--font-sans); color: var(--foreground); }
+/* body + cover thumbnail, indented to align under the meta */
+.cm-post-bodyflex {
+  display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 14px;
+  align-items: start; margin-left: 46px;
+}
+.cm-post-bodycol { min-width: 0; }
+.cm-post-body {
+  font: 400 14px/1.45 var(--font-sans); color: var(--foreground);
+}
+/* Clamp only inside a feed post — review bodies elsewhere stay full. */
+.cm-post .cm-post-body {
+  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+}
 .cm-post-body strong { font-weight: 600; }
 .cm-post-body em { font-style: italic; color: var(--muted-foreground); }
+.cm-post-more-link { color: var(--muted-foreground); font-weight: 500; }
 
-.cm-post-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+/* prominent square release / post cover thumbnail on the right */
+.cm-post-cover-thumb {
+  width: 72px; height: 72px; border-radius: 3px; flex-shrink: 0;
+  position: relative; overflow: hidden; display: block;
+  border: 1px solid var(--fg-08); background: var(--muted);
+  transition: 150ms;
+}
+.cm-post-cover-thumb:hover { border-color: rgba(212,165,74,0.4); }
+.cm-post-cover-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.cm-post-tags { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0 0 46px; }
 .cm-tag {
-  font: 500 11px var(--font-sans); color: var(--muted-foreground);
-  padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border);
+  font: 500 10.5px var(--font-sans); color: var(--muted-foreground);
+  padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border);
   background: transparent; cursor: pointer; transition: 150ms; text-decoration: none;
   letter-spacing: 0.01em;
 }
@@ -225,20 +259,68 @@
 .cm-tag-count { color: var(--muted-foreground); margin-left: 4px; opacity: 0.7; font-variant-numeric: tabular-nums; }
 
 .cm-post-actions {
-  display: flex; align-items: center; gap: 4px; margin-top: 18px;
-  padding-top: 16px; border-top: 1px solid var(--fg-04);
+  display: flex; align-items: center; gap: 2px;
+  margin: 8px 0 0 46px; height: 32px;
 }
 .cm-react {
-  display: inline-flex; align-items: center; gap: 5px;
-  height: 30px; padding: 0 10px; border-radius: 999px;
+  display: inline-flex; align-items: center; gap: 3px;
+  height: 28px; padding: 0 7px; border-radius: 999px;
   border: 1px solid transparent; background: transparent;
-  font: 600 12px var(--font-sans); color: var(--muted-foreground);
+  font: 600 11.5px var(--font-sans); color: var(--muted-foreground);
   cursor: pointer; transition: 150ms; font-variant-numeric: tabular-nums;
 }
 .cm-react:hover { border-color: var(--fg-08); color: var(--foreground); }
 .cm-react.is-active { border-color: rgba(212,165,74,0.4); color: var(--primary); background: rgba(212,165,74,0.08); }
-.cm-react .emoji { font-size: 13px; line-height: 1; }
+.cm-react .emoji { font-size: 11px; line-height: 1; }
 .cm-react-spacer { flex: 1; }
+
+/* ── Inline release-reference pill (in-post "linked article") ─ */
+.cm-release-ref {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+  margin-top: 8px; padding: 4px 10px 4px 4px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--fg-04);
+  font: 500 11.5px var(--font-sans); color: var(--muted-foreground);
+  text-decoration: none; transition: 150ms;
+}
+.cm-release-ref:hover { border-color: rgba(212,165,74,0.3); color: var(--foreground); }
+.cm-release-ref-cv {
+  width: 18px; height: 18px; border-radius: 2px; flex-shrink: 0;
+  background: var(--muted); background-size: cover; background-position: center;
+  border: 1px solid var(--fg-08);
+}
+.cm-release-ref-title {
+  color: var(--foreground); font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+}
+.cm-release-ref-artist { color: var(--muted-foreground); white-space: nowrap; }
+.cm-release-ref-arrow { color: var(--muted-foreground); flex-shrink: 0; }
+
+/* ── Editorial post — dense feed row, distinguished by gold line  */
+.cm-post.cm-post-editorial {
+  position: relative; border-top: 0; padding-top: 16px;
+  background:
+    radial-gradient(ellipse at 80% 0%, rgba(212,165,74,0.05) 0%, transparent 60%),
+    rgba(212,165,74,0.015);
+}
+.cm-post.cm-post-editorial::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px;
+  background: linear-gradient(90deg, var(--primary), rgba(212,165,74,0.2) 80%, transparent);
+}
+.cm-editorial-eyebrow-d {
+  display: flex; align-items: center; gap: 6px;
+  font: 700 9.5px var(--font-sans); letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--primary); margin-bottom: 6px;
+}
+.cm-editorial-eyebrow-d .num { color: var(--muted-foreground); letter-spacing: 0.06em; font-weight: 500; text-transform: none; }
+.cm-editorial-title-d {
+  font: 400 18px/1.25 var(--font-serif); color: var(--foreground);
+  margin: 0 0 6px; letter-spacing: -0.005em;
+}
+.cm-editorial-lede-d {
+  font: 400 13.5px/1.5 var(--font-sans); color: var(--muted-foreground);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  margin: 0;
+}
 
 /* ── Editorial card (Frank — distinct treatment) ──────────── */
 .cm-editorial {
@@ -383,15 +465,16 @@
 
 /* ── Feed layout ──────────────────────────────────────────── */
 .cm-hub-grid {
-  display: grid; grid-template-columns: minmax(0,1fr) 320px; gap: 64px;
-  padding: 40px 0 80px;
+  display: grid; grid-template-columns: minmax(0,1fr) 300px; gap: 48px;
+  padding: 20px 0 80px;
 }
 .cm-hub-grid.layout-3col { grid-template-columns: 220px minmax(0,1fr) 320px; gap: 48px; }
 .cm-hub-grid.layout-1col { grid-template-columns: minmax(0, 720px); justify-content: center; gap: 0; }
-.cm-feed { display: flex; flex-direction: column; gap: 32px; }
-.cm-feed.is-spacious { gap: 40px; }
-.cm-feed.is-medium { gap: 24px; }
-.cm-feed.is-dense { gap: 14px; }
+/* Hairline list — posts are separated by their own border-top, no gap. */
+.cm-feed { display: flex; flex-direction: column; gap: 0; }
+/* Comment / review cards carry their own chrome — keep a small gap. */
+.cm-feed > .cm-profile-comment + .cm-profile-comment,
+.cm-feed > .cm-profile-review + .cm-profile-review { margin-top: 8px; }
 
 .cm-feed-divider {
   display: flex; align-items: center; gap: 14px;
@@ -431,7 +514,7 @@
 /* ── Hero strip ───────────────────────────────────────────── */
 .cm-page-eyebrow {
   display: flex; align-items: center; gap: 12px;
-  margin: 32px 0 20px;
+  margin: 18px 0 10px;
 }
 .cm-page-eyebrow-text {
   font: 700 10px var(--font-sans); letter-spacing: 0.16em;
@@ -580,7 +663,7 @@
 
 /* ── Profile page ─────────────────────────────────────────── */
 .cm-profile-banner {
-  height: 280px; position: relative;
+  height: 180px; position: relative;
   background:
     radial-gradient(ellipse at 30% 50%, rgba(212,165,74,0.16) 0%, transparent 60%),
     linear-gradient(135deg, #2a2520, #1c1915);
@@ -604,74 +687,71 @@
   text-transform: uppercase; color: var(--muted-foreground);
 }
 
+/* ── Profile — compact (Erweiterung 02) ───────────────────── */
 .cm-profile-card {
-  position: relative; margin-top: -76px;
-  display: flex; gap: 28px; align-items: flex-end; padding-bottom: 28px;
+  position: relative; margin-top: -56px;
+  display: flex; gap: 20px; align-items: flex-end; padding-bottom: 16px;
   border-bottom: 1px solid var(--border);
 }
 .cm-profile-card.is-mobile {
-  flex-direction: column; align-items: flex-start; gap: 16px;
-  margin-top: -64px;
+  flex-direction: column; align-items: flex-start; gap: 14px;
+  margin-top: -52px;
 }
-.cm-profile-id { flex: 1; padding-bottom: 6px; }
+.cm-profile-id { flex: 1; padding-bottom: 4px; min-width: 0; }
 .cm-profile-name {
-  font: 400 36px var(--font-serif); color: var(--foreground);
-  letter-spacing: -0.01em; margin: 0 0 6px;
+  font: 400 28px var(--font-serif); color: var(--foreground);
+  letter-spacing: -0.01em; margin: 0 0 3px;
 }
-.cm-profile-handle { font: 500 13px var(--font-sans); color: var(--muted-foreground); }
+.cm-profile-handle { font: 500 12.5px var(--font-sans); color: var(--muted-foreground); }
 .cm-profile-tier {
   display: inline-flex; align-items: center; gap: 8px;
-  margin-top: 14px; padding-bottom: 10px;
-  border-bottom: 1px solid var(--primary); padding-right: 30px;
+  margin-top: 8px;
 }
 .cm-profile-tier-text {
-  font: 700 11px var(--font-sans); letter-spacing: 0.14em;
+  font: 700 10px var(--font-sans); letter-spacing: 0.14em;
   text-transform: uppercase; color: var(--primary);
 }
 .cm-profile-meta {
-  margin-top: 14px; font: 400 13px var(--font-sans); color: var(--muted-foreground);
-  display: flex; gap: 14px; align-items: center;
+  margin-top: 7px; font: 400 12px var(--font-sans); color: var(--muted-foreground);
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
 }
 .cm-profile-meta .sep { width: 3px; height: 3px; background: var(--fg-12);
   border-radius: 999px; }
 .cm-profile-bio {
-  margin-top: 16px; max-width: 540px;
-  font: 400 14px/1.6 var(--font-sans); color: var(--foreground);
-  font-style: italic; opacity: 0.9;
+  margin-top: 9px; max-width: 540px;
+  font: 400 13.5px/1.55 var(--font-sans); color: var(--foreground);
+  opacity: 0.92;
 }
-.cm-profile-links { display: flex; gap: 6px; margin-top: 16px; }
-.cm-profile-actions { display: flex; gap: 8px; padding-bottom: 6px; }
+.cm-profile-links { display: flex; gap: 6px; margin-top: 9px; }
+.cm-profile-actions { display: flex; gap: 6px; padding-bottom: 4px; }
 
 .cm-stats-bar {
-  display: flex; align-items: stretch; gap: 0;
-  padding: 22px 0; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 22px;
+  padding: 12px 0; border-bottom: 1px solid var(--border);
 }
 .cm-stat {
-  flex: 1; cursor: pointer; padding: 0 8px;
-  border-right: 1px solid var(--fg-04);
+  cursor: pointer;
+  display: flex; align-items: baseline; gap: 5px;
   transition: 150ms;
 }
-.cm-stat:last-child { border-right: 0; }
 .cm-stat:hover .cm-stat-num { color: var(--primary); }
 .cm-stat-num {
-  font: 400 22px var(--font-serif); color: var(--foreground);
+  font: 600 14px var(--font-sans); color: var(--foreground);
   font-variant-numeric: tabular-nums; transition: 150ms;
-  letter-spacing: -0.01em;
 }
 .cm-stat-label {
-  font: 700 9px var(--font-sans); letter-spacing: 0.14em;
-  text-transform: uppercase; color: var(--muted-foreground); margin-top: 4px;
+  font: 400 11.5px var(--font-sans); color: var(--muted-foreground);
 }
 
 .cm-profile-tabs {
-  display: flex; gap: 28px; align-items: center;
+  display: flex; gap: 22px; align-items: center;
   border-bottom: 1px solid var(--border);
-  padding: 4px 0; margin-bottom: 32px;
+  padding: 2px 0; margin-bottom: 0;
 }
 .cm-profile-tab {
-  font: 500 13px var(--font-sans); color: var(--muted-foreground);
-  cursor: pointer; padding: 14px 0; position: relative; background: none; border: 0;
-  font-family: inherit; letter-spacing: 0.01em; display: inline-flex; align-items: center; gap: 6px;
+  font: 500 12.5px var(--font-sans); color: var(--muted-foreground);
+  cursor: pointer; padding: 11px 0; position: relative; background: none; border: 0;
+  font-family: inherit; letter-spacing: 0.01em; display: inline-flex; align-items: center; gap: 5px;
 }
 .cm-profile-tab .count {
   font: 600 10px var(--font-sans); color: var(--muted-foreground);
@@ -960,7 +1040,6 @@
 .cm-hub-head { margin-bottom: 24px; }
 .cm-hub-title { font: 400 38px/1.1 var(--font-serif); letter-spacing: -0.02em; margin: 0; }
 .cm-hub-sub { font: 400 15px var(--font-sans); color: var(--muted-foreground); margin: 8px 0 0; }
-.cm-post-title { font: 600 18px/1.35 var(--font-sans); color: var(--foreground); margin: 0 0 8px; }
 .cm-empty {
   border: 1px dashed var(--border); border-radius: 12px; padding: 48px 24px;
   text-align: center; color: var(--muted-foreground); font-size: 14px;
@@ -1935,23 +2014,32 @@
   white-space: nowrap;
 }
 
-/* R9 — profile featured-releases strip. */
+/* R9 — profile featured-releases strip. Erweiterung 02: small covers. */
 .cm-profile-featured {
-  margin: 4px 0 4px;
-  padding: 16px 0 4px;
+  margin: 0;
+  padding: 12px 0 4px;
+  border-bottom: 1px solid var(--border);
 }
 .cm-profile-featured-label {
-  font: 700 10px var(--font-sans);
+  font: 700 9.5px var(--font-sans);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--muted-foreground);
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 .cm-profile-featured-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
+.cm-featured-cover {
+  width: 52px; height: 52px; border-radius: 3px; flex-shrink: 0;
+  position: relative; overflow: hidden; display: block;
+  border: 1px solid var(--fg-08); background: var(--muted);
+  background-size: cover; background-position: center;
+  transition: 150ms;
+}
+.cm-featured-cover:hover { border-color: rgba(212,165,74,0.4); transform: translateY(-2px); }
 
 /* Erweiterung 01 — composer hint. */
 .cm-compose-hint {
@@ -1973,4 +2061,58 @@
 .cm-post-detail-deck,
 .cm-comment-text,
 .cm-editorial-lede,
+.cm-editorial-lede-d,
+.cm-release-ref-title,
 .cm-review-body { overflow-wrap: anywhere; }
+
+/* ── Erweiterung 02 — mobile bottom-tab bar ───────────────────
+   A fixed 5-slot tab bar on the community surface (Feed · Explore
+   · Compose · Members · Inbox) with the gold compose button
+   center-lifted. Desktop keeps the floating Compose FAB. */
+.cm-bottomnav { display: none; }
+.cm-bottomnav-item {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 3px;
+  text-decoration: none; position: relative;
+  color: var(--muted-foreground);
+  font: 600 9.5px var(--font-sans); letter-spacing: 0.04em; text-transform: uppercase;
+}
+.cm-bottomnav-item.is-active { color: var(--primary); }
+.cm-bottomnav-item.is-active::before {
+  content: ""; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 22px; height: 2px; background: var(--primary);
+}
+.cm-bottomnav-dot {
+  position: absolute; top: 7px; right: calc(50% - 16px);
+  width: 5px; height: 5px; border-radius: 999px; background: var(--primary);
+}
+.cm-bottomnav-compose {
+  flex: 0 0 64px; display: flex; align-items: center; justify-content: center;
+  text-decoration: none;
+}
+.cm-bottomnav-fab {
+  width: 44px; height: 44px; border-radius: 999px; margin-top: -14px;
+  background: linear-gradient(180deg, #d4a54a, #b8860b); color: var(--primary-foreground);
+  display: flex; align-items: center; justify-content: center;
+  border: 3px solid var(--background);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4), 0 0 16px rgba(212,165,74,0.25);
+}
+
+@media (max-width: 900px) {
+  .cm-bottomnav {
+    display: flex; align-items: stretch;
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
+    height: calc(54px + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
+    background: rgba(28,25,21,0.97); backdrop-filter: blur(20px);
+    border-top: 1px solid var(--border);
+  }
+  /* The bottom bar replaces the floating Compose FAB on mobile. */
+  .cm-fab { display: none; }
+  /* Clear the fixed bar so the feed isn't hidden behind it. */
+  .cm-root { padding-bottom: calc(54px + env(safe-area-inset-bottom)); }
+  /* Slightly tighter post rows on small screens. */
+  .cm-post { padding: 12px 14px; }
+  .cm-post-bodyflex { gap: 10px; }
+  .cm-post-cover-thumb { width: 64px; height: 64px; }
+}

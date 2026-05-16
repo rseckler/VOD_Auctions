@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { fetchProfile } from "@/lib/community-api"
-import { MemberAvatar, ReleaseCardInline } from "@/components/community/CommunityUI"
+import { MemberAvatar } from "@/components/community/CommunityUI"
 import { FollowButton } from "@/components/community/FollowButton"
 import { ProfileTabs } from "@/components/community/ProfileTabs"
 
@@ -77,7 +77,7 @@ export default async function MemberProfilePage({
             name={profile.display_name}
             tier={shownTier}
             avatarUrl={profile.avatar_url}
-            size={120}
+            size={96}
           />
           <div className="cm-profile-id">
             <h1 className="cm-profile-name">{profile.display_name}</h1>
@@ -138,7 +138,18 @@ export default async function MemberProfilePage({
             <div className="cm-profile-featured-label">Featured releases</div>
             <div className="cm-profile-featured-grid">
               {featured.map((r) => (
-                <ReleaseCardInline key={r.id} release={r} />
+                <Link
+                  key={r.id}
+                  href={`/catalog/${r.id}`}
+                  prefetch={false}
+                  className="cm-featured-cover"
+                  title={`${r.artist_name || ""}${r.artist_name ? " — " : ""}${r.title || "Release"}`}
+                  style={
+                    r.cover_image
+                      ? { backgroundImage: `url(${r.cover_image})` }
+                      : undefined
+                  }
+                />
               ))}
             </div>
           </div>

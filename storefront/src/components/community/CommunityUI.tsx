@@ -160,7 +160,31 @@ export function ReleaseCardInline({ release }: { release: ReleaseCard }) {
   )
 }
 
+// ─── Release reference pill ───────────────────────────────────────────────
+// Compact "linked article" indicator inside a post — small cover + title.
+// A plain span (no anchor): the whole post card is already a Link.
+export function ReleaseRef({ release }: { release: ReleaseCard }) {
+  return (
+    <span className="cm-release-ref">
+      <span
+        className="cm-release-ref-cv"
+        style={
+          release.cover_image
+            ? { backgroundImage: `url(${release.cover_image})` }
+            : undefined
+        }
+      />
+      <span className="cm-release-ref-title">{release.title || "Untitled"}</span>
+      {release.artist_name && (
+        <span className="cm-release-ref-artist">· {release.artist_name}</span>
+      )}
+      <span className="cm-release-ref-arrow">→</span>
+    </span>
+  )
+}
+
 // ─── Author byline ────────────────────────────────────────────────────────
+// Dense single-line meta: avatar 36 · name · tier · time.
 function Byline({ author, time }: { author: CommunityAuthor; time: string }) {
   return (
     <div className="cm-post-head">
@@ -168,21 +192,24 @@ function Byline({ author, time }: { author: CommunityAuthor; time: string }) {
         name={author.display_name}
         tier={author.tier}
         avatarUrl={author.avatar_url}
-        size={48}
+        size={36}
       />
       <div className="cm-post-meta">
-        <div className="cm-post-author">
-          <span className="cm-post-name">{author.display_name}</span>
-          <TierLabel tier={author.tier} />
-        </div>
-        <div className="cm-post-time">{time}</div>
+        <span className="cm-post-name">{author.display_name}</span>
+        <TierLabel tier={author.tier} />
+        <span className="cm-post-dot">·</span>
+        <span className="cm-post-time">{time}</span>
       </div>
     </div>
   )
 }
 
-// ─── Standard post card ───────────────────────────────────────────────────
+// ─── Standard post card — dense hairline row ──────────────────────────────
 export function PostCard({ post }: { post: CommunityPost }) {
+  // The right-hand square thumbnail shows the linked release cover, or the
+  // post's own uploaded image when there is no release.
+  const thumb = post.release?.cover_image || post.cover_image_url
+  const longBody = (post.excerpt?.length || 0) > 180
   return (
     <Link
       href={`/community/post/${post.slug || post.id}`}
@@ -190,20 +217,27 @@ export function PostCard({ post }: { post: CommunityPost }) {
       prefetch={false}
     >
       <Byline author={post.author} time={timeAgo(post.published_at || post.created_at)} />
-      {post.kind === "acquired" && (
-        <div className="cm-acquired-tag">✦ Acquired</div>
-      )}
-      {post.title && <h3 className="cm-post-title">{post.title}</h3>}
-      {post.cover_image_url && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={post.cover_image_url}
-          alt=""
-          className="cm-post-card-cover"
-        />
-      )}
-      {post.excerpt && <div className="cm-post-body">{post.excerpt}</div>}
-      {post.release && <ReleaseCardInline release={post.release} />}
+      <div className="cm-post-bodyflex">
+        <div className="cm-post-bodycol">
+          {post.kind === "acquired" && (
+            <div className="cm-acquired-tag">✦ Acquired</div>
+          )}
+          {post.title && <h3 className="cm-post-title">{post.title}</h3>}
+          {post.excerpt && (
+            <div className="cm-post-body">
+              {post.excerpt}
+              {longBody && <span className="cm-post-more-link"> … more</span>}
+            </div>
+          )}
+          {post.release && <ReleaseRef release={post.release} />}
+        </div>
+        {thumb && (
+          <span className="cm-post-cover-thumb">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={thumb} alt="" />
+          </span>
+        )}
+      </div>
       {post.tags.length > 0 && (
         <div className="cm-post-tags">
           {post.tags.map((t) => (
@@ -248,6 +282,9 @@ export function ReactionSummary({
 }
 
 // ─── Editorial card (Frank — "From the Vault") ────────────────────────────
+// In the feed it is a dense row, set apart only by a gold top-line and a
+// serif title — same density grid as a member post. The "hero" variant
+// (large card) is kept for any standalone featured placement.
 export function EditorialCard({
   post,
   variant = "feed",
@@ -255,55 +292,101 @@ export function EditorialCard({
   post: CommunityPost
   variant?: "feed" | "hero"
 }) {
+  const time = timeAgo(post.published_at || post.created_at)
+
+  if (variant === "hero") {
+    return (
+      <Link
+        href={`/community/post/${post.slug || post.id}`}
+        className="cm-editorial"
+        prefetch={false}
+      >
+        <div className="cm-editorial-eyebrow">
+          <span>From the Vault</span>
+          <span
+            style={{
+              color: "var(--muted-foreground)",
+              letterSpacing: "0.06em",
+              fontWeight: 500,
+            }}
+          >
+            · {time}
+          </span>
+        </div>
+        {post.cover_image_url && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={post.cover_image_url} alt="" className="cm-editorial-cover" />
+        )}
+        <div className="cm-editorial-body">
+          <h2 className="cm-editorial-title">{post.title || "Untitled"}</h2>
+          {post.excerpt && <p className="cm-editorial-lede">{post.excerpt}</p>}
+        </div>
+        <div className="cm-editorial-foot">
+          <div className="cm-editorial-author">
+            <MemberAvatar
+              name={post.author.display_name}
+              tier="curator"
+              avatarUrl={post.author.avatar_url}
+              size={40}
+            />
+            <div>
+              <div className="cm-editorial-author-name">
+                {post.author.display_name}
+              </div>
+              <div className="cm-editorial-author-role">🎙 VOD Curator</div>
+            </div>
+          </div>
+          <div className="cm-editorial-stats">
+            <span>🔥 {post.reaction_count}</span>
+            <span>💬 {post.comment_count}</span>
+          </div>
+        </div>
+      </Link>
+    )
+  }
+
+  // feed — dense editorial row
   return (
     <Link
       href={`/community/post/${post.slug || post.id}`}
-      className={"cm-editorial" + (variant === "feed" ? " is-feed" : "")}
+      className="cm-post cm-post-editorial"
       prefetch={false}
     >
-      <div className="cm-editorial-eyebrow">
-        <span>From the Vault</span>
-        <span
-          style={{
-            color: "var(--muted-foreground)",
-            letterSpacing: "0.06em",
-            fontWeight: 500,
-          }}
-        >
-          · {timeAgo(post.published_at || post.created_at)}
-        </span>
-      </div>
-      {post.cover_image_url && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={post.cover_image_url}
-          alt=""
-          className="cm-editorial-cover"
+      <div className="cm-post-head">
+        <MemberAvatar
+          name={post.author.display_name}
+          tier="curator"
+          avatarUrl={post.author.avatar_url}
+          size={36}
         />
-      )}
-      <div className="cm-editorial-body">
-        <h2 className="cm-editorial-title">{post.title || "Untitled"}</h2>
-        {post.excerpt && <p className="cm-editorial-lede">{post.excerpt}</p>}
+        <div className="cm-post-meta">
+          <span className="cm-post-name">{post.author.display_name}</span>
+          <TierLabel tier="curator" />
+          <span className="cm-post-dot">·</span>
+          <span className="cm-post-time">{time}</span>
+        </div>
       </div>
-      <div className="cm-editorial-foot">
-        <div className="cm-editorial-author">
-          <MemberAvatar
-            name={post.author.display_name}
-            tier={post.author.tier}
-            avatarUrl={post.author.avatar_url}
-            size={40}
-          />
-          <div>
-            <div className="cm-editorial-author-name">
-              {post.author.display_name}
-            </div>
-            <div className="cm-editorial-author-role">🎙 VOD Curator</div>
+      <div className="cm-post-bodyflex">
+        <div className="cm-post-bodycol">
+          <div className="cm-editorial-eyebrow-d">
+            <span>From the Vault</span>
+            <span className="num">· {time}</span>
           </div>
+          <h2 className="cm-editorial-title-d">{post.title || "Untitled"}</h2>
+          {post.excerpt && <p className="cm-editorial-lede-d">{post.excerpt}</p>}
         </div>
-        <div className="cm-editorial-stats">
-          <span>🔥 {post.reaction_count}</span>
-          <span>💬 {post.comment_count}</span>
-        </div>
+        {post.cover_image_url && (
+          <span className="cm-post-cover-thumb">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={post.cover_image_url} alt="" />
+          </span>
+        )}
+      </div>
+      <div className="cm-post-actions">
+        <span className="cm-react is-active">
+          <span className="emoji">🔥</span> {post.reaction_count}
+        </span>
+        <span className="cm-react">💬 {post.comment_count}</span>
       </div>
     </Link>
   )
