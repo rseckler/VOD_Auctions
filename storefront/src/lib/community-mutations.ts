@@ -104,6 +104,19 @@ export async function createReview(input: {
   return authReq("/store/community/reviews", "POST", input)
 }
 
+/** Report a post or comment for moderation. */
+export async function reportContent(
+  targetKind: "post" | "comment",
+  targetId: string,
+  reason: string
+): Promise<void> {
+  await authReq("/store/community/reports", "POST", {
+    target_kind: targetKind,
+    target_id: targetId,
+    reason,
+  })
+}
+
 /** Own notifications + unread count. */
 export async function fetchNotifications(): Promise<{
   notifications: CommunityNotification[]

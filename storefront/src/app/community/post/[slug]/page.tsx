@@ -10,6 +10,7 @@ import {
 } from "@/components/community/CommunityUI"
 import { ReactionsBar } from "@/components/community/ReactionsBar"
 import { CommentSection } from "@/components/community/CommentSection"
+import { ReportButton } from "@/components/community/ReportButton"
 
 type Params = { slug: string }
 
@@ -112,6 +113,10 @@ export default async function CommunityPostPage({
           targetId={post.id}
           initialCount={post.reaction_count}
         />
+
+        <div className="cm-post-report">
+          <ReportButton targetKind="post" targetId={post.id} />
+        </div>
 
         <CommentSection
           postSlug={post.slug || post.id}

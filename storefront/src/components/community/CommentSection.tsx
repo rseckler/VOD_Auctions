@@ -6,6 +6,7 @@ import { useAuth } from "@/components/AuthProvider"
 import { addComment, CommunityError } from "@/lib/community-mutations"
 import type { CommunityComment } from "@/lib/community-api"
 import { MemberAvatar, TierLabel, timeAgo } from "./CommunityUI"
+import { ReportButton } from "./ReportButton"
 
 // Plain textarea text → safe minimal HTML (backend sanitises again).
 function textToHtml(text: string): string {
@@ -62,8 +63,8 @@ function CommentRow({
           className="cm-comment-text"
           dangerouslySetInnerHTML={{ __html: comment.body_html }}
         />
-        {!isReply && onReply && (
-          <div className="cm-comment-actions">
+        <div className="cm-comment-actions">
+          {!isReply && onReply && (
             <button
               type="button"
               className="cm-comment-action"
@@ -71,8 +72,9 @@ function CommentRow({
             >
               Reply
             </button>
-          </div>
-        )}
+          )}
+          <ReportButton targetKind="comment" targetId={comment.id} />
+        </div>
       </div>
     </div>
   )

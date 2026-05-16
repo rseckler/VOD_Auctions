@@ -229,6 +229,7 @@ function MembersTab({ onToast }: { onToast: (m: string) => void }) {
               {m.display_name}{" "}
               <span style={{ color: C.muted, fontSize: 11 }}>@{m.handle}</span>
             </span>
+            <ColorBadge label={`TL${m.trust_level ?? 0}`} color={C.blue} />
             {m.is_banned && <ColorBadge label="banned" color={C.error} />}
             {m.is_curator && <ColorBadge label="curator" color={C.gold} />}
             <select
@@ -250,6 +251,70 @@ function MembersTab({ onToast }: { onToast: (m: string) => void }) {
               variant={m.is_banned ? "ghost" : "danger"}
               onClick={() => patch(m.id, { is_banned: !m.is_banned }, "Updated")}
             />
+          </Row>
+        ))
+      )}
+    </div>
+  )
+}
+
+// ─── Reports tab ──────────────────────────────────────────────────────────────
+function ReportsTab({ onToast }: { onToast: (m: string) => void }) {
+  const [reports, setReports] = useState<any[]>([])
+  const [status, setStatus] = useState("open")
+  const [loading, setLoading] = useState(true)
+
+  const load = useCallback(() => {
+    setLoading(true)
+    api(`/reports?status=${status}`)
+      .then((d) => setReports(d.reports || []))
+      .catch(() => setReports([]))
+      .finally(() => setLoading(false))
+  }, [status])
+
+  useEffect(() => { load() }, [load])
+
+  async function resolve(id: string, s: string) {
+    await api(`/reports/${id}`, { method: "PATCH", body: JSON.stringify({ status: s }) })
+    onToast("Report updated")
+    load()
+  }
+
+  return (
+    <div>
+      <div style={{ marginBottom: 14 }}>
+        <select style={selectStyle} value={status} onChange={(e) => setStatus(e.target.value)}>
+          <option value="open">Open</option>
+          <option value="reviewed">Reviewed</option>
+          <option value="actioned">Actioned</option>
+          <option value="dismissed">Dismissed</option>
+        </select>
+      </div>
+      {loading ? (
+        <Muted>Loading…</Muted>
+      ) : reports.length === 0 ? (
+        <EmptyState icon="✓" title="No reports" description="The moderation queue is clear." />
+      ) : (
+        reports.map((r) => (
+          <Row key={r.id}>
+            <span style={{ flex: 1, color: C.text }}>
+              <ColorBadge label={r.reason} color={C.warning} />{" "}
+              <span style={{ color: C.muted, fontSize: 11 }}>
+                {r.target_kind} · reported by @{r.reporter_handle}
+              </span>
+              <div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>
+                {r.target_excerpt}
+              </div>
+            </span>
+            {r.status === "open" ? (
+              <>
+                <Btn label="Reviewed" variant="ghost" onClick={() => resolve(r.id, "reviewed")} />
+                <Btn label="Actioned" variant="ghost" onClick={() => resolve(r.id, "actioned")} />
+                <Btn label="Dismiss" variant="ghost" onClick={() => resolve(r.id, "dismissed")} />
+              </>
+            ) : (
+              <ColorBadge label={r.status} color={C.muted} />
+            )}
           </Row>
         ))
       )}
@@ -291,10 +356,15 @@ function CommunityPage() {
         title="Community"
         subtitle="Posts, members and moderation for the VOD Community."
       />
-      <Tabs tabs={["Dashboard", "Posts", "Members"]} active={tab} onChange={setTab} />
+      <Tabs
+        tabs={["Dashboard", "Posts", "Members", "Reports"]}
+        active={tab}
+        onChange={setTab}
+      />
       {tab === "Dashboard" && <DashboardTab />}
       {tab === "Posts" && <PostsTab onToast={setToast} />}
       {tab === "Members" && <MembersTab onToast={setToast} />}
+      {tab === "Reports" && <ReportsTab onToast={setToast} />}
       {toast && <Toast message={toast} onDone={() => setToast(null)} />}
     </PageShell>
   )

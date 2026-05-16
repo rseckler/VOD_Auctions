@@ -36,6 +36,9 @@ export default async function CommunityHubPage() {
           <Link href="/community/settings" className="cm-btn cm-btn-outline">
             My Profile
           </Link>
+          <Link href="/community/dispatch" className="cm-btn cm-btn-ghost">
+            Dispatch
+          </Link>
           <Link href="/community/notifications" className="cm-btn cm-btn-ghost">
             Notifications
           </Link>

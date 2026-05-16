@@ -219,6 +219,46 @@ export async function recomputeCommentCount(
   return n
 }
 
+// ─── Trust levels ───────────────────────────────────────────────────────────
+// 0 newcomer · 1 member · 2 trusted · 3 veteran. Curators are always 3.
+// Computed from account age + activity; refreshed lazily on post creation.
+export async function refreshTrustLevel(
+  pg: Knex,
+  profile: any
+): Promise<number> {
+  let level = 0
+  if (profile.is_curator) {
+    level = 3
+  } else {
+    const ageDays =
+      (Date.now() - new Date(profile.created_at).getTime()) / 86_400_000
+    const postRows = await pg("community_post")
+      .where({ author_id: profile.id })
+      .count("id as c")
+    const commentRows = await pg("community_comment")
+      .where({ author_id: profile.id })
+      .count("id as c")
+    const activity =
+      Number(postRows[0]?.c || 0) + Number(commentRows[0]?.c || 0)
+    if (ageDays >= 7) level = 1
+    if (ageDays >= 30 && activity >= 10) level = 2
+    if (ageDays >= 180 && activity >= 50) level = 3
+  }
+  if (level !== profile.trust_level) {
+    await pg("community_profile")
+      .where({ id: profile.id })
+      .update({ trust_level: level, updated_at: new Date() })
+  }
+  return level
+}
+
+// Daily post allowance per trust level (spam guard). -1 = effectively unlimited.
+export function dailyPostLimit(trustLevel: number): number {
+  if (trustLevel <= 0) return 5
+  if (trustLevel === 1) return 20
+  return -1
+}
+
 // ─── Notifications ──────────────────────────────────────────────────────────
 /**
  * Insert an in-app notification. No-op when the actor is the recipient

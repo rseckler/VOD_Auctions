@@ -33,7 +33,7 @@ export async function GET(
     .clone()
     .select(
       "id", "handle", "display_name", "tier", "is_curator", "is_banned",
-      "customer_id", "location", "created_at"
+      "trust_level", "customer_id", "location", "created_at"
     )
     .orderBy("created_at", "desc")
     .limit(limit)

@@ -10,6 +10,8 @@ import {
   uniquePostSlug,
   fetchReleaseCards,
   serializeProfile,
+  refreshTrustLevel,
+  dailyPostLimit,
 } from "../../../../lib/community"
 
 // GET /store/community/posts — Hub feed (public)
@@ -141,6 +143,23 @@ export async function POST(
   if (profile.is_banned) {
     res.status(403).json({ message: "Account suspended" })
     return
+  }
+
+  // Trust-level daily post cap — spam guard for newcomers (Increment 4C).
+  const trustLevel = await refreshTrustLevel(pg, profile)
+  const limit = dailyPostLimit(trustLevel)
+  if (limit >= 0) {
+    const since = new Date(Date.now() - 86_400_000)
+    const recent = await pg("community_post")
+      .where("author_id", profile.id)
+      .where("created_at", ">=", since)
+      .count("id as c")
+    if (Number(recent[0]?.c || 0) >= limit) {
+      res.status(429).json({
+        message: `Daily post limit reached (${limit}). Please try again later.`,
+      })
+      return
+    }
   }
 
   // 'editorial' is reserved for curators; everyone else posts 'discussion'.
