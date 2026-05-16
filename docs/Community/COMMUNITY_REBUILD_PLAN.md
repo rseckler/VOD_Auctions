@@ -242,7 +242,7 @@ Launch-Voraussetzung bleibt RSE-78 (AGB-Anwalt) — kein Code-Blocker, aber Öff
 | R1 — Shell + Hub | ✅ rc59.0 (2026-05-16) |
 | R2 — Post + Compose | ✅ rc60.0 + rc60.1 (2026-05-16) — Post-Detail, Reactions, Composer, Mentions |
 | R3 — Profil + Directory + Onboarding | ✅ rc61.0 (2026-05-16) — Directory, Profil-Tabs, Onboarding. Offen: Top-4-Featured + Privacy-Toggles (schema-pflichtig) |
-| R4 — Catalog-Anchored | ⬜ offen |
+| R4 — Catalog-Anchored | ✅ rc62.0 (2026-05-16) — Release-Discussion + Reviews + Histogramm. Offen: Band/Label/Press-Walls (schema-pflichtig) |
 | R5 — Lists | ⬜ offen |
 | R6 — Acquired + Notifications + Email | ⬜ offen |
 | R7 — Search + Explore | ⬜ offen |
