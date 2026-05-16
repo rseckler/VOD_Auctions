@@ -240,7 +240,7 @@ Launch-Voraussetzung bleibt RSE-78 (AGB-Anwalt) — kein Code-Blocker, aber Öff
 |---|---|
 | R0 — Demo-Seed | ✅ rc58.0 (2026-05-16) |
 | R1 — Shell + Hub | ✅ rc59.0 (2026-05-16) |
-| R2 — Post + Compose | 🟡 rc60.0 (2026-05-16) — Post-Detail + Reactions + Composer live; Mentions `@user`/`@release` offen |
+| R2 — Post + Compose | ✅ rc60.0 + rc60.1 (2026-05-16) — Post-Detail, Reactions, Composer, Mentions |
 | R3 — Profil + Directory + Onboarding | ⬜ offen |
 | R4 — Catalog-Anchored | ⬜ offen |
 | R5 — Lists | ⬜ offen |
