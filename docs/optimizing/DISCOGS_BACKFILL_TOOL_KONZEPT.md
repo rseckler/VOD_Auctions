@@ -1,6 +1,10 @@
 # Discogs-Metadaten-Backfill — Review-Tool
 
-**Status:** Implementierung (2026-05-16)
+**Status:** ✅ Live (rc70.0, 2026-05-16). Codex-Review-Nachbesserung **rc71.3**: F2 —
+`job_running` spiegelt jetzt den echten Worker-State (`prepareRunning`-Flag in
+`lib/discogs-backfill.ts`) statt `fetch_pending > 0`; nach einem Backend-Restart
+zeigt die UI „Resume fetch" statt endlos zu pollen. Offen: Frank baut die
+Kandidatenliste auf und reviewt.
 **Auslöser:** Gap-Analyse [`VERIFIED_RELEASES_DISCOGS_GAP_ANALYSIS_2026-05-16.md`](VERIFIED_RELEASES_DISCOGS_GAP_ANALYSIS_2026-05-16.md)
 — 1.246 verifizierte, mit Discogs verlinkte Releases fehlen Genres/Styles/Credits/Tracklist.
 

@@ -1,6 +1,10 @@
 # Inventory Discogs Fetch — Konzept
 
-**Status:** ✅ Live (rc69.0, 2026-05-16) — Fix 1 + Fix 2 + Erweiterung b deployed
+**Status:** ✅ Live (rc69.0, 2026-05-16) — Fix 1 + Fix 2 + Erweiterung b deployed.
+Codex-Review-Nachbesserung **rc71.3** (2026-05-16): F1 — eine leere Discogs-Tracklist
+wird nicht mehr als Diff vorgeschlagen (sonst hätte ihr Apply vorhandene Tracks
+gelöscht); F3 — der Apply-Button im Modal bleibt bei 0 ausgewählten Feldern aktiv,
+wenn Marktpreise vorliegen (Markt-only-Refresh).
 **Erstellt:** 2026-05-16
 **Kontext:** Frank meldet, dass der Inventory-Process (`/app/erp/inventory`, Erfassungs-Tab)
 bei frisch über den Katalog verlinkten Discogs-Releases keine Markt-/Suggestion-Daten
