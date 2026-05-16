@@ -138,6 +138,17 @@ export async function uniquePostSlug(pg: Knex, title: string): Promise<string> {
   return `${base}-${generateEntityId("", "p").slice(-8)}`
 }
 
+/** Generate a slug for a list that is unique in community_list. */
+export async function uniqueListSlug(pg: Knex, title: string): Promise<string> {
+  const base = baseSlug(title)
+  for (let i = 0; i < 50; i++) {
+    const candidate = i === 0 ? base : `${base}-${i + 1}`
+    const hit = await pg("community_list").where({ slug: candidate }).first("id")
+    if (!hit) return candidate
+  }
+  return `${base}-${generateEntityId("", "l").slice(-8)}`
+}
+
 // ─── Handles ────────────────────────────────────────────────────────────────
 function baseHandle(seed: string): string {
   const h = (seed || "member")

@@ -151,6 +151,7 @@ export default async function MemberProfilePage({
         </div>
 
         <ProfileTabs
+          handle={profile.handle}
           posts={posts}
           comments={comments}
           reviews={reviews}

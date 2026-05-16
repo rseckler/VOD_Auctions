@@ -178,6 +178,64 @@ export async function fetchTags(limit = 24): Promise<TrendingTag[]> {
   return data?.tags ?? []
 }
 
+// ─── Lists ──────────────────────────────────────────────────────────────────
+export interface CommunityListCard {
+  id: string
+  title: string
+  slug: string | null
+  description: string | null
+  cover_image_url: string | null
+  item_count: number
+  updated_at: string
+  preview_covers: string[]
+  author: {
+    handle: string
+    display_name: string
+    avatar_url: string | null
+    tier: CommunityTier
+  }
+}
+
+export interface CommunityListItem {
+  release_id: string
+  rank: number
+  note: string | null
+  release: ReleaseCard | null
+}
+
+export interface CommunityListDetail {
+  list: CommunityListCard & { is_public: boolean }
+  is_owner: boolean
+  items: CommunityListItem[]
+}
+
+/** Public curated lists. */
+export async function fetchLists(params: {
+  author?: string
+  sort?: string
+  limit?: number
+} = {}): Promise<CommunityListCard[]> {
+  const qs = new URLSearchParams()
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== "") qs.set(k, String(v))
+  }
+  const data = await medusaFetch<{ lists: CommunityListCard[] }>(
+    `/store/community/lists?${qs.toString()}`,
+    { revalidate: 30 }
+  )
+  return data?.lists ?? []
+}
+
+/** A single list with its items. */
+export async function fetchList(
+  idOrSlug: string
+): Promise<CommunityListDetail | null> {
+  return medusaFetch(
+    `/store/community/lists/${encodeURIComponent(idOrSlug)}`,
+    { revalidate: 20 }
+  )
+}
+
 /** Aggregated data for the Community hub sidebar (blocks, members, catalog). */
 export async function fetchHubSidebar(): Promise<HubSidebarData> {
   const data = await medusaFetch<HubSidebarData>(

@@ -1,12 +1,14 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import type {
   CommunityPost,
   ProfileComment,
   ProfileReview,
+  CommunityListCard,
 } from "@/lib/community-api"
+import { MEDUSA_URL, PUBLISHABLE_KEY } from "@/lib/api"
 import {
   PostCard,
   EditorialCard,
@@ -14,28 +16,45 @@ import {
   timeAgo,
 } from "./CommunityUI"
 import { RatingStars } from "./RatingStars"
+import { ListCard } from "./ListCard"
 
-type TabKey = "posts" | "comments" | "reviews"
+type TabKey = "posts" | "comments" | "reviews" | "lists"
 
-// Tabbed content for the member profile — Posts / Comments / Reviews.
-// Lists, Acquired and Wantlist tabs arrive with their rebuild phases.
+// Tabbed content for the member profile — Posts / Comments / Reviews / Lists.
+// Acquired and Wantlist tabs arrive with their rebuild phases.
 export function ProfileTabs({
+  handle,
   posts,
   comments,
   reviews,
   counts,
 }: {
+  handle: string
   posts: CommunityPost[]
   comments: ProfileComment[]
   reviews: ProfileReview[]
   counts: { posts: number; comments: number; reviews: number }
 }) {
   const [tab, setTab] = useState<TabKey>("posts")
+  const [lists, setLists] = useState<CommunityListCard[] | null>(null)
 
-  const tabs: { key: TabKey; label: string; n: number }[] = [
+  // Lazy-load the member's lists the first time the Lists tab opens.
+  useEffect(() => {
+    if (tab !== "lists" || lists !== null) return
+    fetch(
+      `${MEDUSA_URL}/store/community/lists?author=${encodeURIComponent(handle)}&limit=48`,
+      { headers: { "x-publishable-api-key": PUBLISHABLE_KEY } }
+    )
+      .then((r) => r.json())
+      .then((d) => setLists(d?.lists || []))
+      .catch(() => setLists([]))
+  }, [tab, lists, handle])
+
+  const tabs: { key: TabKey; label: string; n: number | null }[] = [
     { key: "posts", label: "Posts", n: counts.posts },
     { key: "comments", label: "Comments", n: counts.comments },
     { key: "reviews", label: "Reviews", n: counts.reviews },
+    { key: "lists", label: "Lists", n: lists ? lists.length : null },
   ]
 
   return (
@@ -49,7 +68,7 @@ export function ProfileTabs({
             onClick={() => setTab(t.key)}
           >
             {t.label}
-            <span className="count">{t.n}</span>
+            {t.n != null && <span className="count">{t.n}</span>}
           </button>
         ))}
       </div>
@@ -121,6 +140,19 @@ export function ProfileTabs({
                   )}
                   {r.release && <ReleaseCardInline release={r.release} />}
                 </div>
+              ))}
+            </div>
+          ))}
+
+        {tab === "lists" &&
+          (lists === null ? (
+            <div className="cm-empty">Loading…</div>
+          ) : lists.length === 0 ? (
+            <div className="cm-empty">No lists yet.</div>
+          ) : (
+            <div className="cm-list-grid">
+              {lists.map((l) => (
+                <ListCard key={l.id} list={l} />
               ))}
             </div>
           ))}

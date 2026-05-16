@@ -329,6 +329,26 @@ REVIEWS = [
         "limits.</p>"),
 ]
 
+# ─── Demo lists ─────────────────────────────────────────────────────────────
+# author_key, title, description
+LISTS = [
+    ("zko", "Essential ZKO Tapes 1984–1987",
+     "The cassettes that define the early ZKO catalogue — start here, then "
+     "go deeper."),
+    ("mb", "The First-Pressing Hunt",
+     "Releases where the original pressing is worth the chase. Provenance "
+     "matters."),
+    ("ukpe", "Power Electronics: The Broken Flag Years",
+     "Come Org, Broken Flag and the UK noise underground of the mid-80s."),
+    ("us", "A Newcomer's First Industrial Year",
+     "If you started collecting last year, this is the shelf to build first."),
+    ("tape", "Re-issues That Got It Right",
+     "Restorations that respected the source instead of scrubbing it clean."),
+    ("arch", "Cassette-Only, Never Repressed",
+     "Tape-underground releases that never made it to vinyl — and probably "
+     "never will."),
+]
+
 
 def connect(pg_url_override=None):
     url = pg_url_override or os.getenv("SUPABASE_DB_URL")
@@ -365,6 +385,9 @@ def purge(cur):
     cur.execute("DELETE FROM community_follow "
                 "WHERE follower_id LIKE %s OR followed_id LIKE %s",
                 (DEMO_PREFIX + "%", DEMO_PREFIX + "%"))
+    # community_list_item cascades on the community_list FK.
+    cur.execute("DELETE FROM community_list WHERE author_id LIKE %s",
+                (DEMO_PREFIX + "%",))
     cur.execute("DELETE FROM community_profile WHERE id LIKE %s",
                 (DEMO_PREFIX + "%",))
     # Re-point Release rating aggregates to non-demo reviews only.
@@ -580,6 +603,35 @@ def load(cur):
                 (pid[follower], pid[t], NOW - timedelta(days=RNG.randint(1, 200))))
             follow_count += 1
     print(f"  + {follow_count} follow edges")
+
+    # ── Lists ───────────────────────────────────────────────────────────────
+    list_seq = 0
+    item_total = 0
+    for akey, title, desc in LISTS:
+        list_seq += 1
+        lid = f"cmlst_demo_{list_seq:03d}"
+        created = NOW - timedelta(days=RNG.randint(2, 120))
+        cur.execute(
+            "INSERT INTO community_list "
+            "(id, author_id, title, slug, description, is_public, item_count, "
+            " created_at, updated_at) "
+            "VALUES (%s,%s,%s,%s,%s,true,%s,%s,%s)",
+            (lid, pid[akey], title, f"demo-{list_seq}-{slug(title)}", desc,
+             0, created, created),
+        )
+        picks = RNG.sample(rel_ids, min(RNG.randint(4, 8), len(rel_ids)))
+        for rank, rid in enumerate(picks, start=1):
+            cur.execute(
+                "INSERT INTO community_list_item "
+                "(list_id, release_id, rank, created_at) VALUES (%s,%s,%s,%s)",
+                (lid, rid, rank, created),
+            )
+            item_total += 1
+        cur.execute(
+            "UPDATE community_list SET item_count=%s WHERE id=%s",
+            (len(picks), lid),
+        )
+    print(f"  + {list_seq} lists, {item_total} list items")
 
     # ── Strip demo influence from Release rating aggregates ─────────────────
     # The review trigger rolled demo ratings into Release.averageRating. Reset

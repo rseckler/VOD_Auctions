@@ -165,6 +165,56 @@ export async function uploadCommunityImage(file: File): Promise<string> {
   return data.url
 }
 
+// ─── Lists ──────────────────────────────────────────────────────────────────
+export interface ListInput {
+  title?: string
+  description?: string | null
+  cover_image_url?: string | null
+  is_public?: boolean
+}
+
+export async function createList(
+  input: ListInput
+): Promise<{ id: string; slug: string | null }> {
+  const data = await authReq<{ list: { id: string; slug: string | null } }>(
+    "/store/community/lists",
+    "POST",
+    input
+  )
+  return data.list
+}
+
+export async function updateList(id: string, input: ListInput): Promise<void> {
+  await authReq(`/store/community/lists/${encodeURIComponent(id)}`, "PATCH", input)
+}
+
+export async function deleteList(id: string): Promise<void> {
+  await authReq(`/store/community/lists/${encodeURIComponent(id)}`, "DELETE")
+}
+
+export async function addListItem(
+  listId: string,
+  releaseId: string,
+  note?: string
+): Promise<{ item_count: number }> {
+  return authReq(
+    `/store/community/lists/${encodeURIComponent(listId)}/items`,
+    "POST",
+    { release_id: releaseId, note }
+  )
+}
+
+export async function removeListItem(
+  listId: string,
+  releaseId: string
+): Promise<{ item_count: number }> {
+  return authReq(
+    `/store/community/lists/${encodeURIComponent(listId)}/items`,
+    "DELETE",
+    { release_id: releaseId }
+  )
+}
+
 export interface ProfileInput {
   display_name?: string
   handle?: string
