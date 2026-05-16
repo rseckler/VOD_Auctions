@@ -140,7 +140,9 @@ function MailImportPage() {
   // Initial fetch + auto-refresh
   useEffect(() => { load() }, [load])
   useEffect(() => {
-    const id = setInterval(() => load(), 10_000)
+    // 30s statt 10s: die Status-Route aggregiert über ~407k crm_imap_message-
+    // Rows; serverseitig 60s gecacht, daher reicht ein 30s-Poll vollkommen.
+    const id = setInterval(() => load(), 30_000)
     return () => clearInterval(id)
   }, [load])
   // Tick once a second so "elapsed" updates without re-fetching

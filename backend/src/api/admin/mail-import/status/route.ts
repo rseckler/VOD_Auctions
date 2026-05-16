@@ -13,6 +13,15 @@ const PIPELINE = "import_legacy_mails_v3"
 const SOURCE = "legacy_mail_archive"
 const FOLDER = "LEGACY_ARCHIVE"
 
+// In-memory cache für die teuren Full-Table-Aggregate auf crm_imap_message
+// (~407k Rows). totals + accounts sind COUNT(*)-Scans über die ganze Tabelle
+// und ändern sich nur während eines laufenden Imports — ein 60s-TTL verhindert,
+// dass der Dashboard-Poll die Tabelle bei jedem Request seq-scannt.
+const AGG_CACHE_TTL_MS = 60_000
+let aggCache:
+  | { totals: Record<string, unknown> | undefined; accounts: unknown[]; cached_at: number }
+  | null = null
+
 type State = {
   last_line: number
   pull_run_id: string | null
@@ -90,26 +99,38 @@ export async function GET(
         "notes",
       )
 
-    // 3) Total-Stats für LEGACY_ARCHIVE
-    const totalsRow = await k("crm_imap_message")
-      .where({ folder: FOLDER })
-      .select(
-        k.raw("COUNT(*) AS total_rows"),
-        k.raw("COUNT(*) FILTER (WHERE body_excerpt IS NOT NULL AND length(body_excerpt) > 0) AS with_body"),
-        k.raw("COUNT(*) FILTER (WHERE from_email IS NOT NULL AND from_email <> '') AS with_from"),
-        k.raw("COUNT(*) FILTER (WHERE subject IS NOT NULL AND subject <> '') AS with_subject"),
-        k.raw("COUNT(*) FILTER (WHERE message_id_header LIKE 'synthetic:%') AS synthetic_msgid"),
-        k.raw("MIN(date_header) AS oldest_mail"),
-        k.raw("MAX(date_header) AS newest_mail"),
-      )
-      .first()
+    // 3+4) Total-Stats + Account-Verteilung für LEGACY_ARCHIVE.
+    // Beide sind Full-Table-Aggregate über ~407k crm_imap_message-Rows; sie
+    // ändern sich nur während eines laufenden Imports. 60s-Cache, damit der
+    // Dashboard-Poll die Tabelle nicht bei jedem Request scannt (war der
+    // zweitgrößte Disk-IO-Verbraucher der DB).
+    let totalsRow: Record<string, unknown> | undefined
+    let accounts: unknown[]
+    if (aggCache && Date.now() - aggCache.cached_at < AGG_CACHE_TTL_MS) {
+      totalsRow = aggCache.totals
+      accounts = aggCache.accounts
+    } else {
+      totalsRow = (await k("crm_imap_message")
+        .where({ folder: FOLDER })
+        .select(
+          k.raw("COUNT(*) AS total_rows"),
+          k.raw("COUNT(*) FILTER (WHERE body_excerpt IS NOT NULL AND length(body_excerpt) > 0) AS with_body"),
+          k.raw("COUNT(*) FILTER (WHERE from_email IS NOT NULL AND from_email <> '') AS with_from"),
+          k.raw("COUNT(*) FILTER (WHERE subject IS NOT NULL AND subject <> '') AS with_subject"),
+          k.raw("COUNT(*) FILTER (WHERE message_id_header LIKE 'synthetic:%') AS synthetic_msgid"),
+          k.raw("MIN(date_header) AS oldest_mail"),
+          k.raw("MAX(date_header) AS newest_mail"),
+        )
+        .first()) as Record<string, unknown> | undefined
 
-    // 4) Account-Verteilung
-    const accounts = await k("crm_imap_message")
-      .where({ folder: FOLDER })
-      .groupBy("account")
-      .orderBy("rows", "desc")
-      .select("account", k.raw("COUNT(*) AS rows"))
+      accounts = await k("crm_imap_message")
+        .where({ folder: FOLDER })
+        .groupBy("account")
+        .orderBy("rows", "desc")
+        .select("account", k.raw("COUNT(*) AS rows"))
+
+      aggCache = { totals: totalsRow, accounts, cached_at: Date.now() }
+    }
 
     // 5) State-File (Resume-Punkt)
     const state = readState()
