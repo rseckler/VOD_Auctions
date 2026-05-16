@@ -1,7 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
-import { fetchDiscogsRelease } from "../../../../lib/discogs-backfill"
+import { fetchDiscogsRelease, isPrepareRunning, setPrepareRunning } from "../../../../lib/discogs-backfill"
 
 /**
  * POST /admin/discogs-backfill/prepare
@@ -19,11 +19,10 @@ import { fetchDiscogsRelease } from "../../../../lib/discogs-backfill"
  * Konzept: docs/optimizing/DISCOGS_BACKFILL_TOOL_KONZEPT.md
  */
 
-// Modul-Level-Guard — verhindert doppelte Loops im selben Prozess. Überlebt
-// keinen Prozess-Neustart; übrige fetch_pending-Zeilen werden dann per
-// erneutem prepare-Aufruf fortgesetzt.
-let prepareRunning = false
-
+// F2 (Codex-Review 2026-05-16): Der prepareRunning-Guard lebt jetzt in
+// lib/discogs-backfill.ts, damit die GET-Route den echten Worker-State lesen
+// kann (vorher meldete GET fälschlich job_running anhand fetch_pending>0 —
+// nach einem Backend-Restart hing das Tool dann unkündbar).
 const RATE_LIMIT_MS = 1100
 
 export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<void> {
@@ -66,7 +65,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
     .first()
   const pendingCount = Number(pendingRow?.c || 0)
 
-  if (prepareRunning) {
+  if (isPrepareRunning()) {
     res.json({ message: "Fetch already running", job_running: true, fetch_pending: pendingCount })
     return
   }
@@ -76,7 +75,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
   }
 
   // ── (2) Hintergrund-Fetch — Route returnt sofort, Loop läuft entkoppelt ──
-  prepareRunning = true
+  setPrepareRunning(true)
   res.json({ message: "Scan done — fetch started", job_running: true, fetch_pending: pendingCount })
 
   void (async () => {
@@ -117,9 +116,9 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
         JSON.stringify({ event: "discogs_backfill_prepare_crash", error: err?.message })
       )
     } finally {
-      prepareRunning = false
+      setPrepareRunning(false)
     }
   })().catch(() => {
-    prepareRunning = false
+    setPrepareRunning(false)
   })
 }

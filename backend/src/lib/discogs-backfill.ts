@@ -8,6 +8,22 @@
  * Konzept: docs/optimizing/DISCOGS_BACKFILL_TOOL_KONZEPT.md
  */
 
+/**
+ * F2 (Codex-Review 2026-05-16): Prozess-weiter Flag — läuft der prepare-
+ * Hintergrund-Fetch-Job gerade? GET (`route.ts`) und prepare (`prepare/route.ts`)
+ * laufen im selben Backend-Prozess, also ist dieses Modul-Level-Flag für beide
+ * sichtbar. Überlebt bewusst KEINEN Prozess-Neustart → nach einem Restart
+ * korrekt `false` (es läuft kein Worker, auch wenn noch `fetch_pending`-Zeilen
+ * offen sind — die UI bietet dann den Resume-Weg an).
+ */
+let prepareRunning = false
+export function isPrepareRunning(): boolean {
+  return prepareRunning
+}
+export function setPrepareRunning(running: boolean): void {
+  prepareRunning = running
+}
+
 export type BackfillTrack = { position: string; title: string; duration: string }
 
 export type BackfillProposed = {

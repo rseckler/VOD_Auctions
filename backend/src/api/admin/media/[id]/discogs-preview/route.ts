@@ -388,6 +388,16 @@ export async function POST(
     }
   }
 
+  // F1 (Codex-Review 2026-05-16): eine LEERE Discogs-Tracklist NIE als Diff
+  // vorschlagen. Sonst stünde im Review-Modal ein per Default angehakter
+  // "12 Tracks → 0"-Diff, dessen Apply den Track-Replace-Pfad erreicht und die
+  // vorhandene Tracklist löscht (DELETE + 0 Inserts). Liefert Discogs keine
+  // verwertbare Tracklist (leer / nur heading/index-Einträge), ist das kein
+  // Vorschlag — bestehende Tracks bleiben unangetastet.
+  if (diff.tracklist && (!Array.isArray(proposed.tracklist) || proposed.tracklist.length === 0)) {
+    delete diff.tracklist
+  }
+
   res.json({
     discogs_id: discogsId,
     current,

@@ -629,7 +629,11 @@ export async function POST(
     // Body-Key wie gallery_images, nicht in allowedReleaseFields. Replace =
     // alle bisherigen Track-Rows der Release löschen + neu inserten. Track hat
     // keine createdAt/updatedAt-Spalten (siehe discogs-import/commit).
-    if (Array.isArray(body.tracklist)) {
+    // F1 (Codex-Review 2026-05-16): `length > 0` — ein leeres tracklist-Array
+    // darf NIE den DELETE-Pfad auslösen (sonst Tracklist-Wipe). discogs-preview
+    // schlägt leere Tracklisten ohnehin nicht mehr vor; dieser Guard ist
+    // Defense-in-Depth für jeden anderen Aufrufer.
+    if (Array.isArray(body.tracklist) && body.tracklist.length > 0) {
       const tracks = (body.tracklist as unknown[])
         .map((t) => (t && typeof t === "object" ? (t as Record<string, unknown>) : null))
         .filter((t): t is Record<string, unknown> => t != null && typeof t.title === "string" && (t.title as string).trim() !== "")

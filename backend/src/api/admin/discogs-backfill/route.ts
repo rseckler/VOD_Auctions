@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
+import { isPrepareRunning } from "../../../lib/discogs-backfill"
 
 /**
  * GET /admin/discogs-backfill
@@ -86,9 +87,16 @@ export async function GET(req: MedusaRequest, res: MedusaResponse): Promise<void
     }))
   }
 
+  // F2 (Codex-Review 2026-05-16): job_running ist der ECHTE Worker-State, nicht
+  // `fetch_pending > 0`. Sonst meldete GET nach einem Backend-Restart ewig
+  // job_running=true (Rows offen, aber kein Worker) und die UI sperrte den
+  // Resume-Button. `stalled` = es gibt offene Rows, aber kein laufender Worker
+  // → die UI bietet „Resume" an.
+  const running = isPrepareRunning()
   res.json({
     counts,
-    job_running: counts.fetch_pending > 0,
+    job_running: running,
+    stalled: !running && counts.fetch_pending > 0,
     status,
     candidates,
   })

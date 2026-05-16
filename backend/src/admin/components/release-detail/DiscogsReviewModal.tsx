@@ -153,6 +153,15 @@ function GalleryCell({ urls }: { urls: unknown }) {
 export function DiscogsReviewModal({ preview, lockedFields, onClose, onApply }: Props) {
   const diffKeys = useMemo(() => Object.keys(preview.diff), [preview.diff])
 
+  // F3 (Codex-Review 2026-05-16): hat das Preview Marktpreise, ist ein Apply
+  // auch ganz ohne ausgewählte Stammdaten-Felder sinnvoll (nur discogs_id +
+  // market). Auf Komponenten-Ebene berechnet, damit beide Render-Zweige
+  // (No-Changes + Review) denselben Wert nutzen.
+  const hasMarket =
+    !!preview.market &&
+    (preview.market.discogs_lowest_price != null ||
+      preview.market.discogs_median_price != null)
+
   // Default: all changed fields selected EXCEPT locked ones (Frank explicitly
   // locked these — surfacing them as opt-in respects the lock semantics).
   const [selected, setSelected] = useState<Set<string>>(() => {
@@ -194,10 +203,6 @@ export function DiscogsReviewModal({ preview, lockedFields, onClose, onApply }: 
     // Fix 1 (2026-05-16): auch wenn keine Stammdaten abweichen, sollen die
     // Marktpreise frisch geschrieben werden können (Refetch-Use-Case). Apply
     // mit leerer Feld-Auswahl schickt nur discogs_id + market in den Body.
-    const hasMarket =
-      !!preview.market &&
-      (preview.market.discogs_lowest_price != null ||
-        preview.market.discogs_median_price != null)
     return (
       <Modal
         title="No changes from Discogs"
@@ -265,10 +270,20 @@ export function DiscogsReviewModal({ preview, lockedFields, onClose, onApply }: 
         <>
           <Btn label="Cancel" variant="ghost" onClick={onClose} disabled={applying} style={{ padding: "7px 16px", fontSize: 13 }} />
           <Btn
-            label={applying ? "Applying…" : `Apply ${selected.size} field${selected.size === 1 ? "" : "s"}`}
+            label={
+              applying
+                ? "Applying…"
+                : selected.size === 0 && hasMarket
+                  ? "Apply market prices"
+                  : `Apply ${selected.size} field${selected.size === 1 ? "" : "s"}`
+            }
             variant="gold"
             onClick={handleApply}
-            disabled={applying || selected.size === 0}
+            // F3 (Codex-Review 2026-05-16): bei 0 ausgewählten Feldern nur dann
+            // sperren, wenn es auch keine Marktpreise gibt — sonst wäre der
+            // Markt-only-Refresh unerreichbar, sobald irgendein Metadaten-Diff
+            // existiert (alle Häkchen raus / alle Felder sync-locked).
+            disabled={applying || (selected.size === 0 && !hasMarket)}
             style={{ padding: "7px 20px", fontSize: 13 }}
           />
         </>

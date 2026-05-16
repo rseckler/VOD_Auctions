@@ -40,6 +40,7 @@ type Candidate = {
 type Resp = {
   counts: Record<string, number>
   job_running: boolean
+  stalled?: boolean
   status: string
   candidates: Candidate[]
 }
@@ -191,8 +192,8 @@ function DiscogsBackfill() {
         actions={
           total === 0 ? null : (
             <Btn
-              label={busy ? "Working…" : "Re-scan candidates"}
-              variant="ghost"
+              label={busy ? "Working…" : data?.stalled ? "Resume fetch" : "Re-scan candidates"}
+              variant={data?.stalled ? "gold" : "ghost"}
               disabled={busy || data?.job_running}
               onClick={prepare}
             />
@@ -238,6 +239,13 @@ function DiscogsBackfill() {
               <div style={{ marginTop: 8, height: 6, background: C.subtle, borderRadius: 3, overflow: "hidden" }}>
                 <div style={{ width: `${progressPct}%`, height: "100%", background: C.gold }} />
               </div>
+            </Alert>
+          )}
+
+          {data?.stalled && (
+            <Alert type="warning">
+              Fetch interrupted — {counts.fetch_pending} of {total} releases not yet fetched (no worker running,
+              likely a backend restart). Click <strong>Resume fetch</strong> to continue.
             </Alert>
           )}
 
