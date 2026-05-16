@@ -214,6 +214,29 @@ export interface CommunityListDetail {
   items: CommunityListItem[]
 }
 
+export interface SearchListResult {
+  id: string
+  title: string
+  slug: string | null
+  description: string | null
+  cover_image_url: string | null
+  item_count: number
+  author_name: string
+}
+
+export interface CommunitySearchResults {
+  query: string
+  posts: CommunityPost[]
+  members: {
+    handle: string
+    display_name: string
+    avatar_url: string | null
+    tier: CommunityTier
+    location: string | null
+  }[]
+  lists: SearchListResult[]
+}
+
 /** Public curated lists. */
 export async function fetchLists(params: {
   author?: string
