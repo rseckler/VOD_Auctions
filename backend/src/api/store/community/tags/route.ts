@@ -1,7 +1,11 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
-import { requireCommunityEnabled } from "../../../../lib/community"
+import {
+  requireCommunityEnabled,
+  communityDemoEnabled,
+  DEMO_AUTHOR_LIKE,
+} from "../../../../lib/community"
 
 // GET /store/community/tags — trending tags (public)
 //
@@ -15,7 +19,7 @@ export async function GET(
 
   const limit = Math.min(Number(req.query.limit) || 24, 50)
 
-  const rows = await pg
+  const tagQuery = pg
     .select(pg.raw("lower(tag) as tag"), pg.raw("count(*)::int as count"))
     .from(
       pg.raw(
@@ -23,6 +27,11 @@ export async function GET(
       ) as unknown as string
     )
     .where("p.status", "published")
+  // Exclude demo posts from trending tags unless COMMUNITY_DEMO is on.
+  if (!(await communityDemoEnabled(pg))) {
+    tagQuery.whereRaw("p.author_id NOT LIKE ?", [DEMO_AUTHOR_LIKE])
+  }
+  const rows = await tagQuery
     .groupByRaw("lower(tag)")
     .orderByRaw("count(*) desc, lower(tag) asc")
     .limit(limit)

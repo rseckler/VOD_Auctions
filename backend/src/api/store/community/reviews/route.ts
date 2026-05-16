@@ -3,6 +3,8 @@ import { ContainerRegistrationKeys, generateEntityId } from "@medusajs/framework
 import { Knex } from "knex"
 import {
   requireCommunityEnabled,
+  communityDemoEnabled,
+  DEMO_AUTHOR_LIKE,
   getOrCreateProfile,
   sanitizeBodyHtml,
   serializeProfile,
@@ -22,10 +24,15 @@ export async function GET(
     return
   }
 
-  const rows = await pg("community_review as r")
+  const reviewsQuery = pg("community_review as r")
     .join("community_profile as a", "a.id", "r.author_id")
     .where("r.release_id", releaseId)
     .where("r.status", "published")
+  // Hide demo-authored reviews unless COMMUNITY_DEMO is on.
+  if (!(await communityDemoEnabled(pg))) {
+    reviewsQuery.whereRaw("r.author_id NOT LIKE ?", [DEMO_AUTHOR_LIKE])
+  }
+  const rows = await reviewsQuery
     .orderBy("r.created_at", "desc")
     .select(
       "r.id", "r.rating", "r.body_html", "r.is_verified_acquired",

@@ -34,6 +34,28 @@ export async function requireCommunityEnabled(
   return true
 }
 
+// ─── Demo data gate ─────────────────────────────────────────────────────────
+// The flag-gated demo dataset (scripts/community_seed.py) lives in the same
+// tables as real content. Every demo row is authored by a demo profile whose
+// id carries the DEMO_ID_PREFIX. When COMMUNITY_DEMO is OFF, read routes hide
+// any content authored by a demo profile. See docs/Community/COMMUNITY_REBUILD_PLAN.md R0.
+export const DEMO_ID_PREFIX = "cmpro_demo_"
+export const DEMO_AUTHOR_LIKE = `${DEMO_ID_PREFIX}%`
+
+/** True when the COMMUNITY_DEMO flag is on — demo rows should then be visible. */
+export async function communityDemoEnabled(pg: Knex): Promise<boolean> {
+  try {
+    return await getFeatureFlag(pg, "COMMUNITY_DEMO")
+  } catch {
+    return false
+  }
+}
+
+/** True when the given id belongs to the demo dataset. */
+export function isDemoId(id: string | null | undefined): boolean {
+  return typeof id === "string" && id.startsWith(DEMO_ID_PREFIX)
+}
+
 // ─── HTML sanitisation ──────────────────────────────────────────────────────
 // Posts/comments arrive as Tiptap-rendered body_html from the composer. We
 // store a sanitised copy. The allowlist matches the planned Tiptap extension

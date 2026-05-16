@@ -3,6 +3,8 @@ import { ContainerRegistrationKeys, generateEntityId } from "@medusajs/framework
 import { Knex } from "knex"
 import {
   requireCommunityEnabled,
+  communityDemoEnabled,
+  DEMO_AUTHOR_LIKE,
   getOrCreateProfile,
   getProfileByCustomerId,
   sanitizeBodyHtml,
@@ -38,6 +40,10 @@ export async function GET(
   let base = pg("community_post as p")
     .join("community_profile as a", "a.id", "p.author_id")
     .where("p.status", "published")
+  // Hide the demo dataset unless COMMUNITY_DEMO is on.
+  if (!(await communityDemoEnabled(pg))) {
+    base = base.whereRaw("p.author_id NOT LIKE ?", [DEMO_AUTHOR_LIKE])
+  }
   if (releaseId) base = base.where("p.release_id", releaseId)
   if (kind === "discussion" || kind === "editorial") base = base.where("p.kind", kind)
   if (authorHandle) base = base.where("a.handle", authorHandle)

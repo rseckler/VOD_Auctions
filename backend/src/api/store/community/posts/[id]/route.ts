@@ -3,6 +3,8 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import {
   requireCommunityEnabled,
+  communityDemoEnabled,
+  isDemoId,
   getProfileByCustomerId,
   sanitizeBodyHtml,
   excerptFromHtml,
@@ -29,6 +31,11 @@ export async function GET(
 
   const post = await findPost(pg, req.params.id)
   if (!post || post.status === "removed") {
+    res.status(404).json({ message: "Post not found" })
+    return
+  }
+  // Demo posts answer 404 unless COMMUNITY_DEMO is on.
+  if (isDemoId(post.author_id) && !(await communityDemoEnabled(pg))) {
     res.status(404).json({ message: "Post not found" })
     return
   }

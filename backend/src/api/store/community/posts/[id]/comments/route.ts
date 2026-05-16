@@ -3,6 +3,8 @@ import { ContainerRegistrationKeys, generateEntityId } from "@medusajs/framework
 import { Knex } from "knex"
 import {
   requireCommunityEnabled,
+  communityDemoEnabled,
+  DEMO_AUTHOR_LIKE,
   getOrCreateProfile,
   sanitizeBodyHtml,
   recomputeCommentCount,
@@ -32,10 +34,15 @@ export async function GET(
     return
   }
 
-  const rows = await pg("community_comment as c")
+  const commentsQuery = pg("community_comment as c")
     .join("community_profile as a", "a.id", "c.author_id")
     .where("c.post_id", post.id)
     .where("c.status", "published")
+  // Hide demo-authored comments unless COMMUNITY_DEMO is on.
+  if (!(await communityDemoEnabled(pg))) {
+    commentsQuery.whereRaw("c.author_id NOT LIKE ?", [DEMO_AUTHOR_LIKE])
+  }
+  const rows = await commentsQuery
     .orderBy("c.created_at", "asc")
     .select(
       "c.id", "c.parent_id", "c.body_html", "c.reaction_count", "c.created_at",

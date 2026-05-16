@@ -158,6 +158,13 @@ export const FEATURES = {
     category: "platform",
     requires: [],
   },
+  COMMUNITY_DEMO: {
+    key: "COMMUNITY_DEMO",
+    default: false,
+    description: "Zeigt den flag-gegateten Demo-Datensatz der Community (Seed aus scripts/community_seed.py). Bei OFF filtern die Community-Read-Routen alle Demo-Zeilen (Autor-ID-Präfix 'cmpro_demo_') heraus. Demo-Inhalte dienen Rebuild + QA; vor dem Public-Launch via 'community_seed.py --purge' entfernen. Siehe docs/Community/COMMUNITY_REBUILD_PLAN.md R0.",
+    category: "platform",
+    requires: ["COMMUNITY"],
+  },
 } as const satisfies Record<string, FeatureFlagDefinition>
 
 export type FeatureFlagKey = keyof typeof FEATURES

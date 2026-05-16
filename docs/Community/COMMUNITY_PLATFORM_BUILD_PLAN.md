@@ -1,6 +1,8 @@
 # VOD Community — Platform Build Plan
 
-**Status:** Draft 2026-05-15
+> ⚠️ **ÜBERHOLT (2026-05-16).** Die Einschätzung „Increment 1–4 = vollständig umgesetzt" war falsch — geliefert wurde ein solides Backend, aber nur eine Skizzen-Storefront (kein Mockup-konformes Produkt). Verbindlich ist jetzt [`COMMUNITY_REBUILD_PLAN.md`](./COMMUNITY_REBUILD_PLAN.md). Dieses Dokument bleibt als Increment-1–4-Historie bestehen.
+
+**Status:** Überholt — siehe COMMUNITY_REBUILD_PLAN.md · Draft 2026-05-15
 **Owner:** Robin Seckler
 **Bezug:** [`Community Concept.md`](./Community%20Concept.md) (insb. §4 Must-Haves, §17 Build-Strategie) · [`Community Design Brief.md`](./Community%20Design%20Brief.md)
 **Design-Referenz (verbindlich):** [`VOD Community Mockups.html`](./VOD%20Community%20Mockups.html) bzw. die Quell-Komponenten in [`community/`](./community/) (`community.css`, `components.jsx`, `screens.jsx`). Vinyl-Culture-Tonalität, 4 Key-Screens. Increment 1 hat CSS + Komponenten-Sprache daraus portiert; jeder weitere Increment baut visuell darauf auf.

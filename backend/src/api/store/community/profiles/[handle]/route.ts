@@ -3,6 +3,8 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { Knex } from "knex"
 import {
   requireCommunityEnabled,
+  communityDemoEnabled,
+  isDemoId,
   serializeProfile,
   fetchReleaseCards,
   getProfileByCustomerId,
@@ -19,6 +21,11 @@ export async function GET(
   const handle = String(req.params.handle || "").toLowerCase()
   const profile = await pg("community_profile").where({ handle }).first()
   if (!profile) {
+    res.status(404).json({ message: "Member not found" })
+    return
+  }
+  // Demo profiles answer 404 unless COMMUNITY_DEMO is on.
+  if (isDemoId(profile.id) && !(await communityDemoEnabled(pg))) {
     res.status(404).json({ message: "Member not found" })
     return
   }
