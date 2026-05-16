@@ -28,12 +28,23 @@ export async function GET(
       "rep.handle as reporter_handle"
     )
 
-  // Attach a short excerpt of the reported content.
+  // Attach a short excerpt of the reported content + the post slug so the
+  // moderator can open it.
   for (const r of rows as any[]) {
-    const table = r.target_kind === "post" ? "community_post" : "community_comment"
-    const content = await pg(table)
-      .where({ id: r.target_id })
-      .first("body_html", "status")
+    let content: any = null
+    let postSlug: string | null = null
+    if (r.target_kind === "post") {
+      content = await pg("community_post")
+        .where({ id: r.target_id })
+        .first("body_html", "status", "slug")
+      postSlug = content?.slug || null
+    } else {
+      content = await pg("community_comment as c")
+        .leftJoin("community_post as p", "p.id", "c.post_id")
+        .where("c.id", r.target_id)
+        .first("c.body_html as body_html", "c.status as status", "p.slug as slug")
+      postSlug = content?.slug || null
+    }
     r.target_excerpt = content
       ? String(content.body_html || "")
           .replace(/<[^>]+>/g, " ")
@@ -42,6 +53,7 @@ export async function GET(
           .slice(0, 160)
       : "(deleted)"
     r.target_status = content?.status || "removed"
+    r.target_slug = postSlug
   }
 
   res.json({ reports: rows })

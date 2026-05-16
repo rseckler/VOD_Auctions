@@ -80,6 +80,26 @@ function DashboardTab() {
           },
         ]}
       />
+      {data.trust_distribution && (
+        <Panel title="Trust levels">
+          <div style={{ display: "flex", gap: 20, paddingTop: 2 }}>
+            {[
+              { k: "0", label: "TL0 Newcomer" },
+              { k: "1", label: "TL1 Member" },
+              { k: "2", label: "TL2 Trusted" },
+              { k: "3", label: "TL3 Veteran" },
+            ].map((t) => (
+              <div key={t.k}>
+                <div style={{ fontSize: 20, fontWeight: 700, color: C.text }}>
+                  {data.trust_distribution[t.k] ?? 0}
+                </div>
+                <div style={{ fontSize: 11, color: C.muted }}>{t.label}</div>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      )}
+      <div style={{ height: 16 }} />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
         <Panel title="Recent posts">
           {data.recent_posts.length === 0 ? (
@@ -121,9 +141,11 @@ function PostsTab({ onToast }: { onToast: (m: string) => void }) {
   const [posts, setPosts] = useState<any[]>([])
   const [status, setStatus] = useState("")
   const [loading, setLoading] = useState(true)
+  const [sel, setSel] = useState<Set<string>>(new Set())
 
   const load = useCallback(() => {
     setLoading(true)
+    setSel(new Set())
     api(`/posts?limit=100${status ? `&status=${status}` : ""}`)
       .then((d) => setPosts(d.posts || []))
       .catch(() => setPosts([]))
@@ -138,15 +160,44 @@ function PostsTab({ onToast }: { onToast: (m: string) => void }) {
     load()
   }
 
+  async function bulk(body: Record<string, unknown>, msg: string) {
+    const ids = [...sel]
+    await Promise.all(
+      ids.map((id) =>
+        api(`/posts/${id}`, { method: "PATCH", body: JSON.stringify(body) })
+      )
+    )
+    onToast(`${msg} (${ids.length})`)
+    load()
+  }
+
+  function toggle(id: string) {
+    setSel((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   return (
     <div>
-      <div style={{ marginBottom: 14 }}>
+      <div style={{ marginBottom: 14, display: "flex", alignItems: "center", gap: 12 }}>
         <select style={selectStyle} value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="">All statuses</option>
           <option value="published">Published</option>
           <option value="hidden">Hidden</option>
           <option value="removed">Removed</option>
         </select>
+        {sel.size > 0 && (
+          <>
+            <span style={{ fontSize: 12, color: C.muted }}>{sel.size} selected</span>
+            <Btn label="Hide selected" variant="ghost"
+              onClick={() => bulk({ status: "hidden" }, "Posts hidden")} />
+            <Btn label="Remove selected" variant="danger"
+              onClick={() => bulk({ status: "removed" }, "Posts removed")} />
+          </>
+        )}
       </div>
       {loading ? (
         <Muted>Loading…</Muted>
@@ -155,6 +206,11 @@ function PostsTab({ onToast }: { onToast: (m: string) => void }) {
       ) : (
         posts.map((p) => (
           <Row key={p.id}>
+            <input
+              type="checkbox"
+              checked={sel.has(p.id)}
+              onChange={() => toggle(p.id)}
+            />
             <span style={{ flex: 1, color: C.text }}>
               {p.title || "(untitled)"}{" "}
               <span style={{ color: C.muted, fontSize: 11 }}>
@@ -306,6 +362,16 @@ function ReportsTab({ onToast }: { onToast: (m: string) => void }) {
                 {r.target_excerpt}
               </div>
             </span>
+            {r.target_slug && (
+              <a
+                href={`https://vod-auctions.com/community/post/${r.target_slug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: 12, color: C.gold, textDecoration: "none" }}
+              >
+                View ↗
+              </a>
+            )}
             {r.status === "open" ? (
               <>
                 <Btn label="Reviewed" variant="ghost" onClick={() => resolve(r.id, "reviewed")} />

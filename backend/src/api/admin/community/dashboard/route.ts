@@ -33,6 +33,17 @@ export async function GET(
     .limit(8)
     .select("id", "handle", "display_name", "tier", "is_curator", "created_at")
 
+  // Trust-level distribution (TL0–TL3) — set by the daily promotion job.
+  const trustRows = await pg("community_profile")
+    .where("is_banned", false)
+    .groupBy("trust_level")
+    .select("trust_level")
+    .count("id as c")
+  const trust_distribution: Record<string, number> = { "0": 0, "1": 0, "2": 0, "3": 0 }
+  for (const t of trustRows as any[]) {
+    trust_distribution[String(t.trust_level ?? 0)] = Number(t.c)
+  }
+
   res.json({
     counts: {
       posts: Number(posts[0]?.c || 0),
@@ -41,6 +52,7 @@ export async function GET(
       reviews: Number(reviews[0]?.c || 0),
       hidden_posts: Number(flagged[0]?.c || 0),
     },
+    trust_distribution,
     recent_posts: recentPosts,
     recent_members: recentMembers,
   })
