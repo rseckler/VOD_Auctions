@@ -1,8 +1,11 @@
 -- Discogs-Metadaten-Backfill Review-Tool — Staging-Tabelle.
 -- Angewendet 2026-05-16 via Supabase MCP apply_migration (rc70.0).
 --
--- Transiente Operations-Tabelle: bewusst NICHT in vod_auctions_pub aufgenommen
--- (Daten aus Discogs jederzeit rekonstruierbar, kein DR-Bedarf). Idempotent.
+-- WICHTIG (rc71.1): vod_auctions_pub ist schema-weit (FOR TABLES IN SCHEMA
+-- public) — diese Tabelle wird automatisch publiziert. Dieselbe DDL MUSS daher
+-- auch auf der pg17-replica (DB vod_auctions_replica) laufen, sonst crash-loopt
+-- der Apply-Worker. Auf der Replica angewendet 2026-05-16 + REFRESH PUBLICATION
+-- WITH (copy_data=false). Idempotent.
 --
 -- Konzept: docs/optimizing/DISCOGS_BACKFILL_TOOL_KONZEPT.md
 

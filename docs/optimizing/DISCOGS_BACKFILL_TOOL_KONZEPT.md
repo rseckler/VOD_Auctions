@@ -25,10 +25,19 @@ gezogen und gespeichert, die Tabelle zeigt die konkreten neuen Werte.
 
 ## Architektur
 
-### Staging-Tabelle `discogs_backfill_candidate` (main-DB, nicht repliziert)
+### Staging-Tabelle `discogs_backfill_candidate`
 
-Transiente Operations-Tabelle — bewusst **nicht** in `vod_auctions_pub` (Daten sind
-aus Discogs jederzeit rekonstruierbar, kein DR-Bedarf).
+Transiente Operations-Tabelle (Daten aus Discogs jederzeit rekonstruierbar).
+
+> **Korrektur (rc71.1, 2026-05-16):** Die ursprüngliche Annahme „bewusst nicht in
+> `vod_auctions_pub`" war falsch. `vod_auctions_pub` ist eine **schema-weite**
+> Publication (`FOR TABLES IN SCHEMA public`) — die Tabelle wurde automatisch
+> publiziert. Da sie beim Anlegen nicht zugleich auf der `pg17-replica` erstellt
+> wurde, ist der Apply-Worker von `vod_auctions_sub` beim ersten Write
+> crash-geloopt und die Replikation stand ~7 min. Fix: Tabelle auf der Replica
+> nachgezogen + `REFRESH PUBLICATION WITH (copy_data=false)`. Die Tabelle **wird**
+> jetzt repliziert (harmlos, klein). Lehre in CLAUDE.md DB-Gotcha „Logical
+> Replication" verankert.
 
 | Spalte | Typ | Zweck |
 |---|---|---|
