@@ -121,7 +121,9 @@ Increment-Fortschritt wird über die Session-Task-Liste geführt; nach jedem Inc
 | Increment | Status |
 |---|---|
 | 1 — Foundation | ✅ rc55.0 |
-| 2 — Medien + Admin | ⏳ als Nächstes |
-| 3 — Sozialer Loop | offen |
-| 4 — Kuration + Safety | offen |
+| 2 — Medien + Admin | ✅ rc56.0 |
+| 3 — Sozialer Loop | ✅ rc57.0 |
+| 4 — Kuration + Safety | ✅ rc57.0 |
 | Schritt 2 — FB-Migration | geparkt (separate Überarbeitung) |
+
+**Increments 1–4 vollständig umgesetzt + deployed (Stand 2026-05-16).** Offen: Schritt 2 (FB-Migration) — separate Überarbeitung.
