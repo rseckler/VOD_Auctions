@@ -24,6 +24,9 @@ export async function GET(
     return
   }
 
+  // Sort: recent (default) · top (highest-rated) · verified (owners first).
+  const sort = (req.query.sort as string) || "recent"
+
   const reviewsQuery = pg("community_review as r")
     .join("community_profile as a", "a.id", "r.author_id")
     .where("r.release_id", releaseId)
@@ -32,8 +35,14 @@ export async function GET(
   if (!(await communityDemoEnabled(pg))) {
     reviewsQuery.whereRaw("r.author_id NOT LIKE ?", [DEMO_AUTHOR_LIKE])
   }
+  if (sort === "top") {
+    reviewsQuery.orderByRaw("r.rating DESC NULLS LAST, r.created_at DESC")
+  } else if (sort === "verified") {
+    reviewsQuery.orderByRaw("r.is_verified_acquired DESC, r.created_at DESC")
+  } else {
+    reviewsQuery.orderBy("r.created_at", "desc")
+  }
   const rows = await reviewsQuery
-    .orderBy("r.created_at", "desc")
     .select(
       "r.id", "r.rating", "r.body_html", "r.is_verified_acquired",
       "r.reaction_count", "r.created_at",
@@ -48,7 +57,15 @@ export async function GET(
       ? rated.reduce((s: number, r: any) => s + Number(r.rating), 0) / rated.length
       : null
 
+  // Rating distribution 1–5 for the histogram (RYM-style).
+  const histogram: Record<string, number> = { "1": 0, "2": 0, "3": 0, "4": 0, "5": 0 }
+  for (const r of rated) {
+    const k = String(Number(r.rating))
+    if (k in histogram) histogram[k] += 1
+  }
+
   res.json({
+    histogram,
     reviews: rows.map((r: any) => ({
       id: r.id,
       rating: r.rating,

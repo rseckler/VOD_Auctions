@@ -86,6 +86,7 @@ export interface ReviewsResponse {
   average_rating: number | null
   rating_count: number
   review_count: number
+  histogram?: Record<string, number>
 }
 
 export interface CommunityNotification {
@@ -208,10 +209,13 @@ export async function fetchComments(
   return data?.comments ?? []
 }
 
-/** Reviews for a release, with the aggregate average + counts. */
-export async function fetchReviews(releaseId: string): Promise<ReviewsResponse> {
+/** Reviews for a release, with the aggregate average, histogram + counts. */
+export async function fetchReviews(
+  releaseId: string,
+  sort: "recent" | "top" | "verified" = "recent"
+): Promise<ReviewsResponse> {
   const data = await medusaFetch<ReviewsResponse>(
-    `/store/community/reviews?release_id=${encodeURIComponent(releaseId)}`,
+    `/store/community/reviews?release_id=${encodeURIComponent(releaseId)}&sort=${sort}`,
     { revalidate: 20 }
   )
   return (
@@ -220,6 +224,7 @@ export async function fetchReviews(releaseId: string): Promise<ReviewsResponse> 
       average_rating: null,
       rating_count: 0,
       review_count: 0,
+      histogram: { "1": 0, "2": 0, "3": 0, "4": 0, "5": 0 },
     }
   )
 }
