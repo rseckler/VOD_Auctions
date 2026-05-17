@@ -80,6 +80,7 @@ cd /root/VOD_Auctions/storefront && npm run build && pm2 restart vodauction-stor
 - **Search auf Release/Artist/Label (rc39):** IMMER `buildReleaseSearchSubquery()` aus `backend/src/lib/release-search.ts` — nutzt GIN-FTS auf `Release.search_text` (~20-30ms auf 52k Rows). Niemals Multi-Column-OR-ILIKE schreiben → Seq Scan 6s+. Referenz: `/admin/erp/inventory/search`, `/admin/media`, `/store/catalog`, `/store/catalog/suggest`
 - Transaction-Queries: LEFT JOIN (nicht INNER) — Direktkäufe haben kein `block_item_id`. `COALESCE(block_item.release_id, transaction.release_id)`
 - Release.current_block_id (uuid) ↔ auction_block.id (text) brauchen Type-Cast beim JOIN
+- **Storefront-Listings blenden bildlose Releases aus (2026-05-17):** Jede öffentliche Browse-/Discovery-Route filtert `coverImage IS NOT NULL` (`/store/catalog` Meili-Filter `has_cover:true` + Postgres-Fallback, `/store/catalog/{suggest,facets}`, `/store/catalog/[id]` 404, `/store/{band,label,press}/[slug]`). Grund: bildlose Artikel sind nicht im physischen Bestand (Frank's Logik). NEUE öffentliche Listing-Routes MÜSSEN den Filter mitziehen. NICHT gefiltert: Account-Seiten (eigene Käufe), Auction-Blocks (Admin-kuratiert), Community (nutzer-kuratiert). Doku: [`IMAGE_STOCK_DATA_ANALYSIS_2026-05-17.md`](docs/optimizing/IMAGE_STOCK_DATA_ANALYSIS_2026-05-17.md) §8
 
 **Runtime:**
 - Timeouts = Idle-Detection, nicht Job-Dauer. Für lang laufende Ops SSE-Heartbeat alle 5s (`SSEStream.startHeartbeat(5000)`), nicht `proxy_read_timeout` hochdrehen

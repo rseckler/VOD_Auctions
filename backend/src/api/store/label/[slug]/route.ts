@@ -53,6 +53,9 @@ export async function GET(
     .leftJoin("Format", "Release.format_id", "Format.id")
     .where("Release.labelId", label.id)
     .andWhere("Release.product_category", "release")
+    // Bildlose Artikel ausblenden (2026-05-17) — nicht im physischen Bestand,
+    // siehe docs/optimizing/IMAGE_STOCK_DATA_ANALYSIS_2026-05-17.md
+    .whereNotNull("Release.coverImage")
     .orderBy("Release.year", "desc")
     .limit(100)
   const releases = await enrichWithShopPrice(pgConnection, releasesRaw)
@@ -80,6 +83,7 @@ export async function GET(
     .leftJoin("Format", "Release.format_id", "Format.id")
     .where("Release.labelId", label.id)
     .andWhere("Release.product_category", "label_literature")
+    .whereNotNull("Release.coverImage")
     .orderBy("Release.year", "desc")
     .limit(100)
   const literature = await enrichWithShopPrice(pgConnection, literatureRaw)
@@ -107,9 +111,11 @@ export async function GET(
     .leftJoin("LabelPerson", "LabelPersonLink.personId", "LabelPerson.id")
     .where("LabelPersonLink.labelId", label.id)
 
-  // Total release count
+  // Total release count — nur sichtbare (bebilderte) Artikel, damit die
+  // Kopfzahl zu den angezeigten Listen passt (2026-05-17).
   const [{ count: release_count }] = await pgConnection("Release")
     .where("labelId", label.id)
+    .whereNotNull("coverImage")
     .count("id as count")
 
   res.json({

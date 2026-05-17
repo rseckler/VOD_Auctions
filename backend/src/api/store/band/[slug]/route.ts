@@ -53,6 +53,9 @@ export async function GET(
     .leftJoin("Format", "Release.format_id", "Format.id")
     .where("Release.artistId", artist.id)
     .andWhere("Release.product_category", "release")
+    // Bildlose Artikel ausblenden (2026-05-17) — nicht im physischen Bestand,
+    // siehe docs/optimizing/IMAGE_STOCK_DATA_ANALYSIS_2026-05-17.md
+    .whereNotNull("Release.coverImage")
     .orderBy("Release.year", "desc")
     .limit(100)
   const releases = await enrichWithShopPrice(pgConnection, releasesRaw)
@@ -80,6 +83,7 @@ export async function GET(
     .leftJoin("Format", "Release.format_id", "Format.id")
     .where("Release.artistId", artist.id)
     .andWhere("Release.product_category", "band_literature")
+    .whereNotNull("Release.coverImage")
     .orderBy("Release.year", "desc")
     .limit(100)
   const literature = await enrichWithShopPrice(pgConnection, literatureRaw)
@@ -98,9 +102,11 @@ export async function GET(
     .groupBy("Label.id", "Label.name", "Label.slug")
     .orderByRaw("count(\"Release\".\"id\") DESC")
 
-  // Total release count
+  // Total release count — nur sichtbare (bebilderte) Artikel, damit die
+  // Kopfzahl zu den angezeigten Listen passt (2026-05-17).
   const [{ count: release_count }] = await pgConnection("Release")
     .where("artistId", artist.id)
+    .whereNotNull("coverImage")
     .count("id as count")
 
   // Members (from musician database)

@@ -78,6 +78,13 @@ export async function GET(
         artist_slug: q.artist_slug,
         genres: q.genre ? [q.genre] : undefined,
         for_sale: effectiveForSale,
+        // Bildlose Artikel ausblenden (2026-05-17): Artikel ohne coverImage
+        // sind laut Frank's Bestands-Logik nicht im physischen Warenbestand,
+        // sondern reine Referenz-/Schattenkatalog-Einträge. Sie sollen im
+        // Storefront nicht erscheinen. Der Postgres-Fallback filtert das
+        // bereits via whereNotNull("Release.coverImage"). Siehe
+        // docs/optimizing/IMAGE_STOCK_DATA_ANALYSIS_2026-05-17.md.
+        has_cover: true,
       },
       sort: mapLegacySort(q.sort, q.order),
       page,
