@@ -3,6 +3,12 @@
 **Status:** ✅ Live (rc71.6, 2026-05-17) — deployed + verifiziert: Suche
 „david jackman" findet Flowmotion (Meili + `search_text`), Storefront-Tracklist
 liefert klickbare `artist_slug`. Un-Bake: 6.071 Tracks / 420 Compilations.
+**Follow-up rc72.1:** Compilation-Tracklist-Rebuild — die ~2.200 Alt-Compilations
+mit Müll-`title` (Künstler+Titel+Dauer zusammengeklatscht) komplett aus Discogs
+neu aufgebaut: **2.203 Releases / 38.266 Tracks (37.305 mit Künstler)**, 0 Fehler
+(`rebuild_compilation_tracklists.py`). Plus 3 Codex-Review-Findings gefixt:
+Track-Trigger `TG_OP`-Branch, Trigger setzt `search_indexed_at=NULL` mit,
+`discogs-import/fetch` cached jetzt `type_` + per-track `artists`.
 **Auslöser:** rc71.5 hat den Per-Track-Künstler bei Compilations als String in
 `Track.title` gebacken (`"Algebra Suicide – Somewhat Bleecker Street"`). Folge:
 der Künstler ist **nicht suchbar** (Suche „David Jackman" findet den Sampler

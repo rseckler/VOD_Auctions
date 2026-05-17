@@ -133,6 +133,22 @@ Track-Titel in 420 Compilations auseinandergezogen. **Meili Full-Rebuild**
 Rebuild im Post-Swap-Schritt). Verifiziert: „david jackman" findet Flowmotion.
 Commits `d2df839` + `f522550`.
 
+## rc72.1 — Compilation-Tracklist-Rebuild + Codex-Review-Fixes (2026-05-17)
+
+**Rebuild:** Robins Frage „die ~3.000 Compilations ohne Per-Track-Künstler — jetzt
+machen". Erster Versuch additiv (`enrich_compilation_track_artists.py`) — beim
+Sample-Commit zeigte sich: die Legacy-`Track.title` sind zusammengeklatschter Müll
+(„Stig Sæterbakken - Overture - 3:40"), additiv lässt den kaputten Titel stehen.
+Lehre: vor Bulk-Transforms die Roh-Werte ansehen, nicht nur Zähler. Korrigiert auf
+**REPLACE** aus Discogs (`rebuild_compilation_tracklists.py`) — Lifecycle-Trace
+vorab: kein Cron schreibt `Track`, Leaf-Tabelle, gefahrlos. **2.203 Releases /
+38.266 Tracks (37.305 mit Künstler), 0 Fehler**, ~1,5 h Laufzeit, DB-Last nominal.
+
+**Codex-Review** (`codex review --commit` rc71.5 + rc71.6) — 3 Findings, alle
+gefixt: P1 Track-Trigger `TG_OP`-Branch statt `COALESCE(NEW,OLD)`; P2 Trigger
+setzt `search_indexed_at=NULL` mit (Meili-Reindex-Garantie); P2
+`discogs-import/fetch` cached jetzt `type_` + per-track `artists`.
+
 ## Releases
 
 | Release | Commit | Inhalt |
@@ -143,3 +159,4 @@ Commits `d2df839` + `f522550`.
 | rc71.3 | `b42a444` | Codex-Review-Fixes (3 Findings) |
 | rc71.5 | `0b816ef` | Compilation-Künstler + Notes + Tracklist-Reihenfolge |
 | rc71.6 | `d2df839` | Per-Track-Künstler strukturiert (suchbar + klickbar) |
+| rc72.1 | `32effa6` | Compilation-Tracklist-Rebuild + 3 Codex-Review-Fixes |
