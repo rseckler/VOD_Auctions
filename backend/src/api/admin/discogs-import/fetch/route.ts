@@ -296,8 +296,15 @@ async function runFetchLoop(
         formats: ((data.formats || []) as Array<Record<string, unknown>>).map((f) => ({
           name: f.name || "", descriptions: f.descriptions || [], qty: f.qty || "1",
         })),
+        // rc71.7 (Codex-Review): type_ + per-track artists mitcachen — sonst
+        // verliert der Bulk-Import (commit → buildTracklist) den Compilation-
+        // Per-Track-Künstler. anv/join für die Künstler-Komposition.
         tracklist: ((data.tracklist || []) as Array<Record<string, unknown>>).map((t) => ({
           position: t.position || "", title: t.title || "", duration: t.duration || "",
+          type_: t.type_ || "",
+          artists: ((t.artists || []) as Array<Record<string, unknown>>).map((a) => ({
+            name: a.name || "", anv: a.anv || "", join: a.join || "",
+          })),
         })),
         genres: data.genres || [],
         styles: data.styles || [],

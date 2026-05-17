@@ -36,19 +36,32 @@ CREATE OR REPLACE FUNCTION track_update_release_search_text() RETURNS trigger AS
 DECLARE
   rid text;
 BEGIN
-  rid := COALESCE(NEW."releaseId", OLD."releaseId");
+  -- Codex-Review rc71.7 (P1): explizit per TG_OP — bei DELETE ist NEW NULL,
+  -- bei INSERT ist OLD NULL. Eindeutig statt COALESCE(NEW.., OLD..).
+  IF TG_OP = 'DELETE' THEN
+    rid := OLD."releaseId";
+  ELSE
+    rid := NEW."releaseId";
+  END IF;
   IF rid IS NULL THEN
     RETURN NULL;
   END IF;
-  UPDATE "Release" SET search_text = LOWER(CONCAT_WS(' ',
-    title,
-    "catalogNumber",
-    article_number,
-    (SELECT name FROM "Artist" WHERE id = "Release"."artistId"),
-    (SELECT name FROM "Label" WHERE id = "Release"."labelId"),
-    (SELECT string_agg(DISTINCT artist_name, ' ')
-       FROM "Track" WHERE "releaseId" = rid AND artist_name IS NOT NULL)
-  ))
+  -- Codex-Review rc71.7 (P2): search_indexed_at = NULL mitsetzen. Das Meili-Doc
+  -- hängt seit rc71.6 an Track.artist_name; ohne den Bump bliebe ein scripted /
+  -- roher Track-UPDATE in Meili unsichtbar (Delta-Sync sammelt nur
+  -- search_indexed_at IS NULL ein). So macht der Trigger den Release-Reindex
+  -- garantiert — kein Caller muss daran denken.
+  UPDATE "Release" SET
+    search_text = LOWER(CONCAT_WS(' ',
+      title,
+      "catalogNumber",
+      article_number,
+      (SELECT name FROM "Artist" WHERE id = "Release"."artistId"),
+      (SELECT name FROM "Label" WHERE id = "Release"."labelId"),
+      (SELECT string_agg(DISTINCT artist_name, ' ')
+         FROM "Track" WHERE "releaseId" = rid AND artist_name IS NOT NULL)
+    )),
+    search_indexed_at = NULL
   WHERE id = rid;
   RETURN NULL;
 END;
