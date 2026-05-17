@@ -356,8 +356,10 @@ Project: https://linear.app/rseckler/project/vod-auctions-37f35d4e90be
 | RSE-295 | Marketing-Strategie | backlog | RSE-294 |
 | RSE-289 | PWA + Push-Notifications | backlog | Later |
 | RSE-291 | Multi-Seller Marketplace | backlog | v2.0.0 |
+| RSE-321 | Tape-mag Multi-Artist `band_name`-Strings | backlog | — |
 | RSE-322 | Mail-Import Welle 2 (Mac Studio Tiefen-Scan + RAID) | backlog | Welle 1 Abschluss |
-| RSE-323 | Tier-2 Replica Re-Sync (vod_auctions_replica) | backlog | Robin-Zeit (~1-2h, ~1.6 GB Egress) |
+
+Erledigt (Done in Linear): RSE-323 (Tier-2 Replica Re-Sync, 2026-05-15), RSE-324 (Country-ISO Follow-up), RSE-320 (Discogs-Multi-Artist).
 
 → Vollständiger Changelog: [`docs/architecture/CHANGELOG.md`](docs/architecture/CHANGELOG.md)
 
