@@ -57,9 +57,9 @@ const IMAGE_FIELDS = new Set(["coverImage"])
 const GALLERY_FIELDS = new Set(["gallery_images"])
 const TRACKLIST_FIELDS = new Set(["tracklist"])
 
-type TrackEntry = { position?: string; title?: string; duration?: string }
+type TrackEntry = { position?: string; title?: string; duration?: string; artist_name?: string | null }
 
-/** Fix 2 (2026-05-16): Tracklist-Diff-Zelle — Anzahl + die ersten Titel. */
+/** Tracklist-Diff-Zelle — Anzahl + die ersten Titel (rc71.6: inkl. Per-Track-Künstler). */
 function TracklistCell({ tracks }: { tracks: unknown }) {
   const list: TrackEntry[] = Array.isArray(tracks)
     ? (tracks.filter((t) => t && typeof t === "object") as TrackEntry[])
@@ -74,7 +74,8 @@ function TracklistCell({ tracks }: { tracks: unknown }) {
       </span>
       {list.slice(0, 6).map((t, i) => (
         <span key={i} style={{ ...T.small, color: C.text, wordBreak: "break-word" }}>
-          {(t.position || "").trim() ? `${t.position} · ` : ""}{t.title || "—"}
+          {(t.position || "").trim() ? `${t.position} · ` : ""}
+          {(t.artist_name || "").trim() ? `${t.artist_name} – ` : ""}{t.title || "—"}
           {(t.duration || "").trim() ? ` (${t.duration})` : ""}
         </span>
       ))}

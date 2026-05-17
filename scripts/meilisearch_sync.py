@@ -238,7 +238,8 @@ _MAIN_SELECT = """
         wl.id                  AS warehouse_id_first,
         wl.name                AS warehouse_name_first,
         imp_agg.collections    AS import_collections_arr,
-        imp_agg.actions        AS import_actions_arr
+        imp_agg.actions        AS import_actions_arr,
+        trk_agg.track_artists  AS track_artists
     FROM "Release" r
     LEFT JOIN "Artist"    a  ON a.id = r."artistId"
     LEFT JOIN "Label"     l  ON l.id = r."labelId"
@@ -248,6 +249,7 @@ _MAIN_SELECT = """
       ON ec.entity_id = r."artistId" AND ec.entity_type = 'artist'
     LEFT JOIN inv_agg ON inv_agg.release_id = r.id
     LEFT JOIN imp_agg ON imp_agg.release_id = r.id
+    LEFT JOIN trk_agg ON trk_agg.release_id = r.id
     LEFT JOIN warehouse_location wl ON wl.id = inv_agg.warehouse_id_first
 """
 
@@ -276,6 +278,12 @@ _CTE_PRELUDE_FULL = """
         FROM import_log
         WHERE import_type = 'discogs_collection'
         GROUP BY release_id
+    ),
+    trk_agg AS (
+        SELECT "releaseId" AS release_id,
+               array_agg(DISTINCT artist_name) FILTER (WHERE artist_name IS NOT NULL) AS track_artists
+        FROM "Track"
+        GROUP BY "releaseId"
     )
 """
 
@@ -302,6 +310,13 @@ _CTE_PRELUDE_BY_IDS = """
         FROM import_log
         WHERE release_id = ANY(%(ids)s) AND import_type = 'discogs_collection'
         GROUP BY release_id
+    ),
+    trk_agg AS (
+        SELECT "releaseId" AS release_id,
+               array_agg(DISTINCT artist_name) FILTER (WHERE artist_name IS NOT NULL) AS track_artists
+        FROM "Track"
+        WHERE "releaseId" = ANY(%(ids)s)
+        GROUP BY "releaseId"
     )
 """
 
@@ -482,6 +497,10 @@ def transform_to_doc(row):
     warehouse_name = row.get("warehouse_name_first")
     import_collections = list(row.get("import_collections_arr") or [])
     import_actions = list(row.get("import_actions_arr") or [])
+    # rc71.6: Per-Track-Künstler (Compilations) — macht Sampler über die
+    # Track-Künstler suchbar ("David Jackman" findet die Compilation, auf der
+    # er einen Track hat).
+    track_artists = list(row.get("track_artists") or [])
 
     return {
         "id": row["id"],  # keep dashes — Meili 1.x accepts [a-zA-Z0-9_-]
@@ -490,6 +509,7 @@ def transform_to_doc(row):
         "slug": row.get("slug"),
         "artist_name": row["artist_name"],
         "artist_slug": row["artist_slug"],
+        "track_artists": track_artists,
         "label_name": row["label_name"],
         "label_slug": row["label_slug"],
         "press_orga_name": row["press_orga_name"],

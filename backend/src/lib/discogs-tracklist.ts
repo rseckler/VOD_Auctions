@@ -7,16 +7,16 @@
  *   - `lib/discogs-backfill.ts`               (Backfill-Tool)
  *   - `api/admin/discogs-import/commit`       (Bulk-Import)
  *
- * **Per-Track-Künstler (rc71.4):** Bei Compilations liefert Discogs pro Track ein
- * eigenes `artists[]`-Array. Unsere `Track`-Tabelle hat KEINE Artist-Spalte — die
- * Legacy-tape-mag-Daten haben den Künstler als `"Artist – Titel"` ins `title`-Feld
- * gebacken, und die Storefront rendert `Track.title` direkt. `buildTracklist`
- * komponiert den Künstler daher in den Titel — aber NUR wenn der Track eigene
- * `artists` hat (Single-Artist-Alben bleiben bare, der Release-Künstler gilt).
+ * **Per-Track-Künstler (rc71.6):** Bei Compilations liefert Discogs pro Track ein
+ * eigenes `artists[]`-Array. `buildTracklist` gibt den Künstler **strukturiert**
+ * als `artist_name` zurück (`title` bleibt der reine Songtitel) — geschrieben in
+ * die `Track.artist_name`-Spalte. Damit ist der Künstler suchbar (Meili-Index)
+ * und klickbar (Storefront-Link, slug read-time aufgelöst).
  *
- * Vorher (rc69.0–rc71.3) zog `buildTracklist` nur position/title/duration → ein
- * Refetch einer Compilation überschrieb `"Algebra Suicide – Somewhat Bleecker
- * Street"` mit `"Somewhat Bleecker Street"`.
+ * Historie: rc71.4 hatte den Künstler noch als `"Artist – Titel"` in `title`
+ * gebacken — das machte ihn zwar sichtbar, aber nicht suchbar/verlinkbar.
+ * rc71.6 macht ihn zu einem eigenen Feld. Konzept:
+ * docs/optimizing/TRACK_ARTIST_STRUKTURIERT_KONZEPT.md
  */
 
 export type DiscogsTrackArtist = {
@@ -33,10 +33,16 @@ export type DiscogsTracklistEntry = {
   artists?: DiscogsTrackArtist[] | null
 }
 
-export type BuiltTrack = { position: string; title: string; duration: string }
+export type BuiltTrack = {
+  position: string
+  title: string
+  duration: string
+  /** Per-Track-Künstler (Compilations) — null bei Single-Artist-Alben. */
+  artist_name: string | null
+}
 
-/** En-Dash mit Spaces — exakt die Legacy-tape-mag-Konvention für "Artist – Titel". */
-const TRACK_ARTIST_SEP = " – "
+/** En-Dash mit Spaces — Anzeige-Separator "Artist – Titel" (Storefront/Modal). */
+export const TRACK_ARTIST_SEP = " – "
 
 /** Discogs-Disambiguierungs-Suffix `(N)` strippen. "Ono (2)" → "Ono". */
 function stripSuffix(name: string): string {
@@ -71,8 +77,9 @@ export function composeTrackArtist(
 
 /**
  * Normalisiert eine Discogs-`tracklist` zu `Track`-Rows. Verwirft heading/index-
- * Einträge (Werk-/Akt-Überschriften). Bei Tracks mit eigenem `artists[]` wird der
- * Künstler in den Titel komponiert (`"Artist – Titel"`).
+ * Einträge (Werk-/Akt-Überschriften). `title` ist der reine Songtitel; der
+ * Per-Track-Künstler kommt strukturiert in `artist_name` (null bei Tracks ohne
+ * eigene `artists` = Single-Artist-Album, dort gilt der Release-Künstler).
  */
 export function buildTracklist(
   raw: DiscogsTracklistEntry[] | null | undefined
@@ -80,13 +87,10 @@ export function buildTracklist(
   if (!raw || raw.length === 0) return []
   return raw
     .filter((t) => (t.type_ ? t.type_ === "track" : true) && !!t.title?.trim())
-    .map((t) => {
-      const baseTitle = (t.title || "").trim()
-      const artist = composeTrackArtist(t.artists)
-      return {
-        position: (t.position || "").trim(),
-        title: artist ? `${artist}${TRACK_ARTIST_SEP}${baseTitle}` : baseTitle,
-        duration: (t.duration || "").trim(),
-      }
-    })
+    .map((t) => ({
+      position: (t.position || "").trim(),
+      title: (t.title || "").trim(),
+      duration: (t.duration || "").trim(),
+      artist_name: composeTrackArtist(t.artists),
+    }))
 }

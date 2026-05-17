@@ -33,6 +33,10 @@ export async function PATCH(
     updates.title = String(body.title).trim()
   }
   if (body.duration !== undefined) updates.duration = body.duration ? String(body.duration).trim() : null
+  // rc71.6: Per-Track-Künstler editierbar.
+  if (body.artist_name !== undefined) {
+    updates.artist_name = body.artist_name && String(body.artist_name).trim() ? String(body.artist_name).trim() : null
+  }
 
   if (Object.keys(updates).length === 0) {
     res.status(400).json({ message: "No valid fields to update" })

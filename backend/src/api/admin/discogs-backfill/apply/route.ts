@@ -44,7 +44,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
         genres?: string[] | null
         styles?: string[] | null
         credits?: string | null
-        tracklist?: Array<{ position?: string; title?: string; duration?: string }>
+        tracklist?: Array<{ position?: string; title?: string; duration?: string; artist_name?: string | null }>
       }
 
       const fieldsWritten: string[] = []
@@ -89,14 +89,15 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
             const t = tracks[idx]
             if (!t?.title) continue
             await trx.raw(
-              `INSERT INTO "Track" (id, "releaseId", position, title, duration)
-               VALUES (?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING`,
+              `INSERT INTO "Track" (id, "releaseId", position, title, duration, artist_name)
+               VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING`,
               [
                 `tr-${releaseId}-${idx}`,
                 releaseId,
                 typeof t.position === "string" ? t.position : "",
                 t.title,
                 typeof t.duration === "string" ? t.duration : "",
+                typeof t.artist_name === "string" ? t.artist_name : null,
               ]
             )
           }

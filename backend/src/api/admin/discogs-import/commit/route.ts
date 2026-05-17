@@ -763,21 +763,22 @@ export async function POST(
         )
 
         // Tracklist (Track table has no createdAt/updatedAt columns).
-        // rc71.4: buildTracklist komponiert den Per-Track-Künstler bei
-        // Compilations in den Titel ("Artist – Titel") — shared Helper.
+        // rc71.6: buildTracklist liefert den Per-Track-Künstler strukturiert in
+        // `artist_name` (title = reiner Songtitel) — shared Helper.
         const tracks = buildTracklist(cached?.tracklist as DiscogsTracklistEntry[] | undefined)
         for (let ti = 0; ti < tracks.length; ti++) {
           const track = tracks[ti]
           if (!track.title) continue
           await trx.raw(
-            `INSERT INTO "Track" (id, "releaseId", position, title, duration)
-            VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`,
+            `INSERT INTO "Track" (id, "releaseId", position, title, duration, artist_name)
+            VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`,
             [
               `dt-${did}-${track.position || String(ti)}`,
               releaseId,
               track.position || "",
               track.title,
               track.duration || "",
+              track.artist_name,
             ]
           )
         }

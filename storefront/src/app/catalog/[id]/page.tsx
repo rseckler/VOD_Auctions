@@ -56,7 +56,7 @@ type CatalogRelease = Release & {
   inventory_note?: string | null
   shop_price?: number | null
   // rc50.0 Track Management: Track-Tabellen-Einträge (canonical für discogs-Releases)
-  tracks?: { id: string; position: string | null; title: string; duration: string | null }[]
+  tracks?: { id: string; position: string | null; title: string; duration: string | null; artist_name?: string | null; artist_slug?: string | null }[]
 }
 
 async function getRelease(id: string): Promise<{ release: CatalogRelease } | null> {
@@ -470,6 +470,9 @@ export default async function CatalogDetailPage({
                   const side = pos.match(/^[A-Za-z]/)?.[0]?.toUpperCase()
                   const prevSide = prevPos?.match(/^[A-Za-z]/)?.[0]?.toUpperCase()
                   const showSide = side && side !== prevSide
+                  // rc71.6: Per-Track-Künstler (Compilations). Aus der Track-Tabelle
+                  // strukturiert; bei Credits-/Legacy-Fallback-Tracklisten nicht gesetzt.
+                  const ta = track as { artist_name?: string | null; artist_slug?: string | null }
                   return (
                     <div key={i}>
                       {showSide && (
@@ -484,7 +487,21 @@ export default async function CatalogDetailPage({
                         <span className="font-mono text-[11px] text-primary w-6 text-right flex-shrink-0">
                           {pos}
                         </span>
-                        <span className="flex-1 text-[13px]">{track.title}</span>
+                        <span className="flex-1 text-[13px]">
+                          {ta.artist_name ? (
+                            <>
+                              {ta.artist_slug ? (
+                                <Link href={`/band/${ta.artist_slug}`} className="text-primary hover:underline">
+                                  {ta.artist_name}
+                                </Link>
+                              ) : (
+                                <span className="text-muted-foreground">{ta.artist_name}</span>
+                              )}
+                              <span className="text-muted-foreground"> – </span>
+                            </>
+                          ) : null}
+                          {track.title}
+                        </span>
                         {track.duration && (
                           <span className="font-mono text-[11px] text-muted-foreground/60">
                             {track.duration}

@@ -88,18 +88,33 @@ export async function GET(
     .where("ReleaseArtist.releaseId", id)
 
   // Tracks from Track table (rc50.0 track management — canonical for discogs releases)
-  const tracks = await pgConnection("Track")
-    .where("releaseId", id)
-    // rc71.4: natürliche Sortierung — Seiten-Buchstabe, dann numerischer Teil
-    // als Integer (A1, A2, …, A10, A11 statt lexikalisch A1, A10, A11, A2),
-    // dann volle Position für Suffixe wie B3a/B3b.
-    .orderByRaw(`
-      CASE WHEN position ~ '^[A-Za-z]' THEN 1 ELSE 2 END,
-      substring(position from '^[A-Za-z]+'),
-      COALESCE(NULLIF(substring(position from '[0-9]+'), '')::int, 0),
-      position
-    `)
-    .select("id", "position", "title", "duration")
+  // rc71.6: artist_name (Per-Track-Künstler bei Compilations) + read-time-Slug-
+  // Auflösung via LATERAL gegen Artist.name → der Storefront-Tracklist-Eintrag
+  // wird klickbar, wo der Künstler als Artist-Entität existiert. Sortierung:
+  // natürlich (Seiten-Buchstabe, numerischer Teil als Integer, volle Position).
+  const tracks = (await pgConnection.raw(
+    `
+    SELECT t.id, t.position, t.title, t.duration, t.artist_name,
+           art.slug AS artist_slug
+    FROM "Track" t
+    LEFT JOIN LATERAL (
+      SELECT a.slug FROM "Artist" a
+      WHERE t.artist_name IS NOT NULL
+        AND lower(a.name) = lower(t.artist_name)
+      LIMIT 1
+    ) art ON true
+    WHERE t."releaseId" = ?
+    ORDER BY
+      CASE WHEN t.position ~ '^[A-Za-z]' THEN 1 ELSE 2 END,
+      substring(t.position from '^[A-Za-z]+'),
+      COALESCE(NULLIF(substring(t.position from '[0-9]+'), '')::int, 0),
+      t.position
+    `,
+    [id]
+  )).rows as Array<{
+    id: string; position: string | null; title: string; duration: string | null
+    artist_name: string | null; artist_slug: string | null
+  }>
 
   // Comments
   const comments = await pgConnection("Comment")

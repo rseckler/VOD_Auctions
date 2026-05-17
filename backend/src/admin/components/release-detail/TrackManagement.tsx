@@ -7,8 +7,11 @@ type Track = {
   position: string | null
   title: string
   duration: string | null
+  artist_name: string | null
   releaseId: string
 }
+
+type TrackFormData = { position: string; title: string; duration: string; artist_name: string }
 
 type TrackModalState =
   | { mode: "add" }
@@ -21,13 +24,14 @@ function TrackForm({
   saving,
 }: {
   initial?: Partial<Track>
-  onSave: (data: { position: string; title: string; duration: string }) => void
+  onSave: (data: TrackFormData) => void
   onCancel: () => void
   saving: boolean
 }) {
   const [position, setPosition] = useState(initial?.position ?? "")
   const [title, setTitle] = useState(initial?.title ?? "")
   const [duration, setDuration] = useState(initial?.duration ?? "")
+  const [artistName, setArtistName] = useState(initial?.artist_name ?? "")
   const [error, setError] = useState<string | null>(null)
 
   const handleSave = () => {
@@ -40,7 +44,7 @@ function TrackForm({
       return
     }
     setError(null)
-    onSave({ position: position.trim(), title: title.trim(), duration: duration.trim() })
+    onSave({ position: position.trim(), title: title.trim(), duration: duration.trim(), artist_name: artistName.trim() })
   }
 
   return (
@@ -54,7 +58,7 @@ function TrackForm({
           {error}
         </div>
       )}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 3fr 1fr", gap: S.gap.md, marginBottom: S.gap.md }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr 2fr 1fr", gap: S.gap.md, marginBottom: S.gap.md }}>
         <div>
           <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>Side/Pos</div>
           <input
@@ -63,6 +67,16 @@ function TrackForm({
             onChange={(e) => setPosition(e.target.value.toUpperCase())}
             placeholder="A1"
             maxLength={6}
+            style={inputStyle}
+          />
+        </div>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>Artist</div>
+          <input
+            type="text"
+            value={artistName}
+            onChange={(e) => setArtistName(e.target.value)}
+            placeholder="(compilations only)"
             style={inputStyle}
           />
         </div>
@@ -137,7 +151,7 @@ export function TrackManagement({ releaseId, refreshKey, onTrackChange }: Props)
 
   useEffect(() => { loadTracks() }, [releaseId, refreshKey])
 
-  const handleAdd = async (data: { position: string; title: string; duration: string }) => {
+  const handleAdd = async (data: TrackFormData) => {
     setSaving(true)
     setError(null)
     try {
@@ -159,7 +173,7 @@ export function TrackManagement({ releaseId, refreshKey, onTrackChange }: Props)
     }
   }
 
-  const handleEdit = async (trackId: string, data: { position: string; title: string; duration: string }) => {
+  const handleEdit = async (trackId: string, data: TrackFormData) => {
     setSaving(true)
     setError(null)
     try {
@@ -243,7 +257,10 @@ export function TrackManagement({ releaseId, refreshKey, onTrackChange }: Props)
                 onMouseOut={(e) => (e.currentTarget.style.background = C.card)}
               >
                 <div style={{ ...T.small, color: C.muted, fontSize: 11 }}>{track.position ?? "—"}</div>
-                <div style={{ ...T.small, color: C.text }}>{track.title}</div>
+                <div style={{ ...T.small, color: C.text }}>
+                  {track.artist_name ? <span style={{ color: C.muted }}>{track.artist_name} – </span> : null}
+                  {track.title}
+                </div>
                 <div style={{ ...T.small, color: C.muted, fontSize: 11 }}>{track.duration ?? "—"}</div>
                 <div style={{ display: "flex", gap: 4 }}>
                   <button

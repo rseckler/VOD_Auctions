@@ -1,6 +1,7 @@
 {
   "searchableAttributes": [
     "artist_name",
+    "track_artists",
     "title",
     "label_name",
     "genres",

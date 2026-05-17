@@ -21,7 +21,7 @@ export async function GET(
       COALESCE(NULLIF(substring(position from '[0-9]+'), '')::int, 0),
       position
     `)
-    .select("id", "position", "title", "duration", "releaseId")
+    .select("id", "position", "title", "duration", "artist_name", "releaseId")
 
   res.json({ tracks })
 }
@@ -35,7 +35,7 @@ export async function POST(
   const { id } = req.params
   const body = (req.body || {}) as Record<string, any>
 
-  const { position, title, duration } = body
+  const { position, title, duration, artist_name } = body
 
   if (!title || typeof title !== "string" || !title.trim()) {
     res.status(400).json({ message: "title is required" })
@@ -53,6 +53,8 @@ export async function POST(
     position: position ? String(position).trim() : null,
     title: String(title).trim(),
     duration: duration ? String(duration).trim() : null,
+    // rc71.6: Per-Track-Künstler (Compilations) — optional.
+    artist_name: artist_name && String(artist_name).trim() ? String(artist_name).trim() : null,
     releaseId: id,
   }
 

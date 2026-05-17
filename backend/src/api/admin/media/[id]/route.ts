@@ -641,14 +641,16 @@ export async function POST(
       for (let idx = 0; idx < tracks.length; idx++) {
         const t = tracks[idx]
         await trx.raw(
-          `INSERT INTO "Track" (id, "releaseId", position, title, duration)
-           VALUES (?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING`,
+          `INSERT INTO "Track" (id, "releaseId", position, title, duration, artist_name)
+           VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING`,
           [
             `tr-${id}-${idx}`,
             id,
             typeof t.position === "string" ? t.position : "",
             (t.title as string).trim(),
             typeof t.duration === "string" ? t.duration : "",
+            // rc71.6: Per-Track-Künstler strukturiert.
+            typeof t.artist_name === "string" && t.artist_name.trim() !== "" ? t.artist_name.trim() : null,
           ]
         )
       }

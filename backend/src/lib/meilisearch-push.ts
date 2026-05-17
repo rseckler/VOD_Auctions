@@ -55,6 +55,13 @@ const SELECT_SINGLE_RELEASE_SQL = `
     FROM import_log
     WHERE release_id = ? AND import_type = 'discogs_collection'
     GROUP BY release_id
+  ),
+  trk_agg AS (
+    SELECT "releaseId" AS release_id,
+           array_agg(DISTINCT artist_name) FILTER (WHERE artist_name IS NOT NULL) AS track_artists
+    FROM "Track"
+    WHERE "releaseId" = ?
+    GROUP BY "releaseId"
   )
   SELECT
     r.id,
@@ -105,7 +112,8 @@ const SELECT_SINGLE_RELEASE_SQL = `
     wl.id                  AS warehouse_id_first,
     wl.name                AS warehouse_name_first,
     imp_agg.collections    AS import_collections_arr,
-    imp_agg.actions        AS import_actions_arr
+    imp_agg.actions        AS import_actions_arr,
+    trk_agg.track_artists  AS track_artists
   FROM "Release" r
   LEFT JOIN "Artist"    a ON a.id = r."artistId"
   LEFT JOIN "Label"     l ON l.id = r."labelId"
@@ -114,6 +122,7 @@ const SELECT_SINGLE_RELEASE_SQL = `
   LEFT JOIN entity_content ec ON ec.entity_id = r."artistId" AND ec.entity_type = 'artist'
   LEFT JOIN inv_agg ON inv_agg.release_id = r.id
   LEFT JOIN imp_agg ON imp_agg.release_id = r.id
+  LEFT JOIN trk_agg ON trk_agg.release_id = r.id
   LEFT JOIN warehouse_location wl ON wl.id = inv_agg.warehouse_id_first
   WHERE r.id = ?
   LIMIT 1
@@ -202,6 +211,7 @@ function transformToDoc(row: any): Record<string, unknown> {
     slug: row.slug ?? null,
     artist_name: row.artist_name ?? null,
     artist_slug: row.artist_slug ?? null,
+    track_artists: Array.isArray(row.track_artists) ? row.track_artists : [],
     label_name: row.label_name ?? null,
     label_slug: row.label_slug ?? null,
     press_orga_name: row.press_orga_name ?? null,
@@ -281,8 +291,8 @@ export async function pushReleaseNow(pg: Knex, releaseId: string): Promise<void>
     return
   }
 
-  // SQL hat 3 `?` Platzhalter (inv_agg.WHERE, imp_agg.WHERE, main WHERE)
-  const result = await pg.raw(SELECT_SINGLE_RELEASE_SQL, [releaseId, releaseId, releaseId])
+  // SQL hat 4 `?` Platzhalter (inv_agg.WHERE, imp_agg.WHERE, trk_agg.WHERE, main WHERE)
+  const result = await pg.raw(SELECT_SINGLE_RELEASE_SQL, [releaseId, releaseId, releaseId, releaseId])
   const row = (result.rows || result)[0]
 
   if (!row) {

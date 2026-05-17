@@ -183,15 +183,19 @@ export async function POST(
   const currentGalleryUrls = currentGalleryRows.map((r: { url: string }) => r.url)
 
   // Fix 2 (2026-05-16): aktuelle Tracklist aus der Track-Tabelle für den Diff.
+  // rc71.6: artist_name mitlesen, damit der Diff den Per-Track-Künstler erfasst.
   const currentTrackRows = await pg("Track")
     .where({ releaseId: id })
     .orderBy("position", "asc")
-    .select("position", "title", "duration")
-  const currentTracklist: TrackEntry[] = currentTrackRows.map((t: { position: string | null; title: string | null; duration: string | null }) => ({
-    position: t.position || "",
-    title: t.title || "",
-    duration: t.duration || "",
-  }))
+    .select("position", "title", "duration", "artist_name")
+  const currentTracklist: TrackEntry[] = currentTrackRows.map(
+    (t: { position: string | null; title: string | null; duration: string | null; artist_name: string | null }) => ({
+      position: t.position || "",
+      title: t.title || "",
+      duration: t.duration || "",
+      artist_name: t.artist_name || null,
+    })
+  )
 
   const token = process.env.DISCOGS_TOKEN
   if (!token) {
