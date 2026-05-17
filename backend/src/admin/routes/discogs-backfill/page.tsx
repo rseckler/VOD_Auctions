@@ -10,6 +10,7 @@ type Proposed = {
   genres: string[] | null
   styles: string[] | null
   credits: string | null
+  description: string | null
   tracklist: Array<{ position: string; title: string; duration: string }>
 }
 
@@ -32,6 +33,7 @@ type Candidate = {
       genres: string[]
       styles: string[]
       credits: string | null
+      description: string | null
       track_count: number
     }
   }
@@ -188,7 +190,7 @@ function DiscogsBackfill() {
     <PageShell maxWidth={1480}>
       <PageHeader
         title="Discogs Metadata Backfill"
-        subtitle="Verifizierte, mit Discogs verlinkte Releases mit fehlenden Genres / Styles / Credits / Tracklist — review & accept. Nichts wird automatisch geschrieben."
+        subtitle="Verified, Discogs-linked releases with missing Genres / Styles / Credits / Notes / Tracklist — review & accept. Nothing is written automatically."
         actions={
           total === 0 ? null : (
             <Btn
@@ -286,7 +288,7 @@ function DiscogsBackfill() {
 
           {candidates.length > 0 && (
             <div style={{ overflowX: "auto", border: `1px solid ${C.border}`, borderRadius: S.radius.lg }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1100 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1250 }}>
                 <thead>
                   <tr style={{ background: C.card, borderBottom: `1px solid ${C.border}` }}>
                     {isPendingTab && (
@@ -298,6 +300,7 @@ function DiscogsBackfill() {
                     <th style={thStyle}>Genres</th>
                     <th style={thStyle}>Styles</th>
                     <th style={thStyle}>Credits</th>
+                    <th style={thStyle}>Notes</th>
                     <th style={thStyle}>Tracklist</th>
                     {tab === "Errors" && <th style={thStyle}>Error</th>}
                     {isPendingTab && <th style={thStyle}></th>}
@@ -347,6 +350,9 @@ function DiscogsBackfill() {
                         </td>
                         <td style={tdStyle}>
                           <DiffCell inGap={c.gaps.includes("credits")} currentText={cur.credits || ""} proposedText={pr?.credits || ""} />
+                        </td>
+                        <td style={tdStyle}>
+                          <DiffCell inGap={c.gaps.includes("description")} currentText={cur.description || ""} proposedText={pr?.description || ""} />
                         </td>
                         <td style={tdStyle}>
                           {c.gaps.includes("tracklist") ? (

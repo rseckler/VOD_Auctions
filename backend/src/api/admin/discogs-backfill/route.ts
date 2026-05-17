@@ -57,6 +57,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse): Promise<void
         "r.genres",
         "r.styles",
         "r.credits",
+        "r.description",
         pg.raw('COALESCE("r".artist_display_name, "a".name) AS artist_name'),
         pg.raw('COALESCE("t".cnt, 0) AS track_count')
       )
@@ -81,6 +82,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse): Promise<void
           genres: Array.isArray(row.genres) ? row.genres : [],
           styles: Array.isArray(row.styles) ? row.styles : [],
           credits: row.credits || null,
+          description: row.description || null,
           track_count: Number(row.track_count) || 0,
         },
       },

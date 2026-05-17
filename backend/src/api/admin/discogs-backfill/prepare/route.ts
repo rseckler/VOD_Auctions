@@ -29,6 +29,10 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
   const pg: Knex = req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
 
   // ── (1) Scan — neue Kandidaten idempotent anlegen ──
+  // `description` (Discogs-Notes) ist seit rc71.x ein 5. Backfill-Feld; Gap =
+  // description NULL/leer. Bewusst nur echt-leere — HTML-Scrape-Müll im
+  // description-Feld ist NICHT leer und kann vom additiven Apply nicht ersetzt
+  // werden (Konzept Trade-off 1). Siehe DISCOGS_BACKFILL_TOOL_KONZEPT.md.
   await pg.raw(`
     INSERT INTO discogs_backfill_candidate (id, release_id, discogs_id, gaps, status)
     SELECT
@@ -37,6 +41,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
         CASE WHEN r.genres IS NULL OR cardinality(r.genres) = 0 THEN 'genres' END,
         CASE WHEN r.styles IS NULL OR cardinality(r.styles) = 0 THEN 'styles' END,
         CASE WHEN r.credits IS NULL OR r.credits = '' THEN 'credits' END,
+        CASE WHEN r.description IS NULL OR r.description = '' THEN 'description' END,
         CASE WHEN COALESCE(t.cnt, 0) = 0 THEN 'tracklist' END
       ], NULL),
       'fetch_pending'
@@ -54,9 +59,40 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
         r.genres IS NULL OR cardinality(r.genres) = 0
         OR r.styles IS NULL OR cardinality(r.styles) = 0
         OR r.credits IS NULL OR r.credits = ''
+        OR r.description IS NULL OR r.description = ''
         OR COALESCE(t.cnt, 0) = 0
       )
     ON CONFLICT (release_id) DO NOTHING
+  `)
+
+  // ── (1b) Re-open — Kandidaten, die VOR der description-Erweiterung schon
+  // applied/error waren, kennen den description-Gap nicht (ihr `gaps`-Array
+  // enthält 'description' nicht). Hat so eine Zeile heute leere `description`,
+  // wird sie auf `fetch_pending` zurückgesetzt — re-fetch + Re-Review.
+  // `proposed=NULL` erzwingt einen frischen Fetch mit dem neuen description-Feld.
+  // Der `NOT ('description' = ANY(c.gaps))`-Guard verhindert Dauer-Churn:
+  // nach dem re-fetch enthält `gaps` 'description' → nie wieder re-opened.
+  await pg.raw(`
+    UPDATE discogs_backfill_candidate c
+    SET status = 'fetch_pending',
+        gaps = ARRAY_REMOVE(ARRAY[
+          CASE WHEN r.genres IS NULL OR cardinality(r.genres) = 0 THEN 'genres' END,
+          CASE WHEN r.styles IS NULL OR cardinality(r.styles) = 0 THEN 'styles' END,
+          CASE WHEN r.credits IS NULL OR r.credits = '' THEN 'credits' END,
+          CASE WHEN r.description IS NULL OR r.description = '' THEN 'description' END,
+          CASE WHEN COALESCE(t.cnt, 0) = 0 THEN 'tracklist' END
+        ], NULL),
+        proposed = NULL,
+        error = NULL,
+        updated_at = now()
+    FROM "Release" r
+    LEFT JOIN (
+      SELECT "releaseId", COUNT(*) cnt FROM "Track" GROUP BY "releaseId"
+    ) t ON t."releaseId" = r.id
+    WHERE c.release_id = r.id
+      AND c.status IN ('applied', 'error')
+      AND (r.description IS NULL OR r.description = '')
+      AND NOT ('description' = ANY(COALESCE(c.gaps, '{}')))
   `)
 
   const pendingRow = await pg("discogs_backfill_candidate")

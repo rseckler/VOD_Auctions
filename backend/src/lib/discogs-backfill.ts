@@ -33,12 +33,22 @@ export type BackfillProposed = {
   genres: string[] | null
   styles: string[] | null
   credits: string | null
+  /**
+   * Discogs `notes` → `Release.description`. Additiver Backfill, ABER:
+   * `description` ist das einzige Backfill-Feld mit einem permanenten
+   * Sync-Writer (`legacy_sync_v2.py` schreibt es stündlich aus MySQL). Der
+   * Apply-Pfad muss daher `"description"` in `locked_fields` eintragen, sonst
+   * überschreibt der nächste Sync den Backfill wieder. Siehe
+   * docs/optimizing/DISCOGS_BACKFILL_TOOL_KONZEPT.md — Abschnitt „Erweiterung".
+   */
+  description: string | null
   tracklist: BuiltTrack[]
 }
 
 type DiscogsRelease = {
   genres?: string[]
   styles?: string[]
+  notes?: string
   extraartists?: Array<{ name?: string; role?: string }>
   tracklist?: DiscogsTracklistEntry[]
 }
@@ -92,6 +102,9 @@ export async function fetchDiscogsRelease(discogsId: number): Promise<BackfillPr
     genres,
     styles,
     credits: buildCreditsText(data.extraartists),
+    // Discogs-`notes` → Release.description. Roh übernommen (kein BBCode-Strip)
+    // — konsistent mit dem /media/:id-Flow (discogs-preview/route.ts:265).
+    description: typeof data.notes === "string" && data.notes.trim() !== "" ? data.notes.trim() : null,
     tracklist: buildTracklist(data.tracklist),
   }
 }

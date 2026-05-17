@@ -91,3 +91,160 @@ Transiente Operations-Tabelle (Daten aus Discogs jederzeit rekonstruierbar).
 4. Deploy + CHANGELOG + Release-Tag.
 
 Keine Storefront-Änderung. `discogs-backfill` enthält kein „test" → Scanner-safe.
+
+---
+
+## Erweiterung — Discogs-Notes (`Release.description`) als 5. Backfill-Feld
+
+**Status:** ✅ Implementiert (2026-05-17, Deploy ausstehend). `description`/Notes ist
+das 5. Backfill-Feld: Gap-Erkennung + Re-Open bestehender Kandidaten + Fetch + Apply
+(mit `locked_fields`-Merge) + Storefront-Revalidation + Admin-„Notes"-Spalte.
+**Auslöser:** Frage 2026-05-17 — fehlt im Backfill-Tool das Thema „Notes von Discogs"?
+
+### Datenlage (DB-Stand 2026-05-17, vor dem Deploy)
+
+5.209 verifizierte + Discogs-verlinkte Releases. `description`-Verteilung:
+
+| Zustand | Anzahl | Vom additiven Backfill erreichbar? |
+|---|---|---|
+| `description` leer (NULL/`''`) | **197** | ✅ ja — das ist die Zielmenge |
+| `description` = HTML-Scrape-Müll (`<…>`-Tags) | **2.019** | ❌ nein — nicht leer, additiv tabu |
+| `description` = sauberer Text | 2.993 | — (kein Gap) |
+
+Das Backfill-Tool war bei dieser Prüfung bereits **voll durchgelaufen**: 1.226
+Kandidaten `applied`, 20 `error`, 0 offen. Davon haben **63 `applied`-Zeilen
+weiterhin leere `description`** — sie wurden vor der description-Erweiterung
+abgeschlossen und kennen den Gap nicht. Der Scan (Schritt 1b) öffnet sie wieder.
+
+> **Wichtig — Reichweite:** Der additive Backfill erreicht **197 Releases**. Die
+> **2.019 HTML-Müll-Releases sind die eigentliche Masse** und bleiben unberührt
+> (siehe Trade-off 1). Ihr Cleanup ist eine separate *Overwrite*-Operation
+> (`/media/:id`-Modal oder Remediation-Script) und **nicht** Teil dieser
+> Erweiterung — bewusste Entscheidung, kein Versehen.
+
+### Befund
+
+Discogs liefert pro Release ein `notes`-Freitextfeld. Es wird im **Katalog-Flow
+`/media/:id`** (discogs-preview → `DiscogsReviewModal`) bereits als reviewbares
+Diff-Feld gefetcht und auf `Release.description` gemappt:
+
+```
+backend/src/api/admin/media/[id]/discogs-preview/route.ts:265
+  description: apiData.notes?.trim() || null
+```
+
+rc71.5 (Bug a) hat dafür die Storefront-„Notes"-Sektion auf `/catalog/[id]`
+ergänzt. Das **Backfill-Tool** deckt `notes` an drei Stellen NICHT ab:
+
+| Stelle | Datei | Status |
+|---|---|---|
+| Gap-Erkennung | `discogs-backfill/prepare/route.ts` | prüft nur `genres`/`styles`/`credits`/`tracklist` |
+| Fetch | `lib/discogs-backfill.ts` (`BackfillProposed`) | zieht `notes` nicht |
+| Apply | `discogs-backfill/apply/route.ts` | schreibt `description` nicht |
+
+Der ursprüngliche rc70-Scope (Genres/Styles/Credits/Tracklist) war eine bewusste
+Grenze — `description` war nie drin. Inhaltlich inkonsistent: der per-Release-Flow
+kann notes, das Bulk-Tool nicht.
+
+### ⚠️ Lifecycle-Trace — `Release.description` hat einen permanenten Sync-Writer
+
+`description` ist **das einzige Backfill-Kandidatenfeld mit Cron-Overwrite-Hazard.**
+Geprüft gegen alle permanenten Syncs (Stand 2026-05-17, nach den gestrigen
+rc69–rc71.3-Änderungen):
+
+| Sync (Cron) | Schreibt `description`? | Schreibt genres/styles/credits/tracklist? |
+|---|---|---|
+| `legacy_sync_v2.py` (stündlich) | **JA** — aus MySQL `moreinfo`/`text` | nein (gar nicht) |
+| `discogs_daily_sync.py` (Mo–Fr 02:00) | nein (nur `discogs_*_price`) | nein |
+| `meilisearch_sync.py` (*/5) | nein (read-only auf `Release`) | nein |
+
+`legacy_sync_v2.py` schreibt `description` in **beiden** UPSERT-Pfaden
+(Music-Release Z. 749–750, Literatur Z. 1130–1131), gated **nur** durch:
+
+```sql
+description = CASE WHEN "Release".locked_fields @> '"description"'::jsonb
+                   THEN "Release".description ELSE EXCLUDED.description END
+```
+
+**Konsequenz:** Schreibt das Backfill-Tool saubere Discogs-Notes in `description`,
+**ohne `"description"` in `locked_fields` einzutragen, überschreibt der nächste
+stündliche Sync sie wieder mit dem Legacy-Wert** (oft HTML-Scrape-Müll). Der
+Backfill wäre innerhalb einer Stunde verloren.
+
+- Der `/media/:id`-Flow ist safe — die Catalog-Edit-Route trägt geänderte
+  Body-Felder automatisch in `locked_fields` ein (rc51.0 Sync-Lock-Modell).
+- Die Backfill-`apply`-Route schreibt via rohem `trx("Release").update()` und
+  fasst `locked_fields` **nie** an. Für genres/styles/credits/tracklist ist das
+  zufällig safe (kein Sync-Writer) — für `description` **nicht**.
+
+### Trade-offs (explizit)
+
+1. **Additiv erreicht die rc71.5-Fälle NICHT.** Backfill-Apply ist „rein additiv —
+   nur leere Felder". HTML-Müll-`description` ist **nicht leer** → wird nie als Gap
+   erkannt, nie überschrieben. Die rc71.5-„Selbstheilung" ist explizit ein
+   *Overwrite* (Müll → sauber) und bleibt Sache des `/media/:id`-Modals bzw. eines
+   Remediation-Scripts. Das Backfill-Tool fasst nur **echt-leere** `description`-
+   Releases an. Bewusste Scope-Grenze, keine Lösung für die HTML-Müll-Releases.
+
+2. **Discogs-`notes` enthält BBCode-Markup** (`[a=Artist]`, `[url=…]`, `[l=Label]`).
+   Die Storefront-Notes-Sektion (rc71.5) überspringt nur HTML-Tags (`<…>`), nicht
+   BBCode → BBCode würde sichtbar gerendert. Das ist ein **bestehendes** Verhalten
+   des `/media/:id`-Flows (schreibt ebenfalls rohes `apiData.notes`); die Erweiterung
+   verschlechtert nichts, erbt es aber. Optional: BBCode-Strip im Shared-Helper.
+
+3. **Storefront-Revalidation.** Die rc70-`apply`-Route rief kein
+   `revalidateReleaseCatalogPage` — die neue Notes-Sektion (und schon Tracklist/
+   Genres) erschien erst nach ISR-Cache-Ablauf (60s). ✅ Mit dieser Erweiterung
+   behoben: Apply revalidiert jetzt nach jedem geschriebenen Release — für alle
+   Backfill-Felder, nicht nur `description`.
+
+### Umsetzung (implementiert 2026-05-17)
+
+1. **Gap-Erkennung** (`prepare/route.ts`, Scan-Schritt 1): `'description'` in
+   CASE + WHERE ergänzt, Bedingung `r.description IS NULL OR r.description = ''`
+   — bewusst nur echt-leere. Erfasst neue Kandidaten.
+1b. **Re-Open** (`prepare/route.ts`, neuer Schritt 1b): `applied`/`error`-Zeilen,
+   deren `gaps`-Array `'description'` NICHT enthält (= vor der Erweiterung
+   abgeschlossen) und deren `description` heute leer ist, werden auf
+   `fetch_pending` zurückgesetzt (`proposed=NULL` erzwingt frischen Fetch). Der
+   Guard `NOT ('description' = ANY(gaps))` verhindert Dauer-Churn — nach dem
+   Re-Fetch enthält `gaps` `'description'`, also nie wieder. Fängt die 63
+   `applied`-Zeilen mit leerer `description`.
+2. **Fetch** (`lib/discogs-backfill.ts`): `notes` in `DiscogsRelease` +
+   `description` in `BackfillProposed`; `fetchDiscogsRelease` liefert
+   `description = data.notes?.trim() || null` (roh, kein BBCode-Strip —
+   konsistent mit dem `/media/:id`-Flow).
+3. **Apply** (`apply/route.ts`): `description` additiv schreiben **UND**
+   `"description"` per `CASE … locked_fields || '"description"'::jsonb` in
+   `locked_fields` mergen (idempotent) — sonst Cron-Overwrite. Re-Check
+   `description IS NULL OR ''` beim Apply.
+4. **Storefront-Revalidation**: `revalidateReleaseCatalogPage(releaseId)` nach
+   jedem Apply mit `fieldsWritten.length > 0` — gilt für ALLE Backfill-Felder
+   (Genres/Tracklist/Notes sind auf `/catalog/[id]` sichtbar), nicht nur
+   `description`. Schließt die latente ISR-Cache-Lücke des rc70-Tools mit.
+5. **Admin-UI** (`page.tsx` + GET `route.ts`): „Notes"-Spalte zwischen Credits
+   und Tracklist, `current.description` aus dem GET, `DiffCell` analog Credits.
+6. Migration: keine — `proposed` ist `jsonb`, `gaps` ist `text[]`, beide nehmen
+   den neuen Wert ohne Schema-Change. Kein Replica-DDL nötig.
+7. Offen: Deploy (Backend + Admin-UI, VPS Vite-Cache-Clear) + CHANGELOG +
+   Release-Tag. Frank muss danach 1× „Re-scan candidates" klicken — der Scan
+   öffnet die 63 + nimmt die ~134 neuen auf, dann Fetch (~3–4 min) + Review.
+
+### Bestätigung — gegen die gestrigen Änderungen geprüft
+
+Geprüft gegen rc69.0–rc71.3 (2026-05-16) + rc71.5/rc71.6 (2026-05-17):
+
+- **rc69.0** — `discogs-preview` fetcht Marktpreise + Tracklist; berührt
+  `description` nicht. Kein Konflikt.
+- **rc70.0** — Backfill-Tool selbst; diese Erweiterung baut additiv darauf auf.
+- **rc71.3 F1 (Tracklist-Wipe)** — betrifft nur den Track-Replace-Pfad; ein
+  `description`-Diff hat keinen Lösch-Pfad (Skalar-Feld, additiv).
+- **rc71.5 Bug a (Notes)** — hat den `/media/:id`-Notes-Flow + Storefront-Sektion
+  gebaut. Diese Erweiterung ist das Bulk-Pendant; die „self-healing"-Overwrite-
+  Semantik aus rc71.5 wird bewusst NICHT übernommen (siehe Trade-off 1).
+- **rc71.6 (Track.artist_name)** — betrifft nur Tracklist, nicht `description`.
+- **Permanente Syncs:** `legacy_sync_v2.py` ist der einzige `description`-Writer
+  und respektiert `locked_fields` → Schritt 3 (locked_fields-Merge) macht den
+  Backfill kollisionsfrei. `discogs_daily_sync.py` und `meilisearch_sync.py`
+  schreiben `description` nicht. Nach der Erweiterung läuft kein Sync gegen den
+  Backfill-Write.
