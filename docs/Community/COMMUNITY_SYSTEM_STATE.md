@@ -1,7 +1,7 @@
 # VOD Community — System State (As-Built)
 
 **Status:** Rebuild R0–R9 + Erweiterung 01 + 02 live · Stand 2026-05-16
-**Releases:** `v1.0.0-rc58.0` … `rc68.0` (Rebuild) · `rc71.0` (Erweiterung 02 — Density Revision). Davor `rc55.0`–`rc57.0` (Increments 1–4 — Foundation, von der Rebuild überbaut).
+**Releases:** `v1.0.0-rc58.0` … `rc68.0` (Rebuild) · `rc71.0`–`rc71.4` (Erweiterung 02 — Density Revision + 2 Korrekturrunden). Davor `rc55.0`–`rc57.0` (Increments 1–4 — Foundation, von der Rebuild überbaut).
 **Bezug:** [`COMMUNITY_REBUILD_PLAN.md`](./COMMUNITY_REBUILD_PLAN.md) (verbindlicher Bauplan) · [`Community Concept.md`](./Community%20Concept.md) · [`Community Design Brief.md`](./Community%20Design%20Brief.md) · [`Erweiterungen.md`](./Erweiterungen.md) · [`CHANGELOG.md`](../architecture/CHANGELOG.md)
 **Zweck:** Verbindliche As-Built-Referenz des Community-Systems — Tabellen, Routes, Jobs, Seiten, Komponenten. Single Source of Truth für die laufende Arbeit.
 
@@ -173,13 +173,13 @@ Flag-gated via `requireCommunityEnabled()`; Middleware `allowUnauthenticated` (p
 | R8 | Trust-Level-Job + Moderations-Admin-Politur | rc66.0 |
 | R9 | Featured-Releases, Privacy-Toggles, Entity-Walls | rc67.0 |
 | Erw. 01 | Post-Bearbeitung + Composer-Hinweis (+ Erw.-02-Scroll-Fix) | rc68.0 |
-| Erw. 02 | Density-Revision — Hairline-Feed, 72px-Cover-Thumbnails, Release-Referenz-Pill, dichte Editorial-Zeile, Mobile-Bottom-Tab-Bar, kompaktes Profil | rc71.0 |
+| Erw. 02 | Density-Revision — kompakte Karten (dichter Innenraum), Cover-Thumbnails + dekorativer Platzhalter, Release-Referenz-Pill, dichte Editorial-Karte (Gold-Topline), Mobile-Bottom-Tab-Bar, kompaktes Profil, verdichtete Release-Detail-Sektion, Post-Detail-Cover | rc71.0–rc71.4 |
 
 ---
 
 ## 12. Offen
 
-- **Erweiterung 02 — erledigt (rc71.0).** Density-Revision live: Hairline-Feed statt Cards, 72px-Cover-Thumbnails, Release-Referenz-Pill, dichte Editorial-Zeile (Gold-Topline), Mobile-Bottom-Tab-Bar, kompaktes Profil. Post-Detail bewusst unverändert. Workflow: [`ERWEITERUNG_02_KONZEPT.md`](./ERWEITERUNG_02_KONZEPT.md) → [`ERWEITERUNG_02_DESIGN_HANDOFF.md`](./ERWEITERUNG_02_DESIGN_HANDOFF.md) → Claude-Design-Output → Code.
+- **Erweiterung 02 — erledigt (rc71.0–rc71.4).** Density-Revision live: **kompakte Karten** mit dichtem Innenraum (14px Padding, 36px Avatar, 14px-Body), Cover-Thumbnail an jedem Post mit Release/Bild (dekorativer Platzhalter `.cm-cover-art` wenn kein Bild), Release-Referenz-Pill, dichte Editorial-Karte mit Gold-Topline, Editorial-Hero im Hub, Mobile-Bottom-Tab-Bar (`CommunityBottomNav`), kompaktes Profil, verdichtete Release-Detail-Community-Sektion, Post-Detail-Cover-Band. Post-Detail-Leseansicht bewusst großzügig. Workflow: [`ERWEITERUNG_02_KONZEPT.md`](./ERWEITERUNG_02_KONZEPT.md) → [`ERWEITERUNG_02_DESIGN_HANDOFF.md`](./ERWEITERUNG_02_DESIGN_HANDOFF.md) → Claude-Design-Bundle → Code. rc71.0 hatte den Feed zunächst als randlose Hairline-Liste gebaut (Claude-Design „After"-Artboard); rc71.2 stellte nach Robins Review auf kartenbasiert um. Session-Log: [`docs/sessions/2026-05-16_community_erweiterung_02.md`](../sessions/2026-05-16_community_erweiterung_02.md).
 - **Schritt 2 — Facebook-Migration** (geparkt): P6-Import der 5.819 Frank-FB-Posts + Legacy-Reviews aus `3wadmin_tapes_comment`. Datenmodell vorbereitet (`imported_from`/`legacy_comment_id`/`legacy_extranet_user_id`/`claimed`). Offen: `typ`-Decode. Ersetzt den Demo-Seed als Launch-Content.
 - **R8-Reste** (Feature-Slices, nicht launch-blockierend): Editorial-Scheduling, Curated-Tags-Tabelle, CRM-Customer-„Community"-Tab, Claude-Haiku-Auto-Mod.
 - **Wantlist-Tab** auf dem Profil — wartet auf die Discogs-Wantlist-Brücke (`show_wantlist`-Toggle ist schon da).

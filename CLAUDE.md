@@ -325,7 +325,7 @@ docs/
 → Operative Liste: [`docs/TODO.md`](docs/TODO.md) · → Vollständige Release-Historie: [`CHANGELOG.md`](docs/architecture/CHANGELOG.md)
 
 **Aktive Workstreams** (Details + nächste Aktionen in [`docs/TODO.md`](docs/TODO.md)):
-0. **VOD Community** (Rebuild R0–R9 + Erweiterung 01 live, rc58–rc68, Flag `COMMUNITY` ON) — As-Built: [`COMMUNITY_SYSTEM_STATE.md`](docs/Community/COMMUNITY_SYSTEM_STATE.md), Bauplan: [`COMMUNITY_REBUILD_PLAN.md`](docs/Community/COMMUNITY_REBUILD_PLAN.md). Nächste Aktionen: **Erweiterung 02** (visuelle Optimierung — Density/Mobile, wartet auf Robins Konzept; Input [`SOCIAL_UX_REFERENCE.md`](docs/Community/SOCIAL_UX_REFERENCE.md)), dann **Schritt 2 — Facebook-Migration** (geparkt; `typ`-Decode offen)
+0. **VOD Community** (Rebuild R0–R9 + Erweiterung 01+02 live, rc58–rc71.4, Flag `COMMUNITY` ON) — As-Built: [`COMMUNITY_SYSTEM_STATE.md`](docs/Community/COMMUNITY_SYSTEM_STATE.md), Bauplan: [`COMMUNITY_REBUILD_PLAN.md`](docs/Community/COMMUNITY_REBUILD_PLAN.md). Erweiterung 02 (visuelle Verdichtung — kompakte Karten, Cover-Thumbnails, Mobile-Bottom-Nav, kompaktes Profil) via Claude-Design-Bundle umgesetzt. Nächste Aktion: **Schritt 2 — Facebook-Migration** (geparkt; `typ`-Decode offen)
 1. **Frank's Bulk-Invite-Test-Welle** (rc53.17 live) — `/app/crm` Smart-List „📨 Newsletter Subscribers" → 10-20 Test-Kontakte → Bulk-Invite
 2. **Artist-Duplikate-Cleanup** (rc53.16, Bowie done) — 2.063 weitere Cases / ~40 % Katalog laut [Audit](docs/audit_artist_duplicates_2026-05-09.md). Top-30 als Tier-1-Batch + Sync-Pipeline-Härtung
 3. **CRM Master v1 + Email Review** (rc53.1 live) — Frank-Einarbeitung 10-Tab-Drawer + Pre-2019-MO-PDFs aus Backup ins Folder
@@ -335,6 +335,7 @@ docs/
 7. **MiniMax Phasen 3-5** (Foundation rc52.7 done) — Hailuo Teaser / Cover-Placeholder / Bulk-Backfill. Doku: [`MINIMAX_INTEGRATION.md`](../docs/MINIMAX_INTEGRATION.md)
 8. **RSE-321 Tape-mag-Multi-Artist** (Backlog) — Komma/Featuring/Vs. in `band_name`-Strings splitten
 9. **`supabase_realtime: degraded`** (non-blocker) — aktivieren sobald Live-Bidding live geht
+10. **Platform Migration** (Konzept-Bündel fertig, 2026-05-17) — Überführung tape-mag.com + vod-records.com auf das gemeinsame Fundament; tape-mag = Erlebnis-App (Neuaufbau), VOD Records = Label-Store, VOD Auctions = Marktplatz (Membership-Modell). 7-Doc-Bündel: [`docs/Platform Migration/`](docs/Platform%20Migration/). Nächste Aktion: Frank-Entscheidungssitzung (11 Entscheidungen, [`6_FRANK_AGENDA.md`](docs/Platform%20Migration/6_FRANK_AGENDA.md)).
 
 **Arbeitsregeln:**
 - **Umfassend arbeiten, nicht isoliert** (2026-05-17) — vor jeder Daten-/Code-/Schema-Änderung: (1) **Lifecycle-Trace** — alle Writer UND alle Reader des Felds/der Tabelle/des Flows greppen, Änderung erst freigeben wenn jeder Read dagegen geprüft ist; (2) **Feature-Oberfläche** prüfen — nicht „das Feld fixen", sondern: welches Feature ist das, ist es ganz? Facetten: Anzeige · Suche · Verlinkung · Datenmodell · Legacy; (3) **Trade-offs offenlegen** — jeder Vorschlag sagt explizit, was der gewählte Weg NICHT kann; (4) **eigener Review** mit Downstream-/Edge-Case-Fragen VOR dem Shippen. Hintergrund: enge Symptom-Fixes erzeugen Folge-Bugs (Tracklist-Saga rc69→rc71.6). Memory `feedback_work_comprehensively`.
