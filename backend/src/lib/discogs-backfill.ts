@@ -8,6 +8,8 @@
  * Konzept: docs/optimizing/DISCOGS_BACKFILL_TOOL_KONZEPT.md
  */
 
+import { buildTracklist, type BuiltTrack, type DiscogsTracklistEntry } from "./discogs-tracklist"
+
 /**
  * F2 (Codex-Review 2026-05-16): Prozess-weiter Flag — läuft der prepare-
  * Hintergrund-Fetch-Job gerade? GET (`route.ts`) und prepare (`prepare/route.ts`)
@@ -24,20 +26,21 @@ export function setPrepareRunning(running: boolean): void {
   prepareRunning = running
 }
 
-export type BackfillTrack = { position: string; title: string; duration: string }
+/** @deprecated — Alias auf BuiltTrack aus lib/discogs-tracklist.ts. */
+export type BackfillTrack = BuiltTrack
 
 export type BackfillProposed = {
   genres: string[] | null
   styles: string[] | null
   credits: string | null
-  tracklist: BackfillTrack[]
+  tracklist: BuiltTrack[]
 }
 
 type DiscogsRelease = {
   genres?: string[]
   styles?: string[]
   extraartists?: Array<{ name?: string; role?: string }>
-  tracklist?: Array<{ position?: string; type_?: string; title?: string; duration?: string }>
+  tracklist?: DiscogsTracklistEntry[]
 }
 
 /** Baut den Credits-Text aus Discogs `extraartists` (Rolle: Namen, …). */
@@ -54,18 +57,6 @@ export function buildCreditsText(extraartists: DiscogsRelease["extraartists"]): 
   return Array.from(byRole.entries())
     .map(([role, names]) => `${role}: ${names.join(", ")}`)
     .join("\n")
-}
-
-/** Normalisiert die Discogs-Tracklist; verwirft heading/index-Einträge. */
-export function buildTracklist(raw: DiscogsRelease["tracklist"]): BackfillTrack[] {
-  if (!raw?.length) return []
-  return raw
-    .filter((t) => (t.type_ ? t.type_ === "track" : true) && !!t.title?.trim())
-    .map((t) => ({
-      position: (t.position || "").trim(),
-      title: (t.title || "").trim(),
-      duration: (t.duration || "").trim(),
-    }))
 }
 
 /**

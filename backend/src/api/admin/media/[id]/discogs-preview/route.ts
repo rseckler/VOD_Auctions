@@ -4,6 +4,7 @@ import { Knex } from "knex"
 import { classifyDiscogsFormat } from "../../../../../lib/format-mapping"
 import { normalizeCountryToIso } from "../../../../../lib/country-normalize"
 import { pickArtistDisplayName, type DiscogsArtistEntry } from "../../../../../lib/artist-display"
+import { buildTracklist, type BuiltTrack, type DiscogsTracklistEntry } from "../../../../../lib/discogs-tracklist"
 
 /**
  * POST /admin/media/:id/discogs-preview
@@ -32,7 +33,7 @@ import { pickArtistDisplayName, type DiscogsArtistEntry } from "../../../../../l
 // Apply triggert label_name den findOrCreateLabelByName-Pfad (lib/label-
 // resolver.ts), gallery_images den Galerie-Replace im Apply-Pfad
 // (api/admin/media/[id]/route.ts). Cover bleibt eigene Achse via coverImage.
-type TrackEntry = { position: string; title: string; duration: string }
+type TrackEntry = BuiltTrack
 
 type ProposedFields = {
   discogs_id: number | null
@@ -78,24 +79,11 @@ type DiscogsApiData = {
   artists_sort?: string
   extraartists?: Array<{ name?: string; role?: string }>
   images?: Array<{ type?: string; uri?: string; uri150?: string }>
-  tracklist?: Array<{ position?: string; type_?: string; title?: string; duration?: string }>
+  tracklist?: DiscogsTracklistEntry[]
 }
 
-/**
- * Fix 2 (2026-05-16): Normalisiert die Discogs-Tracklist auf {position,title,duration}.
- * Discogs liefert auch `type_:"heading"`/`"index"`-Einträge (Werk-/Akt-Überschriften) —
- * die werden verworfen, nur echte Tracks bleiben.
- */
-function buildTracklist(raw: DiscogsApiData["tracklist"]): TrackEntry[] {
-  if (!raw?.length) return []
-  return raw
-    .filter((t) => (t.type_ ? t.type_ === "track" : true) && !!t.title?.trim())
-    .map((t) => ({
-      position: (t.position || "").trim(),
-      title: (t.title || "").trim(),
-      duration: (t.duration || "").trim(),
-    }))
-}
+// buildTracklist (inkl. Per-Track-Künstler-Komposition) lebt seit rc71.4 in
+// lib/discogs-tracklist.ts — geteilt mit discogs-backfill + discogs-import/commit.
 
 /** Picks the Discogs primary image URL (first `type:primary`, fallback first image). */
 function pickPrimaryImage(images: DiscogsApiData["images"]): string | null {

@@ -14,8 +14,11 @@ export async function GET(
 
   const tracks = await pg("Track")
     .where("releaseId", id)
+    // rc71.4: natürliche Sortierung (siehe store/catalog/[id]/route.ts).
     .orderByRaw(`
-      CASE WHEN position ~ '^[A-Z]' THEN 1 ELSE 2 END,
+      CASE WHEN position ~ '^[A-Za-z]' THEN 1 ELSE 2 END,
+      substring(position from '^[A-Za-z]+'),
+      COALESCE(NULLIF(substring(position from '[0-9]+'), '')::int, 0),
       position
     `)
     .select("id", "position", "title", "duration", "releaseId")

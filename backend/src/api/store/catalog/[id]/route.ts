@@ -90,8 +90,13 @@ export async function GET(
   // Tracks from Track table (rc50.0 track management — canonical for discogs releases)
   const tracks = await pgConnection("Track")
     .where("releaseId", id)
+    // rc71.4: natürliche Sortierung — Seiten-Buchstabe, dann numerischer Teil
+    // als Integer (A1, A2, …, A10, A11 statt lexikalisch A1, A10, A11, A2),
+    // dann volle Position für Suffixe wie B3a/B3b.
     .orderByRaw(`
-      CASE WHEN position ~ '^[A-Z]' THEN 1 ELSE 2 END,
+      CASE WHEN position ~ '^[A-Za-z]' THEN 1 ELSE 2 END,
+      substring(position from '^[A-Za-z]+'),
+      COALESCE(NULLIF(substring(position from '[0-9]+'), '')::int, 0),
       position
     `)
     .select("id", "position", "title", "duration")

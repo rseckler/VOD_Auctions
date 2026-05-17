@@ -22,6 +22,7 @@ import { lockFields } from "../../../../lib/release-locks"
 import { classifyDiscogsFormat } from "../../../../lib/format-mapping"
 import { pickArtistDisplayName, type DiscogsArtistEntry } from "../../../../lib/artist-display"
 import { normalizeCountryToIso } from "../../../../lib/country-normalize"
+import { buildTracklist, type DiscogsTracklistEntry } from "../../../../lib/discogs-tracklist"
 
 // ─── POST /admin/discogs-import/commit ───────────────────────────────────────
 // SSE Stream with phase-based progress:
@@ -761,15 +762,18 @@ export async function POST(
           ]
         )
 
-        // Tracklist (Track table has no createdAt/updatedAt columns)
-        const tracks = (cached?.tracklist || []) as Array<{ position?: string; title?: string; duration?: string }>
-        for (const track of tracks) {
+        // Tracklist (Track table has no createdAt/updatedAt columns).
+        // rc71.4: buildTracklist komponiert den Per-Track-Künstler bei
+        // Compilations in den Titel ("Artist – Titel") — shared Helper.
+        const tracks = buildTracklist(cached?.tracklist as DiscogsTracklistEntry[] | undefined)
+        for (let ti = 0; ti < tracks.length; ti++) {
+          const track = tracks[ti]
           if (!track.title) continue
           await trx.raw(
             `INSERT INTO "Track" (id, "releaseId", position, title, duration)
             VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`,
             [
-              `dt-${did}-${track.position || "0"}`,
+              `dt-${did}-${track.position || String(ti)}`,
               releaseId,
               track.position || "",
               track.title,

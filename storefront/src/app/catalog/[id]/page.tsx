@@ -177,6 +177,14 @@ export default async function CatalogDetailPage({
     ? extracted.remainingCredits
     : release.credits
 
+  // rc71.4: Discogs-Notes (Release.description). Legacy-Releases haben hier oft
+  // gescrapten HTML-Müll (z.B. ein ganzer <div id="tracklist">-Block) — solche
+  // mit HTML-Tags werden übersprungen, nur sauberer Text erscheint als "Notes".
+  // Selbstheilend: sobald ein Release sauber von Discogs gefetcht wird, ist
+  // description sauberer Text und die Notes erscheinen.
+  const rawNotes = release.description?.trim() || null
+  const notes = rawNotes && !/<[a-z!/][^>]*>/i.test(rawNotes) ? rawNotes : null
+
   // Use images in API sort order (by URL, matching legacy rang order)
   // coverImage only used as fallback when no gallery images exist
   const images: string[] = []
@@ -496,6 +504,19 @@ export default async function CatalogDetailPage({
               <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full bg-gradient-to-b from-primary via-primary/60 to-transparent" />
               <h2 className="font-serif text-[15px] text-primary mb-3">Credits</h2>
               <CreditsTable credits={effectiveCredits} />
+            </div>
+          )}
+
+          {/* Notes (rc71.4) — Discogs-Notes aus Release.description */}
+          {notes && (
+            <div className="relative pl-4 mb-7">
+              <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full bg-gradient-to-b from-primary via-primary/60 to-transparent" />
+              <h2 className="font-serif text-[15px] text-primary mb-3">Notes</h2>
+              <div className="bg-card rounded-lg p-3 border border-white/[0.06]">
+                <p className="text-[13px] text-muted-foreground whitespace-pre-line leading-relaxed">
+                  {notes}
+                </p>
+              </div>
             </div>
           )}
 
