@@ -337,6 +337,7 @@ docs/
 9. **`supabase_realtime: degraded`** (non-blocker) — aktivieren sobald Live-Bidding live geht
 
 **Arbeitsregeln:**
+- **Umfassend arbeiten, nicht isoliert** (2026-05-17) — vor jeder Daten-/Code-/Schema-Änderung: (1) **Lifecycle-Trace** — alle Writer UND alle Reader des Felds/der Tabelle/des Flows greppen, Änderung erst freigeben wenn jeder Read dagegen geprüft ist; (2) **Feature-Oberfläche** prüfen — nicht „das Feld fixen", sondern: welches Feature ist das, ist es ganz? Facetten: Anzeige · Suche · Verlinkung · Datenmodell · Legacy; (3) **Trade-offs offenlegen** — jeder Vorschlag sagt explizit, was der gewählte Weg NICHT kann; (4) **eigener Review** mit Downstream-/Edge-Case-Fragen VOR dem Shippen. Hintergrund: enge Symptom-Fixes erzeugen Folge-Bugs (Tracklist-Saga rc69→rc71.6). Memory `feedback_work_comprehensively`.
 - Keine Task-Listen hier pflegen — `docs/TODO.md` nutzen
 - Bei Meilensteinen Current Focus aktualisieren
 - Epics + externe Blocker in Linear
