@@ -59,6 +59,8 @@ Aktuell aktive Workstreams. Maximal 2-3 gleichzeitig.
 5. **POS Walk-in Sale** — P0 Dry-Run live, Frank testet, P1-P4 warten auf Steuerberater
 6. **Launch-Vorbereitung** — AGB-Anwalt als kritischer Pfad
 
+7. **[~] Platform Migration — Konzept-Bündel fertig, wartet auf Frank-Entscheidungssitzung (2026-05-17).** Überführung von tape-mag.com (Erlebnisplattform — bleibt, wird als neue App neu gebaut) und vod-records.com (Legacy-Shop → Commerce-App) auf das gemeinsame VOD_Auctions-Fundament; VOD Records = Label-Store (membership-frei), VOD Auctions = Marktplatz (membership-gegated, Membership-Modell statt Provision). **Ziel:** eine Plattform-Landschaft, Altsysteme (3wadmin auf Hetzner) abgeschaltet. **Status:** 7-Doc-Bündel [`docs/Platform Migration/`](Platform%20Migration/) erstellt (Analyse · Strategie · Technik · Umsetzungsplan · SEO-Konzept · Frank-Agenda · Design-Prompt). **Blocker:** 11 offene Entscheidungen ([`6_FRANK_AGENDA.md`](Platform%20Migration/6_FRANK_AGENDA.md)) — kritischer Pfad ist #4 Kommissionsmodell (StB) + RSE-78 AGB-Anwalt. **Nächste Aktion:** Frank-Entscheidungssitzung (Umsetzungsplan Phase 0.1), danach StB-Termin §25a/Kommission. Session-Log [`2026-05-17_platform_migration_doc_bundle.md`](sessions/2026-05-17_platform_migration_doc_bundle.md).
+
 ## Next
 
 Kommt dran sobald ein Now-Slot frei wird oder ein Blocker sich löst.
