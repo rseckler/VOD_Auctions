@@ -104,6 +104,35 @@ Commit `b42a444`. Release rc71.3.
 3. 166 verifizierte Releases **ohne** Discogs-Link — Handarbeit; optional
    Fuzzy-Match-Vorschlagsliste.
 
+## rc71.5 — Compilation-Künstler, Notes, Tracklist-Reihenfolge (2026-05-17)
+
+Frank-Befund: bei Samplern verschwanden nach einem Fetch die Per-Track-Künstler.
+**Root Cause:** rc69 Fix 2 zog beim Tracklist-Fetch nur position/title/duration —
+nicht das Per-Track-`artists`-Array von Discogs. Ein Refetch überschrieb
+`"Algebra Suicide – Somewhat Bleecker Street"` mit nacktem `"Somewhat Bleecker
+Street"`. **Fix:** Shared-Helper `lib/discogs-tracklist.ts` komponiert den
+Künstler; Tracklist-Reihenfolge natürlich sortiert (statt lexikalisch
+A1,A10,A11,A2); neue „Notes"-Sektion in der Storefront (`Release.description`).
+**Remediation:** `refetch_compilation_tracklists.py` — 35 regressed Compilations
+repariert. Commit `0b816ef`.
+
+## rc71.6 — Per-Track-Künstler strukturiert: suchbar + klickbar (2026-05-17)
+
+Folge-Befund (Robin): rc71.5 machte den Künstler sichtbar, aber als String in
+`Track.title` gebacken → **nicht suchbar** („David Jackman" fand den Sampler
+nicht) und **nicht klickbar**. Auslöser auch für die Arbeitsregel „umfassend
+arbeiten" (Memory `feedback_work_comprehensively`, CLAUDE.md).
+
+**Lösung** (vorab als Konzept durchgeplant — [`TRACK_ARTIST_STRUKTURIERT_KONZEPT.md`](../optimizing/TRACK_ARTIST_STRUKTURIERT_KONZEPT.md)):
+neue Spalte `Track.artist_name` (Replica zuerst), `buildTracklist` strukturiert,
+alle Writer + Track-CRUD + Modal + TrackManagement, Store-Route mit read-time
+Slug-Auflösung (`LATERAL` auf `Artist.name`), Storefront-Tracklist-Link, Meili
+`track_artists` + `search_text`-Trigger. **Un-Bake-Migration:** 6.071 gebackene
+Track-Titel in 420 Compilations auseinandergezogen. **Meili Full-Rebuild**
+(52.788 Docs). Nebenbei: `wait_for_task`-404-Toleranz gefixt (crashte den
+Rebuild im Post-Swap-Schritt). Verifiziert: „david jackman" findet Flowmotion.
+Commits `d2df839` + `f522550`.
+
 ## Releases
 
 | Release | Commit | Inhalt |
@@ -112,3 +141,5 @@ Commit `b42a444`. Release rc71.3.
 | rc70.0 | `c15a711` | Discogs-Backfill-Review-Tool |
 | rc71.1 | `c9bbd1d` | Replikations-Hotfix + CLAUDE.md-Gotcha |
 | rc71.3 | `b42a444` | Codex-Review-Fixes (3 Findings) |
+| rc71.5 | `0b816ef` | Compilation-Künstler + Notes + Tracklist-Reihenfolge |
+| rc71.6 | `d2df839` | Per-Track-Künstler strukturiert (suchbar + klickbar) |

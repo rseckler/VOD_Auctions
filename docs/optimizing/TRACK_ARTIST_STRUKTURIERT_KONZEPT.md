@@ -1,6 +1,8 @@
 # Per-Track-Künstler strukturiert — Konzept
 
-**Status:** Implementierung (2026-05-17)
+**Status:** ✅ Live (rc71.6, 2026-05-17) — deployed + verifiziert: Suche
+„david jackman" findet Flowmotion (Meili + `search_text`), Storefront-Tracklist
+liefert klickbare `artist_slug`. Un-Bake: 6.071 Tracks / 420 Compilations.
 **Auslöser:** rc71.5 hat den Per-Track-Künstler bei Compilations als String in
 `Track.title` gebacken (`"Algebra Suicide – Somewhat Bleecker Street"`). Folge:
 der Künstler ist **nicht suchbar** (Suche „David Jackman" findet den Sampler
